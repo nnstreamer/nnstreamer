@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2018 MyungJoo Ham <<user@hostname.org>>
+ * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -88,20 +88,28 @@ enum
   PROP_SILENT
 };
 
-/* the capabilities of the inputs and outputs.
+/* the capabilities of the inputs
  *
- * describe the real formats here.
+ * In v0.0.1, this is "bitmap" image stream
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
+    GST_STATIC_CAPS ("video/x-raw, format = (string)RGB")
     );
 
+/* the capabilities of the outputs
+ *
+ * In v0.0.1, this is 3-d tensor, [color][height][width]
+ */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
+    GST_STATIC_CAPS ("other/tensor, "
+                       "rank = (int) [ 1, 4 ], "
+		       "dimension = (int) [ 0, 65536 ], (int) [ 0, 65536 ], (int) [ 0, 65536 ], (int) [0, 65536 ], "
+		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
+		       "framerate = (fraction) [ 0, 1024 ], ")
     );
 
 #define gst_convert2tensor_parent_class parent_class
@@ -136,9 +144,9 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * klass)
 
   gst_element_class_set_details_simple(gstelement_class,
     "Convert2Tensor",
-    "FIXME:Generic",
-    "FIXME:Generic Template Element",
-    "MyungJoo Ham <<user@hostname.org>>");
+    "Convert media stream to tensor stream",
+    "Converts audio or video stream to tensor stream for neural network framework filters",
+    "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));

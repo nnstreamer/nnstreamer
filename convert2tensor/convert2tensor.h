@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2018 MyungJoo Ham <<user@hostname.org>>
+ * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -69,16 +69,16 @@ G_BEGIN_DECLS
 #define GST_IS_CONVERT2TENSOR_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CONVERT2TENSOR))
 
-typedef struct _GstConvert2Tensor      GstConvert2Tensor;
+typedef struct _GstConvert2Tensor GstConvert2Tensor;
+
 typedef struct _GstConvert2TensorClass GstConvert2TensorClass;
 
 struct _GstConvert2Tensor
 {
-  GstElement element;
-
-  GstPad *sinkpad, *srcpad;
-
-  gboolean silent;
+  GstElement element;	/**< This element itself is the convert2tensor filter */
+  GstPad *sinkpad;	/**< Media stream input */
+  GstPad *srcpad;	/**< Tensor stream output */
+  gboolean silent;	/**< True if logging is minimized */
 };
 
 struct _GstConvert2TensorClass 

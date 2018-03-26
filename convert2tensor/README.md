@@ -26,6 +26,7 @@ Direct conversion of general audio stream to FORMAT-TO-BE-DETERMINED
 - Properties
   - rank: int (0: scalar, 1: vector, 2: matrix, 3: 3-tensor, ...)
   - dimension: int[] (1 .. rank)
-  - type: int32., float32, int8, uint8, ... (C types only?)
-  - data: (binary data, can be treated as an C array of [dimension[0]][dimension[1]]...)
+  - type: int32, uint32, float32, float64, int16, uint16, int8, uint8, ... (C types only?)
+  - framerate; fraction
 
+  - data: (binary data, can be treated as an C array of [dimension[0]][dimension[1]]...)
