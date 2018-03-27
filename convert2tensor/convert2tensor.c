@@ -108,8 +108,11 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("other/tensor, "
-                       "rank = (int) [ 1, 4 ], "
-		       "dimension = (int) [ 0, 65536 ], (int) [ 0, 65536 ], (int) [ 0, 65536 ], (int) [0, 65536 ], "
+                       "rank = (uint) [ 1, 4 ], "
+		       "dim1 = (uint) [ 1, 65535 ], "
+		       "dim2 = (uint) [ 1, 65535 ], "
+		       "dim3 = (uint) [ 1, 65535 ], "
+		       "dim4 = (uint) [ 1, 65535 ], "
 		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
 		       "framerate = (fraction) [ 0, 1024 ], ")
     );
@@ -177,6 +180,7 @@ gst_convert2tensor_init (GstConvert2Tensor * filter)
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
   filter->silent = FALSE;
+  filter->tensorConfigured = FALSE;
 }
 
 static void
@@ -211,11 +215,62 @@ gst_convert2tensor_get_property (GObject * object, guint prop_id,
   }
 }
 
-/* GstElement vmethod implementations */
+/******************************************************************
+ * GstElement vmethod implementations
+ */
 
+#define return_false_if_fail(x)	\
+  ret = (x); \
+  if (!ret) \
+    return FALSE; \
+  ;
 /* Configure tensor metadata from sink caps */
 static gboolean
-gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *myself) {
+gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filter) {
+  GstStructure *structure;
+  gint rank;
+  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];
+  tensor_type type;
+  gint framerate_numerator;
+  gint framerate_denominator;
+  gboolean ret;
+  GstCaps *outcaps;
+  int i;
+
+  /* This caps is coming from video/x-raw */
+  structure = gst_caps_get_structure(caps, 0);
+  rank = 3; /* [color-space][height][width] */
+  return_false_if_fail(gst_structure_get_int(structure, "width", &dimension[0]));
+  return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[1]));
+  return_false_if_fail(gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator));
+  type = _C2T_UINT8; /* Assume color depth per component is 8 bit */
+  dimension[2] = 3; /* R G B */
+  dimension[3] = 1; /* This is 3-D Tensor */
+  /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
+
+  if (filter->tensorConfigured == TRUE) {
+    /* It has been already configured. Check if they are consistent */
+    if (rank == filter->rank &&
+	type == filter->type &&
+	framerate_numerator == filter->framerate_numerator &&
+	framerate_denominator == filter->framerate_denominator) {
+      for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
+        if (dimension[i] != filter->dimension[i])
+	  return FALSE;
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+  filter->rank = rank;
+  for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
+    filter->dimension[i] = dimension[i];
+  filter->type = type;
+  filter->framerate_numerator = framerate_numerator;
+  filter->framerate_denominator = framerate_denominator;
+
+  filter->tensorConfigured = TRUE;
+  return TRUE;
 }
 
 
@@ -237,9 +292,11 @@ gst_convert2tensor_sink_event (GstPad * pad, GstObject * parent, GstEvent * even
       GstCaps * caps;
 
       gst_event_parse_caps (event, &caps);
-      /* @TODO Construct tensor metadata from sink caps */
       ret = gst_convert2tensor_configure_tensor(caps, filter);
-
+      if (ret == FALSE) {
+        g_printerr("Cannot parse sinkpad caps properly for tensor metadata\n");
+        break; /* REPORT THIS INCIDENT! */
+      }
 
       /* and forward */
       ret = gst_pad_event_default (pad, parent, event);

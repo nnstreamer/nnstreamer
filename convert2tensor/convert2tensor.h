@@ -73,6 +73,19 @@ typedef struct _GstConvert2Tensor GstConvert2Tensor;
 
 typedef struct _GstConvert2TensorClass GstConvert2TensorClass;
 
+#define GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT	(4)
+typedef enum _tensor_type {
+      _C2T_INT32 = 0,
+      _C2T_UINT32,
+      _C2T_INT16,
+      _C2T_UINT16,
+      _C2T_INT8,
+      _C2T_UINT8,
+      _C2T_FLOAT64,
+      _C2T_FLOAT32,
+
+      _C2T_END,
+} tensor_type;
 struct _GstConvert2Tensor
 {
   GstElement element;	/**< This element itself is the convert2tensor filter */
@@ -80,20 +93,13 @@ struct _GstConvert2Tensor
   GstPad *srcpad;	/**< Tensor stream output */
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if sinkpad has successfully configured tensor metadata */
-  int rank;		/**< Tensor Rank (# dimensions) */
-  int dimension[4];	/**< Dimensions. We support up to 4th ranks */
-  enum {
-        _C2T_INT32 = 0,
-        _C2T_UINT32,
-        _C2T_INT16,
-        _C2T_UINT16,
-        _C2T_INT8,
-        _C2T_UINT8,
-        _C2T_FLOAT64,
-        _C2T_FLOAT32,
-  } type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
+  gint rank;		/**< Tensor Rank (# dimensions) */
+  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];	/**< Dimensions. We support up to 4th ranks */
+  tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
+  gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
+  gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
 };
-unsigned int GstConvert2TensorDataSize[] = {
+const unsigned int GstConvert2TensorDataSize[] = {
         [_C2T_INT32] = 4,
         [_C2T_UINT32] = 4,
         [_C2T_INT16] = 2,
@@ -103,6 +109,17 @@ unsigned int GstConvert2TensorDataSize[] = {
         [_C2T_FLOAT64] = 8,
         [_C2T_FLOAT32] = 4,
 };
+const gchar* GstConvert2TensorDataTypeName[] = {
+        [_C2T_INT32] = "int32",
+        [_C2T_UINT32] = "uint32",
+        [_C2T_INT16] = "int16",
+        [_C2T_UINT16] = "uint16",
+        [_C2T_INT8] = "int8",
+        [_C2T_UINT8] = "uint8",
+        [_C2T_FLOAT64] = "float64",
+        [_C2T_FLOAT32] = "float32",
+};
+
 
 struct _GstConvert2TensorClass 
 {
