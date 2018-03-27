@@ -101,6 +101,8 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 /* the capabilities of the outputs
  *
  * In v0.0.1, this is 3-d tensor, [color][height][width]
+ *
+ * @TODO Note: I'm not sure of this.
  */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -211,6 +213,12 @@ gst_convert2tensor_get_property (GObject * object, guint prop_id,
 
 /* GstElement vmethod implementations */
 
+/* Configure tensor metadata from sink caps */
+static gboolean
+gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *myself) {
+}
+
+
 /* this function handles sink events */
 static gboolean
 gst_convert2tensor_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
@@ -229,7 +237,9 @@ gst_convert2tensor_sink_event (GstPad * pad, GstObject * parent, GstEvent * even
       GstCaps * caps;
 
       gst_event_parse_caps (event, &caps);
-      /* do something with the caps */
+      /* @TODO Construct tensor metadata from sink caps */
+      ret = gst_convert2tensor_configure_tensor(caps, filter);
+
 
       /* and forward */
       ret = gst_pad_event_default (pad, parent, event);
@@ -254,6 +264,10 @@ gst_convert2tensor_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   if (filter->silent == FALSE)
     g_print ("I'm plugged, therefore I'm in.\n");
+
+  /*
+   * @TODO: Convert video/x-raw frame to tensor instance.
+   */
 
   /* just push out the incoming buffer without touching it */
   return gst_pad_push (filter->srcpad, buf);

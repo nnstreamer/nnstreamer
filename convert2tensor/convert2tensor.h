@@ -79,6 +79,29 @@ struct _GstConvert2Tensor
   GstPad *sinkpad;	/**< Media stream input */
   GstPad *srcpad;	/**< Tensor stream output */
   gboolean silent;	/**< True if logging is minimized */
+  gboolean tensorConfigured;	/**< True if sinkpad has successfully configured tensor metadata */
+  int rank;		/**< Tensor Rank (# dimensions) */
+  int dimension[4];	/**< Dimensions. We support up to 4th ranks */
+  enum {
+        _C2T_INT32 = 0,
+        _C2T_UINT32,
+        _C2T_INT16,
+        _C2T_UINT16,
+        _C2T_INT8,
+        _C2T_UINT8,
+        _C2T_FLOAT64,
+        _C2T_FLOAT32,
+  } type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
+};
+unsigned int GstConvert2TensorDataSize[] = {
+        [_C2T_INT32] = 4,
+        [_C2T_UINT32] = 4,
+        [_C2T_INT16] = 2,
+        [_C2T_UINT16] = 2,
+        [_C2T_INT8] = 1,
+        [_C2T_UINT8] = 1,
+        [_C2T_FLOAT64] = 8,
+        [_C2T_FLOAT32] = 4,
 };
 
 struct _GstConvert2TensorClass 
