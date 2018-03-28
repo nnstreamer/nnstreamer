@@ -45,6 +45,12 @@
  * @file	convert2tensor.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
+ *
+ *                Be careful: this filter assumes that the user has attached
+ *               rawvideoparser as a preprocessor for this filter so that
+ *               the incoming buffer is nicely aligned in the array of
+ *               uint8[RGB][height][width].
+ *
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
@@ -55,6 +61,8 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
+#include <gst/video/video-info.h>
+#include <gst/video/video-frame.h>
 
 G_BEGIN_DECLS
 
@@ -77,28 +85,48 @@ typedef struct _GstConvert2TensorClass GstConvert2TensorClass;
 
 #define GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT	(4)
 typedef enum _tensor_type {
-      _C2T_INT32 = 0,
-      _C2T_UINT32,
-      _C2T_INT16,
-      _C2T_UINT16,
-      _C2T_INT8,
-      _C2T_UINT8,
-      _C2T_FLOAT64,
-      _C2T_FLOAT32,
+  _C2T_INT32 = 0,
+  _C2T_UINT32,
+  _C2T_INT16,
+  _C2T_UINT16,
+  _C2T_INT8,
+  _C2T_UINT8,
+  _C2T_FLOAT64,
+  _C2T_FLOAT32,
 
-      _C2T_END,
+  _C2T_END,
 } tensor_type;
+typedef enum _media_type {
+  _C2T_VIDEO = 0,
+  _C2T_AUDIO, /* Not Supported Yet */
+  _C2T_STRING, /* Not Supported Yet */
+
+  _C2T_MEDIA_END,
+} media_type;
 struct _GstConvert2Tensor
 {
   GstBaseTransform element;	/**< This is the parent object */
 
+  /* For transformer */
+  gboolean negotiated; /* When this is %TRUE, tensor metadata must be set */
+  media_type input_media_type;
+  union {
+    GstVideoInfo video;
+    /* @TODO: Add other media types */
+  } in_info;
+
+  /* For Tensor */
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
-  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];	/**< Dimensions. We support up to 4th ranks */
+  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];
+      /**< Dimensions. We support up to 4th ranks.
+       *  @caution The first dimension is always 4 x N.
+       **/
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
+  gsize tensorFrameSize;
 };
 const unsigned int GstConvert2TensorDataSize[] = {
         [_C2T_INT32] = 4,
@@ -121,7 +149,13 @@ const gchar* GstConvert2TensorDataTypeName[] = {
         [_C2T_FLOAT32] = "float32",
 };
 
-
+/*
+ * GstConvert2TensorClass inherits GstBaseTransformClass.
+ *
+ * Referring another child (sibiling), GstVideoFilter (abstract class) and
+ * its child (concrete class) GstVideoConverter.
+ * Note that GstConvert2TensorClass is a concrete class; thus we need to look at both.
+ */
 struct _GstConvert2TensorClass 
 {
   GstBaseTransformClass parent_class;

@@ -95,7 +95,7 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, format = (string)RGB")
+    GST_STATIC_CAPS ("video/x-raw, format = (string)RGB, views = (int)1, interlace-mode = (string)progressive")
     );
 
 /* the capabilities of the outputs
@@ -261,6 +261,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   tensor_type type;
   gint framerate_numerator;
   gint framerate_denominator;
+  gsize tensorFrameSize;
   gboolean ret;
   GstCaps *outcaps;
   int i;
@@ -274,6 +275,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   type = _C2T_UINT8; /* Assume color depth per component is 8 bit */
   dimension[2] = 3; /* R G B */
   dimension[3] = 1; /* This is 3-D Tensor */
+  tensorFrameSize = GstConvert2TensorDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
   if (filter->tensorConfigured == TRUE) {
@@ -281,6 +283,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
     if (rank == filter->rank &&
 	type == filter->type &&
 	framerate_numerator == filter->framerate_numerator &&
+	tensorFrameSize == filter->tensorFrameSize &&
 	framerate_denominator == filter->framerate_denominator) {
       for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
         if (dimension[i] != filter->dimension[i])
@@ -297,6 +300,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   filter->type = type;
   filter->framerate_numerator = framerate_numerator;
   filter->framerate_denominator = framerate_denominator;
+  filter->tensorFrameSize = tensorFrameSize;
 
   filter->tensorConfigured = TRUE;
   return TRUE;
@@ -346,16 +350,72 @@ GST_PLUGIN_DEFINE (
     "http://gstreamer.net/"
 )
 
+static GstFlowReturn gst_c2t_transformer_videoframe(GstConvert2Tensor *filter,
+                                               GstVideoFrame *inframe, GstBuffer *outbuf)
+{
+  /* @TODO RGB are interlaced! FIXME!
+     @TODO Width has stride-4. FIXME!
+   */
+  return gst_buffer_copy_into(outbuf, inframe->buffer,
+      GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0,
+      GST_VIDEO_FRAME_SIZE(inframe));
+}
 
 static GstFlowReturn gst_convert2tensor_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf)
 {
+  GstVideoFrame in_frame;
+  GstFlowReturn res;
+  GstConvert2Tensor *filter = GST_CONVERT2TENSOR_CAST(trans);
+
+  if (G_UNLIKELY(!filter->negotiated))
+    goto unknown_format;
+  if (G_UNLIKELY(!filter->tensorConfigured))
+    goto unknown_tensor;
+
+  switch(filter->input_media_type) {
+  case _C2T_VIDEO:
+    // CAUTION! in_info.video must be already configured!
+    if (!gst_video_frame_map(&in_frame, &filter->in_info.video, inbuf,
+            GST_MAP_READ | GST_VIDEO_FRAME_MAP_FLAG_NO_REF))
+      goto invalid_buffer;
+
+    if (gst_c2t_transformer_videoframe(filter, &in_frame, outbuf))
+      res = GST_FLOW_OK;
+    else
+      res = GST_FLOW_ERROR;
+    gst_video_frame_unmap(&in_frame);
+    break;
+  /* NOT SUPPORTED */
+  case _C2T_AUDIO:
+  case _C2T_STRING:
+  default:
+    g_printerr("  Unsupported Media Type (%d)\n", filter->input_media_type);
+    goto unknown_type;
+  }
+
+  return res;
+
+unknown_format:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_tensor:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format for tensor"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_type:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("not implemented type of media"));
+  return GST_FLOW_NOT_SUPPORTED;
+invalid_buffer:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("invalid video buffer received from input"));
+  return GST_FLOW_ERROR;
 }
 
 static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
                                                      GstBuffer *buf)
 {
+  /* DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
+  return GST_FLOW_OK;
 }
 
 static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
