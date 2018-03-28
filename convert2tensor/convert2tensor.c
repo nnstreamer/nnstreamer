@@ -118,27 +118,28 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     );
 
 #define gst_convert2tensor_parent_class parent_class
-G_DEFINE_TYPE (GstConvert2Tensor, gst_convert2tensor, GST_TYPE_ELEMENT);
+G_DEFINE_TYPE (GstConvert2Tensor, gst_convert2tensor, GST_TYPE_BASE_TRANSFORM);
 
 static void gst_convert2tensor_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_convert2tensor_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-static gboolean gst_convert2tensor_sink_event (GstPad * pad, GstObject * parent, GstEvent * event);
-static GstFlowReturn gst_convert2tensor_chain (GstPad * pad, GstObject * parent, GstBuffer * buf);
-
 /* GObject vmethod implementations */
 
 /* initialize the convert2tensor's class */
 static void
-gst_convert2tensor_class_init (GstConvert2TensorClass * klass)
+gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
+  GstBaseTransformClass *trans_class;
+  GstConvert2TensorClass *klass;
 
-  gobject_class = (GObjectClass *) klass;
-  gstelement_class = (GstElementClass *) klass;
+  klass = (GstConvert2TensorClass *) g_class;
+  trans_class = (GstBaseTransformClass *) klass;
+  gstelement_class = (GstElementClass *) trans_class;
+  gobject_class = (GObjectClass *) gstelement_class;
 
   gobject_class->set_property = gst_convert2tensor_set_property;
   gobject_class->get_property = gst_convert2tensor_get_property;
@@ -157,6 +158,10 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * klass)
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sink_factory));
+
+  /* Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
+  trans_class->passthrough_on_same_caps = FALSE;
+
 }
 
 /* initialize the new element
@@ -167,18 +172,6 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * klass)
 static void
 gst_convert2tensor_init (GstConvert2Tensor * filter)
 {
-  filter->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
-  gst_pad_set_event_function (filter->sinkpad,
-                              GST_DEBUG_FUNCPTR(gst_convert2tensor_sink_event));
-  gst_pad_set_chain_function (filter->sinkpad,
-                              GST_DEBUG_FUNCPTR(gst_convert2tensor_chain));
-  GST_PAD_SET_PROXY_CAPS (filter->sinkpad);
-  gst_element_add_pad (GST_ELEMENT (filter), filter->sinkpad);
-
-  filter->srcpad = gst_pad_new_from_static_template (&src_factory, "src");
-  GST_PAD_SET_PROXY_CAPS (filter->srcpad);
-  gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
-
   filter->silent = FALSE;
   filter->tensorConfigured = FALSE;
 }
@@ -259,6 +252,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
 	  return FALSE;
       return TRUE;
     }
+    g_printerr("  Something's wrong. The tensor metadata is inconsistent.\n");
     return FALSE;
   }
 
@@ -271,63 +265,6 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
 
   filter->tensorConfigured = TRUE;
   return TRUE;
-}
-
-
-/* this function handles sink events */
-static gboolean
-gst_convert2tensor_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
-{
-  GstConvert2Tensor *filter;
-  gboolean ret;
-
-  filter = GST_CONVERT2TENSOR (parent);
-
-  GST_LOG_OBJECT (filter, "Received %s event: %" GST_PTR_FORMAT,
-      GST_EVENT_TYPE_NAME (event), event);
-
-  switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_CAPS:
-    {
-      GstCaps * caps;
-
-      gst_event_parse_caps (event, &caps);
-      ret = gst_convert2tensor_configure_tensor(caps, filter);
-      if (ret == FALSE) {
-        g_printerr("Cannot parse sinkpad caps properly for tensor metadata\n");
-        break; /* REPORT THIS INCIDENT! */
-      }
-
-      /* and forward */
-      ret = gst_pad_event_default (pad, parent, event);
-      break;
-    }
-    default:
-      ret = gst_pad_event_default (pad, parent, event);
-      break;
-  }
-  return ret;
-}
-
-/* chain function
- * this function does the actual processing
- */
-static GstFlowReturn
-gst_convert2tensor_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
-{
-  GstConvert2Tensor *filter;
-
-  filter = GST_CONVERT2TENSOR (parent);
-
-  if (filter->silent == FALSE)
-    g_print ("I'm plugged, therefore I'm in.\n");
-
-  /*
-   * @TODO: Convert video/x-raw frame to tensor instance.
-   */
-
-  /* just push out the incoming buffer without touching it */
-  return gst_pad_push (filter->srcpad, buf);
 }
 
 

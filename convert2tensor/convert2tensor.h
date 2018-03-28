@@ -54,6 +54,7 @@
 #define __GST_CONVERT2TENSOR_H__
 
 #include <gst/gst.h>
+#include <gst/base/gstbasetransform.h>
 
 G_BEGIN_DECLS
 
@@ -123,7 +124,7 @@ const gchar* GstConvert2TensorDataTypeName[] = {
 
 struct _GstConvert2TensorClass 
 {
-  GstElementClass parent_class;
+  GstBaseTransformClass parent_class;
 };
 
 GType gst_convert2tensor_get_type (void);
