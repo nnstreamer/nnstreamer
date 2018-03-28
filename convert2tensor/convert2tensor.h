@@ -69,6 +69,7 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CONVERT2TENSOR))
 #define GST_IS_CONVERT2TENSOR_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CONVERT2TENSOR))
+#define GST_CONVERT2TENSOR_CAST(obj)  ((GstConvert2Tensor *)(obj))
 
 typedef struct _GstConvert2Tensor GstConvert2Tensor;
 
@@ -89,11 +90,10 @@ typedef enum _tensor_type {
 } tensor_type;
 struct _GstConvert2Tensor
 {
-  GstElement element;	/**< This element itself is the convert2tensor filter */
-  GstPad *sinkpad;	/**< Media stream input */
-  GstPad *srcpad;	/**< Tensor stream output */
+  GstBaseTransform element;	/**< This is the parent object */
+
   gboolean silent;	/**< True if logging is minimized */
-  gboolean tensorConfigured;	/**< True if sinkpad has successfully configured tensor metadata */
+  gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
   gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];	/**< Dimensions. We support up to 4th ranks */
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */

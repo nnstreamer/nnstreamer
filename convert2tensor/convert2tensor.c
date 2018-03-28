@@ -125,6 +125,29 @@ static void gst_convert2tensor_set_property (GObject * object, guint prop_id,
 static void gst_convert2tensor_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
+/* GstBaseTransformer vmethod implementations */
+static GstFlowReturn gst_convert2tensor_transform(GstBaseTransform *trans,
+                                                  GstBuffer *inbuf,
+                                                  GstBuffer *outbuf);
+static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
+                                                     GstBuffer *buf);
+static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
+                                                  GstPadDirection direction,
+						  GstCaps *caps,
+						  GstCaps *filter);
+static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
+                                               GstPadDirection direction,
+					       GstCaps *caps,
+					       GstCaps *othercaps);
+static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
+                                            GstCaps *incaps,
+					    GstCaps *outcaps);
+static gboolean gst_convert2tensor_transform_size(GstBaseTransform *trans,
+                                                  GstPadDirection direction,
+						  GstCaps *caps, gsize size,
+						  GstCaps *othercpas, gsize *othersize);
+static gboolean gst_convert2tensor_get_unit_size(GstBaseTransform *trans,
+                                                 GstCaps *caps, gsize *size);
 /* GObject vmethod implementations */
 
 /* initialize the convert2tensor's class */
@@ -162,6 +185,18 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
   trans_class->passthrough_on_same_caps = FALSE;
 
+  /* Processing units */
+  trans_class->transform = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform);
+  trans_class->transform_ip = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_ip);
+
+  /* Negotiation units */
+  trans_class->transform_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_caps);
+  trans_class->fixate_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_fixate_caps);
+  trans_class->set_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_set_caps);
+
+  /* Allocation units */
+  trans_class->transform_size = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_size);
+  trans_class->get_unit_size = GST_DEBUG_FUNCPTR(gst_convert2tensor_get_unit_size);
 }
 
 /* initialize the new element
@@ -310,3 +345,47 @@ GST_PLUGIN_DEFINE (
     "GStreamer",
     "http://gstreamer.net/"
 )
+
+
+static GstFlowReturn gst_convert2tensor_transform(GstBaseTransform *trans,
+                                                  GstBuffer *inbuf,
+                                                  GstBuffer *outbuf)
+{
+}
+
+static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
+                                                     GstBuffer *buf)
+{
+}
+
+static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
+                                                  GstPadDirection direction,
+						  GstCaps *caps,
+						  GstCaps *filter)
+{
+}
+
+static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
+                                               GstPadDirection direction,
+					       GstCaps *caps,
+					       GstCaps *othercaps)
+{
+}
+
+static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
+                                            GstCaps *incaps,
+					    GstCaps *outcaps)
+{
+}
+
+static gboolean gst_convert2tensor_transform_size(GstBaseTransform *trans,
+                                                  GstPadDirection direction,
+						  GstCaps *caps, gsize size,
+						  GstCaps *othercpas, gsize *othersize)
+{
+}
+
+static gboolean gst_convert2tensor_get_unit_size(GstBaseTransform *trans,
+                                                 GstCaps *caps, gsize *size)
+{
+}
