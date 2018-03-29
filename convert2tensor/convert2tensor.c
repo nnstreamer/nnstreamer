@@ -108,11 +108,11 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("other/tensor, "
-                       "rank = (uint) [ 1, 4 ], "
-		       "dim1 = (uint) [ 1, 65535 ], "
-		       "dim2 = (uint) [ 1, 65535 ], "
-		       "dim3 = (uint) [ 1, 65535 ], "
-		       "dim4 = (uint) [ 1, 65535 ], "
+                       "rank = (int) [ 1, 4 ], "
+                       "dim1 = (int) [ 1, 65535 ], "
+                       "dim2 = (int) [ 1, 65535 ], "
+                       "dim3 = (int) [ 1, 65535 ], "
+                       "dim4 = (int) [ 1, 65535 ], "
 		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
 		       "framerate = (fraction) [ 0, 1024 ], ")
     );
@@ -269,11 +269,16 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   /* This caps is coming from video/x-raw */
   structure = gst_caps_get_structure(caps, 0);
   rank = 3; /* [color-space][height][width] */
-  return_false_if_fail(gst_structure_get_int(structure, "width", &dimension[0]));
-  return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[1]));
+  return_false_if_fail(gst_structure_get_int(structure, "width", &dimension[1]));
+  return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[2]));
   return_false_if_fail(gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator));
   type = _C2T_UINT8; /* Assume color depth per component is 8 bit */
-  dimension[2] = 3; /* R G B */
+  if (dimension[1] % 4) {
+    g_print("  Width(dim2) is not divisible with 4. Width is adjusted %d -> %d\n",
+        dimension[1], (dimension[1] + 3) / 4 * 4);
+    dimension[1] = (dimension[1] + 3) / 4 * 4;
+  }
+  dimension[0] = 3; /* R G B */
   dimension[3] = 1; /* This is 3-D Tensor */
   tensorFrameSize = GstConvert2TensorDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
@@ -353,9 +358,6 @@ GST_PLUGIN_DEFINE (
 static GstFlowReturn gst_c2t_transformer_videoframe(GstConvert2Tensor *filter,
                                                GstVideoFrame *inframe, GstBuffer *outbuf)
 {
-  /* @TODO RGB are interlaced! FIXME!
-     @TODO Width has stride-4. FIXME!
-   */
   return gst_buffer_copy_into(outbuf, inframe->buffer,
       GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0,
       GST_VIDEO_FRAME_SIZE(inframe));

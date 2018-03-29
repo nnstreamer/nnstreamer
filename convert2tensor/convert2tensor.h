@@ -49,7 +49,7 @@
  *                Be careful: this filter assumes that the user has attached
  *               rawvideoparser as a preprocessor for this filter so that
  *               the incoming buffer is nicely aligned in the array of
- *               uint8[RGB][height][width].
+ *               uint8[height][width w/ rstride=4][RGB].
  *
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -119,10 +119,7 @@ struct _GstConvert2Tensor
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
-  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];
-      /**< Dimensions. We support up to 4th ranks.
-       *  @caution The first dimension is always 4 x N.
-       **/
+  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
