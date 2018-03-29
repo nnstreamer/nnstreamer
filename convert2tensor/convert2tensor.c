@@ -114,7 +114,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
                        "dim3 = (int) [ 1, 65535 ], "
                        "dim4 = (int) [ 1, 65535 ], "
 		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
-		       "framerate = (fraction) [ 0, 1024 ], ")
+		       "framerate = (fraction) [ 0/1, 2147483647/1 ], ")
     );
 
 #define gst_convert2tensor_parent_class parent_class
@@ -420,11 +420,94 @@ static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
   return GST_FLOW_OK;
 }
 
+/**
+ * gst_convert2tensor_transform_caps() - configure tensor-srcpad cap from "proposed" cap.
+ *
+ * @trans ("this" pointer)
+ * @direction (why do we need this?)
+ * @caps sinkpad cap
+ * @filter this element's cap (don't know specifically.)
+ */
 static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
                                                   GstPadDirection direction,
 						  GstCaps *caps,
 						  GstCaps *filter)
 {
+  GstCaps *tmp;
+  gboolean ret;
+  GstConvert2Tensor bogusFilter = {0};
+  bogusFilter.tensorConfigured = FALSE;
+
+  /* @TODO: Verify if direction == GST_PAD_SINK means caps is sink pad */
+  if (direction == GST_PAD_SINK) {
+    /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
+    /* @TODO: Verify if this assumption is correct */
+
+    /* Construct bogusFilter from caps (sinkpad) */
+    ret = gst_convert2tensor_configure_tensor(caps, &bogusFilter);
+    if (ret == FALSE) {
+      g_printerr("  Cannot retrieve tensor spec from the given input cap.\n");
+      tmp = gst_caps_new_empty();
+      return tmp; /* Empty Cap */
+    }
+
+    g_assert(bogusFilter.tensorConfigured == TRUE);
+
+    /* Construct GstCap (srcpad) from bugusFilter */
+    tmp = gst_caps_new_simple("other/tensor",
+        "rank", G_TYPE_INT, bogusFilter.rank,
+        "dim1", G_TYPE_INT, bogusFilter.dimension[0],
+        "dim2", G_TYPE_INT, bogusFilter.dimension[1],
+        "dim3", G_TYPE_INT, bogusFilter.dimension[2],
+        "dim4", G_TYPE_INT, bogusFilter.dimension[3],
+        "type", G_TYPE_STRING, GstConvert2TensorDataTypeName[bogusFilter.type],
+	"framerate", GST_TYPE_FRACTION, bogusFilter.framerate_numerator,
+	             bogusFilter.framerate_denominator,
+        NULL);
+
+    GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
+        GST_PTR_FORMAT, caps, tmp);
+    return tmp;
+  } else if (direction == GST_PAD_SINK) {
+    /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
+    /* @TODO: Verify if this assumption is correct */
+
+    gint dim[4];
+    gint rank;
+    gint fr_num, fr_denom;
+    GstStructure *structure;
+
+    /* @TODO: Type of srcpad(tensor) is not checked */
+    structure = gst_caps_get_structure(caps, 0);
+    ret = gst_structure_get_int(structure, "dim1", &dim[0]);
+    g_assert(ret == TRUE);
+    ret = gst_structure_get_int(structure, "dim2", &dim[1]);
+    g_assert(ret == TRUE);
+    ret = gst_structure_get_int(structure, "dim3", &dim[2]);
+    g_assert(ret == TRUE);
+    ret = gst_structure_get_int(structure, "dim4", &dim[3]);
+    g_assert(ret == TRUE);
+    ret = gst_structure_get_int(structure, "rank", &rank);
+    g_assert(ret == TRUE);
+    ret = gst_structure_get_fraction(structure, "framerate", &fr_num, &fr_denom);
+    g_assert(ret == TRUE);
+
+    tmp = gst_caps_new_simple("video/x-raw",
+        "format", G_TYPE_STRING, "RGB",
+	"views", G_TYPE_INT, 1,
+	"interlace-mode", G_TYPE_STRING, "progressive",
+	"width", G_TYPE_INT, dim[1], /* @TODO: dim[1]-1, dim[2]-2, dim[2]-3 must be allowed as well */
+	"height", G_TYPE_INT, dim[2],
+	"framerate", GST_TYPE_FRACTION, fr_num, fr_denom,
+	NULL);
+    GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
+        GST_PTR_FORMAT, caps, tmp);
+    return tmp;
+  }
+  /* Neither SRC/SINK? Impossible! */
+  GST_DEBUG_OBJECT(trans, "Error pad direction type.");
+  g_assert(TRUE == FALSE);
+  return NULL;
 }
 
 static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
@@ -432,6 +515,31 @@ static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
 					       GstCaps *caps,
 					       GstCaps *othercaps)
 {
+  GstCaps *supposed = gst_convert2tensor_transform_caps(trans, direction, caps, NULL);
+  GstCaps *result;
+
+  GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
+      " based on caps %" GST_PTR_FORMAT, othercaps, caps);
+
+  result = gst_caps_intersect(othercaps, supposed);
+  if (gst_caps_is_empty(result)) {
+    gst_caps_unref(result);
+    result = othercaps;
+  } else {
+    gst_caps_unref(othercaps);
+  }
+
+  GST_DEBUG_OBJECT (trans, "now fixating %" GST_PTR_FORMAT, result);
+
+  result = gst_caps_make_writable(result);
+  result = gst_caps_fixate(result);
+
+  if (direction == GST_PAD_SINK) {
+    if (gst_caps_is_subset(caps, result)) {
+      gst_caps_replace(&result, caps);
+    }
+  }
+  return result;
 }
 
 static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
