@@ -114,7 +114,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
                        "dim3 = (int) [ 1, 65535 ], "
                        "dim4 = (int) [ 1, 65535 ], "
 		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
-		       "framerate = (fraction) [ 0/1, 2147483647/1 ], ")
+		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
     );
 
 #define gst_convert2tensor_parent_class parent_class
@@ -142,12 +142,6 @@ static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
 static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
                                             GstCaps *incaps,
 					    GstCaps *outcaps);
-static gboolean gst_convert2tensor_transform_size(GstBaseTransform *trans,
-                                                  GstPadDirection direction,
-						  GstCaps *caps, gsize size,
-						  GstCaps *othercpas, gsize *othersize);
-static gboolean gst_convert2tensor_get_unit_size(GstBaseTransform *trans,
-                                                 GstCaps *caps, gsize *size);
 /* GObject vmethod implementations */
 
 /* initialize the convert2tensor's class */
@@ -194,9 +188,10 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
   trans_class->fixate_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_fixate_caps);
   trans_class->set_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_set_caps);
 
-  /* Allocation units */
-  trans_class->transform_size = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_size);
-  trans_class->get_unit_size = GST_DEBUG_FUNCPTR(gst_convert2tensor_get_unit_size);
+  /** Allocation units
+   *  transform_size and get_unit_size are omitted because we do not change
+   *  the size of buffer or unit with the current version.
+   */
 }
 
 /* initialize the new element
@@ -209,6 +204,7 @@ gst_convert2tensor_init (GstConvert2Tensor * filter)
 {
   filter->silent = FALSE;
   filter->tensorConfigured = FALSE;
+  filter->negotiated = FALSE;
 }
 
 static void
@@ -269,6 +265,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   /* This caps is coming from video/x-raw */
   structure = gst_caps_get_structure(caps, 0);
   rank = 3; /* [color-space][height][width] */
+
   return_false_if_fail(gst_structure_get_int(structure, "width", &dimension[1]));
   return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[2]));
   return_false_if_fail(gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator));
@@ -291,8 +288,10 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
 	tensorFrameSize == filter->tensorFrameSize &&
 	framerate_denominator == filter->framerate_denominator) {
       for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
-        if (dimension[i] != filter->dimension[i])
+        if (dimension[i] != filter->dimension[i]) {
+	  g_printerr("  Dimension %d Mismatch with cached: %d --> %d\n", i, dimension[i], filter->dimension[i]);
 	  return FALSE;
+	}
       return TRUE;
     }
     g_printerr("  Something's wrong. The tensor metadata is inconsistent.\n");
@@ -308,6 +307,9 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   filter->tensorFrameSize = tensorFrameSize;
 
   filter->tensorConfigured = TRUE;
+
+  /* @TODO Support other types */
+  filter->input_media_type = _C2T_VIDEO;
   return TRUE;
 }
 
@@ -336,7 +338,7 @@ convert2tensor_init (GstPlugin * convert2tensor)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "myfirstconvert2tensor"
+#define PACKAGE "convert2tensor"
 #endif
 
 /* gstreamer looks for this structure to register convert2tensors
@@ -347,7 +349,7 @@ GST_PLUGIN_DEFINE (
     GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     convert2tensor,
-    "Template convert2tensor",
+    "convert2tensor",
     convert2tensor_init,
     VERSION,
     "LGPL",
@@ -468,44 +470,24 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
     GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
     return tmp;
-  } else if (direction == GST_PAD_SINK) {
-    /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
-    /* @TODO: Verify if this assumption is correct */
+  } else if (direction == GST_PAD_SRC) {
+    /* Construct possible GstCap (sinkpad) with src_factory */
+    /* @TODO This supports video only! */
+    GstStaticCaps staticcap =
+        GST_STATIC_CAPS("video/x-raw, format = (string)RGB, view = (int)1, "
+        "interlace-mode = (string)progressive, "
+	"framerate = (fraction) [ 0/1, 2147483647/1 ], "
+	"width = (int) [1, 65535], "
+	"height = (int) [1, 65535]");
+    tmp = gst_static_caps_get(&staticcap);
 
-    gint dim[4];
-    gint rank;
-    gint fr_num, fr_denom;
-    GstStructure *structure;
-
-    /* @TODO: Type of srcpad(tensor) is not checked */
-    structure = gst_caps_get_structure(caps, 0);
-    ret = gst_structure_get_int(structure, "dim1", &dim[0]);
-    g_assert(ret == TRUE);
-    ret = gst_structure_get_int(structure, "dim2", &dim[1]);
-    g_assert(ret == TRUE);
-    ret = gst_structure_get_int(structure, "dim3", &dim[2]);
-    g_assert(ret == TRUE);
-    ret = gst_structure_get_int(structure, "dim4", &dim[3]);
-    g_assert(ret == TRUE);
-    ret = gst_structure_get_int(structure, "rank", &rank);
-    g_assert(ret == TRUE);
-    ret = gst_structure_get_fraction(structure, "framerate", &fr_num, &fr_denom);
-    g_assert(ret == TRUE);
-
-    tmp = gst_caps_new_simple("video/x-raw",
-        "format", G_TYPE_STRING, "RGB",
-	"views", G_TYPE_INT, 1,
-	"interlace-mode", G_TYPE_STRING, "progressive",
-	"width", G_TYPE_INT, dim[1], /* @TODO: dim[1]-1, dim[2]-2, dim[2]-3 must be allowed as well */
-	"height", G_TYPE_INT, dim[2],
-	"framerate", GST_TYPE_FRACTION, fr_num, fr_denom,
-	NULL);
     GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
     return tmp;
   }
   /* Neither SRC/SINK? Impossible! */
-  GST_DEBUG_OBJECT(trans, "Error pad direction type.");
+  g_printerr("Direction = %d\n", direction);
+  GST_DEBUG_OBJECT(trans, "Error pad direction type. direction: %d", direction);
   g_assert(TRUE == FALSE);
   return NULL;
 }
@@ -546,16 +528,27 @@ static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
                                             GstCaps *incaps,
 					    GstCaps *outcaps)
 {
-}
+  /** This is notifier of cap changes for subclass.
+   *  However, we do not have subclass (This is the concrete class)
+   */
+  GstConvert2Tensor *filter = GST_CONVERT2TENSOR_CAST(trans);
+  GstVideoInfo in_info, out_info;
 
-static gboolean gst_convert2tensor_transform_size(GstBaseTransform *trans,
-                                                  GstPadDirection direction,
-						  GstCaps *caps, gsize size,
-						  GstCaps *othercpas, gsize *othersize)
-{
-}
+  GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
+      " to %" GST_PTR_FORMAT, incaps, outcaps);
 
-static gboolean gst_convert2tensor_get_unit_size(GstBaseTransform *trans,
-                                                 GstCaps *caps, gsize *size)
-{
+  /* @TODO Supports video only */
+  /* input caps */
+  if (!gst_video_info_from_caps (&in_info, incaps)) {
+    g_printerr("Cannot set_caps\n");
+    return FALSE;
+  }
+
+  filter->in_info.video = in_info;
+  gst_base_transform_set_in_place(trans, TRUE);
+
+  filter->negotiated = gst_convert2tensor_configure_tensor(incaps, filter);
+
+  /* @TODO Verity if outcaps and filter conf are compatible */
+
 }
