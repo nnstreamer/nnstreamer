@@ -12,7 +12,7 @@ else(LIB_INSTALL_DIR)
 endif(LIB_INSTALL_DIR)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-base-1.0 gstreamer-controller-1.0 gstreamer-video-1.0 gstreamer-audio-1.0)
+pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-base-1.0 gstreamer-controller-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 glib-2.0)
 INCLUDE_DIRECTORIES(${GST_INCLUDE_DIRS})
 LINK_DIRECTORIES(${GST_LIBRARY_DIRS})
 

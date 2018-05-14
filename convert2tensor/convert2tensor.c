@@ -69,6 +69,8 @@
 #endif
 
 #include <gst/gst.h>
+#include <glib.h>
+#include <glib/gprintf.h>
 
 #include "convert2tensor.h"
 
@@ -95,7 +97,7 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, format = (string)RGB, views = (int)1, interlace-mode = (string)progressive")
+    GST_STATIC_CAPS ("video/x-raw, format = (string) {RGB, BGRx}, views = (int)1, interlace-mode = (string)progressive, framerate = (fraction)[ 0/1, 2147483647/1 ]")
     );
 
 /* the capabilities of the outputs
@@ -109,10 +111,10 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("other/tensor, "
                        "rank = (int) [ 1, 4 ], "
-                       "dim1 = (int) [ 1, 65535 ], "
+                       "dim1 = (int) [ 1, 4 ], " /* 3 if RGB 4 if BGRx */
                        "dim2 = (int) [ 1, 65535 ], "
                        "dim3 = (int) [ 1, 65535 ], "
-                       "dim4 = (int) [ 1, 65535 ], "
+                       "dim4 = (int) { 1 }, "
 		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
 		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
     );
@@ -260,6 +262,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   gsize tensorFrameSize;
   gboolean ret;
   GstCaps *outcaps;
+  const gchar *format;
   int i;
 
   /* This caps is coming from video/x-raw */
@@ -275,7 +278,18 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
         dimension[1], (dimension[1] + 3) / 4 * 4);
     dimension[1] = (dimension[1] + 3) / 4 * 4;
   }
-  dimension[0] = 3; /* R G B */
+
+  format = gst_structure_get_string(structure, "format");
+
+  if (!g_strcmp0(format, "RGB"))
+    dimension[0] = 3; /* R G B */
+  else if (!g_strcmp0(format, "BGRx"))
+    dimension[0] = 4; /* B G R x */
+  else {
+    g_printerr("Format = %s\n", format);
+    return FALSE;
+  }
+
   dimension[3] = 1; /* This is 3-D Tensor */
   tensorFrameSize = GstConvert2TensorDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
@@ -442,16 +456,72 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
 
   /* @TODO: Verify if direction == GST_PAD_SINK means caps is sink pad */
   if (direction == GST_PAD_SINK) {
+    GstStructure *structure;
+    gchar *str;
     /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
     /* @TODO: Verify if this assumption is correct */
+
+    /* @TODO CRITICAL: Handle when caps is in range, not fixed */
 
     /* Construct bogusFilter from caps (sinkpad) */
     ret = gst_convert2tensor_configure_tensor(caps, &bogusFilter);
     if (ret == FALSE) {
+      GstStructure *structure = gst_caps_get_structure(caps, 0);
+      gchar *str = gst_structure_to_string(structure);
+      gchar str2[2048];
+      gchar framerate[1024], width[1024], height[1024], colors[1024];
+      const gchar *format;
+      int fn = -1, fd, w, h;
+
+
+      if (TRUE == gst_structure_get_fraction(structure, "framerate", &fn, &fd))
+        g_sprintf(framerate, "%d/%d", fn, fd);
+      else
+        g_sprintf(framerate, "[ 0/1, 2147483647/1 ]");
+
+      if (TRUE == gst_structure_get_int(structure, "width", &w))
+        g_sprintf(width, "%d", w);
+      else
+        g_sprintf(width, "[1, 65535]");
+
+      if (TRUE == gst_structure_get_int(structure, "height", &h))
+        g_sprintf(height, "%d", h);
+      else
+        g_sprintf(height, "[1, 65535]");
+
+      format = gst_structure_get_string(structure, "format");
+      if (!g_strcmp0(format, "RGB"))
+        g_sprintf(colors, "3");
+      else if (!g_strcmp0(format, "BGRx"))
+        g_sprintf(colors, "4");
+      else
+        g_sprintf(colors, "{3, 4}");
+
+      g_printerr("Structure from caps = %s\n", str);
+
+      g_sprintf(str2,
+          "other/tensor, "
+          "rank = (int)3, "
+          "type = (string)uint8, "
+          "framerate = (fraction) %s, "
+          "dim1 = (int) %s, "
+          "dim2 = (int) %s, "
+          "dim3 = (int) %s, "
+          "dim4 = (int) 1"
+          , framerate, colors, width, height);
+      tmp = gst_caps_from_string(str2);
+      g_printerr("Structure from caps to = %s\n", str2);
+
+      /* If given caps are in range for width/height,
+         we cannot configure tensor, however, we may return proper srcpad caps */
+      /* @TODO: see if the error is from ranging width/height before entering here */
+      return tmp;
+
       g_printerr("  Cannot retrieve tensor spec from the given input cap.\n");
       tmp = gst_caps_new_empty();
       return tmp; /* Empty Cap */
     }
+    g_printerr("transform_caps SINK specific\n");
 
     g_assert(bogusFilter.tensorConfigured == TRUE);
 
@@ -466,22 +536,56 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
 	"framerate", GST_TYPE_FRACTION, bogusFilter.framerate_numerator,
 	             bogusFilter.framerate_denominator,
         NULL);
+    if (filter) {
+      GstCaps *tmp2 = gst_caps_intersect_full(filter, tmp, GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref(tmp);
+      tmp = tmp2;
+    }
+      structure = gst_caps_get_structure(caps, 0);
+      str = gst_structure_to_string(structure);
+      g_printerr("From = %s\n", str);
+      structure = gst_caps_get_structure(tmp, 0);
+      str = gst_structure_to_string(structure);
+      g_printerr("To = %s\n", str);
 
-    GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
+    GST_DEBUG_OBJECT(trans, "SINK transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
     return tmp;
   } else if (direction == GST_PAD_SRC) {
+
+    GstStructure *structure;
+    gchar *str;
+
     /* Construct possible GstCap (sinkpad) with src_factory */
     /* @TODO This supports video only! */
     GstStaticCaps staticcap =
-        GST_STATIC_CAPS("video/x-raw, format = (string)RGB, view = (int)1, "
+        GST_STATIC_CAPS("video/x-raw, format = (string){RGB, BGRx}, views = (int)1, "
         "interlace-mode = (string)progressive, "
-	"framerate = (fraction) [ 0/1, 2147483647/1 ], "
-	"width = (int) [1, 65535], "
-	"height = (int) [1, 65535]");
+	"framerate = (fraction)[ 0/1, 2147483647/1 ], "
+	"width = (int)[1, 65535], "
+	"height = (int)[1, 65535]");
     tmp = gst_static_caps_get(&staticcap);
 
-    GST_DEBUG_OBJECT(trans, "transformed %" GST_PTR_FORMAT " into %"
+    structure = gst_caps_get_structure(caps, 0);
+    str = gst_structure_to_string(structure);
+    g_printerr("Structure from src = %s\n", str);
+    if (filter) {
+      GstCaps *tmp2;
+      structure = gst_caps_get_structure(filter, 0);
+      str = gst_structure_to_string(structure);
+      g_printerr("Structure from filter = %s\n", str);
+
+      tmp2 = gst_caps_intersect_full(filter, tmp, GST_CAPS_INTERSECT_FIRST);
+
+      structure = gst_caps_get_structure(tmp2, 0);
+      str = gst_structure_to_string(structure);
+      g_printerr("Structure from intersection = %s\n", str);
+
+      gst_caps_unref(tmp);
+      tmp = tmp2;
+    }
+
+    GST_DEBUG_OBJECT(trans, "SRC transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
     return tmp;
   }
