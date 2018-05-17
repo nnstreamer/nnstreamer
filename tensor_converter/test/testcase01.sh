@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+##
+# Copyright (C) 2018 Samsung Electronics
+# License: Apache-2.0
+#
+# @file testcase01.sh
+# @brief Test tensor_converter for testcase 01
+# @author MyungJoo Ham <myungjoo.ham@samsung.com>
+# @dependency cmp
+
 if [ $# -eq 0 ]
 then
   PATH_TO_PLUGIN="$PWD/../../build"

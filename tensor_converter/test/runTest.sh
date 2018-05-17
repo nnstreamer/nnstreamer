@@ -4,6 +4,7 @@ failed=0
 
 python generateGoldenTestResult.py
 ./testcase01.sh $1 || failed=1
+./testcase02.sh $1 || failed=1
 
 
 echo ""

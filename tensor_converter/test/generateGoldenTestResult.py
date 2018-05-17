@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+
+##
 # Copyright (C) 2018 Samsung Electronics
 # License: Apache-2.0
 #
@@ -9,8 +11,13 @@
 from __future__ import print_function
 
 from struct import *
+from PIL import Image
+import random
 
-# Returns: (string, string_size, expected_size)
+##
+# @brief Generate Golden Test Case 01, a single videosrctest frame of 280x40xRGB
+# @return (string, string_size, expected_size)
+#
 # If string_size < expected_size, you do not need to check the results offset >= string_size.
 # string: binary string (b'\xff\x00....')
 def genCase01_RGB():
@@ -99,6 +106,10 @@ def genCase01_RGB():
     string_size = string_size * 3
     return (string, string_size, expected_size)
 
+##
+# @brief Generate Golden Test Case 01, a single videosrctest frame of 280x40xBGRx
+# @return (string, string_size, expected_size)
+#
 def genCase01_BGRx():
     string = ""
     string_size = 0
@@ -185,11 +196,54 @@ def genCase01_BGRx():
     string_size = string_size * 4
     return (string, string_size, expected_size)
 
+##
+# @brief Generate Golden Test Case 02, a randomly generated PNG image
+# @return (string, string_size, expected_size)
+#
+def genCase02_PNG_random(colorType, width, height):
+    string = ""
+    string_size = 0
+    sizePerPixel = 3
+    if (colorType == 'BGRx'):
+        sizePerPixel = 4
+    expected_size = width * height * sizePerPixel
+    img = Image.new('RGB', (width, height))
+    imgbin = []
 
+    # The result has no stride for other/tensor types.
+
+    if (colorType == 'BGRx'):
+        for y in range(0, height):
+            for x in range(0, width):
+                pval = (random.randrange(256), random.randrange(256), random.randrange(256))
+                pixel = pack('BBBB', pval[2], pval[1], pval[0], 255)
+                string += pixel
+                imgbin.append(pval)
+                string_size += 4
+    else:
+        # Assume RGB
+        for y in range(0, height):
+            for x in range(0, width):
+                pval = (random.randrange(256), random.randrange(256), random.randrange(256))
+                pixel = pack('BBB', pval[0], pval[1], pval[2])
+                string += pixel
+                imgbin.append(pval)
+                string_size += 3
+
+    img.putdata(imgbin)
+    img.save('testcase02_'+colorType+'_'+str(width)+'x'+str(height)+'.png')
+    return (string, string_size, expected_size)
+
+##
+# @brief Write the generated data
+#
 def write(filename, string):
     newfile = open(filename, 'wb')
     newfile.write(string)
 
 write('testcase01.rgb.golden', genCase01_RGB()[0])
 write('testcase01.bgrx.golden', genCase01_BGRx()[0])
-
+write('testcase02_RGB_640x480.golden', genCase02_PNG_random('RGB', 640, 480)[0])
+write('testcase02_BGRx_640x480.golden', genCase02_PNG_random('BGRx', 640, 480)[0])
+write('testcase02_RGB_642x480.golden', genCase02_PNG_random('RGB', 642, 480)[0])
+write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
