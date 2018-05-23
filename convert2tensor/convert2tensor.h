@@ -47,11 +47,13 @@
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
  *
  *                Be careful: this filter assumes that the user has attached
- *               rawvideoparser as a preprocessor for this filter so that
+ *               other GST converters as a preprocessor for this filter so that
  *               the incoming buffer is nicely aligned in the array of
- *               uint8[height][width w/ rstride=4][RGB].
+ *               uint8[height][width][RGB]. Note that if rstride=RU4, you need
+ *               to add the case in "remove_stride_padding_per_row".
  *
  * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  */
@@ -84,6 +86,12 @@ typedef struct _GstConvert2Tensor GstConvert2Tensor;
 typedef struct _GstConvert2TensorClass GstConvert2TensorClass;
 
 #define GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT	(4)
+/**
+ * @brief Possible data element types of other/tensor.
+ *
+ * The current version supports C2T_UINT8 only as video-input.
+ * There is no restrictions for inter-NN or sink-to-app.
+ */
 typedef enum _tensor_type {
   _C2T_INT32 = 0,
   _C2T_UINT32,
@@ -96,6 +104,13 @@ typedef enum _tensor_type {
 
   _C2T_END,
 } tensor_type;
+
+/**
+ * @brief Possible input stream types for other/tensor.
+ *
+ * This is realted with media input stream to other/tensor.
+ * There is no restrictions for the outputs.
+ */
 typedef enum _media_type {
   _C2T_VIDEO = 0,
   _C2T_AUDIO, /* Not Supported Yet */
@@ -103,17 +118,21 @@ typedef enum _media_type {
 
   _C2T_MEDIA_END,
 } media_type;
+
+/**
+ * @brief Internal data structure for tensor_converter instances.
+ */
 struct _GstConvert2Tensor
 {
   GstBaseTransform element;	/**< This is the parent object */
 
   /* For transformer */
-  gboolean negotiated; /* When this is %TRUE, tensor metadata must be set */
-  media_type input_media_type;
+  gboolean negotiated; /**< %TRUE if tensor metadata is set */
+  media_type input_media_type; /**< Denotes the input media stream type */
   union {
-    GstVideoInfo video;
+    GstVideoInfo video; /**< video-info of the input media stream */
     /* @TODO: Add other media types */
-  } in_info;
+  } in_info; /**< media input stream info union. will support audio/text later */
 
   /* For Tensor */
   gboolean silent;	/**< True if logging is minimized */
@@ -125,6 +144,10 @@ struct _GstConvert2Tensor
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
   gsize tensorFrameSize;
 };
+
+/**
+ * @brief Byte-per-element of each tensor element type.
+ */
 const unsigned int GstConvert2TensorDataSize[] = {
         [_C2T_INT32] = 4,
         [_C2T_UINT32] = 4,
@@ -135,6 +158,10 @@ const unsigned int GstConvert2TensorDataSize[] = {
         [_C2T_FLOAT64] = 8,
         [_C2T_FLOAT32] = 4,
 };
+
+/**
+ * @brief String representations for each tensor element type.
+ */
 const gchar* GstConvert2TensorDataTypeName[] = {
         [_C2T_INT32] = "int32",
         [_C2T_UINT32] = "uint32",
@@ -147,7 +174,7 @@ const gchar* GstConvert2TensorDataTypeName[] = {
 };
 
 /*
- * GstConvert2TensorClass inherits GstBaseTransformClass.
+ * @brief GstConvert2TensorClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
  * its child (concrete class) GstVideoConverter.
@@ -155,9 +182,12 @@ const gchar* GstConvert2TensorDataTypeName[] = {
  */
 struct _GstConvert2TensorClass 
 {
-  GstBaseTransformClass parent_class;
+  GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
 };
 
+/*
+ * @brief Get Type function required for gst elements
+ */
 GType gst_convert2tensor_get_type (void);
 
 G_END_DECLS

@@ -46,6 +46,7 @@
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
  * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  */
@@ -100,7 +101,8 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_STATIC_CAPS ("video/x-raw, format = (string) {RGB, BGRx}, views = (int)1, interlace-mode = (string)progressive, framerate = (fraction)[ 0/1, 2147483647/1 ]")
     );
 
-/* the capabilities of the outputs
+/**
+ * @brief The capabilities of the outputs
  *
  * In v0.0.1, this is 3-d tensor, [color][height][width]
  *
