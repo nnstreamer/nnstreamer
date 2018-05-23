@@ -1,0 +1,45 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+
+PROJECT(nnstreamer C)
+
+OPTION(TIZEN "Enable Tizen build mode" OFF)
+
+ADD_DEFINITIONS(-DVERSION="0.0.0")
+
+SET(PREFIX ${CMAKE_INSTALL_PREFIX})
+SET(EXEC_PREFIX "${PREFIX}/bin")
+SET(INCLUDEDIR "${PREFIX}/include/${PROJECT_NAME}")
+
+IF(LIB_INSTALL_DIR)
+ELSE(LIB_INSTALL_DIR)
+    SET(LIB_INSTALL_DIR "${PREFIX}/lib")
+ENDIF(LIB_INSTALL_DIR)
+
+FIND_PACKAGE(PkgConfig REQUIRED)
+SET(PKG_MODULES
+	gstreamer-1.0
+	gstreamer-base-1.0
+	gstreamer-controller-1.0
+	gstreamer-video-1.0
+	gstreamer-audio-1.0
+	glib-2.0
+)
+IF(TIZEN)
+	# Enable dlog of Tizen.
+	ADD_DEFINITIONS(-DTIZEN=1)
+	SET(PKG_MODULES ${PKG_MODULES} dlog)
+ENDIF(TIZEN)
+	
+pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
+
+INCLUDE_DIRECTORIES(
+	${pkgs_INCLUDE_DIRS}
+	${CMAKE_SOURCE_DIR}/include
+)
+LINK_DIRECTORIES(${pkgs_LIBRARY_DIRS})
+FOREACH(flag ${pkgs_CFALGS})
+	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
+ENDFOREACH(flag)
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
+
+ADD_SUBDIRECTORY(tensor_converter)
