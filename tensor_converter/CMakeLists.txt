@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(convert2tensor C)
+project(tensor_converter C)
 
 add_definitions(-DVERSION="0.0.0")
 
@@ -18,16 +18,16 @@ LINK_DIRECTORIES(${GST_LIBRARY_DIRS})
 
 set(PACKAGE convert2tensor)
 
-add_library(convert2tensor SHARED convert2tensor.c)
-add_library(convert2tensorStatic STATIC convert2tensor.c)
-target_link_libraries(convert2tensor ${GST_LIBRARIES})
-target_include_directories(convert2tensor PUBLIC ${GST_INCLUDE_DIRS})
-target_compile_options(convert2tensor PUBLIC ${GST_CFLAGS_OTHER})
-target_link_libraries(convert2tensorStatic ${GST_LIBRARIES})
-target_include_directories(convert2tensorStatic PUBLIC ${GST_INCLUDE_DIRS})
-target_compile_options(convert2tensorStatic PUBLIC ${GST_CFLAGS_OTHER})
+add_library(tensor_converter SHARED tensor_converter.c)
+add_library(tensor_converterStatic STATIC tensor_converter.c)
+target_link_libraries(tensor_converter ${GST_LIBRARIES})
+target_include_directories(tensor_converter PUBLIC ${GST_INCLUDE_DIRS})
+target_compile_options(tensor_converter PUBLIC ${GST_CFLAGS_OTHER})
+target_link_libraries(tensor_converterStatic ${GST_LIBRARIES})
+target_include_directories(tensor_converterStatic PUBLIC ${GST_INCLUDE_DIRS})
+target_compile_options(tensor_converterStatic PUBLIC ${GST_CFLAGS_OTHER})
 
-install(TARGETS convert2tensor convert2tensorStatic
+install(TARGETS tensor_converter tensor_converterStatic
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}

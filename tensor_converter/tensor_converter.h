@@ -42,7 +42,7 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  *
- * @file	convert2tensor.c
+ * @file	tensor_converter.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
  *
@@ -58,8 +58,8 @@
  *
  */
 
-#ifndef __GST_CONVERT2TENSOR_H__
-#define __GST_CONVERT2TENSOR_H__
+#ifndef __GST_TENSOR_CONVERTER_H__
+#define __GST_TENSOR_CONVERTER_H__
 
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
@@ -69,23 +69,23 @@
 G_BEGIN_DECLS
 
 /* #defines don't like whitespacey bits */
-#define GST_TYPE_CONVERT2TENSOR \
-  (gst_convert2tensor_get_type())
-#define GST_CONVERT2TENSOR(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_CONVERT2TENSOR,GstConvert2Tensor))
-#define GST_CONVERT2TENSOR_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_CONVERT2TENSOR,GstConvert2TensorClass))
-#define GST_IS_CONVERT2TENSOR(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CONVERT2TENSOR))
-#define GST_IS_CONVERT2TENSOR_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CONVERT2TENSOR))
-#define GST_CONVERT2TENSOR_CAST(obj)  ((GstConvert2Tensor *)(obj))
+#define GST_TYPE_TENSOR_CONVERTER \
+  (gst_tensor_converter_get_type())
+#define GST_TENSOR_CONVERTER(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_CONVERTER,GstTensor_Converter))
+#define GST_TENSOR_CONVERTER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_CONVERTER,GstTensor_ConverterClass))
+#define GST_IS_TENSOR_CONVERTER(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_CONVERTER))
+#define GST_IS_TENSOR_CONVERTER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_CONVERTER))
+#define GST_TENSOR_CONVERTER_CAST(obj)  ((GstTensor_Converter *)(obj))
 
-typedef struct _GstConvert2Tensor GstConvert2Tensor;
+typedef struct _GstTensor_Converter GstTensor_Converter;
 
-typedef struct _GstConvert2TensorClass GstConvert2TensorClass;
+typedef struct _GstTensor_ConverterClass GstTensor_ConverterClass;
 
-#define GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT	(4)
+#define GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT	(4)
 /**
  * @brief Possible data element types of other/tensor.
  *
@@ -122,7 +122,7 @@ typedef enum _media_type {
 /**
  * @brief Internal data structure for tensor_converter instances.
  */
-struct _GstConvert2Tensor
+struct _GstTensor_Converter
 {
   GstBaseTransform element;	/**< This is the parent object */
 
@@ -138,7 +138,7 @@ struct _GstConvert2Tensor
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
-  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
+  gint dimension[GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
@@ -148,7 +148,7 @@ struct _GstConvert2Tensor
 /**
  * @brief Byte-per-element of each tensor element type.
  */
-const unsigned int GstConvert2TensorDataSize[] = {
+const unsigned int GstTensor_ConverterDataSize[] = {
         [_C2T_INT32] = 4,
         [_C2T_UINT32] = 4,
         [_C2T_INT16] = 2,
@@ -162,7 +162,7 @@ const unsigned int GstConvert2TensorDataSize[] = {
 /**
  * @brief String representations for each tensor element type.
  */
-const gchar* GstConvert2TensorDataTypeName[] = {
+const gchar* GstTensor_ConverterDataTypeName[] = {
         [_C2T_INT32] = "int32",
         [_C2T_UINT32] = "uint32",
         [_C2T_INT16] = "int16",
@@ -174,13 +174,13 @@ const gchar* GstConvert2TensorDataTypeName[] = {
 };
 
 /*
- * @brief GstConvert2TensorClass inherits GstBaseTransformClass.
+ * @brief GstTensor_ConverterClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
  * its child (concrete class) GstVideoConverter.
- * Note that GstConvert2TensorClass is a concrete class; thus we need to look at both.
+ * Note that GstTensor_ConverterClass is a concrete class; thus we need to look at both.
  */
-struct _GstConvert2TensorClass 
+struct _GstTensor_ConverterClass 
 {
   GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
 };
@@ -188,8 +188,8 @@ struct _GstConvert2TensorClass
 /*
  * @brief Get Type function required for gst elements
  */
-GType gst_convert2tensor_get_type (void);
+GType gst_tensor_converter_get_type (void);
 
 G_END_DECLS
 
-#endif /* __GST_CONVERT2TENSOR_H__ */
+#endif /* __GST_TENSOR_CONVERTER_H__ */

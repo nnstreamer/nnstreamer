@@ -42,7 +42,7 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  *
- * @file	convert2tensor.c
+ * @file	tensor_converter.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
  * @see		http://github.com/TO-BE-DETERMINED-SOON
@@ -52,7 +52,7 @@
  */
 
 /**
- * SECTION:element-convert2tensor
+ * SECTION:element-tensor_converter
  *
  * A filter that converts media stream to tensor stream for NN frameworks.
  * The output is always in the format of other/tensor
@@ -60,7 +60,7 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v -m fakesrc ! convert2tensor ! fakesink silent=TRUE
+ * gst-launch -v -m fakesrc ! tensor_converter ! fakesink silent=TRUE
  * ]|
  * </refsect2>
  */
@@ -73,10 +73,10 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
-#include "convert2tensor.h"
+#include "tensor_converter.h"
 
-GST_DEBUG_CATEGORY_STATIC (gst_convert2tensor_debug);
-#define GST_CAT_DEFAULT gst_convert2tensor_debug
+GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
+#define GST_CAT_DEFAULT gst_tensor_converter_debug
 
 /* Filter signals and args */
 enum
@@ -121,56 +121,56 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
     );
 
-#define gst_convert2tensor_parent_class parent_class
-G_DEFINE_TYPE (GstConvert2Tensor, gst_convert2tensor, GST_TYPE_BASE_TRANSFORM);
+#define gst_tensor_converter_parent_class parent_class
+G_DEFINE_TYPE (GstTensor_Converter, gst_tensor_converter, GST_TYPE_BASE_TRANSFORM);
 
-static void gst_convert2tensor_set_property (GObject * object, guint prop_id,
+static void gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
-static void gst_convert2tensor_get_property (GObject * object, guint prop_id,
+static void gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 /* GstBaseTransformer vmethod implementations */
-static GstFlowReturn gst_convert2tensor_transform(GstBaseTransform *trans,
+static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf);
-static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
+static GstFlowReturn gst_tensor_converter_transform_ip(GstBaseTransform *trans,
                                                      GstBuffer *buf);
-static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
+static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
                                                   GstPadDirection direction,
 						  GstCaps *caps,
 						  GstCaps *filter);
-static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
+static GstCaps* gst_tensor_converter_fixate_caps(GstBaseTransform *trans,
                                                GstPadDirection direction,
 					       GstCaps *caps,
 					       GstCaps *othercaps);
-static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
+static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
                                             GstCaps *incaps,
 					    GstCaps *outcaps);
 /* GObject vmethod implementations */
 
-/* initialize the convert2tensor's class */
+/* initialize the tensor_converter's class */
 static void
-gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
+gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
-  GstConvert2TensorClass *klass;
+  GstTensor_ConverterClass *klass;
 
-  klass = (GstConvert2TensorClass *) g_class;
+  klass = (GstTensor_ConverterClass *) g_class;
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
 
-  gobject_class->set_property = gst_convert2tensor_set_property;
-  gobject_class->get_property = gst_convert2tensor_get_property;
+  gobject_class->set_property = gst_tensor_converter_set_property;
+  gobject_class->get_property = gst_tensor_converter_get_property;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple(gstelement_class,
-    "Convert2Tensor",
+    "Tensor_Converter",
     "Convert media stream to tensor stream",
     "Converts audio or video stream to tensor stream for neural network framework filters",
     "MyungJoo Ham <myungjoo.ham@samsung.com>");
@@ -184,13 +184,13 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
   trans_class->passthrough_on_same_caps = FALSE;
 
   /* Processing units */
-  trans_class->transform = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform);
-  trans_class->transform_ip = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_ip);
+  trans_class->transform = GST_DEBUG_FUNCPTR(gst_tensor_converter_transform);
+  trans_class->transform_ip = GST_DEBUG_FUNCPTR(gst_tensor_converter_transform_ip);
 
   /* Negotiation units */
-  trans_class->transform_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_transform_caps);
-  trans_class->fixate_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_fixate_caps);
-  trans_class->set_caps = GST_DEBUG_FUNCPTR(gst_convert2tensor_set_caps);
+  trans_class->transform_caps = GST_DEBUG_FUNCPTR(gst_tensor_converter_transform_caps);
+  trans_class->fixate_caps = GST_DEBUG_FUNCPTR(gst_tensor_converter_fixate_caps);
+  trans_class->set_caps = GST_DEBUG_FUNCPTR(gst_tensor_converter_set_caps);
 
   /** Allocation units
    *  transform_size and get_unit_size are omitted because we do not change
@@ -204,7 +204,7 @@ gst_convert2tensor_class_init (GstConvert2TensorClass * g_class)
  * initialize instance structure
  */
 static void
-gst_convert2tensor_init (GstConvert2Tensor * filter)
+gst_tensor_converter_init (GstTensor_Converter * filter)
 {
   filter->silent = FALSE;
   filter->tensorConfigured = FALSE;
@@ -212,10 +212,10 @@ gst_convert2tensor_init (GstConvert2Tensor * filter)
 }
 
 static void
-gst_convert2tensor_set_property (GObject * object, guint prop_id,
+gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstConvert2Tensor *filter = GST_CONVERT2TENSOR (object);
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -228,10 +228,10 @@ gst_convert2tensor_set_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_convert2tensor_get_property (GObject * object, guint prop_id,
+gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstConvert2Tensor *filter = GST_CONVERT2TENSOR (object);
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -254,10 +254,10 @@ gst_convert2tensor_get_property (GObject * object, guint prop_id,
   ;
 /* Configure tensor metadata from sink caps */
 static gboolean
-gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filter) {
+gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *filter) {
   GstStructure *structure;
   gint rank;
-  gint dimension[GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT];
+  gint dimension[GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT];
   tensor_type type;
   gint framerate_numerator;
   gint framerate_denominator;
@@ -293,7 +293,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   }
 
   dimension[3] = 1; /* This is 3-D Tensor */
-  tensorFrameSize = GstConvert2TensorDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
+  tensorFrameSize = GstTensor_ConverterDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
   if (filter->tensorConfigured == TRUE) {
@@ -303,7 +303,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
 	framerate_numerator == filter->framerate_numerator &&
 	tensorFrameSize == filter->tensorFrameSize &&
 	framerate_denominator == filter->framerate_denominator) {
-      for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
+      for (i = 0; i < GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT; i++)
         if (dimension[i] != filter->dimension[i]) {
 	  g_printerr("  Dimension %d Mismatch with cached: %d --> %d\n", i, dimension[i], filter->dimension[i]);
 	  return FALSE;
@@ -315,7 +315,7 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
   }
 
   filter->rank = rank;
-  for (i = 0; i < GST_CONVERT2TENSOR_TENSOR_RANK_LIMIT; i++)
+  for (i = 0; i < GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT; i++)
     filter->dimension[i] = dimension[i];
   filter->type = type;
   filter->framerate_numerator = framerate_numerator;
@@ -335,17 +335,17 @@ gst_convert2tensor_configure_tensor(const GstCaps *caps, GstConvert2Tensor *filt
  * register the element factories and other features
  */
 static gboolean
-convert2tensor_init (GstPlugin * convert2tensor)
+tensor_converter_init (GstPlugin * tensor_converter)
 {
   /* debug category for fltering log messages
    *
-   * exchange the string 'Template convert2tensor' with your description
+   * exchange the string 'Template tensor_converter' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_convert2tensor_debug, "convert2tensor",
-      0, "Template convert2tensor");
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter",
+      0, "Template tensor_converter");
 
-  return gst_element_register (convert2tensor, "convert2tensor", GST_RANK_NONE,
-      GST_TYPE_CONVERT2TENSOR);
+  return gst_element_register (tensor_converter, "tensor_converter", GST_RANK_NONE,
+      GST_TYPE_TENSOR_CONVERTER);
 }
 
 /* PACKAGE: this is usually set by autotools depending on some _INIT macro
@@ -354,26 +354,26 @@ convert2tensor_init (GstPlugin * convert2tensor)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "convert2tensor"
+#define PACKAGE "tensor_converter"
 #endif
 
-/* gstreamer looks for this structure to register convert2tensors
+/* gstreamer looks for this structure to register tensor_converters
  *
- * exchange the string 'Template convert2tensor' with your convert2tensor description
+ * exchange the string 'Template tensor_converter' with your tensor_converter description
  */
 GST_PLUGIN_DEFINE (
     GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    convert2tensor,
-    "convert2tensor",
-    convert2tensor_init,
+    tensor_converter,
+    "tensor_converter",
+    tensor_converter_init,
     VERSION,
     "LGPL",
     "GStreamer",
     "http://gstreamer.net/"
 )
 
-static GstFlowReturn gst_c2t_transformer_videoframe(GstConvert2Tensor *filter,
+static GstFlowReturn gst_c2t_transformer_videoframe(GstTensor_Converter *filter,
                                                GstVideoFrame *inframe, GstBuffer *outbuf)
 {
   return gst_buffer_copy_into(outbuf, inframe->buffer,
@@ -381,13 +381,13 @@ static GstFlowReturn gst_c2t_transformer_videoframe(GstConvert2Tensor *filter,
       GST_VIDEO_FRAME_SIZE(inframe));
 }
 
-static GstFlowReturn gst_convert2tensor_transform(GstBaseTransform *trans,
+static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf)
 {
   GstVideoFrame in_frame;
   GstFlowReturn res;
-  GstConvert2Tensor *filter = GST_CONVERT2TENSOR_CAST(trans);
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST(trans);
 
   if (G_UNLIKELY(!filter->negotiated))
     goto unknown_format;
@@ -431,7 +431,7 @@ invalid_buffer:
   return GST_FLOW_ERROR;
 }
 
-static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
+static GstFlowReturn gst_tensor_converter_transform_ip(GstBaseTransform *trans,
                                                      GstBuffer *buf)
 {
   /* DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
@@ -439,21 +439,21 @@ static GstFlowReturn gst_convert2tensor_transform_ip(GstBaseTransform *trans,
 }
 
 /**
- * gst_convert2tensor_transform_caps() - configure tensor-srcpad cap from "proposed" cap.
+ * gst_tensor_converter_transform_caps() - configure tensor-srcpad cap from "proposed" cap.
  *
  * @trans ("this" pointer)
  * @direction (why do we need this?)
  * @caps sinkpad cap
  * @filter this element's cap (don't know specifically.)
  */
-static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
+static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
                                                   GstPadDirection direction,
 						  GstCaps *caps,
 						  GstCaps *filter)
 {
   GstCaps *tmp;
   gboolean ret;
-  GstConvert2Tensor bogusFilter = {0};
+  GstTensor_Converter bogusFilter = {0};
   bogusFilter.tensorConfigured = FALSE;
 
   /* @TODO: Verify if direction == GST_PAD_SINK means caps is sink pad */
@@ -466,7 +466,7 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
     /* @TODO CRITICAL: Handle when caps is in range, not fixed */
 
     /* Construct bogusFilter from caps (sinkpad) */
-    ret = gst_convert2tensor_configure_tensor(caps, &bogusFilter);
+    ret = gst_tensor_converter_configure_tensor(caps, &bogusFilter);
     if (ret == FALSE) {
       GstStructure *structure = gst_caps_get_structure(caps, 0);
       gchar *str = gst_structure_to_string(structure);
@@ -534,7 +534,7 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
         "dim2", G_TYPE_INT, bogusFilter.dimension[1],
         "dim3", G_TYPE_INT, bogusFilter.dimension[2],
         "dim4", G_TYPE_INT, bogusFilter.dimension[3],
-        "type", G_TYPE_STRING, GstConvert2TensorDataTypeName[bogusFilter.type],
+        "type", G_TYPE_STRING, GstTensor_ConverterDataTypeName[bogusFilter.type],
 	"framerate", GST_TYPE_FRACTION, bogusFilter.framerate_numerator,
 	             bogusFilter.framerate_denominator,
         NULL);
@@ -598,12 +598,12 @@ static GstCaps* gst_convert2tensor_transform_caps(GstBaseTransform *trans,
   return NULL;
 }
 
-static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
+static GstCaps* gst_tensor_converter_fixate_caps(GstBaseTransform *trans,
                                                GstPadDirection direction,
 					       GstCaps *caps,
 					       GstCaps *othercaps)
 {
-  GstCaps *supposed = gst_convert2tensor_transform_caps(trans, direction, caps, NULL);
+  GstCaps *supposed = gst_tensor_converter_transform_caps(trans, direction, caps, NULL);
   GstCaps *result;
 
   GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
@@ -630,14 +630,14 @@ static GstCaps* gst_convert2tensor_fixate_caps(GstBaseTransform *trans,
   return result;
 }
 
-static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
+static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
                                             GstCaps *incaps,
 					    GstCaps *outcaps)
 {
   /** This is notifier of cap changes for subclass.
    *  However, we do not have subclass (This is the concrete class)
    */
-  GstConvert2Tensor *filter = GST_CONVERT2TENSOR_CAST(trans);
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST(trans);
   GstVideoInfo in_info, out_info;
 
   GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
@@ -653,7 +653,7 @@ static gboolean gst_convert2tensor_set_caps(GstBaseTransform *trans,
   filter->in_info.video = in_info;
   gst_base_transform_set_in_place(trans, TRUE);
 
-  filter->negotiated = gst_convert2tensor_configure_tensor(incaps, filter);
+  filter->negotiated = gst_tensor_converter_configure_tensor(incaps, filter);
 
   /* @TODO Verity if outcaps and filter conf are compatible */
 
