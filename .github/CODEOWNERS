@@ -1,0 +1,28 @@
+# This is a comment.
+# Each line is a file pattern followed by one or more owners.
+# For more details, visit https://help.github.com/articles/about-codeowners/
+
+# Note that the current version of github.sec.samsung.net does not translate
+# @org/team-name (e.g., @RS7-STAR/audri_maintainers), even though
+# https://help.github.com/articles/about-codeowners/ depicts @org/team-name
+# as well as @username format.
+# So, We must write all IDs of @RS7-STAR/audri_maintainers manually.
+
+# Note that when we migrate this to github.com, we need to rewrite the whole
+# entries.
+
+*                                             @myungjoo-ham @wook16-song
+
+/packaging/                                   @geunsik-lim @sangjung-woo @wook16-song
+
+/include/                                     @myungjoo-ham
+
+/tensor_converter                             @myungjoo-ham
+
+/tensor_transform                             @myungjoo-ham
+
+/tensor_filter                                @myungjoo-ham
+
+/tensor_sink                                  @myungjoo-ham
+
+/tensor_merge                                 @myungjoo-ham
