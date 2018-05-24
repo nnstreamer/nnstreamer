@@ -69,11 +69,17 @@
 #  include <config.h>
 #endif
 
+#include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
 #include <glib/gprintf.h>
 
 #include "tensor_converter.h"
+#ifdef TIZEN
+#include <dlog.h>
+#else
+#define dlog_print(...) do {} while(0)
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 #define GST_CAT_DEFAULT gst_tensor_converter_debug
@@ -148,7 +154,9 @@ static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
 					    GstCaps *outcaps);
 /* GObject vmethod implementations */
 
-/* initialize the tensor_converter's class */
+/**
+ * @breif initialize the tensor_converter's class
+ */
 static void
 gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
 {
@@ -172,7 +180,7 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
   gst_element_class_set_details_simple(gstelement_class,
     "Tensor_Converter",
     "Convert media stream to tensor stream",
-    "Converts audio or video stream to tensor stream for neural network framework filters",
+    "Converts audio or video stream to tensor stream of C-Array for neural network framework filters",
     "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -209,6 +217,7 @@ gst_tensor_converter_init (GstTensor_Converter * filter)
   filter->silent = FALSE;
   filter->tensorConfigured = FALSE;
   filter->negotiated = FALSE;
+  filter->removePadding = FALSE;
 }
 
 static void
@@ -243,6 +252,15 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
   }
 }
 
+/* @brief Return 1 if we need to remove stride per row from the stream data */
+static int remove_stride_padding_per_row(const gchar *format, int width) {
+  /* @TODO The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
+  if ((!g_strcmp0(format, "RGB") || !g_strcmp0(format, "BGR") || !g_strcmp0(format, "I420")) && (width % 4))
+    return 1;
+  return 0;
+}
+
+
 /******************************************************************
  * GstElement vmethod implementations
  */
@@ -252,7 +270,9 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
   if (!ret) \
     return FALSE; \
   ;
-/* Configure tensor metadata from sink caps */
+/**
+ * @brief Configure tensor metadata from sink caps
+ */
 static gboolean
 gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *filter) {
   GstStructure *structure;
@@ -274,11 +294,6 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[2]));
   return_false_if_fail(gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator));
   type = _NNS_UINT8; /* Assume color depth per component is 8 bit */
-  if (dimension[1] % 4) {
-    g_print("  Width(dim2) is not divisible with 4. Width is adjusted %d -> %d\n",
-        dimension[1], (dimension[1] + 3) / 4 * 4);
-    dimension[1] = (dimension[1] + 3) / 4 * 4;
-  }
 
   format = gst_structure_get_string(structure, "format");
 
@@ -289,6 +304,14 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   else {
     g_printerr("Format = %s\n", format);
     return FALSE;
+  }
+
+  /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
+  /* @TODO: Add more conditions! */
+  if (remove_stride_padding_per_row(format, dimension[1])) {
+    g_print("  Width(dim2) is not divisible with 4. The performance won't be good; one more memcpy is added.\n");
+    dlog_print(DLOG_WARN, "nnstreamer", "Input video width is not divisible with 4. The performance will not be good.");
+    filter->removePadding = TRUE;
   }
 
   dimension[3] = 1; /* This is 3-D Tensor */
@@ -375,9 +398,51 @@ GST_PLUGIN_DEFINE (
 static GstFlowReturn gst_c2t_transformer_videoframe(GstTensor_Converter *filter,
                                                GstVideoFrame *inframe, GstBuffer *outbuf)
 {
-  return gst_buffer_copy_into(outbuf, inframe->buffer,
-      GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0,
-      GST_VIDEO_FRAME_SIZE(inframe));
+  // THIS CODE IS NOT TESTED WITH THE CURRENT TEST CASES!!!
+  // @TODO: Verify This Code! (non in-place transform)
+
+  if (filter->removePadding == TRUE) {
+    int d0, d1;
+    unsigned char *srcptr, *destptr;
+    unsigned int src_idx = 0, dest_idx = 0;
+    size_t size = filter->dimension[0] * filter->dimension[1];
+    size_t offset = filter->dimension[0] * filter->dimension[1];
+    GstMapInfo src_info, dest_info;
+
+    g_assert(offset % 4);
+
+    // @TODO: We don't know if outbuf is already allocated at this point, yet!
+    g_assert(gst_buffer_get_size(outbuf) >= filter->dimension[0] * filter->dimension[1] * filter->dimension[2] * filter->dimension[3]);
+
+    if (offset % 4)
+      offset += 4 - (offset % 4);
+      // Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
+
+    gst_buffer_map(inframe->buffer, &src_info, GST_MAP_READ);
+    gst_buffer_map(outbuf, &dest_info, GST_MAP_WRITE);
+    srcptr = src_info.data;
+    destptr = dest_info.data;
+
+    for (d0 = 0; d0 < filter->dimension[3]; d0++) { // Supposed to be 0 only
+      g_assert(d0 == 0);
+      for (d1 = 0; d1 < filter->dimension[2]; d1++) { // Height
+        memcpy(destptr + dest_idx, srcptr + src_idx, size);
+	dest_idx += size;
+	src_idx += offset;
+      }
+    }
+
+    gst_buffer_unmap(inframe->buffer, &src_info);
+    gst_buffer_unmap(outbuf, &dest_info);
+
+    g_printerr("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (1)\nPlease use 4 x n as image width for inputs.\n\n\n");
+    return GST_FLOW_OK;
+  } else {
+    return gst_buffer_copy_into(outbuf, inframe->buffer,
+        GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0,
+        GST_VIDEO_FRAME_SIZE(inframe));
+  }
+  return GST_FLOW_ERROR;
 }
 
 static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
@@ -433,12 +498,71 @@ invalid_buffer:
 static GstFlowReturn gst_tensor_converter_transform_ip(GstBaseTransform *trans,
                                                      GstBuffer *buf)
 {
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST(trans);
+
+  if (G_UNLIKELY(!filter->negotiated))
+    goto unknown_format;
+  if (G_UNLIKELY(!filter->tensorConfigured))
+    goto unknown_tensor;
+
+  switch(filter->input_media_type) {
+  case _NNS_VIDEO:
+    if (filter->removePadding == TRUE) {
+      // Remove zero-padding between rows
+      unsigned char *ptr;
+      unsigned int row, d0;
+      unsigned int dest_idx = 0, src_idx = 0;
+      size_t size = filter->dimension[0] * filter->dimension[1];
+      size_t offset = size;
+      GstMapInfo info;
+
+      g_assert(offset % 4);
+      if (offset % 4)
+        offset += 4 - (offset % 4);
+        // Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
+
+      gst_buffer_map(buf, &info, GST_MAP_READWRITE);
+      ptr = info.data;
+
+      for (d0 = 0; d0 < filter->dimension[3]; d0++) { // Supposed to be 0 only
+        g_assert(d0 == 0);
+        for (row = 0; row < filter->dimension[2]; row++) { // Height
+	  if (dest_idx != src_idx)
+	    memcpy(ptr + dest_idx, ptr + src_idx, size);
+	  dest_idx += size;
+	  src_idx += offset;
+	}
+      }
+      // @TODO: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first)
+      gst_buffer_unmap(buf, &info);
+
+      g_printerr("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (2)\nPlease use 4 x n as image width for inputs.\n\n\n");
+    }
+    break;
+  /* NOT SUPPORTED */
+  case _NNS_AUDIO:
+  case _NNS_STRING:
+  default:
+    g_printerr("  Unsupported Media Type (%d)\n", filter->input_media_type);
+    goto unknown_type;
+  }
+
   /* DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
   return GST_FLOW_OK;
+
+unknown_format:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_tensor:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format for tensor"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_type:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("not implemented type of media"));
+  return GST_FLOW_NOT_SUPPORTED;
 }
 
 /**
- * gst_tensor_converter_transform_caps() - configure tensor-srcpad cap from "proposed" cap.
+ * @brief configure tensor-srcpad cap from "proposed" cap.
  *
  * @trans ("this" pointer)
  * @direction (why do we need this?)

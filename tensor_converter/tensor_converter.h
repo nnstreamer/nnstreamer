@@ -100,6 +100,7 @@ struct _GstTensor_Converter
     GstVideoInfo video; /**< video-info of the input media stream */
     /* @TODO: Add other media types */
   } in_info; /**< media input stream info union. will support audio/text later */
+  gboolean removePadding; /* If TRUE, zero-padding must be removed during transform */
 
   /* For Tensor */
   gboolean silent;	/**< True if logging is minimized */
