@@ -11,18 +11,6 @@
 # Note that when we migrate this to github.com, we need to rewrite the whole
 # entries.
 
-*                                             @myungjoo-ham @wook16-song
+*                                             @myungjoo-ham @wook16-song @jinhyuck83-park @jy1210-jung @sewon-oh @hello-ahn
 
-/packaging/                                   @geunsik-lim @sangjung-woo @wook16-song
-
-/include/                                     @myungjoo-ham
-
-/tensor_converter                             @myungjoo-ham
-
-/tensor_transform                             @myungjoo-ham
-
-/tensor_filter                                @myungjoo-ham
-
-/tensor_sink                                  @myungjoo-ham
-
-/tensor_merge                                 @myungjoo-ham
+/packaging/                                   @geunsik-lim @sangjung-woo @wook16-song @myungjoo-ham
