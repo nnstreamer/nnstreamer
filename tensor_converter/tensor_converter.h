@@ -65,6 +65,7 @@
 #include <gst/base/gstbasetransform.h>
 #include <gst/video/video-info.h>
 #include <gst/video/video-frame.h>
+#include <tensor_common.h>
 
 G_BEGIN_DECLS
 
@@ -85,40 +86,6 @@ typedef struct _GstTensor_Converter GstTensor_Converter;
 
 typedef struct _GstTensor_ConverterClass GstTensor_ConverterClass;
 
-#define GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT	(4)
-/**
- * @brief Possible data element types of other/tensor.
- *
- * The current version supports C2T_UINT8 only as video-input.
- * There is no restrictions for inter-NN or sink-to-app.
- */
-typedef enum _tensor_type {
-  _C2T_INT32 = 0,
-  _C2T_UINT32,
-  _C2T_INT16,
-  _C2T_UINT16,
-  _C2T_INT8,
-  _C2T_UINT8,
-  _C2T_FLOAT64,
-  _C2T_FLOAT32,
-
-  _C2T_END,
-} tensor_type;
-
-/**
- * @brief Possible input stream types for other/tensor.
- *
- * This is realted with media input stream to other/tensor.
- * There is no restrictions for the outputs.
- */
-typedef enum _media_type {
-  _C2T_VIDEO = 0,
-  _C2T_AUDIO, /* Not Supported Yet */
-  _C2T_STRING, /* Not Supported Yet */
-
-  _C2T_MEDIA_END,
-} media_type;
-
 /**
  * @brief Internal data structure for tensor_converter instances.
  */
@@ -138,39 +105,11 @@ struct _GstTensor_Converter
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
-  gint dimension[GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
+  gint dimension[NNS_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
   gsize tensorFrameSize;
-};
-
-/**
- * @brief Byte-per-element of each tensor element type.
- */
-const unsigned int GstTensor_ConverterDataSize[] = {
-        [_C2T_INT32] = 4,
-        [_C2T_UINT32] = 4,
-        [_C2T_INT16] = 2,
-        [_C2T_UINT16] = 2,
-        [_C2T_INT8] = 1,
-        [_C2T_UINT8] = 1,
-        [_C2T_FLOAT64] = 8,
-        [_C2T_FLOAT32] = 4,
-};
-
-/**
- * @brief String representations for each tensor element type.
- */
-const gchar* GstTensor_ConverterDataTypeName[] = {
-        [_C2T_INT32] = "int32",
-        [_C2T_UINT32] = "uint32",
-        [_C2T_INT16] = "int16",
-        [_C2T_UINT16] = "uint16",
-        [_C2T_INT8] = "int8",
-        [_C2T_UINT8] = "uint8",
-        [_C2T_FLOAT64] = "float64",
-        [_C2T_FLOAT32] = "float32",
 };
 
 /*

@@ -257,7 +257,7 @@ static gboolean
 gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *filter) {
   GstStructure *structure;
   gint rank;
-  gint dimension[GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT];
+  gint dimension[NNS_TENSOR_RANK_LIMIT];
   tensor_type type;
   gint framerate_numerator;
   gint framerate_denominator;
@@ -273,7 +273,7 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   return_false_if_fail(gst_structure_get_int(structure, "width", &dimension[1]));
   return_false_if_fail(gst_structure_get_int(structure, "height", &dimension[2]));
   return_false_if_fail(gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator));
-  type = _C2T_UINT8; /* Assume color depth per component is 8 bit */
+  type = _NNS_UINT8; /* Assume color depth per component is 8 bit */
   if (dimension[1] % 4) {
     g_print("  Width(dim2) is not divisible with 4. Width is adjusted %d -> %d\n",
         dimension[1], (dimension[1] + 3) / 4 * 4);
@@ -292,7 +292,7 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   }
 
   dimension[3] = 1; /* This is 3-D Tensor */
-  tensorFrameSize = GstTensor_ConverterDataSize[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
+  tensorFrameSize = tensor_element_size[type] * dimension[0] * dimension[1] * dimension[2] * dimension[3];
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
   if (filter->tensorConfigured == TRUE) {
@@ -302,7 +302,7 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
 	framerate_numerator == filter->framerate_numerator &&
 	tensorFrameSize == filter->tensorFrameSize &&
 	framerate_denominator == filter->framerate_denominator) {
-      for (i = 0; i < GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT; i++)
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
         if (dimension[i] != filter->dimension[i]) {
 	  g_printerr("  Dimension %d Mismatch with cached: %d --> %d\n", i, dimension[i], filter->dimension[i]);
 	  return FALSE;
@@ -314,7 +314,7 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   }
 
   filter->rank = rank;
-  for (i = 0; i < GST_TENSOR_CONVERTER_TENSOR_RANK_LIMIT; i++)
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     filter->dimension[i] = dimension[i];
   filter->type = type;
   filter->framerate_numerator = framerate_numerator;
@@ -324,7 +324,7 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   filter->tensorConfigured = TRUE;
 
   /* @TODO Support other types */
-  filter->input_media_type = _C2T_VIDEO;
+  filter->input_media_type = _NNS_VIDEO;
   return TRUE;
 }
 
@@ -394,7 +394,7 @@ static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
     goto unknown_tensor;
 
   switch(filter->input_media_type) {
-  case _C2T_VIDEO:
+  case _NNS_VIDEO:
     // CAUTION! in_info.video must be already configured!
     if (!gst_video_frame_map(&in_frame, &filter->in_info.video, inbuf,
             GST_MAP_READ | GST_VIDEO_FRAME_MAP_FLAG_NO_REF))
@@ -407,8 +407,8 @@ static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
     gst_video_frame_unmap(&in_frame);
     break;
   /* NOT SUPPORTED */
-  case _C2T_AUDIO:
-  case _C2T_STRING:
+  case _NNS_AUDIO:
+  case _NNS_STRING:
   default:
     g_printerr("  Unsupported Media Type (%d)\n", filter->input_media_type);
     goto unknown_type;
@@ -533,7 +533,7 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
         "dim2", G_TYPE_INT, bogusFilter.dimension[1],
         "dim3", G_TYPE_INT, bogusFilter.dimension[2],
         "dim4", G_TYPE_INT, bogusFilter.dimension[3],
-        "type", G_TYPE_STRING, GstTensor_ConverterDataTypeName[bogusFilter.type],
+        "type", G_TYPE_STRING, tensor_element_typename[bogusFilter.type],
 	"framerate", GST_TYPE_FRACTION, bogusFilter.framerate_numerator,
 	             bogusFilter.framerate_denominator,
         NULL);

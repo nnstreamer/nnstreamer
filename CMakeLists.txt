@@ -42,5 +42,10 @@ FOREACH(flag ${pkgs_CFALGS})
 ENDFOREACH(flag)
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror ")
 
+# Provide common data
+ADD_LIBRARY(common STATIC common/tensor_common.c)
+TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
+SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
+
 ADD_SUBDIRECTORY(tensor_converter)
 ADD_SUBDIRECTORY(tensor_filter)

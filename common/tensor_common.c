@@ -1,7 +1,7 @@
 /*
- * NNStreamer Common Header
+ * NNStreamer Common Header's Contents
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -40,75 +40,27 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  *
- * @file	tensor_common.h
- * @date	23 May 2018
- * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
+ * @file	tensor_common.c
+ * @date	29 May 2018
+ * @brief	Common data for NNStreamer, the GStreamer plugin for neural networks
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  */
 
-#ifndef __GST_TENSOR_COMMON_H__
-#define __GST_TENSOR_COMMON_H__
-
-#include <glib.h>
-
-G_BEGIN_DECLS
-
-#define NNS_TENSOR_RANK_LIMIT	(4)
-/**
- * @brief Possible data element types of other/tensor.
- *
- * The current version supports NNS_UINT8 only as video-input.
- * There is no restrictions for inter-NN or sink-to-app.
- */
-typedef enum _nns_tensor_type {
-  _NNS_INT32 = 0,
-  _NNS_UINT32,
-  _NNS_INT16,
-  _NNS_UINT16,
-  _NNS_INT8,
-  _NNS_UINT8,
-  _NNS_FLOAT64,
-  _NNS_FLOAT32,
-
-  _NNS_END,
-} tensor_type;
-
-/**
- * @brief Possible input stream types for other/tensor.
- *
- * This is realted with media input stream to other/tensor.
- * There is no restrictions for the outputs.
- */
-typedef enum _nns_media_type {
-  _NNS_VIDEO = 0,
-  _NNS_AUDIO, /* Not Supported Yet */
-  _NNS_STRING, /* Not Supported Yet */
-
-  _NNS_MEDIA_END,
-} media_type;
-
-/**
- * @brief Byte-per-element of each tensor element type.
- */
-static const unsigned int tensor_element_size[] = {
-        [_NNS_INT32] = 4,
-        [_NNS_UINT32] = 4,
-        [_NNS_INT16] = 2,
-        [_NNS_UINT16] = 2,
-        [_NNS_INT8] = 1,
-        [_NNS_UINT8] = 1,
-        [_NNS_FLOAT64] = 8,
-        [_NNS_FLOAT32] = 4,
-};
+#include <tensor_common.h>
 
 /**
  * @brief String representations for each tensor element type.
  */
-extern const gchar* tensor_element_typename[];
-
-G_END_DECLS
-
-#endif /* __GST_TENSOR_COMMON_H__ */
+const gchar* tensor_element_typename[] = {
+        [_NNS_INT32] = "int32",
+        [_NNS_UINT32] = "uint32",
+        [_NNS_INT16] = "int16",
+        [_NNS_UINT16] = "uint16",
+        [_NNS_INT8] = "int8",
+        [_NNS_UINT8] = "uint8",
+        [_NNS_FLOAT64] = "float64",
+        [_NNS_FLOAT32] = "float32",
+};
