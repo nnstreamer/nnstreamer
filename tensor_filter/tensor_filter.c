@@ -82,6 +82,7 @@
 #include <glib/gprintf.h>
 
 #include "tensor_filter.h"
+#include <tensor_common.h>
 
 GstTensor_Filter_Framework *tensor_filter_supported[] = {
   &NNS_support_tensorflow_lite,
@@ -268,6 +269,10 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
       break;
+    case PROP_FRAMEWORK:
+    case PROP_MODEL:
+    case PROP_INPUT:
+    case PROP_OUTPUT:
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -284,6 +289,28 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
       break;
+    case PROP_FRAMEWORK:
+      g_value_set_string(value, nnfw_names[filter->nnfw]);
+      break;
+    case PROP_MODEL:
+      g_value_set_string(value, filter->modelFilename);
+      break;
+    case PROP_INPUT: {
+        GArray *input = g_array_sized_new(FALSE, FALSE, 4, NNS_TENSOR_RANK_LIMIT);
+	int i;
+	for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+	  g_array_append_val(input, filter->inputDimension[i]);
+        g_value_take_boxed(value, input);
+	// take function hands the object over from here so that we don't need to free it.
+      }
+    case PROP_OUTPUT: {
+        GArray *output = g_array_sized_new(FALSE, FALSE, 4, NNS_TENSOR_RANK_LIMIT);
+	int i;
+	for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+	  g_array_append_val(output, filter->outputDimension[i]);
+        g_value_take_boxed(value, output);
+	// take function hands the object over from here so that we don't need to free it.
+      }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
