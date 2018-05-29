@@ -169,7 +169,7 @@ struct _GstTensor_Filter_Framework
   gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   int (*invoke_NN)(GstTensor_Filter *filter, void *inputptr, void *outputptr); /**< Mandatory callback. Invoke the given network model. */
-  int (*getInputDimension)(GstTensor_Fitler *filter, uint32_t *inputDimension); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
+  int (*getInputDimension)(GstTensor_Filter *filter, uint32_t *inputDimension); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
   int (*getOutputDimension)(GstTensor_Filter *filter, uint32_t *outputDimension); /**< Optional. Set NULL if not supported. Get dimension of output tensor */
 };
 typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;

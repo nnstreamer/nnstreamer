@@ -93,7 +93,7 @@ typedef enum _nns_media_type {
 /**
  * @brief Byte-per-element of each tensor element type.
  */
-const unsigned int nns_tensor_element_size[] = {
+static const unsigned int nns_tensor_element_size[] = {
         [_NNS_INT32] = 4,
         [_NNS_UINT32] = 4,
         [_NNS_INT16] = 2,
@@ -107,7 +107,7 @@ const unsigned int nns_tensor_element_size[] = {
 /**
  * @brief String representations for each tensor element type.
  */
-const gchar* nns_tensor_element_typename[] = {
+static const gchar* nns_tensor_element_typename[] = {
         [_NNS_INT32] = "int32",
         [_NNS_UINT32] = "uint32",
         [_NNS_INT16] = "int16",
