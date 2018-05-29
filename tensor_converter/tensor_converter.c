@@ -263,7 +263,6 @@ gst_tensor_converter_configure_tensor(const GstCaps *caps, GstTensor_Converter *
   gint framerate_denominator;
   gsize tensorFrameSize;
   gboolean ret;
-  GstCaps *outcaps;
   const gchar *format;
   int i;
 
@@ -638,7 +637,7 @@ static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
    *  However, we do not have subclass (This is the concrete class)
    */
   GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST(trans);
-  GstVideoInfo in_info, out_info;
+  GstVideoInfo in_info;
 
   GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
       " to %" GST_PTR_FORMAT, incaps, outcaps);
@@ -656,5 +655,7 @@ static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
   filter->negotiated = gst_tensor_converter_configure_tensor(incaps, filter);
 
   /* @TODO Verity if outcaps and filter conf are compatible */
+  /* @TODO THIS IS REQUIRED TO FILL IN: Return FALSE if filter is not compatible with outcaps */
 
+  return TRUE;
 }

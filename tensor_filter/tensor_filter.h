@@ -93,21 +93,7 @@ typedef enum _nnfw_type {
   _T_F_NNFW_END,
 } nnfw_type;
 
-/**
- * @brief NN Framework Names
- *
- * These strings are used to search f/w from property input.
- */
-static const char* nnfw_names[] = {
-  "Not supported",
-
-  "custom",
-  "tensorflow-lite",
-  "tensorflow",
-  "caffe2",
-
-  0,
-};
+extern const char* nnfw_names[];
 
 /**
  * @brief NN Framework Support Status

@@ -86,6 +86,16 @@
 GstTensor_Filter_Framework *tensor_filter_supported[] = {
   &NNS_support_tensorflow_lite,
 };
+const char* nnfw_names[] = {
+  "Not supported",
+
+  "custom",
+  "tensorflow-lite",
+  "tensorflow",
+  "caffe2",
+
+  0,
+};
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 #define GST_CAT_DEFAULT gst_tensor_filter_debug
@@ -320,12 +330,6 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
  * GstElement vmethod implementations
  */
 
-/* Configure tensor metadata from sink caps */
-static gboolean
-gst_tensor_filter_configure_tensor(const GstCaps *caps, GstTensor_Filter *filter) {
-}
-
-
 /* entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
@@ -395,6 +399,7 @@ static GstCaps* gst_tensor_filter_transform_caps(GstBaseTransform *trans,
 						  GstCaps *caps,
 						  GstCaps *filter)
 {
+  return NULL;
 }
 
 static GstCaps* gst_tensor_filter_fixate_caps(GstBaseTransform *trans,
@@ -402,10 +407,12 @@ static GstCaps* gst_tensor_filter_fixate_caps(GstBaseTransform *trans,
 					       GstCaps *caps,
 					       GstCaps *othercaps)
 {
+  return NULL;
 }
 
 static gboolean gst_tensor_filter_set_caps(GstBaseTransform *trans,
                                             GstCaps *incaps,
 					    GstCaps *outcaps)
 {
+  return FALSE;
 }
