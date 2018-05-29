@@ -82,7 +82,6 @@
 #include <glib/gprintf.h>
 
 #include "tensor_filter.h"
-#include <tensor_common.h>
 
 GstTensor_Filter_Framework *tensor_filter_supported[] = {
   &NNS_support_tensorflow_lite,

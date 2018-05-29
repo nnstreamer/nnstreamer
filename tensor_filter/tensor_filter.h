@@ -58,6 +58,7 @@
 #include <stdint.h>
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
+#include <tensor_common.h>
 
 G_BEGIN_DECLS
 
@@ -138,11 +139,12 @@ struct _GstTensor_Filter
   nnfw_type nnfw;
   gchar *modelFilename;
 
-  /* @TODO: replace 4 with the macro defined in the common header / int with the enum */
-  uint32_t inputDimension[4];
+  uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT];
   int inputType;
-  uint32_t outputDimension[4];
+  uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT];
   int outputType;
+
+  void *privateData; /**< NNFW plugin's private data is stored here */
 };
 
 /*
@@ -164,9 +166,11 @@ GType gst_tensor_filter_get_type (void);
 
 struct _GstTensor_Filter_Framework
 {
-  gchar *name;
-  gboolean allow_in_place;
-  int (*invoke_NN)(GstTensor_Filter *filter, void *inputptr, void *outputptr);
+  gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
+  gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
+  int (*invoke_NN)(GstTensor_Filter *filter, void *inputptr, void *outputptr); /**< Mandatory callback. Invoke the given network model. */
+  int (*getInputDimension)(GstTensor_Fitler *filter, uint32_t *inputDimension); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
+  int (*getOutputDimension)(GstTensor_Filter *filter, uint32_t *outputDimension); /**< Optional. Set NULL if not supported. Get dimension of output tensor */
 };
 typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
 
