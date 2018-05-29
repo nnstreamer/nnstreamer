@@ -7,6 +7,7 @@ Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.0
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
+Source2001:	testcase_tensor_converter.tar.gz
 
 Requires:	gstreamer >= 1.8.0
 Requires:	libdlog
@@ -34,7 +35,10 @@ popd
 # DO THE TEST!
 
 pushd tensor_converter/test
-./runTest.sh
+# We skip testcase gen because it requires PIL, which requires tk.
+# Use the pre-generated test cases
+tar -xf %{SOURCE2001}
+./runTest.sh -skipgen
 popd
 
 %install

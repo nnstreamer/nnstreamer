@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 
 failed=0
+sopath=""
 
-python generateGoldenTestResult.py
-./testcase01.sh $1 || failed=1
-./testcase02.sh $1 || failed=1
+if [ "$1" == "-skipgen" ]
+then
+  echo "Test Case Generation Skipped"
+  sopath=$2
+else
+  python generateGoldenTestResult.py
+  sopath=$1
+fi
+./testcase01.sh $sopath || failed=1
+./testcase02.sh $sopath || failed=1
 
 
 echo ""

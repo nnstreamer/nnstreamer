@@ -11,7 +11,7 @@
 
 if [ $# -eq 0 ]
 then
-  PATH_TO_PLUGIN="$PWD/../../build"
+  PATH_TO_PLUGIN="$PWD/../../build/tensor_converter"
 else
   PATH_TO_PLUGIN="$1"
 fi
