@@ -4,7 +4,7 @@ Version:	0.0.1
 Release:	1
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
-License:	LGPL-2.0
+License:	LGPL-2.1+ and Apache-2.0
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 Source2001:	testcase_tensor_converter.tar.gz
@@ -23,6 +23,7 @@ and their plugins in a gstreamer stream.
 
 %prep
 %setup -q
+cp %{SOURCE1001} .
 
 %build
 
@@ -47,6 +48,10 @@ pushd build
 popd
 
 %files
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+# The libraries are in LGPLv2.1 (testcases and non GST-plugin components are APL2)
+%license LICENSE.LGPLv2.1
 %{_libdir}/*
 
 %changelog
