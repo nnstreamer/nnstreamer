@@ -50,6 +50,8 @@
  */
 
 #include <tensor_common.h>
+#include <string.h>
+#include <glib.h>
 
 /**
  * @brief String representations for each tensor element type.
@@ -63,4 +65,73 @@ const gchar* tensor_element_typename[] = {
         [_NNS_UINT8] = "uint8",
         [_NNS_FLOAT64] = "float64",
         [_NNS_FLOAT32] = "float32",
+	[_NNS_END] = NULL,
 };
+
+
+/**
+ * @brief Get tensor_type from string tensor_type input
+ * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
+ * @param typestr The string type name, supposed to be one of tensor_element_typename[]
+ */
+tensor_type get_tensor_type(const gchar* typestr) {
+  int len;
+
+  if (!typestr)
+    return _NNS_END;
+  len = strlen(typestr);
+
+  if (typestr[0] == 'u' || typestr[0] == 'U') {
+    /* Let's believe the developer and the following three letters are "int" (case insensitive) */
+    if (len == 6) /* uint16, uint32 */ {
+      if (typestr[4] == '1' && typestr[5] == '6')
+        return _NNS_UINT16;
+      else if (typestr[4] == '3' && typestr[5] == '2')
+        return _NNS_UINT32;
+    } else if (len == 5) /* uint8 */ {
+      if (typestr[4] == '8')
+        return _NNS_UINT8;
+    }
+  } else if (typestr[0] == 'i' || typestr[0] == 'I') {
+    /* Let's believe the developer and the following two letters are "nt" (case insensitive) */
+    if (len == 5) /* int16, int32 */ {
+      if (typestr[3] == '1' && typestr[4] == '6')
+        return _NNS_INT16;
+      else if (typestr[3] == '3' && typestr[4] == '2')
+        return _NNS_INT32;
+    } else if (len == 4) /* int8 */ {
+      if (typestr[3] == '8')
+        return _NNS_INT8;
+    }
+    return _NNS_END;
+  } else if (typestr[0] == 'f' || typestr[0] == 'F') {
+    /* Let's assume that the following 4 letters are "loat" */
+    if (len == 7) {
+      if (typestr[5] == '6' && typestr[6] == '4')
+        return _NNS_FLOAT64;
+      else if (typestr[5] == '3' && typestr[6] == '2')
+        return _NNS_FLOAT32;
+    }
+  }
+
+  return _NNS_END;
+}
+
+/**
+ * @brief Find the index value of the given key string array
+ * @return Corresponding index. Returns -1 if not found.
+ * @param strv Null terminated array of gchar *
+ * @param key The key string value
+ */
+int find_key_strv(const gchar **strv, const gchar *key) {
+  int cursor = 0;
+
+  g_assert(strv != NULL);
+  while (strv[cursor]) {
+    if (!g_ascii_strcasecmp(strv[cursor], key))
+      return cursor;
+    cursor++;
+  }
+
+  return -1; /* Not Found */
+}

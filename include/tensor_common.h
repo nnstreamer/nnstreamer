@@ -109,6 +109,21 @@ static const unsigned int tensor_element_size[] = {
  */
 extern const gchar* tensor_element_typename[];
 
+/**
+ * @brief Get tensor_type from string tensor_type input
+ * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
+ * @param typestr The string type name, supposed to be one of tensor_element_typename[]
+ */
+extern tensor_type get_tensor_type(const gchar* typestr);
+
+/**
+ * @brief Find the index value of the given key string array
+ * @return Corresponding index
+ * @param strv Null terminated array of gchar *
+ * @param key The key string value
+ */
+extern int find_key_strv(const gchar **strv, const gchar *key);
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_COMMON_H__ */

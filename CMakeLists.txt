@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-PROJECT(nnstreamer C)
+PROJECT(nnstreamer C CXX)
 
 OPTION(TIZEN "Enable Tizen build mode" OFF)
 
@@ -24,12 +24,25 @@ SET(PKG_MODULES
 	gstreamer-audio-1.0
 	glib-2.0
 )
-IF(TIZEN)
+
+FIND_LIBRARY(GTEST_LIB gtest)
+IF(TIZEN OR GTEST_LIB)
 	# Enable dlog of Tizen.
 	ADD_DEFINITIONS(-DTIZEN=1)
 	SET(PKG_MODULES ${PKG_MODULES} dlog)
-ENDIF(TIZEN)
-	
+	# Use GTEST shared lib
+	SET(gtestLink gtest pthread)
+	SET(gtestSrc "")
+	SET(gtestInc "")
+ELSE(TIZEN OR GTEST_LIB)
+	IF (NOT EXISTS /usr/src/gtest/src/gtest-all.cc)
+		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or libgtest.so.")
+	ENDIF ()
+	SET(gtestLink pthread)
+	SET(gtestSrc /usr/src/gtest/src/gtest-all.cc)
+	SET(gtestInc /usr/src/gtest)
+ENDIF(TIZEN OR GTEST_LIB)
+
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 
 INCLUDE_DIRECTORIES(
@@ -40,12 +53,19 @@ LINK_DIRECTORIES(${pkgs_LIBRARY_DIRS})
 FOREACH(flag ${pkgs_CFALGS})
 	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
 ENDFOREACH(flag)
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror ")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC")
 
 # Provide common data
 ADD_LIBRARY(common STATIC common/tensor_common.c)
+TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
 SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
+
+# Unit test for common
+ADD_EXECUTABLE(unittest_common common/test/unittest_common.cpp ${gtestSrc})
+TARGET_INCLUDE_DIRECTORIES(unittest_common PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
+TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 
 ADD_SUBDIRECTORY(tensor_converter)
 ADD_SUBDIRECTORY(tensor_filter)

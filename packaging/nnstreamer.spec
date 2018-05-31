@@ -21,6 +21,8 @@ BuildRequires:	libdlog-devel
 BuildRequires:	gst-plugins-good
 BuildRequires:	gst-plugins-good-extra
 BuildRequires:	gst-plugins-base
+# and gtest
+BuildRequires:	gtest-devel
 
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
@@ -39,6 +41,10 @@ make %{?_smp_mflags}
 popd
 
 # DO THE TEST!
+
+pushd build
+./unittest_common
+popd
 
 pushd tensor_converter/test
 # We skip testcase gen because it requires PIL, which requires tk.
