@@ -51,7 +51,7 @@
  *
  * This is the main plugin for per-NN-framework plugins.
  * Specific implementations for each NN framework must be written
- * in each framework specific files; e.g., tensor_fitler_tensorflow_lite.c
+ * in each framework specific files; e.g., tensor_filter_tensorflow_lite.c
  *
  */
 
@@ -87,12 +87,12 @@ GstTensor_Filter_Framework *tensor_filter_supported[] = {
   &NNS_support_tensorflow_lite,
 };
 const char* nnfw_names[] = {
-  "Not supported",
+  [_T_F_UNDEFINED] = "Not supported",
 
-  "custom",
-  "tensorflow-lite",
-  "tensorflow",
-  "caffe2",
+  [_T_F_CUSTOM] = "custom",
+  [_T_F_TENSORFLOW_LITE] = "tensorflow-lite",
+  [_T_F_TENSORFLOW] = "tensorflow",
+  [_T_F_CAFFE2] = "caffe2",
 
   0,
 };
@@ -114,7 +114,10 @@ enum
   PROP_FRAMEWORK,
   PROP_MODEL,
   PROP_INPUT,
+  PROP_INPUTTYPE,
   PROP_OUTPUT,
+  PROP_OUTPUTTYPE,
+  PROP_DEBUG,
 };
 
 /**
@@ -211,9 +214,16 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_value_array ("input", "Input dimension", "Input tensor dimension from inner array, upto 4 dimensions ?",
           g_param_spec_uint("dimension", "Dimension", "Size of a dimension axis in input dimension array", 1, 65535, 1, G_PARAM_READABLE), G_PARAM_READABLE));
+  g_object_class_install_property (gobject_class, PROP_INPUTTYPE,
+      g_param_spec_string("inputtype", "Input tensor element type", "Type of each element of the input tensor ?", "uint8", G_PARAM_READABLE));
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_value_array ("output", "Output dimension", "Output tensor dimension from inner array, upto 4 dimensions ?",
           g_param_spec_uint("dimension", "Dimension", "Size of a dimension axis in output dimension array", 1, 65535, 1, G_PARAM_READABLE), G_PARAM_READABLE));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
+      g_param_spec_string("outputtype", "Output tensor element type", "Type of each element of the output tensor ?", "uint8", G_PARAM_READABLE));
+  g_object_class_install_property (gobject_class, PROP_DEBUG,
+      g_param_spec_boolean ("debug", "Debug", "Produce a lot of log messages ?",
+          FALSE, G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple(gstelement_class,
     "Tensor_Filter",
@@ -252,6 +262,7 @@ static void
 gst_tensor_filter_init (GstTensor_Filter * filter)
 {
   filter->silent = FALSE;
+  filter->debug = FALSE;
   filter->nnfw = _T_F_UNDEFINED;
   filter->inputConfigured = FALSE;
   filter->outputConfigured = FALSE;
@@ -260,12 +271,14 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->inputDimension[0] = 1; // innermost
   filter->inputDimension[1] = 1;
   filter->inputDimension[2] = 1;
-  filter->inputDimension[3] = 1; // out
+  filter->inputDimension[3] = 0; // out ( 0 == not initialized )
+  filter->inputType = _NNS_END; // not initialized
 
   filter->outputDimension[0] = 1; // innermost
   filter->outputDimension[1] = 1;
   filter->outputDimension[2] = 1;
-  filter->outputDimension[3] = 1; // out
+  filter->outputDimension[3] = 0; // out ( 0 == not initialized )
+  filter->outputType = _NNS_END; // not initialized
 }
 
 static void
@@ -274,14 +287,52 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER (object);
 
+  if (filter->debug == TRUE) {
+    g_printerr("Setting property. for Prop %d.\n", prop_id);
+  }
+
   switch (prop_id) {
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
       break;
+    case PROP_DEBUG:
+      filter->debug = g_value_get_boolean (value);
+      break;
     case PROP_FRAMEWORK:
+      g_assert(filter->nnfw == _T_F_UNDEFINED && value);
+      /* Once configures, it cannot be changed in runtime */
+      filter->nnfw = find_key_strv(nnfw_names, g_value_get_string(value));
+      g_assert(filter->nnfw != -1);
+      g_assert(filter->nnfw != _T_F_UNDEFINED);
+      break;
     case PROP_MODEL:
+      g_assert(filter->modelFilename == NULL && value);
+      /* Once configures, it cannot be changed in runtime */
+      filter->modelFilename = g_value_get_string(value);
+      g_assert(g_file_test(filter->modelFilename, G_FILE_TEST_IS_REGULAR) == TRUE);
+      break;
     case PROP_INPUT:
+      g_assert(filter->inputConfigured == FALSE && value);
+      /* Once configures, it cannot be changed in runtime */
+      /* @TODO: Write code to get input dimensions */
+      break;
     case PROP_OUTPUT:
+      g_assert(filter->outputConfigured == FALSE && value);
+      /* Once configures, it cannot be changed in runtime */
+      /* @TODO: Write code to get output dimensions */
+      break;
+    case PROP_INPUTTYPE:
+      g_assert(filter->inputType == _NNS_END && value);
+      /* Once configures, it cannot be changed in runtime */
+      filter->inputType = get_tensor_type(g_value_get_string(value));
+      g_assert(filter->inputType != _NNS_END);
+      break;
+    case PROP_OUTPUTTYPE:
+      g_assert(filter->outputType == _NNS_END && value);
+      /* Once configures, it cannot be changed in runtime */
+      filter->outputType = get_tensor_type(g_value_get_string(value));
+      g_assert(filter->outputType != _NNS_END);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -294,9 +345,16 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER (object);
 
+  if (filter->debug == TRUE) {
+    g_printerr("Getting property. for Prop %d.\n", prop_id);
+  }
+
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
+      break;
+    case PROP_DEBUG:
+      g_value_set_boolean (value, filter->debug);
       break;
     case PROP_FRAMEWORK:
       g_value_set_string(value, nnfw_names[filter->nnfw]);
@@ -312,6 +370,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
         g_value_take_boxed(value, input);
 	// take function hands the object over from here so that we don't need to free it.
       }
+      break;
     case PROP_OUTPUT: {
         GArray *output = g_array_sized_new(FALSE, FALSE, 4, NNS_TENSOR_RANK_LIMIT);
 	int i;
@@ -320,6 +379,13 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
         g_value_take_boxed(value, output);
 	// take function hands the object over from here so that we don't need to free it.
       }
+      break;
+    case PROP_INPUTTYPE:
+      g_value_set_string(value, tensor_element_typename[filter->inputType]);
+      break;
+    case PROP_OUTPUTTYPE:
+      g_value_set_string(value, tensor_element_typename[filter->outputType]);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
