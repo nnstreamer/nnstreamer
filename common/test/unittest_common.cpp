@@ -199,6 +199,47 @@ TEST(common_find_key_strv, case5) {
 }
 
 
+TEST(common_get_tensor_dimension, case1) {
+  uint32_t dim[NNS_TENSOR_RANK_LIMIT];
+  int rank = get_tensor_dimension("345:123:433:177", dim);
+  EXPECT_EQ(rank, 4);
+  EXPECT_EQ(dim[0], 345);
+  EXPECT_EQ(dim[1], 123);
+  EXPECT_EQ(dim[2], 433);
+  EXPECT_EQ(dim[3], 177);
+}
+
+
+TEST(common_get_tensor_dimension, case2) {
+  uint32_t dim[NNS_TENSOR_RANK_LIMIT];
+  int rank = get_tensor_dimension("345:123:433", dim);
+  EXPECT_EQ(rank, 3);
+  EXPECT_EQ(dim[0], 345);
+  EXPECT_EQ(dim[1], 123);
+  EXPECT_EQ(dim[2], 433);
+  EXPECT_EQ(dim[3], 1);
+}
+
+TEST(common_get_tensor_dimension, case3) {
+  uint32_t dim[NNS_TENSOR_RANK_LIMIT];
+  int rank = get_tensor_dimension("345:123", dim);
+  EXPECT_EQ(rank, 2);
+  EXPECT_EQ(dim[0], 345);
+  EXPECT_EQ(dim[1], 123);
+  EXPECT_EQ(dim[2], 1);
+  EXPECT_EQ(dim[3], 1);
+}
+
+TEST(common_get_tensor_dimension, case4) {
+  uint32_t dim[NNS_TENSOR_RANK_LIMIT];
+  int rank = get_tensor_dimension("345", dim);
+  EXPECT_EQ(rank, 1);
+  EXPECT_EQ(dim[0], 345);
+  EXPECT_EQ(dim[1], 1);
+  EXPECT_EQ(dim[2], 1);
+  EXPECT_EQ(dim[3], 1);
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

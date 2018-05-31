@@ -135,3 +135,29 @@ int find_key_strv(const gchar **strv, const gchar *key) {
 
   return -1; /* Not Found */
 }
+
+/**
+ * @brief Parse tensor dimension parameter string
+ * @return The Rank. 0 if error.
+ * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ */
+int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]) {
+  gchar **strv = g_strsplit(param, ":", NNS_TENSOR_RANK_LIMIT);
+  int i, retval = 0;
+  guint64 val;
+
+  g_assert(strv != NULL);
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (strv[i] == NULL)
+      break;
+    val = g_ascii_strtoull(strv[i], NULL, 10);
+    dim[i] = val;
+    retval = i + 1;
+  }
+  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
+    dim[i] = 1;
+
+  g_strfreev(strv);
+  return retval;
+}

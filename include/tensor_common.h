@@ -53,6 +53,7 @@
 #define __GST_TENSOR_COMMON_H__
 
 #include <glib.h>
+#include <stdint.h>
 
 G_BEGIN_DECLS
 
@@ -123,6 +124,13 @@ extern tensor_type get_tensor_type(const gchar* typestr);
  * @param key The key string value
  */
 extern int find_key_strv(const gchar **strv, const gchar *key);
+
+/**
+ * @brief Parse tensor dimension parameter string
+ * @return The Rank.
+ * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ */
+extern int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
 
 G_END_DECLS
 
