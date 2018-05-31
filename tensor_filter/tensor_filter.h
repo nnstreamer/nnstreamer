@@ -112,6 +112,9 @@ static const gboolean nnfw_support_status[] = {
   FALSE,
 };
 
+struct _GstTensor_Filter_Framework;
+typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
+
 /**
  * @brief Internal data structure for tensor_filter instances.
  */
@@ -119,17 +122,18 @@ struct _GstTensor_Filter
 {
   GstBaseTransform element;	/**< This is the parent object */
 
-  gboolean silent;
-  gboolean debug;
-  gboolean inputConfigured;
-  gboolean outputConfigured;
-  nnfw_type nnfw;
-  const gchar *modelFilename;
+  gboolean silent; /**< Verbose mode if FALSE */
+  gboolean debug; /**< Print out more thinkgs if TRUE */
+  gboolean inputConfigured; /**< TRUE if input dimension is configured */
+  gboolean outputConfigured; /** < TRUE if output dimension is configured */
+  nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
+  GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+  const gchar *modelFilename; /**< Filepath to the model file (as an argument for NNFW) */
 
-  uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT];
-  tensor_type inputType;
-  uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT];
-  tensor_type outputType;
+  uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The input tensor dimension */
+  tensor_type inputType; /**< The type for each element in the input tensor */
+  uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The output tensor dimension */
+  tensor_type outputType; /**< The type for each element in the output tensor */
 
   void *privateData; /**< NNFW plugin's private data is stored here */
 };
@@ -159,7 +163,6 @@ struct _GstTensor_Filter_Framework
   int (*getInputDimension)(GstTensor_Filter *filter, uint32_t *inputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
   int (*getOutputDimension)(GstTensor_Filter *filter, uint32_t *outputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of output tensor */
 };
-typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;
 

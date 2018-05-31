@@ -64,14 +64,13 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v -m fakesrc ! tensor_filter framework=tensorflow-lite, model=./inception_v3.pb, input=3,224,224, output=1000 ! fakesink silent=TRUE
+ * gst-launch -v -m fakesrc ! tensor_filter framework=tensorflow-lite, model=./inception_v3.pb, input=3:224:224, output=1000 ! fakesink silent=TRUE
  * ]|
  * </refsect2>
  *
  * If input is other/tensor C array input[1][224][224][3] and
  * output is other/tensor C array output[1][1][1][1000]
  */
-/* @TODO I don't sure if we can give "224x224x3" as property values for gstreamer. */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -84,7 +83,14 @@
 #include "tensor_filter.h"
 
 GstTensor_Filter_Framework *tensor_filter_supported[] = {
-  &NNS_support_tensorflow_lite,
+  [_T_F_UNDEFINED] = NULL,
+
+  [_T_F_CUSTOM] = NULL,
+  [_T_F_TENSORFLOW_LITE] = &NNS_support_tensorflow_lite,
+  [_T_F_TENSORFLOW] = NULL,
+  [_T_F_CAFFE2] = NULL,
+
+  0,
 };
 const char* nnfw_names[] = {
   [_T_F_UNDEFINED] = "Not supported",
@@ -271,14 +277,43 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->inputDimension[0] = 1; // innermost
   filter->inputDimension[1] = 1;
   filter->inputDimension[2] = 1;
-  filter->inputDimension[3] = 0; // out ( 0 == not initialized )
+  filter->inputDimension[3] = 1; // out
   filter->inputType = _NNS_END; // not initialized
 
   filter->outputDimension[0] = 1; // innermost
   filter->outputDimension[1] = 1;
   filter->outputDimension[2] = 1;
-  filter->outputDimension[3] = 0; // out ( 0 == not initialized )
+  filter->outputDimension[3] = 1; // out
   filter->outputType = _NNS_END; // not initialized
+}
+
+/**
+ * @brief Fix CAPS for sink/src pad based on input/output metadata in filter.
+ * @param filter "this" object
+ * @param isInput TRUE if it's for input. FALSE if it's for output.
+ *
+ * We need both type and dimension to do this.
+ * This is supposed to be used by set_property
+ */
+static void
+gst_tensor_filter_fix_caps (GstTensor_Filter *filter, gboolean isInput) {
+  tensor_type *type = NULL;
+  uint32_t *dimension;
+  GstCaps *caps = NULL;
+
+  if (isInput == TRUE) {
+    type = &(filter->inputType);
+    dimension = filter->inputDimension;
+  } else {
+    type = &(filter->outputType);
+    dimension = filter->outputDimension;
+  }
+
+  /* @TODO 1. caps = get CAPS pointer of sink (input) or src (output) */
+  g_assert((void *)type != (void *)caps); /* @TODO Remove this when you do 1 and 2 */
+  g_assert((void *)type != (void *)dimension); /* @TODO Remove this when you do 1 and 2 */
+
+  /* @TODO 2. configure caps based on type & dimension */
 }
 
 static void
@@ -304,6 +339,9 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       filter->nnfw = find_key_strv(nnfw_names, g_value_get_string(value));
       g_assert(filter->nnfw != -1);
       g_assert(filter->nnfw != _T_F_UNDEFINED);
+      g_assert(nnfw_support_status[filter->nnfw] == TRUE);
+      filter->fw = tensor_filter_supported[filter->nnfw];
+      g_assert(filter->fw != NULL);
       break;
     case PROP_MODEL:
       g_assert(filter->modelFilename == NULL && value);
@@ -314,24 +352,41 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     case PROP_INPUT:
       g_assert(filter->inputConfigured == FALSE && value);
       /* Once configures, it cannot be changed in runtime */
-      /* @TODO: Write code to get input dimensions */
+      {
+        int rank = get_tensor_dimension(g_value_get_string(value), filter->inputDimension);
+	g_assert(rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
+	filter->inputConfigured = TRUE;
+      }
+      if (filter->inputType != _NNS_END)
+        gst_tensor_filter_fix_caps(filter, TRUE);
       break;
     case PROP_OUTPUT:
       g_assert(filter->outputConfigured == FALSE && value);
       /* Once configures, it cannot be changed in runtime */
-      /* @TODO: Write code to get output dimensions */
+      {
+        int rank = get_tensor_dimension(g_value_get_string(value), filter->outputDimension);
+	g_assert(rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
+	filter->outputConfigured = TRUE;
+      }
+
+      if (filter->outputType != _NNS_END)
+        gst_tensor_filter_fix_caps(filter, FALSE);
       break;
     case PROP_INPUTTYPE:
       g_assert(filter->inputType == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
       filter->inputType = get_tensor_type(g_value_get_string(value));
       g_assert(filter->inputType != _NNS_END);
+      if (filter->inputConfigured == TRUE)
+        gst_tensor_filter_fix_caps(filter, TRUE);
       break;
     case PROP_OUTPUTTYPE:
       g_assert(filter->outputType == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
       filter->outputType = get_tensor_type(g_value_get_string(value));
       g_assert(filter->outputType != _NNS_END);
+      if (filter->outputConfigured == TRUE)
+        gst_tensor_filter_fix_caps(filter, FALSE);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
