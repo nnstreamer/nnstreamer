@@ -17,6 +17,11 @@ BuildRequires:	glib2-devel
 BuildRequires:	cmake
 BuildRequires:	libdlog-devel
 
+# To run test cases, we need gst plugins
+BuildRequires:	gst-plugins-good
+BuildRequires:	gst-plugins-good-extra
+BuildRequires:	gst-plugins-base
+
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
