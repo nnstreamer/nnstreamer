@@ -1,5 +1,7 @@
 # NNStreamer
-Neural Network Streamer for AI Projects. http://suprem.sec.samsung.net/confluence/display/SRAMLABC/NN+Streamer
+
+Neural Network Streamer for AI Projects.
+http://suprem.sec.samsung.net/confluence/display/STAR/NN+Streamer
 
 ## Objectives
 
@@ -17,6 +19,8 @@ Note that this project has just started and most of the components are in design
 
 - other/tensor
 
+findtype specifics: TBD
+
 ### Gstreamer Elements (Plugins)
 
 - tensor\_converter
@@ -25,42 +29,71 @@ Note that this project has just started and most of the components are in design
     - Known Issues
       - If video width is not divisible by 4, it is supposed to do zero-padding, which is not working (Found 2018-05-17, #7)
   - Audio
-    - TBD
+    - Planned
   - Text
-    - TBD
-- tensor\_transformer
+    - Planned
 - tensor\_filter
+  - Main
+    - Work in Progress
+  - Tensorflow-Lite
+    - Skeleton only
+  - Custom
+    - Concept only
+  - Other NNFW TBD
 - tensor\_sink
+  - Planned
+- tensor\_transformer
+  - Planned
 - tensor\_merge
+  - Planned
 
 ## How to Build
 
 ### Linux Self-Hosted Build
 
-In each plugin source directory,
+At the git repo root directory,
 ```
 $ mkdir -p build  # We recommend to build in a "build" directory
 $ cd build
 $ rm -Rf *        # Ensure the build directory is empty
 $ cmake ..
 $ make
+$ cd ..
 ```
 
-You may copy the resulting plugin (.so file) to gstreamer plugin repository.
+You may copy the resulting plugin (.so file) to gstreamer plugin repository. Or do
+```
+$ cd build
+$ sudo make install
+```
+if installing NNstreamer plugin libraries into ```%{_libdir}```.
 
 
 ### Tizen
 
-Not-Yet-Implemented Feature
-Tizen is going to be the first official target along with Ubuntu.
 
 ```
 $ gbs build
 ```
+```gbs build``` will execute unit testing as well unlike cmake build.
 
 ## How to Test
 
-Use the built library as a general gstreamer plugin.
+- Use the built library as a general gstreamer plugin.
+
+- Unit Test 
+
+For common library unit test
+```
+$ cd build
+$ ./unittest_common
+```
+
+For tensor_converter golden test
+```
+$ cd tensor_convert/test
+$ ./runTest.sh
+```
 
 ## Usage Examples
 

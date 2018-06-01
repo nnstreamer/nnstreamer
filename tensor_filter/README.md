@@ -1,4 +1,4 @@
-# NNStreamer::tensor_filter
+# NNStreamer::tensor\_filter
 
 ## Motivation
 
