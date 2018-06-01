@@ -39,6 +39,13 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
 
+%package devel
+Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
+Requires:	nnstreamer = %{version}-%{release}
+%description devel
+Development package for custom tensor operator developers (tensor_filter/custom).
+This contains corresponding header files and .pc pkgconfig file.
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -102,7 +109,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 # The libraries are in LGPLv2.1 (testcases and non GST-plugin components are APL2)
 %license LICENSE.LGPLv2.1
-%{_libdir}/*
+%{_libdir}/*.so
+%{_libdir}/*.so*
+# TODO generate .so files with version info. Migrate symbolic-link .so to devel.
+
+%files devel
+%{_includedir}/nnstreamer/*
+%{_libdir}/pkgconfig/nnstreamer.pc
 
 %if 0%{?testcoverage}
 %files unittest-coverage

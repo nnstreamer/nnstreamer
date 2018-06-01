@@ -1,5 +1,5 @@
 /*
- * NNStreamer Common Header
+ * NNStreamer Common Header, Typedef part, for export as devel package.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -40,79 +40,39 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  *
- * @file	tensor_common.h
- * @date	23 May 2018
+ * @file	tensor_common_typedef.h
+ * @date	01 Jun 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- */
-
-#ifndef __GST_TENSOR_COMMON_H__
-#define __GST_TENSOR_COMMON_H__
-
-#include <glib.h>
-#include <stdint.h>
-#include "tensor_typedef.h"
-
-G_BEGIN_DECLS
-
-/**
- * @brief Possible input stream types for other/tensor.
+ * To Packagers:
  *
- * This is realted with media input stream to other/tensor.
- * There is no restrictions for the outputs.
+ * This fils it to be packaged as "devel" package for NN developers.
  */
-typedef enum _nns_media_type {
-  _NNS_VIDEO = 0,
-  _NNS_AUDIO, /* Not Supported Yet */
-  _NNS_STRING, /* Not Supported Yet */
 
-  _NNS_MEDIA_END,
-} media_type;
+#ifndef __GST_TENSOR_TYPEDEF_H__
+#define __GST_TENSOR_TYPEDEF_H__
 
+#define NNS_TENSOR_RANK_LIMIT	(4)
 /**
- * @brief Byte-per-element of each tensor element type.
+ * @brief Possible data element types of other/tensor.
+ *
+ * The current version supports NNS_UINT8 only as video-input.
+ * There is no restrictions for inter-NN or sink-to-app.
  */
-static const unsigned int tensor_element_size[] = {
-        [_NNS_INT32] = 4,
-        [_NNS_UINT32] = 4,
-        [_NNS_INT16] = 2,
-        [_NNS_UINT16] = 2,
-        [_NNS_INT8] = 1,
-        [_NNS_UINT8] = 1,
-        [_NNS_FLOAT64] = 8,
-        [_NNS_FLOAT32] = 4,
-};
+typedef enum _nns_tensor_type {
+  _NNS_INT32 = 0,
+  _NNS_UINT32,
+  _NNS_INT16,
+  _NNS_UINT16,
+  _NNS_INT8,
+  _NNS_UINT8,
+  _NNS_FLOAT64,
+  _NNS_FLOAT32,
 
-/**
- * @brief String representations for each tensor element type.
- */
-extern const gchar* tensor_element_typename[];
+  _NNS_END,
+} tensor_type;
 
-/**
- * @brief Get tensor_type from string tensor_type input
- * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
- * @param typestr The string type name, supposed to be one of tensor_element_typename[]
- */
-extern tensor_type get_tensor_type(const gchar* typestr);
-
-/**
- * @brief Find the index value of the given key string array
- * @return Corresponding index
- * @param strv Null terminated array of gchar *
- * @param key The key string value
- */
-extern int find_key_strv(const gchar **strv, const gchar *key);
-
-/**
- * @brief Parse tensor dimension parameter string
- * @return The Rank.
- * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
- */
-extern int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
-
-G_END_DECLS
-
-#endif /* __GST_TENSOR_COMMON_H__ */
+#endif /*__GST_TENSOR_TYPEDEF_H__*/

@@ -85,7 +85,7 @@
 GstTensor_Filter_Framework *tensor_filter_supported[] = {
   [_T_F_UNDEFINED] = NULL,
 
-  [_T_F_CUSTOM] = NULL,
+  [_T_F_CUSTOM] = &NNS_support_custom,
   [_T_F_TENSORFLOW_LITE] = &NNS_support_tensorflow_lite,
   [_T_F_TENSORFLOW] = NULL,
   [_T_F_CAFFE2] = NULL,
@@ -285,6 +285,8 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->outputDimension[2] = 1;
   filter->outputDimension[3] = 1; // out
   filter->outputType = _NNS_END; // not initialized
+
+  filter->privateData = NULL; // mark not initialized.
 }
 
 /**

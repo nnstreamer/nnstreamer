@@ -1,8 +1,12 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-ADD_LIBRARY(tensor_filter SHARED tensor_filter.c tensor_filter_tensorflow_lite.c)
+ADD_LIBRARY(tensor_filter SHARED
+	tensor_filter.c
+	tensor_filter_tensorflow_lite.c
+	tensor_filter_custom.c
+	)
 
-TARGET_LINK_LIBRARIES(tensor_filter ${pkgs_LIBRARIES})
+TARGET_LINK_LIBRARIES(tensor_filter dl ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(tensor_filter PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(tensor_filter PUBLIC ${pkgs_CFLAGS_OTHER})
 
@@ -10,4 +14,7 @@ INSTALL(TARGETS tensor_filter
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+	)
+INSTALL(FILES tensor_filter_custom.h
+	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)

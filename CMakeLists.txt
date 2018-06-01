@@ -43,6 +43,12 @@ ELSE(TIZEN OR GTEST_LIB)
 	SET(gtestInc /usr/src/gtest)
 ENDIF(TIZEN OR GTEST_LIB)
 
+IF (NOT INCLUDE_INSTALL_DIR)
+	# We need to define includedir path
+	SET (INCLUDE_INSTALL_DIR /usr/include)
+	MESSAGE ("Warning: INCLUDE_INSTALL_DIR not defined. Using /usr/include")
+ENDIF (NOT INCLUDE_INSTALL_DIR)
+
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 
 INCLUDE_DIRECTORIES(
@@ -69,3 +75,12 @@ TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 
 ADD_SUBDIRECTORY(tensor_converter)
 ADD_SUBDIRECTORY(tensor_filter)
+
+CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
+
+INSTALL(FILES include/tensor_typedef.h
+	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
+	)
+INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/nnstreamer.pc
+	DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
+	)

@@ -104,8 +104,8 @@ extern const char* nnfw_names[];
 static const gboolean nnfw_support_status[] = {
   FALSE,
 
-  FALSE,
-  FALSE,
+  TRUE,
+  TRUE,
   FALSE,
   FALSE,
 
@@ -162,9 +162,11 @@ struct _GstTensor_Filter_Framework
   int (*invoke_NN)(GstTensor_Filter *filter, void *inputptr, void *outputptr); /**< Mandatory callback. Invoke the given network model. */
   int (*getInputDimension)(GstTensor_Filter *filter, uint32_t *inputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
   int (*getOutputDimension)(GstTensor_Filter *filter, uint32_t *outputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of output tensor */
+  void (*close)(GstTensor_Filter *filter); /**< Optional. Close this instance! */
 };
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;
+extern GstTensor_Filter_Framework NNS_support_custom;
 
 extern GstTensor_Filter_Framework *tensor_filter_supported[];
 

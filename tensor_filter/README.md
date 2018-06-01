@@ -22,7 +22,11 @@ This should fill in ```GstTensor_Filter_Framework``` supporting tensorflow_lite.
 
 ### Custom function support, ```tensor_filter_custom.c```
 
-This should fill in ```GstTensor_Filter_Framework``` supporting dlopen'ed custom shared objects, requiring such shared objects to provide its own defined functions.
+Neural network and streameline developers may define their own tensor postprocessing operations with tensor_filter_custom.
+
+With ```nnstreamer-devel``` package installed at build time (e.g., ```BuildRequires: pkgconfig(nnstreamer)``` in .spec file), develerops can implement their own functions and expose their functions via ```NNStreamer_custom_class``` defined in ```tensor_fitler_custom.h```. The resulting custom developer plugin should exist as a shared library (.so) with the symbol NNStreamer_custom exposed with all the func defined in NNStreamer_custom_class.
+
+@TODO Write an example custom filter for novice developers.
 
 ### We may add other NNFW as well (tensorflow, caffe, ...)
 
