@@ -268,32 +268,88 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
 }
 
 /**
+ * @brief Calculate the rank of a tensor
+ * @param dimension The dimension vector (uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
+ * @return the rank value
+ */
+static int
+gst_tensor_filter_get_rank(uint32_t *dimension) {
+  int i = 0;
+  int rank = 0;
+  g_assert(dimension);
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    g_assert(dimension[i] > 0);
+    if (i > 1)
+      rank = i + 1;
+  }
+  return rank;
+}
+
+/**
+ * @brief Configure tensor metadata from sink caps.
+ *
+ * This is a direct import from tensor_converter::gst_tensor_converter_configure_tensor.
+ * This checks if the sink-pad-cap is consistant with src-pad-cap.
+ * This can be done only by looking at input/ouput dimension queries.
+ */
+static gboolean
+gst_tensor_filter_configure_tensor(const GstCaps *caps, GstTensor_Filter *filter) {
+  /* @TODO 1: query input/output dims/types */
+  /* @TODO 2: verify it with current caps */
+  /* @TODO 3: return value assessment */
+  return FALSE;
+}
+
+/**
  * @brief Fix CAPS for sink/src pad based on input/output metadata in filter.
  * @param filter "this" object
  * @param isInput TRUE if it's for input. FALSE if it's for output.
  *
  * We need both type and dimension to do this.
- * This is supposed to be used by set_property
+ * This is supposed to be used by set_properties, restrting pad-caps before attaching input/output elements
  */
 static void
 gst_tensor_filter_fix_caps (GstTensor_Filter *filter, gboolean isInput) {
   tensor_type *type = NULL;
   uint32_t *dimension;
-  GstCaps *caps = NULL;
+  GstPad *pad;
+  GstCaps *caps = NULL, *tmp = NULL, *tmp2 = NULL;
+  int rank;
 
   if (isInput == TRUE) {
     type = &(filter->inputType);
     dimension = filter->inputDimension;
+    pad = GST_BASE_TRANSFORM_SINK_PAD(&(filter->element));
   } else {
     type = &(filter->outputType);
     dimension = filter->outputDimension;
+    pad = GST_BASE_TRANSFORM_SRC_PAD(&(filter->element));
   }
 
-  /* @TODO 1. caps = get CAPS pointer of sink (input) or src (output) */
-  g_assert((void *)type != (void *)caps); /* @TODO Remove this when you do 1 and 2 */
-  g_assert((void *)type != (void *)dimension); /* @TODO Remove this when you do 1 and 2 */
+  /* 1. caps = get CAPS pointer of sink (input) or src (output) pad */
+  caps = gst_pad_get_current_caps(pad);
 
-  /* @TODO 2. configure caps based on type & dimension */
+  /* 2. configure caps based on type & dimension */
+  rank = gst_tensor_filter_get_rank(dimension);
+  tmp = gst_caps_new_simple("other/tensor",
+      "rank", G_TYPE_INT, rank,
+      "type", G_TYPE_STRING, tensor_element_typename[*type],
+      "dim1", G_TYPE_INT, dimension[0],
+      "dim2", G_TYPE_INT, dimension[1],
+      "dim3", G_TYPE_INT, dimension[2],
+      "dim4", G_TYPE_INT, dimension[3],
+      NULL); /* Framerate is not determined with the given info */
+  tmp2 = gst_caps_intersect_full(caps, tmp, GST_CAPS_INTERSECT_FIRST);
+  gst_caps_unref(tmp);
+
+  /* @TODO 3. Check if pad-cap \cap tmp(from dim) is not \null-set. */
+
+  /* 4. update pad cap */
+  if (!gst_pad_set_caps(pad, tmp2)) {
+    GST_ELEMENT_ERROR(&(filter->element), CORE, NEGOTIATION, (NULL), ("Cannot configure pad-caps for tensor_filter"));
+    g_assert(1 == 0);
+  }
+  /* @TODO 4-1. unref the old cap */
 }
 
 static void
@@ -478,12 +534,22 @@ static GstFlowReturn gst_tensor_filter_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf)
 {
+  /* @TODO 0. Check all properties and inbuf size. */
+  /* @TODO 1. Allocate outbuf */
+  /* @TODO 2. Call the filter-subplugin callback, "invoke" */
+  /* @TODO 3. Return result! */
   return GST_FLOW_ERROR;
 }
 
 static GstFlowReturn gst_tensor_filter_transform_ip(GstBaseTransform *trans,
                                                      GstBuffer *buf)
 {
+  /* @TODO 0. Check all properties and inbuf size. */
+  /* @TODO 0-1. This shouldn't reach here if in-place mode if OFF with the subplugin */
+  /* @TODO 0-1. , which could be done at *_caps with gst_base_transform_set_in_place() */
+  /* @TODO 1. Resize buf if output is larger than input */
+  /* @TODO 2. Call the filter-subplugin callback, "invoke" */
+  /* @TODO 3. Return result! */
   return GST_FLOW_ERROR;
 }
 
@@ -500,6 +566,8 @@ static GstCaps* gst_tensor_filter_transform_caps(GstBaseTransform *trans,
 						  GstCaps *caps,
 						  GstCaps *filter)
 {
+  GstTensor_Filter *obj = GST_TENSOR_FILTER_CAST(trans);
+  gst_tensor_filter_configure_tensor(caps, obj); /* Dummy. Remove when you implement */
   return NULL;
 }
 
