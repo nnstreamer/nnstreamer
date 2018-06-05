@@ -128,41 +128,19 @@ enum
 
 /**
  * @brief The capabilities of the inputs
- *
- * @TODO I'm not sure if the range is to be 1, 65535 or larger
- *
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("other/tensor, "
-                       "rank = (int) [ 1, 65535 ], "
-                       "dim1 = (int) [ 1, 65535 ], "
-                       "dim2 = (int) [ 1, 65535 ], "
-                       "dim3 = (int) [ 1, 65535 ], "
-                       "dim4 = (int) [ 1, 65535 ], "
-		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
-		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
-    );
+    GST_STATIC_CAPS(GST_TENSOR_CAP_DEFAULT));
 
 /**
  * @brief The capabilities of the outputs
- *
- * @TODO I'm not sure if the range is to be 1, 65535 or larger
- *
  */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("other/tensor, "
-                       "rank = (int) [ 1, 65535 ], "
-                       "dim1 = (int) [ 1, 65535 ], "
-                       "dim2 = (int) [ 1, 65535 ], "
-                       "dim3 = (int) [ 1, 65535 ], "
-                       "dim4 = (int) [ 1, 65535 ], "
-		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
-		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
-    );
+    GST_STATIC_CAPS(GST_TENSOR_CAP_DEFAULT));
 
 #define gst_tensor_filter_parent_class parent_class
 G_DEFINE_TYPE (GstTensor_Filter, gst_tensor_filter, GST_TYPE_BASE_TRANSFORM);

@@ -109,23 +109,11 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 
 /**
  * @brief The capabilities of the outputs
- *
- * In v0.0.1, this is 3-d tensor, [color][height][width]
- *
- * @TODO Note: I'm not sure of this.
  */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("other/tensor, "
-                       "rank = (int) [ 1, 4 ], "
-                       "dim1 = (int) [ 1, 4 ], " /* 3 if RGB 4 if BGRx */
-                       "dim2 = (int) [ 1, 65535 ], "
-                       "dim3 = (int) [ 1, 65535 ], "
-                       "dim4 = (int) { 1 }, "
-		       "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, "
-		       "framerate = (fraction) [ 0/1, 2147483647/1 ]")
-    );
+    GST_STATIC_CAPS(GST_TENSOR_CAP_DEFAULT));
 
 #define gst_tensor_converter_parent_class parent_class
 G_DEFINE_TYPE (GstTensor_Converter, gst_tensor_converter, GST_TYPE_BASE_TRANSFORM);

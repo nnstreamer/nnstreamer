@@ -58,6 +58,17 @@
 
 G_BEGIN_DECLS
 
+/* @TODO I'm not sure if the range is to be 1, 65535 or larger */
+#define GST_TENSOR_CAP_DEFAULT \
+    "other/tensor, " \
+    "rank = (int) [ 1, 4 ], " \
+    "dim1 = (int) [ 1, 65535 ], " \
+    "dim2 = (int) [ 1, 65535 ], " \
+    "dim3 = (int) [ 1, 65535 ], " \
+    "dim4 = (int) [ 1, 65535 ], " \
+    "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, " \
+    "framerate = (fraction) [ 0/1, 2147483647/1 ]"
+
 /**
  * @brief Possible input stream types for other/tensor.
  *
