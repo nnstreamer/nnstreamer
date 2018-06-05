@@ -528,7 +528,7 @@ static GstFlowReturn gst_tensor_converter_transform_ip(GstBaseTransform *trans,
         g_assert(d0 == 0);
         for (row = 0; row < filter->dimension[2]; row++) { // Height
 	  if (dest_idx != src_idx)
-	    memcpy(ptr + dest_idx, ptr + src_idx, size);
+	    memmove(ptr + dest_idx, ptr + src_idx, size);
 	  dest_idx += size;
 	  src_idx += offset;
 	}
