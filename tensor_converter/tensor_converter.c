@@ -94,7 +94,8 @@ enum
 enum
 {
   PROP_0,
-  PROP_SILENT
+  PROP_SILENT,
+  PROP_FORCE_MEMCPY,
 };
 
 /* the capabilities of the inputs
@@ -164,6 +165,9 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_FORCE_MEMCPY,
+      g_param_spec_boolean ("force_memcpy", "Force Memcpy", "Disable in-place mode and do memcpy ?",
+          FALSE, G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple(gstelement_class,
     "Tensor_Converter",
@@ -206,6 +210,7 @@ gst_tensor_converter_init (GstTensor_Converter * filter)
   filter->tensorConfigured = FALSE;
   filter->negotiated = FALSE;
   filter->removePadding = FALSE;
+  filter->disableInPlace = FALSE;
 }
 
 static void
@@ -217,6 +222,9 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
+      break;
+    case PROP_FORCE_MEMCPY:
+      filter->disableInPlace = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -233,6 +241,9 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
+      break;
+    case PROP_FORCE_MEMCPY:
+      g_value_set_boolean (value, filter->disableInPlace);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -384,10 +395,12 @@ GST_PLUGIN_DEFINE (
 )
 
 static GstFlowReturn gst_c2t_transformer_videoframe(GstTensor_Converter *filter,
-                                               GstVideoFrame *inframe, GstBuffer *outbuf)
+                                               GstBuffer *inbuf, GstBuffer *outbuf)
 {
-  // THIS CODE IS NOT TESTED WITH THE CURRENT TEST CASES!!!
-  // @TODO: Verify This Code! (non in-place transform)
+  size_t sizeB = filter->dimension[0] * filter->dimension[1] * filter->dimension[2] * filter->dimension[3];
+
+  g_assert(outbuf);
+  g_assert(gst_buffer_get_size(outbuf) >= sizeB);
 
   if (filter->removePadding == TRUE) {
     int d0, d1;
@@ -406,8 +419,9 @@ static GstFlowReturn gst_c2t_transformer_videoframe(GstTensor_Converter *filter,
       offset += 4 - (offset % 4);
       // Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
 
-    gst_buffer_map(inframe->buffer, &src_info, GST_MAP_READ);
+    gst_buffer_map(inbuf, &src_info, GST_MAP_READ);
     gst_buffer_map(outbuf, &dest_info, GST_MAP_WRITE);
+
     srcptr = src_info.data;
     destptr = dest_info.data;
 
@@ -420,15 +434,27 @@ static GstFlowReturn gst_c2t_transformer_videoframe(GstTensor_Converter *filter,
       }
     }
 
-    gst_buffer_unmap(inframe->buffer, &src_info);
+    gst_buffer_unmap(inbuf, &src_info);
     gst_buffer_unmap(outbuf, &dest_info);
 
     g_printerr("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (1)\nPlease use 4 x n as image width for inputs.\n\n\n");
     return GST_FLOW_OK;
   } else {
-    return gst_buffer_copy_into(outbuf, inframe->buffer,
-        GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0,
-        GST_VIDEO_FRAME_SIZE(inframe));
+    unsigned char *srcptr, *destptr;
+    GstMapInfo src_info, dest_info;
+
+    g_assert(gst_buffer_map(inbuf, &src_info, GST_MAP_READ) == TRUE);
+    g_assert(gst_buffer_map(outbuf, &dest_info, GST_MAP_WRITE) == TRUE);
+
+    srcptr = src_info.data;
+    destptr = dest_info.data;
+
+    memcpy(destptr, srcptr, sizeB);
+
+    gst_buffer_unmap(inbuf, &src_info);
+    gst_buffer_unmap(outbuf, &dest_info);
+
+    return GST_FLOW_OK;
   }
   return GST_FLOW_ERROR;
 }
@@ -437,7 +463,6 @@ static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf)
 {
-  GstVideoFrame in_frame;
   GstFlowReturn res;
   GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST(trans);
 
@@ -448,16 +473,7 @@ static GstFlowReturn gst_tensor_converter_transform(GstBaseTransform *trans,
 
   switch(filter->input_media_type) {
   case _NNS_VIDEO:
-    // CAUTION! in_info.video must be already configured!
-    if (!gst_video_frame_map(&in_frame, &filter->in_info.video, inbuf,
-            GST_MAP_READ | GST_VIDEO_FRAME_MAP_FLAG_NO_REF))
-      goto invalid_buffer;
-
-    if (gst_c2t_transformer_videoframe(filter, &in_frame, outbuf))
-      res = GST_FLOW_OK;
-    else
-      res = GST_FLOW_ERROR;
-    gst_video_frame_unmap(&in_frame);
+    res = gst_c2t_transformer_videoframe(filter, inbuf, outbuf);
     break;
   /* NOT SUPPORTED */
   case _NNS_AUDIO:
@@ -478,9 +494,6 @@ unknown_tensor:
 unknown_type:
   GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("not implemented type of media"));
   return GST_FLOW_NOT_SUPPORTED;
-invalid_buffer:
-  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("invalid video buffer received from input"));
-  return GST_FLOW_ERROR;
 }
 
 static GstFlowReturn gst_tensor_converter_transform_ip(GstBaseTransform *trans,
@@ -762,7 +775,7 @@ static gboolean gst_tensor_converter_set_caps(GstBaseTransform *trans,
   }
 
   filter->in_info.video = in_info;
-  gst_base_transform_set_in_place(trans, TRUE);
+  gst_base_transform_set_in_place(trans, (filter->disableInPlace == TRUE) ? FALSE : TRUE);
 
   filter->negotiated = gst_tensor_converter_configure_tensor(incaps, filter);
 

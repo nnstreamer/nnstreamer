@@ -13,6 +13,7 @@ else
 fi
 ./testcase01.sh $sopath || failed=1
 ./testcase02.sh $sopath || failed=1
+./testcase03.sh $sopath || failed=1
 
 
 echo ""

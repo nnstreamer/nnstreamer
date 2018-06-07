@@ -101,6 +101,7 @@ struct _GstTensor_Converter
     /* @TODO: Add other media types */
   } in_info; /**< media input stream info union. will support audio/text later */
   gboolean removePadding; /* If TRUE, zero-padding must be removed during transform */
+  gboolean disableInPlace; /* If TRUE, In place mode is disabled */
 
   /* For Tensor */
   gboolean silent;	/**< True if logging is minimized */
