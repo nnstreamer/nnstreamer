@@ -99,7 +99,7 @@ typedef int (*NNS_custom_get_output_dimension)(void *private_data,
  * @param[in] inputPtr pointer to output tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
  */
 typedef int (*NNS_custom_invoke)(void *private_data,
-    void *inputPtr, void *outputPtr);
+    uint8_t *inputPtr, uint8_t *outputPtr);
 
 /**
  * @brief Custom Filter Class

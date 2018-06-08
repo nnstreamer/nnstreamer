@@ -124,6 +124,13 @@ extern int find_key_strv(const gchar **strv, const gchar *key);
  */
 extern int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
 
+/**
+ * @brief Count the number of elemnts of a tensor
+ * @return The number of elements. 0 if error.
+ * @param dim The tensor dimension
+ */
+extern size_t get_tensor_element_count(uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_COMMON_H__ */

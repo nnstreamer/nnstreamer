@@ -161,3 +161,19 @@ int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]
   g_strfreev(strv);
   return retval;
 }
+
+/**
+ * @brief Count the number of elemnts of a tensor
+ * @return The number of elements. 0 if error.
+ * @param dim The tensor dimension
+ */
+size_t get_tensor_element_count(uint32_t dim[NNS_TENSOR_RANK_LIMIT]) {
+  size_t count = 1;
+  int i;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    count *= dim[i];
+  }
+
+  return count;
+}

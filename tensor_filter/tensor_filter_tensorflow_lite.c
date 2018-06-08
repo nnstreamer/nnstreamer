@@ -57,8 +57,8 @@
 /**
  * @brief The mandatory callback for GstTensor_Filter_Framework
  */
-static int tflite_invoke(GstTensor_Filter *filter, void *inptr, void *outptr) {
-  return -1; // NYI
+static int tflite_invoke(GstTensor_Filter *filter, uint8_t *inptr, uint8_t *outptr) {
+  return 0; // NYI
 }
 
 /**
@@ -66,7 +66,7 @@ static int tflite_invoke(GstTensor_Filter *filter, void *inptr, void *outptr) {
  */
 static int tflite_getInputDim(GstTensor_Filter *filter, uint32_t *inputDimension, tensor_type *type) {
   // @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type
-  return -1; // NYI
+  return 0; // NYI
 }
 
 /**
@@ -74,7 +74,7 @@ static int tflite_getInputDim(GstTensor_Filter *filter, uint32_t *inputDimension
  */
 static int tflite_getOutputDim(GstTensor_Filter *filter, uint32_t *outputDimension, tensor_type *type) {
   // @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type
-  return -1; // NYI
+  return 0; // NYI
 }
 
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {

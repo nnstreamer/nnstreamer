@@ -246,6 +246,7 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->silent = FALSE;
   filter->debug = FALSE;
   filter->nnfw = _T_F_UNDEFINED;
+  filter->fw = NULL;
   filter->inputConfigured = FALSE;
   filter->outputConfigured = FALSE;
   filter->modelFilename = NULL;
@@ -255,12 +256,14 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->inputDimension[2] = 1;
   filter->inputDimension[3] = 1; // out
   filter->inputType = _NNS_END; // not initialized
+  filter->inputCapNegotiated = FALSE;
 
   filter->outputDimension[0] = 1; // innermost
   filter->outputDimension[1] = 1;
   filter->outputDimension[2] = 1;
   filter->outputDimension[3] = 1; // out
   filter->outputType = _NNS_END; // not initialized
+  filter->outputCapNegotiated = FALSE;
 
   filter->privateData = NULL; // mark not initialized.
 }
@@ -410,7 +413,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     case PROP_MODEL:
       g_assert(filter->modelFilename == NULL && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->modelFilename = g_value_get_string(value);
+      filter->modelFilename = g_value_dup_string(value);
       if (filter->debug == TRUE)
         g_printerr("Model = %s\n", filter->modelFilename);
       g_assert(g_file_test(filter->modelFilename, G_FILE_TEST_IS_REGULAR) == TRUE);
@@ -566,22 +569,77 @@ static GstFlowReturn gst_tensor_filter_transform(GstBaseTransform *trans,
                                                   GstBuffer *inbuf,
                                                   GstBuffer *outbuf)
 {
-#if 0
-  GstFlowReturn res;
   GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST(trans);
+  int ret;
+  uint32_t inputDimChk[NNS_TENSOR_RANK_LIMIT];
+  uint32_t outputDimChk[NNS_TENSOR_RANK_LIMIT];
+  tensor_type inputType, outputType;
+  size_t outBufSize;
+  uint8_t *inptr, *outptr;
+  GstMapInfo inInfo, outInfo;
 
-  if (G_UNLIKELY(!filter->negotiated))
+  if (G_UNLIKELY(filter->inputCapNegotiated == FALSE || filter->outputCapNegotiated == FALSE))
     goto unknown_format;
-  if (G_UNLIKELY(!filter->tensorConfigured))
-    goto unknown_tensor;
-#endif
-  g_assert(1 == 0);
+  if (G_UNLIKELY(!filter->fw))
+    goto unknown_framework;
+  if (G_UNLIKELY(!filter->modelFilename))
+    goto unknown_model;
+  if (G_UNLIKELY(!filter->fw->invoke_NN))
+    goto unknown_invoke;
 
-  /* @TODO 0. Check all properties and inbuf size. */
-  /* @TODO 1. Allocate outbuf */
+  /* 0. Check all properties and inbuf size. */
+  if (filter->debug)
+    g_printerr("Invoking %s with %s model\n", filter->fw->name, filter->modelFilename);
+
+  if (filter->fw->getInputDimension) {
+    ret = filter->fw->getInputDimension(filter, inputDimChk, &inputType);
+    /* @TODO check inputDimChk / inputType with filter internal info */
+  } else {
+    /* @TODO printout debug msg */
+  }
+
+  if (filter->fw->getOutputDimension) {
+    ret = filter->fw->getOutputDimension(filter, outputDimChk, &outputType);
+    /* @TODO check outputDimChk / outputType with filter internal info */
+  } else {
+    /* @TODO printout debug msg */
+  }
+
+  /* 1. Allocate outbuf */
   g_assert(outbuf);
-  /* @TODO 2. Call the filter-subplugin callback, "invoke" */
-  /* @TODO 3. Return result! */
+  outBufSize = tensor_element_size[filter->inputType] *
+      get_tensor_element_count(filter->inputDimension);
+  if (gst_buffer_get_size(outbuf) < outBufSize) {
+    gst_buffer_set_size(outbuf, outBufSize);
+  }
+  g_assert(gst_buffer_get_size(outbuf) >= outBufSize);
+
+  /* 2. Call the filter-subplugin callback, "invoke" */
+  gst_buffer_map(inbuf, &inInfo, GST_MAP_READ);
+  gst_buffer_map(outbuf, &outInfo, GST_MAP_WRITE);
+  inptr = inInfo.data;
+  outptr = outInfo.data;
+
+  ret = filter->fw->invoke_NN(filter, inptr, outptr);
+
+  gst_buffer_unmap(inbuf, &inInfo);
+  gst_buffer_unmap(outbuf, &outInfo);
+
+  /* 3. Return result! */
+  if (ret)
+    return GST_FLOW_ERROR;
+  return GST_FLOW_OK;
+unknown_format:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_framework:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("framework not configured"));
+  return GST_FLOW_ERROR;
+unknown_model:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("model filepath not configured"));
+  return GST_FLOW_ERROR;
+unknown_invoke:
+  GST_ELEMENT_ERROR(filter, CORE, NOT_IMPLEMENTED, (NULL), ("invoke function is not defined"));
   return GST_FLOW_ERROR;
 }
 
@@ -615,12 +673,14 @@ static GstCaps* gst_tensor_filter_transform_caps(GstBaseTransform *trans,
 
   if (direction == GST_PAD_SINK) {
     /* caps: sink pad. get src pad info */
+    obj->outputCapNegotiated = TRUE;
 
     /* @TODO 1. Check caps w/ getInputDimension && saved input dimension */
     /* @TODO 2. Check returning-caps w/ getOutputDimension && saved output dimension */
     return gst_tensor_filter_fix_caps(obj, FALSE, filter, FALSE);
   } else {
     /* caps: src pad. get sink pad info */
+    obj->inputCapNegotiated = TRUE;
 
     /* @TODO 1. Check caps w/ getOutputDimension && saved output dimension */
     /* @TODO 2. Check returning-caps w/ getInputDimension && saved input dimension */
@@ -640,6 +700,8 @@ static GstCaps* gst_tensor_filter_fixate_caps(GstBaseTransform *trans,
 {
   GstCaps *supposed = gst_tensor_filter_transform_caps(trans, direction, caps, NULL);
   GstCaps *result = gst_caps_intersect(othercaps, supposed);
+  GstTensor_Filter *obj = GST_TENSOR_FILTER_CAST(trans);
+
   g_assert(!gst_caps_is_empty(result));
   gst_caps_unref(othercaps);
 
@@ -650,6 +712,9 @@ static GstCaps* gst_tensor_filter_fixate_caps(GstBaseTransform *trans,
     if (gst_caps_is_subset(caps, result)) {
       gst_caps_replace(&result, caps);
     }
+    obj->inputCapNegotiated = TRUE;
+  } else {
+    obj->outputCapNegotiated = TRUE;
   }
   return result;
 }

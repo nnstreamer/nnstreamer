@@ -113,7 +113,7 @@ static int custom_loadlib(GstTensor_Filter *filter) {
  * @param[in] inptr The input tensor
  * @param[out] outptr The output tensor
  */
-static int custom_invoke(GstTensor_Filter *filter, void *inptr, void *outptr) {
+static int custom_invoke(GstTensor_Filter *filter, uint8_t *inptr, uint8_t *outptr) {
   int retval = custom_loadlib(filter);
   internal_data *ptr;
 
