@@ -59,8 +59,8 @@ LINK_DIRECTORIES(${pkgs_LIBRARY_DIRS})
 FOREACH(flag ${pkgs_CFALGS})
 	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
 ENDFOREACH(flag)
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC -g")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC -g")
 
 # Provide common data
 ADD_LIBRARY(common STATIC common/tensor_common.c)
@@ -76,12 +76,20 @@ TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 ADD_SUBDIRECTORY(tensor_converter)
 ADD_SUBDIRECTORY(tensor_filter)
 ADD_SUBDIRECTORY(tensor_decoder)
+ADD_SUBDIRECTORY(nnstreamer_example)
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 
+# For nnstreamer users (gst app developers using via gstreamer API)
 INSTALL(FILES include/tensor_typedef.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)
+
+# For nnstreamer custom filter developers
+INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h
+	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
+	)
+
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/nnstreamer.pc
 	DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
 	)

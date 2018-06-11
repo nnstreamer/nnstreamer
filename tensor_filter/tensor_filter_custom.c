@@ -80,7 +80,7 @@ static int custom_loadlib(GstTensor_Filter *filter) {
     return 1;
   }
 
-  ptr = g_new0(internal_data, 0); /* Fill Zero! */
+  ptr = g_new0(internal_data, 1); /* Fill Zero! */
   filter->privateData = ptr;
   ptr->parent = filter;
 
@@ -93,7 +93,7 @@ static int custom_loadlib(GstTensor_Filter *filter) {
   }
 
   dlerror();
-  ptr->methods = (NNStreamer_custom_class *) dlsym(ptr->handle, "NNStreamer_custom");
+  ptr->methods = *((NNStreamer_custom_class **) dlsym(ptr->handle, "NNStreamer_custom"));
   dlsym_error = dlerror();
   if (dlsym_error) {
     g_printerr("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
@@ -103,6 +103,7 @@ static int custom_loadlib(GstTensor_Filter *filter) {
     return -1;
   }
 
+  g_assert(ptr->methods->initfunc);
   ptr->customFW_private_data = ptr->methods->initfunc();
   return 0;
 }

@@ -10,4 +10,4 @@ Description: Neural Network Suite for GStreamer
 Version: @VERSION@
 Requires:
 Libs:
-Cflags: -I${includedir}
+Cflags: -I${includedir}/nnstreamer
