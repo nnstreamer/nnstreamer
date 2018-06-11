@@ -75,6 +75,10 @@ tar -xf %{SOURCE2001}
 ./runTest.sh -skipgen
 popd
 
+pushd tests/nnstreamer_filter_custom/
+./runTest.sh
+popd
+
 %if 0%{?testcoverage}
     unittestcoverage.py module $(pwd)
 
