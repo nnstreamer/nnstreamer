@@ -579,6 +579,7 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
   gboolean ret;
   GstTensor_Converter bogusFilter = {0};
   bogusFilter.tensorConfigured = FALSE;
+  GstTensor_Converter *obj = GST_TENSOR_CONVERTER_CAST(trans);
 
   /* @TODO: Verify if direction == GST_PAD_SINK means caps is sink pad */
   if (direction == GST_PAD_SINK) {
@@ -623,7 +624,8 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
       else
         g_sprintf(colors, "{3, 4}");
 
-      g_printerr("Structure from caps = %s\n", str);
+      if (obj->silent == FALSE)
+        g_printerr("Structure from caps = %s\n", str);
 
       g_sprintf(str2,
           "other/tensor, "
@@ -636,7 +638,8 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
           "dim4 = (int) 1"
           , framerate, colors, width, height);
       tmp = gst_caps_from_string(str2);
-      g_printerr("Structure from caps to = %s\n", str2);
+      if (obj->silent == FALSE)
+        g_printerr("Structure from caps to = %s\n", str2);
 
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
@@ -647,7 +650,6 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
       tmp = gst_caps_new_empty();
       return tmp; /* Empty Cap */
     }
-    g_printerr("transform_caps SINK specific\n");
 
     g_assert(bogusFilter.tensorConfigured == TRUE);
 
@@ -667,12 +669,16 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
       gst_caps_unref(tmp);
       tmp = tmp2;
     }
+    if (obj->silent == FALSE) {
       structure = gst_caps_get_structure(caps, 0);
       str = gst_structure_to_string(structure);
       g_printerr("From = %s\n", str);
+      g_free(str);
       structure = gst_caps_get_structure(tmp, 0);
       str = gst_structure_to_string(structure);
       g_printerr("To = %s\n", str);
+      g_free(str);
+    }
 
     GST_DEBUG_OBJECT(trans, "SINK transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
@@ -692,20 +698,29 @@ static GstCaps* gst_tensor_converter_transform_caps(GstBaseTransform *trans,
 	"height = (int)[1, 65535]");
     tmp = gst_static_caps_get(&staticcap);
 
-    structure = gst_caps_get_structure(caps, 0);
-    str = gst_structure_to_string(structure);
-    g_printerr("Structure from src = %s\n", str);
+    if (obj->silent == FALSE) {
+      structure = gst_caps_get_structure(caps, 0);
+      str = gst_structure_to_string(structure);
+      g_printerr("Structure from src = %s\n", str);
+      g_free(str);
+    }
     if (filter) {
       GstCaps *tmp2;
-      structure = gst_caps_get_structure(filter, 0);
-      str = gst_structure_to_string(structure);
-      g_printerr("Structure from filter = %s\n", str);
+      if (obj->silent == FALSE) {
+        structure = gst_caps_get_structure(filter, 0);
+        str = gst_structure_to_string(structure);
+        g_printerr("Structure from filter = %s\n", str);
+        g_free(str);
+      }
 
       tmp2 = gst_caps_intersect_full(filter, tmp, GST_CAPS_INTERSECT_FIRST);
 
-      structure = gst_caps_get_structure(tmp2, 0);
-      str = gst_structure_to_string(structure);
-      g_printerr("Structure from intersection = %s\n", str);
+      if (obj->silent == FALSE) {
+        structure = gst_caps_get_structure(tmp2, 0);
+        str = gst_structure_to_string(structure);
+        g_printerr("Structure from intersection = %s\n", str);
+        g_free(str);
+      }
 
       gst_caps_unref(tmp);
       tmp = tmp2;

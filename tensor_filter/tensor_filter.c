@@ -124,6 +124,7 @@ enum
   PROP_OUTPUT,
   PROP_OUTPUTTYPE,
   PROP_DEBUG,
+  PROP_CUSTOM,
 };
 
 /**
@@ -339,19 +340,26 @@ gst_tensor_filter_fix_caps (GstTensor_Filter *filter, gboolean isInput, GstCaps 
   }
 
   if (targetCaps) {
-    gchar *str = gst_caps_to_string(targetCaps);
-    g_printerr("targetCaps: %s\n", str);
-    g_free(str);
+    gchar *str;
+    if (filter->debug == TRUE) {
+      str = gst_caps_to_string(targetCaps);
+      g_printerr("targetCaps: %s\n", str);
+      g_free(str);
+    }
     tmp2 = gst_caps_intersect_full(targetCaps, tmp, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref(tmp);
     tmp = tmp2;
-    str = gst_caps_to_string(tmp);
-    g_printerr("resultCaps: %s\n", str);
-    g_free(str);
+    if (filter->debug == TRUE) {
+      str = gst_caps_to_string(tmp);
+      g_printerr("resultCaps: %s\n", str);
+      g_free(str);
+    }
   } else {
-    gchar *str = gst_caps_to_string(tmp);
-    g_printerr("resultCaps w/o targetCaps: %s\n", str);
-    g_free(str);
+    if (filter->debug == TRUE) {
+      gchar *str = gst_caps_to_string(tmp);
+      g_printerr("resultCaps w/o targetCaps: %s\n", str);
+      g_free(str);
+    }
   }
 
   /* @TODO 3. Check if tmp ( = targetCap \cap tmp(from dim)) is not \null-set. */
@@ -438,6 +446,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         int rank = get_tensor_dimension(g_value_get_string(value), filter->outputDimension);
 	g_assert(rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
 	filter->outputConfigured = TRUE;
+        if (filter->debug == TRUE)
+          g_printerr("Output Prop: %d:%d:%d:%d Rank %d\n", filter->outputDimension[0], filter->outputDimension[1], filter->outputDimension[2], filter->outputDimension[3], rank);
       }
 
       if (filter->outputType != _NNS_END && filter->debug == TRUE)
@@ -447,6 +457,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert(filter->inputType == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
       filter->inputType = get_tensor_type(g_value_get_string(value));
+      if (filter->debug == TRUE)
+        g_printerr("Output Type: %s -> %d\n", g_value_get_string(value), filter->inputType);
       g_assert(filter->inputType != _NNS_END);
       if (filter->inputConfigured == TRUE && filter->debug == TRUE)
         gst_tensor_filter_fix_caps(filter, TRUE, NULL, TRUE);
