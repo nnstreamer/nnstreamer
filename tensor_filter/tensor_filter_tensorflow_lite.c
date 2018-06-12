@@ -60,7 +60,7 @@
 static int
 tflite_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
 {
-  return 0;                     // NYI
+  return 0;                    /* NYI */
 }
 
 /**
@@ -70,7 +70,7 @@ static int
 tflite_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
     tensor_type * type)
 {
-  // @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type
+  /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
   return 0;                     // NYI
 }
 
@@ -81,13 +81,13 @@ static int
 tflite_getOutputDim (GstTensor_Filter * filter, uint32_t * outputDimension,
     tensor_type * type)
 {
-  // @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type
-  return 0;                     // NYI
+  /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
+  return 0;                    /* NYI */
 }
 
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
   .name = "tensorflow-lite",
-  .allow_in_place = FALSE,      // Let's not do this yet. @TODO: support this to optimize performance later.
+  .allow_in_place = FALSE,      /* Let's not do this yet. @TODO: support this to optimize performance later. */
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,

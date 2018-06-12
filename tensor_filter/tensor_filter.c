@@ -237,8 +237,7 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_filter_set_caps);
 
   /* Allocation units */
-  // @TODO Fill these in!
-  // trans_class-> ...
+  /* @TODO Fill these in!  trans_class-> ... */
 }
 
 /* initialize the new element
@@ -257,21 +256,21 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->outputConfigured = FALSE;
   filter->modelFilename = NULL;
 
-  filter->inputDimension[0] = 1;        // innermost
+  filter->inputDimension[0] = 1;        /* innermost */
   filter->inputDimension[1] = 1;
   filter->inputDimension[2] = 1;
-  filter->inputDimension[3] = 1;        // out
-  filter->inputType = _NNS_END; // not initialized
+  filter->inputDimension[3] = 1;        /* out */
+  filter->inputType = _NNS_END; /* not initialized */
   filter->inputCapNegotiated = FALSE;
 
-  filter->outputDimension[0] = 1;       // innermost
+  filter->outputDimension[0] = 1;       /* innermost */
   filter->outputDimension[1] = 1;
   filter->outputDimension[2] = 1;
-  filter->outputDimension[3] = 1;       // out
-  filter->outputType = _NNS_END;        // not initialized
+  filter->outputDimension[3] = 1;       /* out */
+  filter->outputType = _NNS_END;        /* not initialized */
   filter->outputCapNegotiated = FALSE;
 
-  filter->privateData = NULL;   // mark not initialized.
+  filter->privateData = NULL;   /* mark not initialized. */
 }
 
 /**
@@ -520,7 +519,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
         g_array_append_val (input, filter->inputDimension[i]);
       g_value_take_boxed (value, input);
-      // take function hands the object over from here so that we don't need to free it.
+      /* take function hands the object over from here so that we don't need to free it. */
     }
       break;
     case PROP_OUTPUT:{
@@ -530,7 +529,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
         g_array_append_val (output, filter->outputDimension[i]);
       g_value_take_boxed (value, output);
-      // take function hands the object over from here so that we don't need to free it.
+      /* take function hands the object over from here so that we don't need to free it. */
     }
       break;
     case PROP_INPUTTYPE:

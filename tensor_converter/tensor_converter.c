@@ -421,14 +421,14 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 
     g_assert (offset % 4);
 
-    // @TODO: We don't know if outbuf is already allocated at this point, yet!
+    /* @TODO: We don't know if outbuf is already allocated at this point, yet! */
     g_assert (gst_buffer_get_size (outbuf) >=
         filter->dimension[0] * filter->dimension[1] * filter->dimension[2] *
         filter->dimension[3]);
 
     if (offset % 4)
       offset += 4 - (offset % 4);
-    // Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
+    /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
     gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
     gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
@@ -436,9 +436,9 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     srcptr = src_info.data;
     destptr = dest_info.data;
 
-    for (d0 = 0; d0 < filter->dimension[3]; d0++) {     // Supposed to be 0 only
+    for (d0 = 0; d0 < filter->dimension[3]; d0++) {     /* Supposed to be 0 only */
       g_assert (d0 == 0);
-      for (d1 = 0; d1 < filter->dimension[2]; d1++) {   // Height
+      for (d1 = 0; d1 < filter->dimension[2]; d1++) {   /* Height */
         memcpy (destptr + dest_idx, srcptr + src_idx, size);
         dest_idx += size;
         src_idx += offset;
@@ -523,7 +523,7 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   switch (filter->input_media_type) {
     case _NNS_VIDEO:
       if (filter->removePadding == TRUE) {
-        // Remove zero-padding between rows
+        /* Remove zero-padding between rows */
         unsigned char *ptr;
         unsigned int row, d0;
         unsigned int dest_idx = 0, src_idx = 0;
@@ -534,21 +534,21 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
         g_assert (offset % 4);
         if (offset % 4)
           offset += 4 - (offset % 4);
-        // Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
+        /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
         gst_buffer_map (buf, &info, GST_MAP_READWRITE);
         ptr = info.data;
 
-        for (d0 = 0; d0 < filter->dimension[3]; d0++) { // Supposed to be 0 only
+        for (d0 = 0; d0 < filter->dimension[3]; d0++) { /* Supposed to be 0 only */
           g_assert (d0 == 0);
-          for (row = 0; row < filter->dimension[2]; row++) {    // Height
+          for (row = 0; row < filter->dimension[2]; row++) {    /* Height */
             if (dest_idx != src_idx)
               memmove (ptr + dest_idx, ptr + src_idx, size);
             dest_idx += size;
             src_idx += offset;
           }
         }
-        // @TODO: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first)
+        /* @TODO: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
         gst_buffer_unmap (buf, &info);
 
         g_printerr

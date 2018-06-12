@@ -191,7 +191,7 @@ custom_close (GstTensor_Filter * filter)
 
 GstTensor_Filter_Framework NNS_support_custom = {
   .name = "custom",
-  .allow_in_place = FALSE,      // custom cannot support in-place (outptr == inptr).
+  .allow_in_place = FALSE,      /* custom cannot support in-place (outptr == inptr). */
   .invoke_NN = custom_invoke,
   .getInputDimension = custom_getInputDim,
   .getOutputDimension = custom_getOutputDim,
