@@ -73,7 +73,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
 
 #include <gst/gst.h>
@@ -433,8 +433,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (filter->inputConfigured == FALSE && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int rank =
-            get_tensor_dimension (g_value_get_string (value),
+        int rank = get_tensor_dimension (g_value_get_string (value),
             filter->inputDimension);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
         filter->inputConfigured = TRUE;
@@ -450,8 +449,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (filter->outputConfigured == FALSE && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int rank =
-            get_tensor_dimension (g_value_get_string (value),
+        int rank = get_tensor_dimension (g_value_get_string (value),
             filter->outputDimension);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
         filter->outputConfigured = TRUE;

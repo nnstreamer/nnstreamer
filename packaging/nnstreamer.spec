@@ -10,6 +10,7 @@ License:	LGPL-2.1+ and Apache-2.0
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 Source2001:	testcase_tensor_converter.tar.gz
+Source2002:	testcase_tensor_decoder.tar.gz
 
 Requires:	gstreamer >= 1.8.0
 Requires:	libdlog
@@ -73,6 +74,9 @@ pushd tests
 # Use the pre-generated test cases
 pushd nnstreamer_converter
 tar -xf %{SOURCE2001}
+popd
+pushd nnstreamer_decoder
+tar -xf %{SOURCE2002}
 popd
 export SKIPGEN=YES
 ./testAll.sh

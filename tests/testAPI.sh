@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 if [[ $# -eq 0 ]]; then
-	PATH_TO_PLUGIN="$PWD/../build/tensor_converter:$PWD/../build/tensor_filter"
+	PATH_TO_PLUGIN="$PWD/../build/tensor_converter:$PWD/../build/tensor_filter:$PWD/../build/tensor_decoder"
 else
 	PATH_TO_PLUGIN="$1"
 fi
