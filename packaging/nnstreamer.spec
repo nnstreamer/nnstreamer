@@ -68,15 +68,14 @@ pushd build
 ./unittest_common
 popd
 
-pushd tensor_converter/test
+pushd tests
 # We skip testcase gen because it requires PIL, which requires tk.
 # Use the pre-generated test cases
+pushd nnstreamer_converter
 tar -xf %{SOURCE2001}
-./runTest.sh -skipgen
 popd
-
-pushd tests/nnstreamer_filter_custom/
-./runTest.sh
+export SKIPGEN=YES
+./testAll.sh
 popd
 
 %if 0%{?testcoverage}
