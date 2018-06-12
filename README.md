@@ -95,6 +95,8 @@ $ cd tensor_convert/test
 $ ./runTest.sh
 ```
 
+## [How to write Test Cases](Documentation/how-to-write-testcase.md)
+
 ## Usage Examples
 
 The implementation is not there yet for using neural network frameworks.
