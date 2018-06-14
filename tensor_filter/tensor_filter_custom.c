@@ -88,7 +88,7 @@ custom_loadlib (GstTensor_Filter * filter)
   ptr->parent = filter;
 
   /* Load .so if this is the first time for this instance. */
-  ptr->handle = dlopen (filter->modelFilename, RTLD_NOW);
+  ptr->handle = dlopen (filter->prop.modelFilename, RTLD_NOW);
   if (!ptr->handle) {
     g_free (ptr);
     filter->privateData = NULL;
@@ -108,7 +108,7 @@ custom_loadlib (GstTensor_Filter * filter)
   }
 
   g_assert (ptr->methods->initfunc);
-  ptr->customFW_private_data = ptr->methods->initfunc ();
+  ptr->customFW_private_data = ptr->methods->initfunc (&(filter->prop));
   return 0;
 }
 
@@ -133,7 +133,8 @@ custom_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
   g_assert (filter->privateData);
   ptr = filter->privateData;
 
-  return ptr->methods->invoke (ptr->customFW_private_data, inptr, outptr);
+  return ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
+      inptr, outptr);
 }
 
 /**
@@ -152,8 +153,8 @@ custom_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
   g_assert (filter->privateData);
   ptr = filter->privateData;
 
-  return ptr->methods->getInputDim (ptr->customFW_private_data, inputDimension,
-      type);
+  return ptr->methods->getInputDim (ptr->customFW_private_data, &(filter->prop),
+      inputDimension, type);
 }
 
 /**
@@ -173,7 +174,7 @@ custom_getOutputDim (GstTensor_Filter * filter, uint32_t * outputDimension,
   ptr = filter->privateData;
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
-      outputDimension, type);
+      &(filter->prop), outputDimension, type);
 }
 
 /**
@@ -184,7 +185,7 @@ custom_close (GstTensor_Filter * filter)
 {
   internal_data *ptr = filter->privateData;
 
-  ptr->methods->exitfunc (ptr->customFW_private_data);
+  ptr->methods->exitfunc (ptr->customFW_private_data, &(filter->prop));
   g_free (ptr);
   filter->privateData = NULL;
 }

@@ -29,7 +29,7 @@ typedef struct _pt_data
 } pt_data;
 
 static void *
-pt_init ()
+pt_init (const GstTensor_Filter_Properties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   int i;
@@ -46,7 +46,7 @@ pt_init ()
 }
 
 static void
-pt_exit (void *private_data)
+pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 {
   pt_data *data = private_data;
   g_assert (data);
@@ -54,7 +54,7 @@ pt_exit (void *private_data)
 }
 
 static int
-get_inputDim (void *private_data,
+get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
     uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
 {
   pt_data *data = private_data;
@@ -73,7 +73,7 @@ get_inputDim (void *private_data,
 }
 
 static int
-get_outputDim (void *private_data,
+get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
     uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
 {
   pt_data *data = private_data;
@@ -91,7 +91,8 @@ get_outputDim (void *private_data,
 }
 
 static int
-pt_invoke (void *private_data, uint8_t * inptr, uint8_t * outptr)
+pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
+    uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
   size_t size;

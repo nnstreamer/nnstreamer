@@ -75,4 +75,47 @@ typedef enum _nns_tensor_type {
   _NNS_END,
 } tensor_type;
 
+/**
+ * @brief NN Frameworks
+ */
+typedef enum _nnfw_type {
+  _T_F_UNDEFINED = 0, /* Not defined or supported. Cannot proceed in this status */
+
+  _T_F_CUSTOM, /* NYI. Custom other/tensor -> other/tensor shared object (dysym) */
+  _T_F_TENSORFLOW_LITE, /* NYI */
+  _T_F_TENSORFLOW, /* NYI */
+  _T_F_CAFFE2, /* NYI */
+
+  _T_F_NNFW_END,
+} nnfw_type;
+
+struct _GstTensor_Filter_Framework;
+typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
+
+/**
+ * @brief Tensor_Filter's properties (internal data structure)
+ *
+ * Because custom filters of tensor_filter may need to access internal data
+ * of Tensor_Filter, we define this data structure here.
+ */
+typedef struct _GstTensor_Filter_Properties
+{
+  gboolean silent; /**< Verbose mode if FALSE */
+  gboolean debug; /**< Print out more thinkgs if TRUE */
+  gboolean inputConfigured; /**< TRUE if input dimension is configured */
+  gboolean outputConfigured; /** < TRUE if output dimension is configured */
+  nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
+  GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+  const gchar *modelFilename; /**< Filepath to the model file (as an argument for NNFW) */
+
+  uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The input tensor dimension */
+  tensor_type inputType; /**< The type for each element in the input tensor */
+  gboolean inputCapNegotiated;
+  uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The output tensor dimension */
+  tensor_type outputType; /**< The type for each element in the output tensor */
+  gboolean outputCapNegotiated;
+
+  const gchar *customProperties; /**< sub-plugin specific custom property values in string */
+} GstTensor_Filter_Properties;
+
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
