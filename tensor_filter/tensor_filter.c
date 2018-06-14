@@ -251,7 +251,7 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
 static void
 gst_tensor_filter_init (GstTensor_Filter * filter)
 {
-  filter->silent = FALSE;
+  filter->silent = TRUE;
   filter->debug = FALSE;
   filter->nnfw = _T_F_UNDEFINED;
   filter->fw = NULL;

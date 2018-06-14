@@ -225,7 +225,7 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
 static void
 gst_tensor_converter_init (GstTensor_Converter * filter)
 {
-  filter->silent = FALSE;
+  filter->silent = TRUE;
   filter->tensorConfigured = FALSE;
   filter->negotiated = FALSE;
   filter->removePadding = FALSE;

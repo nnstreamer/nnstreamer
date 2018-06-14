@@ -201,7 +201,7 @@ gst_tensordec_class_init (GstTensorDecClass * g_class)
 static void
 gst_tensordec_init (GstTensorDec * filter)
 {
-  filter->silent = FALSE;
+  filter->silent = TRUE;
   filter->Configured = FALSE;
   filter->negotiated = FALSE;
   filter->addPadding = FALSE;
