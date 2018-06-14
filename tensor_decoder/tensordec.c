@@ -391,7 +391,8 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "tensordec",
     tensordec_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
 
-     static GstFlowReturn gst_tensordec_transform (GstBaseTransform * trans,
+     static GstFlowReturn
+         gst_tensordec_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensorDec *filter = GST_TENSORDEC_CAST (trans);
@@ -402,6 +403,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     goto unknown_tensor;
 
   switch (filter->output_media_type) {
+
     case _NNS_VIDEO:
       break;
       /* NOT SUPPORTED */
@@ -536,7 +538,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
       tmp = gst_caps_from_string (str2);
       g_printerr ("Structure from caps to = %s\n", str2);
-
+      g_free (str);
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
       /* @TODO: see if the error is from ranging width/height before entering here */
@@ -579,48 +581,20 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     structure = gst_caps_get_structure (caps, 0);
     str = gst_structure_to_string (structure);
     g_printerr ("From = %s\n", str);
+    g_free (str);
     structure = gst_caps_get_structure (tmp, 0);
     str = gst_structure_to_string (structure);
     g_printerr ("To = %s\n", str);
-
+    g_free (str);
     GST_DEBUG_OBJECT (trans, "SINK transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
     return tmp;
   } else if (direction == GST_PAD_SRC) {
-
-    GstStructure *structure;
-    gchar *str;
-
     /* Construct possible GstCap (sinkpad) with src_factory */
     /* @TODO This supports video only! */
     GstStaticCaps staticcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-
     tmp = gst_static_caps_get (&staticcap);
 
-    /* Because SRC is ANY, I'm not sure of this check. */
-    if (!gst_caps_is_any (caps)) {
-      structure = gst_caps_get_structure (caps, 0);
-      str = gst_structure_to_string (structure);
-      g_printerr ("Structure from src = %s\n", str);
-      if (filter) {
-        GstCaps *tmp2;
-        structure = gst_caps_get_structure (filter, 0);
-        str = gst_structure_to_string (structure);
-        g_printerr ("Structure from filter = %s\n", str);
-
-        tmp2 = gst_caps_intersect_full (filter, tmp, GST_CAPS_INTERSECT_FIRST);
-
-        structure = gst_caps_get_structure (tmp2, 0);
-        str = gst_structure_to_string (structure);
-        g_printerr ("Structure from intersection = %s\n", str);
-
-        gst_caps_unref (tmp);
-        tmp = tmp2;
-      }
-
-      GST_DEBUG_OBJECT (trans, "SRC transformed %" GST_PTR_FORMAT " into %"
-          GST_PTR_FORMAT, caps, tmp);
-    }
     return tmp;
   }
   /* Neither SRC/SINK? Impossible! */
