@@ -137,6 +137,8 @@ struct _GstTensor_Filter
   tensor_type outputType; /**< The type for each element in the output tensor */
   gboolean outputCapNegotiated;
 
+  const gchar *customProperties; /**< sub-plugin specific custom property values in string */
+
   void *privateData; /**< NNFW plugin's private data is stored here */
 };
 

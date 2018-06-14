@@ -210,6 +210,9 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   g_object_class_install_property (gobject_class, PROP_DEBUG,
       g_param_spec_boolean ("debug", "Debug", "Produce a lot of log messages ?",
           FALSE, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_CUSTOM,
+      g_param_spec_string ("custom", "Custom properties for subplugins",
+          "Custom properties for subplugins ?", "", G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple (gstelement_class,
       "Tensor_Filter",
@@ -270,6 +273,7 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->outputType = _NNS_END;        /* not initialized */
   filter->outputCapNegotiated = FALSE;
 
+  filter->customProperties = NULL;
   filter->privateData = NULL;   /* mark not initialized. */
 }
 
@@ -481,6 +485,13 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       if (filter->outputConfigured == TRUE && filter->debug == TRUE)
         gst_tensor_filter_fix_caps (filter, FALSE, NULL, TRUE);
       break;
+    case PROP_CUSTOM:
+      g_assert (filter->customProperties == NULL && value);
+      /* Once configures, it cannot be changed in runtime */
+      filter->customProperties = g_value_dup_string (value);
+      if (filter->debug == TRUE)
+        g_printerr ("Custom Option = %s\n", filter->customProperties);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -535,6 +546,9 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       break;
     case PROP_OUTPUTTYPE:
       g_value_set_string (value, tensor_element_typename[filter->outputType]);
+      break;
+    case PROP_CUSTOM:
+      g_value_set_string (value, filter->customProperties);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
