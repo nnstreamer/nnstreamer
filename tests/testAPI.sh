@@ -34,6 +34,24 @@ function gstTest {
 }
 
 ##
+# @brief execute gst-launch that is expected to fail. This may be used to test if the element fails gracefully.
+# @param 1 the whole parameters
+# @param 2 the case number
+function gstFailTest {
+	stdout=$(gst-launch-1.0 -q $1)
+	output=$?
+	if [[ $output -eq 0 ]]; then
+		printf "$stdout\n"
+		lfail=$((lfail+1))
+		log="${log}$RED[FAILED] (Suppsoed to be failed, but passed) gst-launch with case $2$NC\n"
+	else
+		lsucc=$((lsucc+1))
+		log="${log}$GREEN[PASSED]$NC (Supposed to be failed and actually failed) gst-launch with case $2\n"
+	fi
+}
+
+
+##
 # @brief compare the golden output and the actual output
 # @param 1 the golden case file
 # @param 2 the actual output

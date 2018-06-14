@@ -37,4 +37,16 @@ do_test_nonip RGB 640 480 3-2
 do_test_nonip BGRx 642 480 3-3
 do_test_nonip RGB 642 480 3-4
 
+# @TODO Change this when YUV becomes supported by tensor_converter
+# Fail Test: YUV is given
+gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=YUV,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=YUV ! tensor_converter silent=TRUE ! filesink location=\"test.yuv.fail.log\" sync=true" 5-F
+
+# Fail Test: Unknown property is given
+gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter silent=TRUE whatthehell=isthis ! filesink location=\"test.yuv.fail.log\" sync=true" 6-F
+
+# @TODO Change this whey audio stream is supported
+# Fail Test: Audio ig given
+gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc ! audio/x-raw ! tensor_converter silent=TRUE ! filesink location=\"test..audio.fail.log\" sync=true" 7-F
+
+
 report
