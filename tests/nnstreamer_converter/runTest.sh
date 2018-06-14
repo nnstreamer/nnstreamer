@@ -21,13 +21,20 @@ function do_test {
 
 	compareAllSizeLimit testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.log ${4}
 }
+function do_test_nonip {
+	gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE force_memcpy=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.nonip.log\" sync=true" ${4}
+
+	compareAllSizeLimit testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.nonip.log ${4}
+}
 
 do_test BGRx 640 480 2-1
 do_test RGB 640 480 2-2
 do_test BGRx 642 480 2-3
 do_test RGB 642 480 2-4
 
-#./testcase02.sh $sopath || failed=1
-
+do_test_nonip BGRx 640 480 3-1
+do_test_nonip RGB 640 480 3-2
+do_test_nonip BGRx 642 480 3-3
+do_test_nonip RGB 642 480 3-4
 
 report
