@@ -667,7 +667,6 @@ static gboolean
 gst_tensordec_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
-
   GstTensorDec *filter = GST_TENSORDEC_CAST (trans);
   gboolean AddPadding = TRUE;
 
