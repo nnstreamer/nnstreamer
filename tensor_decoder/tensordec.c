@@ -281,7 +281,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   /* This caps is coming from tensor */
   structure = gst_caps_get_structure (caps, 0);
   return_false_if_fail (gst_structure_get_int (structure, "dim1", &i));
-  /* @TODO Need to support orther media format (RGB, BRG, YUV,.. etc.). And should support Audio as well.*/
+  /* @TODO Need to support orther media format (RGB, BRG, YUV,.. etc.). And should support Audio as well. */
   filter->output_media_type = _NNS_VIDEO;
   if (i == 3 || i == 4) {
     filter->format = i;
@@ -338,7 +338,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 
   filter->Configured = TRUE;
 
-  /* @TODO Need to specify of video mode*/
+  /* @TODO Need to specify of video mode */
   filter->views = 1;
   strcpy (interlace, "progressive");
   if (!g_strcmp0 (interlace, "progressive")) {

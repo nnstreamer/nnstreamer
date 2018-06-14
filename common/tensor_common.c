@@ -56,16 +56,16 @@
 /**
  * @brief String representations for each tensor element type.
  */
-const gchar* tensor_element_typename[] = {
-        [_NNS_INT32] = "int32",
-        [_NNS_UINT32] = "uint32",
-        [_NNS_INT16] = "int16",
-        [_NNS_UINT16] = "uint16",
-        [_NNS_INT8] = "int8",
-        [_NNS_UINT8] = "uint8",
-        [_NNS_FLOAT64] = "float64",
-        [_NNS_FLOAT32] = "float32",
-	[_NNS_END] = NULL,
+const gchar *tensor_element_typename[] = {
+  [_NNS_INT32] = "int32",
+  [_NNS_UINT32] = "uint32",
+  [_NNS_INT16] = "int16",
+  [_NNS_UINT16] = "uint16",
+  [_NNS_INT8] = "int8",
+  [_NNS_UINT8] = "uint8",
+  [_NNS_FLOAT64] = "float64",
+  [_NNS_FLOAT32] = "float32",
+  [_NNS_END] = NULL,
 };
 
 
@@ -74,32 +74,34 @@ const gchar* tensor_element_typename[] = {
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
-tensor_type get_tensor_type(const gchar* typestr) {
+tensor_type
+get_tensor_type (const gchar * typestr)
+{
   int len;
 
   if (!typestr)
     return _NNS_END;
-  len = strlen(typestr);
+  len = strlen (typestr);
 
   if (typestr[0] == 'u' || typestr[0] == 'U') {
     /* Let's believe the developer and the following three letters are "int" (case insensitive) */
-    if (len == 6) /* uint16, uint32 */ {
+    if (len == 6) {             /* uint16, uint32 */
       if (typestr[4] == '1' && typestr[5] == '6')
         return _NNS_UINT16;
       else if (typestr[4] == '3' && typestr[5] == '2')
         return _NNS_UINT32;
-    } else if (len == 5) /* uint8 */ {
+    } else if (len == 5) {      /* uint8 */
       if (typestr[4] == '8')
         return _NNS_UINT8;
     }
   } else if (typestr[0] == 'i' || typestr[0] == 'I') {
     /* Let's believe the developer and the following two letters are "nt" (case insensitive) */
-    if (len == 5) /* int16, int32 */ {
+    if (len == 5) {             /* int16, int32 */
       if (typestr[3] == '1' && typestr[4] == '6')
         return _NNS_INT16;
       else if (typestr[3] == '3' && typestr[4] == '2')
         return _NNS_INT32;
-    } else if (len == 4) /* int8 */ {
+    } else if (len == 4) {      /* int8 */
       if (typestr[3] == '8')
         return _NNS_INT8;
     }
@@ -123,17 +125,19 @@ tensor_type get_tensor_type(const gchar* typestr) {
  * @param strv Null terminated array of gchar *
  * @param key The key string value
  */
-int find_key_strv(const gchar **strv, const gchar *key) {
+int
+find_key_strv (const gchar ** strv, const gchar * key)
+{
   int cursor = 0;
 
-  g_assert(strv != NULL);
+  g_assert (strv != NULL);
   while (strv[cursor]) {
-    if (!g_ascii_strcasecmp(strv[cursor], key))
+    if (!g_ascii_strcasecmp (strv[cursor], key))
       return cursor;
     cursor++;
   }
 
-  return -1; /* Not Found */
+  return -1;                    /* Not Found */
 }
 
 /**
@@ -141,24 +145,26 @@ int find_key_strv(const gchar **strv, const gchar *key) {
  * @return The Rank. 0 if error.
  * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  */
-int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]) {
-  gchar **strv = g_strsplit(param, ":", NNS_TENSOR_RANK_LIMIT);
+int
+get_tensor_dimension (const gchar * param, uint32_t dim[NNS_TENSOR_RANK_LIMIT])
+{
+  gchar **strv = g_strsplit (param, ":", NNS_TENSOR_RANK_LIMIT);
   int i, retval = 0;
   guint64 val;
 
-  g_assert(strv != NULL);
+  g_assert (strv != NULL);
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     if (strv[i] == NULL)
       break;
-    val = g_ascii_strtoull(strv[i], NULL, 10);
+    val = g_ascii_strtoull (strv[i], NULL, 10);
     dim[i] = val;
     retval = i + 1;
   }
   for (; i < NNS_TENSOR_RANK_LIMIT; i++)
     dim[i] = 1;
 
-  g_strfreev(strv);
+  g_strfreev (strv);
   return retval;
 }
 
@@ -167,7 +173,9 @@ int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-size_t get_tensor_element_count(uint32_t dim[NNS_TENSOR_RANK_LIMIT]) {
+size_t
+get_tensor_element_count (uint32_t dim[NNS_TENSOR_RANK_LIMIT])
+{
   size_t count = 1;
   int i;
 

@@ -21,14 +21,17 @@
 #define D2	(280)
 #define D3	(40)
 
-typedef struct _pt_data {
+typedef struct _pt_data
+{
   uint32_t id; /***< Just for testing */
   uint32_t dim[NNS_TENSOR_RANK_LIMIT];
   tensor_type type;
 } pt_data;
 
-static void *pt_init() {
-  pt_data *data = (pt_data *)malloc(sizeof (pt_data));
+static void *
+pt_init ()
+{
+  pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   int i;
 
   data->id = 0;
@@ -42,18 +45,23 @@ static void *pt_init() {
   return data;
 }
 
-static void pt_exit(void *private_data) {
+static void
+pt_exit (void *private_data)
+{
   pt_data *data = private_data;
-  g_assert(data);
-  free(data);
+  g_assert (data);
+  free (data);
 }
 
-static int get_inputDim(void *private_data, uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type *type) {
+static int
+get_inputDim (void *private_data,
+    uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
+{
   pt_data *data = private_data;
   int i;
 
-  g_assert(data);
-  g_assert(NNS_TENSOR_RANK_LIMIT >= 3);
+  g_assert (data);
+  g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
   inputDimension[0] = D1;
   inputDimension[1] = D2;
   inputDimension[2] = D3;
@@ -64,12 +72,15 @@ static int get_inputDim(void *private_data, uint32_t inputDimension[NNS_TENSOR_R
   return 0;
 }
 
-static int get_outputDim(void *private_data, uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type *type) {
+static int
+get_outputDim (void *private_data,
+    uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
+{
   pt_data *data = private_data;
   int i;
 
-  g_assert(data);
-  g_assert(NNS_TENSOR_RANK_LIMIT >= 3);
+  g_assert (data);
+  g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
   outputDimension[0] = D1;
   outputDimension[1] = D2;
   outputDimension[2] = D3;
@@ -79,18 +90,20 @@ static int get_outputDim(void *private_data, uint32_t outputDimension[NNS_TENSOR
   return 0;
 }
 
-static int pt_invoke(void *private_data, uint8_t *inptr, uint8_t *outptr) {
+static int
+pt_invoke (void *private_data, uint8_t * inptr, uint8_t * outptr)
+{
   pt_data *data = private_data;
   size_t size;
 
-  g_assert(data);
-  g_assert(inptr);
-  g_assert(outptr);
+  g_assert (data);
+  g_assert (inptr);
+  g_assert (outptr);
 
-  size = get_tensor_element_count(data->dim) * tensor_element_size[data->type];
+  size = get_tensor_element_count (data->dim) * tensor_element_size[data->type];
 
-  g_assert(inptr != outptr);
-  memcpy(outptr, inptr, size);
+  g_assert (inptr != outptr);
+  memcpy (outptr, inptr, size);
 
   return 0;
 }
@@ -105,4 +118,3 @@ static NNStreamer_custom_class NNStreamer_custom_body = {
 
 /* The dyn-loaded object */
 NNStreamer_custom_class *NNStreamer_custom = &NNStreamer_custom_body;
-
