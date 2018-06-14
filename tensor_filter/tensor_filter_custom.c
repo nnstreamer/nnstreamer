@@ -100,7 +100,7 @@ custom_loadlib (GstTensor_Filter * filter)
       *((NNStreamer_custom_class **) dlsym (ptr->handle, "NNStreamer_custom"));
   dlsym_error = dlerror ();
   if (dlsym_error) {
-    g_printerr ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
+    err_print ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
     dlclose (ptr->handle);
     g_free (ptr);
     filter->privateData = NULL;

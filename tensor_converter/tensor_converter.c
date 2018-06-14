@@ -92,14 +92,8 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
-#include <glib/gprintf.h>
 
 #include "tensor_converter.h"
-#ifdef TIZEN
-#include <dlog.h>
-#else
-#define dlog_print(...) do {} while(0)
-#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 #define GST_CAT_DEFAULT gst_tensor_converter_debug
@@ -328,17 +322,13 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
   else if (!g_strcmp0 (format, "BGRx"))
     dimension[0] = 4;           /* B G R x */
   else {
-    g_printerr ("Format = %s\n", format);
+    err_print ("Format = %s\n", format);
     return FALSE;
   }
 
   /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
   /* @TODO: Add more conditions! */
   if (remove_stride_padding_per_row (format, dimension[1])) {
-    g_print
-        ("  Width(dim2) is not divisible with 4. The performance won't be good; one more memcpy is added.\n");
-    dlog_print (DLOG_WARN, "nnstreamer",
-        "Input video width is not divisible with 4. The performance will not be good.");
     filter->removePadding = TRUE;
   }
 
@@ -357,13 +347,13 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
         framerate_denominator == filter->framerate_denominator) {
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
         if (dimension[i] != filter->dimension[i]) {
-          g_printerr ("  Dimension %d Mismatch with cached: %d --> %d\n", i,
+          err_print ("  Dimension %d Mismatch with cached: %d --> %d\n", i,
               dimension[i], filter->dimension[i]);
           return FALSE;
         }
       return TRUE;
     }
-    g_printerr ("  Something's wrong. The tensor metadata is inconsistent.\n");
+    err_print ("  Something's wrong. The tensor metadata is inconsistent.\n");
     return FALSE;
   }
 
@@ -468,7 +458,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     gst_buffer_unmap (inbuf, &src_info);
     gst_buffer_unmap (outbuf, &dest_info);
 
-    g_printerr
+    err_print
         ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (1)\nPlease use 4 x n as image width for inputs.\n\n\n");
     return GST_FLOW_OK;
   } else {
@@ -511,7 +501,7 @@ gst_tensor_converter_transform (GstBaseTransform * trans,
     case _NNS_AUDIO:
     case _NNS_STRING:
     default:
-      g_printerr ("  Unsupported Media Type (%d)\n", filter->input_media_type);
+      err_print ("  Unsupported Media Type (%d)\n", filter->input_media_type);
       goto unknown_type;
   }
 
@@ -571,7 +561,7 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
         /* @TODO: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
         gst_buffer_unmap (buf, &info);
 
-        g_printerr
+        err_print
             ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (2)\nPlease use 4 x n as image width for inputs.\n\n\n");
       }
       break;
@@ -579,7 +569,7 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
     case _NNS_AUDIO:
     case _NNS_STRING:
     default:
-      g_printerr ("  Unsupported Media Type (%d)\n", filter->input_media_type);
+      err_print ("  Unsupported Media Type (%d)\n", filter->input_media_type);
       goto unknown_type;
   }
 
@@ -660,8 +650,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
       else
         g_sprintf (colors, "{3, 4}");
 
-      if (obj->silent == FALSE)
-        g_printerr ("Structure from caps = %s\n", str);
+      debug_print (!obj->silent, "Structure from caps = %s\n", str);
 
       g_sprintf (str2,
           "other/tensor, "
@@ -673,17 +662,12 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
           "dim3 = (int) %s, "
           "dim4 = (int) 1", framerate, colors, width, height);
       tmp = gst_caps_from_string (str2);
-      if (obj->silent == FALSE)
-        g_printerr ("Structure from caps to = %s\n", str2);
+      debug_print (!obj->silent, "Structure from caps to = %s\n", str2);
 
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
       /* @TODO: see if the error is from ranging width/height before entering here */
       return tmp;
-
-      g_printerr ("  Cannot retrieve tensor spec from the given input cap.\n");
-      tmp = gst_caps_new_empty ();
-      return tmp;               /* Empty Cap */
     }
 
     g_assert (bogusFilter.tensorConfigured == TRUE);
@@ -707,11 +691,11 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     if (obj->silent == FALSE) {
       structure = gst_caps_get_structure (caps, 0);
       str = gst_structure_to_string (structure);
-      g_printerr ("From = %s\n", str);
+      debug_print (TRUE, "From = %s\n", str);
       g_free (str);
       structure = gst_caps_get_structure (tmp, 0);
       str = gst_structure_to_string (structure);
-      g_printerr ("To = %s\n", str);
+      debug_print (TRUE, "To = %s\n", str);
       g_free (str);
     }
 
@@ -736,7 +720,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     if (obj->silent == FALSE) {
       structure = gst_caps_get_structure (caps, 0);
       str = gst_structure_to_string (structure);
-      g_printerr ("Structure from src = %s\n", str);
+      debug_print (TRUE, "Structure from src = %s\n", str);
       g_free (str);
     }
     if (filter) {
@@ -744,7 +728,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
       if (obj->silent == FALSE) {
         structure = gst_caps_get_structure (filter, 0);
         str = gst_structure_to_string (structure);
-        g_printerr ("Structure from filter = %s\n", str);
+        debug_print (TRUE, "Structure from filter = %s\n", str);
         g_free (str);
       }
 
@@ -753,7 +737,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
       if (obj->silent == FALSE) {
         structure = gst_caps_get_structure (tmp2, 0);
         str = gst_structure_to_string (structure);
-        g_printerr ("Structure from intersection = %s\n", str);
+        debug_print (TRUE, "Structure from intersection = %s\n", str);
         g_free (str);
       }
 
@@ -766,7 +750,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     return tmp;
   }
   /* Neither SRC/SINK? Impossible! */
-  g_printerr ("Direction = %d\n", direction);
+  err_print ("Direction = %d\n", direction);
   GST_DEBUG_OBJECT (trans, "Error pad direction type. direction: %d",
       direction);
   g_assert (TRUE == FALSE);
@@ -821,7 +805,7 @@ gst_tensor_converter_set_caps (GstBaseTransform * trans,
   /* @TODO Supports video only */
   /* input caps */
   if (!gst_video_info_from_caps (&in_info, incaps)) {
-    g_printerr ("Cannot set_caps\n");
+    err_print ("Cannot set_caps\n");
     return FALSE;
   }
 

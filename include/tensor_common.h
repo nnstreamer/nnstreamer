@@ -131,6 +131,27 @@ extern int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK
  */
 extern size_t get_tensor_element_count(uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
 
+#define str(s) xstr(s)
+#define xstr(s) #s
+
+#include <glib/gprintf.h>
+#ifdef TIZEN
+#include <dlog.h>
+#else
+#define dlog_print(loglevel, component, ...) \
+  do { \
+    g_message(__VA_ARGS__); \
+  } while (0)
+#endif
+#define debug_print(cond, ...)	\
+  do { \
+    if ((cond) == TRUE) { \
+      dlog_print(DLOG_DEBUG, "nnstreamer", __FILE__ ":" str(__LINE__) " "  __VA_ARGS__); \
+    } \
+  } while (0)
+
+#define err_print(...) dlog_print(DLOG_ERROR, "nnstreamer", __VA_ARGS__)
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_COMMON_H__ */

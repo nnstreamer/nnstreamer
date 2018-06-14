@@ -72,14 +72,8 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
-#include <glib/gprintf.h>
 
 #include "tensordec.h"
-#ifdef TIZEN
-#include <dlog.h>
-#else
-#define dlog_print(...) do {} while(0)
-#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensordec_debug);
 #define GST_CAT_DEFAULT gst_tensordec_debug
@@ -310,10 +304,6 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
   /* @TODO: Add more conditions! */
   if (add_stride_padding_per_row (format, width)) {
-    g_print
-        ("  Width(dim2) is not divisible with 4. The performance won't be good; one more memcpy is added.\n");
-    dlog_print (DLOG_WARN, "nnstreamer",
-        "Input video width is not divisible with 4. The performance will not be good.");
     filter->addPadding = TRUE;
   }
 
@@ -326,7 +316,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
         framerate_denominator == filter->framerate_denominator) {
       return TRUE;
     }
-    g_printerr ("  Something's wrong. The tensor metadata is inconsistent.\n");
+    err_print ("  Something's wrong. The tensor metadata is inconsistent.\n");
     return FALSE;
   }
 
@@ -410,7 +400,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     case _NNS_AUDIO:
     case _NNS_STRING:
     default:
-      g_printerr ("  Unsupported Media Type (%d)\n", filter->output_media_type);
+      err_print ("  Unsupported Media Type (%d)\n", filter->output_media_type);
       goto unknown_type;
   }
 
@@ -449,7 +439,7 @@ gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
     case _NNS_AUDIO:
     case _NNS_STRING:
     default:
-      g_printerr ("  Unsupported Media Type (%d)\n", filter->output_media_type);
+      err_print ("  Unsupported Media Type (%d)\n", filter->output_media_type);
       goto unknown_type;
   }
 
@@ -485,6 +475,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
   gboolean ret;
   GstTensorDec bogusFilter = { 0 };
   bogusFilter.Configured = FALSE;
+  GstTensorDec *obj = GST_TENSORDEC_CAST (trans);
 
   /* if direction is sink, check src (depending on sink's format, we could choose video or autiod. But currently only video/x-raw (RGB and RGBx) support. cap is for tensor. */
   if (direction == GST_PAD_SINK) {
@@ -525,7 +516,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
         g_sprintf (colors, "{RGB, BGRx}");
       }
 
-      g_printerr ("Structure from caps = %s\n", str);
+      debug_print (!obj->silent, "Structure from caps = %s\n", str);
 
       g_sprintf (str2,
           "video/x-raw, "
@@ -537,18 +528,14 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
           "height = (int) %s", colors, framerate, width, height);
 
       tmp = gst_caps_from_string (str2);
-      g_printerr ("Structure from caps to = %s\n", str2);
+      debug_print (!obj->silent, "Structure from caps to = %s\n", str2);
       g_free (str);
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
       /* @TODO: see if the error is from ranging width/height before entering here */
       return tmp;
-
-      g_printerr ("  Cannot retrieve tensor spec from the given input cap.\n");
-      tmp = gst_caps_new_empty ();
-      return tmp;               /* Empty Cap */
     }
-    g_printerr ("transform_caps SINK specific\n");
+    debug_print (!obj->silent, "transform_caps SINK specific\n");
 
     g_assert (bogusFilter.Configured == TRUE);
 
@@ -580,11 +567,11 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     }
     structure = gst_caps_get_structure (caps, 0);
     str = gst_structure_to_string (structure);
-    g_printerr ("From = %s\n", str);
+    debug_print (!obj->silent, "From = %s\n", str);
     g_free (str);
     structure = gst_caps_get_structure (tmp, 0);
     str = gst_structure_to_string (structure);
-    g_printerr ("To = %s\n", str);
+    debug_print (!obj->silent, "To = %s\n", str);
     g_free (str);
     GST_DEBUG_OBJECT (trans, "SINK transformed %" GST_PTR_FORMAT " into %"
         GST_PTR_FORMAT, caps, tmp);
@@ -598,7 +585,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     return tmp;
   }
   /* Neither SRC/SINK? Impossible! */
-  g_printerr ("Direction = %d\n", direction);
+  err_print ("Direction = %d\n", direction);
   GST_DEBUG_OBJECT (trans, "Error pad direction type. direction: %d",
       direction);
   g_assert (TRUE == FALSE);
