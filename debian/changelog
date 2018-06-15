@@ -1,0 +1,5 @@
+nnstreamer (2018.6.15) unstable; urgency=medium
+
+  * Initial debian dist files added
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Fri, 15 Jun 2018 09:53:00 +0900

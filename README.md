@@ -71,11 +71,19 @@ if installing NNstreamer plugin libraries into ```%{_libdir}```.
 
 ### Tizen
 
-
+Generates .rpm packages:
 ```
 $ gbs build
 ```
 ```gbs build``` will execute unit testing as well unlike cmake build.
+
+### Ubuntu
+
+Generates .deb packages:
+```
+$ pdebuild
+```
+Note that ```pdebuild``` does not execute unit testing.
 
 ## How to Test
 
