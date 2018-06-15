@@ -1,0 +1,23 @@
+##
+# @brief .gitignore list
+
+# ignore cmake build directory
+/build
+
+# ignore golden test generated files
+/tests/*/*.log
+/tests/*/*.golden
+/tests/*/*.png
+
+# vi files
+*.h~
+*.c~
+*.swp
+
+# binary files
+*.so
+*.o
+*.a
+
+# CTag
+/tags
