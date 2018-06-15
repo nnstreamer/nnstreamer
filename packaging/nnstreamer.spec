@@ -98,7 +98,7 @@ popd
     # Generate report
     lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external                                                
     # Visualize the report                                                                                                             
-    genhtml -o result unittest.info -t "AuDri %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}   
+    genhtml -o result unittest.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}   
 %endif
 
 %install
