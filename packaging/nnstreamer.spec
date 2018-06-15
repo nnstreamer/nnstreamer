@@ -86,7 +86,7 @@ popd
     unittestcoverage.py module $(pwd)
 
 # Get commit info
-    VCS=`cat ${RPM_SOURCE_DIR}/audri.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`                                              
+    VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
                                                                                                                                        
 # Create human readable unit test coverate report web page                                                                             
     # Create null gcda files if gcov didn't create it because there is completely no unit test for them.                               
