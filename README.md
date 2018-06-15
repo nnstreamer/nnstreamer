@@ -100,3 +100,7 @@ $ ./runTest.sh
 ## Usage Examples
 
 The implementation is not there yet for using neural network frameworks.
+
+# CI Server
+For more details, please access the following web page.
+* Press [Here](http://aaci.mooo.com/nnstreamer/ci/standalone/).
