@@ -89,10 +89,10 @@ $ cd build
 $ ./unittest_common
 ```
 
-For tensor_converter golden test
+For all gst-launch-based test cases (mostly golden testing)
 ```
-$ cd tensor_convert/test
-$ ./runTest.sh
+$ cd tests
+$ ./testAll.sh
 ```
 
 ## [How to write Test Cases](Documentation/how-to-write-testcase.md)
