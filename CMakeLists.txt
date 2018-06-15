@@ -73,9 +73,9 @@ ADD_EXECUTABLE(unittest_common common/test/unittest_common.cpp ${gtestSrc})
 TARGET_INCLUDE_DIRECTORIES(unittest_common PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
 TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 
-ADD_SUBDIRECTORY(tensor_converter)
-ADD_SUBDIRECTORY(tensor_filter)
-ADD_SUBDIRECTORY(tensor_decoder)
+ADD_SUBDIRECTORY(gst/tensor_converter)
+ADD_SUBDIRECTORY(gst/tensor_filter)
+ADD_SUBDIRECTORY(gst/tensor_decoder)
 ADD_SUBDIRECTORY(nnstreamer_example)
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
