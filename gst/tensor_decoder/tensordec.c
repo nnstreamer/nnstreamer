@@ -254,6 +254,10 @@ add_stride_padding_per_row (const gchar * format, int width)
   if (!ret)                                     \
     return FALSE;                               \
   ;
+static const gchar format_RGB[] = "RGB";
+static const gchar format_BGRx[] = "BGRx";
+static const gchar interlace_progressive[] = "progressive";
+
 /**
  * @brief Configure tensor metadata from sink caps
  */
@@ -267,8 +271,8 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   tensor_dim dimension;
   gint dim;
   gboolean ret;
-  gchar format[1024];
-  gchar interlace[1024];
+  const gchar *format;
+  const gchar *interlace;
   const gchar *type_str;
 
   /* This caps is coming from tensor */
@@ -280,9 +284,9 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   if (dimension[0] == 3 || dimension[0] == 4) {
     filter->format = dimension[0];
     if (dimension[0] == 3)
-      strcpy (format, "RGB");
+      format = format_RGB;
     else
-      strcpy (format, "BGRx");
+      format = format_BGRx;
   } else {
     return FALSE;
   }
@@ -337,7 +341,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 
   /* @TODO Need to specify of video mode */
   filter->views = 1;
-  strcpy (interlace, "progressive");
+  interlace = interlace_progressive;
   if (!g_strcmp0 (interlace, "progressive")) {
     filter->mode = _VIDEO_PROGRESSIVE;
   } else {
@@ -679,7 +683,7 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   GstTensorDec *filter = GST_TENSORDEC_CAST (trans);
   gboolean AddPadding = TRUE;
   int width, channel;
-  char format[1024];
+  const gchar *format;
   GstStructure *structure;
 
   structure = gst_caps_get_structure (incaps, 0);
@@ -688,9 +692,9 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
 
   if (channel == 3 || channel == 4) {
     if (channel == 3)
-      strcpy (format, "RGB");
+      format = format_RGB;
     else
-      strcpy (format, "BGRx");
+      format = format_BGRx;
   } else {
     return FALSE;
   }
