@@ -52,36 +52,30 @@ findtype specifics: TBD
 ### Linux Self-Hosted Build
 
 
-Step 1. Install build-required packages to your system
+**Approach 1.** Build with debian tools
 
-Approach 1: use mk-build-deps (package name: ```equivs```) / Ubuntu
+* How to use mk-build-deps
 ```
 $ mk-build-deps --install debian/control
 $ dpkg -i nnstreamer-build-deps_2018.6.16_all.deb
 ```
 Note that the version name may change. Please check your local directory after excecuting ```mk-build-deps```.
 
-Approach 2: try and error / Ubuntu
+* How to use debuild
 ```
 $ debuild
 ```
 If there is a missing package, debuild will tell you which package is missing.
 If you haven't configured debuild properly, yet, you will need to add ```-uc -us``` options to ```debuild```.
 
-Approach 3: install the following packages (list from Build-Deps in debian/control)
-```
-gcc, cmake, libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libgstreamer-plugins-good1.0-dev, libglib2.0-dev, libgtest-dev
-```
-Note that the packages names are from Ubuntu 16.04; however, other Linux distros will have similar names as well.
 
-
-Step 2. Build with Cmake!
+**Approach 2.** Build with Cmake
 
 At the git repo root directory,
 ```
 $ mkdir -p build  # We recommend to build in a "build" directory
 $ cd build
-$ rm -Rf *        # Ensure the build directory is empty
+$ rm -rf *        # Ensure the build directory is empty
 $ cmake ..
 $ make
 $ cd ..
@@ -95,7 +89,10 @@ $ sudo make install
 if installing NNstreamer plugin libraries into ```%{_libdir}```.
 
 
-### Tizen
+### Clean Build based on Platform
+
+##### Tizen
+* https://source.tizen.org/documentation/reference/git-build-system/usage/gbs-build
 
 Generates .rpm packages:
 ```
@@ -103,7 +100,8 @@ $ gbs build
 ```
 ```gbs build``` will execute unit testing as well unlike cmake build.
 
-### Ubuntu
+##### Ubuntu
+* https://wiki.ubuntu.com/PbuilderHowto
 
 Generates .deb packages:
 ```
