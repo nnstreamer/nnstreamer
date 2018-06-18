@@ -273,11 +273,11 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
 
 /**
  * @brief Calculate the rank of a tensor
- * @param dimension The dimension vector (uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
+ * @param dimension The dimension vector (tensor_dim = uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
  * @return the rank value
  */
 static int
-gst_tensor_filter_get_rank (uint32_t * dimension)
+gst_tensor_filter_get_rank (tensor_dim dimension)
 {
   int i = 0;
   int rank = 0;
@@ -589,8 +589,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
   int ret;
-  uint32_t inputDimChk[NNS_TENSOR_RANK_LIMIT];
-  uint32_t outputDimChk[NNS_TENSOR_RANK_LIMIT];
+  tensor_dim inputDimChk;
+  tensor_dim outputDimChk;
   tensor_type inputType, outputType;
   size_t outBufSize;
   uint8_t *inptr, *outptr;

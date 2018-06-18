@@ -107,7 +107,7 @@ struct _GstTensor_Converter
   gboolean silent;	/**< True if logging is minimized */
   gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
   gint rank;		/**< Tensor Rank (# dimensions) */
-  gint dimension[NNS_TENSOR_RANK_LIMIT]; /**< Dimensions. We support up to 4th ranks.  **/
+  tensor_dim dimension;		/**< Dimensions. We support up to 4th ranks.  **/
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */

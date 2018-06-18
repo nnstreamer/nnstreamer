@@ -294,7 +294,8 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
 {
   GstStructure *structure;
   gint rank;
-  gint dimension[NNS_TENSOR_RANK_LIMIT];
+  tensor_dim dimension;
+  gint dim;
   tensor_type type;
   gint framerate_numerator;
   gint framerate_denominator;
@@ -307,10 +308,10 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
   structure = gst_caps_get_structure (caps, 0);
   rank = 3;                     /* [color-space][height][width] */
 
-  return_false_if_fail (gst_structure_get_int (structure, "width",
-          &dimension[1]));
-  return_false_if_fail (gst_structure_get_int (structure, "height",
-          &dimension[2]));
+  return_false_if_fail (gst_structure_get_int (structure, "width", &dim));
+  dimension[1] = dim;
+  return_false_if_fail (gst_structure_get_int (structure, "height", &dim));
+  dimension[2] = dim;
   return_false_if_fail (gst_structure_get_fraction (structure, "framerate",
           &framerate_numerator, &framerate_denominator));
   type = _NNS_UINT8;            /* Assume color depth per component is 8 bit */
@@ -334,8 +335,7 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
 
   dimension[3] = 1;             /* This is 3-D Tensor */
   tensorFrameSize =
-      tensor_element_size[type] * dimension[0] * dimension[1] * dimension[2] *
-      dimension[3];
+      tensor_element_size[type] * get_tensor_element_count (dimension);
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
 
   if (filter->tensorConfigured == TRUE) {
@@ -434,8 +434,8 @@ gst_c2t_transformer_videoframe (GstTensor_Converter *
 
     /* @TODO: We don't know if outbuf is already allocated at this point, yet! */
     g_assert (gst_buffer_get_size (outbuf) >=
-        filter->dimension[0] * filter->dimension[1] * filter->dimension[2] *
-        filter->dimension[3]);
+        (get_tensor_element_count (filter->dimension) *
+            tensor_element_size[filter->type]));
 
     if (offset % 4)
       offset += 4 - (offset % 4);

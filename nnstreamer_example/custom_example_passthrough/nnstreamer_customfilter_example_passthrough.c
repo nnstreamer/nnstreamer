@@ -24,7 +24,7 @@
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
-  uint32_t dim[NNS_TENSOR_RANK_LIMIT];
+  tensor_dim dim;
   tensor_type type;
 } pt_data;
 
@@ -55,7 +55,7 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 
 static int
 get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
+    tensor_dim inputDimension, tensor_type * type)
 {
   pt_data *data = private_data;
   int i;
@@ -74,7 +74,7 @@ get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
 
 static int
 get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT], tensor_type * type)
+    tensor_dim outputDimension, tensor_type * type)
 {
   pt_data *data = private_data;
   int i;

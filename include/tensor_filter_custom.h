@@ -81,21 +81,21 @@ typedef void (*NNS_custom_exit_func)(void *private_data, const GstTensor_Filter_
  * @brief Get input tensor type.
  * @param[in] private_data The pointer returned by NNStreamer_custom_exit.
  * @param[in] prop Tensor_Filter's property values. Do not change its values.
- * @param[out] inputDimension uint32_t[NNS_TENSOR_RANK_LIMIT]
+ * @param[out] inputDimension uint32_t[NNS_TENSOR_RANK_LIMIT] (tensor_dim)
  * @param[out] type Type of each element in the input tensor
  */
 typedef int (*NNS_custom_get_input_dimension)(void *private_data, const GstTensor_Filter_Properties *prop,
-    uint32_t *inputDimension, tensor_type *type);
+    tensor_dim inputDimension, tensor_type *type);
 
 /**
  * @brief Get output tensor type.
  * @param[in] private_data The pointer returned by NNStreamer_custom_exit.
  * @param[in] prop Tensor_Filter's property values. Do not change its values.
- * @param[out] outputDimension uint32_t[NNS_TENSOR_RANK_LIMIT]
+ * @param[out] outputDimension uint32_t[NNS_TENSOR_RANK_LIMIT] (tensor_dim)
  * @param[out] type Type of each element in the output tensor
  */
 typedef int (*NNS_custom_get_output_dimension)(void *private_data, const GstTensor_Filter_Properties *prop,
-    uint32_t *outputDimension, tensor_type *type);
+    tensor_dim outputDimension, tensor_type *type);
 
 /**
  * @brief Invoke the "main function".

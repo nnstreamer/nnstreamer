@@ -122,14 +122,14 @@ extern int find_key_strv(const gchar **strv, const gchar *key);
  * @return The Rank.
  * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  */
-extern int get_tensor_dimension(const gchar* param, uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
+extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
 
 /**
  * @brief Count the number of elemnts of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-extern size_t get_tensor_element_count(uint32_t dim[NNS_TENSOR_RANK_LIMIT]);
+extern size_t get_tensor_element_count(tensor_dim dim);
 
 #define str(s) xstr(s)
 #define xstr(s) #s
