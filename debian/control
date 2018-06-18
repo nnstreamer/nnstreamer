@@ -2,7 +2,7 @@ Source: nnstreamer
 Section: libs
 Priority: optional
 Maintainer: MyungJoo Ham <myungjoo.ham@samsung.com>
-Build-Depends: gcc, cmake, libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libgstreamer-plugins-good1.0-dev, libglib2.0-dev,
+Build-Depends: gcc, cmake, libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libglib2.0-dev,
  libgtest-dev,
  debhelper (>=9)
 Standards-Version: 3.9.6
