@@ -76,6 +76,7 @@ TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 ADD_SUBDIRECTORY(gst/tensor_converter)
 ADD_SUBDIRECTORY(gst/tensor_filter)
 ADD_SUBDIRECTORY(gst/tensor_decoder)
+ADD_SUBDIRECTORY(gst/tensor_sink)
 ADD_SUBDIRECTORY(nnstreamer_example)
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
