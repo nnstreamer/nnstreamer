@@ -409,9 +409,10 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     tensor_converter,
     "tensor_converter",
     tensor_converter_init,
-    VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
+    VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
-     static GstFlowReturn gst_c2t_transformer_videoframe (GstTensor_Converter *
+static GstFlowReturn
+gst_c2t_transformer_videoframe (GstTensor_Converter *
     filter, GstBuffer * inbuf, GstBuffer * outbuf)
 {
   size_t sizeB =

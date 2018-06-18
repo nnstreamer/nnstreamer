@@ -386,11 +386,10 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensordec,
     "tensordec",
-    tensordec_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
+    tensordec_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
-     static GstFlowReturn
-         gst_t2c_transform (GstTensorDec * filter,
-    GstBuffer * inbuf, GstBuffer * outbuf)
+static GstFlowReturn
+gst_t2c_transform (GstTensorDec * filter, GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstMapInfo inInfo, outInfo;
   uint8_t *inptr, *outptr;

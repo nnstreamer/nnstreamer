@@ -581,9 +581,10 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_filter,
     "tensor_filter",
-    tensor_filter_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
+    tensor_filter_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
-     static GstFlowReturn gst_tensor_filter_transform (GstBaseTransform * trans,
+static GstFlowReturn
+gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
