@@ -264,22 +264,22 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   tensor_type type;
   gint framerate_numerator;
   gint framerate_denominator;
-  gint width;
-  gint height;
+  tensor_dim dimension;
+  gint dim;
   gboolean ret;
   gchar format[1024];
   gchar interlace[1024];
   const gchar *type_str;
-  int i;
 
   /* This caps is coming from tensor */
   structure = gst_caps_get_structure (caps, 0);
-  return_false_if_fail (gst_structure_get_int (structure, "dim1", &i));
+  return_false_if_fail (gst_structure_get_int (structure, "dim1", &dim));
+  dimension[0] = (uint32_t) dim;
   /* @TODO Need to support orther media format (RGB, BRG, YUV,.. etc.). And should support Audio as well. */
   filter->output_media_type = _NNS_VIDEO;
-  if (i == 3 || i == 4) {
-    filter->format = i;
-    if (i == 3)
+  if (dimension[0] == 3 || dimension[0] == 4) {
+    filter->format = dimension[0];
+    if (dimension[0] == 3)
       strcpy (format, "RGB");
     else
       strcpy (format, "BGRx");
@@ -287,9 +287,10 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
     return FALSE;
   }
 
-  return_false_if_fail (gst_structure_get_int (structure, "dim2", &width));
-  return_false_if_fail (gst_structure_get_int (structure, "dim3", &height));
-
+  return_false_if_fail (gst_structure_get_int (structure, "dim2", &dim));
+  dimension[1] = (uint32_t) dim;
+  return_false_if_fail (gst_structure_get_int (structure, "dim3", &dim));
+  dimension[2] = (uint32_t) dim;
   return_false_if_fail (gst_structure_get_fraction (structure, "framerate",
           &framerate_numerator, &framerate_denominator));
 
@@ -303,14 +304,18 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 
   /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
   /* @TODO: Add more conditions! */
-  if (add_stride_padding_per_row (format, width)) {
+  if (add_stride_padding_per_row (format, dimension[1])) {
+    g_print
+        ("  Width(dim2) is not divisible with 4. The performance won't be good; one more memcpy is added.\n");
+    dlog_print (DLOG_WARN, "nnstreamer",
+        "Input video width is not divisible with 4. The performance will not be good.");
     filter->addPadding = TRUE;
   }
 
   if (filter->Configured == TRUE) {
     /* It has been already configured. Check if they are consistent */
-    if (width == filter->width &&
-        height == filter->height &&
+    if (dimension[1] == filter->dimension[1] &&
+        dimension[2] == filter->dimension[2] &&
         type == filter->type &&
         framerate_numerator == filter->framerate_numerator &&
         framerate_denominator == filter->framerate_denominator) {
@@ -323,8 +328,10 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   filter->type = type;
   filter->framerate_numerator = framerate_numerator;
   filter->framerate_denominator = framerate_denominator;
-  filter->width = width;
-  filter->height = height;
+  filter->dimension[0] = dimension[0];
+  filter->dimension[1] = dimension[1];
+  filter->dimension[2] = dimension[2];
+  filter->dimension[3] = 1;
 
   filter->Configured = TRUE;
 
@@ -382,19 +389,61 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     tensordec_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
 
      static GstFlowReturn
-         gst_tensordec_transform (GstBaseTransform * trans,
+         gst_t2c_transform (GstTensorDec * filter,
+    GstBuffer * inbuf, GstBuffer * outbuf)
+{
+  GstMapInfo inInfo, outInfo;
+  uint8_t *inptr, *outptr;
+  unsigned int row, d0;
+  unsigned int dest_idx = 0, src_idx = 0;
+
+  size_t size = filter->dimension[0] * filter->dimension[1];
+  size_t offset = size;
+
+  if (offset % 4)
+    offset += 4 - (offset % 4);
+
+  size_t size_out = offset * filter->dimension[2] * filter->dimension[3];
+
+  g_assert (outbuf);
+  if (filter->addPadding) {
+    if (gst_buffer_get_size (outbuf) < size_out)
+      gst_buffer_set_size (outbuf, size_out);
+
+    gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
+    gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
+    inptr = inInfo.data;
+    outptr = outInfo.data;
+
+    for (d0 = 0; d0 < filter->dimension[3]; d0++) {
+      g_assert (d0 == 0);
+      for (row = 0; row < filter->dimension[2]; row++) {
+        memcpy (outptr + dest_idx, inptr + src_idx, size);
+        dest_idx += offset;
+        src_idx += size;
+      }
+    }
+    gst_buffer_unmap (inbuf, &inInfo);
+    gst_buffer_unmap (outbuf, &outInfo);
+  }
+
+  return GST_FLOW_OK;
+}
+
+static GstFlowReturn
+gst_tensordec_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensorDec *filter = GST_TENSORDEC_CAST (trans);
-
+  GstFlowReturn res;
   if (G_UNLIKELY (!filter->negotiated))
-    goto unknown_format;
-  if (G_UNLIKELY (!filter->Configured))
     goto unknown_tensor;
+  if (G_UNLIKELY (!filter->Configured))
+    goto unknown_format;
 
   switch (filter->output_media_type) {
-
     case _NNS_VIDEO:
+      res = gst_t2c_transform (filter, inbuf, outbuf);
       break;
       /* NOT SUPPORTED */
     case _NNS_AUDIO:
@@ -404,7 +453,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
       goto unknown_type;
   }
 
-  return GST_FLOW_OK;
+  return res;
 
 unknown_format:
   GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
@@ -551,8 +600,8 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
       g_sprintf (interlace, "progressive");
 
     tmp = gst_caps_new_simple ("video/x-raw",
-        "width", G_TYPE_INT, bogusFilter.width,
-        "height", G_TYPE_INT, bogusFilter.height,
+        "width", G_TYPE_INT, bogusFilter.dimension[1],
+        "height", G_TYPE_INT, bogusFilter.dimension[2],
         "format", G_TYPE_STRING, color,
         "views", G_TYPE_INT, bogusFilter.views,
         "interlace-mode", G_TYPE_STRING, interlace,
@@ -630,9 +679,26 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
 {
   GstTensorDec *filter = GST_TENSORDEC_CAST (trans);
   gboolean AddPadding = TRUE;
+  int width, channel;
+  char format[1024];
+  GstStructure *structure;
 
-  if (filter->addPadding)
+  structure = gst_caps_get_structure (incaps, 0);
+  gst_structure_get_int (structure, "dim2", &width);
+  gst_structure_get_int (structure, "dim1", &channel);
+
+  if (channel == 3 || channel == 4) {
+    if (channel == 3)
+      strcpy (format, "RGB");
+    else
+      strcpy (format, "BGRx");
+  } else {
+    return FALSE;
+  }
+
+  if (add_stride_padding_per_row (format, width))
     AddPadding = FALSE;
+
   gst_base_transform_set_in_place (trans, AddPadding);
 
   filter->negotiated = gst_tensordec_configure (incaps, filter);

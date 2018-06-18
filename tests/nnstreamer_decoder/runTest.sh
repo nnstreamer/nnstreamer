@@ -21,6 +21,9 @@ function do_test {
 }
 
 do_test RGB 640 480 1
+do_test RGB 642 480 1-1
+do_test BGRx 640 480 1-2
+do_test BGRx 642 480 1-3
 
 report
 

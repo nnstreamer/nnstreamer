@@ -96,18 +96,16 @@ struct _GstTensorDec
   /* For transformer */
   gboolean negotiated; /**< %TRUE if tensor metadata is set */
   media_type output_media_type; /**< Denotes the input media stream type */
-
   gboolean addPadding; /* If TRUE, zero-padding must be removed during transform */
+  gint format;
+  interlaced_mode mode;
+  tensor_dim dimension;
 
   /* For Tensor */
   gboolean silent;	/**< True if logging is minimized */
   gboolean Configured;	/**< True if already successfully configured tensor metadata */
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
-  gint format;
-  interlaced_mode mode;
   gint  views;
-  gint  width;
-  gint  height;
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
 };

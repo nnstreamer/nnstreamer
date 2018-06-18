@@ -118,4 +118,6 @@ typedef struct _GstTensor_Filter_Properties
   const gchar *customProperties; /**< sub-plugin specific custom property values in string */
 } GstTensor_Filter_Properties;
 
+typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
+
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
