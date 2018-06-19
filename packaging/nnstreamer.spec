@@ -6,7 +6,7 @@ Version:	0.0.1
 Release:	1
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
-License:	LGPL-2.1+ and Apache-2.0
+License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 Source2001:	testcase_tensor_converter.tar.gz
