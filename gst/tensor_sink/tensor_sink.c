@@ -63,6 +63,9 @@
 
 #include "tensor_sink.h"
 
+/* default lateness 30ms */
+#define NNS_DEFAULT_LATENESS (30 * GST_MSECOND)
+
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
 
@@ -95,25 +98,29 @@ static void gst_tensor_sink_set_property (GObject * object, guint prop_id,
 static void gst_tensor_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-static gboolean gst_tensor_sink_start (GstBaseSink * basesink);
-static gboolean gst_tensor_sink_stop (GstBaseSink * basesink);
-static gboolean gst_tensor_sink_event (GstBaseSink * basesink,
-    GstEvent * event);
-static gboolean gst_tensor_sink_query (GstBaseSink * basesink,
-    GstQuery * query);
+static gboolean gst_tensor_sink_start (GstBaseSink * sink);
+static gboolean gst_tensor_sink_stop (GstBaseSink * sink);
+static gboolean gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event);
+static gboolean gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query);
+static GstFlowReturn gst_tensor_sink_render (GstBaseSink * sink,
+    GstBuffer * buffer);
+static GstFlowReturn gst_tensor_sink_render_list (GstBaseSink * sink,
+    GstBufferList * buffer_list);
 
+static void _tensor_sink_render_buffer (GstTensorSink * tensor_sink,
+    GstBuffer * buffer);
 
 /* initialize tensor_sink's class */
 static void
 gst_tensor_sink_class_init (GstTensorSinkClass * klass)
 {
   GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
-  GstBaseSinkClass *gstbasesink_class;
+  GstElementClass *element_class;
+  GstBaseSinkClass *bsink_class;
 
   gobject_class = G_OBJECT_CLASS (klass);
-  gstelement_class = GST_ELEMENT_CLASS (klass);
-  gstbasesink_class = GST_BASE_SINK_CLASS (klass);
+  element_class = GST_ELEMENT_CLASS (klass);
+  bsink_class = GST_BASE_SINK_CLASS (klass);
 
   /* gobject methods */
   gobject_class->set_property = gst_tensor_sink_set_property;
@@ -122,32 +129,40 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   /* properties */
   /* TODO: add necessary properties */
   g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
+      g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           FALSE, G_PARAM_READWRITE));
 
-  gst_element_class_set_static_metadata (gstelement_class,
+  gst_element_class_set_static_metadata (element_class,
       "Tensor_Sink",
       "Sink/Tensor",
       "Sink element to handle tensor stream", "nnstreamer <nnstreamer sec>");
 
-  gst_element_class_add_static_pad_template (gstelement_class, &sinktemplate);
+  gst_element_class_add_static_pad_template (element_class, &sinktemplate);
 
   /* basesink methods */
   /* TODO: add necessary methods */
-  gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_sink_start);
-  gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_sink_stop);
-  gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_tensor_sink_event);
-  gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_tensor_sink_query);
+  bsink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_sink_start);
+  bsink_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_sink_stop);
+  bsink_class->event = GST_DEBUG_FUNCPTR (gst_tensor_sink_event);
+  bsink_class->query = GST_DEBUG_FUNCPTR (gst_tensor_sink_query);
+  bsink_class->render = GST_DEBUG_FUNCPTR (gst_tensor_sink_render);
+  bsink_class->render_list = GST_DEBUG_FUNCPTR (gst_tensor_sink_render_list);
 }
 
 /* initialize tensor_sink element */
 static void
 gst_tensor_sink_init (GstTensorSink * tensor_sink)
 {
+  GstBaseSink *bsink;
+
+  bsink = GST_BASE_SINK (tensor_sink);
+
   /* TODO: init properties */
   tensor_sink->silent = FALSE;
 
-  gst_base_sink_set_sync (GST_BASE_SINK (tensor_sink), FALSE);
+  gst_base_sink_set_sync (bsink, TRUE);
+  gst_base_sink_set_max_lateness (bsink, NNS_DEFAULT_LATENESS);
+  gst_base_sink_set_qos_enabled (bsink, TRUE);
 }
 
 /* gobject methods */
@@ -182,6 +197,7 @@ gst_tensor_sink_get_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       g_value_set_boolean (value, tensor_sink->silent);
       break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -190,21 +206,21 @@ gst_tensor_sink_get_property (GObject * object, guint prop_id,
 
 /* basesink methods */
 static gboolean
-gst_tensor_sink_start (GstBaseSink * basesink)
+gst_tensor_sink_start (GstBaseSink * sink)
 {
   /* TODO: init resources */
   return TRUE;
 }
 
 static gboolean
-gst_tensor_sink_stop (GstBaseSink * basesink)
+gst_tensor_sink_stop (GstBaseSink * sink)
 {
   /* TODO: free resources */
   return TRUE;
 }
 
 static gboolean
-gst_tensor_sink_event (GstBaseSink * basesink, GstEvent * event)
+gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
 {
   GstEventType type;
 
@@ -219,11 +235,11 @@ gst_tensor_sink_event (GstBaseSink * basesink, GstEvent * event)
       break;
   }
 
-  return GST_BASE_SINK_CLASS (parent_class)->event (basesink, event);
+  return GST_BASE_SINK_CLASS (parent_class)->event (sink, event);
 }
 
 static gboolean
-gst_tensor_sink_query (GstBaseSink * basesink, GstQuery * query)
+gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
 {
   gboolean res = FALSE;
   GstQueryType type;
@@ -238,9 +254,60 @@ gst_tensor_sink_query (GstBaseSink * basesink, GstQuery * query)
       break;
 
     default:
-      res = GST_BASE_SINK_CLASS (parent_class)->query (basesink, query);
+      res = GST_BASE_SINK_CLASS (parent_class)->query (sink, query);
       break;
   }
 
   return res;
+}
+
+static GstFlowReturn
+gst_tensor_sink_render (GstBaseSink * sink, GstBuffer * buffer)
+{
+  GstTensorSink *tensor_sink;
+
+  tensor_sink = GST_TENSOR_SINK (sink);
+  _tensor_sink_render_buffer (tensor_sink, buffer);
+
+  return GST_FLOW_OK;
+}
+
+static GstFlowReturn
+gst_tensor_sink_render_list (GstBaseSink * sink, GstBufferList * buffer_list)
+{
+  GstTensorSink *tensor_sink;
+  GstBuffer *buffer;
+  guint i;
+  guint num_buffers;
+
+  tensor_sink = GST_TENSOR_SINK (sink);
+  num_buffers = gst_buffer_list_length (buffer_list);
+
+  for (i = 0; i < num_buffers; i++) {
+    buffer = gst_buffer_list_get (buffer_list, i);
+    _tensor_sink_render_buffer (tensor_sink, buffer);
+  }
+
+  return GST_FLOW_OK;
+}
+
+static void
+_tensor_sink_render_buffer (GstTensorSink * tensor_sink, GstBuffer * buffer)
+{
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  guint num_mems;
+
+  num_mems = gst_buffer_n_memory (buffer);
+
+  for (i = 0; i < num_mems; i++) {
+    mem = gst_buffer_peek_memory (buffer, i);
+
+    if (gst_memory_map (mem, &info, GST_MAP_READ)) {
+      /* TODO: handle buffers (info.data, info.size) */
+
+      gst_memory_unmap (mem, &info);
+    }
+  }
 }
