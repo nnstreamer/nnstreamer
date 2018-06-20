@@ -58,7 +58,8 @@
  * @brief The mandatory callback for GstTensor_Filter_Framework
  */
 static int
-tflite_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
+tflite_invoke (GstTensor_Filter * filter, const uint8_t * inptr,
+    uint8_t * outptr)
 {
   return 0;                     /* NYI */
 }
@@ -67,7 +68,7 @@ tflite_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-tflite_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
+tflite_getInputDim (GstTensor_Filter * filter, tensor_dim inputDimension,
     tensor_type * type)
 {
   /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
@@ -78,7 +79,7 @@ tflite_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-tflite_getOutputDim (GstTensor_Filter * filter, uint32_t * outputDimension,
+tflite_getOutputDim (GstTensor_Filter * filter, tensor_dim outputDimension,
     tensor_type * type)
 {
   /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */

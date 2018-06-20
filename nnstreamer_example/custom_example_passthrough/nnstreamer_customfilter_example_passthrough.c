@@ -92,7 +92,7 @@ get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
 
 static int
 pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
-    uint8_t * inptr, uint8_t * outptr)
+    const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
   size_t size;

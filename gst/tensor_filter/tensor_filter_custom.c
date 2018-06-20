@@ -119,7 +119,8 @@ custom_loadlib (GstTensor_Filter * filter)
  * @param[out] outptr The output tensor
  */
 static int
-custom_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
+custom_invoke (GstTensor_Filter * filter, const uint8_t * inptr,
+    uint8_t * outptr)
 {
   int retval = custom_loadlib (filter);
   internal_data *ptr;
@@ -141,7 +142,7 @@ custom_invoke (GstTensor_Filter * filter, uint8_t * inptr, uint8_t * outptr)
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-custom_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
+custom_getInputDim (GstTensor_Filter * filter, tensor_dim inputDimension,
     tensor_type * type)
 {
   int retval = custom_loadlib (filter);
@@ -161,7 +162,7 @@ custom_getInputDim (GstTensor_Filter * filter, uint32_t * inputDimension,
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-custom_getOutputDim (GstTensor_Filter * filter, uint32_t * outputDimension,
+custom_getOutputDim (GstTensor_Filter * filter, tensor_dim outputDimension,
     tensor_type * type)
 {
   int retval = custom_loadlib (filter);
