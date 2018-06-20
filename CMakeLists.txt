@@ -63,7 +63,7 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC -g")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC -g")
 
 # Provide common data
-ADD_LIBRARY(common STATIC common/tensor_common.c)
+ADD_LIBRARY(common STATIC common/tensor_common.c common/tensor_meta.c)
 TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
 SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
@@ -87,7 +87,7 @@ INSTALL(FILES include/tensor_typedef.h
 	)
 
 # For nnstreamer custom filter developers
-INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h
+INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h include/tensor_meta.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)
 
