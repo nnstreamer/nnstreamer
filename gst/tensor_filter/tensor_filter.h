@@ -110,7 +110,15 @@ struct _GstTensor_Filter
   GstTensor_Filter_Properties prop;
 };
 
-/*
+/** @brief Location of GstTensor_Filter from privateData
+ *  @param p the "privateData" pointer of GstTensor_Filter
+ *  @return the pointer to GstTensor_Filter containing p as privateData
+ */
+#define GstTensor_Filter_of_privateData(p) ({ \
+    const typeof( ((GstTensor_Filter *)0)->privateData ) *__mptr = (p); \
+    (GstTensor_Filter *)( (char *)__mptr - offsetof(GstTensor_Filter, privateData) );})
+
+/**
  * @brief GstTensor_FilterClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
@@ -122,19 +130,46 @@ struct _GstTensor_FilterClass
   GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
 };
 
-/*
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_filter_get_type (void);
 
+/**
+ * @brief Subplugin definition
+ *
+ * Common callback parameters:
+ * filter Filter properties. Read Only
+ * private_data Subplugin's private data. Set this (*private_data = XXX) if you want to change filter->private_data
+ */
 struct _GstTensor_Filter_Framework
 {
   gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
-  int (*invoke_NN)(GstTensor_Filter *filter, const uint8_t *inputptr, uint8_t *outputptr); /**< Mandatory callback. Invoke the given network model. */
-  int (*getInputDimension)(GstTensor_Filter *filter, tensor_dim inputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of input tensor */
-  int (*getOutputDimension)(GstTensor_Filter *filter, tensor_dim outputDimension, tensor_type *type); /**< Optional. Set NULL if not supported. Get dimension of output tensor */
-  void (*close)(GstTensor_Filter *filter); /**< Optional. Close this instance! */
+  int (*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
+      /**< Mandatory callback. Invoke the given network model. */
+
+  int (*getInputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim inputDimension, tensor_type *type);
+      /**< Optional. Set NULL if not supported. Get dimension of input tensor
+       * If getInputDimension is NULL, setInputDimension must be defined.
+       * However, one of the two must be NULL.
+       * And, if getInputDimension != NULL, getOutputDimension != NULL.
+       */
+  int (*getOutputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim outputDimension, tensor_type *type);
+      /**< Optional. Set NULL if not supported. Get dimension of output tensor
+       * If getOutputDimension is NULL, setInputDimension must be defined.
+       * However, one of the two must be NULL
+       * And, if getOutputDimension != NULL, getInputDimension != NULL.
+       */
+  int (*setInputDimension)(const GstTensor_Filter *filter, void **private_data, const tensor_dim inputDimension, tensor_type inputType, tensor_dim outputDimension, tensor_type *outputType);
+      /**< Optional. Set Null if not supported. Tensor_filter::main will
+       * configure input dimension from pad-cap in run-time for the sub-plugin.
+       * Then, the sub-plugin is required to return corresponding output dimension
+       * If this is NULL, both getInput/OutputDimension must be non-NULL.
+       * If this is non-NULL, both getInput/OutputDimension must be NULL.
+       */
+
+  void (*close)(const GstTensor_Filter *filter, void **private_data); /**< Optional. Close this instance! Free-ing private_data is this function's responsibility. Set NULL after that. */
 };
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;

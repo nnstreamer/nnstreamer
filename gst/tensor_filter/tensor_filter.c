@@ -412,6 +412,10 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (nnfw_support_status[filter->prop.nnfw] == TRUE);
       filter->prop.fw = tensor_filter_supported[filter->prop.nnfw];
       g_assert (filter->prop.fw != NULL);
+
+      /* See if mandatory methods are filled in */
+      g_assert (filter->prop.fw->invoke_NN);
+      g_assert (!(filter->prop.fw->getInputDimension && filter->prop.fw->getOutputDimension) != !filter->prop.fw->setInputDimension);   /* This is "XOR" */
       break;
     case PROP_MODEL:
       g_assert (filter->prop.modelFilename == NULL && value);
@@ -611,18 +615,25 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       filter->prop.fw->name, filter->prop.modelFilename);
 
   if (filter->prop.fw->getInputDimension) {
-    ret = filter->prop.fw->getInputDimension (filter, inputDimChk, &inputType);
+    ret =
+        filter->prop.fw->getInputDimension (filter, &filter->privateData,
+        inputDimChk, &inputType);
     /* @TODO check inputDimChk / inputType with filter internal info */
   } else {
-    /* @TODO printout debug msg */
+    /* Input dimension is determined by the pad-cap negotiation */
+
+    g_assert (FALSE);           /* @TODO NYI */
   }
 
   if (filter->prop.fw->getOutputDimension) {
     ret =
-        filter->prop.fw->getOutputDimension (filter, outputDimChk, &outputType);
+        filter->prop.fw->getOutputDimension (filter, &filter->privateData,
+        outputDimChk, &outputType);
     /* @TODO check outputDimChk / outputType with filter internal info */
   } else {
-    /* @TODO printout debug msg */
+    /* Output dimension is determined by the invokation or input dimension */
+
+    g_assert (FALSE);           /* @TODO NYI */
   }
 
   /* 1. Allocate outbuf */
@@ -640,7 +651,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   inptr = inInfo.data;
   outptr = outInfo.data;
 
-  ret = filter->prop.fw->invoke_NN (filter, inptr, outptr);
+  ret =
+      filter->prop.fw->invoke_NN (filter, &filter->privateData, inptr, outptr);
 
   gst_buffer_unmap (inbuf, &inInfo);
   gst_buffer_unmap (outbuf, &outInfo);

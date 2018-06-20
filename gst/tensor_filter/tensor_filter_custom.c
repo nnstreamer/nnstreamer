@@ -73,7 +73,7 @@ typedef struct _internal_data internal_data;
  * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
  */
 static int
-custom_loadlib (GstTensor_Filter * filter)
+custom_loadlib (const GstTensor_Filter * filter, void **private_data)
 {
   internal_data *ptr;
   char *dlsym_error;
@@ -84,14 +84,15 @@ custom_loadlib (GstTensor_Filter * filter)
   }
 
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
-  filter->privateData = ptr;
-  ptr->parent = filter;
+  *private_data = ptr;
+  g_assert (filter->privateData == ptr);
+  ptr->parent = GstTensor_Filter_of_privateData (private_data);
 
   /* Load .so if this is the first time for this instance. */
   ptr->handle = dlopen (filter->prop.modelFilename, RTLD_NOW);
   if (!ptr->handle) {
     g_free (ptr);
-    filter->privateData = NULL;
+    *private_data = NULL;
     return -1;
   }
 
@@ -103,7 +104,7 @@ custom_loadlib (GstTensor_Filter * filter)
     err_print ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
     dlclose (ptr->handle);
     g_free (ptr);
-    filter->privateData = NULL;
+    *private_data = NULL;
     return -1;
   }
 
@@ -119,10 +120,10 @@ custom_loadlib (GstTensor_Filter * filter)
  * @param[out] outptr The output tensor
  */
 static int
-custom_invoke (GstTensor_Filter * filter, const uint8_t * inptr,
-    uint8_t * outptr)
+custom_invoke (const GstTensor_Filter * filter, void **private_data,
+    const uint8_t * inptr, uint8_t * outptr)
 {
-  int retval = custom_loadlib (filter);
+  int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
   /* Actually, tensor_filter must have called getInput/OotputDim first. */
@@ -131,8 +132,8 @@ custom_invoke (GstTensor_Filter * filter, const uint8_t * inptr,
   if (retval < 0)
     return retval;
 
-  g_assert (filter->privateData);
-  ptr = filter->privateData;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  ptr = *private_data;
 
   return ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
       inptr, outptr);
@@ -142,17 +143,17 @@ custom_invoke (GstTensor_Filter * filter, const uint8_t * inptr,
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-custom_getInputDim (GstTensor_Filter * filter, tensor_dim inputDimension,
-    tensor_type * type)
+custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
+    tensor_dim inputDimension, tensor_type * type)
 {
-  int retval = custom_loadlib (filter);
+  int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
   if (retval < 0)
     return retval;
 
-  g_assert (filter->privateData);
-  ptr = filter->privateData;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  ptr = *private_data;
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, &(filter->prop),
       inputDimension, type);
@@ -162,17 +163,17 @@ custom_getInputDim (GstTensor_Filter * filter, tensor_dim inputDimension,
  * @brief The optional callback for GstTensor_Filter_Framework
  */
 static int
-custom_getOutputDim (GstTensor_Filter * filter, tensor_dim outputDimension,
-    tensor_type * type)
+custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
+    tensor_dim outputDimension, tensor_type * type)
 {
-  int retval = custom_loadlib (filter);
+  int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
   if (retval < 0)
     return retval;
 
-  g_assert (filter->privateData);
-  ptr = filter->privateData;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  ptr = *private_data;
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
       &(filter->prop), outputDimension, type);
@@ -182,13 +183,14 @@ custom_getOutputDim (GstTensor_Filter * filter, tensor_dim outputDimension,
  * @brief Free privateData and move on.
  */
 static void
-custom_close (GstTensor_Filter * filter)
+custom_close (const GstTensor_Filter * filter, void **private_data)
 {
-  internal_data *ptr = filter->privateData;
+  internal_data *ptr = *private_data;
 
   ptr->methods->exitfunc (ptr->customFW_private_data, &(filter->prop));
   g_free (ptr);
-  filter->privateData = NULL;
+  *private_data = NULL;
+  g_assert (filter->privateData == NULL);
 }
 
 GstTensor_Filter_Framework NNS_support_custom = {
