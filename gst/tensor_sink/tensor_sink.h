@@ -41,14 +41,15 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
- *
+ */
+
+/**
  * @file	tensor_sink.h
  * @date	15 June 2018
  * @brief	GStreamer plugin to handle tensor stream
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
- *
  */
 
 #ifndef __GST_TENSOR_SINK_H__
@@ -56,10 +57,10 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
+#include <tensor_common.h>
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_TENSOR_SINK \
   (gst_tensor_sink_get_type())
 #define GST_TENSOR_SINK(obj) \
@@ -74,16 +75,31 @@ G_BEGIN_DECLS
 typedef struct _GstTensorSink GstTensorSink;
 typedef struct _GstTensorSinkClass GstTensorSinkClass;
 
-struct _GstTensorSink {
-  GstBaseSink element;
+/**
+ * @brief GstTensorSink data structure.
+ *
+ * GstTensorSink inherits GstBaseSink.
+ */
+struct _GstTensorSink
+{
+  GstBaseSink element; /**< parent object */
 
-  gboolean silent;
+  gboolean silent; /**< true to print minimized log */
 };
 
-struct _GstTensorSinkClass {
-  GstBaseSinkClass parent_class;
+/**
+ * @brief GstTensorSinkClass data structure.
+ *
+ * GstTensorSink inherits GstBaseSink.
+ */
+struct _GstTensorSinkClass
+{
+  GstBaseSinkClass parent_class; /**< parent class */
 };
 
+/**
+ * @brief Function to get type of tensor_sink.
+ */
 GType gst_tensor_sink_get_type (void);
 
 G_END_DECLS
