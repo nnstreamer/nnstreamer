@@ -55,35 +55,40 @@
 #include <glib.h>
 #include <stdint.h>
 #include <gst/gst.h>
+#include <tensor_common.h>
+
+G_BEGIN_DECLS
+
+typedef struct _GstMetaTensor GstMetaTensor;
 
 /**
  * @brief Definition of Tensor Meta Data
  */
-typedef struct _TensorMeta {
+struct _GstMetaTensor {
   GstMeta meta;
   gint num_tensors;
-} TensorMeta;
+};
 
 /**
  * @brief Get tensor meta data type. Register Tensor Meta Data API definition
  * @return Tensor Meta Data Type
  */
-GType tensor_meta_api_get_type (void);
+GType gst_meta_tensor_api_get_type (void);
 
-#define TENSOR_META_API_TYPE (tensor_meta_api_get_type ())
-
-/**
- * @brief Macro to get tensor meta data.
- */
-#define gst_buffer_get_tensor_meta(b) \
-  ((TensorMeta*) gst_buffer_get_meta ((b), TENSOR_META_API_TYPE))
+#define GST_META_TENSOR_API_TYPE (gst_meta_tensor_api_get_type ())
 
 /**
  * @brief get tensor meta data info
  * @return Tensor Meta Data Info
  */
-const GstMetaInfo *tensor_meta_get_info (void);
-#define TENSOR_META_INFO (tensor_meta_get_info ())
+const GstMetaInfo *gst_meta_tensor_get_info (void);
+#define GST_META_TENSOR_INFO ((GstMetaInfo*) gst_meta_tensor_get_info ())
+
+/**
+ * @brief Macro to get tensor meta data.
+ */
+#define gst_buffer_get_meta_tensor(b) \
+  ((GstMetaTensor*) gst_buffer_get_meta ((b), GST_META_TENSOR_API_TYPE))
 
 /**
  * @brief Add tensor meta data
@@ -91,8 +96,12 @@ const GstMetaInfo *tensor_meta_get_info (void);
  * @param variable to save meta ( number of tensors )
  * @return Tensor Meta Data
  */
-TensorMeta * gst_buffer_add_tensor_meta (GstBuffer *buffer,
+GstMetaTensor * gst_buffer_add_meta_tensor (GstBuffer *buffer,
     gint num_tensors);
 
+#define GST_META_TENSOR_GET(buf) ((GstMetaTensor *)gst_buffer_get_meta_tensor (buf))
+#define GST_META_TENSOR_ADD(buf) ((GstMetaTensor *)gst_buffer_add_meta_tensor ((buf),0))
+
+G_END_DECLS
 
 #endif /* __GST_TENSOR_META_H__ */

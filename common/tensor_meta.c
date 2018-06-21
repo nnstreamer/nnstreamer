@@ -52,14 +52,21 @@
 #include <tensor_meta.h>
 
 GType
-tensor_meta_api_get_type (void)
+gst_meta_tensor_api_get_type (void)
 {
   static volatile GType type;
-  static const gchar *tags[] =
-      { "tensor", "other/tensor", "tensors", "other/tensors", NULL };
+  static const gchar *tags[] = { "tensor", "tensors", NULL };
 
   if (g_once_init_enter (&type)) {
-    GType _type = gst_meta_api_type_register ("TensorMeta", tags);
+    GType _type;
+    const GstMetaInfo *meta_info = gst_meta_get_info ("GstMetaTensor");
+
+    if (meta_info) {
+      _type = meta_info->api;
+      debug_print (TRUE, "meta_info->type %lu \n", _type);
+    } else {
+      _type = gst_meta_api_type_register ("GstMetaTensorAPI", tags);
+    }
     g_once_init_leave (&type, _type);
   }
 
@@ -74,11 +81,11 @@ tensor_meta_api_get_type (void)
  * @return TRUE/FALSE
  */
 static gboolean
-tensor_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
+gst_meta_tensor_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 {
   /* @TODO To be filled */
 
-  TensorMeta *emeta = (TensorMeta *) meta;
+  GstMetaTensor *emeta = (GstMetaTensor *) meta;
 
   emeta->num_tensors = 0;
 
@@ -95,12 +102,14 @@ tensor_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
  * @return TRUE/FALSE
  */
 static gboolean
-tensor_meta_transform (GstBuffer * transbuf, GstMeta * meta,
+gst_meta_tensor_transform (GstBuffer * transbuf, GstMeta * meta,
     GstBuffer * buffer, GQuark type, gpointer data)
 {
   /* @TODO To be filled */
-  TensorMeta *emeta = (TensorMeta *) meta;
-  gst_buffer_add_tensor_meta (transbuf, emeta->num_tensors);
+  GstMetaTensor *dest_meta = GST_META_TENSOR_ADD (transbuf);
+  GstMetaTensor *src_meta = (GstMetaTensor *) meta;
+
+  dest_meta->num_tensors = src_meta->num_tensors;
 
   return TRUE;
 }
@@ -112,37 +121,39 @@ tensor_meta_transform (GstBuffer * transbuf, GstMeta * meta,
  * @return TRUE/FALSE
  */
 static void
-tensor_meta_free (GstMeta * meta, GstBuffer * buffer)
+gst_meta_tensor_free (GstMeta * meta, GstBuffer * buffer)
 {
-  TensorMeta *emeta = (TensorMeta *) meta;
+  GstMetaTensor *emeta = (GstMetaTensor *) meta;
   /* If there is buffer free in here */
   emeta->num_tensors = 0;
 }
 
 const GstMetaInfo *
-tensor_meta_get_info (void)
+gst_meta_tensor_get_info (void)
 {
   static const GstMetaInfo *meta_info = NULL;
   if (g_once_init_enter (&meta_info)) {
-    const GstMetaInfo *mi = gst_meta_register (TENSOR_META_API_TYPE,
-        "TensorMeta",
-        sizeof (TensorMeta),
-        tensor_meta_init,
-        tensor_meta_free,
-        tensor_meta_transform);
+    const GstMetaInfo *mi = gst_meta_register (GST_META_TENSOR_API_TYPE,
+        "GstMetaTensor",
+        sizeof (GstMetaTensor),
+        (GstMetaInitFunction) gst_meta_tensor_init,
+        (GstMetaFreeFunction) gst_meta_tensor_free,
+        (GstMetaTransformFunction) gst_meta_tensor_transform);
     g_once_init_leave (&meta_info, mi);
   }
 
   return meta_info;
 }
 
-TensorMeta *
-gst_buffer_add_tensor_meta (GstBuffer * buffer, gint num_tensors)
+GstMetaTensor *
+gst_buffer_add_meta_tensor (GstBuffer * buffer, gint num_tensors)
 {
-  TensorMeta *meta;
+  GstMetaTensor *meta;
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
 
-  meta = (TensorMeta *) gst_buffer_add_meta (buffer, TENSOR_META_INFO, NULL);
+  meta =
+      (GstMetaTensor *) gst_buffer_add_meta (buffer, GST_META_TENSOR_INFO,
+      NULL);
 
   meta->num_tensors = num_tensors;
 
