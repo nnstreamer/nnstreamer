@@ -1,4 +1,4 @@
-/*
+/**
  * NNStreamer Common Header
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  * 
@@ -39,7 +39,8 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_common.h
  * @date	23 May 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
@@ -48,7 +49,6 @@
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  */
-
 #ifndef __GST_TENSOR_COMMON_H__
 #define __GST_TENSOR_COMMON_H__
 
@@ -76,11 +76,11 @@ G_BEGIN_DECLS
  * There is no restrictions for the outputs.
  */
 typedef enum _nns_media_type {
-  _NNS_VIDEO = 0,
-  _NNS_AUDIO, /* Not Supported Yet */
-  _NNS_STRING, /* Not Supported Yet */
+  _NNS_VIDEO = 0, /**< supposedly video/x-raw */
+  _NNS_AUDIO, /**< Not Supported Yet */
+  _NNS_STRING, /**< Not Supported Yet */
 
-  _NNS_MEDIA_END,
+  _NNS_MEDIA_END, /**< End Marker */
 } media_type;
 
 /**
@@ -131,6 +131,9 @@ extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
  */
 extern size_t get_tensor_element_count(tensor_dim dim);
 
+/**
+ * @brief Make str(xyz) ==> "xyz" with macro expansion
+ */
 #define str(s) xstr(s)
 #define xstr(s) #s
 
@@ -143,6 +146,10 @@ extern size_t get_tensor_element_count(tensor_dim dim);
     g_message(__VA_ARGS__); \
   } while (0)
 #endif
+
+/**
+ * @brief Debug message print. In Tizen, it uses dlog; otherwise,m it uses g_message().
+ */
 #define debug_print(cond, ...)	\
   do { \
     if ((cond) == TRUE) { \
@@ -150,6 +157,9 @@ extern size_t get_tensor_element_count(tensor_dim dim);
     } \
   } while (0)
 
+/**
+ * @brief Error message print. In Tizen, it uses dlog; otherwise,m it uses g_message().
+ */
 #define err_print(...) dlog_print(DLOG_ERROR, "nnstreamer", __VA_ARGS__)
 
 G_END_DECLS

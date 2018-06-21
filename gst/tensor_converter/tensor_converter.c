@@ -41,7 +41,8 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_converter.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
@@ -189,7 +190,6 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sink_factory));
-
   /* Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
   trans_class->passthrough_on_same_caps = FALSE;
 
@@ -211,7 +211,8 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
    */
 }
 
-/* initialize the new element
+/**
+ * @brief initialize the new element (G_DEFINE_TYPE requires this)
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
@@ -226,6 +227,9 @@ gst_tensor_converter_init (GstTensor_Converter * filter)
   filter->disableInPlace = FALSE;
 }
 
+/**
+ * @brief Set property (gst element vmethod)
+ */
 static void
 gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -245,6 +249,9 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
   }
 }
 
+/**
+ * @brief Get property (gst element vmethod)
+ */
 static void
 gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
@@ -264,7 +271,10 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
   }
 }
 
-/* @brief Return 1 if we need to remove stride per row from the stream data */
+/**
+ * @brief Determine if we need zero-padding (internal static function)
+ * @return 1 if we need to remove stride per row from the stream data. 0 otherwise.
+ */
 static int
 remove_stride_padding_per_row (const gchar * format, int width)
 {
@@ -286,7 +296,10 @@ remove_stride_padding_per_row (const gchar * format, int width)
     return FALSE; \
   ;
 /**
- * @brief Configure tensor metadata from sink caps
+ * @brief Configure tensor metadata from sink caps (internal static function)
+ * @param caps the sink cap.
+ * @param filter "this" pointer to be configured.
+ * @return FALSE if error. TRUE if ok.
  */
 static gboolean
 gst_tensor_converter_configure_tensor (const GstCaps * caps,
@@ -373,7 +386,8 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
 }
 
 
-/* entry point to initialize the plug-in
+/**
+ * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
@@ -391,7 +405,8 @@ tensor_converter_init (GstPlugin * tensor_converter)
       GST_RANK_NONE, GST_TYPE_TENSOR_CONVERTER);
 }
 
-/* PACKAGE: this is usually set by autotools depending on some _INIT macro
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
  * in configure.ac and then written into and defined in config.h, but we can
  * just set it ourselves here in case someone doesn't use autotools to
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
@@ -411,6 +426,13 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     tensor_converter_init,
     VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
+/**
+ * @brief copies sink pad buffer to src pad buffer (internal static function)
+ * @param filter "this" pointer
+ * @param inbuf sink pad buffer
+ * @param outbuf src pad buffer
+ * @return GST_FLOW_OK if ok. other values represents error
+ */
 static GstFlowReturn
 gst_c2t_transformer_videoframe (GstTensor_Converter *
     filter, GstBuffer * inbuf, GstBuffer * outbuf)
@@ -482,6 +504,9 @@ gst_c2t_transformer_videoframe (GstTensor_Converter *
   return GST_FLOW_ERROR;
 }
 
+/**
+ * @breif non-ip transform. required vmethod for BaseTransform class.
+ */
 static GstFlowReturn
 gst_tensor_converter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
@@ -521,6 +546,9 @@ unknown_type:
   return GST_FLOW_NOT_SUPPORTED;
 }
 
+/**
+ * @breif in-place transform. required vmethod for BaseTransform class.
+ */
 static GstFlowReturn
 gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
@@ -591,12 +619,12 @@ unknown_type:
 }
 
 /**
- * @brief configure tensor-srcpad cap from "proposed" cap.
+ * @brief configure srcpad cap from "proposed" cap. (required vmethod for BaseTransform)
  *
- * @trans ("this" pointer)
- * @direction (why do we need this?)
- * @caps sinkpad cap
- * @filter this element's cap (don't know specifically.)
+ * @param trans ("this" pointer)
+ * @param direction (why do we need this?)
+ * @param caps sinkpad cap
+ * @param filter this element's cap (don't know specifically.)
  */
 static GstCaps *
 gst_tensor_converter_transform_caps (GstBaseTransform * trans,
@@ -758,6 +786,9 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
   return NULL;
 }
 
+/**
+ * @brief fixate caps. required vmethod of BaseTransform
+ */
 static GstCaps *
 gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
@@ -790,6 +821,9 @@ gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
   return result;
 }
 
+/**
+ * @brief set caps. required vmethod of BaseTransform
+ */
 static gboolean
 gst_tensor_converter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)

@@ -111,7 +111,7 @@ struct _GstTensor_Converter
   tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
   gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
-  gsize tensorFrameSize;
+  gsize tensorFrameSize;        /**< Size of a single tensor frame in # bytes */
 };
 
 /*

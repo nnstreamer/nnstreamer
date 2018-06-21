@@ -39,7 +39,8 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_filter_custom.h
  * @date	01 Jun 2018
  * @brief	Custom tensor post-processing interface for NNStreamer suite for post-processing code developers.
@@ -113,13 +114,17 @@ typedef int (*NNS_custom_invoke)(void *private_data, const GstTensor_Filter_Prop
  * Note that exery function pointer is MANDATORY!
  */
 struct _NNStreamer_custom_class {
-  NNS_custom_init_func initfunc;
-  NNS_custom_exit_func exitfunc;
-  NNS_custom_get_input_dimension getInputDim;
-  NNS_custom_get_output_dimension getOutputDim;
-  NNS_custom_invoke invoke;
+  NNS_custom_init_func initfunc; /**< called before any other callbacks from tensor_filter_custom.c */
+  NNS_custom_exit_func exitfunc; /**< will not call other callbacks after this call */
+  NNS_custom_get_input_dimension getInputDim; /**< a custom filter is required to provide input tensor dimension */
+  NNS_custom_get_output_dimension getOutputDim; /**< a custom filter is require dto provide output tensor dimension */
+  NNS_custom_invoke invoke; /**< the main function, "invoke", that transforms input to output */
 };
 typedef struct _NNStreamer_custom_class NNStreamer_custom_class;
+
+/**
+ * @brief A custom filter MUST define NNStreamer_custom. This object represents the custom filter itself.
+ */
 extern NNStreamer_custom_class *NNStreamer_custom;
 
 #endif /*__NNS_TENSOR_FILTER_CUSTOM_H__*/

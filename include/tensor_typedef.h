@@ -1,4 +1,4 @@
-/*
+/**
  * NNStreamer Common Header, Typedef part, for export as devel package.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  * 
@@ -39,7 +39,8 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_common_typedef.h
  * @date	01 Jun 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
@@ -51,7 +52,6 @@
  *
  * This fils it to be packaged as "devel" package for NN developers.
  */
-
 #ifndef __GST_TENSOR_TYPEDEF_H__
 #define __GST_TENSOR_TYPEDEF_H__
 
@@ -76,15 +76,15 @@ typedef enum _nns_tensor_type {
 } tensor_type;
 
 /**
- * @brief NN Frameworks
+ * @brief NN Frameworks available for the tensor_filter element.
  */
 typedef enum _nnfw_type {
-  _T_F_UNDEFINED = 0, /* Not defined or supported. Cannot proceed in this status */
+  _T_F_UNDEFINED = 0, /**< Not defined or supported. Cannot proceed in this status */
 
-  _T_F_CUSTOM, /* NYI. Custom other/tensor -> other/tensor shared object (dysym) */
-  _T_F_TENSORFLOW_LITE, /* NYI */
-  _T_F_TENSORFLOW, /* NYI */
-  _T_F_CAFFE2, /* NYI */
+  _T_F_CUSTOM, /**< Custom filter provided as a shared object (dysym) */
+  _T_F_TENSORFLOW_LITE, /**< In Progress */
+  _T_F_TENSORFLOW, /**< NYI */
+  _T_F_CAFFE2, /**< NYI */
 
   _T_F_NNFW_END,
 } nnfw_type;
