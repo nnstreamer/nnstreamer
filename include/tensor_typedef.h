@@ -92,6 +92,15 @@ typedef enum _nnfw_type {
 struct _GstTensor_Filter_Framework;
 typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
 
+typedef enum {
+  _TFC_INIT = 0,
+  _TFC_DIMENSION = 1,
+  _TFC_TYPE = 2,
+  _TFC_ALL = _TFC_DIMENSION | _TFC_TYPE,
+
+  /* @TODO Add "consistency checked. don't check it again" and implement .c accordingly. */
+} GstTensor_Filter_CheckStatus;
+
 /**
  * @brief Tensor_Filter's properties (internal data structure)
  *
@@ -101,8 +110,8 @@ typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
 typedef struct _GstTensor_Filter_Properties
 {
   gboolean silent; /**< Verbose mode if FALSE */
-  gboolean inputConfigured; /**< TRUE if input dimension is configured */
-  gboolean outputConfigured; /** < TRUE if output dimension is configured */
+  GstTensor_Filter_CheckStatus inputConfigured; /**< input dimension status */
+  GstTensor_Filter_CheckStatus outputConfigured; /** < output dimension status */
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
   GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
   const gchar *modelFilename; /**< Filepath to the model file (as an argument for NNFW) */
