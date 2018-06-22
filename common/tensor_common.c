@@ -174,7 +174,7 @@ get_tensor_dimension (const gchar * param, uint32_t dim[NNS_TENSOR_RANK_LIMIT])
  * @param dim The tensor dimension
  */
 size_t
-get_tensor_element_count (uint32_t dim[NNS_TENSOR_RANK_LIMIT])
+get_tensor_element_count (const uint32_t dim[NNS_TENSOR_RANK_LIMIT])
 {
   size_t count = 1;
   int i;

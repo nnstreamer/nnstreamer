@@ -110,7 +110,38 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
 
   g_assert (ptr->methods->initfunc);
   ptr->customFW_private_data = ptr->methods->initfunc (&(filter->prop));
+
+  /* After init func, (getInput XOR setInput) && (getOutput XOR setInput) must hold! */
+  g_assert (!ptr->methods->getInputDim != !ptr->methods->setInputDim &&
+      !ptr->methods->getOutputDim != !ptr->methods->setInputDim);
+
+  /**
+   * Depending on which callbacks the custom filter supplies, remove
+   * unnecessary callbacks from thisself.
+   */
+  if (ptr->methods->getInputDim && ptr->methods->getOutputDim &&
+      !ptr->methods->setInputDim) {
+    NNS_support_custom.setInputDimension = NULL;
+  } else if (!ptr->methods->getInputDim && !ptr->methods->getOutputDim &&
+      ptr->methods->setInputDim) {
+    NNS_support_custom.getInputDimension = NULL;
+    NNS_support_custom.getOutputDimension = NULL;
+  } else {
+    g_assert (TRUE);            /* Cannot reach here! */
+  }
+
   return 0;
+}
+
+/**
+ * @brief The open callback for GstTensor_Filter_Framework. Called before anything else
+ */
+static void
+custom_open (const GstTensor_Filter * filter, void **private_data)
+{
+  int retval = custom_loadlib (filter, private_data);
+
+  g_assert (retval == 0);       /* This must be called only once */
 }
 
 /**
@@ -127,7 +158,7 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
   internal_data *ptr;
 
   /* Actually, tensor_filter must have called getInput/OotputDim first. */
-  g_assert (retval != 0);
+  g_assert (retval == 1);
 
   if (retval < 0)
     return retval;
@@ -149,8 +180,7 @@ custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
-  if (retval < 0)
-    return retval;
+  g_assert (retval == 1);       /* open must be called before */
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
@@ -169,14 +199,33 @@ custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
-  if (retval < 0)
-    return retval;
+  g_assert (retval == 1);       /* open must be called before */
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
       &(filter->prop), outputDimension, type);
+}
+
+/**
+ * @brief The set-input-dim callback for GstTensor_Filter_Framework
+ */
+static int
+custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
+    const tensor_dim iDimension, const tensor_type iType,
+    tensor_dim oDimension, tensor_type * oType)
+{
+  int retval = custom_loadlib (filter, private_data);
+  internal_data *ptr;
+
+  g_assert (retval == 1);       /* open must be called before */
+
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  ptr = *private_data;
+
+  return ptr->methods->setInputDim (ptr->customFW_private_data,
+      &(filter->prop), iDimension, iType, oDimension, oType);
 }
 
 /**
@@ -197,7 +246,11 @@ GstTensor_Filter_Framework NNS_support_custom = {
   .name = "custom",
   .allow_in_place = FALSE,      /* custom cannot support in-place (outptr == inptr). */
   .invoke_NN = custom_invoke,
+
+  /* We need to disable getI/O-dim or setI-dim with the first call */
   .getInputDimension = custom_getInputDim,
   .getOutputDimension = custom_getOutputDim,
+  .setInputDimension = custom_setInputDim,
+  .open = custom_open,
   .close = custom_close,
 };

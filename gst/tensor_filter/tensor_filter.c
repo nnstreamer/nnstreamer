@@ -350,6 +350,9 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     dimension = filter->prop.outputDimension;
   }
 
+  /* @TODO KNOWN BUG: when prop.i/o-dim is not configured, this is going to screw all */
+  /* This known bug breaks case 4 of nnstreamer_filter_custom */
+
   /* 2. configure caps based on type & dimension */
   rank = gst_tensor_filter_get_rank (dimension);
   tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type", G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,     /* @TODO: support other framerates! */
@@ -789,7 +792,12 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter)
   tensor_type type;
   int i;
 
-  g_assert (!(filter->prop.fw->getInputDimension && filter->prop.fw->getOutputDimension) != !filter->prop.fw->setInputDimension);       /* This is "XOR" */
+  /* Ensure the subplugin is contacted first before checking the XOR assert */
+  if (!prop->fwOpened && fw->open)
+    fw->open (filter, &filter->privateData);
+  prop->fwOpened = TRUE;
+
+  g_assert (!(fw->getInputDimension && fw->getOutputDimension) != !fw->setInputDimension);      /* This is "XOR" */
   if (fw->getInputDimension != NULL) {
     g_assert (fw->getOutputDimension != NULL);
 
@@ -838,8 +846,9 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter)
     ret =
         fw->setInputDimension (filter, &filter->privateData,
         prop->inputDimension, prop->inputType, dim, &type);
-    if (prop->outputConfigured & _TFC_TYPE)
+    if (prop->outputConfigured & _TFC_TYPE) {
       g_assert (prop->outputType == type);
+    }
     if (prop->outputConfigured & _TFC_DIMENSION)
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
         g_assert (prop->outputDimension[i] == dim[i]);

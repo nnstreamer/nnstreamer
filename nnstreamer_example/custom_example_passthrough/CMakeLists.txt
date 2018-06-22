@@ -1,12 +1,17 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 ADD_LIBRARY(nnstreamer_customfilter_passthrough SHARED nnstreamer_customfilter_example_passthrough.c)
+ADD_LIBRARY(nnstreamer_customfilter_passthrough_variable SHARED nnstreamer_customfilter_example_passthrough_variable.c)
 
 TARGET_LINK_LIBRARIES(nnstreamer_customfilter_passthrough ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_passthrough PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_passthrough PUBLIC ${pkgs_CFLAGS_OTHER})
 
-INSTALL(TARGETS nnstreamer_customfilter_passthrough
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_passthrough_variable ${pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_passthrough_variable PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_passthrough_variable PUBLIC ${pkgs_CFLAGS_OTHER})
+
+INSTALL(TARGETS nnstreamer_customfilter_passthrough nnstreamer_customfilter_passthrough_variable
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}

@@ -2,14 +2,14 @@
  * NNStreamer Custom Filter Example 1. Pass-Through
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: Apache-2.0
+ * LICENSE: LGPL-2.1
  *
  * @file	nnstreamer_customfilter_example_passthrough.c
  * @date	11 Jun 2018
  * @brief	Custom NNStreamer Filter Example 1. "Pass-Through"
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * As a test, before #71 is resolved, this will support "3x280x40" uint8 tensors.
+ * this will supports "3x280x40" uint8 tensors (hardcoded dimensions)
  */
 
 #include <stdlib.h>

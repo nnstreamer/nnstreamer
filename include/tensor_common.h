@@ -130,7 +130,7 @@ extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-extern size_t get_tensor_element_count(tensor_dim dim);
+extern size_t get_tensor_element_count(const tensor_dim dim);
 
 /**
  * @brief Read pad-cap, return corresponding tensor-dim/type.

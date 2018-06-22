@@ -161,12 +161,16 @@ struct _GstTensor_Filter_Framework
        * However, one of the two must be NULL
        * And, if getOutputDimension != NULL, getInputDimension != NULL.
        */
-  int (*setInputDimension)(const GstTensor_Filter *filter, void **private_data, const tensor_dim inputDimension, tensor_type inputType, tensor_dim outputDimension, tensor_type *outputType);
+  int (*setInputDimension)(const GstTensor_Filter *filter, void **private_data, const tensor_dim inputDimension, const tensor_type inputType, tensor_dim outputDimension, tensor_type *outputType);
       /**< Optional. Set Null if not supported. Tensor_filter::main will
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension
        * If this is NULL, both getInput/OutputDimension must be non-NULL.
        * If this is non-NULL, both getInput/OutputDimension must be NULL.
+       *
+       * When you use this, do NOT allocate or fix internal data structure based on it
+       * until invoke is called. Gstreamer may try different dimensions before
+       * settling down.
        */
 
   void (*open)(const GstTensor_Filter *filter, void **private_data); /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close */
