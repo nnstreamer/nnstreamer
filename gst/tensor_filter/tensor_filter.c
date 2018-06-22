@@ -250,6 +250,8 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->prop.silent = TRUE;
   filter->prop.nnfw = _T_F_UNDEFINED;
   filter->prop.fw = NULL;
+  filter->prop.fwOpened = FALSE;
+  filter->prop.fwClosed = FALSE;
   filter->prop.inputConfigured = _TFC_INIT;
   filter->prop.outputConfigured = _TFC_INIT;
   filter->prop.modelFilename = NULL;
@@ -271,6 +273,33 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   filter->prop.customProperties = NULL;
   filter->privateData = NULL;   /* mark not initialized. */
 }
+
+/**
+ * @brief Invoke callbacks of filter->prop.fw. Gurantees calling open for the first call.
+ */
+#define gst_tensor_filter_call(filter, funcname, ...) ({ \
+    int __ret = 0; \
+    do { \
+      if (filter->prop.fwOpened == FALSE) { \
+        if (filter->prop.fw->open != NULL) \
+          filter->prop.fw->open(filter, &filter->privateData); \
+	filter->prop.fwOpened = TRUE; \
+      } \
+      g_assert(filter->prop.fwClosed != TRUE); \
+      __ret = filter->prop.fw->funcname(filter, &filter->privateData, __VA_ARGS__); \
+    } while(0); \
+    __ret; \
+})
+
+/* @TODO Call this where appropriate */
+#define gst_tensor_filter_close(filter) \
+    do { \
+      g_assert(filter->prop.fwClosed != TRUE); \
+      g_assert(filter->prop.fwOpened == TRUE); \
+      if (filter->prop.fw->close) \
+        filter->prop.fw->close(filter, &filter->privateData); \
+      filter->prop.fw->fwClosed = TRUE; \
+    } while (0);
 
 /**
  * @brief Calculate the rank of a tensor
@@ -417,7 +446,7 @@ gst_tensor_filter_check_consistency_fw (GstTensor_Filter * filter,
     return TRUE;                /* Nothing to check. FW is not configured, yet */
 
   if (checkInput == TRUE && fw->getInputDimension != NULL) {
-    ret = fw->getInputDimension (filter, &filter->privateData, dim, &type);
+    ret = gst_tensor_filter_call (filter, getInputDimension, dim, &type);
     if (ret) {
       debug_print (TRUE,
           "getInputDimension failed (%d). But we can continue with it.\n", ret);
@@ -433,7 +462,7 @@ gst_tensor_filter_check_consistency_fw (GstTensor_Filter * filter,
   }
 
   if (checkOutput == TRUE && fw->getOutputDimension != NULL) {
-    ret = fw->getOutputDimension (filter, &filter->privateData, dim, &type);
+    ret = gst_tensor_filter_call (filter, getOutputDimension, dim, &type);
     if (ret) {
       debug_print (TRUE,
           "getOutputDimension failed (%d). But we can continue with it.\n",
@@ -665,7 +694,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
-  GstTensor_Filter_Framework *func;
   int ret;
   size_t outBufSize;
   uint8_t *inptr, *outptr;
@@ -684,7 +712,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 0. Check all properties and inbuf size. */
   debug_print (!filter->prop.silent, "Invoking %s with %s model\n",
       filter->prop.fw->name, filter->prop.modelFilename);
-  func = filter->prop.fw;
 
   g_assert (filter->prop.inputConfigured & _TFC_ALL &&
       filter->prop.outputConfigured & _TFC_ALL);
@@ -704,7 +731,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   inptr = inInfo.data;
   outptr = outInfo.data;
 
-  ret = func->invoke_NN (filter, &filter->privateData, inptr, outptr);
+  ret = gst_tensor_filter_call (filter, invoke_NN, inptr, outptr);
 
   gst_buffer_unmap (inbuf, &inInfo);
   gst_buffer_unmap (outbuf, &outInfo);
@@ -766,7 +793,7 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter)
   if (fw->getInputDimension != NULL) {
     g_assert (fw->getOutputDimension != NULL);
 
-    ret = fw->getInputDimension (filter, &filter->privateData, dim, &type);
+    ret = gst_tensor_filter_call (filter, getInputDimension, dim, &type);
     if (ret) {
       err_print ("getInputDimension() returns %d. Cannot proceed.\n", ret);
       return -1;
@@ -781,7 +808,7 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter)
       prop->inputConfigured |= _TFC_DIMENSION;
     }
 
-    ret = fw->getOutputDimension (filter, &filter->privateData, dim, &type);
+    ret = gst_tensor_filter_call (filter, getOutputDimension, dim, &type);
     if (ret) {
       err_print ("getOutputDimension() returns %d. Cannot proceed.\n", ret);
       return -1;

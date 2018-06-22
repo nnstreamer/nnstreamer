@@ -116,6 +116,8 @@ typedef struct _GstTensor_Filter_Properties
   GstTensor_Filter_CheckStatus outputConfigured; /** < output dimension status */
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
   GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+  int fwOpened; /**< true IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
+  int fwClosed; /**< true IF close() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *modelFilename; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
   tensor_dim inputDimension; /**< The input tensor dimension */

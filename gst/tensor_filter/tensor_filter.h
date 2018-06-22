@@ -169,7 +169,8 @@ struct _GstTensor_Filter_Framework
        * If this is non-NULL, both getInput/OutputDimension must be NULL.
        */
 
-  void (*close)(const GstTensor_Filter *filter, void **private_data); /**< Optional. Close this instance! Free-ing private_data is this function's responsibility. Set NULL after that. */
+  void (*open)(const GstTensor_Filter *filter, void **private_data); /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close */
+  void (*close)(const GstTensor_Filter *filter, void **private_data); /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that. */
 };
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;
