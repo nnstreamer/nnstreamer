@@ -101,7 +101,6 @@ typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
 typedef struct _GstTensor_Filter_Properties
 {
   gboolean silent; /**< Verbose mode if FALSE */
-  gboolean debug; /**< Print out more thinkgs if TRUE */
   gboolean inputConfigured; /**< TRUE if input dimension is configured */
   gboolean outputConfigured; /** < TRUE if output dimension is configured */
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */

@@ -477,7 +477,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (filter->prop.customProperties == NULL && value);
       /* Once configures, it cannot be changed in runtime */
       filter->prop.customProperties = g_value_dup_string (value);
-      if (filter->prop.debug == TRUE)
+      if (filter->prop.silent == FALSE)
         g_printerr ("Custom Option = %s\n", filter->prop.customProperties);
       break;
     default:
