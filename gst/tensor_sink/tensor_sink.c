@@ -62,6 +62,12 @@
 
 #include "tensor_sink.h"
 
+/**
+ * @brief Macro for debug message.
+ */
+#define DLOG(...) \
+    debug_print (!tensor_sink->silent, __VA_ARGS__)
+
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
 
@@ -94,12 +100,6 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS_ANY);
 
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_sink_debug, "tensor_sink", 0, "tensor_sink element");
-#define gst_tensor_sink_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstTensorSink, gst_tensor_sink, GST_TYPE_BASE_SINK,
-    _do_init);
-
 /* GObject method implementation */
 static void gst_tensor_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -116,9 +116,17 @@ static GstFlowReturn gst_tensor_sink_render (GstBaseSink * sink,
 static GstFlowReturn gst_tensor_sink_render_list (GstBaseSink * sink,
     GstBufferList * buffer_list);
 
-/* tensor_sink internal functions */
+/* internal functions */
 static void _tensor_sink_render_buffer (GstTensorSink * tensor_sink,
     GstBuffer * buffer);
+
+/* functions to initialize */
+static void _tensor_sink_do_init (GType type);
+static gboolean _tensor_sink_plugin_init (GstPlugin * plugin);
+
+#define gst_tensor_sink_parent_class parent_class
+G_DEFINE_TYPE_WITH_CODE (GstTensorSink, gst_tensor_sink, GST_TYPE_BASE_SINK,
+    _tensor_sink_do_init (g_define_type_id));
 
 /**
  * @brief Initialize tensor_sink class.
@@ -282,7 +290,6 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
 static gboolean
 gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
 {
-  gboolean res = FALSE;
   GstQueryType type;
 
   type = GST_QUERY_TYPE (query);
@@ -291,15 +298,13 @@ gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
   switch (type) {
     case GST_QUERY_FORMATS:
       gst_query_set_formats (query, 2, GST_FORMAT_DEFAULT, GST_FORMAT_BYTES);
-      res = TRUE;
-      break;
+      return TRUE;
 
     default:
-      res = GST_BASE_SINK_CLASS (parent_class)->query (sink, query);
       break;
   }
 
-  return res;
+  return GST_BASE_SINK_CLASS (parent_class)->query (sink, query);
 }
 
 /**
@@ -368,3 +373,49 @@ _tensor_sink_render_buffer (GstTensorSink * tensor_sink, GstBuffer * buffer)
     }
   }
 }
+
+/**
+ * @brief Function used in type implementation.
+ */
+static void
+_tensor_sink_do_init (GType type)
+{
+  /* add interface */
+}
+
+/**
+ * @brief Function to initialize the plugin.
+ *
+ * See GstPluginInitFunc() for more details.
+ */
+static gboolean
+_tensor_sink_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_sink_debug, "tensor_sink",
+      0, "tensor_sink element");
+
+  return gst_element_register (plugin, "tensor_sink",
+      GST_RANK_NONE, GST_TYPE_TENSOR_SINK);
+}
+
+/**
+ * @brief Definition for identifying tensor_sink plugin.
+ *
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "tensor_sink"
+#endif
+
+/**
+ * @brief Macro to define the entry point of the plugin.
+ */
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    tensor_sink,
+    "Sink element for tensor stream",
+    _tensor_sink_plugin_init, VERSION, "LGPL", "GStreamer",
+    "http://gstreamer.net/");
