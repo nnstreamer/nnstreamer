@@ -339,27 +339,48 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 {
   tensor_type *type = NULL;
   uint32_t *dimension;
+  GstTensor_Filter_CheckStatus configured = FALSE;
   GstCaps *tmp = NULL, *tmp2 = NULL;
   int rank;
 
   if (isInput == TRUE) {
     type = &(filter->prop.inputType);
     dimension = filter->prop.inputDimension;
+    configured = filter->prop.inputConfigured & _TFC_ALL;
   } else {
     type = &(filter->prop.outputType);
     dimension = filter->prop.outputDimension;
+    configured = filter->prop.outputConfigured & _TFC_ALL;
   }
 
   /* @TODO KNOWN BUG: when prop.i/o-dim is not configured, this is going to screw all */
   /* This known bug breaks case 4 of nnstreamer_filter_custom */
 
   /* 2. configure caps based on type & dimension */
-  rank = gst_tensor_filter_get_rank (dimension);
-  tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type", G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,     /* @TODO: support other framerates! */
-      NULL);                    /* Framerate is not determined with the given info */
-  if (filter->prop.silent == FALSE) {
+  if (configured == _TFC_ALL) {
+    /* static cap can be configured. all figured out already. */
+    rank = gst_tensor_filter_get_rank (dimension);
+    tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type", G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,   /* @TODO: support other framerates! */
+        NULL);                  /* Framerate is not determined with the given info */
+  } else if (configured == _TFC_DIMENSION) {
+    /* dimension is set. only the type is not configured (@TODO not sure if this is possible) */
+    rank = gst_tensor_filter_get_rank (dimension);
+    tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,  /* @TODO: support other framerates! */
+        NULL);                  /* Framerate is not determined with the given info */
+  } else if (configured == _TFC_TYPE) {
+    /* type is set. only the dim is not configured (@TODO not sure if this is possible) */
+    rank = gst_tensor_filter_get_rank (dimension);
+    tmp = gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0, 1,    /* @TODO: support other framerates! */
+        "type", G_TYPE_STRING, tensor_element_typename[*type], NULL);   /* Framerate is not determined with the given info */
+  } else {
+    /* knows nothing. This happens.. */
+    tmp = gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0, 1,    /* @TODO: support other framerates! */
+        NULL);                  /* Framerate is not determined with the given info */
+  }
+
+  if (filter->prop.silent == FALSE || configured != _TFC_ALL) {
     gchar *str = gst_caps_to_string (tmp);
-    debug_print (TRUE, "Caps(%s) Narrowing to %s\n",
+    debug_print (TRUE, "Caps(%s) Narrowing from %s\n",
         (isInput == TRUE) ? "input/sink" : "output/src", str);
     g_free (str);
   }
@@ -533,7 +554,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
               G_FILE_TEST_IS_REGULAR) == TRUE);
       break;
     case PROP_INPUT:
-      g_assert (filter->prop.inputConfigured == FALSE && value);
+      g_assert (!(filter->prop.inputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
@@ -545,11 +566,9 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
             filter->prop.inputDimension[2], filter->prop.inputDimension[3],
             rank);
       }
-      if (filter->prop.inputType != _NNS_END && filter->prop.silent == FALSE)
-        gst_tensor_filter_fix_caps (filter, TRUE, NULL, TRUE);
       break;
     case PROP_OUTPUT:
-      g_assert (filter->prop.outputConfigured == FALSE && value);
+      g_assert (!(filter->prop.outputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
@@ -561,8 +580,6 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
             filter->prop.outputDimension[2], filter->prop.outputDimension[3],
             rank);
       }
-      if (filter->prop.outputType != _NNS_END && filter->prop.silent == FALSE)
-        gst_tensor_filter_fix_caps (filter, FALSE, NULL, TRUE);
       break;
     case PROP_INPUTTYPE:
       g_assert (filter->prop.inputType == _NNS_END && value);
@@ -570,8 +587,6 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       filter->prop.inputType = get_tensor_type (g_value_get_string (value));
       filter->prop.inputConfigured |= _TFC_TYPE;
       g_assert (filter->prop.inputType != _NNS_END);
-      if (filter->prop.inputConfigured == TRUE && filter->prop.silent == FALSE)
-        gst_tensor_filter_fix_caps (filter, TRUE, NULL, TRUE);
       break;
     case PROP_OUTPUTTYPE:
       g_assert (filter->prop.outputType == _NNS_END && value);
@@ -579,8 +594,6 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       filter->prop.outputType = get_tensor_type (g_value_get_string (value));
       filter->prop.outputConfigured |= _TFC_TYPE;
       g_assert (filter->prop.outputType != _NNS_END);
-      if (filter->prop.outputConfigured == TRUE && filter->prop.silent == FALSE)
-        gst_tensor_filter_fix_caps (filter, FALSE, NULL, TRUE);
       break;
     case PROP_CUSTOM:
       g_assert (filter->prop.customProperties == NULL && value);
@@ -716,8 +729,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   debug_print (!filter->prop.silent, "Invoking %s with %s model\n",
       filter->prop.fw->name, filter->prop.modelFilename);
 
-  g_assert (filter->prop.inputConfigured & _TFC_ALL &&
-      filter->prop.outputConfigured & _TFC_ALL);
+  g_assert ((filter->prop.inputConfigured & _TFC_ALL) == _TFC_ALL &&
+      (filter->prop.outputConfigured & _TFC_ALL) == _TFC_ALL);
 
   /* 1. Allocate outbuf */
   g_assert (outbuf);
@@ -888,20 +901,91 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
     /* @TODO 1. Check caps w/ getInputDimension && saved input dimension */
     /* @TODO 2. Check returning-caps w/ getOutputDimension && saved output dimension */
-    return gst_tensor_filter_fix_caps (obj, FALSE, filter, FALSE);
+    return gst_tensor_filter_fix_caps (obj, FALSE, caps, FALSE);
   } else {
     /* caps: src pad. get sink pad info */
     obj->prop.inputCapNegotiated = TRUE;
 
     /* @TODO 1. Check caps w/ getOutputDimension && saved output dimension */
     /* @TODO 2. Check returning-caps w/ getInputDimension && saved input dimension */
-    return gst_tensor_filter_fix_caps (obj, TRUE, filter, FALSE);
+    return gst_tensor_filter_fix_caps (obj, TRUE, caps, FALSE);
   }
 
   /* @TODO Cannot reach here. Remove them later */
   g_assert (1 == 0);
   gst_tensor_filter_configure_tensor (caps, obj);
   return NULL;
+}
+
+/**
+ * @brief Try to generate dim/type from caps (internal static function)
+ * @return _TFC_TYPE is on if type determined. _TFC_DIMENSION is on if dim determined
+ * @param filter "this" pointer
+ * @param caps the caps to be analyzed (padcap)
+ * @param[out] dim tensor dimension derived from caps
+ * @param[out] type tensor type derived from caps
+ */
+static GstTensor_Filter_CheckStatus
+gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, tensor_dim dim,
+    tensor_type * type)
+{
+  unsigned int i, capsize;
+  const GstStructure *str;
+  GstTensor_Filter_CheckStatus ret = _TFC_INIT;
+  int rank;
+  const gchar *strval;
+
+  if (!caps) {
+    return _TFC_INIT;
+  }
+
+  capsize = gst_caps_get_size (caps);
+
+  for (i = 0; i < capsize; i++) {
+    str = gst_caps_get_structure (caps, i);
+    if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
+        gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
+        gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
+        gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
+      int j;
+      ret |= _TFC_DIMENSION;
+      if (gst_structure_get_int (str, "rank", &rank)) {
+        for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
+          g_assert (dim[j] == 1);
+      }
+    }
+    strval = gst_structure_get_string (str, "type");
+    if (strval) {
+      *type = get_tensor_type (strval);
+      g_assert (*type != _NNS_END);
+      ret |= _TFC_TYPE;
+    }
+  }
+
+  return ret;
+}
+
+/**
+ * @brief Read pad-cap and return dimension/type info
+ * @return _TFC_TYPE is on if type determined. _TFC_DIMENSION is on if dim determined
+ * @param[in] caps The pad cap
+ * @param[in] input TRUE if input. FALSE if output.
+ * @param[out] dim Tensor dimension
+ @ @param[out[ type Tensor element type
+ */
+static void
+gst_tensor_caps_to_dimension (GstCaps * caps, gboolean input,
+    GstTensor_Filter_Properties * prop)
+{
+  if (input) {
+    prop->inputConfigured |=
+        gst_tensor_filter_generate_dim_from_cap (caps, prop->inputDimension,
+        &prop->inputType);
+  } else {
+    prop->outputConfigured |=
+        gst_tensor_filter_generate_dim_from_cap (caps, prop->outputDimension,
+        &prop->outputType);
+  }
 }
 
 static GstCaps *
@@ -912,6 +996,8 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
       gst_tensor_filter_transform_caps (trans, direction, caps, NULL);
   GstCaps *result = gst_caps_intersect (othercaps, supposed);
   GstTensor_Filter *obj = GST_TENSOR_FILTER_CAST (trans);
+  GstTensor_Filter_Framework *fw = obj->prop.fw;
+  GstCaps *sinkpadcap, *srcpadcap;
   int check = gst_tensor_filter_property_process (obj);
 
   g_assert (check >= 0);
@@ -927,26 +1013,86 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
       gst_caps_replace (&result, caps);
     }
     obj->prop.inputCapNegotiated = TRUE;
+    sinkpadcap = caps;
+    srcpadcap = result;
   } else {
     obj->prop.outputCapNegotiated = TRUE;
+    sinkpadcap = result;
+    srcpadcap = caps;
   }
-  return result;
-}
 
-/**
- * @brief Try to generate dim/type from caps (internal static function)
- * @return FALSE if it couldn't (caps is not specific enough) TRUE if successful.
- * @param filter "this" pointer
- * @param caps the caps to be analyzed (padcap)
- * @param[out] dim tensor dimension derived from caps
- * @param[out] type tensor type derived from caps
- */
-static gboolean
-gst_tensor_filter_generate_dim_from_cap (GstTensor_Filter * filter,
-    GstCaps * caps, tensor_dim dim, tensor_type * type)
-{
-  /* @TODO IMPLEMENT THIS! This is crucial for Objective-Condition3 of #144 */
-  return FALSE;
+  if ((obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL &&
+      (obj->prop.outputConfigured & _TFC_ALL) == _TFC_ALL)
+    return result;
+
+  debug_print (!obj->prop.silent, "Nego (%s) / i %d / o %d\n",
+      (direction == GST_PAD_SINK) ? "sink" : "src",
+      obj->prop.inputCapNegotiated, obj->prop.outputCapNegotiated);
+
+  /* Before moving on, use if getInputDim/getOutputDim is available. */
+  if (fw->getInputDimension
+      && (obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL) {
+    int ret = gst_tensor_filter_call (obj, getInputDimension,
+        obj->prop.inputDimension, &obj->prop.inputType);
+    if (ret == 0) {
+      obj->prop.inputConfigured |= _TFC_ALL;
+    }
+  }
+  if (fw->getOutputDimension
+      && (obj->prop.outputConfigured & _TFC_ALL) == _TFC_ALL) {
+    int ret = gst_tensor_filter_call (obj, getOutputDimension,
+        obj->prop.outputDimension, &obj->prop.outputType);
+    if (ret == 0) {
+      obj->prop.outputConfigured |= _TFC_ALL;
+    }
+  }
+  if ((obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL &&
+      (obj->prop.outputConfigured & _TFC_ALL) == _TFC_ALL) {
+    return result;
+  }
+
+  gst_tensor_caps_to_dimension (sinkpadcap, TRUE, &obj->prop);
+  gst_tensor_caps_to_dimension (srcpadcap, FALSE, &obj->prop);
+
+  if ((obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL &&
+      (obj->prop.outputConfigured & _TFC_ALL) == _TFC_ALL)
+    return result;
+
+  if ((obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL) {
+    if (fw->setInputDimension) {
+      int ret = gst_tensor_filter_call (obj, setInputDimension,
+          obj->prop.inputDimension, obj->prop.inputType,
+          obj->prop.outputDimension, &obj->prop.outputType);
+      obj->prop.outputConfigured |= _TFC_ALL;
+      g_assert (ret == 0);
+      return result;
+    }
+  }
+
+  /**
+   * @TODO ARCH-Decision required; are we going to (and do we need to)
+   * support setOutputDimention (and get InputDim accordingly?)
+   *
+   * If not, we have done with it and emit error here if we still don't have
+   * capabilities fixed.
+   *
+   * In this case, result should be re-calculated because
+   * gst_tensor_filter_transform_caps () cannot do reverse transform.
+   */
+
+  if (!obj->prop.silent) {
+    gchar *str = gst_caps_to_string (caps);
+    debug_print (TRUE, "Caps(%s) %s\n",
+        (direction == GST_PAD_SINK) ? "input/sink" : "output/src", str);
+    g_free (str);
+    str = gst_caps_to_string (result);
+    debug_print (TRUE, "Caps(%s) %s\n",
+        (direction == GST_PAD_SINK) ? "Op-input/sink" : "Op-output/src", str);
+    g_free (str);
+  }
+
+  g_assert (0);                 /* Not Supported (configure input from output dimension) */
+  return result;
 }
 
 static gboolean
@@ -965,7 +1111,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   gst_tensor_filter_configure_tensor (incaps, filter);  /* we will need to supply outcaps as well */
   /* Nothing to do yet. */
 
-  result = gst_tensor_filter_generate_dim_from_cap (filter, incaps, dim, &type);
+  result = gst_tensor_filter_generate_dim_from_cap (incaps, dim, &type);
   /* @TODO Configure filter-dim from caps if filter-dim is not configured, yet */
   if ((filter->prop.inputConfigured & _TFC_ALL) != _TFC_ALL) {
     /* we may set if result == TRUE */
@@ -975,8 +1121,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   }
   /* @TODO Check consistencyu between dim/type with filter->input* */
 
-  result =
-      gst_tensor_filter_generate_dim_from_cap (filter, outcaps, dim, &type);
+  result = gst_tensor_filter_generate_dim_from_cap (outcaps, dim, &type);
   /* @TODO Configure filter-dim from caps if filter-dim is not configured, yet */
   if ((filter->prop.outputConfigured & _TFC_ALL) != _TFC_ALL) {
     /* we may set if result == TRUE */

@@ -20,8 +20,8 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 compareAll testcase03.direct.log testcase03.passthrough.log 3
 
 ## @TODO there is a known bug that breaks case 4.
-#gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_V}\" ! filesink location=\"testcase04.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase04.direct.log\" sync=true" 4
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_V}\" ! filesink location=\"testcase04.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase04.direct.log\" sync=true" 4
 
-#compareAll testcase04.direct.log testcase04.passthrough.log 4
+compareAll testcase04.direct.log testcase04.passthrough.log 4
 
 report

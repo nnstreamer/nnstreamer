@@ -56,6 +56,7 @@
 #define __GST_TENSOR_TYPEDEF_H__
 
 #define NNS_TENSOR_RANK_LIMIT	(4)
+#define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 /**
  * @brief Possible data element types of other/tensor.
  *
