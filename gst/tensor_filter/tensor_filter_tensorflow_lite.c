@@ -55,6 +55,21 @@
 #include "tensor_filter.h"
 
 /**
+ * @brief Load tensorflow lite modelfile
+ * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
+ */
+static int
+tflite_loadModelFile (const GstTensor_Filter * filter, void **private_data)
+{
+  /* @TODO need to decide wheter make internal data structure or not
+   * need to add skip logic when model file already loaded
+   * need to load tensorflow lite model file by FlatBufferModel::BuildFromFile
+   * after configuration of c->cpp api of tflite works done
+   */
+  return 0;
+}
+
+/**
  * @brief The mandatory callback for GstTensor_Filter_Framework
  */
 static int
@@ -71,8 +86,10 @@ static int
 tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim inputDimension, tensor_type * type)
 {
+  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
-  return 0;                     // NYI
+
+  return retval;                // NYI
 }
 
 /**
@@ -82,8 +99,10 @@ static int
 tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim outputDimension, tensor_type * type)
 {
+  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
-  return 0;                     /* NYI */
+
+  return retval;                /* NYI */
 }
 
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
