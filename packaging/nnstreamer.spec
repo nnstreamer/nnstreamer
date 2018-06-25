@@ -115,7 +115,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 # The libraries are in LGPLv2.1 (testcases and non GST-plugin components are APL2)
-%license LICENSE.LGPLv2.1
+%license LICENSE
 %{_libdir}/*.so
 %{_libdir}/*.so*
 # TODO generate .so files with version info. Migrate symbolic-link .so to devel.
