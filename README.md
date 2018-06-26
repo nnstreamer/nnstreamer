@@ -31,34 +31,49 @@ Note that this project has just started and most of the components are in design
 ### Gstreamer Type
 
 - other/tensor
+- other/tensors (W.I.P. jijoong-moon)
 
 findtype specifics: TBD
+meta specifics: W.I.P. jijoong-moon
 
 ### Gstreamer Elements (Plugins)
 
 - tensor\_converter
   - Video
     - Prototype for video/xraw (RGB/BGRx) is implemented.
-    - Known Issues
-      - If video width is not divisible by 4, it is supposed to do zero-padding, which is not working (Found 2018-05-17, #7)
+    - Caution: if width is not divisible by 4, RGB video incurs memcpy.
   - Audio
     - Planned
   - Text
     - Planned
 - tensor\_filter
   - Main
-    - Work in Progress
+    - Supported
+      - Fixed input/ouput dimensions (fixed by subplugin)
+      - Flexible dimensions (output dimension determined by subplugin according to the input dimension determined by pipeline initialization)
+      - Invoke subplugin with pre-allocated buffers
+      - TODO: Invoke subplugin and let subplugin allocate output buffers.
   - Tensorflow-Lite
-    - Skeleton only
+    - W.I.P. jinhyuck83-park hello-ahn
   - Custom
-    - Concept only
+    - Supported with example custom subplugins.
   - Other NNFW TBD
 - tensor\_sink
-  - Planned
+  - W.I.P. jy1210-jung
 - tensor\_transformer
   - Planned
 - tensor\_merge
   - Planned
+- tensor\_decode
+  - W.I.P. jijoong-moon
+- tensor\_source
+  - Planned
+
+Note that test elements in /tests/ are not elements for applications. They exist as scaffoldings to test the above elements especially in the case where related elements are not yet implemented.
+
+### Other Components
+- CI: up and running. sewon-oh
+- Stream test cases: W.I.P. sangjung-woo wook16-song
 
 ## Getting Started
 
