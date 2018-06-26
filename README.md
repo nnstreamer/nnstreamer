@@ -1,7 +1,7 @@
 # NNStreamer
 
 Neural Network Streamer for AI Projects.
-http://suprem.sec.samsung.net/confluence/display/STAR/NN+Streamer
+* http://suprem.sec.samsung.net/confluence/display/STAR/NN+Streamer
 
 ## Objectives
 
@@ -10,6 +10,19 @@ http://suprem.sec.samsung.net/confluence/display/STAR/NN+Streamer
   - **Intelligent Media Filters!**: Use a neural network model as a media filter / converter.
   - **Composite Models!**: Allow to use multiple neural network models in a single stream instance.
   - **Multi Model Intelligence!**: Allow to use multiple sources for neural network models.
+
+## Maintainers
+* MyungJoo Ham (myungjoo.ham@samsung.com)
+
+## Committers
+* Jijoong Mon (jijoon.moon@samsung.com)
+* Geunsik Lim (geunsik.lim@samsung.com)
+* Sangjung Woo (sangjung.woo@samsung.com)
+* Wook Song (wook16.song@samsung.com)
+* Jaeyun Jung (jy1210.jung@samsung.com)
+* Jinhyuck Park (jinhyuck83.park@samsung.com)
+* Hyoungjoo Ahn (hello.ahn@samsung.com)
+* Sewon Oh (sewon.oh@samsung.com)
 
 ## Components
 
@@ -47,10 +60,16 @@ findtype specifics: TBD
 - tensor\_merge
   - Planned
 
-## How to Build
+## Getting Started
+
+### Prerequisites
+The following dependencies are needed to compile/build/run.
+* gcc/g++
+* gstreamer 1.0 and its relatives
+* glib 2.0
+* cmake >= 2.8
 
 ### Linux Self-Hosted Build
-
 
 **Approach 1.** Build with debian tools
 
@@ -149,12 +168,14 @@ $ cd tests
 $ ./testAll.sh
 ```
 
-## [How to write Test Cases](Documentation/how-to-write-testcase.md)
+## How to write Test Cases
+* [How to write Test Cases](Documentation/how-to-write-testcase.md)
+
 
 ## Usage Examples
 
 The implementation is not there yet for using neural network frameworks.
 
-# CI Server
+## CI Server
 For more details, please access the following web page.
 * Press [Here](http://aaci.mooo.com/nnstreamer/ci/standalone/).
