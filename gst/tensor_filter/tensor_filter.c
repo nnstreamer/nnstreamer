@@ -247,32 +247,36 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
 static void
 gst_tensor_filter_init (GstTensor_Filter * filter)
 {
-  filter->prop.silent = TRUE;
-  filter->prop.nnfw = _T_F_UNDEFINED;
-  filter->prop.fw = NULL;
-  filter->prop.fwOpened = FALSE;
-  filter->prop.fwClosed = FALSE;
-  filter->prop.inputConfigured = _TFC_INIT;
-  filter->prop.outputConfigured = _TFC_INIT;
-  filter->prop.modelFilename = NULL;
+  GstTensor_Filter_Properties *prop = &filter->prop;
 
-  filter->prop.inputDimension[0] = 1;   /* innermost */
-  filter->prop.inputDimension[1] = 1;
-  filter->prop.inputDimension[2] = 1;
-  filter->prop.inputDimension[3] = 1;   /* out */
-  filter->prop.inputType = _NNS_END;    /* not initialized */
-  filter->prop.inputCapNegotiated = FALSE;
+  prop->silent = TRUE;
+  prop->nnfw = _T_F_UNDEFINED;
+  prop->fw = NULL;
+  prop->fwOpened = FALSE;
+  prop->fwClosed = FALSE;
+  prop->inputConfigured = _TFC_INIT;
+  prop->outputConfigured = _TFC_INIT;
+  prop->modelFilename = NULL;
 
-  filter->prop.outputDimension[0] = 1;  /* innermost */
-  filter->prop.outputDimension[1] = 1;
-  filter->prop.outputDimension[2] = 1;
-  filter->prop.outputDimension[3] = 1;  /* out */
-  filter->prop.outputType = _NNS_END;   /* not initialized */
-  filter->prop.outputCapNegotiated = FALSE;
+  prop->inputDimension[0] = 1;  /* innermost */
+  prop->inputDimension[1] = 1;
+  prop->inputDimension[2] = 1;
+  prop->inputDimension[3] = 1;  /* out */
+  prop->inputType = _NNS_END;   /* not initialized */
+  prop->inputCapNegotiated = FALSE;
 
-  filter->prop.customProperties = NULL;
+  prop->outputDimension[0] = 1; /* innermost */
+  prop->outputDimension[1] = 1;
+  prop->outputDimension[2] = 1;
+  prop->outputDimension[3] = 1; /* out */
+  prop->outputType = _NNS_END;  /* not initialized */
+  prop->outputCapNegotiated = FALSE;
+
+  prop->customProperties = NULL;
   filter->privateData = NULL;   /* mark not initialized. */
 }
+
+#define silent_debug(...) debug_print (!prop->silent, __VA_ARGS__)
 
 /**
  * @brief Invoke callbacks of filter->prop.fw. Gurantees calling open for the first call.
@@ -323,76 +327,85 @@ gst_tensor_filter_get_rank (tensor_dim dimension)
 }
 
 /**
- * @brief Fix CAPS for sink/src pad based on input/output metadata in filter.
+ * @brief Find caps based on i/o configuration or from the 'other' cap
  * @param filter "this" object
  * @param isInput TRUE if it's for input. FALSE if it's for output.
  * @param targetCaps Caps object to be filters. NULL if we don't have ony.
- * @param checkOnly This is to check the capability for debugging only. Don't return or set anything
- * @return Return the new caps. (returns NULL if checkOnly == TRUE)
+ * @return Return the new caps.
  *
  * We need both type and dimension to do this.
  * This is supposed to be used by set_properties, restrting pad-caps before attaching input/output elements
  */
 static GstCaps *
 gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
-    GstCaps * targetCaps, gboolean checkOnly)
+    GstCaps * targetCaps)
 {
   tensor_type *type = NULL;
   uint32_t *dimension;
   GstTensor_Filter_CheckStatus configured = FALSE;
+  GstTensor_Filter_Properties *prop = &filter->prop;
   GstCaps *tmp = NULL, *tmp2 = NULL;
   int rank;
 
   if (isInput == TRUE) {
-    type = &(filter->prop.inputType);
-    dimension = filter->prop.inputDimension;
-    configured = filter->prop.inputConfigured & _TFC_ALL;
+    type = &(prop->inputType);
+    dimension = prop->inputDimension;
+    configured = prop->inputConfigured & _TFC_ALL;
   } else {
-    type = &(filter->prop.outputType);
-    dimension = filter->prop.outputDimension;
-    configured = filter->prop.outputConfigured & _TFC_ALL;
+    type = &(prop->outputType);
+    dimension = prop->outputDimension;
+    configured = prop->outputConfigured & _TFC_ALL;
   }
-
-  /* @TODO KNOWN BUG: when prop.i/o-dim is not configured, this is going to screw all */
-  /* This known bug breaks case 4 of nnstreamer_filter_custom */
 
   /* 2. configure caps based on type & dimension */
   if (configured == _TFC_ALL) {
     /* static cap can be configured. all figured out already. */
     rank = gst_tensor_filter_get_rank (dimension);
-    tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type", G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,   /* @TODO: support other framerates! */
-        NULL);                  /* Framerate is not determined with the given info */
+    tmp =
+        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+        G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT,
+        dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT,
+        dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
+        GST_TYPE_FRACTION, 0, 1, NULL);
+    /* @TODO Framerate is not determined with the given info */
+    /* @TODO: support other framerates! */
   } else if (configured == _TFC_DIMENSION) {
     /* dimension is set. only the type is not configured (@TODO not sure if this is possible) */
     rank = gst_tensor_filter_get_rank (dimension);
-    tmp = gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1", G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate", GST_TYPE_FRACTION, 0, 1,  /* @TODO: support other framerates! */
-        NULL);                  /* Framerate is not determined with the given info */
+    tmp =
+        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1",
+        G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3",
+        G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
+        GST_TYPE_FRACTION, 0, 1, NULL);
+    /* @TODO Framerate is not determined with the given info */
+    /* @TODO: support other framerates! */
   } else if (configured == _TFC_TYPE) {
     /* type is set. only the dim is not configured (@TODO not sure if this is possible) */
     rank = gst_tensor_filter_get_rank (dimension);
-    tmp = gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0, 1,    /* @TODO: support other framerates! */
-        "type", G_TYPE_STRING, tensor_element_typename[*type], NULL);   /* Framerate is not determined with the given info */
+    tmp =
+        gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
+        1, "type", G_TYPE_STRING, tensor_element_typename[*type], NULL);
+    /* @TODO Framerate is not determined with the given info */
+    /* @TODO: support other framerates! */
   } else {
     /* knows nothing. This happens.. */
-    tmp = gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0, 1,    /* @TODO: support other framerates! */
-        NULL);                  /* Framerate is not determined with the given info */
+    tmp =
+        gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
+        1, NULL);
+    /* @TODO Framerate is not determined with the given info */
+    /* @TODO: support other framerates! */
   }
 
-  if (filter->prop.silent == FALSE || configured != _TFC_ALL) {
+  if (prop->silent == FALSE || configured != _TFC_ALL) {
     gchar *str = gst_caps_to_string (tmp);
     debug_print (TRUE, "Caps(%s) Narrowing from %s\n",
         (isInput == TRUE) ? "input/sink" : "output/src", str);
     g_free (str);
   }
 
-  if (checkOnly == TRUE) {
-    gst_caps_unref (tmp);
-    return NULL;
-  }
-
   if (targetCaps) {
     gchar *str;
-    if (filter->prop.silent == FALSE) {
+    if (prop->silent == FALSE) {
       str = gst_caps_to_string (targetCaps);
       debug_print (TRUE, "targetCaps: %s\n", str);
       g_free (str);
@@ -400,13 +413,13 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     tmp2 = gst_caps_intersect_full (targetCaps, tmp, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp);
     tmp = tmp2;
-    if (filter->prop.silent == FALSE) {
+    if (prop->silent == FALSE) {
       str = gst_caps_to_string (tmp);
       debug_print (TRUE, "resultCaps: %s\n", str);
       g_free (str);
     }
   } else {
-    if (filter->prop.silent == FALSE) {
+    if (prop->silent == FALSE) {
       gchar *str = gst_caps_to_string (tmp);
       debug_print (TRUE, "resultCaps w/o targetCaps: %s\n", str);
       g_free (str);
@@ -421,23 +434,6 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
   return tmp;                   // @TODO Incorrect. Do "copy"
 
-}
-
-/**
- * @brief Configure tensor metadata from sink caps. (internal static function)
- *
- * This is a direct import from tensor_converter::gst_tensor_converter_configure_tensor.
- * This checks if the sink-pad-cap is consistant with src-pad-cap.
- * This can be done only by looking at input/ouput dimension queries.
- */
-static gboolean
-gst_tensor_filter_configure_tensor (const GstCaps * caps,
-    GstTensor_Filter * filter)
-{
-  /* @TODO 1: query input/output dims/types */
-  /* @TODO 2: verify it with current caps */
-  /* @TODO 3: return value assessment */
-  return FALSE;
 }
 
 static inline gboolean
@@ -510,97 +506,93 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensor_Filter *filter = GST_TENSOR_FILTER (object);
+  GstTensor_Filter_Properties *prop = &filter->prop;
+  GstTensor_Filter_Framework *fw = prop->fw;
 
-  debug_print (!filter->prop.silent, "Setting property. for Prop %d.\n",
-      prop_id);
+  silent_debug ("Setting property. for Prop %d.\n", prop_id);
 
   switch (prop_id) {
     case PROP_SILENT:
-      filter->prop.silent = g_value_get_boolean (value);
-      debug_print (!filter->prop.silent, "Debug mode on (silent off)\n");
+      prop->silent = g_value_get_boolean (value);
+      silent_debug ("Debug mode on (silent off)\n");
       break;
     case PROP_FRAMEWORK:
-      g_assert (filter->prop.nnfw == _T_F_UNDEFINED && value);
+      g_assert (prop->nnfw == _T_F_UNDEFINED && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->prop.nnfw =
-          find_key_strv (nnfw_names, g_value_get_string (value));
-      debug_print (!filter->prop.silent, "Framework = %s\n",
-          g_value_get_string (value));
-      g_assert (filter->prop.nnfw != -1);
-      g_assert (filter->prop.nnfw != _T_F_UNDEFINED);
-      g_assert (nnfw_support_status[filter->prop.nnfw] == TRUE);
-      filter->prop.fw = tensor_filter_supported[filter->prop.nnfw];
-      g_assert (filter->prop.fw != NULL);
+      prop->nnfw = find_key_strv (nnfw_names, g_value_get_string (value));
+      silent_debug ("Framework = %s\n", g_value_get_string (value));
+      g_assert (prop->nnfw != -1);
+      g_assert (prop->nnfw != _T_F_UNDEFINED);
+      g_assert (nnfw_support_status[prop->nnfw] == TRUE);
+      prop->fw = tensor_filter_supported[prop->nnfw];
+      fw = prop->fw;
+      g_assert (prop->fw != NULL);
 
       /* See if mandatory methods are filled in */
-      g_assert (filter->prop.fw->invoke_NN);
+      g_assert (fw->invoke_NN);
       /**
        * Do not check if setInputDim XOR (getInputDim && getOutputDim)
        * at this stage. A subplugin may have all the three callbacks
        * and disable one or two later after the model is loaded.
        * Thus, check setInputDim OR (getInputDim && getOutputDim) here.
        */
-      g_assert ((filter->prop.fw->getInputDimension
-              && filter->prop.fw->getOutputDimension)
-          || filter->prop.fw->setInputDimension);
+      g_assert ((fw->getInputDimension && fw->getOutputDimension)
+          || fw->setInputDimension);
       break;
     case PROP_MODEL:
-      g_assert (filter->prop.modelFilename == NULL && value);
+      g_assert (prop->modelFilename == NULL && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->prop.modelFilename = g_value_dup_string (value);
-      debug_print (!filter->prop.silent, "Model = %s\n",
-          filter->prop.modelFilename);
-      g_assert (g_file_test (filter->prop.modelFilename,
+      prop->modelFilename = g_value_dup_string (value);
+      silent_debug ("Model = %s\n", prop->modelFilename);
+      g_assert (g_file_test (prop->modelFilename,
               G_FILE_TEST_IS_REGULAR) == TRUE);
       break;
     case PROP_INPUT:
-      g_assert (!(filter->prop.inputConfigured & _TFC_DIMENSION) && value);
+      g_assert (!(prop->inputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
-            filter->prop.inputDimension);
+            prop->inputDimension);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
-        filter->prop.inputConfigured |= _TFC_DIMENSION;
-        debug_print (!filter->prop.silent, "Input Prop: %d:%d:%d:%d Rank %d\n",
-            filter->prop.inputDimension[0], filter->prop.inputDimension[1],
-            filter->prop.inputDimension[2], filter->prop.inputDimension[3],
-            rank);
+        prop->inputConfigured |= _TFC_DIMENSION;
+        silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
+            prop->inputDimension[0], prop->inputDimension[1],
+            prop->inputDimension[2], prop->inputDimension[3], rank);
       }
       break;
     case PROP_OUTPUT:
-      g_assert (!(filter->prop.outputConfigured & _TFC_DIMENSION) && value);
+      g_assert (!(prop->outputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
-            filter->prop.outputDimension);
+            prop->outputDimension);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
-        filter->prop.outputConfigured |= _TFC_DIMENSION;
-        debug_print (!filter->prop.silent, "Output Prop: %d:%d:%d:%d Rank %d\n",
-            filter->prop.outputDimension[0], filter->prop.outputDimension[1],
-            filter->prop.outputDimension[2], filter->prop.outputDimension[3],
-            rank);
+        prop->outputConfigured |= _TFC_DIMENSION;
+        silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
+            prop->outputDimension[0], prop->outputDimension[1],
+            prop->outputDimension[2], prop->outputDimension[3], rank);
       }
       break;
     case PROP_INPUTTYPE:
-      g_assert (filter->prop.inputType == _NNS_END && value);
+      g_assert (prop->inputType == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->prop.inputType = get_tensor_type (g_value_get_string (value));
-      filter->prop.inputConfigured |= _TFC_TYPE;
-      g_assert (filter->prop.inputType != _NNS_END);
+      prop->inputType = get_tensor_type (g_value_get_string (value));
+      prop->inputConfigured |= _TFC_TYPE;
+      g_assert (prop->inputType != _NNS_END);
       break;
     case PROP_OUTPUTTYPE:
-      g_assert (filter->prop.outputType == _NNS_END && value);
+      g_assert (prop->outputType == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->prop.outputType = get_tensor_type (g_value_get_string (value));
-      filter->prop.outputConfigured |= _TFC_TYPE;
-      g_assert (filter->prop.outputType != _NNS_END);
+      prop->outputType = get_tensor_type (g_value_get_string (value));
+      prop->outputConfigured |= _TFC_TYPE;
+      g_assert (prop->outputType != _NNS_END);
       break;
     case PROP_CUSTOM:
-      g_assert (filter->prop.customProperties == NULL && value);
+      g_assert (prop->customProperties == NULL && value);
       /* Once configures, it cannot be changed in runtime */
-      filter->prop.customProperties = g_value_dup_string (value);
-      if (filter->prop.silent == FALSE)
-        g_printerr ("Custom Option = %s\n", filter->prop.customProperties);
+      prop->customProperties = g_value_dup_string (value);
+      if (prop->silent == FALSE)
+        g_printerr ("Custom Option = %s\n", prop->customProperties);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -901,19 +893,17 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
     /* @TODO 1. Check caps w/ getInputDimension && saved input dimension */
     /* @TODO 2. Check returning-caps w/ getOutputDimension && saved output dimension */
-    return gst_tensor_filter_fix_caps (obj, FALSE, caps, FALSE);
+    return gst_tensor_filter_fix_caps (obj, FALSE, caps);
   } else {
     /* caps: src pad. get sink pad info */
     obj->prop.inputCapNegotiated = TRUE;
 
     /* @TODO 1. Check caps w/ getOutputDimension && saved output dimension */
     /* @TODO 2. Check returning-caps w/ getInputDimension && saved input dimension */
-    return gst_tensor_filter_fix_caps (obj, TRUE, caps, FALSE);
+    return gst_tensor_filter_fix_caps (obj, TRUE, caps);
   }
 
-  /* @TODO Cannot reach here. Remove them later */
-  g_assert (1 == 0);
-  gst_tensor_filter_configure_tensor (caps, obj);
+  /* Cannot reach here. */
   return NULL;
 }
 
@@ -1106,10 +1096,6 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   gboolean result;
 
   g_assert (check >= 0);
-
-  /* @TODO This code is for testing only. Not even with proper design / concepts */
-  gst_tensor_filter_configure_tensor (incaps, filter);  /* we will need to supply outcaps as well */
-  /* Nothing to do yet. */
 
   result = gst_tensor_filter_generate_dim_from_cap (incaps, dim, &type);
   /* @TODO Configure filter-dim from caps if filter-dim is not configured, yet */
