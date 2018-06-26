@@ -86,7 +86,19 @@ export SKIPGEN=YES
 popd
 
 %if 0%{?testcoverage}
-    unittestcoverage.py module $(pwd)
+##
+# The included directories are:
+#
+# gst: the nnstreamer elements
+# nnstreamer_example: custom plugin examples
+# common: common libraries for gst (elements)
+# include: common library headers and headers for external code (packaged as "devel")
+#
+# Intentionally excluded directories are:
+#
+# tests: We are not going to show testcoverage of the test code itself.
+
+    unittestcoverage.py module $(pwd)/gst $(pwd)/nnstreamer_example $(pwd)/common $(pwd)/include
 
 # Get commit info
     VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
