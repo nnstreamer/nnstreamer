@@ -1,0 +1,125 @@
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+#
+# To enable this hook, copy this script to $NNSTREAMER/.git/hooks/
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+fi
+
+# If you want to allow non-ASCII filenames set this variable to true.
+allownonascii=$(git config --bool hooks.allownonascii)
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Cross platform projects tend to avoid non-ASCII filenames; prevent
+# them from being added to the repository. We exploit the fact that the
+# printable range starts at the space character and ends with tilde.
+if [ "$allownonascii" != "true" ] &&
+	# Note that the use of brackets around a tr range is ok here, (it's
+	# even required, for portability to Solaris 10's /usr/bin/tr), since
+	# the square bracket bytes happen to fall in the designated range.
+	test $(git diff --cached --name-only --diff-filter=A -z $against |
+	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+then
+	cat <<\EOF
+Error: Attempt to add a non-ASCII file name.
+
+This can cause problems if you want to work with people on other platforms.
+
+To be portable it is advisable to rename the file.
+
+If you know what you are doing you can disable this check using:
+
+  git config hooks.allownonascii true
+EOF
+	exit 1
+fi
+
+version=`gnuindent --version 2>/dev/null`
+if test "x$version" = "x"; then
+  version=`gindent --version 2>/dev/null`
+  if test "x$version" = "x"; then
+    version=`indent --version 2>/dev/null`
+    if test "x$version" = "x"; then
+      echo "GStreamer git pre-commit hook:"
+      echo "Did not find GNU indent, please install it before continuing."
+      exit 1
+    else
+      INDENT=indent
+    fi
+  else
+    INDENT=gindent
+  fi
+else
+  INDENT=gnuindent
+fi
+
+case `$INDENT --version` in
+  GNU*)
+      ;;
+  default)
+      echo "GStreamer git pre-commit hook:"
+      echo "Did not find GNU indent, please install it before continuing."
+      echo "(Found $INDENT, but it doesn't seem to be GNU indent)"
+      exit 1
+      ;;
+esac
+
+INDENT_PARAMETERS="--braces-on-if-line \
+	--case-brace-indentation0 \
+	--case-indentation2 \
+	--braces-after-struct-decl-line \
+	--line-length80 \
+	--no-tabs \
+	--cuddle-else \
+	--dont-line-up-parentheses \
+	--continuation-indentation4 \
+	--honour-newlines \
+	--tab-size8 \
+	--indent-level2 \
+	--leave-preprocessor-space"
+
+echo "--Checking style--"
+for file in `git diff-index --cached --name-only HEAD --diff-filter=ACMR| grep "\.c$"` ; do
+    # nf is the temporary checkout. This makes sure we check against the
+    # revision in the index (and not the checked out version).
+    nf=`git checkout-index --temp ${file} | cut -f 1`
+    newfile=`mktemp /tmp/${nf}.XXXXXX` || exit 1
+    $INDENT ${INDENT_PARAMETERS} \
+	$nf -o $newfile 2>> /dev/null
+    # FIXME: Call indent twice as it tends to do line-breaks
+    # different for every second call.
+    $INDENT ${INDENT_PARAMETERS} \
+        $newfile 2>> /dev/null
+    diff -u -p "${nf}" "${newfile}"
+    r=$?
+    rm "${newfile}"
+    rm "${nf}"
+    if [ $r != 0 ] ; then
+echo "================================================================================================="
+echo " Code style error in: $file                                                                      "
+echo "                                                                                                 "
+echo " Please fix before committing. Don't forget to run git add before trying to commit again.        "
+echo " If the whole file is to be committed, this should work (run from the top-level directory):      "
+echo "                                                                                                 "
+echo "   common/gst-indent $file; git add $file; git commit"
+echo "                                                                                                 "
+echo "================================================================================================="
+        exit 1
+    fi
+done
+echo "--Checking style pass--"
+
+
+# If there are whitespace errors, print the offending file names and fail.
+exec git diff-index --check --cached $against --
