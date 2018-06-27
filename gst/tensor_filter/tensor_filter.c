@@ -729,6 +729,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   outBufSize = tensor_element_size[filter->prop.inputType] *
       get_tensor_element_count (filter->prop.inputDimension);
   if (gst_buffer_get_size (outbuf) < outBufSize) {
+    /* @TODO: If this shit happens, we really need to write transform_size() vmethod asap */
+    /* @TODO: write a routine to say aloud when this happens */
     gst_buffer_set_size (outbuf, outBufSize);
   }
   g_assert (gst_buffer_get_size (outbuf) >= outBufSize);

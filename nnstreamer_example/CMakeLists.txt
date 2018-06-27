@@ -1,3 +1,4 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 ADD_SUBDIRECTORY(custom_example_passthrough)
+ADD_SUBDIRECTORY(custom_example_scaler)
