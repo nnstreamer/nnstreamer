@@ -78,6 +78,9 @@ popd
 pushd nnstreamer_decoder
 tar -xf %{SOURCE2002}
 popd
+
+cp nnstreamer_decoder/testcase01_RGB_642x480.png nnstreamer_tensors
+
 export SKIPGEN=YES
 ./testAll.sh
 popd

@@ -67,6 +67,7 @@ typedef struct _GstMetaTensor GstMetaTensor;
 struct _GstMetaTensor {
   GstMeta meta;
   gint num_tensors;
+  GList *dimensions;
 };
 
 /**
@@ -96,11 +97,58 @@ const GstMetaInfo *gst_meta_tensor_get_info (void);
  * @param variable to save meta ( number of tensors )
  * @return Tensor Meta Data
  */
-GstMetaTensor * gst_buffer_add_meta_tensor (GstBuffer *buffer,
-    gint num_tensors);
+GstMetaTensor * gst_buffer_add_meta_tensor (GstBuffer *buffer);
 
 #define GST_META_TENSOR_GET(buf) ((GstMetaTensor *)gst_buffer_get_meta_tensor (buf))
-#define GST_META_TENSOR_ADD(buf) ((GstMetaTensor *)gst_buffer_add_meta_tensor ((buf),0))
+#define GST_META_TENSOR_ADD(buf) ((GstMetaTensor *)gst_buffer_add_meta_tensor (buf))
+
+/**
+ * @brief Utility function to make tensors by add Gst Tensor Meta & Initialize Meta
+ * @param buffer Target GstBuffer Object
+ * @return GstMetaTensor
+ */
+GstMetaTensor * gst_make_tensors (GstBuffer *buffer);
+
+/**
+ * @brief Utility function to add tensor in tensors.
+ *        Add GstMemory for tensor, increase num_tensors and add tensor_dim
+ * @param buffer Target GstBuffer Object
+ * @param mem GstMemory Object for tensor
+ * @param dim tensor_dim for tensor
+ * @return GstMetaTensor
+ */
+GstMetaTensor * gst_append_tensor (GstBuffer *buffer, GstMemory *mem, tensor_dim *dim);
+
+/**
+ * @brief Utility function to get tensor from tensors.
+ * @param buffer Target GstBuffer Object
+ * @param nth order of tensor
+ * @return GstMemroy Tensor data
+ */
+GstMemory * gst_get_tensor (GstBuffer *buffer, gint nth);
+
+/**
+ * @brief Utility function to get nth tensor dimension
+ * @param buffer Target GstBuffer Object
+ * @param nth order of tensor
+ * @return tensor_dim Tensor dimension
+ */
+tensor_dim * gst_get_tensordim (GstBuffer *buffer, gint nth);
+
+/**
+ * @brief Utility function to remove nth tensor from tensors
+ * @param buffer Target GstBuffer Object
+ * @param nth order of tensor
+ * @return GstFlowReturn TRUE/FALSE
+ */
+GstFlowReturn gst_remove_tensor (GstBuffer *buffer, gint nth);
+
+/**
+ * @brief Utility function to get number of tensor in tensors
+ * @param buffer Target GstBuffer Object
+ * @return gint number of tensor
+ */
+gint gst_get_num_tensors (GstBuffer *buffer);
 
 G_END_DECLS
 

@@ -78,6 +78,7 @@ ADD_SUBDIRECTORY(gst/tensor_filter)
 ADD_SUBDIRECTORY(gst/tensor_decoder)
 ADD_SUBDIRECTORY(gst/tensor_sink)
 ADD_SUBDIRECTORY(nnstreamer_example)
+ADD_SUBDIRECTORY(tests/nnstreamer_tensors/tensors_test)
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 

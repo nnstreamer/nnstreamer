@@ -515,9 +515,6 @@ gst_tensor_converter_transform (GstBaseTransform * trans,
   GstFlowReturn res;
   GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
 
-  /* for now, Generate GstMetaTensor->num_tensors =1 */
-  gst_buffer_add_meta_tensor (outbuf, 1);
-
   if (G_UNLIKELY (!filter->negotiated))
     goto unknown_format;
   if (G_UNLIKELY (!filter->tensorConfigured))
@@ -557,9 +554,6 @@ static GstFlowReturn
 gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
   GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
-
-  /* for now, Generate GstMetaTensor->num_tensors =1 */
-  gst_buffer_add_meta_tensor (buf, 1);
 
   if (G_UNLIKELY (!filter->negotiated))
     goto unknown_format;
