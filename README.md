@@ -9,7 +9,7 @@ Neural Network Streamer for AI Projects.
   - **Efficient Streaming for AI Projects**: Neural network models wanted to use efficient and flexible streaming management as well. 
   - **Intelligent Media Filters!**: Use a neural network model as a media filter / converter.
   - **Composite Models!**: Allow to use multiple neural network models in a single stream instance.
-  - **Multi Model Intelligence!**: Allow to use multiple sources for neural network models.
+  - **Multi Modal Intelligence!**: Allow to use multiple sources for neural network models.
 
 ## Maintainers
 * MyungJoo Ham (myungjoo.ham@samsung.com)
