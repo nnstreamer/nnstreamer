@@ -84,7 +84,12 @@ struct _GstTensorSink
 {
   GstBaseSink element; /**< parent object */
 
+  GMutex mutex; /**< mutex for processing */
   gboolean silent; /**< true to print minimized log */
+  gboolean emit_signal; /**< true to emit signal for new data, eos */
+  guint64 render_rate; /**< buffers rendered per second */
+  GstClockTime last_render_time; /**< buffer rendered time */
+  GstCaps *in_caps; /**< received caps */
 };
 
 /**
@@ -95,6 +100,11 @@ struct _GstTensorSink
 struct _GstTensorSinkClass
 {
   GstBaseSinkClass parent_class; /**< parent class */
+
+  /* signals */
+  void (*new_data) (GstElement * element, GstBuffer * buffer); /**< signal when new data received */
+  void (*stream_start) (GstElement * element); /**< signal when stream started */
+  void (*eos) (GstElement * element); /**< signal when end of stream reached */
 };
 
 /**

@@ -63,34 +63,72 @@
 #include "tensor_sink.h"
 
 /**
+ * @brief Macro for debug mode.
+ */
+#define DBG (!_tensor_sink_get_silent (self))
+
+/**
  * @brief Macro for debug message.
  */
 #define DLOG(...) \
-    debug_print (!tensor_sink->silent, __VA_ARGS__)
+    debug_print (DBG, __VA_ARGS__)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
 
 /* signals and args */
-/* @TODO add necessary signals and properties */
 enum
 {
+  SIGNAL_NEW_DATA,
+  SIGNAL_STREAM_START,
+  SIGNAL_EOS,
   LAST_SIGNAL
 };
 
 enum
 {
   PROP_0,
+  PROP_RENDER_RATE,
+  PROP_EMIT_SIGNAL,
   PROP_SILENT
 };
 
 /**
- * @brief Lateness to handle delayed buffer.
+ * @brief Flag to emit signals.
+ */
+#define DEFAULT_EMIT_SIGNAL TRUE
+
+/**
+ * @brief Buffers rendered per second.
+ */
+#define DEFAULT_RENDER_RATE 0
+
+/**
+ * @brief Flag to print minimized log.
+ */
+#define DEFAULT_SILENT TRUE
+
+/**
+ * @brief Flag to synchronize on the clock.
+ *
+ * See GstBaseSink:sync property for more details.
+ */
+#define DEFAULT_SYNC TRUE
+
+/**
+ * @brief Flag for qos event.
+ *
+ * See GstBaseSink:qos property for more details.
+ */
+#define DEFAULT_QOS TRUE
+
+/**
+ * @brief Max lateness to handle delayed buffer.
  *
  * Default 30ms.
  * See GstBaseSink:max-lateness property for more details.
  */
-#define NNS_DEFAULT_LATENESS (30 * GST_MSECOND)
+#define DEFAULT_LATENESS (30 * GST_MSECOND)
 
 /**
  * @brief Template for sink pad.
@@ -100,11 +138,18 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS_ANY);
 
+/**
+ * @brief Variable for signal ids.
+ */
+static guint _tensor_sink_signals[LAST_SIGNAL] = { 0 };
+
 /* GObject method implementation */
 static void gst_tensor_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void gst_tensor_sink_dispose (GObject * object);
+static void gst_tensor_sink_finalize (GObject * object);
 
 /* GstBaseSink method implementation */
 static gboolean gst_tensor_sink_start (GstBaseSink * sink);
@@ -115,10 +160,21 @@ static GstFlowReturn gst_tensor_sink_render (GstBaseSink * sink,
     GstBuffer * buffer);
 static GstFlowReturn gst_tensor_sink_render_list (GstBaseSink * sink,
     GstBufferList * buffer_list);
+static gboolean gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps);
+static GstCaps *gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter);
 
 /* internal functions */
-static void _tensor_sink_render_buffer (GstTensorSink * tensor_sink,
+static void _tensor_sink_render_buffer (GstTensorSink * self,
     GstBuffer * buffer);
+static void _tensor_sink_set_last_render_time (GstTensorSink * self,
+    GstClockTime now);
+static GstClockTime _tensor_sink_get_last_render_time (GstTensorSink * self);
+static void _tensor_sink_set_render_rate (GstTensorSink * self, guint64 rate);
+static guint64 _tensor_sink_get_render_rate (GstTensorSink * self);
+static void _tensor_sink_set_emit_signal (GstTensorSink * self, gboolean emit);
+static gboolean _tensor_sink_get_emit_signal (GstTensorSink * self);
+static void _tensor_sink_set_silent (GstTensorSink * self, gboolean silent);
+static gboolean _tensor_sink_get_silent (GstTensorSink * self);
 
 /* functions to initialize */
 static void _tensor_sink_do_init (GType type);
@@ -145,11 +201,39 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   /* GObject methods */
   gobject_class->set_property = gst_tensor_sink_set_property;
   gobject_class->get_property = gst_tensor_sink_get_property;
+  gobject_class->dispose = gst_tensor_sink_dispose;
+  gobject_class->finalize = gst_tensor_sink_finalize;
 
   /* properties */
+  g_object_class_install_property (gobject_class, PROP_RENDER_RATE,
+      g_param_spec_uint64 ("render-rate", "Render rate",
+          "Buffers rendered per second (0 for unlimited, max 500)", 0, 500,
+          DEFAULT_RENDER_RATE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EMIT_SIGNAL,
+      g_param_spec_boolean ("emit-signal", "Emit signal",
+          "Emit signal for new data, eos", DEFAULT_EMIT_SIGNAL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
-          FALSE, G_PARAM_READWRITE));
+          DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /* signals */
+  _tensor_sink_signals[SIGNAL_NEW_DATA] =
+      g_signal_new ("new-data", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstTensorSinkClass, new_data), NULL, NULL, NULL,
+      G_TYPE_NONE, 1, GST_TYPE_BUFFER | G_SIGNAL_TYPE_STATIC_SCOPE);
+
+  _tensor_sink_signals[SIGNAL_STREAM_START] =
+      g_signal_new ("stream-start", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstTensorSinkClass, stream_start),
+      NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
+
+  _tensor_sink_signals[SIGNAL_EOS] =
+      g_signal_new ("eos", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstTensorSinkClass, eos), NULL, NULL, NULL,
+      G_TYPE_NONE, 0, G_TYPE_NONE);
 
   gst_element_class_set_static_metadata (element_class,
       "Tensor_Sink",
@@ -165,25 +249,33 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   bsink_class->query = GST_DEBUG_FUNCPTR (gst_tensor_sink_query);
   bsink_class->render = GST_DEBUG_FUNCPTR (gst_tensor_sink_render);
   bsink_class->render_list = GST_DEBUG_FUNCPTR (gst_tensor_sink_render_list);
+  bsink_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_sink_set_caps);
+  bsink_class->get_caps = GST_DEBUG_FUNCPTR (gst_tensor_sink_get_caps);
 }
 
 /**
  * @brief Initialize tensor_sink element.
  */
 static void
-gst_tensor_sink_init (GstTensorSink * tensor_sink)
+gst_tensor_sink_init (GstTensorSink * self)
 {
   GstBaseSink *bsink;
 
-  bsink = GST_BASE_SINK (tensor_sink);
+  bsink = GST_BASE_SINK (self);
+
+  g_mutex_init (&self->mutex);
 
   /* init properties */
-  tensor_sink->silent = FALSE;
+  self->silent = DEFAULT_SILENT;
+  self->emit_signal = DEFAULT_EMIT_SIGNAL;
+  self->render_rate = DEFAULT_RENDER_RATE;
+  self->last_render_time = GST_CLOCK_TIME_NONE;
+  self->in_caps = NULL;
 
   /* enable qos event */
-  gst_base_sink_set_sync (bsink, TRUE);
-  gst_base_sink_set_max_lateness (bsink, NNS_DEFAULT_LATENESS);
-  gst_base_sink_set_qos_enabled (bsink, TRUE);
+  gst_base_sink_set_sync (bsink, DEFAULT_SYNC);
+  gst_base_sink_set_max_lateness (bsink, DEFAULT_LATENESS);
+  gst_base_sink_set_qos_enabled (bsink, DEFAULT_QOS);
 }
 
 /**
@@ -195,13 +287,21 @@ static void
 gst_tensor_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensorSink *tensor_sink;
+  GstTensorSink *self;
 
-  tensor_sink = GST_TENSOR_SINK (object);
+  self = GST_TENSOR_SINK (object);
 
   switch (prop_id) {
+    case PROP_RENDER_RATE:
+      _tensor_sink_set_render_rate (self, g_value_get_uint64 (value));
+      break;
+
+    case PROP_EMIT_SIGNAL:
+      _tensor_sink_set_emit_signal (self, g_value_get_boolean (value));
+      break;
+
     case PROP_SILENT:
-      tensor_sink->silent = g_value_get_boolean (value);
+      _tensor_sink_set_silent (self, g_value_get_boolean (value));
       break;
 
     default:
@@ -219,19 +319,63 @@ static void
 gst_tensor_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensorSink *tensor_sink;
+  GstTensorSink *self;
 
-  tensor_sink = GST_TENSOR_SINK (object);
+  self = GST_TENSOR_SINK (object);
 
   switch (prop_id) {
+    case PROP_RENDER_RATE:
+      g_value_set_uint64 (value, _tensor_sink_get_render_rate (self));
+      break;
+
+    case PROP_EMIT_SIGNAL:
+      g_value_set_boolean (value, _tensor_sink_get_emit_signal (self));
+      break;
+
     case PROP_SILENT:
-      g_value_set_boolean (value, tensor_sink->silent);
+      g_value_set_boolean (value, _tensor_sink_get_silent (self));
       break;
 
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+/**
+ * @brief Function to drop all references.
+ *
+ * GObject method implementation.
+ */
+static void
+gst_tensor_sink_dispose (GObject * object)
+{
+  GstTensorSink *self;
+
+  self = GST_TENSOR_SINK (object);
+
+  g_mutex_lock (&self->mutex);
+  gst_caps_replace (&self->in_caps, NULL);
+  g_mutex_unlock (&self->mutex);
+
+  G_OBJECT_CLASS (parent_class)->dispose (object);
+}
+
+/**
+ * @brief Function to finalize instance.
+ *
+ * GObject method implementation.
+ */
+static void
+gst_tensor_sink_finalize (GObject * object)
+{
+  GstTensorSink *self;
+
+  self = GST_TENSOR_SINK (object);
+
+  g_mutex_clear (&self->mutex);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
@@ -266,16 +410,29 @@ gst_tensor_sink_stop (GstBaseSink * sink)
 static gboolean
 gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
 {
+  GstTensorSink *self;
   GstEventType type;
 
+  self = GST_TENSOR_SINK (sink);
   type = GST_EVENT_TYPE (event);
 
-  /* @TODO add event handler */
   switch (type) {
-    case GST_EVENT_CAPS:
+    case GST_EVENT_STREAM_START:
+      DLOG ("event STREAM_START");
+      if (_tensor_sink_get_emit_signal (self)) {
+        g_signal_emit (self, _tensor_sink_signals[SIGNAL_STREAM_START], 0);
+      }
+      break;
+
+    case GST_EVENT_EOS:
+      DLOG ("event EOS");
+      if (_tensor_sink_get_emit_signal (self)) {
+        g_signal_emit (self, _tensor_sink_signals[SIGNAL_EOS], 0);
+      }
       break;
 
     default:
+      DLOG ("event type is %d", type);
       break;
   }
 
@@ -290,17 +447,20 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
 static gboolean
 gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
 {
+  GstTensorSink *self;
   GstQueryType type;
 
+  self = GST_TENSOR_SINK (sink);
   type = GST_QUERY_TYPE (query);
 
-  /* @TODO add query handler */
   switch (type) {
     case GST_QUERY_FORMATS:
+      DLOG ("query FORMATS");
       gst_query_set_formats (query, 2, GST_FORMAT_DEFAULT, GST_FORMAT_BYTES);
       return TRUE;
 
     default:
+      DLOG ("query type is %d", type);
       break;
   }
 
@@ -315,10 +475,10 @@ gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
 static GstFlowReturn
 gst_tensor_sink_render (GstBaseSink * sink, GstBuffer * buffer)
 {
-  GstTensorSink *tensor_sink;
+  GstTensorSink *self;
 
-  tensor_sink = GST_TENSOR_SINK (sink);
-  _tensor_sink_render_buffer (tensor_sink, buffer);
+  self = GST_TENSOR_SINK (sink);
+  _tensor_sink_render_buffer (self, buffer);
 
   return GST_FLOW_OK;
 }
@@ -331,47 +491,251 @@ gst_tensor_sink_render (GstBaseSink * sink, GstBuffer * buffer)
 static GstFlowReturn
 gst_tensor_sink_render_list (GstBaseSink * sink, GstBufferList * buffer_list)
 {
-  GstTensorSink *tensor_sink;
+  GstTensorSink *self;
   GstBuffer *buffer;
   guint i;
   guint num_buffers;
 
-  tensor_sink = GST_TENSOR_SINK (sink);
+  self = GST_TENSOR_SINK (sink);
   num_buffers = gst_buffer_list_length (buffer_list);
 
   for (i = 0; i < num_buffers; i++) {
     buffer = gst_buffer_list_get (buffer_list, i);
-    _tensor_sink_render_buffer (tensor_sink, buffer);
+    _tensor_sink_render_buffer (self, buffer);
   }
 
   return GST_FLOW_OK;
 }
 
 /**
+ * @brief Funtion for new caps.
+ *
+ * GstBaseSink method implementation.
+ */
+static gboolean
+gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps)
+{
+  GstTensorSink *self;
+
+  self = GST_TENSOR_SINK (sink);
+
+  g_mutex_lock (&self->mutex);
+  gst_caps_replace (&self->in_caps, caps);
+  g_mutex_unlock (&self->mutex);
+
+  if (DBG) {
+    guint caps_size, i;
+
+    caps_size = gst_caps_get_size (caps);
+    DLOG ("set caps, size is %d", caps_size);
+
+    for (i = 0; i < caps_size; i++) {
+      GstStructure *structure = gst_caps_get_structure (caps, i);
+      gchar *str = gst_structure_to_string (structure);
+
+      DLOG ("[%d] %s", i, str);
+      g_free (str);
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Funtion to return caps of subclass.
+ *
+ * GstBaseSink method implementation.
+ */
+static GstCaps *
+gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter)
+{
+  GstTensorSink *self;
+  GstCaps *caps;
+
+  self = GST_TENSOR_SINK (sink);
+
+  g_mutex_lock (&self->mutex);
+  caps = self->in_caps;
+
+  if (caps) {
+    if (filter) {
+      caps = gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    } else {
+      gst_caps_ref (caps);
+    }
+  }
+  g_mutex_unlock (&self->mutex);
+
+  return caps;
+}
+
+/**
  * @brief Handle buffer data.
  * @return None
- * @param tensor_sink pointer to GstTensorSink
+ * @param self pointer to GstTensorSink
  * @param buffer pointer to GstBuffer to be handled
  */
 static void
-_tensor_sink_render_buffer (GstTensorSink * tensor_sink, GstBuffer * buffer)
+_tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
 {
-  GstMemory *mem;
-  GstMapInfo info;
-  guint i;
-  guint num_mems;
+  GstClockTime now = GST_CLOCK_TIME_NONE;
+  guint64 render_rate;
+  gboolean notify = FALSE;
 
-  num_mems = gst_buffer_n_memory (buffer);
+  g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  for (i = 0; i < num_mems; i++) {
-    mem = gst_buffer_peek_memory (buffer, i);
+  render_rate = _tensor_sink_get_render_rate (self);
+  if (render_rate) {
+    GstClock *clock;
+    GstClockTime render_time;
+    GstClockTime last_render_time;
 
-    if (gst_memory_map (mem, &info, GST_MAP_READ)) {
-      /* @TODO handle buffers (info.data, info.size) */
+    clock = gst_element_get_clock (GST_ELEMENT (self));
 
-      gst_memory_unmap (mem, &info);
+    if (clock) {
+      now = gst_clock_get_time (clock);
+      last_render_time = _tensor_sink_get_last_render_time (self);
+
+      /* time for next render */
+      render_time = (1000 / render_rate) * GST_MSECOND + last_render_time;
+
+      if (!GST_CLOCK_TIME_IS_VALID (last_render_time) ||
+          GST_CLOCK_DIFF (now, render_time) <= 0) {
+        /* send data after render time, or firstly received buffer */
+        notify = TRUE;
+      }
+
+      gst_object_unref (clock);
+    }
+  } else {
+    /* send data if render rate is 0 */
+    notify = TRUE;
+  }
+
+  if (notify) {
+    _tensor_sink_set_last_render_time (self, now);
+
+    if (_tensor_sink_get_emit_signal (self)) {
+      DLOG ("signal for new data [%" GST_TIME_FORMAT "], rate [%ld]",
+          GST_TIME_ARGS (now), render_rate);
+      g_signal_emit (self, _tensor_sink_signals[SIGNAL_NEW_DATA], 0, buffer);
     }
   }
+}
+
+/**
+ * @brief Setter for value last_render_time.
+ */
+static void
+_tensor_sink_set_last_render_time (GstTensorSink * self, GstClockTime now)
+{
+  g_return_if_fail (GST_IS_TENSOR_SINK (self));
+
+  g_mutex_lock (&self->mutex);
+  self->last_render_time = now;
+  g_mutex_unlock (&self->mutex);
+}
+
+/**
+ * @brief Getter for value last_render_time.
+ */
+static GstClockTime
+_tensor_sink_get_last_render_time (GstTensorSink * self)
+{
+  GstClockTime last_render_time;
+
+  g_return_val_if_fail (GST_IS_TENSOR_SINK (self), GST_CLOCK_TIME_NONE);
+
+  g_mutex_lock (&self->mutex);
+  last_render_time = self->last_render_time;
+  g_mutex_unlock (&self->mutex);
+
+  return last_render_time;
+}
+
+/**
+ * @brief Setter for value render_rate.
+ */
+static void
+_tensor_sink_set_render_rate (GstTensorSink * self, guint64 rate)
+{
+  g_return_if_fail (GST_IS_TENSOR_SINK (self));
+
+  DLOG ("set render_rate to %ld", rate);
+  g_mutex_lock (&self->mutex);
+  self->render_rate = rate;
+  g_mutex_unlock (&self->mutex);
+}
+
+/**
+ * @brief Getter for value render_rate.
+ */
+static guint64
+_tensor_sink_get_render_rate (GstTensorSink * self)
+{
+  guint64 rate;
+
+  g_return_val_if_fail (GST_IS_TENSOR_SINK (self), 0);
+
+  g_mutex_lock (&self->mutex);
+  rate = self->render_rate;
+  g_mutex_unlock (&self->mutex);
+
+  return rate;
+}
+
+/**
+ * @brief Setter for flag emit_signal.
+ */
+static void
+_tensor_sink_set_emit_signal (GstTensorSink * self, gboolean emit)
+{
+  g_return_if_fail (GST_IS_TENSOR_SINK (self));
+
+  DLOG ("set emit_signal to %d", emit);
+  g_mutex_lock (&self->mutex);
+  self->emit_signal = emit;
+  g_mutex_unlock (&self->mutex);
+}
+
+/**
+ * @brief Getter for flag emit_signal.
+ */
+static gboolean
+_tensor_sink_get_emit_signal (GstTensorSink * self)
+{
+  gboolean res;
+
+  g_return_val_if_fail (GST_IS_TENSOR_SINK (self), FALSE);
+
+  g_mutex_lock (&self->mutex);
+  res = self->emit_signal;
+  g_mutex_unlock (&self->mutex);
+
+  return res;
+}
+
+/**
+ * @brief Setter for flag silent.
+ */
+static void
+_tensor_sink_set_silent (GstTensorSink * self, gboolean silent)
+{
+  g_return_if_fail (GST_IS_TENSOR_SINK (self));
+
+  DLOG ("set silent to %d", silent);
+  self->silent = silent;
+}
+
+/**
+ * @brief Getter for flag silent.
+ */
+static gboolean
+_tensor_sink_get_silent (GstTensorSink * self)
+{
+  g_return_val_if_fail (GST_IS_TENSOR_SINK (self), TRUE);
+
+  return self->silent;
 }
 
 /**
