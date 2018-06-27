@@ -185,3 +185,69 @@ get_tensor_element_count (uint32_t dim[NNS_TENSOR_RANK_LIMIT])
 
   return count;
 }
+
+GstTensor_Filter_CheckStatus
+get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type)
+{
+  GstTensor_Filter_CheckStatus ret = _TFC_INIT;
+  tensor_dim backup_dim;
+  tensor_type backup_type = _NNS_END;
+  unsigned int i, capsize;
+  const GstStructure *str;
+  int rank;
+  const gchar *strval;
+
+  if (!caps)
+    return ret;
+
+  capsize = gst_caps_get_size (caps);
+  for (i = 0; i < capsize; i++) {
+    str = gst_caps_get_structure (caps, i);
+    g_assert(NNS_TENSOR_RANK_LIMIT == 4); /* This code assumes rank limit is 4 */
+
+    if ((i > 1) && (ret & _TFC_DIMENSION)) {
+      /**
+       * Already cofnigured and more cap info is coming.
+       * I'm not sure how this happens, but let's be ready for this.
+       */
+      memcpy(backup_dim, dim, sizeof(uint32_t) * NNS_TENSOR_RANK_LIMIT);
+    }
+    if ((i > 1) && (ret & _TFC_TYPE)) {
+      /**
+       * Already cofnigured and more cap info is coming.
+       * I'm not sure how this happens, but let's be ready for this.
+       */
+      backup_type = *type;
+    }
+
+    if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
+        gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
+        gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
+        gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
+      int j;
+
+      if (ret & _TFC_DIMENSION) {
+        /* Already configured by previous "cap"? */
+	for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+	  g_assert (dim[j] == backup_dim[j]);
+      }
+      ret |= _TFC_DIMENSION;
+      if (gst_structure_get_int (str, "rank", &rank)) {
+        for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
+	  g_assert (dim[j] == 1);
+      }
+    }
+    strval = gst_structure_get_string (str, "type");
+    if (strval) {
+      *type = get_tensor_type (strval);
+      g_assert (*type != _NNS_END);
+
+      if (ret & _TFC_TYPE) {
+        /* Already configured by previous "cap"? */
+	g_assert (*type == backup_type);
+      }
+      ret |= _TFC_TYPE;
+    }
+  }
+  return ret;
+}

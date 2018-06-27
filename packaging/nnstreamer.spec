@@ -43,6 +43,8 @@ and their plugins in a gstreamer stream.
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
 Requires:	nnstreamer = %{version}-%{release}
+Requires:	glib2-devel
+Requires:	gstreamer-devel
 %description devel
 Development package for custom tensor operator developers (tensor_filter/custom).
 This contains corresponding header files and .pc pkgconfig file.
@@ -126,6 +128,8 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
+install build/libcommon.a %{buildroot}%{_libdir}/
+
 %files
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
@@ -137,6 +141,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files devel
 %{_includedir}/nnstreamer/*
+%{_libdir}/*.a
 %{_libdir}/pkgconfig/nnstreamer.pc
 
 %if 0%{?testcoverage}

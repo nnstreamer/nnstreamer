@@ -55,6 +55,7 @@
 #include <glib.h>
 #include <stdint.h>
 #include "tensor_typedef.h"
+#include <gst/gst.h>
 
 G_BEGIN_DECLS
 
@@ -130,6 +131,16 @@ extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
  * @param dim The tensor dimension
  */
 extern size_t get_tensor_element_count(tensor_dim dim);
+
+/**
+ * @brief Read pad-cap, return corresponding tensor-dim/type.
+ * @return Notifies which part of dim/type is determined.
+ * @param[in] caps the pad-cap to be interpreted.
+ * @param[out] dim the corresponging dimension info from the cap.
+ * @param[out] type the corresponding element type from the cap.
+ */
+extern GstTensor_Filter_CheckStatus
+get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type);
 
 /**
  * @brief Make str(xyz) ==> "xyz" with macro expansion

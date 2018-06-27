@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <tensor_filter_custom.h>
+#include <tensor_common.h>
 
 #define D1	(3)
 #define D2	(280)

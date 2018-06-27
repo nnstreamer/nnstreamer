@@ -95,3 +95,10 @@ INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h include/ten
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/nnstreamer.pc
 	DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
 	)
+
+# Custom plugins need to use common archive (static lib)
+INSTALL(TARGETS common
+	RUNTIME DESTINATION ${EXEC_PREFIX}
+	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+	)

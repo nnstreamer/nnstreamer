@@ -101,6 +101,8 @@ typedef enum {
   /* @TODO Add "consistency checked. don't check it again" and implement .c accordingly. */
 } GstTensor_Filter_CheckStatus;
 
+typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
+
 /**
  * @brief Tensor_Filter's properties (internal data structure)
  *
@@ -109,23 +111,21 @@ typedef enum {
  */
 typedef struct _GstTensor_Filter_Properties
 {
-  gboolean silent; /**< Verbose mode if FALSE */
+  int silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
   GstTensor_Filter_CheckStatus inputConfigured; /**< input dimension status */
   GstTensor_Filter_CheckStatus outputConfigured; /** < output dimension status */
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
   GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
-  const gchar *modelFilename; /**< Filepath to the model file (as an argument for NNFW) */
+  const char *modelFilename; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
-  uint32_t inputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The input tensor dimension */
+  tensor_dim inputDimension; /**< The input tensor dimension */
   tensor_type inputType; /**< The type for each element in the input tensor */
-  gboolean inputCapNegotiated;
-  uint32_t outputDimension[NNS_TENSOR_RANK_LIMIT]; /**< The output tensor dimension */
+  int inputCapNegotiated;
+  tensor_dim outputDimension; /**< The output tensor dimension */
   tensor_type outputType; /**< The type for each element in the output tensor */
-  gboolean outputCapNegotiated;
+  int outputCapNegotiated;
 
-  const gchar *customProperties; /**< sub-plugin specific custom property values in string */
+  const char *customProperties; /**< sub-plugin specific custom property values in string */
 } GstTensor_Filter_Properties;
-
-typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 #endif /*__GST_TENSOR_TYPEDEF_H__*/

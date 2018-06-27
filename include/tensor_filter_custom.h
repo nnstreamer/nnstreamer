@@ -62,7 +62,7 @@
 #define __NNS_TENSOR_FILTER_CUSTOM_H__
 
 #include <stdint.h>
-#include <tensor_common.h>
+#include "tensor_typedef.h"
 
 /**
  * @brief A function that is called before calling other functions.
