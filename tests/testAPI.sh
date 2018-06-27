@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 if [[ $# -eq 0 ]]; then
-	PATH_TO_PLUGIN="$PWD/../build/gst/tensor_converter:$PWD/../build/gst/tensor_filter:$PWD/../build/gst/tensor_decoder"
+	dirpath="$( cd "$( dirname "$0")" && pwd )"
+	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder"
 else
 	PATH_TO_PLUGIN="$1"
 fi

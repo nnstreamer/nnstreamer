@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-source ./testAPI.sh
+dirpath=`dirname $0`
+
+source $dirpath/testAPI.sh
 
 sopath=""
 log=""
@@ -35,7 +37,7 @@ while IFD= read -r -d $'\0' line; do
 		summary="${summary}$RED[FAILED] ${PURPLE}$base ${BLUE}(${lsucc} Passed / ${lfail} Failed of ${ltotal} Cases)${NC}\n"
 	fi
 	popd > /dev/null
-done < <(find . -name "runTest.sh" -print0)
+done < <(find $dirpath -name "runTest.sh" -print0)
 
 printf "\n\n\n"
 printf "$log"
