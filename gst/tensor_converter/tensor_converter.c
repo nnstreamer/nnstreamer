@@ -153,6 +153,9 @@ static GstCaps *gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
 static gboolean gst_tensor_converter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
+static gboolean gst_tensor_converter_transform_size (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize);
 /* GObject vmethod implementations */
 
 /**
@@ -210,6 +213,9 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
    *  transform_size and get_unit_size are omitted because we do not change
    *  the size of buffer or unit with the current version.
    */
+
+  trans_class->transform_size =
+      GST_DEBUG_FUNCPTR (gst_tensor_converter_transform_size);
 }
 
 /**
@@ -681,6 +687,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
         g_sprintf (colors, "{3, 4}");
 
       debug_print (!obj->silent, "Structure from caps = %s\n", str);
+      g_free (str);
 
       g_sprintf (str2,
           "other/tensor, "
@@ -853,6 +860,44 @@ gst_tensor_converter_set_caps (GstBaseTransform * trans,
 
   /* @TODO Verity if outcaps and filter conf are compatible */
   /* @TODO THIS IS REQUIRED TO FILL IN: Return FALSE if filter is not compatible with outcaps */
+
+  return TRUE;
+}
+
+/**
+ * @brief Tell the framework the required size of buffer based on the info of the other side pad. optional vmethod of BaseTransform
+ *
+ * We cannot directly get the value from size value, we need to review the pad-caps.
+ * This is called when non-ip mode is used.
+ */
+static gboolean
+gst_tensor_converter_transform_size (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize)
+{
+  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
+  const GstCaps *srccap = (direction == GST_PAD_SINK) ? othercaps : caps;
+  tensor_dim dim;
+  tensor_type type;
+  GstTensor_Filter_CheckStatus ret =
+      get_tensor_from_padcap (srccap, dim, &type);
+
+  g_assert ((ret & _TFC_ALL) == _TFC_ALL);
+
+  if (!filter->silent) {
+    debug_print (TRUE, "transform_size, direction = %s\n",
+        (direction == GST_PAD_SINK) ? "sink" : "src");
+    GstStructure *structure = gst_caps_get_structure (caps, 0);
+    gchar *str = gst_structure_to_string (structure);
+    debug_print (TRUE, "cap = %s\n", str);
+    g_free (str);
+    structure = gst_caps_get_structure (othercaps, 0);
+    str = gst_structure_to_string (structure);
+    debug_print (TRUE, "othercap = %s\n", str);
+    g_free (str);
+  }
+
+  *othersize = get_tensor_element_count (dim) * tensor_element_size[type];
 
   return TRUE;
 }
