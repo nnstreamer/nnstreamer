@@ -55,7 +55,7 @@
 /**
  * SECTION:element-tensorscheck
  *
- * FIXME:Describe tensorscheck here.
+ * This is the element to test tensors only.
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -102,7 +102,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
     );
 
 #define gst_tensorscheck_parent_class parent_class
@@ -255,7 +255,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 
   GstStructure *s = gst_caps_get_structure (caps, 0);
   gst_structure_get_int (s, "rank", &filter->rank);
-  printf ("%d\n", filter->rank);
   gst_structure_get_int (s, "dim1", &dim);
   filter->dimension[0] = dim;
   gst_structure_get_int (s, "dim2", &dim);
@@ -294,33 +293,50 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   GstBuffer *outbuf;
   gint num_tensors;
   GstMapInfo info, src_info, dest_info;
-  GstMemory *mem;
   GstMemory *buffer_mem;
   tensor_dim *dim;
   unsigned int d0, d1, d2;
+  gboolean ret;
 
-  outbuf = gst_buffer_new ();
+  /* Mapping input buffer (tensors) into src_info */
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
-  num_tensors = gst_get_num_tensors (inbuf);
-  printf ("num tensors : %d\n", num_tensors);
-  mem = gst_get_tensor (inbuf, 0);
-  dim = gst_get_tensordim (inbuf, 0);
-  buffer_mem = gst_allocator_alloc (NULL, (*dim)[1] * (*dim)[2], NULL);
+
+  /* Making output GstBuffer */
+  outbuf = gst_buffer_new ();
+
+  /* Making output buffer (one big buffer for check tensors) */
+  buffer_mem =
+      gst_allocator_alloc (NULL,
+      filter->dimension[0] * filter->dimension[1] * filter->dimension[2] *
+      filter->dimension[3], NULL);
   gst_buffer_append_memory (outbuf, buffer_mem);
+
   gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
 
-  printf ("%d %d %d %d\n", (*dim)[0], (*dim)[1], (*dim)[2], (*dim)[3]);
-  gst_memory_map (mem, &info, GST_MAP_READ);
-  size_t span = 0;
-  for (d0 = 0; d0 < (*dim)[3]; d0++) {
-    for (d1 = 0; d1 < (*dim)[2]; d1++) {
-      span = d1 * (*dim)[1];
-      for (d2 = 0; d2 < (*dim)[1]; d2++) {
-        dest_info.data[span + d2] = info.data[span + d2 * (*dim)[0]];
+  /* Get number of tensors */
+  num_tensors = gst_get_num_tensors (inbuf);
+
+  for (int i = 0; i < num_tensors; i++) {
+    GstMemory *mem = gst_get_tensor (inbuf, i);
+    gst_memory_unref (mem);
+    dim = gst_get_tensordim (inbuf, i);
+    ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+
+    if (!ret)
+      return NULL;
+    size_t span = 0;
+    size_t span1 = 0;
+    for (d0 = 0; d0 < (*dim)[3]; d0++) {
+      for (d1 = 0; d1 < (*dim)[2]; d1++) {
+        span = d1 * (*dim)[1];
+        span1 = d1 * (*dim)[1] * 3;
+        for (d2 = 0; d2 < (*dim)[1]; d2++) {
+          dest_info.data[span1 + (d2 * num_tensors) + i] = info.data[span + d2];
+        }
       }
     }
+    gst_memory_unmap (mem, &info);
   }
-
   gst_buffer_unmap (inbuf, &src_info);
   gst_buffer_unmap (outbuf, &dest_info);
 

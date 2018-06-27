@@ -172,22 +172,24 @@ gst_make_tensors (GstBuffer * buffer)
 GstMetaTensor *
 gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim * dim)
 {
-  GstMemory *mem_dimension;
-  GstMapInfo info;
+  tensor_dim *d;
+  GstMapInfo dest_info;
+  gst_buffer_map (buffer, &dest_info, GST_MAP_WRITE);
 
+  g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
+
+  gst_buffer_append_memory (buffer, mem);
   GstMetaTensor *meta = GST_META_TENSOR_GET (buffer);
   if (!meta) {
     meta = gst_make_tensors (buffer);
   }
-  gst_buffer_append_memory (buffer, mem);
+
   meta->num_tensors = meta->num_tensors + 1;
 
-  mem_dimension = gst_allocator_alloc (NULL, sizeof(tensor_dim), NULL);
-  gst_memory_map (mem_dimension, &info, GST_MAP_WRITE);
-  memcpy (info.data, dim, sizeof(tensor_dim));
+  d = g_slice_new (tensor_dim);
+  memcpy (d, dim, sizeof (tensor_dim));
+  meta->dimensions = g_list_append (meta->dimensions, d);
 
-  meta->dimensions = g_list_append (meta->dimensions, info.data);
-  gst_memory_unmap (mem_dimension, &info);
   return meta;
 }
 
@@ -195,22 +197,28 @@ GstMemory *
 gst_get_tensor (GstBuffer * buffer, gint nth)
 {
   GstMetaTensor *meta;
+  GstMemory *mem;
   meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
-  if (!meta)
+  if (!meta) {
     return (GstMemory *) buffer;
-  else
-    return gst_buffer_get_memory (buffer, nth);
+  } else {
+    mem = gst_buffer_get_memory (buffer, nth);
+    return mem;
+  }
 }
 
 tensor_dim *
 gst_get_tensordim (GstBuffer * buffer, gint nth)
 {
   GstMetaTensor *meta;
+  tensor_dim *dim;
   meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
-  if (meta)
-    return (tensor_dim *) g_list_nth_data (meta->dimensions, nth);
-  else
+  if (meta) {
+    dim = (tensor_dim *) g_list_nth_data (meta->dimensions, nth);
+    return dim;
+  } else {
     return NULL;
+  }
 }
 
 GstFlowReturn

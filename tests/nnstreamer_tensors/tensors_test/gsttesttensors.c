@@ -295,26 +295,29 @@ gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
 {
   GstBuffer *outbuf;
   gint num_tensor;
-  GstMapInfo info, src_info, dest_info;
-  GstMemory *mem;
+  GstMapInfo info, src_info;
+
   int d0, d1, d2;
   outbuf = gst_buffer_new ();
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
-  gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
 
   gst_make_tensors (outbuf);
+
   for (num_tensor = 0; num_tensor < filter->dimension[0]; num_tensor++) {
-    mem =
+
+    GstMemory *mem =
         gst_allocator_alloc (NULL, filter->dimension[1] * filter->dimension[2],
         NULL);
     gst_memory_map (mem, &info, GST_MAP_WRITE);
     size_t span = 0;
+    size_t span1 = 0;
     for (d0 = 0; d0 < filter->dimension[3]; d0++) {
       g_assert (d0 == 0);
       for (d1 = 0; d1 < filter->dimension[2]; d1++) {
-        span = d1 * filter->dimension[1];
+        span = d1 * filter->dimension[1] * filter->dimension[0];
+        span1 = d1 * filter->dimension[1];
         for (d2 = 0; d2 < filter->dimension[1]; d2++) {
-          info.data[span + d2] =
+          info.data[span1 + d2] =
               src_info.data[span + (d2 * filter->dimension[0]) + num_tensor];
         }
       }
@@ -324,15 +327,12 @@ gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
     dim[1] = filter->dimension[1];
     dim[2] = filter->dimension[2];
     dim[3] = 1;
-    gst_append_tensor (outbuf, mem, &dim);
+
     gst_memory_unmap (mem, &info);
+    gst_append_tensor (outbuf, mem, &dim);
   }
 
   gst_buffer_unmap (inbuf, &src_info);
-  printf ("num_tensors = %d\n", gst_get_num_tensors (outbuf));
-  tensor_dim *dim = gst_get_tensordim (outbuf, 1);
-  printf ("%d %d %d %d \n", (*dim)[0], (*dim)[1], (*dim)[2], (*dim)[3]);
-  gst_buffer_unmap (outbuf, &dest_info);
 
   return outbuf;
 }
@@ -387,6 +387,7 @@ gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return gst_pad_push (filter->srcpad, buf);
 
   out = gst_test_tensors (filter, buf);
+
   gst_buffer_unref (buf);
 
   return gst_pad_push (filter->srcpad, out);

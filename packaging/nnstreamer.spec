@@ -11,6 +11,7 @@ Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 Source2001:	testcase_tensor_converter.tar.gz
 Source2002:	testcase_tensor_decoder.tar.gz
+Source2003:	testcase_tensors.tar.gz
 
 Requires:	gstreamer >= 1.8.0
 Requires:	libdlog
@@ -81,7 +82,9 @@ pushd nnstreamer_decoder
 tar -xf %{SOURCE2002}
 popd
 
-cp nnstreamer_decoder/testcase01_RGB_642x480.png nnstreamer_tensors
+pushd nnstreamer_tensors
+tar -xf %{SOURCE2003}
+popd
 
 export SKIPGEN=YES
 ./testAll.sh

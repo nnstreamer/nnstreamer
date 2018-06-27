@@ -52,4 +52,8 @@ def genCase01_PNG_random(colorType, width, height):
     img.save('testcase01_'+colorType+'_'+str(width)+'x'+str(height)+'.png')
     return (string, string_size, expected_size)
 
-genCase01_PNG_random('RGB', 642, 480)
+def write(filename, string):
+    newfile = open(filename, 'wb')
+    newfile.write(string)
+
+write('testcase01_RGB_640x480.golden', genCase01_PNG_random('RGB', 640, 480)[0])
