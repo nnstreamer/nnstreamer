@@ -89,3 +89,6 @@ The implementation is not there yet for using neural network frameworks.
 ## CI Server
 For more details, please access the following web page.
 * Press [Here](http://aaci.mooo.com/nnstreamer/ci/standalone/).
+
+TAOS-CI config files for nnstreamer
+* Press [Here](http://github.sec.samsung.net/STAR/nnstreamer/tree/tizen/Documentation/ci-config).

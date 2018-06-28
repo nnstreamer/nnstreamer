@@ -1,0 +1,15 @@
+{
+    "github": {
+        "id": "git.bot.sec",
+        "token": "01eec554abcaae8755c06c2b06f5d6bb84d4b4a5",
+        "from": "git.bot.sec@samsung.com"
+    },
+    "repo": {
+        "repo": "https://github.sec.samsung.net/STAR/nnstreamer.git",
+        "branch": "tizen",
+        "action": "something has been changed on the server",
+        "run": "./run-unit-test.sh"
+    }
+}
+
+
