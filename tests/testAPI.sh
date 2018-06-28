@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
+
 if [[ $# -eq 0 ]]; then
 	dirpath="$( cd "$( dirname "$0")" && pwd )"
+	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" 1>/dev/null || {
+		echo "[ERROR] Before unit testing, you should build with cmake first."
+		exit 1
+	}
 	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder"
 else
 	PATH_TO_PLUGIN="$1"
@@ -30,6 +35,12 @@ function checkDependency {
 
 checkDependency gst-launch-1.0
 checkDependency cmp
+
+gst-inspect-1.0 pngdec 1>/dev/null || {
+	echo "The plugin 'pngdec' is currently not installed. You can install it by typing:"
+	echo "sudo apt install gstreamer1.0-plugins-good"
+	exit 1
+}
 
 ##
 # @brief execute gst-launch based test case
