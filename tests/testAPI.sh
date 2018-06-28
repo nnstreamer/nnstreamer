@@ -18,6 +18,20 @@ declare -i lfail=0
 log=""
 
 ##
+# @brief check if a command is installed
+# @param 1 the command name
+function checkDependency {
+    echo "Checking for $1..."
+    which "$1" 2>/dev/null || {
+      echo "Ooops. '$1' command is not installed. Please install '$1'."
+      exit 1
+    }
+}
+
+checkDependency gst-launch-1.0
+checkDependency cmp
+
+##
 # @brief execute gst-launch based test case
 # @param 1 the whole parameters
 # @param 2 the case number
@@ -98,3 +112,4 @@ function report {
 		exit 1
 	fi
 }
+

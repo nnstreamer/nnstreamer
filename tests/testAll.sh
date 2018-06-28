@@ -3,6 +3,11 @@ dirpath=`dirname $0`
 
 source $dirpath/testAPI.sh
 
+checkDependency dirname
+checkDependency basename
+checkDependency sed
+checkDependency find
+
 sopath=""
 log=""
 summary=""
