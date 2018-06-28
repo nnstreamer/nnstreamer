@@ -79,27 +79,8 @@ Note that test elements in /tests/ are not elements for applications. They exist
 For more details, please access the following manual.
 * Press [Here](Documentation/getting-started.md)
 
-## How to Test
-
-- Use the built library as a general gstreamer plugin.
-
-- Unit Test 
-
-For common library unit test
-```bash
-$ cd build
-$ ./unittest_common
-```
-
-For all gst-launch-based test cases (mostly golden testing)
-```bash
-$ cd tests
-$ ./testAll.sh
-```
-
-## How to write Test Cases
-* [How to write Test Cases](Documentation/how-to-write-testcase.md)
-
+## Test Cases
+* Press [Here](Documentation/how-to-use-testcases.md) to read how to write and run Test Cases.
 
 ## Usage Examples
 
