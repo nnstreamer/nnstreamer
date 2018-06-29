@@ -70,6 +70,7 @@ popd
 
 pushd build
 ./unittest_common
+./unittest_sink --gst-plugin-path=./gst/tensor_converter:./gst/tensor_sink
 popd
 
 pushd tests
