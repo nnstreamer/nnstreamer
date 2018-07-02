@@ -173,9 +173,6 @@ GstMetaTensor *
 gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim * dim)
 {
   tensor_dim *d;
-  GstMapInfo dest_info;
-  gst_buffer_map (buffer, &dest_info, GST_MAP_WRITE);
-
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
 
   gst_buffer_append_memory (buffer, mem);

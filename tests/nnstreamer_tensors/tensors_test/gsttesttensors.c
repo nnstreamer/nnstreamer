@@ -389,6 +389,7 @@ gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   out = gst_test_tensors (filter, buf);
 
   gst_buffer_unref (buf);
+  gst_buffer_ref (out);
 
   return gst_pad_push (filter->srcpad, out);
 }
