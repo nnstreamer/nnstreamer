@@ -209,11 +209,7 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
       GST_DEBUG_FUNCPTR (gst_tensor_converter_fixate_caps);
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_converter_set_caps);
 
-  /** Allocation units
-   *  transform_size and get_unit_size are omitted because we do not change
-   *  the size of buffer or unit with the current version.
-   */
-
+  /* Allocation units */
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensor_converter_transform_size);
 }

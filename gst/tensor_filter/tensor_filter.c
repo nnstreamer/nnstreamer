@@ -162,6 +162,9 @@ static GstCaps *gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
 static gboolean gst_tensor_filter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
+static gboolean gst_tensor_filter_transform_size (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize);
 /* GObject vmethod implementations */
 
 /* initialize the tensor_filter's class */
@@ -236,7 +239,8 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_filter_set_caps);
 
   /* Allocation units */
-  /* @TODO Fill these in!  trans_class-> ... */
+  trans_class->transform_size =
+      GST_DEBUG_FUNCPTR (gst_tensor_filter_transform_size);
 }
 
 /* initialize the new element
@@ -1118,6 +1122,44 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     g_assert (result == TRUE);
   }
   /* @TODO Check consistencyu between dim/type with filter->output* */
+
+  return TRUE;
+}
+
+/**
+ * @brief Tell the framework the required size of buffer based on the info of the other side pad. optional vmethod of BaseTransform
+ *
+ * We cannot directly get the value from size value, we need to review the pad-caps.
+ * This is called when non-ip mode is used.
+ */
+static gboolean
+gst_tensor_filter_transform_size (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize)
+{
+  GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
+  const GstCaps *srccap = (direction == GST_PAD_SINK) ? othercaps : caps;
+  tensor_dim dim;
+  tensor_type type;
+  GstTensor_Filter_CheckStatus ret =
+      get_tensor_from_padcap (srccap, dim, &type);
+
+  g_assert ((ret & _TFC_ALL) == _TFC_ALL);
+
+  if (!filter->prop.silent) {
+    debug_print (TRUE, "transform_size, direction = %s\n",
+        (direction == GST_PAD_SINK) ? "sink" : "src");
+    GstStructure *structure = gst_caps_get_structure (caps, 0);
+    gchar *str = gst_structure_to_string (structure);
+    debug_print (TRUE, "cap = %s\n", str);
+    g_free (str);
+    structure = gst_caps_get_structure (othercaps, 0);
+    str = gst_structure_to_string (structure);
+    debug_print (TRUE, "othercap = %s\n", str);
+    g_free (str);
+  }
+
+  *othersize = get_tensor_element_count (dim) * tensor_element_size[type];
 
   return TRUE;
 }
