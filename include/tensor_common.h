@@ -103,20 +103,6 @@ typedef enum _nns_media_type {
 } media_type;
 
 /**
- * @brief Byte-per-element of each tensor element type.
- */
-static const unsigned int tensor_element_size[] = {
-        [_NNS_INT32] = 4,
-        [_NNS_UINT32] = 4,
-        [_NNS_INT16] = 2,
-        [_NNS_UINT16] = 2,
-        [_NNS_INT8] = 1,
-        [_NNS_UINT8] = 1,
-        [_NNS_FLOAT64] = 8,
-        [_NNS_FLOAT32] = 4,
-};
-
-/**
  * @brief String representations for each tensor element type.
  */
 extern const gchar* tensor_element_typename[];
