@@ -88,7 +88,9 @@ struct _Gsttensorscheck
   gboolean silent;
 
   /* For Tensor */
-  tensor_dim dimension;
+  /* tensor_dim dimension; */
+  GArray *dimensions;
+  gint num_tensors;
   gint rank;
   tensor_type type;
   gint framerate_numerator;

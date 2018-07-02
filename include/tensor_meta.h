@@ -150,6 +150,8 @@ GstFlowReturn gst_remove_tensor (GstBuffer *buffer, gint nth);
  */
 gint gst_get_num_tensors (GstBuffer *buffer);
 
+GArray * parse_dimensions (const gchar* dim_string);
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_META_H__ */

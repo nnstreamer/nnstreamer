@@ -102,7 +102,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
+    GST_STATIC_CAPS (GST_TENSORS_CAP_DEFAULT)
     );
 
 #define gst_testtensors_parent_class parent_class
@@ -257,28 +257,25 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 
   format = gst_structure_get_string (s, "format");
   if (!g_strcmp0 (format, "RGB"))
-    filter->dimension[0] = 3;
+    filter->num_tensors = 3;
   else
-    filter->dimension[0] = 4;
+    filter->num_tensors = 4;
   gst_structure_get_int (s, "width", &dim);
-  filter->dimension[1] = dim;
+  filter->width = dim;
   gst_structure_get_int (s, "height", &dim);
-  filter->dimension[2] = dim;
-  filter->dimension[3] = 1;
+  filter->height = dim;
   gst_structure_get_fraction (s, "framerate", &filter->framerate_numerator,
       &filter->framerate_denominator);
   filter->type = _NNS_UINT8;
   filter->rank = 3;
 
-  othercaps = gst_caps_new_simple ("other/tensor",
+  othercaps = gst_caps_new_simple ("other/tensors",
       "rank", G_TYPE_INT, filter->rank,
-      "dim1", G_TYPE_INT, filter->dimension[0],
-      "dim2", G_TYPE_INT, filter->dimension[1],
-      "dim3", G_TYPE_INT, filter->dimension[2],
-      "dim4", G_TYPE_INT, filter->dimension[3],
+      "num_tensors", G_TYPE_INT, filter->num_tensors,
       "type", G_TYPE_STRING, tensor_element_typename[filter->type],
       "framerate", GST_TYPE_FRACTION, filter->framerate_numerator,
-      filter->framerate_denominator, NULL);
+      filter->framerate_denominator, "dimensions", G_TYPE_STRING,
+      "1:640:480:1 ,1:640:480:3 ,1:640:480:1", NULL);
   ret = gst_pad_set_caps (filter->srcpad, othercaps);
   gst_caps_unref (othercaps);
   return ret;
@@ -295,37 +292,36 @@ gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
 {
   GstBuffer *outbuf;
   gint num_tensor;
-  GstMapInfo info, src_info;
+  GstMapInfo src_info;
 
-  int d0, d1, d2;
+  int d1, d2;
   outbuf = gst_buffer_new ();
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
 
   gst_make_tensors (outbuf);
 
-  for (num_tensor = 0; num_tensor < filter->dimension[0]; num_tensor++) {
-
-    GstMemory *mem =
-        gst_allocator_alloc (NULL, filter->dimension[1] * filter->dimension[2],
+  for (num_tensor = 0; num_tensor < filter->num_tensors; num_tensor++) {
+    GstMapInfo info;
+    GstMemory *mem = gst_allocator_alloc (NULL, filter->width * filter->height,
         NULL);
+
     gst_memory_map (mem, &info, GST_MAP_WRITE);
     size_t span = 0;
     size_t span1 = 0;
-    for (d0 = 0; d0 < filter->dimension[3]; d0++) {
-      g_assert (d0 == 0);
-      for (d1 = 0; d1 < filter->dimension[2]; d1++) {
-        span = d1 * filter->dimension[1] * filter->dimension[0];
-        span1 = d1 * filter->dimension[1];
-        for (d2 = 0; d2 < filter->dimension[1]; d2++) {
-          info.data[span1 + d2] =
-              src_info.data[span + (d2 * filter->dimension[0]) + num_tensor];
-        }
+
+    for (d1 = 0; d1 < filter->height; d1++) {
+      span = d1 * filter->width * filter->num_tensors;
+      span1 = d1 * filter->width;
+      for (d2 = 0; d2 < filter->width; d2++) {
+        info.data[span1 + d2] =
+            src_info.data[span + (d2 * filter->num_tensors) + num_tensor];
       }
     }
+
     tensor_dim dim;
     dim[0] = 1;
-    dim[1] = filter->dimension[1];
-    dim[2] = filter->dimension[2];
+    dim[1] = filter->width;
+    dim[2] = filter->height;
     dim[3] = 1;
 
     gst_memory_unmap (mem, &info);
@@ -379,9 +375,6 @@ gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   filter = GST_TESTTENSORS (parent);
 
-  if (filter->silent == FALSE)
-    g_print ("I'm plugged, therefore I'm in.\n");
-
   /* just push out the incoming buffer without touching it */
   if (filter->passthrough)
     return gst_pad_push (filter->srcpad, buf);
@@ -389,6 +382,8 @@ gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   out = gst_test_tensors (filter, buf);
 
   gst_buffer_unref (buf);
+
+  /* In order to keep the data in outbuffer, we have to increase buffer ref count */
   gst_buffer_ref (out);
 
   return gst_pad_push (filter->srcpad, out);

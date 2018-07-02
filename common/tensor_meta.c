@@ -51,6 +51,9 @@
 
 #include <tensor_meta.h>
 #include <string.h>
+#include <stdlib.h>
+#include <glib.h>
+#include <dlfcn.h>
 
 GType
 gst_meta_tensor_api_get_type (void)
@@ -176,13 +179,17 @@ gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim * dim)
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
 
   gst_buffer_append_memory (buffer, mem);
+
   GstMetaTensor *meta = GST_META_TENSOR_GET (buffer);
   if (!meta) {
     meta = gst_make_tensors (buffer);
   }
 
   meta->num_tensors = meta->num_tensors + 1;
-
+  if (gst_buffer_n_memory (buffer) != meta->num_tensors)
+    err_print
+        ("Number of memory block in buffer(%d) is not compatible with Meta (%d)\n",
+        gst_buffer_n_memory (buffer), meta->num_tensors);
   d = g_slice_new (tensor_dim);
   memcpy (d, dim, sizeof (tensor_dim));
   meta->dimensions = g_list_append (meta->dimensions, d);
@@ -197,9 +204,15 @@ gst_get_tensor (GstBuffer * buffer, gint nth)
   GstMemory *mem;
   meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
   if (!meta) {
+    err_print ("Cannot get meta!\n");
     return (GstMemory *) buffer;
   } else {
+    if (gst_buffer_n_memory (buffer) != gst_get_num_tensors (buffer))
+      err_print
+          ("Number of memory block in buffer(%d) is not compatible with Meta (%d)\n",
+          gst_buffer_n_memory (buffer), gst_get_num_tensors (buffer));
     mem = gst_buffer_get_memory (buffer, nth);
+    gst_memory_unref (mem);
     return mem;
   }
 }
@@ -247,4 +260,54 @@ gst_get_num_tensors (GstBuffer * buffer)
 {
   GstMetaTensor *meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
   return meta->num_tensors;
+}
+
+GArray *
+parse_dimensions (const gchar * dim_string)
+{
+  GArray *dimensions;
+  gint num_tensors;
+  gchar *tempbuf;
+  char **arr;
+
+  char *pch;
+  num_tensors = 0;
+  tempbuf = strdup (dim_string);
+  pch = strtok (tempbuf, " ,");
+  while (pch != NULL) {
+    pch = strtok (NULL, " ,");
+    num_tensors++;
+  }
+
+  dimensions =
+      g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *), num_tensors);
+  arr = (char **) malloc (sizeof (char *) * num_tensors);
+
+  num_tensors = 0;
+  pch = NULL;
+  tempbuf = strdup (dim_string);
+
+  pch = strtok (tempbuf, " ,");
+  while (pch != NULL) {
+    arr[num_tensors] = strdup (pch);
+    pch = strtok (NULL, " ,");
+    num_tensors++;
+  }
+
+  for (int i = 0; i < num_tensors; i++) {
+    char *p = strtok (arr[i], " :");
+    int c = 0;
+    tensor_dim *d = g_new0 (tensor_dim, 1);
+    while (p != NULL) {
+      (*d)[c] = atoi (p);
+      p = strtok (NULL, " :");
+      c++;
+    }
+    g_array_append_val (dimensions, d);
+  }
+
+  free (arr);
+
+  return dimensions;
+
 }

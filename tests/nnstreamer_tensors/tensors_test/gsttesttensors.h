@@ -86,9 +86,12 @@ struct _Gsttesttensors
   GstPad *sinkpad, *srcpad;
 
   gboolean silent;
+  gint width;
+  gint height;
 
   /* For Tensor */
-  tensor_dim dimension;
+  /* tensor_dim dimension; */
+  gint num_tensors;
   gint rank;
   tensor_type type;
   gint framerate_numerator;

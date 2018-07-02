@@ -96,7 +96,7 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
+    GST_STATIC_CAPS (GST_TENSORS_CAP_DEFAULT)
     );
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -252,27 +252,36 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   gboolean ret;
   gint dim;
   GstCaps *othercaps;
+  const gchar *dim_string;
 
   GstStructure *s = gst_caps_get_structure (caps, 0);
   gst_structure_get_int (s, "rank", &filter->rank);
-  gst_structure_get_int (s, "dim1", &dim);
-  filter->dimension[0] = dim;
-  gst_structure_get_int (s, "dim2", &dim);
-  filter->dimension[1] = dim;
-  gst_structure_get_int (s, "dim3", &dim);
-  filter->dimension[2] = dim;
-  gst_structure_get_int (s, "dim4", &dim);
-  filter->dimension[3] = dim;
+  gst_structure_get_int (s, "num_tensors", &dim);
+  filter->num_tensors = dim;
+
+  dim_string = gst_structure_get_string (s, "dimensions");
+  if (dim_string) {
+    debug_print (!filter->silent, "dimension sting : %s\n", dim_string);
+    filter->dimensions = parse_dimensions (dim_string);
+    for (int i = 0; i < filter->num_tensors; i++) {
+      tensor_dim *d = g_array_index (filter->dimensions, tensor_dim *, i);
+      debug_print (!filter->silent, "dimensions[%d] %d %d %d %d\n", i, (*d)[0],
+          (*d)[1], (*d)[2], (*d)[3]);
+    }
+  } else {
+    err_print ("Cannot get dimensions for negotiation!\n");
+  }
   gst_structure_get_fraction (s, "framerate", &filter->framerate_numerator,
       &filter->framerate_denominator);
   filter->type = _NNS_UINT8;
 
+  tensor_dim *d = g_array_index (filter->dimensions, tensor_dim *, 0);
   othercaps = gst_caps_new_simple ("other/tensor",
       "rank", G_TYPE_INT, filter->rank,
-      "dim1", G_TYPE_INT, filter->dimension[0],
-      "dim2", G_TYPE_INT, filter->dimension[1],
-      "dim3", G_TYPE_INT, filter->dimension[2],
-      "dim4", G_TYPE_INT, filter->dimension[3],
+      "dim1", G_TYPE_INT, (*d)[0],
+      "dim2", G_TYPE_INT, (*d)[1],
+      "dim3", G_TYPE_INT, (*d)[2],
+      "dim4", G_TYPE_INT, (*d)[3],
       "type", G_TYPE_STRING, tensor_element_typename[filter->type],
       "framerate", GST_TYPE_FRACTION, filter->framerate_numerator,
       filter->framerate_denominator, NULL);
@@ -305,25 +314,27 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   outbuf = gst_buffer_new ();
 
   /* Making output buffer (one big buffer for check tensors) */
-  buffer_mem =
-      gst_allocator_alloc (NULL,
-      filter->dimension[0] * filter->dimension[1] * filter->dimension[2] *
-      filter->dimension[3], NULL);
+  buffer_mem = gst_allocator_alloc (NULL,
+      /* filter->dimension[0] * filter->dimension[1] * filter->dimension[2] * */
+      /* filter->dimension[3], NULL); */
+      3 * 640 * 480 * 1, NULL);
   gst_buffer_append_memory (outbuf, buffer_mem);
 
   gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
 
   /* Get number of tensors */
   num_tensors = gst_get_num_tensors (inbuf);
-
+  debug_print (!filter->silent, "Number of Tensors : %d\n", num_tensors);
   for (int i = 0; i < num_tensors; i++) {
     GstMemory *mem = gst_get_tensor (inbuf, i);
-    gst_memory_unref (mem);
+    if (!mem)
+      debug_print (!filter->silent, "Cannot get memory\n");
     dim = gst_get_tensordim (inbuf, i);
     ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
-
-    if (!ret)
+    if (!ret) {
+      debug_print (!filter->silent, "Cannot map memory\n");
       return NULL;
+    }
     size_t span = 0;
     size_t span1 = 0;
     for (d0 = 0; d0 < (*dim)[3]; d0++) {
@@ -383,9 +394,6 @@ gst_tensorscheck_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstBuffer *out;
 
   filter = GST_TENSORSCHECK (parent);
-
-  if (filter->silent == FALSE)
-    g_print ("I'm plugged, therefore I'm in.\n");
 
   if (filter->passthrough)
     return gst_pad_push (filter->srcpad, buf);
