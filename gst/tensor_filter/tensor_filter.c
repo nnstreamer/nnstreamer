@@ -330,25 +330,30 @@ gst_tensor_filter_get_rank (tensor_dim dimension)
   return rank;
 }
 
+static GstTensor_Filter_CheckStatus
+gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, tensor_dim dim,
+    tensor_type * type);
 /**
  * @brief Find caps based on i/o configuration or from the 'other' cap
  * @param filter "this" object
- * @param isInput TRUE if it's for input. FALSE if it's for output.
- * @param targetCaps Caps object to be filters. NULL if we don't have ony.
- * @return Return the new caps.
+ * @param isInput TRUE if the "source" is input(sinkpad) and "target" is output(srcpad0
+ * @param fromCaps The "source" cap given
+ * @return The "target" cap from "source" cap.
  *
  * We need both type and dimension to do this.
  * This is supposed to be used by set_properties, restrting pad-caps before attaching input/output elements
+ *
+ * @TODO Looks like this is buggy!!!
  */
 static GstCaps *
 gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
-    GstCaps * targetCaps)
+    GstCaps * fromCaps)
 {
-  tensor_type *type = NULL;
+  tensor_type *type = NULL, _type;
   uint32_t *dimension;
-  GstTensor_Filter_CheckStatus configured = FALSE;
+  GstTensor_Filter_CheckStatus configured = _TFC_INIT;
   GstTensor_Filter_Properties *prop = &filter->prop;
-  GstCaps *tmp = NULL, *tmp2 = NULL;
+  GstCaps *tmp = NULL, *tmp2 = NULL, *resultCaps = NULL;
   int rank;
 
   if (isInput == TRUE) {
@@ -400,44 +405,101 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     /* @TODO: support other framerates! */
   }
 
-  if (prop->silent == FALSE || configured != _TFC_ALL) {
-    gchar *str = gst_caps_to_string (tmp);
-    debug_print (TRUE, "Caps(%s) Narrowing from %s\n",
-        (isInput == TRUE) ? "input/sink" : "output/src", str);
-    g_free (str);
-  }
-
-  if (targetCaps) {
+  if (fromCaps) {
     gchar *str;
     if (prop->silent == FALSE) {
-      str = gst_caps_to_string (targetCaps);
-      debug_print (TRUE, "targetCaps: %s\n", str);
+      str = gst_caps_to_string (fromCaps);
+      debug_print (TRUE, "fromCaps: %s\n", str);
       g_free (str);
     }
-    tmp2 = gst_caps_intersect_full (targetCaps, tmp, GST_CAPS_INTERSECT_FIRST);
+    tmp2 = gst_caps_intersect_full (fromCaps, tmp, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp);
     tmp = tmp2;
     if (prop->silent == FALSE) {
       str = gst_caps_to_string (tmp);
-      debug_print (TRUE, "resultCaps: %s\n", str);
+      debug_print (TRUE, "filtered fromCaps: %s\n", str);
       g_free (str);
     }
   } else {
     if (prop->silent == FALSE) {
       gchar *str = gst_caps_to_string (tmp);
-      debug_print (TRUE, "resultCaps w/o targetCaps: %s\n", str);
+      debug_print (TRUE, "not filtered fromCaps: %s\n", str);
       g_free (str);
     }
   }
 
-  /* @TODO 3. Check if tmp ( = targetCap \cap tmp(from dim)) is not \null-set. */
+  /* 2-2. Extract effective dim info from tmp */
+  configured = gst_tensor_filter_generate_dim_from_cap (tmp, dimension, &_type);
+  configured &= _TFC_ALL;
+  /* tmp is no more needed */
+  gst_caps_unref (tmp);
 
-  /* @TODO 4. unref the old cap */
+  /* 3. Calculate resultcap from fromcap. */
+  if (isInput == TRUE) {
+    /* result == srcpad (output) */
+    tensor_dim rdim;
+    tensor_type rtype;
+    int ret;
+
+    /* 3-1-1. Try get output dim for srcpad */
+    if (prop->fw->getOutputDimension) {
+      ret = gst_tensor_filter_call (filter, getOutputDimension, rdim, &rtype);
+      g_assert (ret == 0);
+    } else if (configured == _TFC_ALL) {
+      g_assert (prop->fw->setInputDimension);
+      ret = gst_tensor_filter_call (filter, setInputDimension, dimension, _type,
+          rdim, &rtype);
+    } else {
+      /* We do not have enough info for dimension */
+      /* knows nothing. This happens.. */
+      resultCaps =
+          gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION,
+          0, 1, NULL);
+    }
+
+    /* 3-1.2. Configure resultCap from rdim/rtype */
+    if (resultCaps == NULL) {
+      rank = gst_tensor_filter_get_rank (rdim);
+      resultCaps =
+          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+          G_TYPE_STRING, tensor_element_typename[rtype], "dim1", G_TYPE_INT,
+          rdim[0], "dim2", G_TYPE_INT, rdim[1], "dim3", G_TYPE_INT,
+          rdim[2], "dim4", G_TYPE_INT, rdim[3], "framerate",
+          GST_TYPE_FRACTION, 0, 1, NULL);
+    }
+  } else {
+    /* result == sinkpad (input) */
+    tensor_dim rdim;
+    tensor_type rtype;
+    int ret;
+
+    /* 3-1-1. Try get output dim for srcpad */
+    if (prop->fw->getInputDimension) {
+      ret = gst_tensor_filter_call (filter, getInputDimension, rdim, &rtype);
+      g_assert (ret == 0);
+    } else {
+      /* We do not have output->input dimension conversion. */
+      /* knows nothing. This happens.. */
+      resultCaps =
+          gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION,
+          0, 1, NULL);
+    }
+
+    /* 3-1.2. Configure resultCap from rdim/rtype */
+    if (resultCaps == NULL) {
+      rank = gst_tensor_filter_get_rank (rdim);
+      resultCaps =
+          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
+          "type", G_TYPE_STRING, tensor_element_typename[rtype], "dim1",
+          G_TYPE_INT, rdim[0], "dim2", G_TYPE_INT, rdim[1], "dim3",
+          G_TYPE_INT, rdim[2], "dim4", G_TYPE_INT, rdim[3], "framerate",
+          GST_TYPE_FRACTION, 0, 1, NULL);
+    }
+  }
 
   /* @TODO 5. Verify with get_input/output_dimension callbacks! */
 
-  return tmp;                   // @TODO Incorrect. Do "copy"
-
+  return resultCaps;
 }
 
 static inline gboolean
@@ -730,13 +792,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 1. Allocate outbuf */
   g_assert (outbuf);
-  outBufSize = tensor_element_size[filter->prop.inputType] *
-      get_tensor_element_count (filter->prop.inputDimension);
+  outBufSize = tensor_element_size[filter->prop.outputType] *
+      get_tensor_element_count (filter->prop.outputDimension);
   if (gst_buffer_get_size (outbuf) < outBufSize) {
-    /* @TODO: If this shit happens, we really need to write transform_size() vmethod asap */
     /* @TODO: write a routine to say aloud when this happens */
     gst_buffer_set_size (outbuf, outBufSize);
   }
+  debug_print (!filter->prop.silent, "outbuf = %lu / expected = %lu\n",
+      gst_buffer_get_size (outbuf), outBufSize);
   g_assert (gst_buffer_get_size (outbuf) >= outBufSize);
 
   /* 2. Call the filter-subplugin callback, "invoke" */
@@ -861,8 +924,9 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter)
       g_assert (prop->outputType == type);
     }
     if (prop->outputConfigured & _TFC_DIMENSION)
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
         g_assert (prop->outputDimension[i] == dim[i]);
+      }
     prop->outputType = type;
     memcpy (prop->outputDimension, dim, sizeof (dim));
     prop->outputConfigured |= _TFC_ALL;
@@ -899,14 +963,15 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
     /* @TODO 1. Check caps w/ getInputDimension && saved input dimension */
     /* @TODO 2. Check returning-caps w/ getOutputDimension && saved output dimension */
-    return gst_tensor_filter_fix_caps (obj, FALSE, caps);
+
+    return gst_tensor_filter_fix_caps (obj, TRUE, caps);
   } else {
     /* caps: src pad. get sink pad info */
     obj->prop.inputCapNegotiated = TRUE;
 
     /* @TODO 1. Check caps w/ getOutputDimension && saved output dimension */
     /* @TODO 2. Check returning-caps w/ getInputDimension && saved input dimension */
-    return gst_tensor_filter_fix_caps (obj, TRUE, caps);
+    return gst_tensor_filter_fix_caps (obj, FALSE, caps);
   }
 
   /* Cannot reach here. */
