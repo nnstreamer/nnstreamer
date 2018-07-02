@@ -27,6 +27,8 @@ BuildRequires:	gst-plugins-good-extra
 BuildRequires:	gst-plugins-base
 # and gtest
 BuildRequires:	gtest-devel
+# a few test cases uses python
+BuildRequires:	python
 
 %if 0%{?testcoverage}
 BuildRequires:	taos-ci-unittest-coverage-assessment
