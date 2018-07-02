@@ -113,6 +113,21 @@ function compareAllSizeLimit {
 }
 
 ##
+# @brief Report additional script test case result
+# @param 1 the case number
+# @param 2 the result (exit code)
+# @param 3 test description
+function casereport {
+	if [[ $2 -eq 0 ]]; then
+		lsucc=$((lsucc+1))
+		log="${log}$GREEN[PASSED]$NC $3: $1\n"
+	else
+		lfail=$((lfail+1))
+		log="${log}$RED[FAILED] $3: $1$NC\n"
+	fi
+}
+
+##
 # @brief "runTest.sh" should call this at the end of the file.
 function report {
 	printf "${log}"
