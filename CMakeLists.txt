@@ -74,7 +74,7 @@ TARGET_INCLUDE_DIRECTORIES(unittest_common PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestIn
 TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
 
 # Unit test for tensor sink
-ADD_EXECUTABLE(unittest_sink gst/tensor_sink/test/unittest_sink.cpp ${gtestSrc})
+ADD_EXECUTABLE(unittest_sink tests/nnstreamer_sink/unittest_sink.cpp ${gtestSrc})
 TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
 TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${gtestLink})
 
