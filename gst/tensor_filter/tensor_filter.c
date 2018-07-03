@@ -165,6 +165,8 @@ static gboolean gst_tensor_filter_set_caps (GstBaseTransform * trans,
 static gboolean gst_tensor_filter_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
+static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
+static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 /* GObject vmethod implementations */
 
 /* initialize the tensor_filter's class */
@@ -241,6 +243,10 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   /* Allocation units */
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensor_filter_transform_size);
+
+  /* start/stop to call open/close */
+  trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_filter_start);
+  trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_filter_stop);
 }
 
 /* initialize the new element
@@ -1061,6 +1067,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   GstCaps *sinkpadcap, *srcpadcap;
   int check = gst_tensor_filter_property_process (obj);
 
+  gst_caps_unref (supposed);
   g_assert (check >= 0);
 
   g_assert (!gst_caps_is_empty (result));
@@ -1225,6 +1232,59 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   }
 
   *othersize = get_tensor_element_count (dim) * tensor_element_size[type];
+
+  return TRUE;
+}
+
+
+/**
+ * @brief Called when the element starts processing. optional vmethod of BaseTransform
+ * @param trans "this" pointer
+ * @return TRUE if there is no error.
+ */
+static gboolean
+gst_tensor_filter_start (GstBaseTransform * trans)
+{
+  GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
+  GstTensor_Filter_Framework *fw = filter->prop.fw;
+  GstTensor_Filter_Properties *prop = &filter->prop;
+
+  if (!prop->fwOpened && fw->open)
+    fw->open (filter, &filter->privateData);
+  prop->fwOpened = TRUE;
+
+  g_assert (prop->fwClosed == FALSE);
+
+  return TRUE;
+}
+
+/**
+ * @brief Called when the element stops processing. optional vmethod of BaseTransform
+ * @param trans "this" pointer
+ * @return TRUE if there is no error.
+ */
+static gboolean
+gst_tensor_filter_stop (GstBaseTransform * trans)
+{
+  GstTensor_Filter *filter = GST_TENSOR_FILTER_CAST (trans);
+  GstTensor_Filter_Framework *fw = filter->prop.fw;
+  GstTensor_Filter_Properties *prop = &filter->prop;
+
+  g_assert (prop->fwOpened == TRUE);
+
+  if (fw->close)
+    fw->close (filter, &filter->privateData);
+  prop->fwClosed = TRUE;
+
+  if (prop->modelFilename) {
+    g_free ((void *) prop->modelFilename);
+    prop->modelFilename = NULL;
+  }
+
+  if (prop->customProperties) {
+    g_free ((void *) prop->customProperties);
+    prop->customProperties = NULL;
+  }
 
   return TRUE;
 }
