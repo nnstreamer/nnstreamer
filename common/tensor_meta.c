@@ -262,69 +262,35 @@ gst_get_num_tensors (GstBuffer * buffer)
   return meta->num_tensors;
 }
 
-/**
- * @brief Utility function to parse string
- * @param str input string to parse
- * @param delim delimitor
- * @param arr output array to store parsed string
- * @return gint number of parsed string
- */
-static gint
-parse_string (const gchar * str, const char *delim, char ***arr)
-{
-  char *pch, *buf;
-  int count = 0;
-  buf = strdup (str);
-  pch = strtok (buf, delim);
-  while (pch != NULL) {
-    pch = strtok (NULL, delim);
-    count++;
-  }
-  free (buf);
-
-  (*arr) = (char **) malloc (sizeof (char *) * count);
-
-  count = 0;
-  pch = NULL;
-  buf = strdup (str);
-  pch = strtok (buf, delim);
-  while (pch != NULL) {
-    (*arr)[count] = strdup (pch);
-    pch = strtok (NULL, delim);
-    count++;
-  }
-  free (buf);
-  return count;
-}
-
 GArray *
 parse_dimensions (const gchar * dim_string)
 {
   GArray *dimensions;
-  gint num_tensors;
-  char **arr;
-  unsigned int i;
-
-  num_tensors = parse_string (dim_string, " ,.;/", &arr);
+  gint i, num_tensors;
+  gchar **arr;
+  arr = g_strsplit_set (dim_string, ",.;/", -1);
+  num_tensors = g_strv_length (arr);
 
   dimensions =
       g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *), num_tensors);
-
   for (i = 0; i < num_tensors; i++) {
-    char *p = strtok (arr[i], " :");
-    int c = 0;
-    tensor_dim *d = g_new0 (tensor_dim, 1);
-    while (p != NULL) {
-      (*d)[c] = atoi (p);
-      p = strtok (NULL, " :");
-      c++;
+    gchar **p;
+    gint num, k;
+    tensor_dim *d;
+
+    p = g_strsplit_set (arr[i], ":", -1);
+    num = g_strv_length (p);
+
+    d = g_new0 (tensor_dim, 1);
+    for (k = 0; k < num; k++) {
+      (*d)[k] = atoi (p[k]);
     }
+
     g_array_append_val (dimensions, d);
+    g_strfreev (p);
   }
 
-  for (i = 0; i < num_tensors; i++)
-    free (arr[i]);
-  free (arr);
+  g_strfreev (arr);
 
   return dimensions;
 }
@@ -332,12 +298,13 @@ parse_dimensions (const gchar * dim_string)
 GArray *
 parse_types (const gchar * types_string)
 {
-  char **charbuf;
-  int num_type;
-  unsigned int i;
-  num_type = parse_string (types_string, " ,.:/", &charbuf);
-  GArray *types =
-      g_array_sized_new (FALSE, FALSE, sizeof (tensor_type *), num_type);
+  gchar **charbuf;
+  gint num_type, i;
+  GArray *types;
+  charbuf = g_strsplit_set (types_string, ",.:/", -1);
+  num_type = g_strv_length (charbuf);
+
+  types = g_array_sized_new (FALSE, FALSE, sizeof (tensor_type *), num_type);
 
   for (i = 0; i < num_type; i++) {
     tensor_type *t = g_new0 (tensor_type, 1);
@@ -345,8 +312,6 @@ parse_types (const gchar * types_string)
     g_array_append_val (types, t);
   }
 
-  for (i = 0; i < num_type; i++)
-    free (charbuf[i]);
-  free (charbuf);
+  g_strfreev (charbuf);
   return types;
 }
