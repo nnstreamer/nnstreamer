@@ -71,6 +71,7 @@
 #include <gst/gst.h>
 
 #include "gsttesttensors.h"
+#include <string.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_testtensors_debug);
 #define GST_CAT_DEFAULT gst_testtensors_debug
@@ -252,6 +253,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   gint dim;
   GstCaps *othercaps;
   gboolean ret;
+  unsigned int i;
 
   GstStructure *s = gst_caps_get_structure (caps, 0);
 
@@ -269,10 +271,17 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   filter->type = _NNS_UINT8;
   filter->rank = 3;
 
+  char str[256];
+  strcpy (str, tensor_element_typename[filter->type]);
+  for (i = 1; i < filter->num_tensors; i++) {
+    strcat (str, ",");
+    strcat (str, tensor_element_typename[filter->type]);
+  }
+
   othercaps = gst_caps_new_simple ("other/tensors",
       "rank", G_TYPE_INT, filter->rank,
       "num_tensors", G_TYPE_INT, filter->num_tensors,
-      "type", G_TYPE_STRING, tensor_element_typename[filter->type],
+      "types", G_TYPE_STRING, str,
       "framerate", GST_TYPE_FRACTION, filter->framerate_numerator,
       filter->framerate_denominator, "dimensions", G_TYPE_STRING,
       "1:640:480:1 ,1:640:480:3 ,1:640:480:1", NULL);

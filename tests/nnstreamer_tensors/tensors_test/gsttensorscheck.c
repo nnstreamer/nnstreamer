@@ -253,6 +253,8 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   gint dim;
   GstCaps *othercaps;
   const gchar *dim_string;
+  const gchar *types;
+  int i;
 
   GstStructure *s = gst_caps_get_structure (caps, 0);
   gst_structure_get_int (s, "rank", &filter->rank);
@@ -263,7 +265,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   if (dim_string) {
     debug_print (!filter->silent, "dimension sting : %s\n", dim_string);
     filter->dimensions = parse_dimensions (dim_string);
-    for (int i = 0; i < filter->num_tensors; i++) {
+    for (i = 0; i < filter->num_tensors; i++) {
       tensor_dim *d = g_array_index (filter->dimensions, tensor_dim *, i);
       debug_print (!filter->silent, "dimensions[%d] %d %d %d %d\n", i, (*d)[0],
           (*d)[1], (*d)[2], (*d)[3]);
@@ -273,16 +275,28 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   }
   gst_structure_get_fraction (s, "framerate", &filter->framerate_numerator,
       &filter->framerate_denominator);
-  filter->type = _NNS_UINT8;
+  types = gst_structure_get_string (s, "types");
+  if (types) {
+    debug_print (!filter->silent, "types string : %s\n", types);
+    filter->types = parse_types (types);
+    for (i = 0; i < filter->num_tensors; i++) {
+      tensor_type *t = g_array_index (filter->types, tensor_type *, i);
+      debug_print (!filter->silent, "types[%d] %s\n", i,
+          tensor_element_typename[(*t)]);
+    }
+  } else {
+    err_print ("Cannot get types for negotiation!\n");
+  }
 
   tensor_dim *d = g_array_index (filter->dimensions, tensor_dim *, 0);
+  tensor_type *t = g_array_index (filter->types, tensor_type *, 0);
   othercaps = gst_caps_new_simple ("other/tensor",
       "rank", G_TYPE_INT, filter->rank,
       "dim1", G_TYPE_INT, (*d)[0],
       "dim2", G_TYPE_INT, (*d)[1],
       "dim3", G_TYPE_INT, (*d)[2],
       "dim4", G_TYPE_INT, (*d)[3],
-      "type", G_TYPE_STRING, tensor_element_typename[filter->type],
+      "type", G_TYPE_STRING, tensor_element_typename[*t],
       "framerate", GST_TYPE_FRACTION, filter->framerate_numerator,
       filter->framerate_denominator, NULL);
   ret = gst_pad_set_caps (filter->srcpad, othercaps);
@@ -304,7 +318,7 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   GstMapInfo info, src_info, dest_info;
   GstMemory *buffer_mem;
   tensor_dim *dim;
-  unsigned int d0, d1, d2;
+  unsigned int d0, d1, d2, i;
   gboolean ret;
 
   /* Mapping input buffer (tensors) into src_info */
@@ -325,7 +339,7 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   /* Get number of tensors */
   num_tensors = gst_get_num_tensors (inbuf);
   debug_print (!filter->silent, "Number of Tensors : %d\n", num_tensors);
-  for (int i = 0; i < num_tensors; i++) {
+  for (i = 0; i < num_tensors; i++) {
     GstMemory *mem = gst_get_tensor (inbuf, i);
     if (!mem)
       debug_print (!filter->silent, "Cannot get memory\n");

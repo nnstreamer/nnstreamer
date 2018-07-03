@@ -150,7 +150,19 @@ GstFlowReturn gst_remove_tensor (GstBuffer *buffer, gint nth);
  */
 gint gst_get_num_tensors (GstBuffer *buffer);
 
+/**
+ * @brief Utility function to get parse the dimension of tensors
+ * @param dim_string Input String to parse
+ * @return GArray Array which includes tensor_dim for each tensor
+ */
 GArray * parse_dimensions (const gchar* dim_string);
+
+/**
+ * @brief Utility function to get parse the type of tensors
+ * @param type_string Input String to parse
+ * @return GArray Array which includes tensor_type for each tensor
+ */
+GArray * parse_types (const gchar* type_string);
 
 G_END_DECLS
 

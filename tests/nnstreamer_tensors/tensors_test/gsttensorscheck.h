@@ -92,7 +92,7 @@ struct _Gsttensorscheck
   GArray *dimensions;
   gint num_tensors;
   gint rank;
-  tensor_type type;
+  GArray *types;
   gint framerate_numerator;
   gint framerate_denominator;
   gboolean passthrough;

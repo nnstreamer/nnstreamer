@@ -81,8 +81,9 @@ G_BEGIN_DECLS
     "other/tensors, " \
     "rank = (int) [ 1, 4 ], " \
     "num_tensors = (int) [1, 65535], "\
-    "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, " \
     "framerate = (fraction) [ 0/1, 2147483647/1 ]"
+    /* type should be one of { float32, float64, int32, uint32, int16, uint16, int8, uint8 } */
+    /* "types = (string) uint8, uint8, uint8" \ */
     /* Dimensions of Tensors for negotiation. It's comment out here,
        but when we call gst_structure_get_string, it actually is working well.*/
     /* "dimensions = (string) dim1:dim2:dim3:dim4, dim1:dim2:dim3:dim4" \ */
