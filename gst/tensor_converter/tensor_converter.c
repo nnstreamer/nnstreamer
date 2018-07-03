@@ -811,6 +811,7 @@ gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
   } else {
     gst_caps_unref (othercaps);
   }
+  gst_caps_unref (supposed);
 
   GST_DEBUG_OBJECT (trans, "now fixating %" GST_PTR_FORMAT, result);
 
