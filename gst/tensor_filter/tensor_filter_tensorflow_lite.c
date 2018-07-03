@@ -89,7 +89,7 @@ tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
   int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
 
-  return retval;                // NYI
+  return retval;                /* NYI */
 }
 
 /**

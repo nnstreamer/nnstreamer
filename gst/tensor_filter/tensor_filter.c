@@ -325,7 +325,7 @@ gst_tensor_filter_get_rank (tensor_dim dimension)
     if (dimension[i] > 1)
       rank = i + 1;
   }
-  if (rank == 0)                // a scalar (assume it is 1-dim vector)
+  if (rank == 0)                /* a scalar (assume it is 1-dim vector) */
     return 1;
   return rank;
 }

@@ -115,7 +115,7 @@ struct _GstTensor_Filter
  *  @return the pointer to GstTensor_Filter containing p as privateData
  */
 #define GstTensor_Filter_of_privateData(p) ({ \
-    const typeof( ((GstTensor_Filter *)0)->privateData ) *__mptr = (p); \
+    const void **__mptr = (const void **)(p); \
     (GstTensor_Filter *)( (char *)__mptr - offsetof(GstTensor_Filter, privateData) );})
 
 /**

@@ -85,7 +85,6 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
 
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
   *private_data = ptr;
-  g_assert (filter->privateData == ptr);
   ptr->parent = GstTensor_Filter_of_privateData (private_data);
 
   /* Load .so if this is the first time for this instance. */

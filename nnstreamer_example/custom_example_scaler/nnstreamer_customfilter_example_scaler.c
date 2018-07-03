@@ -31,13 +31,23 @@ typedef struct _pt_data
   uint32_t new_x;
 } pt_data;
 
+static char *
+_strdup (const char *src)
+{
+  size_t len = strlen (src) + 1;
+  char *dest = (char *) malloc (sizeof (char) * len);
+  strncpy (dest, src, len - 1);
+  dest[len - 1] = '\0';
+  return dest;
+}
+
 static void *
 pt_init (const GstTensor_Filter_Properties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
 
   if (prop->customProperties && strlen (prop->customProperties) > 0)
-    data->property = strdup (prop->customProperties);
+    data->property = _strdup (prop->customProperties);
   else
     data->property = NULL;
   data->new_x = 0;
