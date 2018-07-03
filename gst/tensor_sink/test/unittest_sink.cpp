@@ -141,7 +141,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 
       if (gst_memory_map (mem, &info, GST_MAP_READ)) {
         /* check data (info.data, info.size) */
-        _print_log ("received %ld", info.size);
+        _print_log ("received %zd", info.size);
 
         gst_memory_unmap (mem, &info);
       }
