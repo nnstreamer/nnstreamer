@@ -47,15 +47,16 @@ pt_init (const GstTensor_Filter_Properties * prop)
   if (data->property) {
     const char s[6] = "Xx:_ ";
     char *token;
+    char *saveptr;
 
-    token = strtok (data->property, s);
+    token = strtok_r (data->property, s, &saveptr);
 
     if (token != NULL) {
       /* The first part */
       data->new_x = atoi (token);
       if (data->new_x < 0)
         data->new_x = 0;
-      token = strtok (NULL, s);
+      token = strtok_r (NULL, s, &saveptr);
       if (token != NULL) {
         /* The second part */
         data->new_y = atoi (token);
