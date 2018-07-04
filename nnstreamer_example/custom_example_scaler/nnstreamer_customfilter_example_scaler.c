@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <glib.h>
 #include <tensor_filter_custom.h>
 
 typedef struct _pt_data
@@ -55,25 +56,23 @@ pt_init (const GstTensor_Filter_Properties * prop)
 
   /* Parse property and set new_x, new_y */
   if (data->property) {
-    const char s[6] = "Xx:_ ";
-    char *token;
-    char *saveptr;
-
-    token = strtok_r (data->property, s, &saveptr);
-
-    if (token != NULL) {
-      /* The first part */
-      data->new_x = atoi (token);
+    const char s[7] = "xX:_/ ";
+    gchar **strv = g_strsplit_set (data->property, s, 3);
+    if (strv[0] != NULL) {
+      data->new_x = (uint32_t) g_ascii_strtoll (strv[0], NULL, 10);
       if (data->new_x < 0)
         data->new_x = 0;
-      token = strtok_r (NULL, s, &saveptr);
-      if (token != NULL) {
-        /* The second part */
-        data->new_y = atoi (token);
-        if (data->new_y < 0)
-          data->new_y = 0;
-      }
+    } else {
+      data->new_x = 0;
     }
+    if (strv[1] != NULL) {
+      data->new_y = (uint32_t) g_ascii_strtoll (strv[1], NULL, 10);
+      if (data->new_y < 0)
+        data->new_y = 0;
+    } else {
+      data->new_y = 0;
+    }
+    g_strfreev (strv);
   }
 
   data->id = 0;
