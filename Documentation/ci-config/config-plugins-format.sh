@@ -25,13 +25,13 @@ echo "pr-format-indent is done."
 # pr-format-clang
 # echo "pr-format-clang is done."
 
-echo "pr-format-exclusive-io is starting."
-echo "[MODULE] CI/pr-format-exclusive-vio: Check issue #279. VIO commits should not touch non VIO files."
-echo "Current path: $(pwd)."
-echo "[DEBUG] source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-good/pr-format-exclusive-vio.sh"
-source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-good/pr-format-exclusive-vio.sh
-pr-format-exclusive-vio
-echo "pr-format-exclusive-io is done."
+#echo "pr-format-exclusive-io is starting."
+#echo "[MODULE] CI/pr-format-exclusive-vio: Check issue #279. VIO commits should not touch non VIO files."
+#echo "Current path: $(pwd)."
+#echo "[DEBUG] source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-good/pr-format-exclusive-vio.sh"
+#source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-good/pr-format-exclusive-vio.sh
+#pr-format-exclusive-vio
+#echo "pr-format-exclusive-io is done."
 
 
 ##################################################################################################################

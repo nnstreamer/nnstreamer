@@ -13,7 +13,7 @@ echo "[DEBUG] $module_name is started."
 echo "[DEBUG] CI/$module_name: Check if Tizen rpm package is successfully generated."
 echo "[DEBUG] Current path: $(pwd)."
 source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-base/$module_name.sh
-$module_name
+#$module_name
 echo "[DEBUG] $module_name is done."
 
 module_name="pr-audit-build-ubuntu"
@@ -21,7 +21,7 @@ echo "[DEBUG] $module_name is started."
 echo "[DEBUG] CI/$module_name: Check if Ubuntu deb package is successfully generated."
 echo "[DEBUG] Current path: $(pwd)."
 source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-base/$module_name.sh
-$module_name
+#$module_name
 echo "[DEBUG] $module_name is done."
 
 ###### plugins-good ###############################################################################################
