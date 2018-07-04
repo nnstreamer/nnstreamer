@@ -63,8 +63,8 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
 }
 
 
-#define do_avg(type) do {\
-      type *avg = (type *) malloc(sizeof(type) * prop->inputDimension[0]); \
+#define do_avg(type, sumtype) do {\
+      sumtype *avg = (sumtype *) malloc(sizeof(sumtype) * prop->inputDimension[0]); \
       type *iptr = (type *) inptr; \
       type *optr = (type *) outptr; \
       for (z = 0; z < prop->inputDimension[3]; z++) { \
@@ -111,28 +111,28 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
 
   switch (prop->inputType) {
     case _NNS_INT8:
-      do_avg (int8_t);
+      do_avg (int8_t, int64_t);
       break;
     case _NNS_INT16:
-      do_avg (int16_t);
+      do_avg (int16_t, int64_t);
       break;
     case _NNS_INT32:
-      do_avg (int32_t);
+      do_avg (int32_t, int64_t);
       break;
     case _NNS_UINT8:
-      do_avg (uint8_t);
+      do_avg (uint8_t, uint64_t);
       break;
     case _NNS_UINT16:
-      do_avg (uint16_t);
+      do_avg (uint16_t, uint64_t);
       break;
     case _NNS_UINT32:
-      do_avg (uint32_t);
+      do_avg (uint32_t, uint64_t);
       break;
     case _NNS_FLOAT32:
-      do_avg (float);
+      do_avg (float, long double);
       break;
     case _NNS_FLOAT64:
-      do_avg (double);
+      do_avg (double, long double);
       break;
 
     default:
