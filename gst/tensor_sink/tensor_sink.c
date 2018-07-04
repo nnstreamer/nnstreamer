@@ -449,14 +449,17 @@ gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
 {
   GstTensorSink *self;
   GstQueryType type;
+  GstFormat format;
 
   self = GST_TENSOR_SINK (sink);
   type = GST_QUERY_TYPE (query);
 
   switch (type) {
-    case GST_QUERY_FORMATS:
-      DLOG ("query FORMATS");
-      gst_query_set_formats (query, 2, GST_FORMAT_DEFAULT, GST_FORMAT_BYTES);
+    case GST_QUERY_SEEKING:
+      DLOG ("query SEEKING");
+      /* tensor sink does not support seeking */
+      gst_query_parse_seeking (query, &format, NULL, NULL, NULL);
+      gst_query_set_seeking (query, format, FALSE, 0, -1);
       return TRUE;
 
     default:
@@ -585,6 +588,7 @@ _tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
   render_rate = _tensor_sink_get_render_rate (self);
+
   if (render_rate) {
     GstClock *clock;
     GstClockTime render_time;
