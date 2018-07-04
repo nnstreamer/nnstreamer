@@ -10,6 +10,7 @@ License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 Source2001:	testcase_tensor_converter.tar.gz
+Source20010:	testcase_tensor_converter_stream.tar.gz
 Source2002:	testcase_tensor_decoder.tar.gz
 Source2003:	testcase_tensors.tar.gz
 
@@ -80,6 +81,7 @@ pushd tests
 # Use the pre-generated test cases
 pushd nnstreamer_converter
 tar -xf %{SOURCE2001}
+tar -xf %{SOURCE20010}
 popd
 pushd nnstreamer_decoder
 tar -xf %{SOURCE2002}

@@ -235,6 +235,50 @@ def genCase02_PNG_random(colorType, width, height):
     return (string, string_size, expected_size)
 
 ##
+# @brief Generate a fixed PNG sequence for stream test
+# @return 0 if success. non-zero if failed.
+#
+# This gives "16x16", black, white, green, red, blue, checker (4x4 x 16, left-top/right-bottom white). "6 files" with 0 ~ 5 postfix in the filename
+def genCase08_PNG_stream(filename_prefix, goldenfilename):
+    string = ["", "", "", "", "", ""]
+    sizePerPixel = 3
+    sizex = 16
+    sizey = 16
+    imgbin = [[], [], [], [], [], []]
+
+    for y in range(0, sizey):
+        for x in range(0, sizex):
+            # black. Frame 0
+            imgbin[0].append((0, 0, 0))
+            string[0] += pack('BBB', 0, 0, 0)
+            # white. Frame 1
+            imgbin[1].append((255, 255, 255))
+            string[1] += pack('BBB', 255, 255, 255)
+            # green, Frame 2
+            imgbin[2].append((0, 255, 0))
+            string[2] += pack('BBB', 0, 255, 0)
+            # red, Frame 3
+            imgbin[3].append((255, 0, 0))
+            string[3] += pack('BBB', 255, 0, 0)
+            # blue, Frame 4
+            imgbin[4].append((0, 0, 255))
+            string[4] += pack('BBB', 0, 0, 255)
+            # checker, Frame 5
+            if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
+                imgbin[5].append((0, 0, 0))
+                string[5] += pack('BBB', 0, 0, 0)
+            else:
+                imgbin[5].append((255, 255, 255))
+                string[5] += pack('BBB', 255, 255, 255)
+
+    newfile = open(goldenfilename, 'wb')
+    for i in range(0, 6):
+        img = Image.new('RGB', (sizex, sizey))
+        img.putdata(imgbin[i])
+        img.save(filename_prefix + str(i) + '.png')
+        newfile.write(string[i])
+
+##
 # @brief Write the generated data
 #
 def write(filename, string):
@@ -247,3 +291,4 @@ write('testcase02_RGB_640x480.golden', genCase02_PNG_random('RGB', 640, 480)[0])
 write('testcase02_BGRx_640x480.golden', genCase02_PNG_random('BGRx', 640, 480)[0])
 write('testcase02_RGB_642x480.golden', genCase02_PNG_random('RGB', 642, 480)[0])
 write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
+genCase08_PNG_stream('testsequence_', 'testcase08.golden')

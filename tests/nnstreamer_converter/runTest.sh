@@ -48,5 +48,8 @@ gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! vi
 # Fail Test: Audio ig given
 gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc ! audio/x-raw ! tensor_converter silent=TRUE ! filesink location=\"test..audio.fail.log\" sync=true" 7-F
 
+# Stream test case (genCase08 in generateGoldenTestResult.py)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 8
+compareAll testcase08.golden testcase08.log 8
 
 report
