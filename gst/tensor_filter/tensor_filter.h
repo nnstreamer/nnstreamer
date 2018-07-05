@@ -161,8 +161,7 @@ struct _GstTensor_Filter_Framework
   int (*getInputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim inputDimension, tensor_type *type);
       /**< Optional. Set NULL if not supported. Get dimension of input tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
-       * However, one of the two must be NULL.
-       * And, if getInputDimension != NULL, getOutputDimension != NULL.
+       * If getInputDimension is defined, it is recommended to define getOutputDimension
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
@@ -172,9 +171,8 @@ struct _GstTensor_Filter_Framework
        */
   int (*getOutputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim outputDimension, tensor_type *type);
       /**< Optional. Set NULL if not supported. Get dimension of output tensor
-       * If getOutputDimension is NULL, setInputDimension must be defined.
-       * However, one of the two must be NULL
-       * And, if getOutputDimension != NULL, getInputDimension != NULL.
+       * If getInputDimension is NULL, setInputDimension must be defined.
+       * If getInputDimension is defined, it is recommended to define getOutputDimension
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
@@ -187,7 +185,6 @@ struct _GstTensor_Filter_Framework
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension
        * If this is NULL, both getInput/OutputDimension must be non-NULL.
-       * If this is non-NULL, both getInput/OutputDimension must be NULL.
        *
        * When you use this, do NOT allocate or fix internal data structure based on it
        * until invoke is called. Gstreamer may try different dimensions before

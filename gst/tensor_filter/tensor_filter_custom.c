@@ -111,23 +111,9 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
   ptr->customFW_private_data = ptr->methods->initfunc (&(filter->prop));
 
   /* After init func, (getInput XOR setInput) && (getOutput XOR setInput) must hold! */
+  /* @TODO Double check if this check is really required and safe */
   g_assert (!ptr->methods->getInputDim != !ptr->methods->setInputDim &&
       !ptr->methods->getOutputDim != !ptr->methods->setInputDim);
-
-  /**
-   * Depending on which callbacks the custom filter supplies, remove
-   * unnecessary callbacks from thisself.
-   */
-  if (ptr->methods->getInputDim && ptr->methods->getOutputDim &&
-      !ptr->methods->setInputDim) {
-    NNS_support_custom.setInputDimension = NULL;
-  } else if (!ptr->methods->getInputDim && !ptr->methods->getOutputDim &&
-      ptr->methods->setInputDim) {
-    NNS_support_custom.getInputDimension = NULL;
-    NNS_support_custom.getOutputDimension = NULL;
-  } else {
-    g_assert (TRUE);            /* Cannot reach here! */
-  }
 
   return 0;
 }
@@ -183,6 +169,8 @@ custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
+  if (ptr->methods->getInputDim == NULL)
+    return -1;
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, &(filter->prop),
       inputDimension, type);
@@ -202,6 +190,8 @@ custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
+  if (ptr->methods->getOutputDim == NULL)
+    return -1;
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
       &(filter->prop), outputDimension, type);
@@ -222,6 +212,8 @@ custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
+  if (ptr->methods->setInputDim == NULL)
+    return -1;
 
   return ptr->methods->setInputDim (ptr->customFW_private_data,
       &(filter->prop), iDimension, iType, oDimension, oType);
