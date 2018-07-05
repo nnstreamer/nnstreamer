@@ -1,12 +1,12 @@
-# Package Information for pkg-config
+# Package Information for pkg-config, for custom nnstreamer plugin writers
 
 prefix=@PREFIX@
 exec_prefix=@EXEC_PREFIX@
 libdir=@LIB_INSTALL_DIR@
-includedir=/usr/include/deviced
+includedir=/usr/include
 
 Name: nnstreamer
-Description: Neural Network Suite for GStreamer
+Description: Custom Plugin Dev Kit of Neural Network Suite for GStreamer
 Version: @VERSION@
 Requires:
 Libs:
