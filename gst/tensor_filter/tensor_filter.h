@@ -146,14 +146,16 @@ struct _GstTensor_Filter_Framework
 {
   gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
-  int (*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
+  gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. NYI. */
+
+  uint8_t *(*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
       /**< Mandatory callback. Invoke the given network model.
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] inputptr Input tensor. Allocated and filled by tensor_filter/main
-       * @param[out] outputptr Output tensor. Allocated by tensor_filter/main and to be filled by invoke_NN.
-       * @return 0 if OK. non-zero if error.
+       * @param[out] outputptr Output tensor. Allocated by tensor_filter/main and to be filled by invoke_NN. N/C if allocate_in_invoke is TRUE.
+       * @return outputptr if allocate_in_invoke = 00 if OK. non-zero if error.
        */
 
   int (*getInputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim inputDimension, tensor_type *type);

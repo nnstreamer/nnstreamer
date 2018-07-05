@@ -86,15 +86,14 @@ tflite_open (const GstTensor_Filter * filter, void **private_data)
 /**
  * @brief The mandatory callback for GstTensor_Filter_Framework
  */
-static int
+static uint8_t *
 tflite_invoke (const GstTensor_Filter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
   /* @TODO call tflite core apis */
 
-  return retval;                /* NYI */
+  return outptr;                /* NYI */
 }
 
 /**
@@ -104,11 +103,10 @@ static int
 tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim inputDimension, tensor_type * type)
 {
-  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
   /* @TODO call tflite core api "tflite_getInputDim" */
 
-  return retval;                /* NYI */
+  return 0;                     /* NYI */
 }
 
 /**
@@ -118,11 +116,10 @@ static int
 tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim outputDimension, tensor_type * type)
 {
-  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
   /* @TODO call tflite core api "tflite_getOutputDim" */
 
-  return retval;                /* NYI */
+  return 0;                     /* NYI */
 }
 
 /**
@@ -133,10 +130,8 @@ tflite_setInputDim (const GstTensor_Filter * filter, void **private_data,
     const tensor_dim iDimension, const tensor_type iType,
     tensor_dim oDimension, tensor_type * oType)
 {
-
-  int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO call tflite core apis */
-  return retval;                /* NYI */
+  return 0;                     /* NYI */
 }
 
 /**
@@ -152,6 +147,7 @@ tflite_close (const GstTensor_Filter * filter, void **private_data)
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
   .name = "tensorflow-lite",
   .allow_in_place = FALSE,      /* Let's not do this yet. @TODO: support this to optimize performance later. */
+  .allocate_in_invoke = FALSE,  /* TFLite may need to use TRUE in the future. However, it is not supported, yet */
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,

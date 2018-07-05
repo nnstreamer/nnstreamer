@@ -149,7 +149,7 @@ custom_open (const GstTensor_Filter * filter, void **private_data)
  * @param[in] inptr The input tensor
  * @param[out] outptr The output tensor
  */
-static int
+static uint8_t *
 custom_invoke (const GstTensor_Filter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
@@ -158,15 +158,15 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
 
   /* Actually, tensor_filter must have called getInput/OotputDim first. */
   g_assert (retval == 1);
-
-  if (retval < 0)
-    return retval;
-
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
 
-  return ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
+  retval = ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
       inptr, outptr);
+  if (retval == 0)
+    return outptr;
+  else
+    return NULL;
 }
 
 /**
@@ -244,6 +244,7 @@ custom_close (const GstTensor_Filter * filter, void **private_data)
 GstTensor_Filter_Framework NNS_support_custom = {
   .name = "custom",
   .allow_in_place = FALSE,      /* custom cannot support in-place (outptr == inptr). */
+  .allocate_in_invoke = FALSE,  /* Let tensor_flow allocate output buffers */
   .invoke_NN = custom_invoke,
 
   /* We need to disable getI/O-dim or setI-dim with the first call */
