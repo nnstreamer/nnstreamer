@@ -147,19 +147,38 @@ struct _GstTensor_Filter_Framework
   gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   int (*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
-      /**< Mandatory callback. Invoke the given network model. */
+      /**< Mandatory callback. Invoke the given network model.
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in] inputptr Input tensor. Allocated and filled by tensor_filter/main
+       * @param[out] outputptr Output tensor. Allocated by tensor_filter/main and to be filled by invoke_NN.
+       * @return 0 if OK. non-zero if error.
+       */
 
   int (*getInputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim inputDimension, tensor_type *type);
       /**< Optional. Set NULL if not supported. Get dimension of input tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * However, one of the two must be NULL.
        * And, if getInputDimension != NULL, getOutputDimension != NULL.
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[out] inputDimension dimension of input tensor (return value)
+       * @param[out] type type of input tensor element (return value)
+       * @return 0 if OK. non-zero if error.
        */
   int (*getOutputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim outputDimension, tensor_type *type);
       /**< Optional. Set NULL if not supported. Get dimension of output tensor
        * If getOutputDimension is NULL, setInputDimension must be defined.
        * However, one of the two must be NULL
        * And, if getOutputDimension != NULL, getInputDimension != NULL.
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[out] outputDimension dimension of output tensor (return value)
+       * @param[out] type type of output tensor element (return value)
+       * @return 0 if OK. non-zero if error.
        */
   int (*setInputDimension)(const GstTensor_Filter *filter, void **private_data, const tensor_dim inputDimension, const tensor_type inputType, tensor_dim outputDimension, tensor_type *outputType);
       /**< Optional. Set Null if not supported. Tensor_filter::main will
@@ -171,10 +190,28 @@ struct _GstTensor_Filter_Framework
        * When you use this, do NOT allocate or fix internal data structure based on it
        * until invoke is called. Gstreamer may try different dimensions before
        * settling down.
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in] inputDimension dimension of input tensor
+       * @param[in] inputType type of input tensor element
+       * @param[out] outputDimension dimension of output tensor (return value)
+       * @param[out] outputType type of output tensor element (return value)
+       * @return 0 if OK. non-zero if error.
        */
 
-  void (*open)(const GstTensor_Filter *filter, void **private_data); /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close */
-  void (*close)(const GstTensor_Filter *filter, void **private_data); /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that. */
+  void (*open)(const GstTensor_Filter *filter, void **private_data);
+      /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
+       */
+  void (*close)(const GstTensor_Filter *filter, void **private_data);
+      /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
+       *
+       * @param[in] filter "this" pointer. Use this to read property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
+       */
 };
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;
