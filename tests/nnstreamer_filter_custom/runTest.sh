@@ -47,4 +47,11 @@ casereport 7 $? "Golden test comparison"
 PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.so"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase08.average.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8
 
+
+# Test scaler + in-invoke allocator (9)
+PATH_TO_MODEL_SI="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler_allocator.so"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_SI}\" custom=\"320x240\" ! filesink location=\"testcase09.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase09.direct.log\" sync=true" 9
+python checkScaledTensor.py testcase09.direct.log 640 480 testcase09.scaled.log 320 240 3
+casereport 9 $? "Golden test comparison"
+
 report

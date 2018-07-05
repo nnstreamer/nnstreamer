@@ -3,10 +3,14 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 ADD_LIBRARY(nnstreamer_customfilter_scaler SHARED nnstreamer_customfilter_example_scaler.c)
 
 TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_scaler PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_scaler PUBLIC ${pkgs_CFLAGS_OTHER})
 
-INSTALL(TARGETS nnstreamer_customfilter_scaler
+ADD_LIBRARY(nnstreamer_customfilter_scaler_allocator SHARED nnstreamer_customfilter_example_scaler_allocator.c)
+
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler_allocator ${pkgs_LIBRARIES})
+TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_scaler_allocator PUBLIC ${pkgs_CFLAGS_OTHER})
+
+INSTALL(TARGETS nnstreamer_customfilter_scaler nnstreamer_customfilter_scaler_allocator
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}

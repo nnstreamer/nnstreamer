@@ -726,32 +726,49 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   g_assert ((filter->prop.inputConfigured & _TFC_ALL) == _TFC_ALL &&
       (filter->prop.outputConfigured & _TFC_ALL) == _TFC_ALL);
 
-  /* allocate_in_invoke is NYI */
-  g_assert (filter->prop.fw->allocate_in_invoke == FALSE);
-
-  /* 1. Allocate outbuf */
+  /* 1. Allocate outbuf if allocate_in_invoke is FALSE */
   g_assert (outbuf);
-  outBufSize = tensor_element_size[filter->prop.outputType] *
-      get_tensor_element_count (filter->prop.outputDimension);
-  if (gst_buffer_get_size (outbuf) < outBufSize) {
-    /** @todo: write a routine to say aloud when this happens */
-    gst_buffer_set_size (outbuf, outBufSize);
+
+  if (filter->prop.fw->allocate_in_invoke == FALSE) {
+    outBufSize = tensor_element_size[filter->prop.outputType] *
+        get_tensor_element_count (filter->prop.outputDimension);
+    if (gst_buffer_get_size (outbuf) < outBufSize) {
+      /* @TODO: write a routine to say aloud when this happens */
+      gst_buffer_set_size (outbuf, outBufSize);
+    }
+    debug_print (!filter->prop.silent, "outbuf = %lu / expected = %lu\n",
+        gst_buffer_get_size (outbuf), outBufSize);
+    g_assert (gst_buffer_get_size (outbuf) >= outBufSize);
+
+    /* 2. Call the filter-subplugin callback, "invoke" */
+    gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
+    gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
+    inptr = inInfo.data;
+    outptr = outInfo.data;
+
+    gst_tensor_filter_call (filter, retoutptr, invoke_NN, inptr, outptr);
+    g_assert (outptr == retoutptr);
+
+    gst_buffer_unmap (inbuf, &inInfo);
+    gst_buffer_unmap (outbuf, &outInfo);
+  } else {
+    GstMemory *mem;
+    gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
+    g_assert (gst_buffer_get_size (outbuf) == 0);
+
+    inptr = inInfo.data;
+    gst_tensor_filter_call (filter, retoutptr, invoke_NN, inptr, NULL);
+    gst_buffer_unmap (inbuf, &inInfo);
+
+    /* @TODO Performance: cache get_tensor_element_count * tensor_element_size */
+    mem = gst_memory_new_wrapped (0, retoutptr,
+        get_tensor_element_count (filter->prop.outputDimension) *
+        tensor_element_size[filter->prop.outputType],
+        0,
+        get_tensor_element_count (filter->prop.outputDimension) *
+        tensor_element_size[filter->prop.outputType], NULL, NULL);
+    gst_buffer_insert_memory (outbuf, -1, mem);
   }
-  debug_print (!filter->prop.silent, "outbuf = %lu / expected = %lu\n",
-      gst_buffer_get_size (outbuf), outBufSize);
-  g_assert (gst_buffer_get_size (outbuf) >= outBufSize);
-
-  /* 2. Call the filter-subplugin callback, "invoke" */
-  gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-  gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
-  inptr = inInfo.data;
-  outptr = outInfo.data;
-
-  gst_tensor_filter_call (filter, retoutptr, invoke_NN, inptr, outptr);
-  g_assert (outptr == retoutptr);
-
-  gst_buffer_unmap (inbuf, &inInfo);
-  gst_buffer_unmap (outbuf, &outInfo);
 
   /* 3. Return result! */
   return GST_FLOW_OK;
@@ -1183,6 +1200,11 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   tensor_type type;
   GstTensor_Filter_CheckStatus ret =
       get_tensor_from_padcap (srccap, dim, &type);
+
+  if (filter->prop.fw->allocate_in_invoke == TRUE) {
+    *othersize = 0;             /* Do not allocate outbuf. invoke_NN will allocate! */
+    return TRUE;
+  }
 
   g_assert ((ret & _TFC_ALL) == _TFC_ALL);
 

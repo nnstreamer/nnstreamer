@@ -146,7 +146,7 @@ struct _GstTensor_Filter_Framework
 {
   gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
-  gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. NYI. */
+  gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
 
   uint8_t *(*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
       /**< Mandatory callback. Invoke the given network model.

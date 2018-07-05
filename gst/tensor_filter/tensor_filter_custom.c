@@ -125,8 +125,15 @@ static void
 custom_open (const GstTensor_Filter * filter, void **private_data)
 {
   int retval = custom_loadlib (filter, private_data);
+  internal_data *ptr;
 
   g_assert (retval == 0);       /* This must be called only once */
+
+  ptr = *private_data;
+  g_assert (!ptr->methods->invoke != !ptr->methods->allocate_invoke);   /* XOR! */
+
+  if (ptr->methods->allocate_invoke)
+    NNS_support_custom.allocate_in_invoke = TRUE;
 }
 
 /**
@@ -147,12 +154,23 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
 
-  retval = ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
-      inptr, outptr);
-  if (retval == 0)
-    return outptr;
-  else
+  if (ptr->methods->invoke) {
+    retval = ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
+        inptr, outptr);
+    if (retval == 0)
+      return outptr;
+    else
+      return NULL;
+  } else if (ptr->methods->allocate_invoke) {
+    size_t size;
+    uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
+        &(filter->prop), inptr, &size);
+    g_assert (size == (get_tensor_element_count (filter->prop.outputDimension) *
+            tensor_element_size[filter->prop.outputType]));
+    return retptr;
+  } else {
     return NULL;
+  }
 }
 
 /**
