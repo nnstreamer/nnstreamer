@@ -53,6 +53,7 @@
  */
 
 #include "tensor_filter.h"
+#include <glib.h>
 
 /**
  * @brief Load tensorflow lite modelfile
@@ -66,7 +67,20 @@ tflite_loadModelFile (const GstTensor_Filter * filter, void **private_data)
    * need to load tensorflow lite model file by FlatBufferModel::BuildFromFile
    * after configuration of c->cpp api of tflite works done
    */
+
+  /* @TODO call tflite core api "tflite_new"  */
   return 0;
+}
+
+/**
+ * @brief The open callback for GstTensor_Filter_Framework. Called before anything else
+ */
+static void
+tflite_open (const GstTensor_Filter * filter, void **private_data)
+{
+  int retval = tflite_loadModelFile (filter, private_data);
+
+  g_assert (retval == 0);       /* This must be called only once */
 }
 
 /**
@@ -76,7 +90,11 @@ static int
 tflite_invoke (const GstTensor_Filter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  return 0;                     /* NYI */
+  int retval = tflite_loadModelFile (filter, private_data);
+  /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
+  /* @TODO call tflite core apis */
+
+  return retval;                /* NYI */
 }
 
 /**
@@ -88,6 +106,7 @@ tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
 {
   int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *inputDimension (uint32_t[MAX_RANK]), *type */
+  /* @TODO call tflite core api "tflite_getInputDim" */
 
   return retval;                /* NYI */
 }
@@ -101,8 +120,33 @@ tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
 {
   int retval = tflite_loadModelFile (filter, private_data);
   /* @TODO fill in *outputDimension (uint32_t[MAX_RANK]), *type */
+  /* @TODO call tflite core api "tflite_getOutputDim" */
 
   return retval;                /* NYI */
+}
+
+/**
+ * @brief The set-input-dim callback for GstTensor_Filter_Framework
+ */
+static int
+tflite_setInputDim (const GstTensor_Filter * filter, void **private_data,
+    const tensor_dim iDimension, const tensor_type iType,
+    tensor_dim oDimension, tensor_type * oType)
+{
+
+  int retval = tflite_loadModelFile (filter, private_data);
+  /* @TODO call tflite core apis */
+  return retval;                /* NYI */
+}
+
+/**
+ * @brief Free privateData and move on.
+ */
+static void
+tflite_close (const GstTensor_Filter * filter, void **private_data)
+{
+
+  /* @TODO call tflite core api "tflite_delete" */
 }
 
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
@@ -111,4 +155,7 @@ GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
+  .setInputDimension = tflite_setInputDim,
+  .open = tflite_open,
+  .close = tflite_close,
 };
