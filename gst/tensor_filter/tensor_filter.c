@@ -86,7 +86,12 @@ GstTensor_Filter_Framework *tensor_filter_supported[] = {
   [_T_F_UNDEFINED] = NULL,
 
   [_T_F_CUSTOM] = &NNS_support_custom,
+
+#ifdef DISABLE_TENSORFLOW_LITE
+  [_T_F_TENSORFLOW_LITE] = NULL,
+#else
   [_T_F_TENSORFLOW_LITE] = &NNS_support_tensorflow_lite,
+#endif
   [_T_F_TENSORFLOW] = NULL,
   [_T_F_CAFFE2] = NULL,
 

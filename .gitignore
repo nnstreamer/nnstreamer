@@ -12,6 +12,7 @@
 # vi files
 *.h~
 *.c~
+*.cc~
 *.swp
 
 # binary files

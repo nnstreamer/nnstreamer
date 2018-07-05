@@ -53,6 +53,7 @@
  */
 
 #include "tensor_filter.h"
+#include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
 
 /**

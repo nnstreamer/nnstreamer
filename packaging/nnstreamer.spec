@@ -30,6 +30,8 @@ BuildRequires:	gst-plugins-base
 BuildRequires:	gtest-devel
 # a few test cases uses python
 BuildRequires:	python
+# for tensorflow-lite
+BuildRequires: tensorflow-lite-devel
 
 %if 0%{?testcoverage}
 BuildRequires:	taos-ci-unittest-coverage-assessment
