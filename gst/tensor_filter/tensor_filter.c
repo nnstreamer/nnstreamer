@@ -306,7 +306,7 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
       ret = filter->prop.fw->funcname(filter, &filter->privateData, __VA_ARGS__); \
     } while(0)
 
-/* @TODO Call this where appropriate */
+/** @todo Call this where appropriate */
 #define gst_tensor_filter_close(filter) \
     do { \
       g_assert(filter->prop.fwClosed != TRUE); \
@@ -383,8 +383,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
         dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT,
         dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
         GST_TYPE_FRACTION, 0, 1, NULL);
-    /* @TODO Framerate is not determined with the given info */
-    /* @TODO: support other framerates! */
+    /** @todo Framerate is not determined with the given info */
+    /** @todo: support other framerates! */
   } else if (configured == _TFC_DIMENSION) {
     /* dimension is set. only the type is not configured (@TODO not sure if this is possible) */
     rank = gst_tensor_filter_get_rank (dimension);
@@ -393,23 +393,23 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
         G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3",
         G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
         GST_TYPE_FRACTION, 0, 1, NULL);
-    /* @TODO Framerate is not determined with the given info */
-    /* @TODO: support other framerates! */
+    /** @todo Framerate is not determined with the given info */
+    /** @todo: support other framerates! */
   } else if (configured == _TFC_TYPE) {
     /* type is set. only the dim is not configured (@TODO not sure if this is possible) */
     rank = gst_tensor_filter_get_rank (dimension);
     tmp =
         gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
         1, "type", G_TYPE_STRING, tensor_element_typename[*type], NULL);
-    /* @TODO Framerate is not determined with the given info */
-    /* @TODO: support other framerates! */
+    /** @todo Framerate is not determined with the given info */
+    /** @todo: support other framerates! */
   } else {
     /* knows nothing. This happens.. */
     tmp =
         gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
         1, NULL);
-    /* @TODO Framerate is not determined with the given info */
-    /* @TODO: support other framerates! */
+    /** @todo Framerate is not determined with the given info */
+    /** @todo: support other framerates! */
   }
 
   if (fromCaps) {
@@ -504,7 +504,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     }
   }
 
-  /* @TODO 5. Verify with get_input/output_dimension callbacks! */
+  /** @todo 5. Verify with get_input/output_dimension callbacks! */
 
   return resultCaps;
 }
@@ -734,7 +734,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   outBufSize = tensor_element_size[filter->prop.outputType] *
       get_tensor_element_count (filter->prop.outputDimension);
   if (gst_buffer_get_size (outbuf) < outBufSize) {
-    /* @TODO: write a routine to say aloud when this happens */
+    /** @todo: write a routine to say aloud when this happens */
     gst_buffer_set_size (outbuf, outBufSize);
   }
   debug_print (!filter->prop.silent, "outbuf = %lu / expected = %lu\n",
@@ -775,12 +775,12 @@ unknown_invoke:
 static GstFlowReturn
 gst_tensor_filter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
-  /* @TODO 0. Check all properties and inbuf size. */
-  /* @TODO 0-1. This shouldn't reach here if in-place mode if OFF with the subplugin */
-  /* @TODO 0-1. , which could be done at *_caps with gst_base_transform_set_in_place() */
-  /* @TODO 1. Resize buf if output is larger than input */
-  /* @TODO 2. Call the filter-subplugin callback, "invoke" */
-  /* @TODO 3. Return result! */
+  /** @todo 0. Check all properties and inbuf size. */
+  /** @todo 0-1. This shouldn't reach here if in-place mode if OFF with the subplugin */
+  /** @todo 0-1. , which could be done at *_caps with gst_base_transform_set_in_place() */
+  /** @todo 1. Resize buf if output is larger than input */
+  /** @todo 2. Call the filter-subplugin callback, "invoke" */
+  /** @todo 3. Return result! */
   g_assert (1 == 0);
   return GST_FLOW_ERROR;
 }
@@ -932,16 +932,16 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     /* caps: sink pad. get src pad info */
     obj->prop.outputCapNegotiated = TRUE;
 
-    /* @TODO 1. Check caps w/ getInputDimension && saved input dimension */
-    /* @TODO 2. Check returning-caps w/ getOutputDimension && saved output dimension */
+    /** @todo 1. Check caps w/ getInputDimension && saved input dimension */
+    /** @todo 2. Check returning-caps w/ getOutputDimension && saved output dimension */
 
     return gst_tensor_filter_fix_caps (obj, TRUE, caps);
   } else {
     /* caps: src pad. get sink pad info */
     obj->prop.inputCapNegotiated = TRUE;
 
-    /* @TODO 1. Check caps w/ getOutputDimension && saved output dimension */
-    /* @TODO 2. Check returning-caps w/ getInputDimension && saved input dimension */
+    /** @todo 1. Check caps w/ getOutputDimension && saved output dimension */
+    /** @todo 2. Check returning-caps w/ getInputDimension && saved input dimension */
     return gst_tensor_filter_fix_caps (obj, FALSE, caps);
   }
 
@@ -1144,24 +1144,24 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   g_assert (check >= 0);
 
   result = gst_tensor_filter_generate_dim_from_cap (incaps, dim, &type);
-  /* @TODO Configure filter-dim from caps if filter-dim is not configured, yet */
+  /** @todo Configure filter-dim from caps if filter-dim is not configured, yet */
   if ((filter->prop.inputConfigured & _TFC_ALL) != _TFC_ALL) {
     /* we may set if result == TRUE */
     g_assert (FALSE);           /* NYI */
 
     g_assert (result == TRUE);
   }
-  /* @TODO Check consistencyu between dim/type with filter->input* */
+  /** @todo Check consistencyu between dim/type with filter->input* */
 
   result = gst_tensor_filter_generate_dim_from_cap (outcaps, dim, &type);
-  /* @TODO Configure filter-dim from caps if filter-dim is not configured, yet */
+  /** @todo Configure filter-dim from caps if filter-dim is not configured, yet */
   if ((filter->prop.outputConfigured & _TFC_ALL) != _TFC_ALL) {
     /* we may set if result == TRUE */
     g_assert (FALSE);           /* NYI */
 
     g_assert (result == TRUE);
   }
-  /* @TODO Check consistencyu between dim/type with filter->output* */
+  /** @todo Check consistencyu between dim/type with filter->output* */
 
   return TRUE;
 }

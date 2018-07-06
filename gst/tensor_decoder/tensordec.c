@@ -237,7 +237,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
 static int
 add_stride_padding_per_row (const gchar * format, int width)
 {
-  /* @TODO The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
+  /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
   if ((!g_strcmp0 (format, "RGB") || !g_strcmp0 (format, "BGR")
           || !g_strcmp0 (format, "I420")) && (width % 4))
     return 1;
@@ -279,7 +279,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
   structure = gst_caps_get_structure (caps, 0);
   return_false_if_fail (gst_structure_get_int (structure, "dim1", &dim));
   dimension[0] = (uint32_t) dim;
-  /* @TODO Need to support orther media format (RGB, BRG, YUV,.. etc.). And should support Audio as well. */
+  /** @todo Need to support orther media format (RGB, BRG, YUV,.. etc.). And should support Audio as well. */
   filter->output_media_type = _NNS_VIDEO;
   if (dimension[0] == 3 || dimension[0] == 4) {
     filter->format = dimension[0];
@@ -307,7 +307,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 
 
   /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
-  /* @TODO: Add more conditions! */
+  /** @todo: Add more conditions! */
   if (add_stride_padding_per_row (format, dimension[1])) {
     g_print
         ("  Width(dim2) is not divisible with 4. The performance won't be good; one more memcpy is added.\n");
@@ -339,7 +339,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 
   filter->Configured = TRUE;
 
-  /* @TODO Need to specify of video mode */
+  /** @todo Need to specify of video mode */
   filter->views = 1;
   interlace = interlace_progressive;
   if (!g_strcmp0 (interlace, "progressive")) {
@@ -349,7 +349,7 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
     return FALSE;
   }
 
-  /* @TODO Support other types */
+  /** @todo Support other types */
   filter->output_media_type = _NNS_VIDEO;
   return TRUE;
 }
@@ -484,7 +484,7 @@ gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   switch (filter->output_media_type) {
     case _NNS_VIDEO:
       if (filter->addPadding == TRUE) {
-        /* @TODO Add Padding for x-raw */
+        /** @todo Add Padding for x-raw */
       }
       break;
       /* NOT SUPPORTED */
@@ -584,14 +584,14 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
       g_free (str);
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
-      /* @TODO: see if the error is from ranging width/height before entering here */
+      /** @todo: see if the error is from ranging width/height before entering here */
       return tmp;
     }
     debug_print (!obj->silent, "transform_caps SINK specific\n");
 
     g_assert (bogusFilter.Configured == TRUE);
 
-    /* @TODO Need to support other format */
+    /** @todo Need to support other format */
     gchar color[1024], interlace[1024];
     if (bogusFilter.format == 3)
       g_sprintf (color, "%s", "RGB");
@@ -630,7 +630,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     return tmp;
   } else if (direction == GST_PAD_SRC) {
     /* Construct possible GstCap (sinkpad) with src_factory */
-    /* @TODO This supports video only! */
+    /** @todo This supports video only! */
     GstStaticCaps staticcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
     tmp = gst_static_caps_get (&staticcap);
 

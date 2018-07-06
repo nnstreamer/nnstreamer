@@ -79,7 +79,7 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
   char *dlsym_error;
 
   if (filter->privateData != NULL) {
-    /* @TODO : Check the integrity of filter->data and filter->modelFilename, nnfw */
+    /** @todo : Check the integrity of filter->data and filter->modelFilename, nnfw */
     return 1;
   }
 
@@ -111,7 +111,7 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
   ptr->customFW_private_data = ptr->methods->initfunc (&(filter->prop));
 
   /* After init func, (getInput XOR setInput) && (getOutput XOR setInput) must hold! */
-  /* @TODO Double check if this check is really required and safe */
+  /** @todo Double check if this check is really required and safe */
   g_assert (!ptr->methods->getInputDim != !ptr->methods->setInputDim &&
       !ptr->methods->getOutputDim != !ptr->methods->setInputDim);
 

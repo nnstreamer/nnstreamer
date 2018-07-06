@@ -281,7 +281,7 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
 static int
 remove_stride_padding_per_row (const gchar * format, int width)
 {
-  /* @TODO The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
+  /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
   if ((!g_strcmp0 (format, "RGB") || !g_strcmp0 (format, "BGR")
           || !g_strcmp0 (format, "I420")) && (width % 4))
     return 1;
@@ -344,7 +344,7 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
   }
 
   /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
-  /* @TODO: Add more conditions! */
+  /** @todo: Add more conditions! */
   if (remove_stride_padding_per_row (format, dimension[1])) {
     filter->removePadding = TRUE;
   }
@@ -383,7 +383,7 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
 
   filter->tensorConfigured = TRUE;
 
-  /* @TODO Support other types */
+  /** @todo Support other types */
   filter->input_media_type = _NNS_VIDEO;
   return TRUE;
 }
@@ -457,7 +457,7 @@ gst_c2t_transformer_videoframe (GstTensor_Converter *
 
     g_assert (offset % 4);
 
-    /* @TODO: We don't know if outbuf is already allocated at this point, yet! */
+    /** @todo: We don't know if outbuf is already allocated at this point, yet! */
     g_assert (gst_buffer_get_size (outbuf) >=
         (get_tensor_element_count (filter->dimension) *
             tensor_element_size[filter->type]));
@@ -590,7 +590,7 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
             src_idx += offset;
           }
         }
-        /* @TODO: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
+        /** @todo: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
         gst_buffer_unmap (buf, &info);
 
         err_print
@@ -639,14 +639,14 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
   bogusFilter.tensorConfigured = FALSE;
   GstTensor_Converter *obj = GST_TENSOR_CONVERTER_CAST (trans);
 
-  /* @TODO: Verify if direction == GST_PAD_SINK means caps is sink pad */
+  /** @todo: Verify if direction == GST_PAD_SINK means caps is sink pad */
   if (direction == GST_PAD_SINK) {
     GstStructure *structure;
     gchar *str;
     /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
-    /* @TODO: Verify if this assumption is correct */
+    /** @todo: Verify if this assumption is correct */
 
-    /* @TODO CRITICAL: Handle when caps is in range, not fixed */
+    /** @todo CRITICAL: Handle when caps is in range, not fixed */
 
     /* Construct bogusFilter from caps (sinkpad) */
     ret = gst_tensor_converter_configure_tensor (caps, &bogusFilter);
@@ -699,7 +699,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
 
       /* If given caps are in range for width/height,
          we cannot configure tensor, however, we may return proper srcpad caps */
-      /* @TODO: see if the error is from ranging width/height before entering here */
+      /** @todo: see if the error is from ranging width/height before entering here */
       return tmp;
     }
 
@@ -741,7 +741,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     gchar *str;
 
     /* Construct possible GstCap (sinkpad) with src_factory */
-    /* @TODO This supports video only! */
+    /** @todo This supports video only! */
     GstStaticCaps staticcap =
         GST_STATIC_CAPS
         ("video/x-raw, format = (string){RGB, BGRx}, views = (int)1, "
@@ -842,7 +842,7 @@ gst_tensor_converter_set_caps (GstBaseTransform * trans,
   GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
       " to %" GST_PTR_FORMAT, incaps, outcaps);
 
-  /* @TODO Supports video only */
+  /** @todo Supports video only */
   /* input caps */
   if (!gst_video_info_from_caps (&in_info, incaps)) {
     err_print ("Cannot set_caps\n");
@@ -855,8 +855,8 @@ gst_tensor_converter_set_caps (GstBaseTransform * trans,
 
   filter->negotiated = gst_tensor_converter_configure_tensor (incaps, filter);
 
-  /* @TODO Verity if outcaps and filter conf are compatible */
-  /* @TODO THIS IS REQUIRED TO FILL IN: Return FALSE if filter is not compatible with outcaps */
+  /** @todo Verity if outcaps and filter conf are compatible */
+  /** @todo THIS IS REQUIRED TO FILL IN: Return FALSE if filter is not compatible with outcaps */
 
   return TRUE;
 }
