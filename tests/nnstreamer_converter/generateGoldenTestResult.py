@@ -238,13 +238,13 @@ def genCase02_PNG_random(colorType, width, height):
 # @brief Generate a fixed PNG sequence for stream test
 # @return 0 if success. non-zero if failed.
 #
-# This gives "16x16", black, white, green, red, blue, checker (4x4 x 16, left-top/right-bottom white). "6 files" with 0 ~ 5 postfix in the filename
+# This gives "16x16", black, white, green, red, blue, wb-checker, rb-checker, gr-checker, red-cross-on-white, blue-cross-on-black (4x4 x 16, left-top/right-bottom white/red/green). "10 files" with 0 ~ 9 postfix in the filename
 def genCase08_PNG_stream(filename_prefix, goldenfilename):
-    string = ["", "", "", "", "", ""]
+    string = ["", "", "", "", "", "", "", "", "", ""]
     sizePerPixel = 3
     sizex = 16
     sizey = 16
-    imgbin = [[], [], [], [], [], []]
+    imgbin = [[], [], [], [], [], [], [], [], [], []]
 
     for y in range(0, sizey):
         for x in range(0, sizex):
@@ -263,16 +263,44 @@ def genCase08_PNG_stream(filename_prefix, goldenfilename):
             # blue, Frame 4
             imgbin[4].append((0, 0, 255))
             string[4] += pack('BBB', 0, 0, 255)
-            # checker, Frame 5
+            # white-black checker, Frame 5
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
                 imgbin[5].append((0, 0, 0))
                 string[5] += pack('BBB', 0, 0, 0)
             else:
                 imgbin[5].append((255, 255, 255))
                 string[5] += pack('BBB', 255, 255, 255)
+            # red-blue checker, Frame 6
+            if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
+                imgbin[6].append((0, 0, 255))
+                string[6] += pack('BBB', 0, 0, 255)
+            else:
+                imgbin[6].append((255, 0, 0))
+                string[6] += pack('BBB', 255, 0, 0)
+            # green-red checker, Frame 7
+            if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
+                imgbin[7].append((255, 0, 0))
+                string[7] += pack('BBB', 255, 0, 0)
+            else:
+                imgbin[7].append((0, 255, 0))
+                string[7] += pack('BBB', 0, 255, 0)
+            # red-cross-on-white, Frame 8
+            if x == y:
+                imgbin[8].append((255, 0, 0))
+                string[8] += pack('BBB', 255, 0, 0)
+            else:
+                imgbin[8].append((255, 255, 255))
+                string[8] += pack('BBB', 255, 255, 255)
+            # blue-cross-on-black, Frame 9
+            if x == y:
+                imgbin[9].append((0, 0, 255))
+                string[9] += pack('BBB', 0, 0, 255)
+            else:
+                imgbin[9].append((0, 0, 0))
+                string[9] += pack('BBB', 0, 0, 0)
 
     newfile = open(goldenfilename, 'wb')
-    for i in range(0, 6):
+    for i in range(0, 10):
         img = Image.new('RGB', (sizex, sizey))
         img.putdata(imgbin[i])
         img.save(filename_prefix + str(i) + '.png')
