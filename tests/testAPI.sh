@@ -26,8 +26,7 @@ log=""
 # @brief check if a command is installed
 # @param 1 the command name
 function checkDependency {
-    echo "Checking for $1..."
-    which "$1" 2>/dev/null || {
+    which "$1" 1>/dev/null || {
       echo "Ooops. '$1' command is not installed. Please install '$1'."
       exit 1
     }
