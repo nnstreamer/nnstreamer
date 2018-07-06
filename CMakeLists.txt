@@ -3,6 +3,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(nnstreamer C CXX)
 
 OPTION(TIZEN "Enable Tizen build mode" OFF)
+OPTION(DISABLE_TENSORFLOW_LITE "Disable tensorflow-lite support" OFF)
 
 ADD_DEFINITIONS(-DVERSION="0.0.0")
 
