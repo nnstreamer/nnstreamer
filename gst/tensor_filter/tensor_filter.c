@@ -358,10 +358,13 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 {
   tensor_type *type = NULL, _type;
   uint32_t *dimension;
+  tensor_dim dim;
   GstTensor_Filter_CheckStatus configured = _TFC_INIT;
   GstTensor_Filter_Properties *prop = &filter->prop;
-  GstCaps *tmp = NULL, *tmp2 = NULL, *resultCaps = NULL;
+  GstCaps *tmp = NULL, *tmp2 = NULL, *staticcap = NULL, *resultCaps = NULL;
+  GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
   int rank;
+  staticcap = gst_static_caps_get (&rawcap);
 
   if (isInput == TRUE) {
     type = &(prop->inputType);
@@ -375,41 +378,33 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
   /* 2. configure caps based on type & dimension */
   if (configured == _TFC_ALL) {
-    /* static cap can be configured. all figured out already. */
     rank = gst_tensor_filter_get_rank (dimension);
-    tmp =
+    tmp2 =
         gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
         G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT,
         dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT,
-        dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
-        GST_TYPE_FRACTION, 0, 1, NULL);
-    /** @todo Framerate is not determined with the given info */
-    /** @todo: support other framerates! */
+        dimension[2], "dim4", G_TYPE_INT, dimension[3], NULL);
+    tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (tmp2);
   } else if (configured == _TFC_DIMENSION) {
-    /* dimension is set. only the type is not configured (@TODO not sure if this is possible) */
     rank = gst_tensor_filter_get_rank (dimension);
-    tmp =
+    tmp2 =
         gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1",
         G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3",
-        G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], "framerate",
-        GST_TYPE_FRACTION, 0, 1, NULL);
-    /** @todo Framerate is not determined with the given info */
-    /** @todo: support other framerates! */
+        G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], NULL);
+    tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (tmp2);
   } else if (configured == _TFC_TYPE) {
-    /* type is set. only the dim is not configured (@TODO not sure if this is possible) */
-    rank = gst_tensor_filter_get_rank (dimension);
-    tmp =
-        gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
-        1, "type", G_TYPE_STRING, tensor_element_typename[*type], NULL);
-    /** @todo Framerate is not determined with the given info */
-    /** @todo: support other framerates! */
+    tmp2 =
+        gst_caps_new_simple ("other/tensor", "type", G_TYPE_STRING,
+        tensor_element_typename[*type], NULL);
+    tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (tmp2);
   } else {
     /* knows nothing. This happens.. */
-    tmp =
-        gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION, 0,
-        1, NULL);
-    /** @todo Framerate is not determined with the given info */
-    /** @todo: support other framerates! */
+    tmp2 = gst_caps_new_any ();
+    tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (tmp2);
   }
 
   if (fromCaps) {
@@ -417,6 +412,10 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     if (prop->silent == FALSE) {
       str = gst_caps_to_string (fromCaps);
       debug_print (TRUE, "fromCaps: %s\n", str);
+      g_free (str);
+
+      str = gst_caps_to_string (tmp);
+      debug_print (TRUE, "filter: %s\n", str);
       g_free (str);
     }
     tmp2 = gst_caps_intersect_full (fromCaps, tmp, GST_CAPS_INTERSECT_FIRST);
@@ -436,6 +435,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   }
 
   /* 2-2. Extract effective dim info from tmp */
+  dimension = dim;
   configured = gst_tensor_filter_generate_dim_from_cap (tmp, dimension, &_type);
   configured &= _TFC_ALL;
   /* tmp is no more needed */
@@ -460,9 +460,10 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     if (ret != 0) {
       /* We do not have enough info for dimension */
       /* knows nothing. This happens.. */
+      tmp = gst_caps_new_any ();
       resultCaps =
-          gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION,
-          0, 1, NULL);
+          gst_caps_intersect_full (staticcap, tmp, GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref (tmp);
     }
 
     /* 3-1.2. Configure resultCap from rdim/rtype */
@@ -472,8 +473,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
           gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
           G_TYPE_STRING, tensor_element_typename[rtype], "dim1", G_TYPE_INT,
           rdim[0], "dim2", G_TYPE_INT, rdim[1], "dim3", G_TYPE_INT,
-          rdim[2], "dim4", G_TYPE_INT, rdim[3], "framerate",
-          GST_TYPE_FRACTION, 0, 1, NULL);
+          rdim[2], "dim4", G_TYPE_INT, rdim[3], NULL);
     }
   } else {
     /* result == sinkpad (input) */
@@ -487,9 +487,10 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     if (ret != 0) {
       /* We do not have output->input dimension conversion. */
       /* knows nothing. This happens.. */
+      tmp = gst_caps_new_any ();
       resultCaps =
-          gst_caps_new_simple ("other/tensor", "framerate", GST_TYPE_FRACTION,
-          0, 1, NULL);
+          gst_caps_intersect_full (staticcap, tmp, GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref (tmp);
     }
 
     /* 3-1.2. Configure resultCap from rdim/rtype */
@@ -499,8 +500,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
           gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
           "type", G_TYPE_STRING, tensor_element_typename[rtype], "dim1",
           G_TYPE_INT, rdim[0], "dim2", G_TYPE_INT, rdim[1], "dim3",
-          G_TYPE_INT, rdim[2], "dim4", G_TYPE_INT, rdim[3], "framerate",
-          GST_TYPE_FRACTION, 0, 1, NULL);
+          G_TYPE_INT, rdim[2], "dim4", G_TYPE_INT, rdim[3], NULL);
     }
   }
 

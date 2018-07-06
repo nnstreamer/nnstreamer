@@ -13,6 +13,7 @@ from __future__ import print_function
 from struct import *
 from PIL import Image
 import random
+import sys
 
 ##
 # @brief Generate Golden Test Case 01, a single videosrctest frame of 280x40xRGB
@@ -313,10 +314,18 @@ def write(filename, string):
     newfile = open(filename, 'wb')
     newfile.write(string)
 
-write('testcase01.rgb.golden', genCase01_RGB()[0])
-write('testcase01.bgrx.golden', genCase01_BGRx()[0])
-write('testcase02_RGB_640x480.golden', genCase02_PNG_random('RGB', 640, 480)[0])
-write('testcase02_BGRx_640x480.golden', genCase02_PNG_random('BGRx', 640, 480)[0])
-write('testcase02_RGB_642x480.golden', genCase02_PNG_random('RGB', 642, 480)[0])
-write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
-genCase08_PNG_stream('testsequence_', 'testcase08.golden')
+# Allow to create specific cases only if proper argument is given
+target=-1 # -1 == ALL
+if len(sys.argv) > 2: # There's some arguments
+    target = int(sys.argv[1])
+
+if target == -1 or target == 1:
+    write('testcase01.rgb.golden', genCase01_RGB()[0])
+    write('testcase01.bgrx.golden', genCase01_BGRx()[0])
+if target == -1 or target == 2:
+    write('testcase02_RGB_640x480.golden', genCase02_PNG_random('RGB', 640, 480)[0])
+    write('testcase02_BGRx_640x480.golden', genCase02_PNG_random('BGRx', 640, 480)[0])
+    write('testcase02_RGB_642x480.golden', genCase02_PNG_random('RGB', 642, 480)[0])
+    write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
+if target == -1 or target == 8:
+    genCase08_PNG_stream('testsequence_', 'testcase08.golden')

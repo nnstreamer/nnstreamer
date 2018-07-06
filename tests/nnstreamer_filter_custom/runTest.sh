@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 source ../testAPI.sh
 
+if [ "$SKIPGEN" == "YES" ]
+then
+  echo "Test Case Generation Skipped"
+  sopath=$2
+else
+  echo "Test Case Generation Started"
+  python ../nnstreamer_converter/generateGoldenTestResult.py 8
+  sopath=$1
+fi
+
 # Test gst availability. (0)
 gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! filesink location=\"testcase02.apitest.log\" sync=true" 0
 
@@ -47,11 +57,18 @@ casereport 7 $? "Golden test comparison"
 PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.so"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase08.average.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8
 
+# Apply average to stream (9)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase09.average.log\" sync=true t. ! queue ! filesink location=\"testcase09.direct.log\" sync=true" 9
 
-# Test scaler + in-invoke allocator (9)
+
+# Apply scaler to stream (10)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"8x8\" ! filesink location=\"testcase10.average.log\" sync=true t. ! queue ! filesink location=\"testcase10.direct.log\" sync=true" 10
+
+
+# Test scaler + in-invoke allocator (11)
 PATH_TO_MODEL_SI="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler_allocator.so"
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_SI}\" custom=\"320x240\" ! filesink location=\"testcase09.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase09.direct.log\" sync=true" 9
-python checkScaledTensor.py testcase09.direct.log 640 480 testcase09.scaled.log 320 240 3
-casereport 9 $? "Golden test comparison"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_SI}\" custom=\"320x240\" ! filesink location=\"testcase11.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase11.direct.log\" sync=true" 11
+python checkScaledTensor.py testcase11.direct.log 640 480 testcase11.scaled.log 320 240 3
+casereport 11 $? "Golden test comparison"
 
 report
