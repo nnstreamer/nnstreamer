@@ -34,14 +34,14 @@ echo "[MODULE] plugins-good: Plugin group that follow Apache license with good q
 
 
 ###### plugins-ugly ################################################################################################
-echo "[MODULE] plugins-ugly: Plugin group that does not have evaluation and aging test enough"
+echo "[MODULE] plugins-staging: Plugin group that does not have evaluation and aging test enough"
 # Please append your plugin modules here.
 
 module_name="pr-audit-resource"
 echo "[DEBUG] $module_name is started."
 echo "[DEBUG] CI/$module_name: Check if there are not-installed resource files."
 echo "[DEBUG] Current path: $(pwd)."
-source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-ugly/$module_name.sh
+source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-staging/$module_name.sh
 $module_name
 echo "[DEBUG] $module_name is done."
 

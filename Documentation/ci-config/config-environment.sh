@@ -34,7 +34,7 @@ SRC_PATH="./gst/"
 # Audit Area (pr-audit)
 # Skip build-checker / unit-test checker if all changes are limited to:
 # The path starts without / and it denotes the full paths in the git repo. (regex)
-SKIP_CI_PATHS="^ci/.*|^Documentation/.*|^\.github/.*|^obsolete/.*|^README\.md"
+SKIP_CI_PATHS="^ci/.*|^Documentation/.*|^\.github/.*|^obsolete/.*|^README\.md|^temporal-bin/.*|^external/.*"
 
 # Define the number of CPUs to build source codes in parallel
 # We recommend that you define appropriate # of CPUs that does not result in
@@ -61,6 +61,17 @@ pr_comment_pr_monitor=0
 #### Build test: Write build type to test ex) "x86_64 armv7l" 
 pr_build_arch_type="x86_64 armv7l"
 
+### Check level of doxygen tag:
+# Basic = 0 (@file + @brief)
+# Advanced = 1 (Basic + "@author, @bug and functions with ctags")
+pr_doxygen_check_level=1
+
+#### File size limit
+# unit of the file size is MB.
+filesize_limit=5
+
+# folder name to exclude the file size check rule. (e.g., <github-repository-name>/temproal-bin/)
+filesize_limit_exception_folder="temporal-bin"
 
 ################# Do not modify the below statements #################################
 
