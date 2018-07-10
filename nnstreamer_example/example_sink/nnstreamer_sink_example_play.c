@@ -4,6 +4,7 @@
  * @brief	Sample code for tensor sink plugin
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
+ * @bug		No known bugs.
  *
  * This sample app shows video frame using two pipelines.
  *
@@ -235,7 +236,6 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 int
 main (int argc, char **argv)
 {
-  const guint num_buffers = 200;
   const guint width = 640;
   const guint height = 480;
 
@@ -255,8 +255,8 @@ main (int argc, char **argv)
 
   str_pipeline =
       g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,width=%d,height=%d ! videoconvert ! video/x-raw,format=RGB ! tensor_converter ! tensor_sink name=tensor_sink",
-      num_buffers, width, height);
+      ("videotestsrc is-live=TRUE ! video/x-raw,format=RGB,width=%d,height=%d ! "
+      "tensor_converter ! tensor_sink name=tensor_sink", width, height);
   g_app_data.data_pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app_data.data_pipeline != NULL);

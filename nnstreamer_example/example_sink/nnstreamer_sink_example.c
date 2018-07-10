@@ -4,6 +4,7 @@
  * @brief	Sample code for tensor sink plugin
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
+ * @bug		No known bugs.
  *
  * Simple example to init tensor sink element and get data.
  *
@@ -225,6 +226,8 @@ int
 main (int argc, char **argv)
 {
   const guint num_buffers = 100;
+  const guint width = 640;
+  const guint height = 480;
 
   gchar *str_pipeline;
   gulong handle_id;
@@ -243,8 +246,9 @@ main (int argc, char **argv)
   /* 640x480 30fps for test */
   str_pipeline =
       g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,width=640,height=480 ! videoconvert ! video/x-raw,format=RGB ! tensor_converter ! tensor_sink name=tensor_sink",
-      num_buffers);
+      ("videotestsrc num-buffers=%d ! video/x-raw,format=RGB,width=%d,height=%d ! "
+      "tensor_converter ! tensor_sink name=tensor_sink",
+      num_buffers, width, height);
   g_app_data.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app_data.pipeline != NULL);
