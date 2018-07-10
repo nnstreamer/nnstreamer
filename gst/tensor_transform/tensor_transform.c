@@ -461,23 +461,265 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 }
 
 /**
+ * @brief Read cap, write dim/type from the cap.
+ * @param[in] caps The input caps to be read
+ * @param[out] dim The corresponding tensor-dim from caps
+ * @param[out] type The corresponding tensor-type from caps
+ * @param[out] frate_num Framerate, numerator
+ * @param[out] frate_den Framerate, denomincator
+ * @return TRUE if successful (both dim/type read). FALSE if not.
+ */
+static gboolean
+gst_tensor_read_cap (GstCaps * caps, tensor_dim dim, tensor_type * type,
+    gint * frate_num, gint * frate_den)
+{
+  unsigned int i, capsize;
+  const GstStructure *str;
+  int rank, j;
+  const gchar *strval;
+  gboolean dimset = FALSE, typeset = FALSE;
+  gint fn, fd;
+
+  if (!caps)
+    return FALSE;
+
+  capsize = gst_caps_get_size (caps);
+  for (i = 0; i < capsize; i++) {
+    str = gst_caps_get_structure (caps, i);
+    if (dimset == TRUE) {
+      tensor_dim dim2;
+      if (gst_structure_get_int (str, "dim1", (int *) &dim2[0]) &&
+          gst_structure_get_int (str, "dim2", (int *) &dim2[1]) &&
+          gst_structure_get_int (str, "dim3", (int *) &dim2[2]) &&
+          gst_structure_get_int (str, "dim4", (int *) &dim2[3])) {
+        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+          g_assert (dim[j] == dim2[j]);
+      }
+    } else {
+      if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
+          gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
+          gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
+          gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
+        dimset = TRUE;
+        if (gst_structure_get_int (str, "rank", &rank)) {
+          for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
+            g_assert (dim[j] == 1);
+        }
+      }
+    }
+    strval = gst_structure_get_string (str, "type");
+    if (strval) {
+      tensor_type type2;
+      type2 = get_tensor_type (strval);
+      g_assert (type2 != _NNS_END);
+      if (typeset == TRUE)
+        g_assert (*type == type2);
+      *type = type2;
+      typeset = TRUE;
+    }
+    if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
+      *frate_num = fn;
+      *frate_den = fd;
+    }
+  }
+  return dimset && typeset;
+}
+
+/**
+ * @brief Calculate the rank of a tensor
+ * @param dimension The dimension vector (tensor_dim = uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
+ * @return the rank value
+ */
+static int
+get_rank (const tensor_dim dimension)
+{
+  int i = 0;
+  int rank = 0;
+  g_assert (dimension);
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    g_assert (dimension[i] > 0);
+    if (dimension[i] > 1)
+      rank = i + 1;
+  }
+  if (rank == 0)                /* a scalar (assume it is 1-dim vector) */
+    return 1;
+  return rank;
+}
+
+/**
+ * @brief Write cap from the given dim/type. You need to free the returned value
+ * @param[in] dim The given tensor dimension
+ * @param[in] type The given tensor element type
+ * @param[in] fn Framerate numerator
+ * @param[in] fd Framerate denominator
+ * @return The new allocated GstCaps from the given dim/type.
+ */
+static GstCaps *
+gst_tensor_write_cap (const tensor_dim dim, tensor_type type, gint fn, gint fd)
+{
+  int rank = get_rank (dim);
+  GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
+  GstCaps *tmp, *tmp2;
+  GstCaps *staticcap = gst_static_caps_get (&rawcap);
+
+  if (fn != -1 && fd != -1) {
+    tmp2 =
+        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+        G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
+        dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
+        dim[2], "dim4", G_TYPE_INT, dim[3],
+        "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
+  } else {
+    tmp2 =
+        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+        G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
+        dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
+        dim[2], "dim4", G_TYPE_INT, dim[3], NULL);
+  }
+  tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
+  gst_caps_unref (tmp2);
+
+  return tmp;
+}
+
+/**
+ * @brief Dimension conversion calculation
+ * @param[in] filter "this" pointer
+ * @param[in] direction GST_PAD_SINK if input->output conv
+ * @param[in] srcDim dimension of source tensor (input if direction is SINK)
+ * @param[out] destDim dimension of destinatino tensor (output if direction is SINK)
+ * @return TRUE if success
+ */
+static gboolean
+gst_tensor_dimension_conversion (GstTensor_Transform * filter,
+    GstPadDirection direction, const tensor_dim srcDim, tensor_dim destDim)
+{
+  gboolean ret = FALSE;
+  switch (filter->mode) {
+    case GTT_DIMCHG:
+      if (direction == GST_PAD_SINK) {
+        int i;
+        int a = filter->data_dimchg.from;
+        int b = filter->data_dimchg.to;
+
+        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+          if (i < a && i < b) {
+            destDim[i] = srcDim[i];
+          } else if (i > a && i > b) {
+            destDim[i] = srcDim[i];
+          } else if (a > b) {
+            if (i == b) {
+              destDim[i] = srcDim[a];
+            } else {
+              g_assert (i > 0 && i > b);
+              destDim[i] = srcDim[i - 1];
+            }
+          } else if (a < b) {
+            if (i == b) {
+              destDim[i] = srcDim[a];
+            } else {
+              g_assert (i < b && i < (NNS_TENSOR_RANK_LIMIT - 1));
+              destDim[i] = srcDim[i + 1];
+            }
+          } else {
+            /* a == b */
+            destDim[i] = srcDim[i];
+          }
+        }
+        ret = TRUE;
+      } else {
+        int i;
+        int a = filter->data_dimchg.from;
+        int b = filter->data_dimchg.to;
+
+        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+          if (i < a && i < b) {
+            destDim[i] = srcDim[i];
+          } else if (i > a && i > b) {
+            destDim[i] = srcDim[i];
+          } else if (a > b) {
+            if (i == a) {
+              destDim[i] = srcDim[b];
+            } else {
+              g_assert (i < a && i < (NNS_TENSOR_RANK_LIMIT - 1));
+              destDim[i] = srcDim[i + 1];
+            }
+          } else if (a < b) {
+            if (i == a) {
+              destDim[i] = srcDim[b];
+            } else {
+              g_assert (i > 0 && i > a);
+              destDim[i] = srcDim[i - 1];
+            }
+          } else {
+            /* a == b */
+            destDim[i] = srcDim[i];
+          }
+        }
+        ret = TRUE;
+      }
+      break;
+    default:
+      return FALSE;
+  }
+  return ret;
+}
+
+/**
  * @brief configure srcpad cap from "proposed" cap. (required vmethod for BaseTransform)
  *
  * @param trans ("this" pointer)
  * @param direction (why do we need this?)
  * @param caps sinkpad cap
- * @param filter this element's cap (don't know specifically.)
+ * @param filtercap this element's cap (don't know specifically.)
+ *
+ * @todo Get to know what the heck is @filtercap and use it!
  */
 static GstCaps *
 gst_tensor_transform_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * filter)
+    GstPadDirection direction, GstCaps * caps, GstCaps * filtercap)
 {
-  /* @todo NYI */
+  /* @todo NYI: framerate configuration! */
+  tensor_dim in, out;
+  tensor_type type;
+  gboolean ret;
+  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
+  GstCaps *retcap = NULL;
+  gint fn = -1, fd = -1;
+
+  g_assert (filter->loaded);
 
   if (direction == GST_PAD_SINK) {
+    ret = gst_tensor_read_cap (caps, in, &type, &fn, &fd);
+    if (ret == TRUE)
+      ret = gst_tensor_dimension_conversion (filter, direction, in, out);
+    if (ret == TRUE)
+      retcap = gst_tensor_write_cap (out, type, fn, fd);
   } else {
+    ret = gst_tensor_read_cap (caps, out, &type, &fn, &fd);
+    if (ret == TRUE)
+      ret = gst_tensor_dimension_conversion (filter, direction, out, in);
+    if (ret == TRUE)
+      retcap = gst_tensor_write_cap (in, type, fn, fd);
   }
-  return NULL;
+
+  if (retcap == NULL) {
+    /* Undetermined. Return the template pad */
+    GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
+    GstCaps *staticcap = gst_static_caps_get (&rawcap);
+    GstCaps *any = gst_caps_new_any ();
+    retcap = gst_caps_intersect_full (staticcap, any, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (any);
+  }
+
+  if (filtercap) {
+    GstCaps *retcap2 =
+        gst_caps_intersect_full (retcap, filtercap, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (retcap);
+    retcap = retcap2;
+  }
+
+  return retcap;
 }
 
 /**
@@ -487,8 +729,16 @@ static GstCaps *
 gst_tensor_transform_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
 {
-  /* @todo NYI */
-  return NULL;
+  /* @todo NYI: framerate configuration! */
+  GstCaps *othercaps_candidate =
+      gst_tensor_transform_transform_caps (trans, direction, caps, NULL);
+  GstCaps *filtered_candidate =
+      gst_caps_intersect_full (othercaps_candidate, othercaps,
+      GST_CAPS_INTERSECT_FIRST);
+
+  gst_caps_unref (othercaps_candidate);
+
+  return filtered_candidate;
 }
 
 /**
@@ -498,8 +748,21 @@ static gboolean
 gst_tensor_transform_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
-  /* @todo NYI */
-  return FALSE;
+  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
+  tensor_type type;
+  gboolean ret;
+  gint fd, fn;
+
+  ret = gst_tensor_read_cap (incaps, filter->fromDim, &type, &fn, &fd);
+  if (ret == FALSE)
+    return FALSE;
+  ret = gst_tensor_read_cap (outcaps, filter->toDim, &filter->type, &fd, &fn);
+  if (ret == FALSE)
+    return FALSE;
+  if (type != filter->type)
+    return FALSE;
+
+  return TRUE;
 }
 
 /**
