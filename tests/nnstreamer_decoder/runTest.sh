@@ -8,6 +8,7 @@ then
 else
   echo "Test Case Generation Started"
   python generateGoldenTestResult.py
+  python ../nnstreamer_converter/generateGoldenTestResult.py 8
   sopath=$1
 fi
 
@@ -24,6 +25,10 @@ do_test RGB 640 480 1
 do_test RGB 642 480 1-1
 do_test BGRx 640 480 1-2
 do_test BGRx 642 480 1-3
+
+# Test with a stream of 10 small PNG frames
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensordec ! filesink location=\"testcase2.dec.log\" sync=true t. ! queue ! filesink location=\"testcase2.con.log\" sync=true" 2
+compareAll testcase2.con.log testcase2.dec.log 2
 
 report
 
