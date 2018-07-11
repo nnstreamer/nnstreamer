@@ -20,6 +20,7 @@
  * @file	gsttensormux.c
  * @date	03 July 2018
  * @brief	GStreamer plugin to mux tensors (as a filter for other general neural network filters)
+ * @bug         No known bugs
  *
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
@@ -48,6 +49,10 @@ enum
   PROP_TIMESTAMP_OFFSET,
   PROP_SILENT
 };
+
+GMutex buf_mutex;
+GCond buf_cond;
+guint32 buf_count = 0;
 
 #define DEFAULT_TIMESTAMP_OFFSET -1
 
@@ -88,7 +93,6 @@ static void gst_tensor_mux_get_property (GObject * object, guint prop_id,
 static void gst_tensor_mux_dispose (GObject * object);
 
 G_DEFINE_TYPE (GstTensorMux, gst_tensor_mux, GST_TYPE_ELEMENT);
-
 
 /**
  * @brief initialize the tensor_mux's class
@@ -180,11 +184,13 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
   tensor_mux->num_tensors = 0;
   tensor_mux->byte_count = 0;
   tensor_mux->silent = FALSE;
-  tensor_mux->first = TRUE;
   tensor_mux->rank = 0;
   tensor_mux->dimensions = g_string_new (NULL);
   tensor_mux->types = g_string_new (NULL);
   tensor_mux->outbuffer = gst_buffer_new ();
+  gst_make_tensors (tensor_mux->outbuffer);
+  g_cond_init (&buf_cond);
+  g_mutex_init (&buf_mutex);
 }
 
 /**
@@ -232,11 +238,14 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   newpad = gst_pad_new_from_template (templ, req_name);
 
-  if (newpad)
+  if (newpad) {
+    GST_OBJECT_LOCK (tensor_mux);
+    tensor_mux->num_tensors++;
+    GST_OBJECT_UNLOCK (tensor_mux);
     gst_tensor_mux_setup_sinkpad (tensor_mux, newpad);
-  else
+  } else {
     GST_WARNING_OBJECT (tensor_mux, "failed to create request pad");
-
+  }
   return newpad;
 }
 
@@ -315,7 +324,6 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
     }
     gst_caps_unref (current_caps);
   }
-
   GST_OBJECT_LOCK (tensor_mux);
   padpriv = gst_pad_get_element_private (pad);
 
@@ -327,13 +335,34 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
   buffer = gst_buffer_make_writable (buffer);
 
-
-  /* @TODO tensors buffer & data with tensor */
-
   if (pad != tensor_mux->last_pad) {
     changed = TRUE;
     g_clear_object (&tensor_mux->last_pad);
     tensor_mux->last_pad = g_object_ref (pad);
+    GstCaps *tcap = gst_pad_get_current_caps (pad);
+    GstStructure *s = gst_caps_get_structure (tcap, 0);
+    tensor_dim dim;
+    gst_structure_get_int (s, "dim1", (int *) &dim[0]);
+    gst_structure_get_int (s, "dim2", (int *) &dim[1]);
+    gst_structure_get_int (s, "dim3", (int *) &dim[2]);
+    gst_structure_get_int (s, "dim4", (int *) &dim[3]);
+
+    GstMapInfo info, sink_info;
+    size_t size = dim[0] * dim[1] * dim[2] * dim[3];
+
+    GstMemory *mem = gst_allocator_alloc (NULL, size, NULL);
+    gst_memory_map (mem, &info, GST_MAP_WRITE);
+    gst_buffer_map (buffer, &sink_info, GST_MAP_READ);
+    memcpy (info.data, sink_info.data, size);
+
+    gst_memory_unmap (mem, &info);
+    gst_buffer_unmap (buffer, &sink_info);
+    gst_append_tensor (tensor_mux->outbuffer, mem, &dim);
+
+    g_mutex_lock (&buf_mutex);
+    buf_count++;
+    g_cond_signal (&buf_cond);
+    g_mutex_unlock (&buf_mutex);
   }
 
   if (GST_BUFFER_DURATION_IS_VALID (buffer) && GST_BUFFER_PTS_IS_VALID (buffer))
@@ -342,14 +371,26 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   else
     tensor_mux->last_stop = GST_CLOCK_TIME_NONE;
 
+  gst_buffer_unref (buffer);
   GST_OBJECT_UNLOCK (tensor_mux);
+
+  g_mutex_lock (&buf_mutex);
+  while (buf_count != tensor_mux->num_tensors) {
+    g_cond_wait (&buf_cond, &buf_mutex);
+    g_cond_signal (&buf_cond);
+  }
+  g_mutex_unlock (&buf_mutex);
 
   if (changed)
     gst_pad_sticky_events_foreach (pad, resend_events, tensor_mux);
 
-  gst_buffer_unref (buffer);
-  gst_buffer_ref (tensor_mux->outbuffer);
-  ret = gst_pad_push (tensor_mux->srcpad, tensor_mux->outbuffer);
+  if (pad == tensor_mux->last_pad) {
+    gst_buffer_ref (tensor_mux->outbuffer);
+    ret = gst_pad_push (tensor_mux->srcpad, tensor_mux->outbuffer);
+  } else {
+    ret = GST_FLOW_OK;
+  }
+
 out:
   return ret;
 }
@@ -368,9 +409,6 @@ gst_tensor_mux_setcaps (GstPad * pad, GstTensorMux * tensor_mux, GstCaps * caps)
   gint dim;
   const gchar *t;
 
-  GST_DEBUG_OBJECT (tensor_mux, "setcaps for pad %s:%s",
-      GST_DEBUG_PAD_NAME (pad));
-
   padpriv = gst_pad_get_element_private (pad);
   if (padpriv->done)
     return TRUE;
@@ -387,7 +425,6 @@ gst_tensor_mux_setcaps (GstPad * pad, GstTensorMux * tensor_mux, GstCaps * caps)
     if (gst_caps_get_size (othercaps) > 0) {
       structure = gst_caps_get_structure (othercaps, 0);
       GST_OBJECT_LOCK (tensor_mux);
-      tensor_mux->first = FALSE;
       GST_OBJECT_UNLOCK (tensor_mux);
     }
 
@@ -402,7 +439,6 @@ gst_tensor_mux_setcaps (GstPad * pad, GstTensorMux * tensor_mux, GstCaps * caps)
     return FALSE;
 
   GST_OBJECT_LOCK (tensor_mux);
-  tensor_mux->num_tensors++;
   gst_structure_get_int (structure, "rank", &tensor_mux->rank);
   gst_structure_get_int (structure, "dim1", &dim);
   if (tensor_mux->dimensions->len != 0)
@@ -633,7 +669,7 @@ gst_tensor_mux_get_property (GObject * object, guint prop_id,
 static gboolean
 gst_tensor_mux_plugin_init (GstPlugin * tensormux)
 {
-  /* debug category for fltering log messages
+  /** debug category for fltering log messages
    * exchange the string 'Template tensor_mux' with your description
    */
   GST_DEBUG_CATEGORY_INIT (gst_tensor_mux_debug, "tensormux", 0,

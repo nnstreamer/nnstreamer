@@ -1,4 +1,4 @@
-/*
+/**
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
@@ -19,6 +19,7 @@
  * @file	gsttensormux.h
  * @date	03 July 2018
  * @brief	GStreamer plugin to mux tensors (as a filter for other general neural network filters)
+ * @bug         No known bugs
  *
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
@@ -47,6 +48,9 @@ G_BEGIN_DECLS
 typedef struct _GstTensorMux GstTensorMux;
 typedef struct _GstTensorMuxClass GstTensorMuxClass;
 
+/**
+ * @brief Tensor Muxer pad private data structure
+ */
 typedef struct
 {
   gboolean have_timestamp_offset;
@@ -57,6 +61,7 @@ typedef struct
   gboolean done;
   gboolean priority;
 } GstTensorMuxPadPrivate;
+
 
 /**
  * @brief Tensor Muxer data structure
@@ -77,24 +82,23 @@ struct _GstTensorMux
   GString *types;
   gint framerate_numerator;
   gint framerate_denominator;
-  gboolean first;
   GstClockTime last_stop;
   gboolean send_stream_start;
 };
 
-/*
+/**
  * @brief GstTensroMuxClass inherits GstElementClass
  */
 struct _GstTensorMuxClass {
   GstElementClass parent_class;
-  /* gboolean (*src_event) (GstTensorMux *tensor_mux, GstEvent *event); */
+  /** gboolean (*src_event) (GstTensorMux *tensor_mux, GstEvent *event); */
 };
 
-/*
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_mux_get_type (void);
 
 G_END_DECLS
 
-#endif  /* __GST_TENSOR_MUX_H__ */
+#endif  /** __GST_TENSOR_MUX_H__ **/
