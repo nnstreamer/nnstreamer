@@ -4,29 +4,6 @@
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
- *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -37,17 +14,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Library General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensordec.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
+ * @bug		No known bugs except for NYI items
  *
  */
 
@@ -135,7 +110,7 @@ static gboolean gst_tensordec_set_caps (GstBaseTransform * trans,
 /* GObject vmethod implementations */
 
 /**
- * @breif initialize the tensordec's class
+ * @brief initialize the tensordec's class
  */
 static void
 gst_tensordec_class_init (GstTensorDecClass * g_class)
@@ -187,7 +162,8 @@ gst_tensordec_class_init (GstTensorDecClass * g_class)
    */
 }
 
-/* initialize the new element
+/**
+ * @brief initialize the new element
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
@@ -201,6 +177,9 @@ gst_tensordec_init (GstTensorDec * filter)
   filter->addPadding = FALSE;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static void
 gst_tensordec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -217,6 +196,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
   }
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static void
 gst_tensordec_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
@@ -233,7 +215,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
   }
 }
 
-/* @brief Return 1 if we need to add stride per row from the stream data */
+/**
+ * @brief Return 1 if we need to add stride per row from the stream data
+ */
 static int
 add_stride_padding_per_row (const gchar * format, int width)
 {
@@ -355,7 +339,8 @@ gst_tensordec_configure (const GstCaps * caps, GstTensorDec * filter)
 }
 
 
-/* entry point to initialize the plug-in
+/**
+ * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
@@ -392,6 +377,9 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "tensordec",
     tensordec_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
+/**
+ * @brief @todo fill this in
+ */
 static GstFlowReturn
 gst_t2c_transform (GstTensorDec * filter, GstBuffer * inbuf, GstBuffer * outbuf)
 {
@@ -433,6 +421,9 @@ gst_t2c_transform (GstTensorDec * filter, GstBuffer * inbuf, GstBuffer * outbuf)
   return GST_FLOW_OK;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static GstFlowReturn
 gst_tensordec_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
@@ -471,6 +462,9 @@ unknown_type:
   return GST_FLOW_NOT_SUPPORTED;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static GstFlowReturn
 gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
@@ -644,6 +638,9 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
   return NULL;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static GstCaps *
 gst_tensordec_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
@@ -676,6 +673,9 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
   return result;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static gboolean
 gst_tensordec_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)

@@ -1,29 +1,6 @@
-/*
+/**
  * NNStreamer Common Header's Contents
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -35,17 +12,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Library General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_common.c
  * @date	29 May 2018
  * @brief	Common data for NNStreamer, the GStreamer plugin for neural networks
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug		No known bugs except for NYI items
  *
  */
 
@@ -186,8 +161,12 @@ get_tensor_element_count (const uint32_t dim[NNS_TENSOR_RANK_LIMIT])
   return count;
 }
 
+/**
+ * @brief Get tensor dimension/type from GstCaps
+ */
 GstTensor_Filter_CheckStatus
-get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type)
+get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
+    tensor_type * type)
 {
   GstTensor_Filter_CheckStatus ret = _TFC_INIT;
   tensor_dim backup_dim;
@@ -203,14 +182,14 @@ get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type)
   capsize = gst_caps_get_size (caps);
   for (i = 0; i < capsize; i++) {
     str = gst_caps_get_structure (caps, i);
-    g_assert(NNS_TENSOR_RANK_LIMIT == 4); /* This code assumes rank limit is 4 */
+    g_assert (NNS_TENSOR_RANK_LIMIT == 4);      /* This code assumes rank limit is 4 */
 
     if ((i > 1) && (ret & _TFC_DIMENSION)) {
       /**
        * Already cofnigured and more cap info is coming.
        * I'm not sure how this happens, but let's be ready for this.
        */
-      memcpy(backup_dim, dim, sizeof(uint32_t) * NNS_TENSOR_RANK_LIMIT);
+      memcpy (backup_dim, dim, sizeof (uint32_t) * NNS_TENSOR_RANK_LIMIT);
     }
     if ((i > 1) && (ret & _TFC_TYPE)) {
       /**
@@ -228,13 +207,13 @@ get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type)
 
       if (ret & _TFC_DIMENSION) {
         /* Already configured by previous "cap"? */
-	for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-	  g_assert (dim[j] == backup_dim[j]);
+        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+          g_assert (dim[j] == backup_dim[j]);
       }
       ret |= _TFC_DIMENSION;
       if (gst_structure_get_int (str, "rank", &rank)) {
         for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
-	  g_assert (dim[j] == 1);
+          g_assert (dim[j] == 1);
       }
     }
     strval = gst_structure_get_string (str, "type");
@@ -244,7 +223,7 @@ get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type)
 
       if (ret & _TFC_TYPE) {
         /* Already configured by previous "cap"? */
-	g_assert (*type == backup_type);
+        g_assert (*type == backup_type);
       }
       ret |= _TFC_TYPE;
     }

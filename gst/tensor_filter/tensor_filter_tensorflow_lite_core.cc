@@ -1,21 +1,17 @@
 /**
- * Copyright (C) 2017 - 2018 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (C) 2018 Samsung Electronics Co., Ltd. All rights reserved.
  *
- * PROPRIETARY/CONFIDENTIAL
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
  *
- * This software is the confidential and proprietary information of
- * SAMSUNG ELECTRONICS ("Confidential Information"). You shall not
- * disclose such Confidential Information and shall use it only in
- * accordance with the terms of the license agreement you entered
- * into with SAMSUNG ELECTRONICS.  SAMSUNG make no representations
- * or warranties about the suitability of the software, either
- * express or implied, including but not limited to the implied
- * warranties of merchantability, fitness for a particular purpose,
- * or non-infringement. SAMSUNG shall not be liable for any damages
- * suffered by licensee as a result of using, modifying or distributing
- * this software or its derivatives.
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
  */
-
 /**
  * @file   tensor_filter_tensorflow_lite_core.cc
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>

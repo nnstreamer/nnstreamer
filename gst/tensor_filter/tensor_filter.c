@@ -4,29 +4,6 @@
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
- *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -37,17 +14,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Library General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
- *
+ */
+/**
  * @file	tensor_filter.c
  * @date	24 May 2018
  * @brief	GStreamer plugin to use general neural network frameworks as filters
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug		No known bugs except for NYI items
  *
  * This is the main plugin for per-NN-framework plugins.
  * Specific implementations for each NN framework must be written
@@ -174,7 +149,9 @@ static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 /* GObject vmethod implementations */
 
-/* initialize the tensor_filter's class */
+/**
+ * @brief initialize the tensor_filter's class
+ */
 static void
 gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
 {
@@ -254,7 +231,8 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
   trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_filter_stop);
 }
 
-/* initialize the new element
+/**
+ * @brief initialize the new element
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
@@ -509,6 +487,9 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   return resultCaps;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static void
 gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -602,6 +583,9 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
   }
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static void
 gst_tensor_filter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
@@ -662,7 +646,8 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
  * GstElement vmethod implementations
  */
 
-/* entry point to initialize the plug-in
+/**
+ * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
@@ -689,7 +674,8 @@ tensor_filter_init (GstPlugin * tensor_filter)
 #define PACKAGE "tensor_filter"
 #endif
 
-/* gstreamer looks for this structure to register tensor_filters
+/**
+ * gstreamer looks for this structure to register tensor_filters
  *
  * exchange the string 'Template tensor_filter' with your tensor_filter description
  */
@@ -699,6 +685,9 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "tensor_filter",
     tensor_filter_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
+/**
+ * @brief @todo fill this in
+ */
 static GstFlowReturn
 gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
@@ -789,6 +778,9 @@ unknown_invoke:
   return GST_FLOW_ERROR;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static GstFlowReturn
 gst_tensor_filter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
@@ -927,7 +919,7 @@ finalize:
 
 
 /**
- * gst_tensor_filter_transform_caps() - configure tensor-srcpad cap from "proposed" cap.
+ * @brief configure tensor-srcpad cap from "proposed" cap.
  *
  * @trans ("this" pointer)
  * @direction (why do we need this?)
@@ -1037,6 +1029,9 @@ gst_tensor_caps_to_dimension (GstCaps * caps, gboolean input,
   }
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static GstCaps *
 gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
@@ -1148,6 +1143,9 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   return result;
 }
 
+/**
+ * @brief @todo fill this in
+ */
 static gboolean
 gst_tensor_filter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
