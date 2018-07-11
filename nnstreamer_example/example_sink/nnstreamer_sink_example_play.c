@@ -8,7 +8,7 @@
  *
  * This sample app shows video frame using two pipelines.
  *
- * [1st pipeline : videotestsrc-videoconvert-tensor_converter-tensor_sink]
+ * [1st pipeline : videotestsrc-tensor_converter-tensor_sink]
  * push buffer to appsrc
  * [2nd pipeline : appsrc-tensordec-videoconvert-xvimagesink]
  *

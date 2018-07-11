@@ -16,7 +16,6 @@
 #include <unistd.h>
 
 #include <gst/gst.h>
-#include <gst/app/gstappsrc.h>
 
 /**
  * @brief Macro for debug mode.
@@ -205,14 +204,13 @@ main (int argc, char **argv)
       ("v4l2src name=cam_src ! "
       "video/x-raw,width=%d,height=%d,format=RGB,framerate=30/1 ! tee name=t_raw "
       "videomixer name=mix "
-      "sink_0::xpos=0 sink_0::ypos=0 sink_0::zorder=0 sink_0::alpha=0.7 "
-      "sink_1::xpos=50 sink_1::ypos=50 sink_1::zorder=1 sink_1::alpha=0.5 ! "
+      "sink_0::xpos=0 sink_0::ypos=0 sink_0::zorder=0 "
+      "sink_1::xpos=0 sink_1::ypos=0 sink_1::zorder=1 sink_1::alpha=0.7 ! "
       "videoconvert ! xvimagesink name=img_mixed "
-      "t_raw. ! queue ! tensor_converter ! tensordec ! tee name=t_tensor "
       "t_raw. ! queue ! mix.sink_0 "
-      "t_tensor. ! queue ! mix.sink_1 "
-      "t_tensor. ! queue ! videoconvert ! xvimagesink name=img_tensor",
-      width, height);
+      "t_raw. ! queue ! tensor_converter ! tensordec ! videoscale ! video/x-raw,width=%d,height=%d ! mix.sink_1 "
+      "t_raw. ! queue ! videoconvert ! xvimagesink name=img_origin",
+      width, height, width / 2, height / 2);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
@@ -234,8 +232,8 @@ main (int argc, char **argv)
   _set_window_title (element, "Mixed");
   gst_object_unref (element);
 
-  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_tensor");
-  _set_window_title (element, "Tensor");
+  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_origin");
+  _set_window_title (element, "Original");
   gst_object_unref (element);
 
   /* run main loop */
