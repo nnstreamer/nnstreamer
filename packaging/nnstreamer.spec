@@ -13,6 +13,7 @@ Source2001:	testcase_tensor_converter.tar.gz
 Source20010:	testcase_tensor_converter_stream.tar.gz
 Source2002:	testcase_tensor_decoder.tar.gz
 Source2003:	testcase_tensors.tar.gz
+Source2004:	testcase_mux.tar.gz
 
 Requires:	gstreamer >= 1.8.0
 Requires:	libdlog
@@ -98,6 +99,9 @@ popd
 
 pushd nnstreamer_tensors
 tar -xf %{SOURCE2003}
+popd
+pushd nnstreamer_mux
+tar -xf %{SOURCE2004}
 popd
 
 popd

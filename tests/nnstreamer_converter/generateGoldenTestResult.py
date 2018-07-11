@@ -329,3 +329,8 @@ if target == -1 or target == 2:
     write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
 if target == -1 or target == 8:
     genCase08_PNG_stream('testsequence_', 'testcase08.golden')
+if target == -1 or target == 9:
+    str = genCase02_PNG_random('RGB', 100, 100)[0]
+    write('testcase01_RGB_100x100.golden', str)
+    write('testcase02_RGB_100x100.golden', str+str)
+    write('testcase03_RGB_100x100.golden', str+str+str)
