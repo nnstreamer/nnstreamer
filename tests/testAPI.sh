@@ -2,11 +2,11 @@
 
 if [[ $# -eq 0 ]]; then
 	dirpath="$( cd "$( dirname "$0")" && pwd )"
-	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" 1>/dev/null || {
+	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" "$dirpath/../build/gst/tensor_transform" 1>/dev/null || {
 		echo "[ERROR] Before unit testing, you should build with cmake first."
 		exit 1
 	}
-	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder"
+	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder:$dirpath/../build/gst/tensor_transform"
 else
 	PATH_TO_PLUGIN="$1"
 fi

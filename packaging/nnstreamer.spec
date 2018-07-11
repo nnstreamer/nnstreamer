@@ -88,6 +88,9 @@ popd
 pushd nnstreamer_filter_custom
 tar -xf %{SOURCE20010}
 popd
+pushd transform_dimchg
+tar -xf %{SOURCE20010}
+popd
 pushd nnstreamer_decoder
 tar -xf %{SOURCE2002}
 tar -xf %{SOURCE20010}
