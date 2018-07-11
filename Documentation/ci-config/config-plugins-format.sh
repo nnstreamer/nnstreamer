@@ -6,7 +6,7 @@
 #
 
 ##################################################################################################################
-echo "[MODULE] plugins-good: Plugin group that follow Apache license with good quality"
+echo "[MODULE] plugins-good: Plugins with good quality"
 # Please append your plugin modules here.
 
 echo "pr-format-indent is starting."

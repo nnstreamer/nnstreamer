@@ -2,7 +2,7 @@
 
 ##
 # Copyright (C) 2018 Samsung Electronics
-# License: Apache-2.0
+# License: LGPL-2.1
 #
 # @file checkScaledTensor.py
 # @brief Check if the scaled results are correct

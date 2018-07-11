@@ -2,7 +2,7 @@
 
 ##
 # Copyright (C) 2018 Samsung Electronics
-# License: Apache-2.0
+# License: LGPL-2.1
 #
 # @file generateGoldenTestResult.py
 # @brief Generate golden test results for test cases

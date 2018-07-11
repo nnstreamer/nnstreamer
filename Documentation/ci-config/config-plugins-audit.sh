@@ -5,7 +5,7 @@
 # @brief add plugin modules for a github repository
 
 ###### plugins-base ###############################################################################################
-echo "[MODULE] plugins-base: Plugin group that follow Apache license with good quality"
+echo "[MODULE] plugins-base: Basis plugins with good quality"
 # Please append your plugin modules here.
 
 module_name="pr-audit-build-tizen"
@@ -25,7 +25,7 @@ source ${REFERENCE_REPOSITORY}/ci/standalone/plugins-base/$module_name.sh
 echo "[DEBUG] $module_name is done."
 
 ###### plugins-good ###############################################################################################
-echo "[MODULE] plugins-good: Plugin group that follow Apache license with good quality"
+echo "[MODULE] plugins-good: Plugins with good quality"
 # Please append your plugin modules here.
 
 
@@ -34,7 +34,7 @@ echo "[MODULE] plugins-good: Plugin group that follow Apache license with good q
 
 
 ###### plugins-ugly ################################################################################################
-echo "[MODULE] plugins-staging: Plugin group that does not have evaluation and aging test enough"
+echo "[MODULE] plugins-staging: Plugins without enough evaluation and aging test"
 # Please append your plugin modules here.
 
 module_name="pr-audit-resource"
