@@ -97,8 +97,6 @@ pushd nnstreamer_tensors
 tar -xf %{SOURCE2003}
 popd
 
-export SKIPGEN=YES
-./testAll.sh
 popd
 
 %if 0%{?testcoverage}
@@ -137,12 +135,21 @@ pushd build
 %make_install
 popd
 
+pushd tests
+export SKIPGEN=YES
+export LD_LIBRARY_PATH=%{buildroot}%{_libdir}
+./testAll.sh
+popd
+
 %if 0%{?testcoverage}
 mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 install build/libcommon.a %{buildroot}%{_libdir}/
+
+%post -p /sbin/ldconfig
+%postun -p /sbin/ldconfig
 
 %files
 %manifest nnstreamer.manifest
