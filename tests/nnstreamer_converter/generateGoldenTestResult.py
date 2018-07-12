@@ -11,9 +11,11 @@
 from __future__ import print_function
 
 from struct import *
-from PIL import Image
 import random
 import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+import gen24bBMP as bmp
 
 ##
 # @brief Generate Golden Test Case 01, a single videosrctest frame of 280x40xRGB
@@ -105,6 +107,7 @@ def genCase01_RGB():
         string += pack('BBB', 19, 19, 19)
     # We do not check the reset pixels: they are randomly generated.
     string_size = string_size * 3
+
     return (string, string_size, expected_size)
 
 ##
@@ -198,19 +201,16 @@ def genCase01_BGRx():
     return (string, string_size, expected_size)
 
 ##
-# @brief Generate Golden Test Case 02, a randomly generated PNG image
+# @brief Generate Golden Test Case 02, a randomly generated BMP image
 # @return (string, string_size, expected_size)
 #
-def genCase02_PNG_random(colorType, width, height):
+def genCase02_BMP_random(colorType, width, height):
     string = ""
     string_size = 0
     sizePerPixel = 3
     if (colorType == 'BGRx'):
         sizePerPixel = 4
     expected_size = width * height * sizePerPixel
-    img = Image.new('RGB', (width, height))
-    imgbin = []
-
     # The result has no stride for other/tensor types.
 
     if (colorType == 'BGRx'):
@@ -219,7 +219,6 @@ def genCase02_PNG_random(colorType, width, height):
                 pval = (random.randrange(256), random.randrange(256), random.randrange(256))
                 pixel = pack('BBBB', pval[2], pval[1], pval[0], 255)
                 string += pixel
-                imgbin.append(pval)
                 string_size += 4
     else:
         # Assume RGB
@@ -228,84 +227,64 @@ def genCase02_PNG_random(colorType, width, height):
                 pval = (random.randrange(256), random.randrange(256), random.randrange(256))
                 pixel = pack('BBB', pval[0], pval[1], pval[2])
                 string += pixel
-                imgbin.append(pval)
                 string_size += 3
 
-    img.putdata(imgbin)
-    img.save('testcase02_'+colorType+'_'+str(width)+'x'+str(height)+'.png')
+    bmp.saveBMP("testcase02_"+colorType+'_'+str(width)+'x'+str(height)+".bmp", string, colorType, width, height)
     return (string, string_size, expected_size)
 
 ##
-# @brief Generate a fixed PNG sequence for stream test
+# @brief Generate a fixed BMP sequence for stream test
 # @return 0 if success. non-zero if failed.
 #
 # This gives "16x16", black, white, green, red, blue, wb-checker, rb-checker, gr-checker, red-cross-on-white, blue-cross-on-black (4x4 x 16, left-top/right-bottom white/red/green). "10 files" with 0 ~ 9 postfix in the filename
-def genCase08_PNG_stream(filename_prefix, goldenfilename):
+def genCase08_BMP_stream(filename_prefix, goldenfilename):
     string = ["", "", "", "", "", "", "", "", "", ""]
     sizePerPixel = 3
     sizex = 16
     sizey = 16
-    imgbin = [[], [], [], [], [], [], [], [], [], []]
 
     for y in range(0, sizey):
         for x in range(0, sizex):
             # black. Frame 0
-            imgbin[0].append((0, 0, 0))
             string[0] += pack('BBB', 0, 0, 0)
             # white. Frame 1
-            imgbin[1].append((255, 255, 255))
             string[1] += pack('BBB', 255, 255, 255)
             # green, Frame 2
-            imgbin[2].append((0, 255, 0))
             string[2] += pack('BBB', 0, 255, 0)
             # red, Frame 3
-            imgbin[3].append((255, 0, 0))
             string[3] += pack('BBB', 255, 0, 0)
             # blue, Frame 4
-            imgbin[4].append((0, 0, 255))
             string[4] += pack('BBB', 0, 0, 255)
             # white-black checker, Frame 5
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                imgbin[5].append((0, 0, 0))
                 string[5] += pack('BBB', 0, 0, 0)
             else:
-                imgbin[5].append((255, 255, 255))
                 string[5] += pack('BBB', 255, 255, 255)
             # red-blue checker, Frame 6
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                imgbin[6].append((0, 0, 255))
                 string[6] += pack('BBB', 0, 0, 255)
             else:
-                imgbin[6].append((255, 0, 0))
                 string[6] += pack('BBB', 255, 0, 0)
             # green-red checker, Frame 7
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                imgbin[7].append((255, 0, 0))
                 string[7] += pack('BBB', 255, 0, 0)
             else:
-                imgbin[7].append((0, 255, 0))
                 string[7] += pack('BBB', 0, 255, 0)
             # red-cross-on-white, Frame 8
             if x == y:
-                imgbin[8].append((255, 0, 0))
                 string[8] += pack('BBB', 255, 0, 0)
             else:
-                imgbin[8].append((255, 255, 255))
                 string[8] += pack('BBB', 255, 255, 255)
             # blue-cross-on-black, Frame 9
             if x == y:
-                imgbin[9].append((0, 0, 255))
                 string[9] += pack('BBB', 0, 0, 255)
             else:
-                imgbin[9].append((0, 0, 0))
                 string[9] += pack('BBB', 0, 0, 0)
 
     newfile = open(goldenfilename, 'wb')
     for i in range(0, 10):
-        img = Image.new('RGB', (sizex, sizey))
-        img.putdata(imgbin[i])
-        img.save(filename_prefix + str(i) + '.png')
         newfile.write(string[i])
+        bmp.saveBMP(filename_prefix + str(i) + '.bmp', string[i], 'RGB', 16, 16)
 
 ##
 # @brief Write the generated data
@@ -323,14 +302,14 @@ if target == -1 or target == 1:
     write('testcase01.rgb.golden', genCase01_RGB()[0])
     write('testcase01.bgrx.golden', genCase01_BGRx()[0])
 if target == -1 or target == 2:
-    write('testcase02_RGB_640x480.golden', genCase02_PNG_random('RGB', 640, 480)[0])
-    write('testcase02_BGRx_640x480.golden', genCase02_PNG_random('BGRx', 640, 480)[0])
-    write('testcase02_RGB_642x480.golden', genCase02_PNG_random('RGB', 642, 480)[0])
-    write('testcase02_BGRx_642x480.golden', genCase02_PNG_random('BGRx', 642, 480)[0])
+    write('testcase02_RGB_640x480.golden', genCase02_BMP_random('RGB', 640, 480)[0])
+    write('testcase02_BGRx_640x480.golden', genCase02_BMP_random('BGRx', 640, 480)[0])
+    write('testcase02_RGB_642x480.golden', genCase02_BMP_random('RGB', 642, 480)[0])
+    write('testcase02_BGRx_642x480.golden', genCase02_BMP_random('BGRx', 642, 480)[0])
 if target == -1 or target == 8:
-    genCase08_PNG_stream('testsequence_', 'testcase08.golden')
+    genCase08_BMP_stream('testsequence_', 'testcase08.golden')
 if target == -1 or target == 9:
-    str = genCase02_PNG_random('RGB', 100, 100)[0]
+    str = genCase02_BMP_random('RGB', 100, 100)[0]
     write('testcase01_RGB_100x100.golden', str)
     write('testcase02_RGB_100x100.golden', str+str)
     write('testcase03_RGB_100x100.golden', str+str+str)

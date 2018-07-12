@@ -147,3 +147,26 @@ function report {
 	fi
 }
 
+##
+# @brief Convert all *.bmp to *.png
+function convertBMP2PNG {
+	tool="bmp2png"
+	if [ -x bmp2png ]; then
+		tool="bmp2png"
+	else
+		if [ -x ../bmp2png ]; then
+			tool="../bmp2png"
+		else
+			if [ -x ../../bmp2png ]; then
+				tool="../../bmp2png"
+			else
+				tool="../../../bmp2png"
+				# Try this and die if fails
+			fi
+		fi
+	fi
+	for X in `ls *.bmp`
+	do
+		$tool $X
+	done
+}

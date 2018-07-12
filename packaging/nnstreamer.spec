@@ -9,11 +9,6 @@ Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
-Source2001:	testcase_tensor_converter.tar.gz
-Source20010:	testcase_tensor_converter_stream.tar.gz
-Source2002:	testcase_tensor_decoder.tar.gz
-Source2003:	testcase_tensors.tar.gz
-Source2004:	testcase_mux.tar.gz
 
 Requires:	gstreamer >= 1.8.0
 Requires:	libdlog
@@ -31,6 +26,8 @@ BuildRequires:	gst-plugins-base
 BuildRequires:	gtest-devel
 # a few test cases uses python
 BuildRequires:	python
+# Testcase requires bmp2png, which requires libpng
+BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
 BuildRequires: tensorflow-lite-devel
 
@@ -79,32 +76,6 @@ pushd build
 ./unittest_sink --gst-plugin-path=./gst/tensor_converter:./gst/tensor_sink
 popd
 
-pushd tests
-# We skip testcase gen because it requires PIL, which requires tk.
-# Use the pre-generated test cases
-pushd nnstreamer_converter
-tar -xf %{SOURCE2001}
-tar -xf %{SOURCE20010}
-popd
-pushd nnstreamer_filter_custom
-tar -xf %{SOURCE20010}
-popd
-pushd transform_dimchg
-tar -xf %{SOURCE20010}
-popd
-pushd nnstreamer_decoder
-tar -xf %{SOURCE2002}
-tar -xf %{SOURCE20010}
-popd
-
-pushd nnstreamer_tensors
-tar -xf %{SOURCE2003}
-popd
-pushd nnstreamer_mux
-tar -xf %{SOURCE2004}
-popd
-
-popd
 
 %if 0%{?testcoverage}
 ##
@@ -143,7 +114,6 @@ pushd build
 popd
 
 pushd tests
-export SKIPGEN=YES
 export LD_LIBRARY_PATH=%{buildroot}%{_libdir}
 ./testAll.sh
 popd

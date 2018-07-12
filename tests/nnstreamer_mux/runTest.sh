@@ -10,6 +10,7 @@ else
   python ../nnstreamer_converter/generateGoldenTestResult.py 9
   sopath=$1
 fi
+convertBMP2PNG
 
 gstTest "--gst-plugin-path=../../build/gst --gst-debug=tensormux:5 tensormux name=mux ! filesink location=testcase01_RGB_100x100.log filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0" 1
 

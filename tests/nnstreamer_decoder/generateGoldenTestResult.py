@@ -12,8 +12,11 @@
 from __future__ import print_function
 
 from struct import *
-from PIL import Image
 import random
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+import gen24bBMP as bmp
 
 ##
 # @brief Generate Golden Test Case 01, a randomly generated PNG image
@@ -26,8 +29,6 @@ def genCase01_PNG_random(colorType, width, height):
     if (colorType == 'BGRx'):
         sizePerPixel = 4
     expected_size = width * height * sizePerPixel
-    img = Image.new('RGB', (width, height))
-    imgbin = []
 
     # The result has no stride for other/tensor types.
 
@@ -37,7 +38,6 @@ def genCase01_PNG_random(colorType, width, height):
                 pval = (random.randrange(256), random.randrange(256), random.randrange(256))
                 pixel = pack('BBBB', pval[2], pval[1], pval[0], 255)
                 string += pixel
-                imgbin.append(pval)
                 string_size += 4
     else:
         # Assume RGB
@@ -46,11 +46,9 @@ def genCase01_PNG_random(colorType, width, height):
                 pval = (random.randrange(256), random.randrange(256), random.randrange(256))
                 pixel = pack('BBB', pval[0], pval[1], pval[2])
                 string += pixel
-                imgbin.append(pval)
                 string_size += 3
 
-    img.putdata(imgbin)
-    img.save('testcase01_'+colorType+'_'+str(width)+'x'+str(height)+'.png')
+    bmp.saveBMP('testcase01_'+colorType+'_'+str(width)+'x'+str(height)+'.bmp', string, colorType, width, height)
     return (string, string_size, expected_size)
 
 ##

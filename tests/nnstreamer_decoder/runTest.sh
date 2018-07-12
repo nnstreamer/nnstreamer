@@ -11,6 +11,7 @@ else
   python ../nnstreamer_converter/generateGoldenTestResult.py 8
   sopath=$1
 fi
+convertBMP2PNG
 
 function do_test {
     param="${4}_gen_golden_data"

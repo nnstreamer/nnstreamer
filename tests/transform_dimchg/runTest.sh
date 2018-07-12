@@ -10,6 +10,7 @@ else
   python ../nnstreamer_converter/generateGoldenTestResult.py 8
   sopath=$1
 fi
+convertBMP2PNG
 
 # Test gst availability. (0)
 gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! filesink location=\"testcase.apitest.log\" sync=true" 0
