@@ -6,7 +6,7 @@ Build-Depends: gcc, cmake, libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev
  libgtest-dev,
  debhelper (>=9),
  gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good,
- python-pil
+ python-pil, tensorflow-lite-dev
 Standards-Version: 3.9.6
 Homepage: https://github.sec.samsung.net/STAR/nnstreamer
 
