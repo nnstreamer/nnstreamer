@@ -8,6 +8,9 @@ IF(DISABLE_TENSORFLOW_LITE) # NOT AVAILABE
 		tensor_filter.c
 		tensor_filter_custom.c
 		)
+	TARGET_LINK_LIBRARIES(tensor_filter dl ${pkgs_LIBRARIES})
+	TARGET_INCLUDE_DIRECTORIES(tensor_filter PUBLIC ${pkgs_INCLUDE_DIRS})
+	TARGET_COMPILE_OPTIONS(tensor_filter PUBLIC ${pkgs_CFLAGS_OTHER})
 
 	INSTALL(TARGETS tensor_filter
 		RUNTIME DESTINATION ${EXEC_PREFIX}
@@ -20,12 +23,15 @@ ELSE(DISABLE_TENSORFLOW_LITE) # AVAILABE
 		tensor_filter_tensorflow_lite.c
 		tensor_filter_custom.c
 		)
+	TARGET_LINK_LIBRARIES(tensor_filter tensor_filter_tflitecore dl ${pkgs_LIBRARIES})
+	TARGET_INCLUDE_DIRECTORIES(tensor_filter PUBLIC ${pkgs_INCLUDE_DIRS})
+	TARGET_COMPILE_OPTIONS(tensor_filter PUBLIC ${pkgs_CFLAGS_OTHER})
 
 	ADD_LIBRARY(tensor_filter_tflitecore SHARED
 		tensor_filter_tensorflow_lite_core.cc
 		)
 
-	TARGET_LINK_LIBRARIES(tensor_filter_tflitecore tensor_filter ${pkgs_LIBRARIES} tensorflow-lite)
+	TARGET_LINK_LIBRARIES(tensor_filter_tflitecore ${pkgs_LIBRARIES} tensorflow-lite)
 	TARGET_INCLUDE_DIRECTORIES(tensor_filter_tflitecore PUBLIC ${pkgs_INCLUDE_DIRS})
 	TARGET_COMPILE_OPTIONS(tensor_filter_tflitecore PUBLIC ${pkgs_CFLAGS_OTHER})
 
@@ -35,7 +41,3 @@ ELSE(DISABLE_TENSORFLOW_LITE) # AVAILABE
 		ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 		)
 ENDIF(DISABLE_TENSORFLOW_LITE)
-
-TARGET_LINK_LIBRARIES(tensor_filter dl ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(tensor_filter PUBLIC ${pkgs_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(tensor_filter PUBLIC ${pkgs_CFLAGS_OTHER})
