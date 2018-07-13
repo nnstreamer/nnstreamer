@@ -43,7 +43,6 @@ typedef struct
   GMainLoop *loop; /**< main event loop */
   GstElement *pipeline; /**< gst pipeline for test */
   GstBus *bus; /**< gst bus for test */
-  GstElement *sink; /**< tensor sink element */
 
   guint received; /**< received buffer count */
 } AppData;
@@ -51,7 +50,7 @@ typedef struct
 /**
  * @brief Data for pipeline and result.
  */
-static AppData g_app_data;
+static AppData g_app;
 
 /**
  * @brief Free resources in app data.
@@ -59,25 +58,20 @@ static AppData g_app_data;
 static void
 _free_app_data (void)
 {
-  if (g_app_data.loop) {
-    g_main_loop_unref (g_app_data.loop);
-    g_app_data.loop = NULL;
+  if (g_app.loop) {
+    g_main_loop_unref (g_app.loop);
+    g_app.loop = NULL;
   }
 
-  if (g_app_data.bus) {
-    gst_bus_remove_signal_watch (g_app_data.bus);
-    gst_object_unref (g_app_data.bus);
-    g_app_data.bus = NULL;
+  if (g_app.bus) {
+    gst_bus_remove_signal_watch (g_app.bus);
+    gst_object_unref (g_app.bus);
+    g_app.bus = NULL;
   }
 
-  if (g_app_data.sink) {
-    gst_object_unref (g_app_data.sink);
-    g_app_data.sink = NULL;
-  }
-
-  if (g_app_data.pipeline) {
-    gst_object_unref (g_app_data.pipeline);
-    g_app_data.pipeline = NULL;
+  if (g_app.pipeline) {
+    gst_object_unref (g_app.pipeline);
+    g_app.pipeline = NULL;
   }
 }
 
@@ -89,6 +83,8 @@ _parse_err_message (GstMessage * message)
 {
   gchar *debug;
   GError *error;
+
+  g_return_if_fail (message != NULL);
 
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR:
@@ -109,6 +105,27 @@ _parse_err_message (GstMessage * message)
 }
 
 /**
+ * @brief Function to print caps.
+ */
+static void
+_parse_caps (GstCaps * caps)
+{
+  guint caps_size, i;
+
+  g_return_if_fail (caps != NULL);
+
+  caps_size = gst_caps_get_size (caps);
+
+  for (i = 0; i < caps_size; i++) {
+    GstStructure *structure = gst_caps_get_structure (caps, i);
+    gchar *str = gst_structure_to_string (structure);
+
+    _print_log ("[%d] %s", i, str);
+    g_free (str);
+  }
+}
+
+/**
  * @brief Callback for message.
  */
 static void
@@ -117,13 +134,13 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_EOS:
       _print_log ("received eos message");
-      g_main_loop_quit (g_app_data.loop);
+      g_main_loop_quit (g_app.loop);
       break;
 
     case GST_MESSAGE_ERROR:
       _print_log ("received error message");
       _parse_err_message (message);
-      g_main_loop_quit (g_app_data.loop);
+      g_main_loop_quit (g_app.loop);
       break;
 
     case GST_MESSAGE_WARNING:
@@ -146,11 +163,13 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
 static void
 _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
-  g_app_data.received++;
-  _print_log ("new data callback [%d]", g_app_data.received);
+  g_app.received++;
+  if (g_app.received % 150 == 0) {
+    _print_log ("receiving new data [%d]", g_app.received);
+  }
 
-  /* example to get data */
-  if (DBG) {
+  /** example to get data */
+  {
     GstMemory *mem;
     GstMapInfo info;
     guint i;
@@ -161,7 +180,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
       mem = gst_buffer_peek_memory (buffer, i);
 
       if (gst_memory_map (mem, &info, GST_MAP_READ)) {
-        /* check data (info.data, info.size) */
+        /** check data (info.data, info.size) */
         _print_log ("received %zd", info.size);
 
         gst_memory_unmap (mem, &info);
@@ -169,30 +188,27 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     }
   }
 
-  /* example to get negotiated caps */
-  if (DBG) {
+  /** example to get caps */
+  {
     GstPad *sink_pad;
     GstCaps *caps;
 
-    sink_pad = gst_element_get_static_pad (g_app_data.sink, "sink");
+    sink_pad = gst_element_get_static_pad (element, "sink");
 
     if (sink_pad) {
+      /** negotiated */
       caps = gst_pad_get_current_caps (sink_pad);
 
       if (caps) {
-        guint caps_size, i;
+        _parse_caps (caps);
+        gst_caps_unref (caps);
+      }
 
-        caps_size = gst_caps_get_size (caps);
-        _print_log ("caps size is %d", caps_size);
+      /** template */
+      caps = gst_pad_get_pad_template_caps (sink_pad);
 
-        for (i = 0; i < caps_size; i++) {
-          GstStructure *structure = gst_caps_get_structure (caps, i);
-          gchar *str = gst_structure_to_string (structure);
-
-          _print_log ("[%d] %s", i, str);
-          g_free (str);
-        }
-
+      if (caps) {
+        _parse_caps (caps);
         gst_caps_unref (caps);
       }
 
@@ -232,75 +248,77 @@ main (int argc, char **argv)
   gchar *str_pipeline;
   gulong handle_id;
   GstStateChangeReturn state_ret;
+  GstElement *element;
 
-  /* init gstreamer */
+  /** init gstreamer */
   gst_init (&argc, &argv);
 
-  /* init app variable */
-  g_app_data.received = 0;
+  /** init app variable */
+  g_app.received = 0;
 
-  /* main loop and pipeline */
-  g_app_data.loop = g_main_loop_new (NULL, FALSE);
-  _check_cond_err (g_app_data.loop != NULL);
+  /** main loop and pipeline */
+  g_app.loop = g_main_loop_new (NULL, FALSE);
+  _check_cond_err (g_app.loop != NULL);
 
-  /* 640x480 30fps for test */
+  /** 640x480 30fps for test */
   str_pipeline =
       g_strdup_printf
       ("videotestsrc num-buffers=%d ! video/x-raw,format=RGB,width=%d,height=%d ! "
       "tensor_converter ! tensor_sink name=tensor_sink",
       num_buffers, width, height);
-  g_app_data.pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
-  _check_cond_err (g_app_data.pipeline != NULL);
+  _check_cond_err (g_app.pipeline != NULL);
 
-  /* message callback */
-  g_app_data.bus = gst_element_get_bus (g_app_data.pipeline);
-  _check_cond_err (g_app_data.bus != NULL);
+  /** message callback */
+  g_app.bus = gst_element_get_bus (g_app.pipeline);
+  _check_cond_err (g_app.bus != NULL);
 
-  gst_bus_add_signal_watch (g_app_data.bus);
-  handle_id = g_signal_connect (g_app_data.bus, "message",
+  gst_bus_add_signal_watch (g_app.bus);
+  handle_id = g_signal_connect (g_app.bus, "message",
       (GCallback) _message_cb, NULL);
   _check_cond_err (handle_id > 0);
 
-  /* get tensor sink element using name */
-  g_app_data.sink =
-      gst_bin_get_by_name (GST_BIN (g_app_data.pipeline), "tensor_sink");
-  _check_cond_err (g_app_data.sink != NULL);
+  /** get tensor sink element using name */
+  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "tensor_sink");
+  _check_cond_err (element != NULL);
 
   if (DBG) {
-    /* print logs, default TRUE */
-    g_object_set (g_app_data.sink, "silent", (gboolean) FALSE, NULL);
+    /** print logs, default TRUE */
+    g_object_set (element, "silent", (gboolean) FALSE, NULL);
   }
 
-  /* enable emit-signal, default TRUE */
-  g_object_set (g_app_data.sink, "emit-signal", (gboolean) TRUE, NULL);
+  /** enable emit-signal, default TRUE */
+  g_object_set (element, "emit-signal", (gboolean) TRUE, NULL);
 
-  /* tensor sink signal : new data callback */
-  handle_id = g_signal_connect (g_app_data.sink, "new-data",
+  /** tensor sink signal : new data callback */
+  handle_id = g_signal_connect (element, "new-data",
       (GCallback) _new_data_cb, NULL);
   _check_cond_err (handle_id > 0);
 
-  /* tensor sink signal : stream-start callback, optional */
-  handle_id = g_signal_connect (g_app_data.sink, "stream-start",
+  /** tensor sink signal : stream-start callback, optional */
+  handle_id = g_signal_connect (element, "stream-start",
       (GCallback) _stream_start_cb, NULL);
   _check_cond_err (handle_id > 0);
 
-  /* tensor sink signal : eos callback, optional */
-  handle_id = g_signal_connect (g_app_data.sink, "eos",
-      (GCallback) _eos_cb, NULL);
+  /** tensor sink signal : eos callback, optional */
+  handle_id = g_signal_connect (element, "eos", (GCallback) _eos_cb, NULL);
   _check_cond_err (handle_id > 0);
 
-  /* start pipeline */
-  state_ret = gst_element_set_state (g_app_data.pipeline, GST_STATE_PLAYING);
+  gst_object_unref (element);
+
+  /** start pipeline */
+  state_ret = gst_element_set_state (g_app.pipeline, GST_STATE_PLAYING);
   _check_cond_err (state_ret != GST_STATE_CHANGE_FAILURE);
 
-  g_main_loop_run (g_app_data.loop);
+  /** run main loop */
+  g_main_loop_run (g_app.loop);
+  /** quit when received eos message */
 
-  /* quit when received eos message */
-  state_ret = gst_element_set_state (g_app_data.pipeline, GST_STATE_NULL);
+  state_ret = gst_element_set_state (g_app.pipeline, GST_STATE_NULL);
   _check_cond_err (state_ret != GST_STATE_CHANGE_FAILURE);
 
-  _print_log ("total received %d", g_app_data.received);
+  _print_log ("total received %d", g_app.received);
 
 error:
   _free_app_data ();

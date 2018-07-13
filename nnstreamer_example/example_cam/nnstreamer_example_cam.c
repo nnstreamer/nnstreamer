@@ -85,6 +85,8 @@ _parse_err_message (GstMessage * message)
   gchar *debug;
   GError *error;
 
+  g_return_if_fail (message != NULL);
+
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR:
       gst_message_parse_error (message, &error, &debug);
@@ -188,17 +190,17 @@ main (int argc, char **argv)
 
   _print_log ("start app..");
 
-  /* check cam */
+  /** check cam */
   _check_cond_err (_check_cam_device (cam_dev));
 
-  /* init gstreamer */
+  /** init gstreamer */
   gst_init (&argc, &argv);
 
-  /* main loop */
+  /** main loop */
   g_app.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_app.loop != NULL);
 
-  /* init data pipeline */
+  /** init data pipeline */
   str_pipeline =
       g_strdup_printf
       ("v4l2src name=cam_src ! "
@@ -215,7 +217,7 @@ main (int argc, char **argv)
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
 
-  /* data message callback */
+  /** data message callback */
   g_app.bus = gst_element_get_bus (g_app.pipeline);
   _check_cond_err (g_app.bus != NULL);
 
@@ -224,10 +226,10 @@ main (int argc, char **argv)
       (GCallback) _message_cb, NULL);
   _check_cond_err (handle_id > 0);
 
-  /* start pipeline */
+  /** start pipeline */
   gst_element_set_state (g_app.pipeline, GST_STATE_PLAYING);
 
-  /* set window title */
+  /** set window title */
   element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_mixed");
   _set_window_title (element, "Mixed");
   gst_object_unref (element);
@@ -236,13 +238,13 @@ main (int argc, char **argv)
   _set_window_title (element, "Original");
   gst_object_unref (element);
 
-  /* run main loop */
+  /** run main loop */
   g_main_loop_run (g_app.loop);
+  /** quit when received eos or error message */
 
-  /* cam source element */
+  /** cam source element */
   element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "cam_src");
 
-  /* quit when received eos or error message */
   gst_element_set_state (element, GST_STATE_READY);
   gst_element_set_state (g_app.pipeline, GST_STATE_READY);
 

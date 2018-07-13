@@ -2,7 +2,7 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2018 nnstreamer <nnstreamer sec>
+ * Copyright (C) 2018 Samsung Electronics Co., Ltd.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -13,13 +13,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Library General Public License for more details.
- *
  */
+
 /**
  * @file	tensor_sink.h
  * @date	15 June 2018
  * @brief	GStreamer plugin to handle tensor stream
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		http://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -60,7 +60,7 @@ struct _GstTensorSink
   GMutex mutex; /**< mutex for processing */
   gboolean silent; /**< true to print minimized log */
   gboolean emit_signal; /**< true to emit signal for new data, eos */
-  guint64 render_rate; /**< buffers rendered per second */
+  guint signal_rate; /**< new data signals per second */
   GstClockTime last_render_time; /**< buffer rendered time */
   GstCaps *in_caps; /**< received caps */
 };
@@ -74,7 +74,7 @@ struct _GstTensorSinkClass
 {
   GstBaseSinkClass parent_class; /**< parent class */
 
-  /* signals */
+  /** signals */
   void (*new_data) (GstElement * element, GstBuffer * buffer); /**< signal when new data received */
   void (*stream_start) (GstElement * element); /**< signal when stream started */
   void (*eos) (GstElement * element); /**< signal when end of stream reached */
@@ -87,4 +87,4 @@ GType gst_tensor_sink_get_type (void);
 
 G_END_DECLS
 
-#endif /* __GST_TENSOR_SINK_H__ */
+#endif /** __GST_TENSOR_SINK_H__ */

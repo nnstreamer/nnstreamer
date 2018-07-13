@@ -5,6 +5,7 @@
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
+ * @bug		No known bugs.
  */
 
 #include <gtest/gtest.h>
@@ -127,57 +128,6 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
   g_test_data.received++;
   _print_log ("new data callback [%d]", g_test_data.received);
-
-  /* example to get data */
-  if (DBG) {
-    GstMemory *mem;
-    GstMapInfo info;
-    guint i;
-    guint num_mems;
-
-    num_mems = gst_buffer_n_memory (buffer);
-    for (i = 0; i < num_mems; i++) {
-      mem = gst_buffer_peek_memory (buffer, i);
-
-      if (gst_memory_map (mem, &info, GST_MAP_READ)) {
-        /* check data (info.data, info.size) */
-        _print_log ("received %zd", info.size);
-
-        gst_memory_unmap (mem, &info);
-      }
-    }
-  }
-
-  /* example to get negotiated caps */
-  if (DBG) {
-    GstPad *sink_pad;
-    GstCaps *caps;
-
-    sink_pad = gst_element_get_static_pad (g_test_data.sink, "sink");
-
-    if (sink_pad) {
-      g_object_get (sink_pad, "caps", &caps, NULL);
-
-      if (caps) {
-        guint caps_size, i;
-
-        caps_size = gst_caps_get_size (caps);
-        _print_log ("caps size is %d", caps_size);
-
-        for (i = 0; i < caps_size; i++) {
-          GstStructure *structure = gst_caps_get_structure (caps, i);
-          gchar *str = gst_structure_to_string (structure);
-
-          _print_log ("[%d] %s", i, str);
-          g_free (str);
-        }
-
-        gst_caps_unref (caps);
-      }
-
-      gst_object_unref (sink_pad);
-    }
-  }
 }
 
 /**
@@ -219,8 +169,8 @@ _setup_pipeline (const guint num_buffers)
 
   str_pipeline =
       g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,width=640,height=480,framerate=(fraction)30/1 ! videoconvert ! video/x-raw,format=RGB ! tensor_converter ! tensor_sink name=test_sink",
-      num_buffers);
+      ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+      "tensor_converter ! tensor_sink name=test_sink", num_buffers);
   g_test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_test_data.pipeline != NULL);
@@ -250,7 +200,7 @@ error:
  */
 TEST (tensor_sink_test, properties)
 {
-  guint64 rate, res_rate;
+  guint rate, res_rate;
   gint64 lateness, res_lateness;
   gboolean silent, res_silent;
   gboolean emit, res_emit;
@@ -259,15 +209,15 @@ TEST (tensor_sink_test, properties)
 
   ASSERT_TRUE (_setup_pipeline (1));
 
-  /* default render-rate is 0 */
-  g_object_get (g_test_data.sink, "render-rate", &rate, NULL);
+  /** default signal-rate is 0 */
+  g_object_get (g_test_data.sink, "signal-rate", &rate, NULL);
   EXPECT_EQ (rate, 0);
 
-  g_object_set (g_test_data.sink, "render-rate", (rate + 10), NULL);
-  g_object_get (g_test_data.sink, "render-rate", &res_rate, NULL);
+  g_object_set (g_test_data.sink, "signal-rate", (rate + 10), NULL);
+  g_object_get (g_test_data.sink, "signal-rate", &res_rate, NULL);
   EXPECT_EQ (res_rate, (rate + 10));
 
-  /* default emit-signal is TRUE */
+  /** default emit-signal is TRUE */
   g_object_get (g_test_data.sink, "emit-signal", &emit, NULL);
   EXPECT_EQ (emit, TRUE);
 
@@ -275,7 +225,7 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "emit-signal", &res_emit, NULL);
   EXPECT_EQ (res_emit, !emit);
 
-  /* default silent is TRUE */
+  /** default silent is TRUE */
   g_object_get (g_test_data.sink, "silent", &silent, NULL);
   EXPECT_EQ (silent, TRUE);
 
@@ -283,7 +233,7 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "silent", &res_silent, NULL);
   EXPECT_EQ (res_silent, !silent);
 
-  /* GstBaseSink:sync TRUE */
+  /** GstBaseSink:sync TRUE */
   g_object_get (g_test_data.sink, "sync", &sync, NULL);
   EXPECT_EQ (sync, TRUE);
 
@@ -291,16 +241,16 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "sync", &res_sync, NULL);
   EXPECT_EQ (res_sync, !sync);
 
-  /* GstBaseSink:max-lateness 30ms */
+  /** GstBaseSink:max-lateness 30ms */
   g_object_get (g_test_data.sink, "max-lateness", &lateness, NULL);
   EXPECT_EQ (lateness, (30 * GST_MSECOND));
 
-  /* -1 means unlimited time */
+  /** -1 means unlimited time */
   g_object_set (g_test_data.sink, "max-lateness", (gint64) (-1), NULL);
   g_object_get (g_test_data.sink, "max-lateness", &res_lateness, NULL);
   EXPECT_EQ (res_lateness, -1);
 
-  /* GstBaseSink:qos TRUE */
+  /** GstBaseSink:qos TRUE */
   g_object_get (g_test_data.sink, "qos", &qos, NULL);
   EXPECT_EQ (qos, TRUE);
 
@@ -322,14 +272,11 @@ TEST (tensor_sink_test, signals)
   ASSERT_TRUE (_setup_pipeline (num_buffers));
 
   if (DBG) {
-    /* print logs */
-    g_object_set (g_test_data.sink, "silent", FALSE, NULL);
+    /** print logs */
+    g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
   }
 
-  /* enable emit-signal */
-  g_object_set (g_test_data.sink, "emit-signal", TRUE, NULL);
-
-  /* tensor sink signals */
+  /** tensor sink signals */
   handle_id = g_signal_connect (g_test_data.sink, "new-data",
       (GCallback) _new_data_cb, NULL);
   EXPECT_TRUE (handle_id > 0);
@@ -347,10 +294,10 @@ TEST (tensor_sink_test, signals)
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
-  /* check eos message */
+  /** check eos message */
   EXPECT_EQ (g_test_data.status, TEST_EOS);
 
-  /* check received buffers and signals */
+  /** check received buffers and signals */
   EXPECT_EQ (g_test_data.received, num_buffers);
   EXPECT_EQ (g_test_data.start, TRUE);
   EXPECT_EQ (g_test_data.end, TRUE);
@@ -359,9 +306,9 @@ TEST (tensor_sink_test, signals)
 }
 
 /**
- * @brief Test for tensor sink render-rate.
+ * @brief Test for tensor sink signal-rate.
  */
-TEST (tensor_sink_test, render_rate)
+TEST (tensor_sink_test, signal_rate)
 {
   const guint num_buffers = 10;
   gulong handle_id;
@@ -369,30 +316,27 @@ TEST (tensor_sink_test, render_rate)
   ASSERT_TRUE (_setup_pipeline (num_buffers));
 
   if (DBG) {
-    /* print logs */
-    g_object_set (g_test_data.sink, "silent", FALSE, NULL);
+    /** print logs */
+    g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
   }
 
-  /* enable emit-signal */
-  g_object_set (g_test_data.sink, "emit-signal", TRUE, NULL);
+  /** set signal-rate */
+  g_object_set (g_test_data.sink, "signal-rate", (guint) 15, NULL);
 
-  /* set render-rate */
-  g_object_set (g_test_data.sink, "render-rate", (guint64) 15, NULL);
-
-  /* signal for new data */
+  /** signal for new data */
   handle_id = g_signal_connect (g_test_data.sink, "new-data",
       (GCallback) _new_data_cb, NULL);
   EXPECT_TRUE (handle_id > 0);
 
-  _print_log ("start pipeline for render-rate test");
+  _print_log ("start pipeline for signal-rate test");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
-  /* check eos message */
+  /** check eos message */
   EXPECT_EQ (g_test_data.status, TEST_EOS);
 
-  /* check received buffers */
+  /** check received buffers */
   EXPECT_TRUE (g_test_data.received < num_buffers);
 
   _free_test_data ();
@@ -410,16 +354,16 @@ TEST (tensor_sink_test, unknown_case)
   ASSERT_TRUE (_setup_pipeline (num_buffers));
 
   if (DBG) {
-    /* print logs */
-    g_object_set (g_test_data.sink, "silent", FALSE, NULL);
+    /** print logs */
+    g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
   }
 
-  /* try to set/get unknown property */
+  /** try to set/get unknown property */
   g_object_set (g_test_data.sink, "unknown-prop", 1, NULL);
   g_object_get (g_test_data.sink, "unknown-prop", &unknown, NULL);
   EXPECT_EQ (unknown, -1);
 
-  /* unknown signal */
+  /** unknown signal */
   handle_id = g_signal_connect (g_test_data.sink, "unknown-sig",
       (GCallback) _new_data_cb, NULL);
   EXPECT_EQ (handle_id, 0);
@@ -429,10 +373,53 @@ TEST (tensor_sink_test, unknown_case)
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
-  /* check eos message */
+  /** check eos message */
   EXPECT_EQ (g_test_data.status, TEST_EOS);
 
-  /* check received buffers */
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, 0);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for caps negotiation failed.
+ */
+TEST (tensor_sink_test, caps_error)
+{
+  const guint num_buffers = 10;
+  gchar *str_pipeline;
+
+  g_test_data.received = 0;
+  g_test_data.loop = g_main_loop_new (NULL, FALSE);
+
+  /** cannot link videoconvert and tensor_sink */
+  str_pipeline =
+      g_strdup_printf
+      ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+      "videoconvert ! tensor_sink name=test_sink", num_buffers);
+  g_test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+
+  g_test_data.bus = gst_element_get_bus (g_test_data.pipeline);
+  gst_bus_add_signal_watch (g_test_data.bus);
+  g_signal_connect (g_test_data.bus, "message", (GCallback) _message_cb, NULL);
+
+  g_test_data.sink =
+      gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "test_sink");
+
+  g_signal_connect (g_test_data.sink, "new-data", (GCallback) _new_data_cb,
+      NULL);
+
+  _print_log ("start pipeline for caps error test");
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check error message */
+  EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
+
+  /** check received buffers */
   EXPECT_EQ (g_test_data.received, 0);
 
   _free_test_data ();
