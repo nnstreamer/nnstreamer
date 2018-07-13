@@ -1,4 +1,4 @@
-/*
+/**
  * Gstreamer Tensor Meta
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
@@ -30,6 +30,10 @@
 #include <glib.h>
 #include <dlfcn.h>
 
+/**
+ * @brief return meta type (GstMetaTensor)
+ * @return GType GstMetaTensor
+ */
 GType
 gst_meta_tensor_api_get_type (void)
 {
@@ -61,13 +65,11 @@ gst_meta_tensor_api_get_type (void)
 static gboolean
 gst_meta_tensor_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 {
-  /* @TODO To be filled */
-
   GstMetaTensor *emeta = (GstMetaTensor *) meta;
 
   emeta->num_tensors = 0;
   emeta->dimensions = NULL;
-
+  emeta->types = NULL;
   return TRUE;
 }
 
@@ -84,7 +86,6 @@ static gboolean
 gst_meta_tensor_transform (GstBuffer * transbuf, GstMeta * meta,
     GstBuffer * buffer, GQuark type, gpointer data)
 {
-  /* @TODO To be filled */
   GstMetaTensor *dest_meta = GST_META_TENSOR_ADD (transbuf);
   GstMetaTensor *src_meta = (GstMetaTensor *) meta;
 
@@ -102,8 +103,31 @@ gst_meta_tensor_transform (GstBuffer * transbuf, GstMeta * meta,
 static void
 gst_meta_tensor_free (GstMeta * meta, GstBuffer * buffer)
 {
+  gboolean haslock = FALSE;
+  if (!GST_OBJECT_GET_LOCK (buffer)) {
+    GST_OBJECT_LOCK (buffer);
+    haslock = TRUE;
+  }
+
   GstMetaTensor *emeta = (GstMetaTensor *) meta;
-  /* If there is buffer free in here */
+
+  GList *l = emeta->dimensions;
+  while (l != NULL) {
+    GList *next = l->next;
+    g_free (next->data);
+  }
+  g_list_free (emeta->dimensions);
+
+  l = emeta->types;
+  while (l != NULL) {
+    GList *next = l->next;
+    g_free (next->data);
+  }
+  g_list_free (emeta->types);
+
+  if (haslock)
+    GST_OBJECT_UNLOCK (buffer);
+
   emeta->num_tensors = 0;
 }
 
@@ -129,7 +153,7 @@ gst_meta_tensor_get_info (void)
 }
 
 /**
- * @brief @todo fill this in
+ * @brief Add Meta into buffer
  */
 GstMetaTensor *
 gst_buffer_add_meta_tensor (GstBuffer * buffer)
@@ -145,7 +169,7 @@ gst_buffer_add_meta_tensor (GstBuffer * buffer)
 }
 
 /**
- * @brief @todo fill this in
+ * @brief fill this in
  */
 GstMetaTensor *
 gst_make_tensors (GstBuffer * buffer)
@@ -154,13 +178,20 @@ gst_make_tensors (GstBuffer * buffer)
 }
 
 /**
- * @brief @todo fill this in
+ * @brief append tensor into buffer
  */
 GstMetaTensor *
-gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim * dim)
+gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim dim,
+    tensor_type type)
 {
   tensor_dim *d;
+  tensor_type *t;
+  gboolean haslock = FALSE;
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
+  if (!GST_OBJECT_GET_LOCK (buffer)) {
+    GST_OBJECT_LOCK (buffer);
+    haslock = TRUE;
+  }
 
   gst_buffer_append_memory (buffer, mem);
 
@@ -178,11 +209,18 @@ gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim * dim)
   memcpy (d, dim, sizeof (tensor_dim));
   meta->dimensions = g_list_append (meta->dimensions, d);
 
+  t = g_slice_new (tensor_type);
+  *t = type;
+  meta->types = g_list_append (meta->types, t);
+
+  if (haslock)
+    GST_OBJECT_UNLOCK (buffer);
+
   return meta;
 }
 
 /**
- * @brief @todo fill this in
+ * @brief Get tensor GstMemory
  */
 GstMemory *
 gst_get_tensor (GstBuffer * buffer, gint nth)
@@ -205,32 +243,57 @@ gst_get_tensor (GstBuffer * buffer, gint nth)
 }
 
 /**
- * @brief @todo fill this in
+ * @brief Get tensor dimension
  */
 tensor_dim *
 gst_get_tensordim (GstBuffer * buffer, gint nth)
 {
   GstMetaTensor *meta;
-  tensor_dim *dim;
+  tensor_dim *dim = NULL;
   meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
   if (meta) {
-    dim = (tensor_dim *) g_list_nth_data (meta->dimensions, nth);
-    return dim;
+    dim = g_list_nth_data (meta->dimensions, nth);
+  }
+  return dim;
+}
+
+/**
+ * @brief Get tensor type
+ */
+tensor_type
+gst_get_tensortype (GstBuffer * buffer, gint nth)
+{
+  GstMetaTensor *meta;
+  tensor_type *t;
+  tensor_type type;
+  meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
+  if (meta) {
+    t = g_list_nth_data (meta->types, nth);
+    type = *t;
+    return type;
   } else {
-    return NULL;
+    return _NNS_END;
   }
 }
 
 /**
- * @brief @todo fill this in
+ * @brief Remove tensor in tensors
  */
 GstFlowReturn
 gst_remove_tensor (GstBuffer * buffer, gint nth)
 {
+  gboolean haslock = FALSE;
+  if (!GST_OBJECT_GET_LOCK (buffer)) {
+    GST_OBJECT_LOCK (buffer);
+    haslock = TRUE;
+  }
   GstMetaTensor *meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
   if (meta) {
-    if (meta->num_tensors == 0)
+    if (meta->num_tensors == 0) {
+      if (haslock)
+        GST_OBJECT_UNLOCK (buffer);
       return GST_FLOW_ERROR;
+    }
     meta->num_tensors = meta->num_tensors - 1;
     GList *list = meta->dimensions;
     gint th = 0;
@@ -242,8 +305,22 @@ gst_remove_tensor (GstBuffer * buffer, gint nth)
       th++;
       list = next;
     }
+
+    list = meta->types;
+    th = 0;
+    while (list != NULL) {
+      GList *next = list->next;
+      if (th == nth) {
+        meta->types = g_list_delete_link (meta->types, list);
+      }
+      th++;
+      list = next;
+    }
     gst_buffer_remove_memory (buffer, nth);
   }
+
+  if (haslock)
+    GST_OBJECT_UNLOCK (buffer);
 
   return GST_FLOW_OK;
 }

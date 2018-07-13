@@ -1,4 +1,4 @@
-/*
+/**
  * GStreamer Tensor Meta
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
@@ -43,6 +43,7 @@ struct _GstMetaTensor {
   GstMeta meta;
   gint num_tensors;
   GList *dimensions;
+  GList *types;
 };
 
 /**
@@ -92,7 +93,7 @@ GstMetaTensor * gst_make_tensors (GstBuffer *buffer);
  * @param dim tensor_dim for tensor
  * @return GstMetaTensor
  */
-GstMetaTensor * gst_append_tensor (GstBuffer *buffer, GstMemory *mem, tensor_dim *dim);
+GstMetaTensor * gst_append_tensor (GstBuffer *buffer, GstMemory *mem, tensor_dim dim, tensor_type type);
 
 /**
  * @brief Utility function to get tensor from tensors.
@@ -108,7 +109,16 @@ GstMemory * gst_get_tensor (GstBuffer *buffer, gint nth);
  * @param nth order of tensor
  * @return tensor_dim Tensor dimension
  */
+
 tensor_dim * gst_get_tensordim (GstBuffer *buffer, gint nth);
+
+/**
+ * @brief Utility function to get nth tensor type
+ * @param buffer Target GstBuffer Object
+ * @param nth order of tensor
+ * @return tensor_type Tensor type
+ */
+tensor_type gst_get_tensortype (GstBuffer *buffer, gint nth);
 
 /**
  * @brief Utility function to remove nth tensor from tensors
@@ -141,4 +151,4 @@ GArray * parse_types (const gchar* type_string);
 
 G_END_DECLS
 
-#endif /* __GST_TENSOR_META_H__ */
+#endif /** __GST_TENSOR_META_H__ */

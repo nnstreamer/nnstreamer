@@ -1,4 +1,4 @@
-/*
+/**
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
@@ -48,6 +48,7 @@
  * @brief	test element to check tensors
  * @see		http://github.com/TO-BE-DETERMINED-SOON
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
+ * @bug         no known bugs
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  *
  */
@@ -76,10 +77,10 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensorscheck_debug);
 #define GST_CAT_DEFAULT gst_tensorscheck_debug
 
-/* Filter signals and args */
+/** Filter signals and args */
 enum
 {
-  /* FILL ME */
+  /** FILL ME */
   LAST_SIGNAL
 };
 
@@ -89,7 +90,7 @@ enum
   PROP_SILENT
 };
 
-/* the capabilities of the inputs and outputs.
+/** the capabilities of the inputs and outputs.
  *
  * describe the real formats here.
  */
@@ -118,9 +119,11 @@ static gboolean gst_tensorscheck_sink_event (GstPad * pad, GstObject * parent,
 static GstFlowReturn gst_tensorscheck_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
 
-/* GObject vmethod implementations */
+/** GObject vmethod implementations */
 
-/* initialize the tensorscheck's class */
+/**
+ * @brief initialize the tensorscheck's class
+ */
 static void
 gst_tensorscheck_class_init (GsttensorscheckClass * klass)
 {
@@ -149,7 +152,8 @@ gst_tensorscheck_class_init (GsttensorscheckClass * klass)
       gst_static_pad_template_get (&sink_factory));
 }
 
-/* initialize the new element
+/**
+ * @brief initialize the new element
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
@@ -170,6 +174,9 @@ gst_tensorscheck_init (Gsttensorscheck * filter)
   filter->silent = FALSE;
 }
 
+/**
+ * @brief set property vmthod
+ */
 static void
 gst_tensorscheck_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -186,6 +193,9 @@ gst_tensorscheck_set_property (GObject * object, guint prop_id,
   }
 }
 
+/**
+ * @brief get property vmthod
+ */
 static void
 gst_tensorscheck_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
@@ -203,14 +213,15 @@ gst_tensorscheck_get_property (GObject * object, guint prop_id,
 }
 
 
-/* entry point to initialize the plug-in
+/**
+ * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
 static gboolean
 tensorscheck_init (GstPlugin * tensorscheck)
 {
-  /* debug category for fltering log messages
+  /** debug category for fltering log messages
    *
    * exchange the string 'Template tensorscheck' with your description
    */
@@ -221,7 +232,7 @@ tensorscheck_init (GstPlugin * tensorscheck)
       GST_TYPE_TENSORSCHECK);
 }
 
-/* PACKAGE: this is usually set by autotools depending on some _INIT macro
+/** PACKAGE: this is usually set by autotools depending on some _INIT macro
  * in configure.ac and then written into and defined in config.h, but we can
  * just set it ourselves here in case someone doesn't use autotools to
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
@@ -230,7 +241,7 @@ tensorscheck_init (GstPlugin * tensorscheck)
 #define PACKAGE "tensorscheck"
 #endif
 
-/* gstreamer looks for this structure to register tensorschecks
+/** gstreamer looks for this structure to register tensorschecks
  *
  * exchange the string 'Template tensorscheck' with your tensorscheck description
  */
@@ -240,7 +251,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "Template tensorscheck",
     tensorscheck_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
 
-/*
+/**
  * @brief Set Caps in pad.
  * @param filter Gsttensorscheck instance
  * @param caps incomming capablity
@@ -304,7 +315,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
   return ret;
 }
 
-/*
+/**
  * @brief make GstBuffer for output tensor.
  * @param filter Gsttensorscheck
  * @param inbuf incomming GstBuffer. (tensors)
@@ -321,22 +332,22 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   unsigned int d0, d1, d2, i;
   gboolean ret;
 
-  /* Mapping input buffer (tensors) into src_info */
+  /** Mapping input buffer (tensors) into src_info */
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
 
-  /* Making output GstBuffer */
+  /** Making output GstBuffer */
   outbuf = gst_buffer_new ();
 
-  /* Making output buffer (one big buffer for check tensors) */
+  /** Making output buffer (one big buffer for check tensors) */
   buffer_mem = gst_allocator_alloc (NULL,
-      /* filter->dimension[0] * filter->dimension[1] * filter->dimension[2] * */
-      /* filter->dimension[3], NULL); */
+      /** filter->dimension[0] * filter->dimension[1] * filter->dimension[2] * */
+      /** filter->dimension[3], NULL); */
       3 * 640 * 480 * 1, NULL);
   gst_buffer_append_memory (outbuf, buffer_mem);
 
   gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
 
-  /* Get number of tensors */
+  /** Get number of tensors */
   num_tensors = gst_get_num_tensors (inbuf);
   debug_print (!filter->silent, "Number of Tensors : %d\n", num_tensors);
   for (i = 0; i < num_tensors; i++) {
@@ -368,9 +379,11 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   return outbuf;
 }
 
-/* GstElement vmethod implementations */
+/** GstElement vmethod implementations */
 
-/* this function handles sink events */
+/**
+ * @brief this function handles sink events
+ */
 static gboolean
 gst_tensorscheck_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
@@ -398,7 +411,8 @@ gst_tensorscheck_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
   return ret;
 }
 
-/* chain function
+/**
+ * @brief chain function
  * this function does the actual processing
  */
 static GstFlowReturn

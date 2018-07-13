@@ -318,6 +318,34 @@ resend_events (GstPad * pad, GstEvent ** event, gpointer user_data)
 }
 
 /**
+ * @brief push tensor in tensors
+ * @param pad Sink pad
+ * @param tensor_mux Tensor Mux
+ * @param buffer input buffer
+ */
+static gboolean
+gst_push_tensor (GstPad * pad, GstTensorMux * tensor_mux, GstBuffer * buffer)
+{
+  tensor_dim dim;
+  GstMemory *mem;
+  gboolean ret = FALSE;
+  tensor_type tensor_type;
+  GstTensor_Filter_CheckStatus status;
+
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+
+  status = get_tensor_from_padcap (caps, dim, &tensor_type);
+  g_assert ((status & _TFC_ALL) == _TFC_ALL);
+
+  mem = gst_buffer_get_memory (buffer, 0);
+  gst_memory_ref (mem);
+  if (gst_append_tensor (tensor_mux->outbuffer, mem, dim, tensor_type))
+    ret = TRUE;
+
+  return ret;
+}
+
+/**
  * @brief chain function (gst element vmethod)
  */
 static GstFlowReturn
@@ -358,17 +386,9 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
     changed = TRUE;
     g_clear_object (&tensor_mux->last_pad);
     tensor_mux->last_pad = g_object_ref (pad);
-    GstCaps *tcap = gst_pad_get_current_caps (pad);
-    GstStructure *s = gst_caps_get_structure (tcap, 0);
-    tensor_dim dim;
-    gst_structure_get_int (s, "dim1", (int *) &dim[0]);
-    gst_structure_get_int (s, "dim2", (int *) &dim[1]);
-    gst_structure_get_int (s, "dim3", (int *) &dim[2]);
-    gst_structure_get_int (s, "dim4", (int *) &dim[3]);
 
-    GstMemory *mem = gst_buffer_get_memory (buffer, 0);
-    gst_memory_ref (mem);
-    gst_append_tensor (tensor_mux->outbuffer, mem, &dim);
+    if (!gst_push_tensor (pad, tensor_mux, buffer))
+      GST_ERROR_OBJECT (tensor_mux, "Cannot append GstMemory\n");
 
     g_mutex_lock (&buf_mutex);
     buf_count++;
