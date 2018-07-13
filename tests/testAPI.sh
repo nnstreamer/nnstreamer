@@ -2,11 +2,20 @@
 
 if [[ $# -eq 0 ]]; then
 	dirpath="$( cd "$( dirname "$0")" && pwd )"
-	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" "$dirpath/../build/gst/tensor_transform" 1>/dev/null || {
-		echo "[ERROR] Before unit testing, you should build with cmake first."
-		exit 1
-	}
-	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder:$dirpath/../build/gst/tensor_transform"
+	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+	if [ "$?" -ne "0" ]; then
+		dirpath="$dirpath/../"
+		find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+		if [ "$?" -ne "0" ]; then
+			dirpath="$dirpath/../"
+			find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+			if [ "$?" -ne "0" ]; then
+				echo "[ERROR] Cannot find nnstreamer plugin binaries. Before unit testing, you should build with cmake first."
+				exit 1
+			fi
+		fi
+	fi
+	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder:$dirpath/../build/gst/tensor_transform:$dirpath/../build/gst/tensor_sink:$dirpath/../build/gst/tensor_mux"
 else
 	PATH_TO_PLUGIN="$1"
 fi
