@@ -366,16 +366,8 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
     gst_structure_get_int (s, "dim3", (int *) &dim[2]);
     gst_structure_get_int (s, "dim4", (int *) &dim[3]);
 
-    GstMapInfo info, sink_info;
-    size_t size = dim[0] * dim[1] * dim[2] * dim[3];
-
-    GstMemory *mem = gst_allocator_alloc (NULL, size, NULL);
-    gst_memory_map (mem, &info, GST_MAP_WRITE);
-    gst_buffer_map (buffer, &sink_info, GST_MAP_READ);
-    memcpy (info.data, sink_info.data, size);
-
-    gst_memory_unmap (mem, &info);
-    gst_buffer_unmap (buffer, &sink_info);
+    GstMemory *mem = gst_buffer_get_memory (buffer, 0);
+    gst_memory_ref (mem);
     gst_append_tensor (tensor_mux->outbuffer, mem, &dim);
 
     g_mutex_lock (&buf_mutex);
