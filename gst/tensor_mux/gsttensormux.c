@@ -29,6 +29,25 @@
  *
  */
 
+/**
+ * SECTION:element-tensormux
+ *
+ * A Muxer that merge tensor stream to tensors stream for NN frameworks.
+ * The output is always in the format of other/tensors
+ *
+ * <refsect2>
+ * <title>Example launch line</title>
+ * |[
+ * gst-launch -v -m tensormux name=mux ! fakesink
+ * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0
+ * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1
+ * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2
+ * ]|
+ * </refsect2>
+ *
+ */
+
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
