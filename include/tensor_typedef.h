@@ -89,7 +89,7 @@ typedef enum {
 
   _TFC_FRAMERATE = 4,
 
-  /* @TODO Add "consistency checked. don't check it again" and implement .c accordingly. */
+  /** @todo Add "consistency checked. don't check it again" and implement .c accordingly. */
 } GstTensor_Filter_CheckStatus;
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];

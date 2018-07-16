@@ -74,7 +74,8 @@ enum
 
 #define silent_debug(...) debug_print (!filter->silent, __VA_ARGS__)
 
-/* the capabilities of the inputs
+/**
+ * the capabilities of the inputs
  *
  * In v0.0.1, this is "bitmap" image stream
  */
@@ -316,7 +317,8 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
 static gboolean
 tensor_transform_init (GstPlugin * tensor_transform)
 {
-  /* debug category for fltering log messages
+  /**
+   * debug category for fltering log messages
    *
    * exchange the string 'Template tensor_transform' with your description
    */
@@ -337,7 +339,8 @@ tensor_transform_init (GstPlugin * tensor_transform)
 #define PACKAGE "tensor_transform"
 #endif
 
-/* gstreamer looks for this structure to register tensor_transforms
+/**
+ * gstreamer looks for this structure to register tensor_transforms
  *
  * exchange the string 'Template tensor_transform' with your tensor_transform description
  */
@@ -359,7 +362,7 @@ static GstFlowReturn
 gst_tensor_transform_dimchg (GstTensor_Transform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  /* @todo NYI */
+  /** @todo NYI */
   uint32_t *fromDim = filter->fromDim;
   uint32_t *toDim = filter->toDim;
   int from = filter->data_dimchg.from;
@@ -373,7 +376,7 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
 
 
   if (from == to) {
-    /* Useless memcpy. Do not call this or @todo do "IP" operation */
+    /** Useless memcpy. Do not call this or @todo do "IP" operation */
     memcpy (outptr, inptr, get_tensor_element_count (filter->fromDim) *
         tensor_element_size[filter->type]);
     g_printerr
@@ -386,10 +389,12 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
   g_assert (fromDim[from] == toDim[to]);
 
   if (from < to) {
-    /* Smaller-loop-ed a to larger-loop-ed b */
-    /* E.g., [N][H][W][c] (c:W:H:N) --> [N][c][H][W] (W:H:c:N) */
-
-    /* @todo CRITICAL-TODO: Optimize the performance! */
+    /**
+     * Smaller-loop-ed a to larger-loop-ed b
+     * E.g., [N][H][W][c] (c:W:H:N) --> [N][c][H][W] (W:H:c:N)
+     *
+     * @todo CRITICAL-TODO: Optimize the performance!
+     */
     for (i = NNS_TENSOR_RANK_LIMIT - 1; i > to; i--)
       loopLimit *= toDim[i];
     for (i = 0; i < to; i++)
@@ -415,9 +420,11 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
       }
     }
   } else {
-    /* Larger-loop-ed a to smaller-loop-ed b */
-    /* E.g., [N][c][H][W] (W:H:c:N) --> [N][H][W][c] (c:W:H:N) */
-    /* @todo NYI */
+    /**
+     * Larger-loop-ed a to smaller-loop-ed b
+     * E.g., [N][c][H][W] (W:H:c:N) --> [N][H][W][c] (c:W:H:N)
+     * @todo NYI
+     */
     g_assert (0);
   }
 
@@ -633,7 +640,7 @@ static GstCaps *
 gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filtercap)
 {
-  /* @todo NYI: framerate configuration! */
+  /** @todo NYI: framerate configuration! */
   tensor_dim in, out;
   tensor_type type;
   gboolean ret;
@@ -683,7 +690,7 @@ static GstCaps *
 gst_tensor_transform_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
 {
-  /* @todo NYI: framerate configuration! */
+  /** @todo NYI: framerate configuration! */
   GstCaps *othercaps_candidate =
       gst_tensor_transform_transform_caps (trans, direction, caps, NULL);
   GstCaps *filtered_candidate =
@@ -730,5 +737,5 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
   *othersize = size;            /* size of input = size of output */
   return TRUE;
 
-  /* @todo add verificastion procedure */
+  /** @todo add verificastion procedure */
 }

@@ -88,7 +88,8 @@ enum
   PROP_FORCE_MEMCPY,
 };
 
-/* the capabilities of the inputs
+/**
+ * the capabilities of the inputs
  *
  * In v0.0.1, this is "bitmap" image stream
  */
@@ -317,8 +318,10 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
     return FALSE;
   }
 
-  /* Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0 */
-  /** @todo: Add more conditions! */
+  /**
+   * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
+   * @todo: Add more conditions!
+   */
   if (remove_stride_padding_per_row (format, dimension[1])) {
     filter->removePadding = TRUE;
   }
@@ -371,7 +374,8 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
 static gboolean
 tensor_converter_init (GstPlugin * tensor_converter)
 {
-  /* debug category for fltering log messages
+  /**
+   * debug category for fltering log messages
    *
    * exchange the string 'Template tensor_converter' with your description
    */
@@ -392,7 +396,8 @@ tensor_converter_init (GstPlugin * tensor_converter)
 #define PACKAGE "tensor_converter"
 #endif
 
-/* gstreamer looks for this structure to register tensor_converters
+/**
+ * gstreamer looks for this structure to register tensor_converters
  *
  * exchange the string 'Template tensor_converter' with your tensor_converter description
  */
@@ -617,10 +622,11 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
   if (direction == GST_PAD_SINK) {
     GstStructure *structure;
     gchar *str;
-    /* Skip verifying if caps is compatible: let's assume sink_factory will do that. */
-    /** @todo: Verify if this assumption is correct */
-
-    /** @todo CRITICAL: Handle when caps is in range, not fixed */
+    /**
+     * Skip verifying if caps is compatible: let's assume sink_factory will do that.
+     * @todo: Verify if this assumption is correct
+     * @todo CRITICAL: Handle when caps is in range, not fixed
+     */
 
     /* Construct bogusFilter from caps (sinkpad) */
     ret = gst_tensor_converter_configure_tensor (caps, &bogusFilter);
@@ -671,9 +677,11 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
       tmp = gst_caps_from_string (str2);
       debug_print (!obj->silent, "Structure from caps to = %s\n", str2);
 
-      /* If given caps are in range for width/height,
-         we cannot configure tensor, however, we may return proper srcpad caps */
-      /** @todo: see if the error is from ranging width/height before entering here */
+      /**
+       * If given caps are in range for width/height,
+       * we cannot configure tensor, however, we may return proper srcpad caps
+       * @todo: see if the error is from ranging width/height before entering here
+       */
       return tmp;
     }
 
@@ -714,8 +722,10 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     GstStructure *structure;
     gchar *str;
 
-    /* Construct possible GstCap (sinkpad) with src_factory */
-    /** @todo This supports video only! */
+    /**
+     * Construct possible GstCap (sinkpad) with src_factory
+     * @todo This supports video only!
+     */
     GstStaticCaps staticcap =
         GST_STATIC_CAPS
         ("video/x-raw, format = (string){RGB, BGRx}, views = (int)1, "
@@ -816,8 +826,10 @@ gst_tensor_converter_set_caps (GstBaseTransform * trans,
   GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
       " to %" GST_PTR_FORMAT, incaps, outcaps);
 
-  /** @todo Supports video only */
-  /* input caps */
+  /**
+   * @todo Supports video only
+   * input caps
+   */
   if (!gst_video_info_from_caps (&in_info, incaps)) {
     err_print ("Cannot set_caps\n");
     return FALSE;

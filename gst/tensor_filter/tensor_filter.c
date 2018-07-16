@@ -328,7 +328,7 @@ gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, tensor_dim dim,
  * We need both type and dimension to do this.
  * This is supposed to be used by set_properties, restrting pad-caps before attaching input/output elements
  *
- * @TODO Looks like this is buggy!!!
+ * @todo Looks like this is buggy!!!
  */
 static GstCaps *
 gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
@@ -654,7 +654,8 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
 static gboolean
 tensor_filter_init (GstPlugin * tensor_filter)
 {
-  /* debug category for fltering log messages
+  /**
+   * debug category for fltering log messages
    *
    * exchange the string 'Template tensor_filter' with your description
    */
@@ -665,7 +666,8 @@ tensor_filter_init (GstPlugin * tensor_filter)
       GST_TYPE_TENSOR_FILTER);
 }
 
-/* PACKAGE: this is usually set by autotools depending on some _INIT macro
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
  * in configure.ac and then written into and defined in config.h, but we can
  * just set it ourselves here in case someone doesn't use autotools to
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
@@ -722,7 +724,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     outBufSize = tensor_element_size[filter->prop.outputType] *
         get_tensor_element_count (filter->prop.outputDimension);
     if (gst_buffer_get_size (outbuf) < outBufSize) {
-      /* @TODO: write a routine to say aloud when this happens */
+      /** @todo: write a routine to say aloud when this happens */
       gst_buffer_set_size (outbuf, outBufSize);
     }
     debug_print (!filter->prop.silent, "outbuf = %lu / expected = %lu\n",
@@ -749,7 +751,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     gst_tensor_filter_call (filter, retoutptr, invoke_NN, inptr, NULL);
     gst_buffer_unmap (inbuf, &inInfo);
 
-    /* @TODO Performance: cache get_tensor_element_count * tensor_element_size */
+    /** @todo Performance: cache get_tensor_element_count * tensor_element_size */
     mem = gst_memory_new_wrapped (0, retoutptr,
         get_tensor_element_count (filter->prop.outputDimension) *
         tensor_element_size[filter->prop.outputType],
@@ -1118,7 +1120,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   }
 
   /**
-   * @TODO ARCH-Decision required; are we going to (and do we need to)
+   * @todo ARCH-Decision required; are we going to (and do we need to)
    * support setOutputDimention (and get InputDim accordingly?)
    *
    * If not, we have done with it and emit error here if we still don't have

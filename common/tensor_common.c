@@ -59,7 +59,10 @@ get_tensor_type (const gchar * typestr)
   len = strlen (typestr);
 
   if (typestr[0] == 'u' || typestr[0] == 'U') {
-    /* Let's believe the developer and the following three letters are "int" (case insensitive) */
+    /**
+     * Let's believe the developer and the following three letters are "int"
+     * (case insensitive)
+     */
     if (len == 6) {             /* uint16, uint32 */
       if (typestr[4] == '1' && typestr[5] == '6')
         return _NNS_UINT16;
@@ -70,7 +73,10 @@ get_tensor_type (const gchar * typestr)
         return _NNS_UINT8;
     }
   } else if (typestr[0] == 'i' || typestr[0] == 'I') {
-    /* Let's believe the developer and the following two letters are "nt" (case insensitive) */
+    /**
+     * Let's believe the developer and the following two letters are "nt"
+     * (case insensitive)
+     */
     if (len == 5) {             /* int16, int32 */
       if (typestr[3] == '1' && typestr[4] == '6')
         return _NNS_INT16;
