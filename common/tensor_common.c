@@ -166,7 +166,7 @@ get_tensor_element_count (const uint32_t dim[NNS_TENSOR_RANK_LIMIT])
  */
 GstTensor_Filter_CheckStatus
 get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
-    tensor_type * type)
+    tensor_type * type, int *framerate_num, int *framerate_denum)
 {
   GstTensor_Filter_CheckStatus ret = _TFC_INIT;
   tensor_dim backup_dim;
@@ -175,6 +175,7 @@ get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
   const GstStructure *str;
   int rank;
   const gchar *strval;
+  gint fn, fd;
 
   if (!caps)
     return ret;
@@ -184,18 +185,14 @@ get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
     str = gst_caps_get_structure (caps, i);
     g_assert (NNS_TENSOR_RANK_LIMIT == 4);      /* This code assumes rank limit is 4 */
 
+    /**
+     * Already cofnigured and more cap info is coming.
+     * I'm not sure how this happens, but let's be ready for this.
+     */
     if ((i > 1) && (ret & _TFC_DIMENSION)) {
-      /**
-       * Already cofnigured and more cap info is coming.
-       * I'm not sure how this happens, but let's be ready for this.
-       */
       memcpy (backup_dim, dim, sizeof (uint32_t) * NNS_TENSOR_RANK_LIMIT);
     }
     if ((i > 1) && (ret & _TFC_TYPE)) {
-      /**
-       * Already cofnigured and more cap info is coming.
-       * I'm not sure how this happens, but let's be ready for this.
-       */
       backup_type = *type;
     }
 
@@ -226,6 +223,18 @@ get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
         g_assert (*type == backup_type);
       }
       ret |= _TFC_TYPE;
+    }
+    if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
+      if ((ret & _TFC_FRAMERATE) && framerate_num)
+        g_assert (fn == *framerate_num);
+      if ((ret & _TFC_FRAMERATE) && framerate_denum)
+        g_assert (fd == *framerate_denum);
+
+      if (framerate_num)
+        *framerate_num = fn;
+      if (framerate_denum)
+        *framerate_denum = fd;
+      ret |= _TFC_FRAMERATE;
     }
   }
   return ret;

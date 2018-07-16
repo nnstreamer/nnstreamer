@@ -57,23 +57,6 @@ typedef struct _GstTensor_FilterClass GstTensor_FilterClass;
 extern const char* nnfw_names[];
 
 /**
- * @brief NN Framework Support Status
- *
- * TRUE: Supported
- * FALSE: Scaffoldings are there, but not supported, yet. (NYI)
- */
-static const gboolean nnfw_support_status[] = {
-  FALSE,
-
-  TRUE,
-  TRUE,
-  FALSE,
-  FALSE,
-
-  FALSE,
-};
-
-/**
  * @brief Internal data structure for tensor_filter instances.
  */
 struct _GstTensor_Filter

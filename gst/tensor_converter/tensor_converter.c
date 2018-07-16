@@ -851,7 +851,7 @@ gst_tensor_converter_transform_size (GstBaseTransform * trans,
   tensor_dim dim;
   tensor_type type;
   GstTensor_Filter_CheckStatus ret =
-      get_tensor_from_padcap (srccap, dim, &type);
+      get_tensor_from_padcap (srccap, dim, &type, NULL, NULL);
 
   g_assert ((ret & _TFC_ALL) == _TFC_ALL);
 

@@ -469,60 +469,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
  * @param[out] frate_den Framerate, denomincator
  * @return TRUE if successful (both dim/type read). FALSE if not.
  */
-static gboolean
+static gboolean inline
 gst_tensor_read_cap (GstCaps * caps, tensor_dim dim, tensor_type * type,
     gint * frate_num, gint * frate_den)
 {
-  unsigned int i, capsize;
-  const GstStructure *str;
-  int rank, j;
-  const gchar *strval;
-  gboolean dimset = FALSE, typeset = FALSE;
-  gint fn, fd;
+  GstTensor_Filter_CheckStatus ret = get_tensor_from_padcap (caps, dim, type,
+      frate_num, frate_den);
 
-  if (!caps)
-    return FALSE;
-
-  capsize = gst_caps_get_size (caps);
-  for (i = 0; i < capsize; i++) {
-    str = gst_caps_get_structure (caps, i);
-    if (dimset == TRUE) {
-      tensor_dim dim2;
-      if (gst_structure_get_int (str, "dim1", (int *) &dim2[0]) &&
-          gst_structure_get_int (str, "dim2", (int *) &dim2[1]) &&
-          gst_structure_get_int (str, "dim3", (int *) &dim2[2]) &&
-          gst_structure_get_int (str, "dim4", (int *) &dim2[3])) {
-        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-          g_assert (dim[j] == dim2[j]);
-      }
-    } else {
-      if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
-          gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
-          gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
-          gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
-        dimset = TRUE;
-        if (gst_structure_get_int (str, "rank", &rank)) {
-          for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
-            g_assert (dim[j] == 1);
-        }
-      }
-    }
-    strval = gst_structure_get_string (str, "type");
-    if (strval) {
-      tensor_type type2;
-      type2 = get_tensor_type (strval);
-      g_assert (type2 != _NNS_END);
-      if (typeset == TRUE)
-        g_assert (*type == type2);
-      *type = type2;
-      typeset = TRUE;
-    }
-    if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
-      *frate_num = fn;
-      *frate_den = fd;
-    }
-  }
-  return dimset && typeset;
+  return (ret & (_TFC_ALL | _TFC_FRAMERATE)) == (_TFC_ALL | _TFC_FRAMERATE);
 }
 
 /**

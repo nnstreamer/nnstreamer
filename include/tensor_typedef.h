@@ -87,6 +87,8 @@ typedef enum {
   _TFC_TYPE = 2,
   _TFC_ALL = _TFC_DIMENSION | _TFC_TYPE,
 
+  _TFC_FRAMERATE = 4,
+
   /* @TODO Add "consistency checked. don't check it again" and implement .c accordingly. */
 } GstTensor_Filter_CheckStatus;
 

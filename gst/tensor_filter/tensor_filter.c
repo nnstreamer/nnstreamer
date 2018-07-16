@@ -512,7 +512,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       silent_debug ("Framework = %s\n", g_value_get_string (value));
       g_assert (prop->nnfw != -1);
       g_assert (prop->nnfw != _T_F_UNDEFINED);
-      g_assert (nnfw_support_status[prop->nnfw] == TRUE);
+      g_assert (tensor_filter_supported[prop->nnfw] != NULL);
       prop->fw = tensor_filter_supported[prop->nnfw];
       fw = prop->fw;
       g_assert (prop->fw != NULL);
@@ -1197,7 +1197,7 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   tensor_dim dim;
   tensor_type type;
   GstTensor_Filter_CheckStatus ret =
-      get_tensor_from_padcap (srccap, dim, &type);
+      get_tensor_from_padcap (srccap, dim, &type, NULL, NULL);
 
   if (filter->prop.fw->allocate_in_invoke == TRUE) {
     *othersize = 0;             /* Do not allocate outbuf. invoke_NN will allocate! */

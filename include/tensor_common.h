@@ -116,9 +116,12 @@ extern size_t get_tensor_element_count(const tensor_dim dim);
  * @param[in] caps the pad-cap to be interpreted.
  * @param[out] dim the corresponging dimension info from the cap.
  * @param[out] type the corresponding element type from the cap.
+ * @param[out] framerate_num Numerator of framerate. Set null to not use this.
+ * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
  */
 extern GstTensor_Filter_CheckStatus
-get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type);
+get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type,
+    int *framerate_num, int *framerate_denum);
 
 /**
  * @brief Make str(xyz) ==> "xyz" with macro expansion
