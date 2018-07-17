@@ -20,7 +20,9 @@ Note that the version name may change. Please check your local directory after e
 
 * How to use debuild
 ```bash
-$ debuild
+$ export DEB_BUILD_OPTIONS="parallel=8"
+$ time debuild -us -uc
+$ export DEB_BUILD_OPTIONS=""
 ```
 If there is a missing package, debuild will tell you which package is missing.
 If you haven't configured debuild properly, yet, you will need to add ```-uc -us``` options to ```debuild```.
