@@ -30,7 +30,7 @@
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (char *_model_path)
+TFLiteCore::TFLiteCore (const char *_model_path)
 {
   model_path = _model_path;
   input_idx_list_len = 0;
@@ -207,7 +207,7 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
  * @return	TFLiteCore class
  */
 extern void *
-tflite_core_new (char *_model_path)
+tflite_core_new (const char *_model_path)
 {
   return new TFLiteCore (_model_path);
 }
@@ -229,7 +229,7 @@ tflite_core_delete (void *tflite)
  * @param	tflite	: the class object
  * @return	model path
  */
-extern char *
+extern const char *
 tflite_core_getModelPath (void *tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;

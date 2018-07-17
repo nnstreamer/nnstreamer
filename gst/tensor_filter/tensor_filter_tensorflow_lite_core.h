@@ -41,14 +41,14 @@ public:
   /**
    * member functions.
    */
-  TFLiteCore (char *_model_path);
+  TFLiteCore (const char *_model_path);
    ~TFLiteCore ();
 
   /**
    * @brief	get the model path.
    * @return	saved model path.
    */
-  char *getModelPath ()
+  const char *getModelPath ()
   {
     return model_path;
   }
@@ -68,7 +68,7 @@ private:
   /**
    * member variables.
    */
-  char *model_path;
+  const char *model_path;
   int tensor_size;
   int node_size;
   int input_size;
@@ -88,9 +88,9 @@ extern "C"
 {
 #endif
 
-  extern void *tflite_core_new (char *_model_path);
+  extern void *tflite_core_new (const char *_model_path);
   extern void tflite_core_delete (void *tflite);
-  extern char *tflite_core_getModelPath (void *tflite);
+  extern const char *tflite_core_getModelPath (void *tflite);
   extern int tflite_core_getInputDim (void *tflite, int idx, int **dim,
       int *len);
   extern int tflite_core_getOutputDim (void *tflite, int idx, int **dim,
