@@ -3,6 +3,8 @@
 ##
 # @file config-environment.sh
 # @brief Environment file to control all scripts commonly for CI bot
+# @see      https://github.sec.samsung.net/STAR/TAOS-CI
+# @author   Geunsik Lim <geunsik.lim@samsung.com>
 #
 # This script to maintain consistently all scripts files via this file. 
 # In the near future, all configuration variables will be integrated into this file. 
@@ -34,7 +36,12 @@ SRC_PATH="./gst/"
 # Audit Area (pr-audit)
 # Skip build-checker / unit-test checker if all changes are limited to:
 # The path starts without / and it denotes the full paths in the git repo. (regex)
-SKIP_CI_PATHS="^ci/.*|^Documentation/.*|^\.github/.*|^obsolete/.*|^README\.md|^temporal-bin/.*|^external/.*"
+SKIP_CI_PATHS_AUDIT="^ci/.*|^Documentation/.*|^\.github/.*|^obsolete/.*|^README\.md|^external/.*|^temporal-bin/.*"
+
+# Format Area (pr-format)
+# declare a folder name to skip the file size and newline inspection.
+# (e.g., <github-repository-name>/temproal-bin/)
+SKIP_CI_PATHS_FORMAT="temporal-bin"
 
 # Define the number of CPUs to build source codes in parallel
 # We recommend that you define appropriate # of CPUs that does not result in
@@ -70,10 +77,11 @@ pr_doxygen_check_level=1
 # unit of the file size is MB.
 filesize_limit=5
 
-# folder name to exclude the file size check rule. (e.g., <github-repository-name>/temproal-bin/)
-filesize_limit_exception_folder="temporal-bin"
 
 ################# Do not modify the below statements #################################
+
+# Version format: Major.Minor
+VERSION="1.20180709"
 
 # Connecting to a repository using token id instead of git.bot.sec@samsung.com id
 # because of two-authentification. Refer to https://github.sec.samsung.net/settings/tokens
