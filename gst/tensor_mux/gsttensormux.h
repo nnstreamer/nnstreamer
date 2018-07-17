@@ -60,6 +60,7 @@ typedef struct
 
   gboolean done;
   gboolean priority;
+  gint nth;
 } GstTensorMuxPadPrivate;
 
 

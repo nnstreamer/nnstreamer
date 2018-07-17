@@ -72,6 +72,7 @@ enum
 GMutex buf_mutex;
 GCond buf_cond;
 guint32 buf_count = 0;
+gint num_sink = 0;
 
 #define DEFAULT_TIMESTAMP_OFFSET -1
 
@@ -324,7 +325,8 @@ resend_events (GstPad * pad, GstEvent ** event, gpointer user_data)
  * @param buffer input buffer
  */
 static gboolean
-gst_push_tensor (GstPad * pad, GstTensorMux * tensor_mux, GstBuffer * buffer)
+gst_push_tensor (GstPad * pad, GstTensorMux * tensor_mux, GstBuffer * buffer,
+    gint nth)
 {
   tensor_dim dim;
   GstMemory *mem;
@@ -339,7 +341,7 @@ gst_push_tensor (GstPad * pad, GstTensorMux * tensor_mux, GstBuffer * buffer)
 
   mem = gst_buffer_get_memory (buffer, 0);
   gst_memory_ref (mem);
-  if (gst_append_tensor (tensor_mux->outbuffer, mem, dim, tensor_type))
+  if (gst_append_tensor (tensor_mux->outbuffer, mem, dim, tensor_type, nth))
     ret = TRUE;
 
   return ret;
@@ -387,7 +389,7 @@ gst_tensor_mux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
     g_clear_object (&tensor_mux->last_pad);
     tensor_mux->last_pad = g_object_ref (pad);
 
-    if (!gst_push_tensor (pad, tensor_mux, buffer))
+    if (!gst_push_tensor (pad, tensor_mux, buffer, padpriv->nth))
       GST_ERROR_OBJECT (tensor_mux, "Cannot append GstMemory\n");
 
     g_mutex_lock (&buf_mutex);
@@ -506,6 +508,8 @@ gst_tensor_mux_setcaps (GstPad * pad, GstTensorMux * tensor_mux, GstCaps * caps)
   }
 
   padpriv->done = TRUE;
+  padpriv->nth = num_sink;
+  num_sink++;
   src_caps = gst_caps_new_simple ("other/tensors",
       "rank", G_TYPE_INT, tensor_mux->rank,
       "num_tensors", G_TYPE_INT, tensor_mux->num_tensors,

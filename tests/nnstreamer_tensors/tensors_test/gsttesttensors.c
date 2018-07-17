@@ -90,6 +90,8 @@ enum
   PROP_SILENT
 };
 
+gint num_sink = 0;
+
 /** the capabilities of the inputs and outputs.
  *
  * describe the real formats here.
@@ -345,7 +347,7 @@ gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
     dim[3] = 1;
 
     gst_memory_unmap (mem, &info);
-    gst_append_tensor (outbuf, mem, dim, filter->type);
+    gst_append_tensor (outbuf, mem, dim, filter->type, num_sink++);
   }
 
   gst_buffer_unmap (inbuf, &src_info);

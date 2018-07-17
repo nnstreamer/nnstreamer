@@ -70,6 +70,7 @@ gst_meta_tensor_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
   emeta->num_tensors = 0;
   emeta->dimensions = NULL;
   emeta->types = NULL;
+  emeta->ordering = NULL;
   return TRUE;
 }
 
@@ -169,14 +170,41 @@ gst_make_tensors (GstBuffer * buffer)
 }
 
 /**
+ * @brief get right ordering of tensors
+ */
+static gint
+_get_tensor_order (GstMetaTensor * meta, gint nth)
+{
+  gint order = 0;
+  gint th = 0;
+  GList *list;
+
+  for (list = meta->ordering; list != NULL; list = list->next) {
+    if (nth < GPOINTER_TO_INT (list->data)) {
+      order = th;
+      meta->ordering =
+          g_list_insert (meta->ordering, GINT_TO_POINTER (nth), order);
+      return order;
+    } else if (nth == GPOINTER_TO_INT (list->data))
+      GST_ERROR_OBJECT (meta, "Pad odering is not consistent\n");
+    th++;
+  }
+  order = th;
+  meta->ordering = g_list_insert (meta->ordering, GINT_TO_POINTER (nth), th);
+
+  return order;
+}
+
+/**
  * @brief append tensor into buffer
  */
 GstMetaTensor *
 gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim dim,
-    tensor_type type)
+    tensor_type type, gint nth)
 {
   tensor_dim *d;
   tensor_type *t;
+  gint choosen_nth;
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
 
   GstMetaTensor *meta = GST_META_TENSOR_GET (buffer);
@@ -184,7 +212,8 @@ gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim dim,
     meta = gst_make_tensors (buffer);
   }
 
-  gst_buffer_append_memory (buffer, mem);
+  choosen_nth = _get_tensor_order (meta, nth);
+  gst_buffer_insert_memory (buffer, choosen_nth, mem);
 
   meta->num_tensors = meta->num_tensors + 1;
   if (gst_buffer_n_memory (buffer) != meta->num_tensors)

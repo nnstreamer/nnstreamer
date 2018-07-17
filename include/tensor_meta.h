@@ -44,6 +44,7 @@ struct _GstMetaTensor {
   gint num_tensors;
   GList *dimensions;
   GList *types;
+  GList *ordering;
 };
 
 /**
@@ -93,7 +94,7 @@ GstMetaTensor * gst_make_tensors (GstBuffer *buffer);
  * @param dim tensor_dim for tensor
  * @return GstMetaTensor
  */
-GstMetaTensor * gst_append_tensor (GstBuffer *buffer, GstMemory *mem, tensor_dim dim, tensor_type type);
+GstMetaTensor * gst_append_tensor (GstBuffer *buffer, GstMemory *mem, tensor_dim dim, tensor_type type, gint nth);
 
 /**
  * @brief Utility function to get tensor from tensors.
