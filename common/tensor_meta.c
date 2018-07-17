@@ -103,12 +103,6 @@ gst_meta_tensor_transform (GstBuffer * transbuf, GstMeta * meta,
 static void
 gst_meta_tensor_free (GstMeta * meta, GstBuffer * buffer)
 {
-  gboolean haslock = FALSE;
-  if (!GST_OBJECT_GET_LOCK (buffer)) {
-    GST_OBJECT_LOCK (buffer);
-    haslock = TRUE;
-  }
-
   GstMetaTensor *emeta = (GstMetaTensor *) meta;
 
   GList *l = emeta->dimensions;
@@ -124,9 +118,6 @@ gst_meta_tensor_free (GstMeta * meta, GstBuffer * buffer)
     g_free (next->data);
   }
   g_list_free (emeta->types);
-
-  if (haslock)
-    GST_OBJECT_UNLOCK (buffer);
 
   emeta->num_tensors = 0;
 }
@@ -186,19 +177,14 @@ gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim dim,
 {
   tensor_dim *d;
   tensor_type *t;
-  gboolean haslock = FALSE;
   g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
-  if (!GST_OBJECT_GET_LOCK (buffer)) {
-    GST_OBJECT_LOCK (buffer);
-    haslock = TRUE;
-  }
-
-  gst_buffer_append_memory (buffer, mem);
 
   GstMetaTensor *meta = GST_META_TENSOR_GET (buffer);
   if (!meta) {
     meta = gst_make_tensors (buffer);
   }
+
+  gst_buffer_append_memory (buffer, mem);
 
   meta->num_tensors = meta->num_tensors + 1;
   if (gst_buffer_n_memory (buffer) != meta->num_tensors)
@@ -212,9 +198,6 @@ gst_append_tensor (GstBuffer * buffer, GstMemory * mem, tensor_dim dim,
   t = g_slice_new (tensor_type);
   *t = type;
   meta->types = g_list_append (meta->types, t);
-
-  if (haslock)
-    GST_OBJECT_UNLOCK (buffer);
 
   return meta;
 }
@@ -282,18 +265,12 @@ gst_get_tensortype (GstBuffer * buffer, gint nth)
 GstFlowReturn
 gst_remove_tensor (GstBuffer * buffer, gint nth)
 {
-  gboolean haslock = FALSE;
-  if (!GST_OBJECT_GET_LOCK (buffer)) {
-    GST_OBJECT_LOCK (buffer);
-    haslock = TRUE;
-  }
   GstMetaTensor *meta = (GstMetaTensor *) gst_buffer_get_meta_tensor (buffer);
   if (meta) {
     if (meta->num_tensors == 0) {
-      if (haslock)
-        GST_OBJECT_UNLOCK (buffer);
       return GST_FLOW_ERROR;
     }
+
     meta->num_tensors = meta->num_tensors - 1;
     GList *list = meta->dimensions;
     gint th = 0;
@@ -318,9 +295,6 @@ gst_remove_tensor (GstBuffer * buffer, gint nth)
     }
     gst_buffer_remove_memory (buffer, nth);
   }
-
-  if (haslock)
-    GST_OBJECT_UNLOCK (buffer);
 
   return GST_FLOW_OK;
 }
