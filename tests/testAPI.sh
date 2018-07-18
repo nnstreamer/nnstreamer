@@ -93,6 +93,24 @@ function gstFailTest {
 function compareAll {
 	cmp $1 $2
 	output=$?
+	if [ ! -f $1 ]; then
+		output=1
+	else
+		size1=$(wc -c < "$1")
+		if [ $size1 -eq 0 ]; then
+			# If the size is 0, it's an error
+			output=2
+		fi
+	fi
+	if [ ! -f $2 ]; then
+		output=1
+	else
+		size2=$(wc -c < "$2")
+		if [ $size2 -eq 0 ]; then
+			# If the size is 0, it's an error
+			output=2
+		fi
+	fi
 	if [[ $output -eq 0 ]]; then
 		lsucc=$((lsucc+1))
 		log="${log}$GREEN[PASSED]$NC golden test comparison case $3\n"
@@ -111,6 +129,25 @@ function compareAll {
 function compareAllSizeLimit {
 	# @TODO enter -n option with the size of #1
 	cmp -n `stat --printf="%s" $1` $1 $2
+	output=$?
+	if [ ! -f $1 ]; then
+		output=1
+	else
+		size1=$(wc -c < "$1")
+		if [ $size1 -eq 0 ]; then
+			# If the size is 0, it's an error
+			output=2
+		fi
+	fi
+	if [ ! -f $2 ]; then
+		output=1
+	else
+		size2=$(wc -c < "$2")
+		if [ $size2 -eq 0 ]; then
+			# If the size is 0, it's an error
+			output=2
+		fi
+	fi
 	if [[ $output -eq 0 ]]; then
 		lsucc=$((lsucc+1))
 		log="${log}$GREEN[PASSED]$NC golden test comparison case $3\n"
