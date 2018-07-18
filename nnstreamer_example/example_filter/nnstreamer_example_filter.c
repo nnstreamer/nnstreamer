@@ -6,14 +6,22 @@
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  *
- * Application for tensor stream.
+ * NNStreamer example for image recognition.
+ *
+ * Pipeline :
+ * v4l2src -- tee -- textoverlay -- videoconvert -- xvimagesink
+ *                  |
+ *                  --- tensor_converter -- tensor_filter -- tensor_sink
+ *
+ * This app displays video sink (xvimagesink).
+ * 'tensor_filter' for image recognition.
+ * 'tensor_sink' updates recognition result to display in textoverlay.
  *
  * Run example :
- * ./nnstreamer_example_filter --gst-plugin-path=<nnstreamer plugin path>
+ * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
+ * $ export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:<nnstreamer plugin path>
+ * $ ./nnstreamer_example_filter
  */
-
-#include <fcntl.h>
-#include <unistd.h>
 
 #include <gst/gst.h>
 
@@ -151,36 +159,24 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     _print_log ("receiving new data [%d]", g_app.received);
   }
 
-  /** @todo prepare demo, update textoverlay. */
-}
-
-/**
- * @brief Check cam device connected.
- */
-static gboolean
-_check_cam_device (const gchar * cam_dev)
-{
-  int fd;
-
-  if ((fd = open (cam_dev, O_RDONLY)) < 0) {
-    _print_log ("cannot detect cam, check your device and start again.");
-    return FALSE;
+  if (g_app.running) {
+    /** @todo update textoverlay */
   }
-
-  close (fd);
-  return TRUE;
 }
 
 /**
  * @brief Set window title.
- * @param element pointer to GstXImageSink
+ * @param name GstXImageSink element name
  * @param title window title
  */
 static void
-_set_window_title (GstElement * element, const gchar * title)
+_set_window_title (const gchar * name, const gchar * title)
 {
   GstTagList *tags;
   GstPad *sink_pad;
+  GstElement *element;
+
+  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), name);
 
   g_return_if_fail (element != NULL);
 
@@ -191,27 +187,25 @@ _set_window_title (GstElement * element, const gchar * title)
     gst_pad_send_event (sink_pad, gst_event_new_tag (tags));
     gst_object_unref (sink_pad);
   }
+
+  gst_object_unref (element);
 }
 
 /**
- * @brief Callback for textoverlay.
+ * @brief Timer callback for textoverlay.
+ * @return True to ensure the timer continues
  */
 static gboolean
-_textoverlay_tensor_res_cb (gpointer user_data)
+_timer_update_result_cb (gpointer user_data)
 {
   if (g_app.running) {
     GstElement *textoverlay;
     gchar *tensor_res;
-    GstClockTime now = gst_util_get_timestamp ();
+
+    /** @todo update textoverlay */
+    tensor_res = g_strdup_printf ("total received %d", g_app.received);
 
     textoverlay = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "tensor_res");
-
-    /** @todo prepare demo, update textoverlay. */
-    tensor_res = g_strdup_printf ("%u:%02u:%02u",
-        (guint) (now / (GST_SECOND * 60 * 60)),
-        (guint) ((now / (GST_SECOND * 60)) % 60),
-        (guint) ((now / GST_SECOND) % 60));
-
     g_object_set (textoverlay, "text", tensor_res, NULL);
 
     g_free (tensor_res);
@@ -227,7 +221,6 @@ _textoverlay_tensor_res_cb (gpointer user_data)
 int
 main (int argc, char **argv)
 {
-  const gchar cam_dev[] = "/dev/video0";
   const guint width = 640;
   const guint height = 480;
 
@@ -242,9 +235,6 @@ main (int argc, char **argv)
   g_app.running = FALSE;
   g_app.received = 0;
 
-  /** check cam */
-  _check_cond_err (_check_cam_device (cam_dev));
-
   /** init gstreamer */
   gst_init (&argc, &argv);
 
@@ -252,21 +242,21 @@ main (int argc, char **argv)
   g_app.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_app.loop != NULL);
 
-  /** init data pipeline */
-  /** @todo prepare demo, add tensor filter. */
+  /** init pipeline */
+  /** @todo add tensor filter */
   str_pipeline =
       g_strdup_printf
       ("v4l2src name=cam_src ! "
       "video/x-raw,width=%d,height=%d,format=RGB,framerate=30/1 ! tee name=t_raw "
-      "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! videoconvert ! xvimagesink name=img_tensor "
-      "t_raw. ! queue ! tensor_converter ! tensor_sink name=tensor_sink "
-      "t_raw. ! queue ! videoconvert ! xvimagesink name=img_origin",
+      "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! "
+      "videoconvert ! xvimagesink name=img_tensor "
+      "t_raw. ! queue ! tensor_converter ! tensor_sink name=tensor_sink",
       width, height);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
 
-  /** data message callback */
+  /** bus and message callback */
   g_app.bus = gst_element_get_bus (g_app.pipeline);
   _check_cond_err (g_app.bus != NULL);
 
@@ -283,7 +273,7 @@ main (int argc, char **argv)
   _check_cond_err (handle_id > 0);
 
   /** timer to update result */
-  timer_id = g_timeout_add (500, _textoverlay_tensor_res_cb, NULL);
+  timer_id = g_timeout_add (500, _timer_update_result_cb, NULL);
   _check_cond_err (timer_id > 0);
 
   /** start pipeline */
@@ -292,13 +282,7 @@ main (int argc, char **argv)
   g_app.running = TRUE;
 
   /** set window title */
-  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_tensor");
-  _set_window_title (element, "Tensor");
-  gst_object_unref (element);
-
-  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_origin");
-  _set_window_title (element, "Original");
-  gst_object_unref (element);
+  _set_window_title ("img_tensor", "NNStreamer Example");
 
   /** run main loop */
   g_main_loop_run (g_app.loop);

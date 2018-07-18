@@ -9,7 +9,9 @@
  * Sample code for tensor stream, this app shows video frame.
  *
  * Run example :
- * ./nnstreamer_example_cam --gst-plugin-path=<nnstreamer plugin path>
+ * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
+ * $ export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:<nnstreamer plugin path>
+ * $ ./nnstreamer_example_cam
  */
 
 #include <fcntl.h>
@@ -138,32 +140,20 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
 }
 
 /**
- * @brief Check cam device connected.
- */
-static gboolean
-_check_cam_device (const gchar * cam_dev)
-{
-  int fd;
-
-  if ((fd = open (cam_dev, O_RDONLY)) < 0) {
-    _print_log ("cannot detect cam, check your device and start again.");
-    return FALSE;
-  }
-
-  close (fd);
-  return TRUE;
-}
-
-/**
  * @brief Set window title.
- * @param element pointer to GstXImageSink
+ * @param name GstXImageSink element name
  * @param title window title
  */
 static void
-_set_window_title (GstElement * element, const gchar * title)
+_set_window_title (const gchar * name, const gchar * title)
 {
   GstTagList *tags;
   GstPad *sink_pad;
+  GstElement *element;
+
+  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), name);
+
+  g_return_if_fail (element != NULL);
 
   sink_pad = gst_element_get_static_pad (element, "sink");
 
@@ -172,6 +162,8 @@ _set_window_title (GstElement * element, const gchar * title)
     gst_pad_send_event (sink_pad, gst_event_new_tag (tags));
     gst_object_unref (sink_pad);
   }
+
+  gst_object_unref (element);
 }
 
 /**
@@ -180,7 +172,6 @@ _set_window_title (GstElement * element, const gchar * title)
 int
 main (int argc, char **argv)
 {
-  const gchar cam_dev[] = "/dev/video0";
   const guint width = 640;
   const guint height = 480;
 
@@ -190,9 +181,6 @@ main (int argc, char **argv)
 
   _print_log ("start app..");
 
-  /** check cam */
-  _check_cond_err (_check_cam_device (cam_dev));
-
   /** init gstreamer */
   gst_init (&argc, &argv);
 
@@ -200,7 +188,7 @@ main (int argc, char **argv)
   g_app.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_app.loop != NULL);
 
-  /** init data pipeline */
+  /** init pipeline */
   str_pipeline =
       g_strdup_printf
       ("v4l2src name=cam_src ! "
@@ -217,7 +205,7 @@ main (int argc, char **argv)
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
 
-  /** data message callback */
+  /** bus and message callback */
   g_app.bus = gst_element_get_bus (g_app.pipeline);
   _check_cond_err (g_app.bus != NULL);
 
@@ -230,13 +218,8 @@ main (int argc, char **argv)
   gst_element_set_state (g_app.pipeline, GST_STATE_PLAYING);
 
   /** set window title */
-  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_mixed");
-  _set_window_title (element, "Mixed");
-  gst_object_unref (element);
-
-  element = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "img_origin");
-  _set_window_title (element, "Original");
-  gst_object_unref (element);
+  _set_window_title ("img_mixed", "Mixed");
+  _set_window_title ("img_origin", "Original");
 
   /** run main loop */
   g_main_loop_run (g_app.loop);

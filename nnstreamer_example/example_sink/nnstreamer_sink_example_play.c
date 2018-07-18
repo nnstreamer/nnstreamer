@@ -13,7 +13,9 @@
  * [2nd pipeline : appsrc-tensordec-videoconvert-xvimagesink]
  *
  * Run example :
- * ./nnstreamer_sink_example_play --gst-plugin-path=<nnstreamer plugin path>
+ * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
+ * $ export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:<nnstreamer plugin path>
+ * $ ./nnstreamer_sink_example_play
  */
 
 #include <gst/gst.h>

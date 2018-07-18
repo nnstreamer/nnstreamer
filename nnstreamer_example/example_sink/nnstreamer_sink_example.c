@@ -9,7 +9,9 @@
  * Simple example to init tensor sink element and get data.
  *
  * Run example :
- * ./nnstreamer_sink_example --gst-plugin-path=<nnstreamer plugin path>
+ * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
+ * $ export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:<nnstreamer plugin path>
+ * $ ./nnstreamer_sink_example
  */
 
 #include <gst/gst.h>

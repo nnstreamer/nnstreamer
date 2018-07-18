@@ -2,7 +2,7 @@
  * @file	unittest_sink.cpp
  * @date	29 June 2018
  * @brief	Unit test for tensor sink plugin
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		http://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
@@ -154,7 +154,7 @@ _eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Prepare test pipeline.
  */
 static gboolean
-_setup_pipeline (const guint num_buffers)
+_setup_pipeline (const guint num_buffers, const gchar * converter = NULL)
 {
   gchar *str_pipeline;
   gulong handle_id;
@@ -170,7 +170,8 @@ _setup_pipeline (const guint num_buffers)
   str_pipeline =
       g_strdup_printf
       ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-      "tensor_converter ! tensor_sink name=test_sink", num_buffers);
+      "%s ! tensor_sink name=test_sink", num_buffers,
+      (converter != NULL) ? converter : "tensor_converter");
   g_test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_test_data.pipeline != NULL);
@@ -347,7 +348,7 @@ TEST (tensor_sink_test, signal_rate)
  */
 TEST (tensor_sink_test, unknown_case)
 {
-  const guint num_buffers = 10;
+  const guint num_buffers = 5;
   gulong handle_id;
   gint unknown = -1;
 
@@ -387,29 +388,21 @@ TEST (tensor_sink_test, unknown_case)
  */
 TEST (tensor_sink_test, caps_error)
 {
-  const guint num_buffers = 10;
-  gchar *str_pipeline;
+  const guint num_buffers = 5;
+  gulong handle_id;
 
-  g_test_data.received = 0;
-  g_test_data.loop = g_main_loop_new (NULL, FALSE);
+  /** failed : cannot link videoconvert and tensor_sink */
+  ASSERT_TRUE (_setup_pipeline (num_buffers, "videoconvert"));
 
-  /** cannot link videoconvert and tensor_sink */
-  str_pipeline =
-      g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-      "videoconvert ! tensor_sink name=test_sink", num_buffers);
-  g_test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  if (DBG) {
+    /** print logs */
+    g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
+  }
 
-  g_test_data.bus = gst_element_get_bus (g_test_data.pipeline);
-  gst_bus_add_signal_watch (g_test_data.bus);
-  g_signal_connect (g_test_data.bus, "message", (GCallback) _message_cb, NULL);
-
-  g_test_data.sink =
-      gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "test_sink");
-
-  g_signal_connect (g_test_data.sink, "new-data", (GCallback) _new_data_cb,
-      NULL);
+  /** signal for new data */
+  handle_id = g_signal_connect (g_test_data.sink, "new-data",
+      (GCallback) _new_data_cb, NULL);
+  EXPECT_TRUE (handle_id > 0);
 
   _print_log ("start pipeline for caps error test");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
