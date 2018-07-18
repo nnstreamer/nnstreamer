@@ -4,6 +4,7 @@ PROJECT(nnstreamer C CXX)
 
 OPTION(TIZEN "Enable Tizen build mode" OFF)
 OPTION(DISABLE_TENSORFLOW_LITE "Disable tensorflow-lite support" OFF)
+OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
 
 ADD_DEFINITIONS(-DVERSION="0.0.0")
 
