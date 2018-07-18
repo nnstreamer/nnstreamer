@@ -103,21 +103,61 @@ TFLiteCore::loadModel ()
 }
 
 /**
- * @brief	return the Dimension of Input Tensor.
- * @param idx	: the index of the input tensor
- * @param[out] dim	: the array of the input tensor
- * @param[out] len	: the length of the input tensor array
+ * @brief	return the data type of the tensor
+ * @param tensor_idx	: the index of the tensor
+ * @param[out] type	: the data type of the input tensor
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getInputTensorDim (int idx, int **dim, int *len)
+TFLiteCore::getTensorType (int tensor_idx, tensor_type * type)
+{
+  switch (interpreter->tensor (tensor_idx)->type) {
+    case kTfLiteFloat32:
+      *type = _NNS_FLOAT32;
+      break;
+    case kTfLiteUInt8:
+      *type = _NNS_UINT8;
+      break;
+    case kTfLiteInt32:
+      *type = _NNS_INT32;
+      break;
+    case kTfLiteBool:
+      *type = _NNS_INT8;
+      break;
+    case kTfLiteInt64:
+    case kTfLiteString:
+    default:
+      *type = _NNS_END;
+      return -1;
+      break;
+  }
+  return 0;
+}
+
+/**
+ * @brief	return the Dimension of Input Tensor.
+ * @param idx	: the index of the input tensor
+ * @param[out] dim	: the array of the input tensor
+ * @param[out] type	: the data type of the input tensor
+ * @return 0 if OK. non-zero if error.
+ */
+int
+TFLiteCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 {
   if (idx >= input_size) {
     return -1;
   }
-  *dim = interpreter->tensor (input_idx_list[idx])->dims->data;
-  *len = interpreter->tensor (input_idx_list[idx])->dims->size;
+  if (getTensorType (input_idx_list[idx], type)) {
+    return -2;
+  }
 
+  int len = interpreter->tensor (input_idx_list[idx])->dims->size;
+  g_assert (len <= NNS_TENSOR_RANK_LIMIT);
+  memcpy (dim, interpreter->tensor (input_idx_list[idx])->dims->data,
+      sizeof (tensor_dim) / NNS_TENSOR_RANK_LIMIT * len);
+  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 1;
+  }
   return 0;
 }
 
@@ -125,18 +165,26 @@ TFLiteCore::getInputTensorDim (int idx, int **dim, int *len)
  * @brief	return the Dimension of Output Tensor.
  * @param idx	: the index of the output tensor
  * @param[out] dim	: the array of the output tensor
- * @param[out] len	: the length of the output tensor array
+ * @param[out] type	: the data type of the output tensor
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getOutputTensorDim (int idx, int **dim, int *len)
+TFLiteCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 {
   if (idx >= output_size) {
     return -1;
   }
-  *dim = interpreter->tensor (output_idx_list[idx])->dims->data;
-  *len = interpreter->tensor (output_idx_list[idx])->dims->size;
+  if (getTensorType (output_idx_list[idx], type)) {
+    return -2;
+  }
 
+  int len = interpreter->tensor (output_idx_list[idx])->dims->size;
+  g_assert (len <= NNS_TENSOR_RANK_LIMIT);
+  memcpy (dim, interpreter->tensor (output_idx_list[idx])->dims->data,
+      sizeof (tensor_dim) / NNS_TENSOR_RANK_LIMIT * len);
+  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 1;
+  }
   return 0;
 }
 
@@ -171,9 +219,10 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
 {
   int output_number_of_pixels = 1;
 
-  int sizeOfArray = 0;
-  int *inputTensorDim;
-  int ret = getInputTensorDim (0, &inputTensorDim, &sizeOfArray);
+  int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
+  tensor_type type;
+  tensor_dim inputTensorDim;
+  int ret = getInputTensorDim (0, inputTensorDim, &type);
   if (ret) {
     return -1;
   }
@@ -241,14 +290,15 @@ tflite_core_getModelPath (void *tflite)
  * @param	tflite	: the class object
  * @param idx	: the index of the input tensor
  * @param[out] dim	: the array of the input tensor
- * @param[out] len	: the length of the input tensor array
+ * @param[out] type	: the data type of the input tensor
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getInputDim (void *tflite, int idx, int **dim, int *len)
+tflite_core_getInputDim (void *tflite, int idx, tensor_dim dim,
+    tensor_type * type)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getInputTensorDim (idx, dim, len);
+  return c->getInputTensorDim (idx, dim, type);
 }
 
 /**
@@ -256,14 +306,15 @@ tflite_core_getInputDim (void *tflite, int idx, int **dim, int *len)
  * @param	tflite	: the class object
  * @param idx	: the index of the output tensor
  * @param[out] dim	: the array of the output tensor
- * @param[out] len	: the length of the output tensor array
+ * @param[out] type	: the data type of the output tensor
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getOutputDim (void *tflite, int idx, int **dim, int *len)
+tflite_core_getOutputDim (void *tflite, int idx, tensor_dim dim,
+    tensor_type * type)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getOutputTensorDim (idx, dim, len);
+  return c->getOutputTensorDim (idx, dim, type);
 }
 
 /**

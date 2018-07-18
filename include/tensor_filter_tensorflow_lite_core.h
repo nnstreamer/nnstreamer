@@ -26,6 +26,9 @@
 
 #ifdef __cplusplus
 #include <iostream>
+#include <stdint.h>
+#include <glib.h>
+#include "tensor_typedef.h"
 
 #include "tensorflow/contrib/lite/model.h"
 #include "tensorflow/contrib/lite/optional_debug_tools.h"
@@ -58,8 +61,8 @@ public:
 
   int getInputTensorSize ();
   int getOutputTensorSize ();
-  int getInputTensorDim (int idx, int **dim, int *len);
-  int getOutputTensorDim (int idx, int **dim, int *len);
+  int getInputTensorDim (int idx, tensor_dim dim, tensor_type * type);
+  int getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type);
   int getInputTensorDimSize ();
   int getOutputTensorDimSize ();
   int invoke (uint8_t * inptr, uint8_t ** outptr);
@@ -79,6 +82,7 @@ private:
   int output_idx_list_len;
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
+  int getTensorType(int tensor_idx, tensor_type *type);
 };
 
 /**
@@ -91,10 +95,10 @@ extern "C"
   extern void *tflite_core_new (const char *_model_path);
   extern void tflite_core_delete (void *tflite);
   extern const char *tflite_core_getModelPath (void *tflite);
-  extern int tflite_core_getInputDim (void *tflite, int idx, int **dim,
-      int *len);
-  extern int tflite_core_getOutputDim (void *tflite, int idx, int **dim,
-      int *len);
+  extern int tflite_core_getInputDim (void *tflite, int idx, tensor_dim dim,
+      tensor_type * type);
+  extern int tflite_core_getOutputDim (void *tflite, int idx, tensor_dim dim,
+      tensor_type * type);
   extern int tflite_core_getInputSize (void *tflite);
   extern int tflite_core_getOutputSize (void *tflite);
   extern int tflite_core_invoke (void *tflite, uint8_t * inptr,
