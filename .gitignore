@@ -8,6 +8,7 @@
 /tests/*/*.log
 /tests/*/*.golden
 /tests/*/*.png
+/tests/*/*.bmp
 
 # vi files
 *.h~
