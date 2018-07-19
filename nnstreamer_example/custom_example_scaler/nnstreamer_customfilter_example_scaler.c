@@ -116,7 +116,7 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
     const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
-  uint32_t ox, oy, x, y, z;
+  uint32_t ox, oy, x, y, z, elementsize;
   uint32_t oidx0, oidx1, oidx2;
   uint32_t iidx0, iidx1, iidx2;
 
@@ -130,6 +130,8 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   assert (prop->inputDimension[0] == prop->outputDimension[0]);
   assert (prop->inputDimension[3] == prop->outputDimension[3]);
   assert (prop->inputType == prop->outputType);
+
+  elementsize = tensor_element_size[prop->inputType];
 
   ox = (data->new_x > 0) ? data->new_x : prop->outputDimension[1];
   oy = (data->new_y > 0) ? data->new_y : prop->outputDimension[2];
@@ -147,6 +149,7 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
       for (x = 0; x < ox; x++) {
         unsigned int c;
         for (c = 0; c < prop->inputDimension[0]; c++) {
+          int sz;
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
           unsigned ix, iy;
 
@@ -157,8 +160,11 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
               && iy < prop->inputDimension[2]);
 
           /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
-          *(outptr + c + x * oidx0 + y * oidx1 + z * oidx2) =
-              *(inptr + c + ix * iidx0 + iy * iidx1 + z * iidx2);
+          for (sz = 0; sz < elementsize; sz++)
+            *(outptr + elementsize * (c + x * oidx0 + y * oidx1 + z * oidx2) +
+                sz) =
+                *(inptr + elementsize * (c + ix * iidx0 + iy * iidx1 +
+                    z * iidx2) + sz);
         }
       }
     }
