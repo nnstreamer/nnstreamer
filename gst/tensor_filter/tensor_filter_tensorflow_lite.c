@@ -31,45 +31,67 @@
 #include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
 
+struct _Tflite_data
+{
+  char *tflite_model;
+  void *tflite_private_data;
+};
+typedef struct _Tflite_data tflite_data;
+
 /**
  * @brief Load tensorflow lite modelfile
+ * @param filter : tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
  * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
  */
 static int
 tflite_loadModelFile (const GstTensor_Filter * filter, void **private_data)
 {
-  /** @todo need to decide wheter make internal data structure or not
-   * need to add skip logic when model file already loaded
-   * need to load tensorflow lite model file by FlatBufferModel::BuildFromFile
-   * after configuration of c->cpp api of tflite works done
-   */
-
-  /** @todo call tflite core api "tflite_new"  */
-  return 0;
+  tflite_data *tf;
+  if (filter->privateData != NULL) {
+    /** @todo : Check the integrity of filter->data and filter->modelFilename, nnfw */
+    return 1;
+  }
+  tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
+  tf->tflite_model = tflite_core_new (filter->prop.modelFilename);
+  if (tf->tflite_model) {
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
 /**
  * @brief The open callback for GstTensor_Filter_Framework. Called before anything else
+ * @param filter : tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
  */
 static void
 tflite_open (const GstTensor_Filter * filter, void **private_data)
 {
   int retval = tflite_loadModelFile (filter, private_data);
-
-  g_assert (retval == 0);       /* This must be called only once */
+  g_assert (retval == 0);       /** This must be called only once */
 }
 
 /**
  * @brief The mandatory callback for GstTensor_Filter_Framework
+ * @param[in] inptr The input tensor
+ * @param[out] outptr The output tensor
  */
 static uint8_t *
 tflite_invoke (const GstTensor_Filter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  /** @todo fill in *outputDimension (uint32_t[MAX_RANK]), *type */
-  /** @todo call tflite core apis */
-
-  return outptr;                /* NYI */
+  int retval;
+  uint8_t *allocated_outptr;
+  tflite_data *tf;
+  tf = *private_data;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  retval =
+      tflite_core_invoke (tf->tflite_private_data, (uint8_t *) inptr,
+      &allocated_outptr);
+  g_assert (retval == 0);
+  return allocated_outptr;
 }
 
 /**
@@ -79,10 +101,12 @@ static int
 tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim inputDimension, tensor_type * type)
 {
-  /** @todo fill in *inputDimension (uint32_t[MAX_RANK]), *type */
-  /** @todo call tflite core api "tflite_getInputDim" */
-
-  return 0;                     /* NYI */
+  int temp_idx = 0;
+  tflite_data *tf;
+  tf = *private_data;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  return tflite_core_getInputDim (tf->tflite_private_data, temp_idx,
+      inputDimension, type);
 }
 
 /**
@@ -92,10 +116,12 @@ static int
 tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim outputDimension, tensor_type * type)
 {
-  /** @todo fill in *outputDimension (uint32_t[MAX_RANK]), *type */
-  /** @todo call tflite core api "tflite_getOutputDim" */
-
-  return 0;                     /* NYI */
+  int temp_idx = 0;
+  tflite_data *tf;
+  tf = *private_data;
+  g_assert (filter->privateData && *private_data == filter->privateData);
+  return tflite_core_getOutputDim (tf->tflite_private_data, temp_idx,
+      outputDimension, type);
 }
 
 /**
@@ -107,7 +133,7 @@ tflite_setInputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim oDimension, tensor_type * oType)
 {
   /** @todo call tflite core apis */
-  return 0;                     /* NYI */
+  return 0;                     /** NYI */
 }
 
 /**
@@ -116,14 +142,18 @@ tflite_setInputDim (const GstTensor_Filter * filter, void **private_data,
 static void
 tflite_close (const GstTensor_Filter * filter, void **private_data)
 {
-
-  /** @todo call tflite core api "tflite_delete" */
+  tflite_data *tf;
+  tf = *private_data;
+  tflite_core_delete (tf->tflite_private_data);
+  g_free (tf);
+  *private_data = NULL;
+  g_assert (filter->privateData == NULL);
 }
 
 GstTensor_Filter_Framework NNS_support_tensorflow_lite = {
   .name = "tensorflow-lite",
-  .allow_in_place = FALSE,      /* Let's not do this yet. @TODO: support this to optimize performance later. */
-  .allocate_in_invoke = FALSE,  /* TFLite may need to use TRUE in the future. However, it is not supported, yet */
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = TRUE,
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
