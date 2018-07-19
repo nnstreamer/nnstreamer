@@ -8,6 +8,7 @@
  * @date  22 Jun 2018
  * @brief  Custom NNStreamer Filter Example 3. "Scaler"
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug  No known bugs
  *
  * This scales a tensor of [N][y][x][M] to [N][new-y][new-x][M]
  *
@@ -24,6 +25,9 @@
 #include <glib.h>
 #include <tensor_filter_custom.h>
 
+/**
+ * @brief Custom filter's private data.
+ */
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
@@ -32,6 +36,9 @@ typedef struct _pt_data
   uint32_t new_x;
 } pt_data;
 
+/**
+ * @brief strdup() is not C89 compatible. Define it here.
+ */
 static char *
 _strdup (const char *src)
 {
@@ -42,6 +49,9 @@ _strdup (const char *src)
   return dest;
 }
 
+/**
+ * @brief tensor_filter_custom::NNS_custom_init_func
+ */
 static void *
 pt_init (const GstTensor_Filter_Properties * prop)
 {
@@ -79,6 +89,9 @@ pt_init (const GstTensor_Filter_Properties * prop)
   return data;
 }
 
+/**
+ * @brief tensor_filter_custom::NNS_custom_exit_func
+ */
 static void
 pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 {
@@ -89,6 +102,9 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
   free (data);
 }
 
+/**
+ * @brief tensor_filter_custom::NNS_custom_set_input_dimension
+ */
 static int
 set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
     const tensor_dim iDim, const tensor_type iType,
@@ -111,6 +127,9 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
   return 0;
 }
 
+/**
+ * @brief tensor_filter_custom::NNS_custom_invoke
+ */
 static int
 pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
     const uint8_t * inptr, uint8_t * outptr)
