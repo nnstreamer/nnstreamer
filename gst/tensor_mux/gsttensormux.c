@@ -336,7 +336,7 @@ gst_push_tensor (GstPad * pad, GstTensorMux * tensor_mux, GstBuffer * buffer,
 
   GstCaps *caps = gst_pad_get_current_caps (pad);
 
-  status = get_tensor_from_padcap (caps, dim, &tensor_type);
+  status = get_tensor_from_padcap (caps, dim, &tensor_type, NULL, NULL);
   g_assert ((status & _TFC_ALL) == _TFC_ALL);
 
   mem = gst_buffer_get_memory (buffer, 0);
