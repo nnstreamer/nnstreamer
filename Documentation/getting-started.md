@@ -72,16 +72,18 @@ First install the required packages.
 $ sudo apt install pbuilder debootstrap devscripts
 ```
 
-Then, create tarball that will contain your chroot environment to build package.
+Then, create tarball that will contain your chroot environment to build package. (for Ubuntu 16.04)
 ```bash
 $ vi ~/.pbuilderrc
 # man 5 pbuilderrc
 DISTRIBUTION=xenial
-OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial universe multiverse"
+# OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial universe multiverse"
+OTHERMIRROR="deb http://where.you.can.get.tensorflow.lite.deb.files/ /"
 $ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
 $ sudo pbuilder create
-$ ls -al /var/cache/pbuilder/base.tgz
 ```
+Because Ubuntu 16.04 does not have tensorflow-lite-dev in its repository, you need to add
+a PPA repository or SPIN/OBS repository of TAOS:UbuntuTools.
 
 Generates .deb packages:
 ```bash
