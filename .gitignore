@@ -9,6 +9,7 @@
 /tests/*/*.golden
 /tests/*/*.png
 /tests/*/*.bmp
+/tests/performance
 
 # vi files
 *.h~

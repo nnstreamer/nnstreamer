@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-dirpath=`dirname $0`
+dirpath="$( cd "$( dirname "$0")" && pwd )"
 
-source $dirpath/testAPI.sh
+if [[ $1 -eq 1 ]]; then
+export GST_DEBUG_DUMP_DOT_DIR=$dirpath/performance/debug
+export PERFORMANCE=1
+mkdir -p $GST_DEBUG_DUMP_DOT_DIR
+fi
+shift 1
+source $dirpath/testAPI.sh 
 
+if [[ $PERFORMANCE -eq 1 ]]; then
+	checkDependency dot
+fi
 checkDependency dirname
 checkDependency basename
 checkDependency sed
@@ -18,7 +27,11 @@ declare -i failed=0
 
 while IFD= read -r -d $'\0' line; do
 	dir=$(dirname "${line}")
-	base=$(basename ${dir})
+	export base=$(basename ${dir})
+
+	if [[ $PERFORMANCE -eq 1 ]]; then
+		mkdir -p $GST_DEBUG_DUMP_DOT_DIR/$base
+	fi
 
 	log="${log}=================================================\n"
 	log="${log}${BLUE}Testing${NC}: ${PURPLE}${base}${NC}\n"
