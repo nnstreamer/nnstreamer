@@ -105,19 +105,7 @@ static void
 gst_meta_tensor_free (GstMeta * meta, GstBuffer * buffer)
 {
   GstMetaTensor *emeta = (GstMetaTensor *) meta;
-
-  GList *l = emeta->dimensions;
-  while (l != NULL) {
-    GList *next = l->next;
-    g_free (next->data);
-  }
   g_list_free (emeta->dimensions);
-
-  l = emeta->types;
-  while (l != NULL) {
-    GList *next = l->next;
-    g_free (next->data);
-  }
   g_list_free (emeta->types);
 
   emeta->num_tensors = 0;
@@ -156,6 +144,9 @@ gst_buffer_add_meta_tensor (GstBuffer * buffer)
   meta =
       (GstMetaTensor *) gst_buffer_add_meta (buffer, GST_META_TENSOR_INFO,
       NULL);
+  meta->dimensions = NULL;
+  meta->types = NULL;
+  meta->ordering = NULL;
 
   return meta;
 }
@@ -186,7 +177,7 @@ _get_tensor_order (GstMetaTensor * meta, gint nth)
           g_list_insert (meta->ordering, GINT_TO_POINTER (nth), order);
       return order;
     } else if (nth == GPOINTER_TO_INT (list->data))
-      GST_ERROR_OBJECT (meta, "Pad odering is not consistent\n");
+      GST_ERROR_OBJECT (meta, "Pad odering is not consistent : nth %d\n", nth);
     th++;
   }
   order = th;
