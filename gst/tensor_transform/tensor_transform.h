@@ -26,6 +26,19 @@
  * @bug		No known bugs.
  *
  */
+/**
+ * SECTION:element-tensor_transform
+ *
+ * A filter that converts other/tensor formats
+ * The input/output is always in the format of other/tensor
+ *
+ * <refsect2>
+ * <title>Example launch line</title>
+ * |[
+ * gst-launch -v -m fakesrc ! tensor_transform mode=dimchg option=0:2 ! fakesink silent=TRUE
+ * ]|
+ * </refsect2>
+ */
 
 #ifndef __GST_TENSOR_TRANSFORM_H__
 #define __GST_TENSOR_TRANSFORM_H__
@@ -55,6 +68,7 @@ typedef struct _GstTensor_TransformClass GstTensor_TransformClass;
 
 typedef enum {
   GTT_DIMCHG = 0, /* Dimension Change. "dimchg" */
+  GTT_TYPECAST = 1, /* Type change. "typecast" */
 
 
   GTT_END,
@@ -64,6 +78,10 @@ typedef struct _tensor_transform_dimchg {
   int from;
   int to;
 } tensor_transform_dimchg;
+
+typedef struct _tensor_transform_typecast {
+  tensor_type to; /**< tensor_type after cast. _NNS_END if unknown */
+} tensor_transform_typecast;
 
 /**
  * @brief Internal data structure for tensor_transform instances.
@@ -77,12 +95,13 @@ struct _GstTensor_Transform
   gchar *option; /**< Stored option value */
   union {
     tensor_transform_dimchg data_dimchg; /**< Parsed option value for "dimchg" mode */
+    tensor_transform_typecast data_typecast; /**< Parsed option value for "typecast" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
 
   tensor_dim fromDim; /**< Input dimension */
   tensor_dim toDim; /**< Output dimension */
-  tensor_type type; /**< tensor_type of both input and output. They share the same type. */
+  tensor_type type; /**< tensor_type of input. Most transform share the same type for both input and output. However, this does not hold for typecast. */
 };
 
 /*
