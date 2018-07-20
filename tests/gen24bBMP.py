@@ -294,7 +294,7 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
 # This gives "16x16", black, white, green, red, blue, wb-checker, rb-checker, gr-checker,
 # red-cross-on-white, blue-cross-on-black (4x4 x 16, left-top/right-bottom white/red/green).
 # "10 files" with 0 ~ 9 postfix in the filename
-def gen_BMP_stream(filename_prefix, golden_filename):
+def gen_BMP_stream(filename_prefix, golden_filename, num_sink):
     string = [b'' for _ in range(10)]
     size_x = 16
     size_y = 16
@@ -339,5 +339,6 @@ def gen_BMP_stream(filename_prefix, golden_filename):
 
     with open(golden_filename, 'wb') as file:
         for i in range(0, 10):
-            file.write(string[i])
             saveBMP(filename_prefix + '_' + str(i) + '.bmp', string[i], 'RGB', 16, 16)
+            for j in range(0, num_sink):
+                file.write(string[i])

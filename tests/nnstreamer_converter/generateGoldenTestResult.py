@@ -18,7 +18,7 @@ import gen24bBMP as bmp
 
 # Allow to create specific cases only if proper argument is given
 target = -1  # -1 == ALL
-if len(sys.argv) > 2:  # There's some arguments
+if len(sys.argv) >= 2:  # There's some arguments
     target = int(sys.argv[1])
 
 if target == -1 or target == 1:
@@ -30,9 +30,14 @@ if target == -1 or target == 2:
     bmp.write('testcase02_RGB_642x480.golden', bmp.gen_BMP_random('RGB', 642, 480, 'testcase02')[0])
     bmp.write('testcase02_BGRx_642x480.golden', bmp.gen_BMP_random('BGRx', 642, 480, 'testcase02')[0])
 if target == -1 or target == 8:
-    bmp.gen_BMP_stream('testsequence', 'testcase08.golden')
+    bmp.gen_BMP_stream('testsequence', 'testcase08.golden', 1)
 if target == -1 or target == 9:
-    str = bmp.gen_BMP_random('RGB', 100, 100, 'testcase02')[0]
-    bmp.write('testcase01_RGB_100x100.golden', str)
-    bmp.write('testcase02_RGB_100x100.golden', str+str)
-    bmp.write('testcase03_RGB_100x100.golden', str+str+str)
+    buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase02')[0]
+    bmp.write('testcase01_RGB_100x100.golden', buf)
+    bmp.write('testcase02_RGB_100x100.golden', buf+buf)
+    bmp.write('testcase03_RGB_100x100.golden', buf+buf+buf)
+    bmp.gen_BMP_stream('testsequence01', 'testcase01.golden', 1)
+    bmp.gen_BMP_stream('testsequence02', 'testcase02.golden', 2)
+    bmp.gen_BMP_stream('testsequence03', 'testcase03.golden', 3)
+    bmp.gen_BMP_stream('testsequence04', 'testcase04.golden', 4)
+
