@@ -31,9 +31,11 @@
 #include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
 
+/**
+ * @brief internal data of tensorflow lite
+ */
 struct _Tflite_data
 {
-  char *tflite_model;
   void *tflite_private_data;
 };
 typedef struct _Tflite_data tflite_data;
@@ -53,8 +55,9 @@ tflite_loadModelFile (const GstTensor_Filter * filter, void **private_data)
     return 1;
   }
   tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
-  tf->tflite_model = tflite_core_new (filter->prop.modelFilename);
-  if (tf->tflite_model) {
+  *private_data = tf;
+  tf->tflite_private_data = tflite_core_new (filter->prop.modelFilename);
+  if (tf->tflite_private_data) {
     return 0;
   } else {
     return -1;
@@ -104,6 +107,11 @@ tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
   int temp_idx = 0;
   tflite_data *tf;
   tf = *private_data;
+  temp_idx = tflite_core_getInputSize (tf->tflite_private_data);
+  if (temp_idx > 0)
+    temp_idx--;
+  else
+    temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
   return tflite_core_getInputDim (tf->tflite_private_data, temp_idx,
       inputDimension, type);
@@ -119,6 +127,11 @@ tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
   int temp_idx = 0;
   tflite_data *tf;
   tf = *private_data;
+  temp_idx = tflite_core_getOutputSize (tf->tflite_private_data);
+  if (temp_idx > 0)
+    temp_idx--;
+  else
+    temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
   return tflite_core_getOutputDim (tf->tflite_private_data, temp_idx,
       outputDimension, type);
