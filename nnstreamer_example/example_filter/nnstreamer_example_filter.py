@@ -13,10 +13,14 @@ NNStreamer example for image recognition.
 Pipeline :
 v4l2src -- tee -- textoverlay -- videoconvert -- xvimagesink
             |
-            --- tensor_converter -- tensor_filter -- tensor_sink
+            --- videoscale -- tensor_converter -- tensor_filter -- tensor_sink
 
 This app displays video sink (xvimagesink).
+
 'tensor_filter' for image recognition.
+Download tflite moel 'Mobilenet_1.0_224_quant' from below link,
+https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/lite/g3doc/models.md#image-classification-quantized-models
+
 'tensor_sink' updates recognition result to display in textoverlay.
 
 Run example :
@@ -27,6 +31,8 @@ $ python nnstreamer_example_filter.py
 See https://lazka.github.io/pgi-docs/#Gst-1.0 for Gst API details.
 """
 
+import os
+import sys
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject
@@ -35,14 +41,21 @@ from gi.repository import Gst, GObject
 class NNStreamerExample:
     """NNStreamer example for image recognition."""
 
-    def __init__(self):
+    def __init__(self, argv=None):
         self.loop = None
         self.pipeline = None
         self.running = False
         self.received = 0
+        self.current_label_index = -1
+        self.new_label_index = -1
+        self.tflite_model = ''
+        self.tflite_labels = []
+
+        if not self.tflite_init():
+            raise Exception
 
         GObject.threads_init()
-        Gst.init(None)
+        Gst.init(argv)
 
     def run_example(self):
         """Init pipeline and run example.
@@ -53,23 +66,24 @@ class NNStreamerExample:
         self.loop = GObject.MainLoop()
 
         # init pipeline
-        # TODO: add tensor filter
         self.pipeline = Gst.parse_launch(
-            "v4l2src name=cam_src ! "
-            "video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! tee name=t_raw "
-            "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! "
-            "videoconvert ! xvimagesink name=img_tensor "
-            "t_raw. ! queue ! tensor_converter ! tensor_sink name=tensor_sink"
+            'v4l2src name=cam_src ! '
+            'video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! tee name=t_raw '
+            't_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! '
+            'videoconvert ! xvimagesink name=img_tensor '
+            't_raw. ! queue ! videoscale ! video/x-raw,width=224,height=224 ! tensor_converter ! '
+            f'tensor_filter framework=tensorflow-lite model={self.tflite_model} ! '
+            'tensor_sink name=tensor_sink'
         )
 
         # bus and message callback
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
-        bus.connect("message", self.on_bus_message)
+        bus.connect('message', self.on_bus_message)
 
         # tensor sink signal : new data callback
-        tensor_sink = self.pipeline.get_by_name("tensor_sink")
-        tensor_sink.connect("new-data", self.on_new_data)
+        tensor_sink = self.pipeline.get_by_name('tensor_sink')
+        tensor_sink.connect('new-data', self.on_new_data)
 
         # timer to update result
         GObject.timeout_add(500, self.on_timer_update_result)
@@ -79,7 +93,7 @@ class NNStreamerExample:
         self.running = True
 
         # set window title
-        self.set_window_title("img_tensor", "NNStreamer Example")
+        self.set_window_title('img_tensor', 'NNStreamer Example')
 
         # run main loop
         self.loop.run()
@@ -98,17 +112,17 @@ class NNStreamerExample:
         :return: None
         """
         if message.type == Gst.MessageType.EOS:
-            print("received eos message")
+            print('received eos message')
             self.loop.quit()
         elif message.type == Gst.MessageType.ERROR:
             error, debug = message.parse_error()
-            print(f"error {error} {debug}")
+            print(f'error {error} {debug}')
             self.loop.quit()
         elif message.type == Gst.MessageType.WARNING:
             error, debug = message.parse_warning()
-            print(f"warning {error} {debug}")
+            print(f'warning {error} {debug}')
         elif message.type == Gst.MessageType.STREAM_START:
-            print("received start message")
+            print('received start message')
 
     def on_new_data(self, sink, buffer):
         """Callback for tensor sink signal.
@@ -120,15 +134,15 @@ class NNStreamerExample:
         # print progress
         self.received += 1
         if (self.received % 150) == 0:
-            print(f"receiving new data [{self.received}]")
+            print(f'receiving new data [{self.received}]')
 
         if self.running:
-            # TODO: update textoverlay
             for idx in range(buffer.n_memory()):
                 mem = buffer.peek_memory(idx)
                 result, mapinfo = mem.map(Gst.MapFlags.READ)
                 if result:
-                    # print(f"received {mapinfo.size}")
+                    # update label index with max score
+                    self.update_top_label_index(mapinfo.data, mapinfo.size)
                     mem.unmap(mapinfo)
 
     def on_timer_update_result(self):
@@ -137,11 +151,12 @@ class NNStreamerExample:
         :return: True to ensure the timer continues
         """
         if self.running:
-            # TODO: update textoverlay
-            tensor_res = f"total received {self.received}"
-
-            textoverlay = self.pipeline.get_by_name("tensor_res")
-            textoverlay.set_property("text", tensor_res)
+            if self.current_label_index != self.new_label_index:
+                # update textoverlay
+                self.current_label_index = self.new_label_index
+                label = self.tflite_get_label(self.current_label_index)
+                textoverlay = self.pipeline.get_by_name('tensor_res')
+                textoverlay.set_property('text', label)
         return True
 
     def set_window_title(self, name, title):
@@ -153,13 +168,72 @@ class NNStreamerExample:
         """
         element = self.pipeline.get_by_name(name)
         if element is not None:
-            pad = element.get_static_pad("sink")
+            pad = element.get_static_pad('sink')
             if pad is not None:
                 tags = Gst.TagList.new_empty()
-                tags.add_value(Gst.TagMergeMode.APPEND, "title", title)
+                tags.add_value(Gst.TagMergeMode.APPEND, 'title', title)
                 pad.send_event(Gst.Event.new_tag(tags))
 
+    def tflite_init(self):
+        """Check tflite model and load labels.
 
-if __name__ == "__main__":
-    example = NNStreamerExample()
+        :return: True if successfully initialized
+        """
+        tflite_model = 'mobilenet_v1_1.0_224_quant.tflite'
+        tflite_label = 'labels.txt'
+        current_folder = os.path.dirname(os.path.abspath(__file__))
+        model_folder = os.path.join(current_folder, 'tflite_model')
+
+        # check model file exists
+        self.tflite_model = os.path.join(model_folder, tflite_model)
+        if not os.path.exists(self.tflite_model):
+            print(f'cannot find tflite model [{self.tflite_model}]')
+            return False
+
+        # load labels
+        label_path = os.path.join(model_folder, tflite_label)
+        try:
+            with open(label_path, 'r') as label_file:
+                for line in label_file.readlines():
+                    self.tflite_labels.append(line)
+        except FileNotFoundError:
+            print(f'cannot find tflite label [{label_path}]')
+            return False
+
+        print(f'finished to load labels, total {len(self.tflite_labels)}')
+        return True
+
+    def tflite_get_label(self, index):
+        """Get label string with given index.
+
+        :param index: index for label
+        :return: label string
+        """
+        try:
+            label = self.tflite_labels[index]
+        except IndexError:
+            label = ''
+        return label
+
+    def update_top_label_index(self, data, data_size):
+        """Update tflite label index with max score.
+
+        :param data: array of scores
+        :param data_size: data size
+        :return: None
+        """
+        # -1 if failed to get max score index
+        self.new_label_index = -1
+
+        if data_size == len(self.tflite_labels):
+            scores = [data[i] for i in range(data_size)]
+            max_score = max(scores)
+            if max_score > 0:
+                self.new_label_index = scores.index(max_score)
+        else:
+            print(f'unexpected data size {data_size}')
+
+
+if __name__ == '__main__':
+    example = NNStreamerExample(sys.argv[1:])
     example.run_example()

@@ -32,26 +32,26 @@ $ cd ..
 ```
 v4l2src -- tee -- textoverlay -- videoconvert -- xvimagesink
             |
-            --- tensor_converter -- tensor_filter -- tensor_sink
+            --- videoscale -- tensor_converter -- tensor_filter -- tensor_sink
 ```
 
 NNStreamer example for image recognition.
 
 Displays video sink.
 
-1. 'tensor_filter' for image recognition.
+1. 'tensor_filter' for image recognition. (classification with 224x224 image).
 2. 'tensor_sink' updates recognition result to display in textoverlay.
 
 - Run example
 ```
-# python example
-$ cd nnstreamer_example/example_filter
-$ python nnstreamer_example_filter.py 
+$ cd build/nnstreamer_example/example_filter
+$ ./nnstreamer_example_filter 
 ```
 
 ```
-$ cd build/nnstreamer_example/example_filter
-$ ./nnstreamer_example_filter
+# for python example
+$ cd nnstreamer_example/example_filter
+$ python nnstreamer_example_filter.py 
 ```
 
 ## Example : video mixer

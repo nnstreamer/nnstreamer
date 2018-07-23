@@ -59,11 +59,6 @@
   }
 
 /**
- * @brief Score threshold of tflite model.
- */
-#define THRESHOLD (0.8)
-
-/**
  * @brief Data structure for tflite model info.
  */
 typedef struct
@@ -71,6 +66,7 @@ typedef struct
   gchar *model_path; /**< tflite model file path */
   gchar *label_path; /**< label file path */
   GList *labels; /**< list of loaded labels */
+  guint total_labels; /**< count of labels */
 } tflite_info_s;
 
 /**
@@ -84,8 +80,8 @@ typedef struct
 
   gboolean running; /**< true when app is running */
   guint received; /**< received buffer count */
-  gint current_label; /**< current label index */
-  gint new_label; /**< new label index */
+  gint current_label_index; /**< current label index */
+  gint new_label_index; /**< new label index */
   tflite_info_s tflite_info; /**< tflite model info */
 } AppData;
 
@@ -169,8 +165,8 @@ _tflite_init_info (tflite_info_s * tflite_info, const gchar * path)
     return FALSE;
   }
 
-  _print_log ("finished to load tflite label");
-  _print_log ("total labels %d", g_list_length (tflite_info->labels));
+  tflite_info->total_labels = g_list_length (tflite_info->labels);
+  _print_log ("finished to load labels, total %d", tflite_info->total_labels);
   return TRUE;
 }
 
@@ -192,19 +188,23 @@ _tflite_get_label (tflite_info_s * tflite_info, gint index)
 }
 
 /**
- * @brief Get tflite label index.
- * @param scores array of confidence score
+ * @brief Update tflite label index with max score.
+ * @param scores array of scores
  * @param len array length
- * @return -1 if failed to get max score index
+ * @return None
  */
-static gint
-_get_top_label_index (guint8 * scores, guint len)
+static void
+_update_top_label_index (guint8 * scores, guint len)
 {
   gint i;
   gint index = -1;
   guint8 max_score = 0;
 
-  g_return_val_if_fail (scores != NULL, -1);
+  /** -1 if failed to get max score index */
+  g_app.new_label_index = -1;
+
+  g_return_if_fail (scores != NULL);
+  g_return_if_fail (len == g_app.tflite_info.total_labels);
 
   for (i = 0; i < len; i++) {
     if (scores[i] > 0 && scores[i] > max_score) {
@@ -213,7 +213,7 @@ _get_top_label_index (guint8 * scores, guint len)
     }
   }
 
-  return index;
+  g_app.new_label_index = index;
 }
 
 /**
@@ -325,9 +325,8 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
       mem = gst_buffer_peek_memory (buffer, i);
 
       if (gst_memory_map (mem, &info, GST_MAP_READ)) {
-        /** @todo handle data (info.data, info.size) */
-        _print_log ("received %zd", info.size);
-        g_app.new_label = _get_top_label_index (NULL, 0);
+        /** update label index with max score */
+        _update_top_label_index (info.data, (guint) info.size);
 
         gst_memory_unmap (mem, &info);
       }
@@ -373,12 +372,12 @@ _timer_update_result_cb (gpointer user_data)
     GstElement *overlay;
     gchar *label = NULL;
 
-    if (g_app.current_label != g_app.new_label) {
-      g_app.current_label = g_app.new_label;
+    if (g_app.current_label_index != g_app.new_label_index) {
+      g_app.current_label_index = g_app.new_label_index;
 
       overlay = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "tensor_res");
 
-      label = _tflite_get_label (&g_app.tflite_info, g_app.current_label);
+      label = _tflite_get_label (&g_app.tflite_info, g_app.current_label_index);
       g_object_set (overlay, "text", (label != NULL) ? label : "", NULL);
 
       gst_object_unref (overlay);
@@ -395,6 +394,7 @@ int
 main (int argc, char **argv)
 {
   const gchar tflite_model_path[] = "./tflite_model";
+  /** 224x224 for tflite model */
   const guint width = 224;
   const guint height = 224;
 
@@ -408,8 +408,8 @@ main (int argc, char **argv)
   /** init app variable */
   g_app.running = FALSE;
   g_app.received = 0;
-  g_app.current_label = -1;
-  g_app.new_label = -1;
+  g_app.current_label_index = -1;
+  g_app.new_label_index = -1;
 
   _check_cond_err (_tflite_init_info (&g_app.tflite_info, tflite_model_path));
 
@@ -428,7 +428,8 @@ main (int argc, char **argv)
       "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! "
       "videoconvert ! xvimagesink name=img_tensor "
       "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter ! "
-      "tensor_filter framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      "tensor_filter framework=tensorflow-lite model=%s ! "
+      "tensor_sink name=tensor_sink",
       width, height, g_app.tflite_info.model_path);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
