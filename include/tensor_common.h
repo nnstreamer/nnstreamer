@@ -157,6 +157,19 @@ get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type,
  */
 #define err_print(...) dlog_print(DLOG_ERROR, "nnstreamer", __VA_ARGS__)
 
+/**
+ * @brief A callback for typefind, trying to find whether a file is other/tensors or not.
+ * For the concrete definition of headers, please look at the wiki page of nnstreamer:
+ * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
+ */
+extern void gst_tensors_typefind_function (GstTypeFind *tf, gpointer pdata);
+
+#define GST_TENSOR_TYPEFIND_REGISTER(plugin)  do { \
+    gst_type_find_register (plugin, "other/tensorsave", \
+        GST_RANK_PRIMARY, gst_tensors_typefind_function, "tnsr", \
+        gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL)); \
+    } while (0)
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_COMMON_H__ */
