@@ -76,6 +76,15 @@ pushd build
 ./unittest_sink --gst-plugin-path=./gst/tensor_converter:./gst/tensor_sink
 popd
 
+%install
+pushd build
+%make_install
+popd
+
+pushd tests
+export LD_LIBRARY_PATH=%{buildroot}%{_libdir}
+./testAll.sh
+popd
 
 %if 0%{?testcoverage}
 ##
@@ -107,16 +116,6 @@ popd
     # Visualize the report                                                                                                             
     genhtml -o result unittest.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}   
 %endif
-
-%install
-pushd build
-%make_install
-popd
-
-pushd tests
-export LD_LIBRARY_PATH=%{buildroot}%{_libdir}
-./testAll.sh
-popd
 
 %if 0%{?testcoverage}
 mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
