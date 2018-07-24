@@ -18,8 +18,7 @@
  * @date   7/5/2018
  * @brief	 connection with tflite libraries.
  *
- * @bug     No know bugs.
- * @todo    If it is required, class will be implemented as a singleton.
+ * @bug     No known bugs.
  */
 #ifndef TENSOR_FILTER_TENSORFLOW_LITE_H
 #define TENSOR_FILTER_TENSORFLOW_LITE_H
@@ -28,12 +27,13 @@
 #include <iostream>
 #include <stdint.h>
 #include <glib.h>
-#include "tensor_typedef.h"
 
-#include "tensorflow/contrib/lite/model.h"
-#include "tensorflow/contrib/lite/optional_debug_tools.h"
-#include "tensorflow/contrib/lite/string_util.h"
-#include "tensorflow/contrib/lite/kernels/register.h"
+#include <tensorflow/contrib/lite/model.h>
+#include <tensorflow/contrib/lite/optional_debug_tools.h>
+#include <tensorflow/contrib/lite/string_util.h>
+#include <tensorflow/contrib/lite/kernels/register.h>
+
+#include "tensor_typedef.h"
 
 /**
  * @brief	ring cache structure
@@ -59,6 +59,7 @@ public:
   const char *getInputTensorName ();
   const char *getOutputTensorName ();
 
+  double get_ms(struct timeval t);
   int getInputTensorSize ();
   int getOutputTensorSize ();
   int getInputTensorDim (int idx, tensor_dim dim, tensor_type * type);
@@ -83,6 +84,7 @@ private:
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
   int getTensorType(int tensor_idx, tensor_type *type);
+  int getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type);
 };
 
 /**

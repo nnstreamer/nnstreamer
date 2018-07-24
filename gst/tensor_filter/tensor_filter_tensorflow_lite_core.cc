@@ -18,11 +18,26 @@
  * @date   7/5/2018
  * @brief  connection with tflite libraries.
  *
- * @bug     No know bugs.
- * @todo    If it is required, class will be implemented as a singleton.
+ * @bug     No known bugs.
  */
 
+#include <sys/time.h>
+#include <unistd.h>
+#include <algorithm>
+
 #include "tensor_filter_tensorflow_lite_core.h"
+
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG FALSE
+#endif
+
+/**
+ * @brief Macro for debug message.
+ */
+#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
 
 /**
  * @brief	TFLiteCore creator
@@ -50,6 +65,18 @@ TFLiteCore::~TFLiteCore ()
 }
 
 /**
+ * @brief	get millisecond for time profiling.
+ * @note	it returns the millisecond.
+ * @param t	: the time struct.
+ * @return the millisecond of t.
+ */
+double
+TFLiteCore::get_ms (struct timeval t)
+{
+  return (t.tv_sec * 1000000 + t.tv_usec);
+}
+
+/**
  * @brief	load the tflite model
  * @note	the model will be loaded
  * @return 0 if OK. non-zero if error.
@@ -57,21 +84,25 @@ TFLiteCore::~TFLiteCore ()
 int
 TFLiteCore::loadModel ()
 {
+#if (DBG)
+  struct timeval start_time, stop_time;
+  gettimeofday (&start_time, nullptr);
+#endif
+
   if (!interpreter) {
     model =
         std::unique_ptr < tflite::FlatBufferModel >
         (tflite::FlatBufferModel::BuildFromFile (model_path));
     if (!model) {
-      std::cout << "Failed to mmap model" << std::endl;
+      _print_log ("Failed to mmap model\n");
       return -1;
     }
     model->error_reporter ();
-    std::cout << "model loaded" << std::endl;
 
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder (*model, resolver) (&interpreter);
     if (!interpreter) {
-      std::cout << "Failed to construct interpreter" << std::endl;
+      _print_log ("Failed to construct interpreter\n");
       return -2;
     }
   }
@@ -99,6 +130,12 @@ TFLiteCore::loadModel ()
         output_idx_list[output_idx_list_len++] = i;
     }
   }
+
+#if (DBG)
+  gettimeofday (&stop_time, nullptr);
+  _print_log ("Model is Loaded: %lf",
+      (get_ms (stop_time) - get_ms (start_time)) / 1000);
+#endif
   return 0;
 }
 
@@ -147,18 +184,8 @@ TFLiteCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
   if (idx >= input_size) {
     return -1;
   }
-  if (getTensorType (input_idx_list[idx], type)) {
-    return -2;
-  }
-
-  int len = interpreter->tensor (input_idx_list[idx])->dims->size;
-  g_assert (len <= NNS_TENSOR_RANK_LIMIT);
-  memcpy (dim, interpreter->tensor (input_idx_list[idx])->dims->data,
-      sizeof (tensor_dim) / NNS_TENSOR_RANK_LIMIT * len);
-  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    dim[i] = 1;
-  }
-  return 0;
+  int ret = getTensorDim (input_idx_list[idx], dim, type);
+  return ret;
 }
 
 /**
@@ -174,17 +201,37 @@ TFLiteCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
   if (idx >= output_size) {
     return -1;
   }
-  if (getTensorType (output_idx_list[idx], type)) {
+  int ret = getTensorDim (output_idx_list[idx], dim, type);
+  return ret;
+}
+
+/**
+ * @brief	return the Dimension of Tensor.
+ * @param tensor_idx	: the real index of model of the tensor
+ * @param[out] dim	: the array of the tensor
+ * @param[out] type	: the data type of the tensor
+ * @return 0 if OK. non-zero if error.
+ */
+int
+TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type)
+{
+
+  if (getTensorType (tensor_idx, type)) {
     return -2;
   }
 
-  int len = interpreter->tensor (output_idx_list[idx])->dims->size;
+  int len = interpreter->tensor (tensor_idx)->dims->size;
   g_assert (len <= NNS_TENSOR_RANK_LIMIT);
-  memcpy (dim, interpreter->tensor (output_idx_list[idx])->dims->data,
-      sizeof (tensor_dim) / NNS_TENSOR_RANK_LIMIT * len);
+
+  /* the order of dimension is reversed at CAPS negotiation */
+  std::reverse_copy (interpreter->tensor (tensor_idx)->dims->data,
+      interpreter->tensor (tensor_idx)->dims->data + len, dim);
+
+  /* fill the remnants with 1 */
   for (int i = len; i < NNS_TENSOR_RANK_LIMIT; i++) {
     dim[i] = 1;
   }
+
   return 0;
 }
 
@@ -217,6 +264,11 @@ TFLiteCore::getOutputTensorSize ()
 int
 TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
 {
+#if (DBG)
+  struct timeval start_time, stop_time;
+  gettimeofday (&start_time, nullptr);
+#endif
+
   int output_number_of_pixels = 1;
 
   int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
@@ -246,6 +298,12 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   }
 
   *outptr = interpreter->typed_output_tensor < uint8_t > (0);
+
+#if (DBG)
+  gettimeofday (&stop_time, nullptr);
+  _print_log ("Invoke() is finished: %lf",
+      (get_ms (stop_time) - get_ms (start_time)) / 1000);
+#endif
 
   return 0;
 }
