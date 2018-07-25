@@ -310,9 +310,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
   /** print progress */
   g_app.received++;
-  if (g_app.received % 150 == 0) {
-    _print_log ("receiving new data [%d]", g_app.received);
-  }
+  _print_log ("receiving new data [%d]", g_app.received);
 
   if (g_app.running) {
     GstMemory *mem;

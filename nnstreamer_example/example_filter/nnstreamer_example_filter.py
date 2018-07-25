@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+# !/usr/bin/env python
 
 """
 @file		nnstreamer_example_filter.py
@@ -72,7 +72,7 @@ class NNStreamerExample:
             't_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! '
             'videoconvert ! xvimagesink name=img_tensor '
             't_raw. ! queue ! videoscale ! video/x-raw,width=224,height=224 ! tensor_converter ! '
-            f'tensor_filter framework=tensorflow-lite model={self.tflite_model} ! '
+            'tensor_filter framework=tensorflow-lite model=' + self.tflite_model + ' ! '
             'tensor_sink name=tensor_sink'
         )
 
@@ -116,11 +116,11 @@ class NNStreamerExample:
             self.loop.quit()
         elif message.type == Gst.MessageType.ERROR:
             error, debug = message.parse_error()
-            print(f'error {error} {debug}')
+            print('[error]', error, debug)
             self.loop.quit()
         elif message.type == Gst.MessageType.WARNING:
             error, debug = message.parse_warning()
-            print(f'warning {error} {debug}')
+            print('[warning]', error, debug)
         elif message.type == Gst.MessageType.STREAM_START:
             print('received start message')
 
@@ -133,8 +133,7 @@ class NNStreamerExample:
         """
         # print progress
         self.received += 1
-        if (self.received % 150) == 0:
-            print(f'receiving new data [{self.received}]')
+        print('receiving new data:', self.received)
 
         if self.running:
             for idx in range(buffer.n_memory()):
@@ -187,7 +186,7 @@ class NNStreamerExample:
         # check model file exists
         self.tflite_model = os.path.join(model_folder, tflite_model)
         if not os.path.exists(self.tflite_model):
-            print(f'cannot find tflite model [{self.tflite_model}]')
+            print('cannot find tflite model:', self.tflite_model)
             return False
 
         # load labels
@@ -197,10 +196,10 @@ class NNStreamerExample:
                 for line in label_file.readlines():
                     self.tflite_labels.append(line)
         except FileNotFoundError:
-            print(f'cannot find tflite label [{label_path}]')
+            print('cannot find tflite label:', label_path)
             return False
 
-        print(f'finished to load labels, total {len(self.tflite_labels)}')
+        print('finished to load labels, total:', len(self.tflite_labels))
         return True
 
     def tflite_get_label(self, index):
@@ -231,7 +230,7 @@ class NNStreamerExample:
             if max_score > 0:
                 self.new_label_index = scores.index(max_score)
         else:
-            print(f'unexpected data size {data_size}')
+            print('unexpected data size:', data_size)
 
 
 if __name__ == '__main__':
