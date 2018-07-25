@@ -50,4 +50,19 @@ compareAllSizeLimit testcase_stream.golden demux07_1.log 7_1
 compareAllSizeLimit testcase_stream.golden demux07_2.log 7_2
 compareAllSizeLimit testcase_stream.golden demux07_3.log 7_3
 
+gstTest "--gst-plugin-path=../../build/gst --gst-debug=tensordemux:5 tensormux name=mux ! tensordemux name=demux tensorpick=1 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2 demux. ! queue ! filesink location=demux08_0.log" 8
+
+compareAllSizeLimit testcase.golden demux08_0.log 8_0
+
+gstTest "--gst-plugin-path=../../build/gst --gst-debug=tensordemux:5 tensormux name=mux ! tensordemux name=demux tensorpick=2 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1 filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2 demux. ! queue ! filesink location=demux09_0.log" 9
+
+compareAllSizeLimit testcase.golden demux09_0.log 9_0
+
+
+gstTest "--gst-plugin-path=../../build/gst --gst-debug=tensordemux:5 tensormux name=mux ! tensordemux name=demux tensorpick=1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_3 demux. ! queue ! filesink location=demux10_0.log" 10
+compareAllSizeLimit testcase_stream.golden demux10_0.log 10_0
+
+gstTest "--gst-plugin-path=../../build/gst --gst-debug=tensordemux:5 tensormux name=mux ! tensordemux name=demux tensorpick=2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_3 demux. ! queue ! filesink location=demux11_0.log" 11
+compareAllSizeLimit testcase_stream.golden demux11_0.log 11_0
+
 report
