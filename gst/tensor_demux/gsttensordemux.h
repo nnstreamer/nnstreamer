@@ -52,6 +52,7 @@ typedef struct
   GstClockTime last_ts;
   GstFlowReturn last_ret;
   gboolean discont;
+  gint nth;
 } GstTensorPad;
 
 /**
@@ -65,7 +66,12 @@ struct _GstTensorDemux
   GstPad *sinkpad;
   GSList *srcpads;
   guint32 num_tensors;
+  guint32 num_srcpads;
   gboolean singleStream;
+  gboolean have_group_id;
+  guint group_id;
+  gint framerate_numerator;
+  gint framerate_denominator;
 };
 
 /**
