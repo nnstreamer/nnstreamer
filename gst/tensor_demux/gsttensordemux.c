@@ -62,7 +62,7 @@ enum
 {
   PROP_0,
   PROP_SILENT,
-  PROP_SINGLE_STREAM
+  PROP_TENSORPICK
 };
 
 /**
@@ -118,6 +118,11 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
 
+  g_object_class_install_property (gobject_class, PROP_TENSORPICK,
+      g_param_spec_int ("tensorpick", "TensorPick",
+          "Choose nth tensor among tensors ?", 0, G_MAXINT, FALSE,
+          G_PARAM_READWRITE));
+
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_demux_change_state);
 
@@ -153,7 +158,7 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
   tensor_demux->num_tensors = 0;
   tensor_demux->num_srcpads = 0;
   tensor_demux->silent = FALSE;
-  tensor_demux->singleStream = FALSE;
+  tensor_demux->tensorpick = -1;
   tensor_demux->have_group_id = FALSE;
   tensor_demux->group_id = G_MAXUINT;
   tensor_demux->srcpads = NULL;
@@ -282,8 +287,8 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
   tensor_type type;
 
   tensorpad = g_new0 (GstTensorPad, 1);
-  GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d",
-      tensor_demux->num_srcpads);
+  GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d(%dth)",
+      tensor_demux->num_srcpads, nth);
 
   name = g_strdup_printf ("src_%u", tensor_demux->num_srcpads);
   pad = gst_pad_new_from_static_template (&src_templ, name);
@@ -355,7 +360,9 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
     *created = TRUE;
   }
 
-  if (tensor_demux->singleStream) {
+  if (tensor_demux->tensorpick != -1) {
+    GST_DEBUG_OBJECT (tensor_demux, "TensorPick is set! : %dth tensor only\n",
+        tensor_demux->tensorpick);
     gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_demux));
   }
 
@@ -413,6 +420,10 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_DEBUG_OBJECT (tensor_demux, " Number or Tensors: %d", num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
+    if (tensor_demux->tensorpick != -1 && tensor_demux->tensorpick != i) {
+      continue;
+    }
+
     GstTensorPad *srcpad;
     GstBuffer *outbuf;
     GstMemory *mem;
@@ -500,8 +511,8 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
       break;
-    case PROP_SINGLE_STREAM:
-      filter->singleStream = g_value_get_boolean (value);
+    case PROP_TENSORPICK:
+      filter->tensorpick = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -521,8 +532,8 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
       break;
-    case PROP_SINGLE_STREAM:
-      g_value_set_boolean (value, filter->singleStream);
+    case PROP_TENSORPICK:
+      g_value_set_int (value, filter->tensorpick);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

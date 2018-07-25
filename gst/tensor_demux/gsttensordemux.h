@@ -67,7 +67,7 @@ struct _GstTensorDemux
   GSList *srcpads;
   guint32 num_tensors;
   guint32 num_srcpads;
-  gboolean singleStream;
+  gint tensorpick;
   gboolean have_group_id;
   guint group_id;
   gint framerate_numerator;
