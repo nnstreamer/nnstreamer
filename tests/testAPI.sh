@@ -15,7 +15,7 @@ if [[ $# -eq 0 ]]; then
 			fi
 		fi
 	fi
-	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder:$dirpath/../build/gst/tensor_transform:$dirpath/../build/gst/tensor_sink:$dirpath/../build/gst/tensor_mux"
+	PATH_TO_PLUGIN="$dirpath/../build/gst/tensor_converter:$dirpath/../build/gst/tensor_filter:$dirpath/../build/gst/tensor_decoder:$dirpath/../build/gst/tensor_transform:$dirpath/../build/gst/tensor_sink:$dirpath/../build/gst/tensor_mux:$dirpath/../build/gst/tensor_demux"
 else
 	PATH_TO_PLUGIN="$1"
 fi

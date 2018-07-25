@@ -40,4 +40,7 @@ if target == -1 or target == 9:
     bmp.gen_BMP_stream('testsequence02', 'testcase02.golden', 2)
     bmp.gen_BMP_stream('testsequence03', 'testcase03.golden', 3)
     bmp.gen_BMP_stream('testsequence04', 'testcase04.golden', 4)
-
+if target == -1 or target == 10:
+    buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase')[0]
+    bmp.write('testcase.golden', buf)
+    bmp.gen_BMP_stream('testsequence', 'testcase_stream.golden', 1)

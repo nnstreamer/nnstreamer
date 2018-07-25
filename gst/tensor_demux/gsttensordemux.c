@@ -37,6 +37,23 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
+ * gst-launch-1.0 tensormux name=mux ! tensordemux name=demux \
+ * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0 \
+ * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1 \
+ * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2 \
+ * demux.src_0 ! queue ! filesink location=demux00.log \
+ * demux.src_1 ! queue ! filesink location=demux01.log \
+ * demux.src_2 ! queue ! filesink location=demux02.log
+ * ]|
+ *
+ * |[
+ * gst-launch-1.0 tensormux name=mux ! tensordemux name=demux \
+ * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_0 \
+ * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_1 \
+ * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_2 \
+ * demux.src_0 ! queue ! filesink location=demux00.log \
+ * demux.src_1 ! queue ! filesink location=demux01.log \
+ * demux.src_2 ! queue ! filesink location=demux02.log
  * ]|
  *
  * </refsect2>
@@ -165,7 +182,7 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
 }
 
 /**
- * @brief function to remove srcpad list for sink (gst element vmethod)
+ * @brief function to remove srcpad list
  */
 static void
 gst_tensor_demux_remove_src_pads (GstTensorDemux * tensor_demux)
