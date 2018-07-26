@@ -15,7 +15,7 @@ Neural Network Streamer for AI Projects.
 * MyungJoo Ham (myungjoo.ham@samsung.com)
 
 ## Committers
-* Jijoong Mon (jijoon.moon@samsung.com)
+* Jijoong Moon (jijoon.moon@samsung.com)
 * Geunsik Lim (geunsik.lim@samsung.com)
 * Sangjung Woo (sangjung.woo@samsung.com)
 * Wook Song (wook16.song@samsung.com)
@@ -66,6 +66,14 @@ meta specifics: W.I.P. jijoong-moon
   - Planned
 - tensor\_decode
   - W.I.P. jijoong-moon
+- tensormux
+  - Supported
+    - Mux mutiple "other/tensor"s and make "other/tensors"
+    - Currently maximum number of tensor to be muxed is 16
+- tensordemux
+  - Supported
+    - Demux "other/tensors' to "other/tensor"s
+    - tensor to be pushed to downstream can be choosen with "tensorpick" option.
 - tensor\_source
   - Planned
 
