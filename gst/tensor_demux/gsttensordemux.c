@@ -136,9 +136,8 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
           FALSE, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
-      g_param_spec_int ("tensorpick", "TensorPick",
-          "Choose nth tensor among tensors ?", 0, G_MAXINT, FALSE,
-          G_PARAM_READWRITE));
+      g_param_spec_string ("tensorpick", "TensorPick",
+          "Choose nth tensor among tensors ?", "", G_PARAM_READWRITE));
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_demux_change_state);
@@ -175,7 +174,7 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
   tensor_demux->num_tensors = 0;
   tensor_demux->num_srcpads = 0;
   tensor_demux->silent = FALSE;
-  tensor_demux->tensorpick = -1;
+  tensor_demux->tensorpick = NULL;
   tensor_demux->have_group_id = FALSE;
   tensor_demux->group_id = G_MAXUINT;
   tensor_demux->srcpads = NULL;
@@ -377,10 +376,11 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
     *created = TRUE;
   }
 
-  if (tensor_demux->tensorpick != -1) {
-    GST_DEBUG_OBJECT (tensor_demux, "TensorPick is set! : %dth tensor only\n",
-        tensor_demux->tensorpick);
-    gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_demux));
+  if (tensor_demux->tensorpick != NULL) {
+    GST_DEBUG_OBJECT (tensor_demux, "TensorPick is set! : %dth tensor\n", nth);
+    if (g_list_length (tensor_demux->tensorpick) == tensor_demux->num_srcpads) {
+      gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_demux));
+    }
   }
 
   return tensorpad;
@@ -437,8 +437,17 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_DEBUG_OBJECT (tensor_demux, " Number or Tensors: %d", num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
-    if (tensor_demux->tensorpick != -1 && tensor_demux->tensorpick != i) {
-      continue;
+    if (tensor_demux->tensorpick != NULL) {
+      gboolean found = FALSE;
+      GList *list;
+      for (list = tensor_demux->tensorpick; list != NULL; list = list->next) {
+        if (i == GPOINTER_TO_INT (list->data)) {
+          found = TRUE;
+          break;
+        }
+      }
+      if (!found)
+        continue;
     }
 
     GstTensorPad *srcpad;
@@ -529,8 +538,19 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       filter->silent = g_value_get_boolean (value);
       break;
     case PROP_TENSORPICK:
-      filter->tensorpick = g_value_get_int (value);
+    {
+      gint i;
+      gint64 val;
+      const gchar *param = g_value_get_string (value);
+      gchar **strv = g_strsplit_set (param, ",.;/", -1);
+      gint num = g_strv_length (strv);
+      for (i = 0; i < num; i++) {
+        val = g_ascii_strtoll (strv[i], NULL, 10);
+        filter->tensorpick =
+            g_list_append (filter->tensorpick, GINT_TO_POINTER (val));
+      }
       break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -550,8 +570,22 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, filter->silent);
       break;
     case PROP_TENSORPICK:
-      g_value_set_int (value, filter->tensorpick);
+    {
+      GList *list;
+      char *p = "";
+      GPtrArray *arr = g_ptr_array_new ();
+      gchar **strings;
+
+      for (list = filter->tensorpick; list != NULL; list = list->next) {
+        g_ptr_array_add (arr, list->data);
+      }
+      g_ptr_array_add (arr, NULL);
+      strings = (gchar **) g_ptr_array_free (arr, FALSE);
+      p = g_strjoinv (",", strings);
+      g_free (strings);
+      g_value_set_string (value, p);
       break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
