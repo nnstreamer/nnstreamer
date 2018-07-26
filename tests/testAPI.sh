@@ -2,13 +2,13 @@
 
 if [[ $# -eq 0 ]]; then
 	dirpath="$( cd "$( dirname "$0")" && pwd )"
-	find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+	find "$dirpath/../build/gst" -name *.so | grep -q "." 
 	if [ "$?" -ne "0" ]; then
 		dirpath="$dirpath/../"
-		find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+		find "$dirpath/../build/gst" -name *.so | grep -q "." 
 		if [ "$?" -ne "0" ]; then
 			dirpath="$dirpath/../"
-			find "$dirpath/../build/gst/tensor_converter" "$dirpath/../build/gst/tensor_filter" "$dirpath/../build/gst/tensor_decoder" -name *.so 1>/dev/null 2>/dev/null
+			find "$dirpath/../build/gst" -name *.so | grep -q "." 
 			if [ "$?" -ne "0" ]; then
 				echo "[ERROR] Cannot find nnstreamer plugin binaries. Before unit testing, you should build with cmake first."
 				exit 1
