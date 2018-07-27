@@ -11,11 +11,11 @@
 NNStreamer example for image recognition.
 
 Pipeline :
-v4l2src -- tee -- textoverlay -- videoconvert -- xvimagesink
+v4l2src -- tee -- textoverlay -- videoconvert -- ximagesink
             |
             --- videoscale -- tensor_converter -- tensor_filter -- tensor_sink
 
-This app displays video sink (xvimagesink).
+This app displays video sink.
 
 'tensor_filter' for image recognition.
 Download tflite moel 'Mobilenet_1.0_224_quant' from below link,
@@ -67,10 +67,10 @@ class NNStreamerExample:
 
         # init pipeline
         self.pipeline = Gst.parse_launch(
-            'v4l2src name=cam_src ! '
+            'v4l2src name=cam_src ! videoconvert ! '
             'video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! tee name=t_raw '
             't_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! '
-            'videoconvert ! xvimagesink name=img_tensor '
+            'videoconvert ! ximagesink name=img_tensor '
             't_raw. ! queue ! videoscale ! video/x-raw,width=224,height=224 ! tensor_converter ! '
             'tensor_filter framework=tensorflow-lite model=' + self.tflite_model + ' ! '
             'tensor_sink name=tensor_sink'
@@ -123,6 +123,9 @@ class NNStreamerExample:
             print('[warning]', error, debug)
         elif message.type == Gst.MessageType.STREAM_START:
             print('received start message')
+        elif message.type == Gst.MessageType.QOS:
+            data_format, processed, dropped = message.parse_qos_stats()
+            print('[qos]', data_format, processed, dropped)
 
     def on_new_data(self, sink, buffer):
         """Callback for tensor sink signal.

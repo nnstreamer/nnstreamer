@@ -191,15 +191,15 @@ main (int argc, char **argv)
   /** init pipeline */
   str_pipeline =
       g_strdup_printf
-      ("v4l2src name=cam_src ! "
+      ("v4l2src name=cam_src ! videoconvert ! "
       "video/x-raw,width=%d,height=%d,format=RGB,framerate=30/1 ! tee name=t_raw "
       "videomixer name=mix "
       "sink_0::xpos=0 sink_0::ypos=0 sink_0::zorder=0 "
       "sink_1::xpos=0 sink_1::ypos=0 sink_1::zorder=1 sink_1::alpha=0.7 ! "
-      "videoconvert ! xvimagesink name=img_mixed "
+      "videoconvert ! ximagesink name=img_mixed "
       "t_raw. ! queue ! mix.sink_0 "
       "t_raw. ! queue ! tensor_converter ! tensordec ! videoscale ! video/x-raw,width=%d,height=%d ! mix.sink_1 "
-      "t_raw. ! queue ! videoconvert ! xvimagesink name=img_origin",
+      "t_raw. ! queue ! videoconvert ! ximagesink name=img_origin",
       width, height, width / 2, height / 2);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);

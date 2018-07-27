@@ -9,11 +9,11 @@
  * NNStreamer example for image recognition.
  *
  * Pipeline :
- * v4l2src -- tee -- textoverlay -- videoconvert -- xvimagesink
+ * v4l2src -- tee -- textoverlay -- videoconvert -- ximagesink
  *                  |
  *                  --- videoscale -- tensor_converter -- tensor_filter -- tensor_sink
  *
- * This app displays video sink (xvimagesink).
+ * This app displays video sink.
  *
  * 'tensor_filter' for image recognition.
  * Download tflite moel 'Mobilenet_1.0_224_quant' from below link,
@@ -271,6 +271,21 @@ _parse_err_message (GstMessage * message)
 }
 
 /**
+ * @brief Function to print qos message.
+ */
+static void
+_parse_qos_message (GstMessage * message)
+{
+  GstFormat format;
+  guint64 processed;
+  guint64 dropped;
+
+  gst_message_parse_qos_stats (message, &format, &processed, &dropped);
+  _print_log ("format[%d] processed[%" G_GUINT64_FORMAT "] dropped[%"
+      G_GUINT64_FORMAT "]", format, processed, dropped);
+}
+
+/**
  * @brief Callback for message.
  */
 static void
@@ -295,6 +310,10 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
 
     case GST_MESSAGE_STREAM_START:
       _print_log ("received start message");
+      break;
+
+    case GST_MESSAGE_QOS:
+      _parse_qos_message (message);
       break;
 
     default:
@@ -421,10 +440,10 @@ main (int argc, char **argv)
   /** init pipeline */
   str_pipeline =
       g_strdup_printf
-      ("v4l2src name=cam_src ! "
+      ("v4l2src name=cam_src ! videoconvert ! "
       "video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! tee name=t_raw "
       "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! "
-      "videoconvert ! xvimagesink name=img_tensor "
+      "videoconvert ! ximagesink name=img_tensor "
       "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter ! "
       "tensor_filter framework=tensorflow-lite model=%s ! "
       "tensor_sink name=tensor_sink",
