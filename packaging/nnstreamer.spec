@@ -1,4 +1,6 @@
 # Execute gbs with --define "testcoverage 1" in case that you must get unittest coverage statictics
+%define		gstpostfix	gstreamer-1.0
+%define		gstlibdir	%{_libdir}/%{gstpostfix}
 
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
@@ -53,6 +55,14 @@ Requires:	gstreamer-devel
 Development package for custom tensor operator developers (tensor_filter/custom).
 This contains corresponding header files and .pc pkgconfig file.
 
+%package example
+Summary:	NNStreamer example custom plugins and test plugins
+Requires:	nnstreamer = %{version}-%{release}
+%description example
+Example custom tensor_filter subplugins and
+plugins created for test purpose.
+
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -65,7 +75,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 pushd build
-%cmake .. -DTIZEN=ON
+%cmake .. -DTIZEN=ON -DGST_INSTALL_DIR=%{gstlibdir}
 make %{?_smp_mflags}
 popd
 
@@ -82,7 +92,7 @@ pushd build
 popd
 
 pushd tests
-export LD_LIBRARY_PATH=%{buildroot}%{_libdir}
+export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 ./testAll.sh
 popd
 
@@ -132,8 +142,7 @@ install build/libcommon.a %{buildroot}%{_libdir}/
 %defattr(-,root,root,-)
 # The libraries are in LGPLv2.1 (testcases and non GST-plugin components are APL2)
 %license LICENSE
-%{_libdir}/*.so
-%{_libdir}/*.so*
+%{gstlibdir}/*.so
 # TODO generate .so files with version info. Migrate symbolic-link .so to devel.
 
 %files devel
@@ -145,6 +154,13 @@ install build/libcommon.a %{buildroot}%{_libdir}/
 %files unittest-coverage
 %{_datadir}/nnstreamer/unittest/*
 %endif
+
+%files example
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%license LICENSE
+%{_libdir}/*.so
+
 
 %changelog
 * Fri May 25 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
