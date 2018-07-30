@@ -8,6 +8,7 @@
  * @date  22 Jun 2018
  * @brief  Custom NNStreamer Filter Example 3. "Scaler"
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug  No known bugs
  *
  * This scales a tensor of [N][y][x][M] to [N][new-y][new-x][M]
  *
@@ -25,6 +26,9 @@
 #include <tensor_filter_custom.h>
 #include <tensor_common.h>
 
+/**
+ * @brief Private data structure
+ */
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
@@ -33,6 +37,9 @@ typedef struct _pt_data
   uint32_t new_x;
 } pt_data;
 
+/**
+ * @brief strdup replacement for C89 compliance
+ */
 static char *
 _strdup (const char *src)
 {
@@ -43,6 +50,9 @@ _strdup (const char *src)
   return dest;
 }
 
+/**
+ * @brief init callback of tensor_filter custom
+ */
 static void *
 pt_init (const GstTensor_Filter_Properties * prop)
 {
@@ -80,6 +90,9 @@ pt_init (const GstTensor_Filter_Properties * prop)
   return data;
 }
 
+/**
+ * @brief exit callback of tensor_filter custom
+ */
 static void
 pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 {
@@ -90,6 +103,9 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
   free (data);
 }
 
+/**
+ * @brief setInputDimension callback of tensor_filter custom
+ */
 static int
 set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
     const tensor_dim iDim, const tensor_type iType,
@@ -112,13 +128,16 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
   return 0;
 }
 
+/**
+ * @brief invoke-alloc callback of tensor_filter custom
+ */
 static uint8_t *
 pt_allocate_invoke (void *private_data,
     const GstTensor_Filter_Properties * prop, const uint8_t * inptr,
     size_t * size)
 {
   pt_data *data = private_data;
-  uint32_t ox, oy, x, y, z;
+  uint32_t ox, oy, x, y, z, elementsize;
   uint32_t oidx0, oidx1, oidx2;
   uint32_t iidx0, iidx1, iidx2;
 
@@ -138,6 +157,8 @@ pt_allocate_invoke (void *private_data,
   assert (prop->inputDimension[3] == prop->outputDimension[3]);
   assert (prop->inputType == prop->outputType);
 
+  elementsize = tensor_element_size[prop->inputType];
+
   ox = (data->new_x > 0) ? data->new_x : prop->outputDimension[1];
   oy = (data->new_y > 0) ? data->new_y : prop->outputDimension[2];
 
@@ -155,7 +176,7 @@ pt_allocate_invoke (void *private_data,
         unsigned int c;
         for (c = 0; c < prop->inputDimension[0]; c++) {
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
-          unsigned ix, iy;
+          unsigned ix, iy, sz;
 
           ix = x * prop->inputDimension[1] / ox;
           iy = y * prop->inputDimension[2] / oy;
@@ -164,8 +185,11 @@ pt_allocate_invoke (void *private_data,
               && iy < prop->inputDimension[2]);
 
           /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
-          *(outptr + c + x * oidx0 + y * oidx1 + z * oidx2) =
-              *(inptr + c + ix * iidx0 + iy * iidx1 + z * iidx2);
+          for (sz = 0; sz < elementsize; sz++)
+            *(outptr + elementsize * (c + x * oidx0 + y * oidx1 + z * oidx2) +
+                sz) =
+                *(inptr + elementsize * (c + ix * iidx0 + iy * iidx1 +
+                    z * iidx2) + sz);
         }
       }
     }
@@ -176,6 +200,9 @@ pt_allocate_invoke (void *private_data,
   return outptr;
 }
 
+/**
+ * @brief tensor_filter custom subplugin definition
+ */
 static NNStreamer_custom_class NNStreamer_custom_body = {
   .initfunc = pt_init,
   .exitfunc = pt_exit,
