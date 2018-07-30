@@ -37,20 +37,20 @@ Header-0: The first 20 bytes, global header
 |                          |                   | (v.1 supports up to 16)     | Counting data only (no meta) |
 =============================================================================================================
 |    20 bytes. RESERVED in v1.                                                                              |
-=============================================================================================================
-| Header-1: Following Header-1, Description of Tensor-1 of each frame (24 bytes)                   |
-| 4 bytes                           | 4 bytes              | 4 bytes | 4 bytes | 4 bytes | 4 bytes |
-| Element Type (enum)               | RANK (uint32)        | Dim-1   | Dime-2  | Dim-3   | Dim-4   |
-| "tensor_type" in tensor_typedef.h | v.1 supports 1 to 4. |         |         |         |         |
-====================================================================================================
-| ...                                                                                              |
-====================================================================================================
-| Header-N                                                                                         |
-====================================================================================================
-Data of frame-1, tensor-1 starts at the offset of (40 + 24 x N).
-Data of frame-1, tensor-i starts at the offset of (40 + 24 x N + Sum(x=1..i-1)(tensor_element_size[tensor-type of Tx] x dim1-of-Tx x dim2-of-Tx x dim3-of-Tx x dim4-of-Tx)).
+=====================================================================================================================
+| Header-1: Following Header-1, Description of Tensor-1 of each frame (40 bytes)                                    |
+| 4 bytes                           | 4 bytes              | 4 bytes | 4 bytes | 4 bytes | 4 bytes | 16 bytes       |
+| Element Type (enum)               | RANK (uint32)        | Dim-1   | Dim-2   | Dim-3   | Dim-4   | Name in string |
+| "tensor_type" in tensor_typedef.h | v.1 supports 1 to 4. |         |         |         |         |                |
+=====================================================================================================================
+| ...                                                                                                               |
+=====================================================================================================================
+| Header-N                                                                                                          |
+=====================================================================================================================
+Data of frame-1, tensor-1 starts at the offset of (40 + 40 x N).
+Data of frame-1, tensor-i starts at the offset of (40 + 40 x N + Sum(x=1..i-1)(tensor_element_size[tensor-type of Tx] x dim1-of-Tx x dim2-of-Tx x dim3-of-Tx x dim4-of-Tx)).
 ...
-Data of frame-F, tensor-1 starts at the offset of (40 + 24 x N + S x (F - 1))
+Data of frame-F, tensor-1 starts at the offset of (40 + 40 x N + S x (F - 1))
 ...
 Assert (S = Sum(x=1..N)(tensor_element_size[tensor-type of Tx] x dim1-of-Tx x dim2-of-Tx x dim3-of-Tx x dim4-of-Tx))
 
