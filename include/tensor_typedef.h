@@ -94,6 +94,17 @@ typedef enum {
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
+
+/**
+ * @brief Internal meta data exchange format for a other/tensors instance
+ */
+typedef struct {
+  unsigned int num_tensors;    /**< Number of tensors in each frame */
+  tensor_dim *dims;     /**< Array of tensor_dim, [num_tensors] */
+  tensor_type *types;   /**< Array of tensor_type, [num_tensors] */
+  unsigned int *ranks;          /**< Array of rank, [num_tensors] */
+} GstTensor_TensorsMeta;
+
 /**
  * @brief Tensor_Filter's properties (internal data structure)
  *

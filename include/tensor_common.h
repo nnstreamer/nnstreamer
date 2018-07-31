@@ -114,7 +114,20 @@ extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
 extern size_t get_tensor_element_count(const tensor_dim dim);
 
 /**
- * @brief Read pad-cap, return corresponding tensor-dim/type.
+ * @brief Read GstStructure, return corresponding tensor-dim/type. (other/tensor)
+ * @return Notifies which part of dim/type is determined.
+ * @param[in] str the GstStructure to be interpreted.
+ * @param[out] dim the corresponging dimension info from the cap.
+ * @param[out] type the corresponding element type from the cap.
+ * @param[out] framerate_num Numerator of framerate. Set null to not use this.
+ * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
+ */
+extern GstTensor_Filter_CheckStatus
+get_tensor_from_structure(const GstStructure * str, tensor_dim dim, tensor_type *type,
+    int *framerate_num, int *framerate_denum);
+
+/**
+ * @brief Read pad-cap, return corresponding tensor-dim/type. (other/tensor)
  * @return Notifies which part of dim/type is determined.
  * @param[in] caps the pad-cap to be interpreted.
  * @param[out] dim the corresponging dimension info from the cap.
@@ -124,6 +137,18 @@ extern size_t get_tensor_element_count(const tensor_dim dim);
  */
 extern GstTensor_Filter_CheckStatus
 get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type,
+    int *framerate_num, int *framerate_denum);
+
+/**
+ * @brief Read GstStructure, return corresponding tensor-dim/type. (other/tensor)
+ * @return The number of tensors.
+ * @param[in] str the GstStructure to be interpreted.
+ * @param[out] meta An allocated but filled with Null meta, to be used as output.
+ * @param[out] framerate_num Numerator of framerate. Set null to not use this.
+ * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
+ */
+extern int
+get_tensors_from_structure(const GstStructure * str, GstTensor_TensorsMeta *meta,
     int *framerate_num, int *framerate_denum);
 
 /**

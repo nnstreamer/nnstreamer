@@ -168,6 +168,161 @@ get_tensor_element_count (const uint32_t dim[NNS_TENSOR_RANK_LIMIT])
 }
 
 /**
+ * @brief Extract other/tensor dim/type from GstStructure
+ */
+GstTensor_Filter_CheckStatus
+get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
+    tensor_type * type, int *framerate_num, int *framerate_denum)
+{
+  GstTensor_Filter_CheckStatus ret = _TFC_INIT;
+  const gchar *strval;
+  int rank;
+  int j;
+  gint fn, fd;
+
+  if (!gst_structure_has_name (str, "other/tensor"))
+    return ret;
+
+  if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
+      gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
+      gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
+      gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
+    ret |= _TFC_DIMENSION;
+    if (gst_structure_get_int (str, "rank", &rank)) {
+      for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
+        g_assert (dim[j] == 1);
+    }
+  }
+  strval = gst_structure_get_string (str, "type");
+  if (strval) {
+    *type = get_tensor_type (strval);
+    g_assert (*type != _NNS_END);
+    ret |= _TFC_TYPE;
+  }
+  if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
+    if (framerate_num)
+      *framerate_num = fn;
+    if (framerate_denum)
+      *framerate_denum = fd;
+    ret |= _TFC_FRAMERATE;
+  }
+  return ret;
+}
+
+/**
+ * @brief internal static function to trim the front.
+ */
+static const gchar *
+ftrim (const gchar * str)
+{
+  if (!str)
+    return str;
+  while (*str && (*str == ' ' || *str == '\t')) {
+    str++;
+  }
+  return str;
+}
+
+/**
+ * @brief Extract other/tensors dim/type from GstStructure
+ */
+int
+get_tensors_from_structure (const GstStructure * str,
+    GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denom)
+{
+  int num = 0;
+  int rank = 0;
+  const gchar *strval;
+  gint fn = 0, fd = 0;
+  gchar **strv;
+  int counter = 0;
+
+  if (!gst_structure_has_name (str, "other/tensors"))
+    return 0;
+
+  if (gst_structure_get_int (str, "num_tensors", (int *) &num)) {
+    if (num > 16 || num < 1)
+      num = 0;
+  }
+  if (0 == num)
+    return 0;
+
+  meta->num_tensors = num;
+  meta->dims = g_new (tensor_dim, num);
+  meta->types = g_new (tensor_type, num);
+  meta->ranks = (unsigned int *) g_malloc (sizeof (gint) * num);
+
+  if (gst_structure_get_int (str, "rank", (int *) &rank)) {
+    if (rank != NNS_TENSOR_RANK_LIMIT) {
+      err_print ("rank value of other/tensors incorrect.\n");
+      rank = 0;
+    }
+  }
+  if (0 == rank)
+    goto err_alloc;
+
+  if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
+    if (framerate_num)
+      *framerate_num = fn;
+    if (framerate_denom)
+      *framerate_denom = fd;
+  }
+
+  strval = gst_structure_get_string (str, "dimensions");
+  strv = g_strsplit (strval, ",", -1);
+  counter = 0;
+  while (strv[counter]) {
+    int ret;
+
+    if (counter >= num) {
+      err_print
+          ("The number of dimensions does not match the number of tensors.\n");
+      goto err_alloc;
+    }
+    ret = get_tensor_dimension (ftrim (strv[counter]), meta->dims[counter]);
+    if (ret > NNS_TENSOR_RANK_LIMIT || ret < 1)
+      goto err_alloc;
+    counter++;
+  }
+  if (counter != num) {
+    err_print
+        ("The number of dimensions does not match the number of tensors.\n");
+    goto err_alloc;
+  }
+  g_strfreev (strv);
+
+  strval = gst_structure_get_string (str, "types");
+  strv = g_strsplit (strval, ",", -1);
+  counter = 0;
+  while (strv[counter]) {
+    if (counter >= num) {
+      err_print ("The number of types does not match the number of tensors.\n");
+      goto err_alloc;
+    }
+    meta->types[counter] = get_tensor_type (ftrim (strv[counter]));
+    if (meta->types[counter] >= _NNS_END)
+      goto err_alloc;
+    counter++;
+  }
+  if (counter != num) {
+    err_print ("The number of types does not match the number of tensors.\n");
+    goto err_alloc;
+  }
+  g_strfreev (strv);
+  return num;
+
+err_alloc:
+  meta->num_tensors = 0;
+  g_free (meta->dims);
+  meta->dims = NULL;
+  g_free (meta->types);
+  meta->types = NULL;
+  g_free (meta->ranks);
+  meta->ranks = NULL;
+  return 0;
+}
+
+/**
  * @brief Get tensor dimension/type from GstCaps
  */
 GstTensor_Filter_CheckStatus
@@ -175,72 +330,59 @@ get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
     tensor_type * type, int *framerate_num, int *framerate_denum)
 {
   GstTensor_Filter_CheckStatus ret = _TFC_INIT;
-  tensor_dim backup_dim;
-  tensor_type backup_type = _NNS_END;
   unsigned int i, capsize;
   const GstStructure *str;
-  int rank;
-  const gchar *strval;
-  gint fn, fd;
+  gint fn = 0, fd = 0;
 
+  g_assert (NNS_TENSOR_RANK_LIMIT == 4);        /* This code assumes rank limit is 4 */
   if (!caps)
     return ret;
 
   capsize = gst_caps_get_size (caps);
   for (i = 0; i < capsize; i++) {
     str = gst_caps_get_structure (caps, i);
-    g_assert (NNS_TENSOR_RANK_LIMIT == 4);      /* This code assumes rank limit is 4 */
+
+    tensor_dim _dim;
+    tensor_type _type = _NNS_END;
+    int _fn, _fd;
+
+    GstTensor_Filter_CheckStatus tmpret = get_tensor_from_structure (str,
+        _dim, &_type, &_fn, &_fd);
 
     /**
      * Already cofnigured and more cap info is coming.
      * I'm not sure how this happens, but let's be ready for this.
      */
-    if ((i > 1) && (ret & _TFC_DIMENSION)) {
-      memcpy (backup_dim, dim, sizeof (uint32_t) * NNS_TENSOR_RANK_LIMIT);
-    }
-    if ((i > 1) && (ret & _TFC_TYPE)) {
-      backup_type = *type;
-    }
-
-    if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
-        gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
-        gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
-        gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
-      int j;
-
+    if (tmpret & _TFC_DIMENSION) {
       if (ret & _TFC_DIMENSION) {
-        /* Already configured by previous "cap"? */
-        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-          g_assert (dim[j] == backup_dim[j]);
-      }
-      ret |= _TFC_DIMENSION;
-      if (gst_structure_get_int (str, "rank", &rank)) {
-        for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
-          g_assert (dim[j] == 1);
+        g_assert (0 == memcmp (_dim, dim, sizeof (tensor_dim)));
+      } else {
+        memcpy (dim, _dim, sizeof (tensor_dim));
+        ret |= _TFC_DIMENSION;
       }
     }
-    strval = gst_structure_get_string (str, "type");
-    if (strval) {
-      *type = get_tensor_type (strval);
-      g_assert (*type != _NNS_END);
 
+    if (tmpret & _TFC_TYPE) {
       if (ret & _TFC_TYPE) {
-        /* Already configured by previous "cap"? */
-        g_assert (*type == backup_type);
+        g_assert (*type == _type);
+      } else {
+        *type = _type;
+        ret |= _TFC_TYPE;
       }
-      ret |= _TFC_TYPE;
     }
-    if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
-      if ((ret & _TFC_FRAMERATE) && framerate_num)
-        g_assert (fn == *framerate_num);
-      if ((ret & _TFC_FRAMERATE) && framerate_denum)
-        g_assert (fd == *framerate_denum);
 
-      if (framerate_num)
-        *framerate_num = fn;
-      if (framerate_denum)
-        *framerate_denum = fd;
-      ret |= _TFC_FRAMERATE;
+    if (tmpret & _TFC_FRAMERATE) {
+      if (ret & _TFC_FRAMERATE) {
+        g_assert (fn == _fn && fd == _fd);
+      } else {
+        fn = _fn;
+        fd = _fd;
+        if (framerate_num)
+          *framerate_num = fn;
+        if (framerate_denum)
+          *framerate_denum = fd;
+        ret |= _TFC_FRAMERATE;
+      }
     }
   }
   return ret;
