@@ -483,6 +483,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   }
 
   /** @todo 5. Verify with get_input/output_dimension callbacks! */
+  gst_caps_unref (staticcap);
 
   return resultCaps;
 }
