@@ -83,7 +83,7 @@ popd
 
 pushd build
 ./unittest_common
-./unittest_sink --gst-plugin-path=./gst/tensor_converter:./gst/tensor_sink
+./unittest_sink --gst-plugin-path=./gst
 popd
 
 %install

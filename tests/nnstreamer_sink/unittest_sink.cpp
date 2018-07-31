@@ -43,6 +43,16 @@ typedef enum
 } TestStatus;
 
 /**
+ * @brief Test options.
+ */
+typedef struct
+{
+  guint num_buffers; /**< count of buffers */
+  gboolean convert_tensor; /**< true to set tensor converter */
+  gboolean caps_tensors; /**< true to test caps other/tensors */
+} TestOption;
+
+/**
  * @brief Data structure for test.
  */
 typedef struct
@@ -55,6 +65,7 @@ typedef struct
   guint received; /**< received buffer count */
   gboolean start; /**< stream started */
   gboolean end; /**< eos reached */
+  gchar *caps_name; /**< negotiated caps name */
 } TestData;
 
 /**
@@ -128,6 +139,22 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
   g_test_data.received++;
   _print_log ("new data callback [%d]", g_test_data.received);
+
+  if (g_test_data.caps_name == NULL) {
+    GstPad *sink_pad;
+    GstCaps *caps;
+    GstStructure *structure;
+
+    /** get negotiated caps */
+    sink_pad = gst_element_get_static_pad (element, "sink");
+    caps = gst_pad_get_current_caps (sink_pad);
+    structure = gst_caps_get_structure (caps, 0);
+
+    g_test_data.caps_name = (gchar *) gst_structure_get_name (structure);
+    _print_log ("caps name [%s]", g_test_data.caps_name);
+
+    gst_caps_unref (caps);
+  }
 }
 
 /**
@@ -154,7 +181,7 @@ _eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Prepare test pipeline.
  */
 static gboolean
-_setup_pipeline (const guint num_buffers, const gchar * converter = NULL)
+_setup_pipeline (TestOption & option)
 {
   gchar *str_pipeline;
   gulong handle_id;
@@ -163,15 +190,29 @@ _setup_pipeline (const guint num_buffers, const gchar * converter = NULL)
   g_test_data.received = 0;
   g_test_data.start = FALSE;
   g_test_data.end = FALSE;
+  g_test_data.caps_name = NULL;
+
+  _print_log ("option num_buffers[%d] convert_tensor[%d] caps_tensors[%d]",
+      option.num_buffers, option.convert_tensor, option.caps_tensors);
 
   g_test_data.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_test_data.loop != NULL);
 
-  str_pipeline =
-      g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-      "%s ! tensor_sink name=test_sink", num_buffers,
-      (converter != NULL) ? converter : "tensor_converter");
+  if (option.caps_tensors) {
+    /** other/tensors with tensormux */
+    str_pipeline =
+        g_strdup_printf
+        ("tensormux name=mux ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 ",
+        option.num_buffers, option.num_buffers);
+  } else {
+    str_pipeline =
+        g_strdup_printf
+        ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+        "%s ! tensor_sink name=test_sink", option.num_buffers,
+        option.convert_tensor ? "tensor_converter" : "videoconvert");
+  }
   g_test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_test_data.pipeline != NULL);
@@ -207,8 +248,9 @@ TEST (tensor_sink_test, properties)
   gboolean emit, res_emit;
   gboolean sync, res_sync;
   gboolean qos, res_qos;
+  TestOption option = { 1, TRUE, FALSE };
 
-  ASSERT_TRUE (_setup_pipeline (1));
+  ASSERT_TRUE (_setup_pipeline (option));
 
   /** default signal-rate is 0 */
   g_object_get (g_test_data.sink, "signal-rate", &rate, NULL);
@@ -269,8 +311,9 @@ TEST (tensor_sink_test, signals)
 {
   const guint num_buffers = 10;
   gulong handle_id;
+  TestOption option = { num_buffers, TRUE, FALSE };
 
-  ASSERT_TRUE (_setup_pipeline (num_buffers));
+  ASSERT_TRUE (_setup_pipeline (option));
 
   if (DBG) {
     /** print logs */
@@ -303,6 +346,9 @@ TEST (tensor_sink_test, signals)
   EXPECT_EQ (g_test_data.start, TRUE);
   EXPECT_EQ (g_test_data.end, TRUE);
 
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
   _free_test_data ();
 }
 
@@ -313,8 +359,9 @@ TEST (tensor_sink_test, signal_rate)
 {
   const guint num_buffers = 10;
   gulong handle_id;
+  TestOption option = { num_buffers, TRUE, FALSE };
 
-  ASSERT_TRUE (_setup_pipeline (num_buffers));
+  ASSERT_TRUE (_setup_pipeline (option));
 
   if (DBG) {
     /** print logs */
@@ -340,6 +387,9 @@ TEST (tensor_sink_test, signal_rate)
   /** check received buffers */
   EXPECT_TRUE (g_test_data.received < num_buffers);
 
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
   _free_test_data ();
 }
 
@@ -351,8 +401,9 @@ TEST (tensor_sink_test, unknown_case)
   const guint num_buffers = 5;
   gulong handle_id;
   gint unknown = -1;
+  TestOption option = { num_buffers, TRUE, FALSE };
 
-  ASSERT_TRUE (_setup_pipeline (num_buffers));
+  ASSERT_TRUE (_setup_pipeline (option));
 
   if (DBG) {
     /** print logs */
@@ -390,9 +441,10 @@ TEST (tensor_sink_test, caps_error)
 {
   const guint num_buffers = 5;
   gulong handle_id;
+  TestOption option = { num_buffers, FALSE, FALSE };
 
   /** failed : cannot link videoconvert and tensor_sink */
-  ASSERT_TRUE (_setup_pipeline (num_buffers, "videoconvert"));
+  ASSERT_TRUE (_setup_pipeline (option));
 
   if (DBG) {
     /** print logs */
@@ -414,6 +466,44 @@ TEST (tensor_sink_test, caps_error)
 
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, 0);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for other/tensors caps negotiation.
+ */
+TEST (tensor_sink_test, caps_tensors)
+{
+  const guint num_buffers = 5;
+  gulong handle_id;
+  TestOption option = { num_buffers, TRUE, TRUE };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  if (DBG) {
+    /** print logs */
+    g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
+  }
+
+  /** signal for new data */
+  handle_id = g_signal_connect (g_test_data.sink, "new-data",
+      (GCallback) _new_data_cb, NULL);
+  EXPECT_TRUE (handle_id > 0);
+
+  _print_log ("start pipeline to test caps other/tensors");
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
 
   _free_test_data ();
 }
