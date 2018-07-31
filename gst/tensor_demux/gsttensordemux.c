@@ -577,7 +577,8 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
       gchar **strings;
 
       for (list = filter->tensorpick; list != NULL; list = list->next) {
-        g_ptr_array_add (arr, list->data);
+        g_ptr_array_add (arr, g_strdup_printf ("%i",
+                GPOINTER_TO_INT (list->data)));
       }
       g_ptr_array_add (arr, NULL);
       strings = (gchar **) g_ptr_array_free (arr, FALSE);
