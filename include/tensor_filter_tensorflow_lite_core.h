@@ -73,14 +73,6 @@ private:
    * member variables.
    */
   const char *model_path;
-  int tensor_size;
-  int node_size;
-  int input_size;
-  int output_size;
-  int *input_idx_list;
-  int *output_idx_list;
-  int input_idx_list_len;
-  int output_idx_list_len;
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
   int getTensorType(int tensor_idx, tensor_type *type);

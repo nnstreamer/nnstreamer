@@ -48,8 +48,6 @@
 TFLiteCore::TFLiteCore (const char *_model_path)
 {
   model_path = _model_path;
-  input_idx_list_len = 0;
-  output_idx_list_len = 0;
 
   loadModel ();
 }
@@ -60,8 +58,6 @@ TFLiteCore::TFLiteCore (const char *_model_path)
  */
 TFLiteCore::~TFLiteCore ()
 {
-  delete[]input_idx_list;
-  delete[]output_idx_list;
 }
 
 /**
@@ -104,30 +100,6 @@ TFLiteCore::loadModel ()
     if (!interpreter) {
       _print_log ("Failed to construct interpreter\n");
       return -2;
-    }
-  }
-  // fill class parameters
-  tensor_size = interpreter->tensors_size ();
-  node_size = interpreter->nodes_size ();
-  input_size = interpreter->inputs ().size ();
-  output_size = interpreter->outputs ().size ();
-
-  // allocate the idx of input/output tensors
-  // it could be used for get name of the tensors by using 'interpreter->GetOutputName(0);'
-  input_idx_list = new int[input_size];
-  output_idx_list = new int[output_size];
-
-  int t_size = interpreter->tensors_size ();
-  for (int i = 0; i < t_size; i++) {
-    for (int j = 0; j < input_size; j++) {
-      if (strcmp (interpreter->tensor (i)->name,
-              interpreter->GetInputName (j)) == 0)
-        input_idx_list[input_idx_list_len++] = i;
-    }
-    for (int j = 0; j < output_size; j++) {
-      if (strcmp (interpreter->tensor (i)->name,
-              interpreter->GetOutputName (j)) == 0)
-        output_idx_list[output_idx_list_len++] = i;
     }
   }
 
@@ -181,10 +153,22 @@ TFLiteCore::getTensorType (int tensor_idx, tensor_type * type)
 int
 TFLiteCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 {
+  auto input_idx_list = interpreter->inputs ();
+  int input_size = input_idx_list.size ();
+
   if (idx >= input_size) {
     return -1;
   }
+
   int ret = getTensorDim (input_idx_list[idx], dim, type);
+#if (DBG)
+  if (ret) {
+    _print_log ("Failed to getInputTensorDim");
+  } else {
+    _print_log ("InputTensorDim idx[%d] type[%d] dim[%d:%d:%d:%d]",
+        idx, *type, dim[0], dim[1], dim[2], dim[3]);
+  }
+#endif
   return ret;
 }
 
@@ -198,10 +182,22 @@ TFLiteCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 int
 TFLiteCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 {
+  auto output_idx_list = interpreter->outputs ();
+  int output_size = output_idx_list.size ();
+
   if (idx >= output_size) {
     return -1;
   }
+
   int ret = getTensorDim (output_idx_list[idx], dim, type);
+#if (DBG)
+  if (ret) {
+    _print_log ("Failed to getOutputTensorDim");
+  } else {
+    _print_log ("OutputTensorDim idx[%d] type[%d] dim[%d:%d:%d:%d]",
+        idx, *type, dim[0], dim[1], dim[2], dim[3]);
+  }
+#endif
   return ret;
 }
 
@@ -215,7 +211,6 @@ TFLiteCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
 int
 TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type)
 {
-
   if (getTensorType (tensor_idx, type)) {
     return -2;
   }
@@ -242,7 +237,7 @@ TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type)
 int
 TFLiteCore::getInputTensorSize ()
 {
-  return input_size;
+  return interpreter->inputs ().size ();
 }
 
 /**
@@ -252,7 +247,7 @@ TFLiteCore::getInputTensorSize ()
 int
 TFLiteCore::getOutputTensorSize ()
 {
-  return output_size;
+  return interpreter->outputs ().size ();
 }
 
 /**
@@ -276,16 +271,21 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   tensor_dim inputTensorDim;
   int ret = getInputTensorDim (0, inputTensorDim, &type);
   if (ret) {
+    _print_log ("Failed to get input tensor dim");
     return -1;
   }
   for (int i = 0; i < sizeOfArray; i++) {
     output_number_of_pixels *= inputTensorDim[i];
   }
 
+  /**
+   * @todo how to handle input/output tensor type? (for example, float32)
+   * also, we have to check multi tensor output.
+   */
   int input = interpreter->inputs ()[0];
 
   if (interpreter->AllocateTensors () != kTfLiteOk) {
-    std::cout << "Failed to allocate tensors!" << std::endl;
+    _print_log ("Failed to allocate tensors");
     return -2;
   }
 
@@ -294,6 +294,7 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   }
 
   if (interpreter->Invoke () != kTfLiteOk) {
+    _print_log ("Failed to invoke");
     return -3;
   }
 
