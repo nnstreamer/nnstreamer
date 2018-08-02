@@ -1,7 +1,10 @@
 # NNStreamer
 
-Neural Network Streamer for AI Projects.
-* http://suprem.sec.samsung.net/confluence/display/STAR/NN+Streamer
+Neural Network Support as Gstreamer Plugins.
+
+NNStreamer is a set of Gstreamer plugins, which allows
+Gstreamer developers to adopt neural network models easily and efficiently and
+neural network developers to manage stream pipelines and their filters easily and efficiently
 
 ## Objectives
 
@@ -113,6 +116,7 @@ The implementation is not there yet for using neural network frameworks.
 ## CI Server
 For more details, please access the following web page.
 * Press [Here](http://aaci.mooo.com/nnstreamer/ci/standalone/).
+* Note that the CI server is being migrated and you won't be able to access it.
 
 TAOS-CI config files for nnstreamer
-* Press [Here](http://github.sec.samsung.net/STAR/nnstreamer/tree/tizen/Documentation/ci-config).
+* Press [Here](Documentation/ci-config).
