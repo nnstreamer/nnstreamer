@@ -6,7 +6,7 @@ Three features will be supported.
 
 - Tracing(TBD)
 - Debugging
-- Profiling(TBD)
+- Profiling(in progress)
 
 refer: https://github.sec.samsung.net/STAR/nnstreamer/issues/67
 
@@ -40,4 +40,28 @@ then, you can see elements and caps in pipeline.
 
 ## Profiling
 
-Not implemented yet.
+### Pre-requirements
+
+- autoreconf
+- pkg-config
+- automake
+- libtool
+- gst-instruments
+
+```bash
+$ git clone https://github.com/kirushyk/gst-instruments.git
+$ cd gst-instruments
+$ ./autogen.sh
+$ make
+$ sudo make install
+```
+
+### How to
+
+```bash
+nnstreamer/test$ ./testAll.sh 1
+nnstreamer/test$ cd performance/profile/tensor_convertor
+$ eog ${number_of_test_case}.svg
+```
+
+then, you can see time and cpu usage in pipeline.

@@ -66,8 +66,10 @@ function gstTest {
 		log="${log}$RED[FAILED] gst-launch with case $2$NC\n"
 	fi
 	if [[ $PERFORMANCE -eq 1 ]]; then
-		dot -Tpng $GST_DEBUG_DUMP_DOT_DIR/*.PLAYING_PAUSED.dot > $GST_DEBUG_DUMP_DOT_DIR/$base/$2.png
+		dot -Tpng $GST_DEBUG_DUMP_DOT_DIR/*.PLAYING_PAUSED.dot > $GST_DEBUG_DUMP_DOT_DIR/debug/$base/$2.png
+		gst-report-1.0 --dot $GST_DEBUG_DUMP_DOT_DIR/*.gsttrace | dot -Tsvg > $GST_DEBUG_DUMP_DOT_DIR/profile/$base/$2.svg
 		rm $GST_DEBUG_DUMP_DOT_DIR/*.dot
+		rm $GST_DEBUG_DUMP_DOT_DIR/*.gsttrace
 	fi
 }
 

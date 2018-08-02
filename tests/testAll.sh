@@ -2,7 +2,9 @@
 dirpath="$( cd "$( dirname "$0")" && pwd )"
 
 if [[ $1 -eq 1 ]]; then
-export GST_DEBUG_DUMP_DOT_DIR=$dirpath/performance/debug
+export GST_DEBUG_DUMP_DOT_DIR=$dirpath/performance
+export LD_PRELOAD=/usr/local/lib/libgstintercept.so
+export GST_DEBUG_DUMP_TRACE_DIR=$GST_DEBUG_DUMP_DOT_DIR
 export PERFORMANCE=1
 mkdir -p $GST_DEBUG_DUMP_DOT_DIR
 fi
@@ -11,6 +13,7 @@ source $dirpath/testAPI.sh
 
 if [[ $PERFORMANCE -eq 1 ]]; then
 	checkDependency dot
+	checkDependency gst-report-1.0
 fi
 checkDependency dirname
 checkDependency basename
@@ -30,7 +33,8 @@ while IFD= read -r -d $'\0' line; do
 	export base=$(basename ${dir})
 
 	if [[ $PERFORMANCE -eq 1 ]]; then
-		mkdir -p $GST_DEBUG_DUMP_DOT_DIR/$base
+		mkdir -p $GST_DEBUG_DUMP_DOT_DIR/debug/$base
+		mkdir -p $GST_DEBUG_DUMP_DOT_DIR/profile/$base
 	fi
 
 	log="${log}=================================================\n"
