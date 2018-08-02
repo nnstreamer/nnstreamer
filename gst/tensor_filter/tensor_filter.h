@@ -176,6 +176,7 @@ struct _GstTensor_Filter_Framework
 };
 
 extern GstTensor_Filter_Framework NNS_support_tensorflow_lite;
+extern GstTensor_Filter_Framework NNS_support_tensorflow;
 extern GstTensor_Filter_Framework NNS_support_custom;
 
 extern GstTensor_Filter_Framework *tensor_filter_supported[];
