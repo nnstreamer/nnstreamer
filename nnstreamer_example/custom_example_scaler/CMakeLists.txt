@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(nnstreamer_customfilter_scaler SHARED nnstreamer_customfilter_example_scaler.c)
 
 TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler ${pkgs_LIBRARIES})

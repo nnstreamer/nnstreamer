@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 # example 1
 ADD_EXECUTABLE(nnstreamer_sink_example nnstreamer_sink_example.c)
 

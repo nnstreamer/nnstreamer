@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 # check whether TENSORFLOW_LITE is available.
 # DISABLE_TENSORFLOW_LITE is defined at /debian/rules according to the build environment
 IF(DISABLE_TENSORFLOW_LITE) # NOT AVAILABE

@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 # example app for webcam
 ADD_EXECUTABLE(nnstreamer_example_cam nnstreamer_example_cam.c)
 

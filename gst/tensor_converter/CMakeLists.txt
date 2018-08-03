@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensor_converter SHARED tensor_converter.c)
 ADD_LIBRARY(tensor_converterStatic STATIC tensor_converter.c)
 

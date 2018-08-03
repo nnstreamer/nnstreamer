@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensordemux SHARED gsttensordemux.c )
 ADD_LIBRARY(tensordemuxStatic STATIC gsttensordemux.c)
 

@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensor_load SHARED tensor_load.c)
 ADD_LIBRARY(tensor_loadStatic STATIC tensor_load.c)
 

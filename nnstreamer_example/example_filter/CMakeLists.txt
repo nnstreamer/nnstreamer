@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 # demo app
 ADD_EXECUTABLE(nnstreamer_example_filter nnstreamer_example_filter.c)
 

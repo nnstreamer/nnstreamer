@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensordec SHARED tensordec.c)
 ADD_LIBRARY(tensordecStatic STATIC tensordec.c)
 

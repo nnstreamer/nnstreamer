@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(testtensors SHARED gsttesttensors.c )
 ADD_LIBRARY(testtensorsStatic STATIC gsttesttensors.c)
 

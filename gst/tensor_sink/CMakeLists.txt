@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensor_sink SHARED tensor_sink.c)
 ADD_LIBRARY(tensor_sinkStatic STATIC tensor_sink.c)
 

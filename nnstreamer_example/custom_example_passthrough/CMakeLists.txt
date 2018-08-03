@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(nnstreamer_customfilter_passthrough SHARED nnstreamer_customfilter_example_passthrough.c)
 ADD_LIBRARY(nnstreamer_customfilter_passthrough_variable SHARED nnstreamer_customfilter_example_passthrough_variable.c)
 

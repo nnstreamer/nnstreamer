@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(tensor_transform SHARED tensor_transform.c)
 ADD_LIBRARY(tensor_transformStatic STATIC tensor_transform.c)
 

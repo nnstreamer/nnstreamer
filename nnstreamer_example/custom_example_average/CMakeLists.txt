@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 ADD_LIBRARY(nnstreamer_customfilter_average SHARED nnstreamer_customfilter_example_average.c)
 
 TARGET_LINK_LIBRARIES(nnstreamer_customfilter_average ${pkgs_LIBRARIES})
