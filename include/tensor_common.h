@@ -1,7 +1,7 @@
 /**
  * NNStreamer Common Header
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -34,15 +34,21 @@
 G_BEGIN_DECLS
 
 /** @todo I'm not sure if the range is to be 1, 65535 or larger */
+#define GST_TENSOR_RANK_RANGE "(int) [ 1, 4 ]"
+#define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
+#define GST_TENSOR_RATE_RANGE "(fraction) [ 0/1, 2147483647/1 ]"
+#define GST_TENSOR_TENSORS_RANGE "(int) [ 1, 65535 ]"
+#define GST_TENSOR_TYPE_ALL "{ float32, float64, int32, uint32, int16, uint16, int8, uint8 }"
+
 #define GST_TENSOR_CAP_DEFAULT \
     "other/tensor, " \
-    "rank = (int) [ 1, 4 ], " \
-    "dim1 = (int) [ 1, 65535 ], " \
-    "dim2 = (int) [ 1, 65535 ], " \
-    "dim3 = (int) [ 1, 65535 ], " \
-    "dim4 = (int) [ 1, 65535 ], " \
-    "type = (string) { float32, float64, int32, uint32, int16, uint16, int8, uint8 }, " \
-    "framerate = (fraction) [ 0/1, 2147483647/1 ]"
+    "rank = " GST_TENSOR_RANK_RANGE ", " \
+    "dim1 = " GST_TENSOR_DIM_RANGE ", " \
+    "dim2 = " GST_TENSOR_DIM_RANGE ", " \
+    "dim3 = " GST_TENSOR_DIM_RANGE ", " \
+    "dim4 = " GST_TENSOR_DIM_RANGE ", " \
+    "type = (string) " GST_TENSOR_TYPE_ALL ", " \
+    "framerate = " GST_TENSOR_RATE_RANGE
 
 /**
  * @brief Default static capibility for other/tensors
@@ -53,9 +59,9 @@ G_BEGIN_DECLS
  */
 #define GST_TENSORS_CAP_DEFAULT \
     "other/tensors, " \
-    "rank = (int) [ 1, 4 ], " \
-    "num_tensors = (int) [1, 65535], "\
-    "framerate = (fraction) [ 0/1, 2147483647/1 ]"
+    "rank = " GST_TENSOR_RANK_RANGE ", " \
+    "num_tensors = " GST_TENSOR_TENSORS_RANGE ", "\
+    "framerate = " GST_TENSOR_RATE_RANGE
     /**
      * type should be one of
      * { float32, float64, int32, uint32, int16, uint16, int8, uint8 }
@@ -83,6 +89,13 @@ typedef enum _nns_media_type {
  * @brief String representations for each tensor element type.
  */
 extern const gchar* tensor_element_typename[];
+
+/**
+ * @brief Get media type from caps
+ * @param caps caps to be interpreted
+ * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ */
+extern media_type get_media_type_from_caps (const GstCaps * caps);
 
 /**
  * @brief Get tensor_type from string tensor_type input

@@ -43,6 +43,32 @@ const gchar *tensor_element_typename[] = {
   [_NNS_END] = NULL,
 };
 
+/**
+ * @brief Get media type from caps
+ * @param caps caps to be interpreted
+ * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ */
+media_type
+get_media_type_from_caps (const GstCaps * caps)
+{
+  GstStructure *structure;
+  const gchar *name;
+
+  structure = gst_caps_get_structure (caps, 0);
+  name = gst_structure_get_name (structure);
+
+  g_return_val_if_fail (name != NULL, _NNS_MEDIA_END);
+
+  /** @todo Support other types */
+  if (g_str_has_prefix (name, "video/")) {
+    return _NNS_VIDEO;
+  } else if (g_str_has_prefix (name, "audio/")) {
+    return _NNS_AUDIO;
+  }
+
+  /** unknown, or not-supported type */
+  return _NNS_MEDIA_END;
+}
 
 /**
  * @brief Get tensor_type from string tensor_type input
