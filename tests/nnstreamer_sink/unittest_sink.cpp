@@ -14,7 +14,9 @@
 /**
  * @brief Macro for debug mode.
  */
+#ifndef DBG
 #define DBG FALSE
+#endif
 
 /**
  * @brief Macro for debug message.

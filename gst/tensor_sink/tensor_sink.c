@@ -38,7 +38,9 @@
 /**
  * @brief Macro for debug mode.
  */
+#ifndef DBG
 #define DBG (!_tensor_sink_get_silent (self))
+#endif
 
 /**
  * @brief Macro for debug message.
@@ -104,6 +106,14 @@ enum
 #define DEFAULT_LATENESS (30 * GST_MSECOND)
 
 /**
+ * @brief Template for sink pad.
+ */
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT));
+
+/**
  * @brief Variable for signal ids.
  */
 static guint _tensor_sink_signals[LAST_SIGNAL] = { 0 };
@@ -129,7 +139,6 @@ static gboolean gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps);
 static GstCaps *gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter);
 
 /** internal functions */
-static GstCaps *_tensor_sink_get_tensor_caps (void);
 static void _tensor_sink_render_buffer (GstTensorSink * self,
     GstBuffer * buffer);
 static void _tensor_sink_set_last_render_time (GstTensorSink * self,
@@ -157,8 +166,6 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *element_class;
   GstBaseSinkClass *bsink_class;
-  GstPadTemplate *pad_template;
-  GstCaps *pad_caps;
 
   gobject_class = G_OBJECT_CLASS (klass);
   element_class = GST_ELEMENT_CLASS (klass);
@@ -207,11 +214,7 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
       "Sink element to handle tensor stream", "Samsung Electronics Co., Ltd.");
 
   /** pad template */
-  pad_caps = _tensor_sink_get_tensor_caps ();
-  pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-      pad_caps);
-  gst_caps_unref (pad_caps);
-  gst_element_class_add_pad_template (element_class, pad_template);
+  gst_element_class_add_static_pad_template (element_class, &sink_template);
 
   /** GstBaseSink methods */
   bsink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_sink_start);
@@ -541,22 +544,6 @@ gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter)
   g_mutex_unlock (&self->mutex);
 
   return caps;
-}
-
-/**
- * @brief Get merged tensor caps.
- */
-static GstCaps *
-_tensor_sink_get_tensor_caps (void)
-{
-  GstCaps *caps;
-  GstStaticCaps caps_tensor = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-  GstStaticCaps caps_tensors = GST_STATIC_CAPS (GST_TENSORS_CAP_DEFAULT);
-
-  caps = gst_caps_merge (gst_static_caps_get (&caps_tensor),
-      gst_static_caps_get (&caps_tensors));
-
-  return gst_caps_simplify (caps);
 }
 
 /**

@@ -238,15 +238,44 @@ _eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 }
 
 /**
+ * @brief Test pipeline for given type.
+ * @param type 0 for video test, 1 for audio test
+ */
+static gchar *
+_test_pipeline (guint type)
+{
+  gchar *str_pipeline;
+
+  switch (type) {
+    case 0:
+      /** video 640x480 30fps 100 buffers */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=100 ! video/x-raw,format=RGB,width=640,height=480 ! "
+          "tensor_converter ! tensor_sink name=tensor_sink");
+      break;
+
+    case 1:
+      /** audio sample rate 16000 10 buffers */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=10 samplesperbuffer=16000 ! audio/x-raw,rate=16000 ! "
+          "tensor_converter ! tensor_sink name=tensor_sink");
+      break;
+
+    default:
+      return NULL;
+  }
+
+  return str_pipeline;
+}
+
+/**
  * @brief Main function.
  */
 int
 main (int argc, char **argv)
 {
-  const guint num_buffers = 100;
-  const guint width = 640;
-  const guint height = 480;
-
   gchar *str_pipeline;
   gulong handle_id;
   GstStateChangeReturn state_ret;
@@ -262,12 +291,8 @@ main (int argc, char **argv)
   g_app.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_app.loop != NULL);
 
-  /** 640x480 30fps for test */
-  str_pipeline =
-      g_strdup_printf
-      ("videotestsrc num-buffers=%d ! video/x-raw,format=RGB,width=%d,height=%d ! "
-      "tensor_converter ! tensor_sink name=tensor_sink",
-      num_buffers, width, height);
+  /** set type 1 for audio test */
+  str_pipeline = _test_pipeline (0);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
