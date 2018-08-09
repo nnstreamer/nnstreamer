@@ -236,6 +236,7 @@ gst_tensor_filter_class_init (GstTensor_FilterClass * g_class)
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
+ * @todo change the first index [0] of input/output Dimension & Type to loop for multi tensors
  */
 static void
 gst_tensor_filter_init (GstTensor_Filter * filter)
@@ -251,18 +252,18 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
   prop->outputConfigured = _TFC_INIT;
   prop->modelFilename = NULL;
 
-  prop->inputDimension[0] = 1;  /* innermost */
-  prop->inputDimension[1] = 1;
-  prop->inputDimension[2] = 1;
-  prop->inputDimension[3] = 1;  /* out */
-  prop->inputType = _NNS_END;   /* not initialized */
+  prop->inputDimension[0][0] = 1;       /* innermost */
+  prop->inputDimension[0][1] = 1;
+  prop->inputDimension[0][2] = 1;
+  prop->inputDimension[0][3] = 1;       /* out */
+  prop->inputType[0] = _NNS_END;        /* not initialized */
   prop->inputCapNegotiated = FALSE;
 
-  prop->outputDimension[0] = 1; /* innermost */
-  prop->outputDimension[1] = 1;
-  prop->outputDimension[2] = 1;
-  prop->outputDimension[3] = 1; /* out */
-  prop->outputType = _NNS_END;  /* not initialized */
+  prop->outputDimension[0][0] = 1;      /* innermost */
+  prop->outputDimension[0][1] = 1;
+  prop->outputDimension[0][2] = 1;
+  prop->outputDimension[0][3] = 1;      /* out */
+  prop->outputType[0] = _NNS_END;       /* not initialized */
   prop->outputCapNegotiated = FALSE;
 
   prop->customProperties = NULL;
@@ -335,8 +336,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     GstCaps * fromCaps)
 {
   tensor_type *type = NULL, _type;
-  uint32_t *dimension;
-  tensor_dim dim;
+  uint32_t *dimension[NNS_TENSOR_SIZE_LIMIT];
+  tensor_dim dim[NNS_TENSOR_SIZE_LIMIT];
   GstTensor_Filter_CheckStatus configured = _TFC_INIT;
   GstTensor_Filter_Properties *prop = &filter->prop;
   GstCaps *tmp = NULL, *tmp2 = NULL, *staticcap = NULL, *resultCaps = NULL;
@@ -345,37 +346,44 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   staticcap = gst_static_caps_get (&rawcap);
 
   if (isInput == TRUE) {
-    type = &(prop->inputType);
-    dimension = prop->inputDimension;
+    type = prop->inputType;
+    int i;
+    for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+      dimension[i] = prop->inputDimension[i];
+    }
     configured = prop->inputConfigured & _TFC_ALL;
   } else {
-    type = &(prop->outputType);
-    dimension = prop->outputDimension;
+    type = prop->outputType;
+    int i;
+    for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+      dimension[i] = prop->outputDimension[i];
+    }
     configured = prop->outputConfigured & _TFC_ALL;
   }
 
   /* 2. configure caps based on type & dimension */
   if (configured == _TFC_ALL) {
-    rank = gst_tensor_filter_get_rank (dimension);
+    rank = gst_tensor_filter_get_rank (dimension[0]);
     tmp2 =
         gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
-        G_TYPE_STRING, tensor_element_typename[*type], "dim1", G_TYPE_INT,
-        dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3", G_TYPE_INT,
-        dimension[2], "dim4", G_TYPE_INT, dimension[3], NULL);
+        G_TYPE_STRING, tensor_element_typename[type[0]], "dim1", G_TYPE_INT,
+        dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1], "dim3",
+        G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT, dimension[0][3], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else if (configured == _TFC_DIMENSION) {
-    rank = gst_tensor_filter_get_rank (dimension);
+    rank = gst_tensor_filter_get_rank (dimension[0]);
     tmp2 =
         gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1",
-        G_TYPE_INT, dimension[0], "dim2", G_TYPE_INT, dimension[1], "dim3",
-        G_TYPE_INT, dimension[2], "dim4", G_TYPE_INT, dimension[3], NULL);
+        G_TYPE_INT, dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1],
+        "dim3", G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT,
+        dimension[0][3], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else if (configured == _TFC_TYPE) {
     tmp2 =
         gst_caps_new_simple ("other/tensor", "type", G_TYPE_STRING,
-        tensor_element_typename[*type], NULL);
+        tensor_element_typename[type[0]], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else {
@@ -413,8 +421,9 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   }
 
   /* 2-2. Extract effective dim info from tmp */
-  dimension = dim;
-  configured = gst_tensor_filter_generate_dim_from_cap (tmp, dimension, &_type);
+  dimension[0] = dim[0];
+  configured =
+      gst_tensor_filter_generate_dim_from_cap (tmp, dimension[0], &_type);
   configured &= _TFC_ALL;
   /* tmp is no more needed */
   gst_caps_unref (tmp);
@@ -431,8 +440,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
       gst_tensor_filter_call (filter, ret, getOutputDimension, rdim, &rtype);
     /* 3-1-1-a. If inputdim is available but outputdim is not available */
     if (ret != 0 && configured == _TFC_ALL && prop->fw->setInputDimension) {
-      gst_tensor_filter_call (filter, ret, setInputDimension, dimension, _type,
-          rdim, &rtype);
+      gst_tensor_filter_call (filter, ret, setInputDimension, dimension[0],
+          _type, rdim, &rtype);
     }
     /* if ret == 0, either get or set has been successful. */
     if (ret != 0) {
@@ -536,12 +545,12 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
-            prop->inputDimension);
+            prop->inputDimension[0]);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
         prop->inputConfigured |= _TFC_DIMENSION;
         silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
-            prop->inputDimension[0], prop->inputDimension[1],
-            prop->inputDimension[2], prop->inputDimension[3], rank);
+            prop->inputDimension[0][0], prop->inputDimension[0][1],
+            prop->inputDimension[0][2], prop->inputDimension[0][3], rank);
       }
       break;
     case PROP_OUTPUT:
@@ -549,27 +558,27 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       /* Once configures, it cannot be changed in runtime */
       {
         int rank = get_tensor_dimension (g_value_get_string (value),
-            prop->outputDimension);
+            prop->outputDimension[0]);
         g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
         prop->outputConfigured |= _TFC_DIMENSION;
         silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
-            prop->outputDimension[0], prop->outputDimension[1],
-            prop->outputDimension[2], prop->outputDimension[3], rank);
+            prop->outputDimension[0][0], prop->outputDimension[0][1],
+            prop->outputDimension[0][2], prop->outputDimension[0][3], rank);
       }
       break;
     case PROP_INPUTTYPE:
-      g_assert (prop->inputType == _NNS_END && value);
+      g_assert (prop->inputType[0] == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
-      prop->inputType = get_tensor_type (g_value_get_string (value));
+      prop->inputType[0] = get_tensor_type (g_value_get_string (value));
       prop->inputConfigured |= _TFC_TYPE;
-      g_assert (prop->inputType != _NNS_END);
+      g_assert (prop->inputType[0] != _NNS_END);
       break;
     case PROP_OUTPUTTYPE:
-      g_assert (prop->outputType == _NNS_END && value);
+      g_assert (prop->outputType[0] == _NNS_END && value);
       /* Once configures, it cannot be changed in runtime */
-      prop->outputType = get_tensor_type (g_value_get_string (value));
+      prop->outputType[0] = get_tensor_type (g_value_get_string (value));
       prop->outputConfigured |= _TFC_TYPE;
-      g_assert (prop->outputType != _NNS_END);
+      g_assert (prop->outputType[0] != _NNS_END);
       break;
     case PROP_CUSTOM:
       g_assert (prop->customProperties == NULL && value);
@@ -611,7 +620,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
           g_array_sized_new (FALSE, FALSE, 4, NNS_TENSOR_RANK_LIMIT);
       int i;
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-        g_array_append_val (input, filter->prop.inputDimension[i]);
+        g_array_append_val (input, filter->prop.inputDimension[0][i]);
       g_value_take_boxed (value, input);
       /* take function hands the object over from here so that we don't need to free it. */
     }
@@ -621,18 +630,18 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
           g_array_sized_new (FALSE, FALSE, 4, NNS_TENSOR_RANK_LIMIT);
       int i;
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-        g_array_append_val (output, filter->prop.outputDimension[i]);
+        g_array_append_val (output, filter->prop.outputDimension[0][i]);
       g_value_take_boxed (value, output);
       /* take function hands the object over from here so that we don't need to free it. */
     }
       break;
     case PROP_INPUTTYPE:
       g_value_set_string (value,
-          tensor_element_typename[filter->prop.inputType]);
+          tensor_element_typename[filter->prop.inputType[0]]);
       break;
     case PROP_OUTPUTTYPE:
       g_value_set_string (value,
-          tensor_element_typename[filter->prop.outputType]);
+          tensor_element_typename[filter->prop.outputType[0]]);
       break;
     case PROP_CUSTOM:
       g_value_set_string (value, filter->prop.customProperties);
@@ -722,8 +731,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   g_assert (outbuf);
 
   if (filter->prop.fw->allocate_in_invoke == FALSE) {
-    outBufSize = tensor_element_size[filter->prop.outputType] *
-        get_tensor_element_count (filter->prop.outputDimension);
+    outBufSize = tensor_element_size[filter->prop.outputType[0]] *
+        get_tensor_element_count (filter->prop.outputDimension[0]);
     if (gst_buffer_get_size (outbuf) < outBufSize) {
       /** @todo: write a routine to say aloud when this happens */
       gst_buffer_set_size (outbuf, outBufSize);
@@ -754,11 +763,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
     /** @todo Performance: cache get_tensor_element_count * tensor_element_size */
     mem = gst_memory_new_wrapped (0, retoutptr,
-        get_tensor_element_count (filter->prop.outputDimension) *
-        tensor_element_size[filter->prop.outputType],
+        get_tensor_element_count (filter->prop.outputDimension[0]) *
+        tensor_element_size[filter->prop.outputType[0]],
         0,
-        get_tensor_element_count (filter->prop.outputDimension) *
-        tensor_element_size[filter->prop.outputType], NULL, NULL);
+        get_tensor_element_count (filter->prop.outputDimension[0]) *
+        tensor_element_size[filter->prop.outputType[0]], NULL, NULL);
     gst_buffer_insert_memory (outbuf, -1, mem);
   }
 
@@ -826,18 +835,18 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter, gboolean fixate)
     gst_tensor_filter_call (filter, ret, getInputDimension, dim, &type);
     if (ret == 0) {
       if (prop->inputConfigured & _TFC_TYPE)
-        if (prop->inputType != type)
+        if (prop->inputType[0] != type)
           return -1;
       if (prop->inputConfigured & _TFC_DIMENSION)
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-          if (prop->inputDimension[i] != dim[i])
+          if (prop->inputDimension[0][i] != dim[i])
             return -1;
       if (fixate && !(prop->inputConfigured & _TFC_TYPE)) {
-        prop->inputType = type;
+        prop->inputType[0] = type;
         prop->inputConfigured |= _TFC_TYPE;
       }
       if (fixate && !(prop->inputConfigured & _TFC_DIMENSION)) {
-        memcpy (prop->inputDimension, dim, sizeof (dim));
+        memcpy (prop->inputDimension[0], dim, sizeof (dim));
         prop->inputConfigured |= _TFC_DIMENSION;
       }
     }
@@ -847,18 +856,18 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter, gboolean fixate)
     gst_tensor_filter_call (filter, ret, getOutputDimension, dim, &type);
     if (ret == 0) {
       if (prop->outputConfigured & _TFC_TYPE)
-        if (prop->outputType != type)
+        if (prop->outputType[0] != type)
           return -1;
       if (prop->outputConfigured & _TFC_DIMENSION)
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-          if (prop->outputDimension[i] != dim[i])
+          if (prop->outputDimension[0][i] != dim[i])
             return -1;
       if (fixate && !(prop->outputConfigured & _TFC_TYPE)) {
-        prop->outputType = type;
+        prop->outputType[0] = type;
         prop->outputConfigured |= _TFC_TYPE;
       }
       if (fixate && !(prop->outputConfigured & _TFC_DIMENSION)) {
-        memcpy (prop->outputDimension, dim, sizeof (dim));
+        memcpy (prop->outputDimension[0], dim, sizeof (dim));
         prop->outputConfigured |= _TFC_DIMENSION;
       }
     }
@@ -869,8 +878,8 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter, gboolean fixate)
     tensor_type itype, *cmptype;
     /* If filter's inputdimension is not clear, yet, we cannot proceed. try again later */
     if ((prop->inputConfigured & _TFC_ALL) == _TFC_ALL) {
-      cmpdim = &(prop->inputDimension);
-      cmptype = &(prop->inputType);
+      cmpdim = &(prop->inputDimension[0]);
+      cmptype = &(prop->inputType[0]);
     } else {
       if (fw->getInputDimension != NULL) {
         gst_tensor_filter_call (filter, ret, getInputDimension, idim, &itype);
@@ -890,22 +899,22 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter, gboolean fixate)
       goto finalize;
 
     if (prop->outputConfigured & _TFC_TYPE) {
-      if (prop->outputType != type)
+      if (prop->outputType[0] != type)
         return -1;
     }
     if (prop->outputConfigured & _TFC_DIMENSION) {
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        if (prop->outputDimension[i] != dim[i])
+        if (prop->outputDimension[0][i] != dim[i])
           return -1;
       }
     }
 
     if (fixate && !(prop->outputConfigured & _TFC_TYPE)) {
-      prop->outputType = type;
+      prop->outputType[0] = type;
       prop->outputConfigured |= _TFC_TYPE;
     }
     if (fixate && !(prop->outputConfigured & _TFC_DIMENSION)) {
-      memcpy (prop->outputDimension, dim, sizeof (dim));
+      memcpy (prop->outputDimension[0], dim, sizeof (dim));
       prop->outputConfigured |= _TFC_DIMENSION;
     }
   }
@@ -1023,12 +1032,12 @@ gst_tensor_caps_to_dimension (GstCaps * caps, gboolean input,
 {
   if (input) {
     prop->inputConfigured |=
-        gst_tensor_filter_generate_dim_from_cap (caps, prop->inputDimension,
-        &prop->inputType);
+        gst_tensor_filter_generate_dim_from_cap (caps, prop->inputDimension[0],
+        &prop->inputType[0]);
   } else {
     prop->outputConfigured |=
-        gst_tensor_filter_generate_dim_from_cap (caps, prop->outputDimension,
-        &prop->outputType);
+        gst_tensor_filter_generate_dim_from_cap (caps, prop->outputDimension[0],
+        &prop->outputType[0]);
   }
 }
 
@@ -1082,7 +1091,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
       && (obj->prop.inputConfigured & _TFC_ALL) == _TFC_ALL) {
     int ret = 0;
     gst_tensor_filter_call (obj, ret, getInputDimension,
-        obj->prop.inputDimension, &obj->prop.inputType);
+        obj->prop.inputDimension[0], &obj->prop.inputType[0]);
     if (ret == 0) {
       obj->prop.inputConfigured |= _TFC_ALL;
     }
@@ -1091,7 +1100,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
       && (obj->prop.outputConfigured & _TFC_ALL) == _TFC_ALL) {
     int ret = 0;
     gst_tensor_filter_call (obj, ret, getOutputDimension,
-        obj->prop.outputDimension, &obj->prop.outputType);
+        obj->prop.outputDimension[0], &obj->prop.outputType[0]);
     if (ret == 0) {
       obj->prop.outputConfigured |= _TFC_ALL;
     }
@@ -1112,8 +1121,8 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     if (fw->setInputDimension) {
       int ret = 0;
       gst_tensor_filter_call (obj, ret, setInputDimension,
-          obj->prop.inputDimension, obj->prop.inputType,
-          obj->prop.outputDimension, &obj->prop.outputType);
+          obj->prop.inputDimension[0], obj->prop.inputType[0],
+          obj->prop.outputDimension[0], &obj->prop.outputType[0]);
       obj->prop.outputConfigured |= _TFC_ALL;
       g_assert (ret == 0);
       return result;

@@ -36,7 +36,6 @@
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
-
 /* #defines don't like whitespacey bits */
 #define GST_TYPE_TENSOR_FILTER \
   (gst_tensor_filter_get_type())
@@ -49,19 +48,18 @@ G_BEGIN_DECLS
 #define GST_IS_TENSOR_FILTER_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_FILTER))
 #define GST_TENSOR_FILTER_CAST(obj)  ((GstTensor_Filter *)(obj))
-
 typedef struct _GstTensor_Filter GstTensor_Filter;
 
 typedef struct _GstTensor_FilterClass GstTensor_FilterClass;
 
-extern const char* nnfw_names[];
+extern const char *nnfw_names[];
 
 /**
  * @brief Internal data structure for tensor_filter instances.
  */
 struct _GstTensor_Filter
 {
-  GstBaseTransform element;	/**< This is the parent object */
+  GstBaseTransform element;     /**< This is the parent object */
 
   void *privateData; /**< NNFW plugin's private data is stored here */
 
@@ -85,7 +83,7 @@ struct _GstTensor_Filter
  */
 struct _GstTensor_FilterClass
 {
-  GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
+  GstBaseTransformClass parent_class;   /**< Inherits GstBaseTransformClass */
 };
 
 /**
@@ -106,7 +104,8 @@ struct _GstTensor_Filter_Framework
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
 
-  uint8_t *(*invoke_NN)(const GstTensor_Filter *filter, void **private_data, const uint8_t *inputptr, uint8_t *outputptr);
+  uint8_t *(*invoke_NN) (const GstTensor_Filter * filter, void **private_data,
+      const uint8_t * inputptr, uint8_t * outputptr);
       /**< Mandatory callback. Invoke the given network model.
        *
        * @param[in] filter "this" pointer. Use this to read property values
@@ -116,7 +115,8 @@ struct _GstTensor_Filter_Framework
        * @return outputptr if allocate_in_invoke = 00 if OK. non-zero if error.
        */
 
-  int (*getInputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim inputDimension, tensor_type *type);
+  int (*getInputDimension) (const GstTensor_Filter * filter,
+      void **private_data, tensor_dim inputDimension, tensor_type * type);
       /**< Optional. Set NULL if not supported. Get dimension of input tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
@@ -125,9 +125,10 @@ struct _GstTensor_Filter_Framework
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[out] inputDimension dimension of input tensor (return value)
        * @param[out] type type of input tensor element (return value)
-       * @return 0 if OK. non-zero if error.
+       * @return the size of input tensors
        */
-  int (*getOutputDimension)(const GstTensor_Filter *filter, void **private_data, tensor_dim outputDimension, tensor_type *type);
+  int (*getOutputDimension) (const GstTensor_Filter * filter,
+      void **private_data, tensor_dim outputDimension, tensor_type * type);
       /**< Optional. Set NULL if not supported. Get dimension of output tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
@@ -136,9 +137,12 @@ struct _GstTensor_Filter_Framework
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[out] outputDimension dimension of output tensor (return value)
        * @param[out] type type of output tensor element (return value)
-       * @return 0 if OK. non-zero if error.
+       * @return the size of output tensors
        */
-  int (*setInputDimension)(const GstTensor_Filter *filter, void **private_data, const tensor_dim inputDimension, const tensor_type inputType, tensor_dim outputDimension, tensor_type *outputType);
+  int (*setInputDimension) (const GstTensor_Filter * filter,
+      void **private_data, const tensor_dim inputDimension,
+      const tensor_type inputType, tensor_dim outputDimension,
+      tensor_type * outputType);
       /**< Optional. Set Null if not supported. Tensor_filter::main will
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension
@@ -157,13 +161,13 @@ struct _GstTensor_Filter_Framework
        * @return 0 if OK. non-zero if error.
        */
 
-  void (*open)(const GstTensor_Filter *filter, void **private_data);
+  void (*open) (const GstTensor_Filter * filter, void **private_data);
       /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
        */
-  void (*close)(const GstTensor_Filter *filter, void **private_data);
+  void (*close) (const GstTensor_Filter * filter, void **private_data);
       /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
        *
        * @param[in] filter "this" pointer. Use this to read property values
@@ -177,5 +181,4 @@ extern GstTensor_Filter_Framework NNS_support_custom;
 extern GstTensor_Filter_Framework *tensor_filter_supported[];
 
 G_END_DECLS
-
 #endif /* __GST_TENSOR_FILTER_H__ */

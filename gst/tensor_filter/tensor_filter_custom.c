@@ -32,6 +32,9 @@
 #include <glib.h>
 #include <dlfcn.h>
 
+/**
+ * @brief internal_data
+ */
 struct _internal_data
 {
   GstTensor_Filter *parent;
@@ -140,8 +143,9 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
     size_t size;
     uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
         &(filter->prop), inptr, &size);
-    g_assert (size == (get_tensor_element_count (filter->prop.outputDimension) *
-            tensor_element_size[filter->prop.outputType]));
+    g_assert (size ==
+        (get_tensor_element_count (filter->prop.outputDimension[0]) *
+            tensor_element_size[filter->prop.outputType[0]]));
     return retptr;
   } else {
     return NULL;

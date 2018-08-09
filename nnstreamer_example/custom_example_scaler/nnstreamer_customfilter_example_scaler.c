@@ -146,37 +146,37 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
 
-  assert (prop->inputDimension[0] == prop->outputDimension[0]);
-  assert (prop->inputDimension[3] == prop->outputDimension[3]);
-  assert (prop->inputType == prop->outputType);
+  assert (prop->inputDimension[0][0] == prop->outputDimension[0][0]);
+  assert (prop->inputDimension[0][3] == prop->outputDimension[0][3]);
+  assert (prop->inputType[0] == prop->outputType[0]);
 
-  elementsize = tensor_element_size[prop->inputType];
+  elementsize = tensor_element_size[prop->inputType[0]];
 
-  ox = (data->new_x > 0) ? data->new_x : prop->outputDimension[1];
-  oy = (data->new_y > 0) ? data->new_y : prop->outputDimension[2];
+  ox = (data->new_x > 0) ? data->new_x : prop->outputDimension[0][1];
+  oy = (data->new_y > 0) ? data->new_y : prop->outputDimension[0][2];
 
-  oidx0 = prop->outputDimension[0];
-  oidx1 = oidx0 * prop->outputDimension[1];
-  oidx2 = oidx1 * prop->outputDimension[2];
+  oidx0 = prop->outputDimension[0][0];
+  oidx1 = oidx0 * prop->outputDimension[0][1];
+  oidx2 = oidx1 * prop->outputDimension[0][2];
 
-  iidx0 = prop->inputDimension[0];
-  iidx1 = iidx0 * prop->inputDimension[1];
-  iidx2 = iidx1 * prop->inputDimension[2];
+  iidx0 = prop->inputDimension[0][0];
+  iidx1 = iidx0 * prop->inputDimension[0][1];
+  iidx2 = iidx1 * prop->inputDimension[0][2];
 
-  for (z = 0; z < prop->inputDimension[3]; z++) {
+  for (z = 0; z < prop->inputDimension[0][3]; z++) {
     for (y = 0; y < oy; y++) {
       for (x = 0; x < ox; x++) {
         unsigned int c;
-        for (c = 0; c < prop->inputDimension[0]; c++) {
+        for (c = 0; c < prop->inputDimension[0][0]; c++) {
           int sz;
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
           unsigned ix, iy;
 
-          ix = x * prop->inputDimension[1] / ox;
-          iy = y * prop->inputDimension[2] / oy;
+          ix = x * prop->inputDimension[0][1] / ox;
+          iy = y * prop->inputDimension[0][2] / oy;
 
-          assert (ix >= 0 && iy >= 0 && ix < prop->inputDimension[1]
-              && iy < prop->inputDimension[2]);
+          assert (ix >= 0 && iy >= 0 && ix < prop->inputDimension[0][1]
+              && iy < prop->inputDimension[0][2]);
 
           /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)

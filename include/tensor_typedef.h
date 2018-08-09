@@ -30,6 +30,7 @@
 #define __GST_TENSOR_TYPEDEF_H__
 
 #define NNS_TENSOR_RANK_LIMIT	(4)
+#define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 /**
  * @brief Possible data element types of other/tensor.
@@ -122,12 +123,15 @@ typedef struct _GstTensor_Filter_Properties
   int fwClosed; /**< true IF close() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *modelFilename; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
-  tensor_dim inputDimension; /**< The input tensor dimension */
-  tensor_type inputType; /**< The type for each element in the input tensor */
+  tensor_dim inputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each input tensors */
+  tensor_type inputType[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
   int inputCapNegotiated; /**< @todo check if this is really needed */
-  tensor_dim outputDimension; /**< The output tensor dimension */
-  tensor_type outputType; /**< The type for each element in the output tensor */
+  int inputTensorSize; /**< The number of input tensors */
+
+  tensor_dim outputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each output tensors */
+  tensor_type outputType[NNS_TENSOR_SIZE_LIMIT];  /**< The list of types for each output tensors */
   int outputCapNegotiated; /**< @todo check if this is really needed */
+  int outputTensorSize; /**< The number of output tensors */
 
   const char *customProperties; /**< sub-plugin specific custom property values in string */
 } GstTensor_Filter_Properties;

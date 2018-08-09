@@ -8,6 +8,7 @@
  * @date	22 Jun 2018
  * @brief	Custom NNStreamer Filter Example 2. "Pass-Through with Variable Dimensions"
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug		No known bugs except for NYI items
  */
 
 #include <stdlib.h>
@@ -16,11 +17,17 @@
 #include <tensor_filter_custom.h>
 #include <tensor_common.h>
 
+/**
+ * @brief _pt_data
+ */
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
 } pt_data;
 
+/**
+ * @brief pt_init
+ */
 static void *
 pt_init (const GstTensor_Filter_Properties * prop)
 {
@@ -30,6 +37,9 @@ pt_init (const GstTensor_Filter_Properties * prop)
   return data;
 }
 
+/**
+ * @brief pt_exit
+ */
 static void
 pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 {
@@ -38,6 +48,9 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
   free (data);
 }
 
+/**
+ * @brief set_inputDim
+ */
 static int
 set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
     const tensor_dim iDim, const tensor_type iType,
@@ -52,6 +65,9 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
   return 0;
 }
 
+/**
+ * @brief pt_invoke
+ */
 static int
 pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
     const uint8_t * inptr, uint8_t * outptr)
@@ -63,8 +79,8 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   g_assert (inptr);
   g_assert (outptr);
 
-  size = get_tensor_element_count (prop->outputDimension) *
-      tensor_element_size[prop->outputType];
+  size = get_tensor_element_count (prop->outputDimension[0]) *
+      tensor_element_size[prop->outputType[0]];
 
   g_assert (inptr != outptr);
   memcpy (outptr, inptr, size);
