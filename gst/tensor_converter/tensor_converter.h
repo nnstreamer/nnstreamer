@@ -3,7 +3,7 @@
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -26,7 +26,7 @@
  *               uint8[height][width][RGB]. Note that if rstride=RU4, you need
  *               to add the case in "remove_stride_padding_per_row".
  *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -39,69 +39,64 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <gst/video/video-info.h>
-#include <gst/video/video-frame.h>
+#include <gst/audio/audio-info.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_TENSOR_CONVERTER \
   (gst_tensor_converter_get_type())
 #define GST_TENSOR_CONVERTER(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_CONVERTER,GstTensor_Converter))
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_CONVERTER,GstTensorConverter))
 #define GST_TENSOR_CONVERTER_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_CONVERTER,GstTensor_ConverterClass))
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_CONVERTER,GstTensorConverterClass))
 #define GST_IS_TENSOR_CONVERTER(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_CONVERTER))
 #define GST_IS_TENSOR_CONVERTER_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_CONVERTER))
-#define GST_TENSOR_CONVERTER_CAST(obj)  ((GstTensor_Converter *)(obj))
+#define GST_TENSOR_CONVERTER_CAST(obj)  ((GstTensorConverter *)(obj))
 
-typedef struct _GstTensor_Converter GstTensor_Converter;
-
-typedef struct _GstTensor_ConverterClass GstTensor_ConverterClass;
+typedef struct _GstTensorConverter GstTensorConverter;
+typedef struct _GstTensorConverterClass GstTensorConverterClass;
 
 /**
  * @brief Internal data structure for tensor_converter instances.
  */
-struct _GstTensor_Converter
+struct _GstTensorConverter
 {
-  GstBaseTransform element;	/**< This is the parent object */
+  GstBaseTransform element; /**< This is the parent object */
 
-  /* For transformer */
+  /** For transformer */
   gboolean negotiated; /**< %TRUE if tensor metadata is set */
-  media_type input_media_type; /**< Denotes the input media stream type */
-  union {
+  union
+  {
     GstVideoInfo video; /**< video-info of the input media stream */
+    GstAudioInfo audio; /**< audio-info of the input media stream */
     /** @todo: Add other media types */
   } in_info; /**< media input stream info union. will support audio/text later */
-  gboolean removePadding; /* If TRUE, zero-padding must be removed during transform */
-  gboolean disableInPlace; /* If TRUE, In place mode is disabled */
+  gboolean removePadding; /**< If TRUE, zero-padding must be removed during transform */
+  gboolean disableInPlace; /**< If TRUE, In place mode is disabled */
+  gboolean silent; /**< True if logging is minimized */
+  guint frames_per_buffer; /**< frame count per buffer */
 
-  /* For Tensor */
-  gboolean silent;	/**< True if logging is minimized */
-  gboolean tensorConfigured;	/**< True if already successfully configured tensor metadata */
-  gint rank;		/**< Tensor Rank (# dimensions) */
-  tensor_dim dimension;		/**< Dimensions. We support up to 4th ranks.  **/
-  tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
-  gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
-  gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
-  gsize tensorFrameSize;        /**< Size of a single tensor frame in # bytes */
+  /** For Tensor */
+  gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
+  GstTensorConfig tensor_config; /**< configured tensor info */
 };
 
-/*
- * @brief GstTensor_ConverterClass inherits GstBaseTransformClass.
+/**
+ * @brief GstTensorConverterClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
  * its child (concrete class) GstVideoConverter.
- * Note that GstTensor_ConverterClass is a concrete class; thus we need to look at both.
+ * Note that GstTensorConverterClass is a concrete class; thus we need to look at both.
  */
-struct _GstTensor_ConverterClass 
+struct _GstTensorConverterClass
 {
-  GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
+  GstBaseTransformClass parent_class; /**< Inherits GstBaseTransformClass */
 };
 
-/*
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_converter_get_type (void);

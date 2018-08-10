@@ -30,8 +30,18 @@
 #include <stdint.h>
 #include "tensor_typedef.h"
 #include <gst/gst.h>
+#include <gst/video/video-format.h>
+#include <gst/audio/audio-format.h>
 
 G_BEGIN_DECLS
+
+#define GST_TENSOR_VIDEO_CAPS_STR \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx }") \
+    ", views = (int) 1, interlace-mode = (string) progressive"
+
+#define GST_TENSOR_AUDIO_CAPS_STR \
+    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE }") \
+    ", layout = (string) interleaved"
 
 /** @todo I'm not sure if the range is to be 1, 65535 or larger */
 #define GST_TENSOR_RANK_RANGE "(int) [ 1, 4 ]"
@@ -77,7 +87,8 @@ G_BEGIN_DECLS
  * This is realted with media input stream to other/tensor.
  * There is no restrictions for the outputs.
  */
-typedef enum _nns_media_type {
+typedef enum _nns_media_type
+{
   _NNS_VIDEO = 0, /**< supposedly video/x-raw */
   _NNS_AUDIO, /**< Not Supported Yet */
   _NNS_STRING, /**< Not Supported Yet */
@@ -86,23 +97,198 @@ typedef enum _nns_media_type {
 } media_type;
 
 /**
+ * @brief Internal data structure for video info to configure tensor.
+ */
+typedef struct
+{
+  GstVideoFormat format; /**< video format */
+  gint w; /**< width */
+  gint h; /**< height */
+  gint fn; /**< framerate numerator */
+  gint fd; /**< framerate denominator */
+} GstTensorVideoInfo;
+
+/**
+ * @brief Internal data structure for audio info to configure tensor.
+ */
+typedef struct
+{
+  GstAudioFormat format; /**< audio format */
+  gint ch; /**< channels */
+  gint rate; /**< rate */
+  gint frames; /**< samples per buffer */
+} GstTensorAudioInfo;
+
+/**
+ * @brief Internal data structure for configured tensor info.
+ */
+typedef struct
+{
+  gint rank; /**< Tensor Rank (# dimensions) */
+  tensor_type type; /**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
+  tensor_dim dimension; /**< Dimensions. We support up to 4th ranks.  */
+  gint rate_n; /**< framerate is in fraction, which is numerator/denominator */
+  gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
+  gsize frame_size; /**< Size of a single tensor frame in # bytes */
+  media_type tensor_media_type; /**< Denotes the input media stream type */
+  gint media_format; /**< Denotes the input media stream format */
+} GstTensorConfig;
+
+/**
  * @brief String representations for each tensor element type.
  */
-extern const gchar* tensor_element_typename[];
+extern const gchar *tensor_element_typename[];
 
 /**
  * @brief Get media type from caps
  * @param caps caps to be interpreted
  * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
  */
-extern media_type get_media_type_from_caps (const GstCaps * caps);
+extern media_type
+gst_tensor_media_type_from_caps (const GstCaps * caps);
+
+/**
+ * @brief Get media type from structure
+ * @param structure structure to be interpreted
+ * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ */
+extern media_type
+gst_tensor_media_type_from_structure (const GstStructure * structure);
+
+/**
+ * @brief Initialize the video info structure
+ * @param v_info video info structure to be initialized
+ */
+extern void
+gst_tensor_video_info_init (GstTensorVideoInfo * v_info);
+
+/**
+ * @brief Initialize the audio info structure
+ * @param a_info audio info structure to be initialized
+ */
+extern void
+gst_tensor_audio_info_init (GstTensorAudioInfo * a_info);
+
+/**
+ * @brief Set video info to configure tensor
+ * @param v_info video info structure to be filled
+ * @param structure caps structure
+ */
+extern void
+gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
+    const GstStructure * structure);
+
+/**
+ * @brief Set audio info to configure tensor
+ * @param a_info audio info structure to be filled
+ * @param structure caps structure
+ */
+extern void
+gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
+    const GstStructure * structure);
+
+/**
+ * @brief Set the video info structure from tensor config
+ * @param v_info video info structure to be filled
+ * @param config tensor config structure to be interpreted
+ * @return TRUE if supported format
+ */
+extern gboolean
+gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
+    const GstTensorConfig * config);
+
+/**
+ * @brief Set the audio info structure from tensor config
+ * @param a_info audio info structure to be filled
+ * @param config tensor config structure to be interpreted
+ * @return TRUE if supported format
+ */
+extern gboolean
+gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
+    const GstTensorConfig * config);
+
+/**
+ * @brief Initialize the tensor config info structure
+ * @param config tensor config structure to be initialized
+ */
+extern void
+gst_tensor_config_init (GstTensorConfig * config);
+
+/**
+ * @brief Check the tensor is all configured
+ * @param config tensor config structure
+ * @return TRUE if configured
+ */
+extern gboolean
+gst_tensor_config_validate (GstTensorConfig * config);
+
+/**
+ * @brief Compare tensor config info
+ * @param TRUE if same
+ */
+extern gboolean
+gst_tensor_config_is_same (const GstTensorConfig * c1,
+    const GstTensorConfig * c2);
+
+/**
+ * @brief Parse structure and set tensor config info
+ * @param config tensor config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if ok
+ */
+extern gboolean
+gst_tensor_config_from_structure (GstTensorConfig * config,
+    const GstStructure * structure);
+
+/**
+ * @brief Set the tensor config structure from video info
+ * @param config tensor config structure to be filled
+ * @param v_info video info structure to be interpreted
+ * @return TRUE if ok
+ */
+extern gboolean
+gst_tensor_config_from_video_info (GstTensorConfig * config,
+    const GstTensorVideoInfo * v_info);
+
+/**
+ * @brief Set the tensor config structure from audio info
+ * @param config tensor config structure to be filled
+ * @param a_info audio info structure to be interpreted
+ * @return TRUE if ok
+ */
+extern gboolean
+gst_tensor_config_from_audio_info (GstTensorConfig * config,
+    const GstTensorAudioInfo * a_info);
+
+/**
+ * @brief Get tensor caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+extern GstCaps *
+gst_tensor_caps_from_config (const GstTensorConfig * config);
+
+/**
+ * @brief Get media caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+extern GstCaps *
+gst_tensor_media_caps_from_config (const GstTensorConfig * config);
+
+/**
+ * @brief Determine if we need zero-padding
+ * @return 1 if we need to add (or remove) stride per row from the stream data. 0 otherwise.
+ */
+extern gint
+gst_tensor_video_stride_padding_per_row (GstVideoFormat format, gint width);
 
 /**
  * @brief Get tensor_type from string tensor_type input
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
-extern tensor_type get_tensor_type(const gchar* typestr);
+extern tensor_type get_tensor_type (const gchar * typestr);
 
 /**
  * @brief Find the index value of the given key string array
@@ -110,21 +296,21 @@ extern tensor_type get_tensor_type(const gchar* typestr);
  * @param strv Null terminated array of gchar *
  * @param key The key string value
  */
-extern int find_key_strv(const gchar **strv, const gchar *key);
+extern int find_key_strv (const gchar ** strv, const gchar * key);
 
 /**
  * @brief Parse tensor dimension parameter string
  * @return The Rank.
  * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  */
-extern int get_tensor_dimension(const gchar* param, tensor_dim dim);
+extern int get_tensor_dimension (const gchar * param, tensor_dim dim);
 
 /**
  * @brief Count the number of elemnts of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-extern size_t get_tensor_element_count(const tensor_dim dim);
+extern size_t get_tensor_element_count (const tensor_dim dim);
 
 /**
  * @brief Read GstStructure, return corresponding tensor-dim/type. (other/tensor)
@@ -136,8 +322,8 @@ extern size_t get_tensor_element_count(const tensor_dim dim);
  * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
  */
 extern GstTensor_Filter_CheckStatus
-get_tensor_from_structure(const GstStructure * str, tensor_dim dim, tensor_type *type,
-    int *framerate_num, int *framerate_denum);
+get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
+    tensor_type * type, int *framerate_num, int *framerate_denum);
 
 /**
  * @brief Read pad-cap, return corresponding tensor-dim/type. (other/tensor)
@@ -149,8 +335,8 @@ get_tensor_from_structure(const GstStructure * str, tensor_dim dim, tensor_type 
  * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
  */
 extern GstTensor_Filter_CheckStatus
-get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type,
-    int *framerate_num, int *framerate_denum);
+get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
+    tensor_type * type, int *framerate_num, int *framerate_denum);
 
 /**
  * @brief Read GstStructure, return corresponding tensor-dim/type. (other/tensor)
@@ -161,8 +347,8 @@ get_tensor_from_padcap(const GstCaps * caps, tensor_dim dim, tensor_type *type,
  * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
  */
 extern int
-get_tensors_from_structure(const GstStructure * str, GstTensor_TensorsMeta *meta,
-    int *framerate_num, int *framerate_denum);
+get_tensors_from_structure (const GstStructure * str,
+    GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denum);
 
 /**
  * @brief Make str(xyz) ==> "xyz" with macro expansion
@@ -200,7 +386,7 @@ get_tensors_from_structure(const GstStructure * str, GstTensor_TensorsMeta *meta
  * For the concrete definition of headers, please look at the wiki page of nnstreamer:
  * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
  */
-extern void gst_tensors_typefind_function (GstTypeFind *tf, gpointer pdata);
+extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
 
 #define GST_TENSOR_TYPEFIND_REGISTER(plugin)  do { \
     gst_type_find_register (plugin, "other/tensorsave", \

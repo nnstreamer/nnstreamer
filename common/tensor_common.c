@@ -44,17 +44,15 @@ const gchar *tensor_element_typename[] = {
 };
 
 /**
- * @brief Get media type from caps
- * @param caps caps to be interpreted
+ * @brief Get media type from structure
+ * @param structure structure to be interpreted
  * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
  */
 media_type
-get_media_type_from_caps (const GstCaps * caps)
+gst_tensor_media_type_from_structure (const GstStructure * structure)
 {
-  GstStructure *structure;
   const gchar *name;
 
-  structure = gst_caps_get_structure (caps, 0);
   name = gst_structure_get_name (structure);
 
   g_return_val_if_fail (name != NULL, _NNS_MEDIA_END);
@@ -68,6 +66,706 @@ get_media_type_from_caps (const GstCaps * caps)
 
   /** unknown, or not-supported type */
   return _NNS_MEDIA_END;
+}
+
+/**
+ * @brief Get media type from caps
+ * @param caps caps to be interpreted
+ * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ */
+media_type
+gst_tensor_media_type_from_caps (const GstCaps * caps)
+{
+  GstStructure *structure;
+
+  structure = gst_caps_get_structure (caps, 0);
+
+  return gst_tensor_media_type_from_structure (structure);
+}
+
+/**
+ * @brief Initialize the video info structure
+ * @param v_info video info structure to be initialized
+ */
+void
+gst_tensor_video_info_init (GstTensorVideoInfo * v_info)
+{
+  g_return_if_fail (v_info != NULL);
+
+  v_info->format = GST_VIDEO_FORMAT_UNKNOWN;
+  v_info->w = 0;
+  v_info->h = 0;
+  v_info->fn = -1;
+  v_info->fd = -1;
+}
+
+/**
+ * @brief Initialize the audio info structure
+ * @param a_info audio info structure to be initialized
+ */
+void
+gst_tensor_audio_info_init (GstTensorAudioInfo * a_info)
+{
+  g_return_if_fail (a_info != NULL);
+
+  a_info->format = GST_AUDIO_FORMAT_UNKNOWN;
+  a_info->ch = 0;
+  a_info->rate = 0;
+  a_info->frames = 0;
+}
+
+/**
+ * @brief Set video info to configure tensor
+ * @param v_info video info structure to be filled
+ * @param structure caps structure
+ */
+void
+gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
+    const GstStructure * structure)
+{
+  const gchar *format;
+
+  g_return_if_fail (v_info != NULL);
+  g_return_if_fail (structure != NULL);
+
+  gst_tensor_video_info_init (v_info);
+
+  format = gst_structure_get_string (structure, "format");
+  if (format) {
+    v_info->format = gst_video_format_from_string (format);
+  }
+
+  gst_structure_get_int (structure, "width", &v_info->w);
+  gst_structure_get_int (structure, "height", &v_info->h);
+  gst_structure_get_fraction (structure, "framerate", &v_info->fn, &v_info->fd);
+}
+
+/**
+ * @brief Set audio info to configure tensor
+ * @param a_info audio info structure to be filled
+ * @param structure caps structure
+ */
+void
+gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
+    const GstStructure * structure)
+{
+  const gchar *format;
+
+  g_return_if_fail (a_info != NULL);
+  g_return_if_fail (structure != NULL);
+
+  gst_tensor_audio_info_init (a_info);
+
+  format = gst_structure_get_string (structure, "format");
+  if (format) {
+    a_info->format = gst_audio_format_from_string (format);
+  }
+
+  gst_structure_get_int (structure, "channels", &a_info->ch);
+  gst_structure_get_int (structure, "rate", &a_info->rate);
+
+  /**
+   * @todo How can we get the frames per buffer?
+   * It depends on the tensorflow model, so simply set sample rate.
+   */
+  a_info->frames = a_info->rate;
+}
+
+/**
+ * @brief Set the video info structure from tensor config
+ * @param v_info video info structure to be filled
+ * @param config tensor config structure to be interpreted
+ * @return TRUE if supported format
+ */
+gboolean
+gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
+    const GstTensorConfig * config)
+{
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (v_info != NULL, FALSE);
+
+  gst_tensor_video_info_init (v_info);
+
+  g_return_val_if_fail (config->tensor_media_type == _NNS_VIDEO, FALSE);
+
+  v_info->format = (GstVideoFormat) config->media_format;
+  v_info->w = config->dimension[1];
+  v_info->h = config->dimension[2];
+  v_info->fn = config->rate_n;
+  v_info->fd = config->rate_d;
+
+  return (v_info->format != GST_VIDEO_FORMAT_UNKNOWN);
+}
+
+/**
+ * @brief Set the audio info structure from tensor config
+ * @param a_info audio info structure to be filled
+ * @param config tensor config structure to be interpreted
+ * @return TRUE if supported format
+ */
+gboolean
+gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
+    const GstTensorConfig * config)
+{
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (a_info != NULL, FALSE);
+
+  gst_tensor_audio_info_init (a_info);
+
+  g_return_val_if_fail (config->tensor_media_type == _NNS_AUDIO, FALSE);
+
+  a_info->format = (GstAudioFormat) config->media_format;
+  a_info->ch = config->dimension[0];
+  a_info->frames = config->dimension[1];
+  a_info->rate = config->rate_n;
+
+  return (a_info->format != GST_AUDIO_FORMAT_UNKNOWN);
+}
+
+/**
+ * @brief Initialize the tensor config info structure
+ * @param config tensor config structure to be initialized
+ */
+void
+gst_tensor_config_init (GstTensorConfig * config)
+{
+  guint i;
+
+  g_return_if_fail (config != NULL);
+
+  config->rank = 0;
+  config->type = _NNS_END;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    config->dimension[i] = 0;
+  }
+
+  config->rate_n = -1;
+  config->rate_d = -1;
+  config->frame_size = 0;
+  config->tensor_media_type = _NNS_MEDIA_END;
+  config->media_format = 0;
+}
+
+/**
+ * @brief Check the tensor is all configured
+ * @param config tensor config structure
+ * @return TRUE if configured
+ */
+gboolean
+gst_tensor_config_validate (GstTensorConfig * config)
+{
+  guint i;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  if (config->rank == 0 || config->type == _NNS_END) {
+    return FALSE;
+  }
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (config->dimension[i] == 0) {
+      return FALSE;
+    }
+  }
+
+  if (config->rate_n < 0 || config->rate_d < 0) {
+    return FALSE;
+  }
+
+  if (config->frame_size == 0 || config->media_format == 0) {
+    return FALSE;
+  }
+
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+    case _NNS_AUDIO:
+      break;
+    default:
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Compare tensor config info
+ * @param TRUE if same
+ */
+gboolean
+gst_tensor_config_is_same (const GstTensorConfig * c1,
+    const GstTensorConfig * c2)
+{
+  guint i;
+
+  g_return_val_if_fail (c1 != NULL, FALSE);
+  g_return_val_if_fail (c2 != NULL, FALSE);
+
+  if (c1->tensor_media_type != c2->tensor_media_type) {
+    return FALSE;
+  }
+
+  if (c1->media_format != c2->media_format) {
+    return FALSE;
+  }
+
+  if (c1->rank == c2->rank && c1->type == c2->type &&
+      c1->rate_n == c2->rate_n && c1->rate_d == c2->rate_d &&
+      c1->frame_size == c2->frame_size) {
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      if (c1->dimension[i] != c2->dimension[i]) {
+        return FALSE;
+      }
+    }
+
+    /** matched all */
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Parse structure and set tensor config info
+ * @param config tensor config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if ok
+ */
+static gboolean
+gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  const gchar *type_string;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  if (!gst_structure_has_name (structure, "other/tensor")) {
+    err_print ("caps is not tensor %s\n", gst_structure_get_name (structure));
+    return FALSE;
+  }
+
+  gst_structure_get_int (structure, "rank", &config->rank);
+  gst_structure_get_int (structure, "dim1", (gint *) (&config->dimension[0]));
+  gst_structure_get_int (structure, "dim2", (gint *) (&config->dimension[1]));
+  gst_structure_get_int (structure, "dim3", (gint *) (&config->dimension[2]));
+  gst_structure_get_int (structure, "dim4", (gint *) (&config->dimension[3]));
+
+  type_string = gst_structure_get_string (structure, "type");
+  config->type = get_tensor_type (type_string);
+
+  gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+      &config->rate_d);
+
+  if (config->type != _NNS_END) {
+    config->frame_size =
+        tensor_element_size[config->type] *
+        get_tensor_element_count (config->dimension);
+  }
+
+  /** @todo we cannot get media type from caps */
+  if (config->rank == 2) {
+    config->tensor_media_type = _NNS_AUDIO;
+  } else if (config->rank == 3) {
+    config->tensor_media_type = _NNS_VIDEO;
+  }
+
+  /** @todo we cannot get media format from caps */
+  if (config->tensor_media_type == _NNS_VIDEO) {
+    if (config->type == _NNS_UINT8) {
+      switch (config->dimension[0]) {
+        case 3:
+          config->media_format = GST_VIDEO_FORMAT_RGB;
+          break;
+        case 4:
+          config->media_format = GST_VIDEO_FORMAT_BGRx;
+          break;
+        default:
+          config->media_format = GST_VIDEO_FORMAT_UNKNOWN;
+          break;
+      }
+    }
+  } else if (config->tensor_media_type == _NNS_AUDIO) {
+    switch (config->type) {
+      case _NNS_INT8:
+        config->media_format = GST_AUDIO_FORMAT_S8;
+        break;
+      case _NNS_UINT8:
+        config->media_format = GST_AUDIO_FORMAT_U8;
+        break;
+      case _NNS_INT16:
+        config->media_format = GST_AUDIO_FORMAT_S16;
+        break;
+      case _NNS_UINT16:
+        config->media_format = GST_AUDIO_FORMAT_U16;
+        break;
+      default:
+        config->media_format = GST_AUDIO_FORMAT_UNKNOWN;
+        break;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Parse caps and set tensor config info
+ * @param config tensor config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if ok
+ */
+static gboolean
+gst_tensor_config_from_media_structure (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  media_type m_type;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  m_type = gst_tensor_media_type_from_structure (structure);
+
+  if (m_type == _NNS_VIDEO) {
+    GstTensorVideoInfo v_info;
+
+    gst_tensor_video_info_from_structure (&v_info, structure);
+    gst_tensor_config_from_video_info (config, &v_info);
+  } else if (m_type == _NNS_AUDIO) {
+    GstTensorAudioInfo a_info;
+
+    gst_tensor_audio_info_from_structure (&a_info, structure);
+    gst_tensor_config_from_audio_info (config, &a_info);
+  } else {
+    /** @todo Support other types */
+    err_print ("Unsupported type %d\n", m_type);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Parse structure and set tensor config info
+ * @param config tensor config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if ok
+ */
+gboolean
+gst_tensor_config_from_structure (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  if (gst_structure_has_name (structure, "other/tensor")) {
+    return gst_tensor_config_from_tensor_structure (config, structure);
+  } else {
+    return gst_tensor_config_from_media_structure (config, structure);
+  }
+}
+
+/**
+ * @brief Set the tensor config structure from video info
+ * @param config tensor config structure to be filled
+ * @param v_info video info structure to be interpreted
+ * @return TRUE if ok
+ */
+gboolean
+gst_tensor_config_from_video_info (GstTensorConfig * config,
+    const GstTensorVideoInfo * v_info)
+{
+  /**
+   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/image
+   * A 4-D uint8 or float32 Tensor of shape [batch_size, height, width, channels]
+   * where channels is 1, 3, or 4.
+   */
+  gboolean res = TRUE;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (v_info != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  /** [color-space][width][height] */
+  config->rank = 3;
+
+  switch (v_info->format) {
+    case GST_VIDEO_FORMAT_RGB:
+      config->type = _NNS_UINT8;
+      config->dimension[0] = 3;
+      break;
+    case GST_VIDEO_FORMAT_BGRx:
+      config->type = _NNS_UINT8;
+      config->dimension[0] = 4;
+      break;
+    default:
+      /** unsupported format */
+      err_print ("Unsupported format = %d\n", v_info->format);
+      res = FALSE;
+      break;
+  }
+
+  config->dimension[1] = v_info->w;
+  config->dimension[2] = v_info->h;
+  config->dimension[3] = 1;
+
+  config->rate_n = v_info->fn;
+  config->rate_d = v_info->fd;
+
+  if (config->type != _NNS_END) {
+    config->frame_size =
+        tensor_element_size[config->type] *
+        get_tensor_element_count (config->dimension);
+  }
+
+  config->tensor_media_type = _NNS_VIDEO;
+  config->media_format = v_info->format;
+  return res;
+}
+
+/**
+ * @brief Set the tensor config structure from audio info
+ * @param config tensor config structure to be filled
+ * @param a_info audio info structure to be interpreted
+ * @return TRUE if ok
+ */
+gboolean
+gst_tensor_config_from_audio_info (GstTensorConfig * config,
+    const GstTensorAudioInfo * a_info)
+{
+  /**
+   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/audio
+   * A 3-D float32 Tensor of shape [batch_size, frames, channels]
+   * or a 2-D float32 Tensor of shape [batch_size, frames].
+   */
+  gboolean res = TRUE;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (a_info != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  /** [channels][frames] */
+  config->rank = 2;
+
+  switch (a_info->format) {
+    case GST_AUDIO_FORMAT_S8:
+      config->type = _NNS_INT8;
+      break;
+    case GST_AUDIO_FORMAT_U8:
+      config->type = _NNS_UINT8;
+      break;
+    case GST_AUDIO_FORMAT_S16:
+      config->type = _NNS_INT16;
+      break;
+    case GST_AUDIO_FORMAT_U16:
+      config->type = _NNS_UINT16;
+      break;
+    default:
+      /** unsupported format */
+      err_print ("Unsupported format = %d\n", a_info->format);
+      res = FALSE;
+      break;
+  }
+
+  config->dimension[0] = a_info->ch;
+  config->dimension[1] = a_info->frames;
+  config->dimension[2] = 1;
+  config->dimension[3] = 1;
+
+  if (a_info->rate > 0) {
+    config->rate_n = a_info->rate;
+    config->rate_d = 1;
+  }
+
+  if (config->type != _NNS_END) {
+    config->frame_size =
+        tensor_element_size[config->type] *
+        get_tensor_element_count (config->dimension);
+  }
+
+  config->tensor_media_type = _NNS_AUDIO;
+  config->media_format = a_info->format;
+  return res;
+}
+
+/**
+ * @brief Get tensor caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+GstCaps *
+gst_tensor_caps_from_config (const GstTensorConfig * config)
+{
+  GstCaps *caps;
+  GstStaticCaps raw_caps = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_static_caps_get (&raw_caps);
+  caps = gst_caps_make_writable (caps);
+
+  if (config->rank > 0) {
+    gst_caps_set_simple (caps, "rank", G_TYPE_INT, config->rank, NULL);
+  }
+
+  if (config->dimension[0] > 0) {
+    gst_caps_set_simple (caps, "dim1", G_TYPE_INT, config->dimension[0], NULL);
+  }
+
+  if (config->dimension[1] > 0) {
+    gst_caps_set_simple (caps, "dim2", G_TYPE_INT, config->dimension[1], NULL);
+  }
+
+  if (config->dimension[2] > 0) {
+    gst_caps_set_simple (caps, "dim3", G_TYPE_INT, config->dimension[2], NULL);
+  }
+
+  if (config->dimension[3] > 0) {
+    gst_caps_set_simple (caps, "dim4", G_TYPE_INT, config->dimension[3], NULL);
+  }
+
+  if (config->type != _NNS_END) {
+    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
+        tensor_element_typename[config->type], NULL);
+  }
+
+  if (config->rate_n > 0 && config->rate_d > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Get video caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+static GstCaps *
+gst_tensor_video_caps_from_config (const GstTensorConfig * config)
+{
+  GstTensorVideoInfo v_info;
+  GstCaps *caps;
+  GstStaticCaps raw_caps = GST_STATIC_CAPS (GST_TENSOR_VIDEO_CAPS_STR);
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_static_caps_get (&raw_caps);
+  caps = gst_caps_make_writable (caps);
+
+  gst_tensor_video_info_from_config (&v_info, config);
+
+  if (v_info.format != GST_VIDEO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_video_format_to_string (v_info.format);
+    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
+  }
+
+  if (v_info.w > 0) {
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, v_info.w, NULL);
+  }
+
+  if (v_info.h > 0) {
+    gst_caps_set_simple (caps, "height", G_TYPE_INT, v_info.h, NULL);
+  }
+
+  if (v_info.fn > 0 && v_info.fd > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        v_info.fn, v_info.fd, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Get audio caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+static GstCaps *
+gst_tensor_audio_caps_from_config (const GstTensorConfig * config)
+{
+  GstTensorAudioInfo a_info;
+  GstCaps *caps;
+  GstStaticCaps raw_caps = GST_STATIC_CAPS (GST_TENSOR_AUDIO_CAPS_STR);
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_static_caps_get (&raw_caps);
+  caps = gst_caps_make_writable (caps);
+
+  gst_tensor_audio_info_from_config (&a_info, config);
+
+  if (a_info.format != GST_AUDIO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_audio_format_to_string (a_info.format);
+    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
+  }
+
+  if (a_info.ch > 0) {
+    gst_caps_set_simple (caps, "channels", G_TYPE_INT, a_info.ch, NULL);
+  }
+
+  if (a_info.rate > 0) {
+    gst_caps_set_simple (caps, "rate", G_TYPE_INT, a_info.rate, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Get media caps from tensor config
+ * @param config tensor config info
+ * @return caps for given config
+ */
+GstCaps *
+gst_tensor_media_caps_from_config (const GstTensorConfig * config)
+{
+  GstCaps *caps = NULL;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+      caps = gst_tensor_video_caps_from_config (config);
+      break;
+    case _NNS_AUDIO:
+      caps = gst_tensor_audio_caps_from_config (config);
+      break;
+    default:
+      /** @todo Support other types */
+      err_print ("Unsupported type %d\n", config->tensor_media_type);
+      break;
+  }
+
+  return caps;
+}
+
+/**
+ * @brief Determine if we need zero-padding
+ * @return 1 if we need to add (or remove) stride per row from the stream data. 0 otherwise.
+ */
+gint
+gst_tensor_video_stride_padding_per_row (GstVideoFormat format, gint width)
+{
+  /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
+  switch (format) {
+    case GST_VIDEO_FORMAT_RGB:
+    case GST_VIDEO_FORMAT_BGR:
+    case GST_VIDEO_FORMAT_I420:
+      if (width % 4) {
+        return 1;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return 0;
 }
 
 /**

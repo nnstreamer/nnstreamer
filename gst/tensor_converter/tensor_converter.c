@@ -19,7 +19,7 @@
  * @file	tensor_converter.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -65,40 +65,74 @@
 #endif
 
 #include <string.h>
-#include <gst/gst.h>
-#include <glib.h>
-
 #include "tensor_converter.h"
-#include <tensor_meta.h>
+
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG (!self->silent)
+#endif
+
+#define silent_debug(...) \
+    debug_print (DBG, __VA_ARGS__)
+
+#define silent_debug_caps(caps,msg) if (DBG) { \
+  if (caps) { \
+    GstStructure *caps_s; \
+    gchar *caps_s_string; \
+    guint caps_size, caps_idx; \
+    caps_size = gst_caps_get_size (caps);\
+    for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
+      caps_s = gst_caps_get_structure (caps, caps_idx); \
+      caps_s_string = gst_structure_to_string (caps_s); \
+      debug_print (TRUE, msg " = %s\n", caps_s_string); \
+      g_free (caps_s_string); \
+    } \
+  } \
+}
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 #define GST_CAT_DEFAULT gst_tensor_converter_debug
 
-/* Filter signals and args */
-enum
-{
-  /* FILL ME */
-  LAST_SIGNAL
-};
-
+/** properties */
 enum
 {
   PROP_0,
   PROP_SILENT,
   PROP_FORCE_MEMCPY,
+  PROP_FRAMES_PER_BUFFER
 };
 
 /**
- * the capabilities of the inputs
- *
- * In v0.0.1, this is "bitmap" image stream
+ * @brief Flag to print minimized log.
+ */
+#define DEFAULT_SILENT TRUE
+
+/**
+ * @brief Disable in-place mode and do memcpy.
+ */
+#define DEFAULT_FORCE_MEMCPY FALSE
+
+/**
+ * @brief Samples per buffer to set tensor metadata.
+ * (0 means sample rate for audio stream)
+ */
+#define DEFAULT_FRAMES_PER_BUFFER 0
+
+#define SINK_CAPS \
+    GST_STATIC_CAPS (GST_TENSOR_VIDEO_CAPS_STR "; " GST_TENSOR_AUDIO_CAPS_STR)
+
+#define SRC_CAPS \
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
+
+/**
+ * @brief The capabilities of the inputs
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS
-    ("video/x-raw, format = (string) {RGB, BGRx}, views = (int)1, interlace-mode = (string)progressive, framerate = (fraction)[ 0/1, 2147483647/1 ]")
-    );
+    SINK_CAPS);
 
 /**
  * @brief The capabilities of the outputs
@@ -106,18 +140,19 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+    SRC_CAPS);
 
 #define gst_tensor_converter_parent_class parent_class
-G_DEFINE_TYPE (GstTensor_Converter, gst_tensor_converter,
+G_DEFINE_TYPE (GstTensorConverter, gst_tensor_converter,
     GST_TYPE_BASE_TRANSFORM);
 
+/** GObject vmethod implementations */
 static void gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-/* GstBaseTransformer vmethod implementations */
+/** GstBaseTransform vmethod implementations */
 static GstFlowReturn gst_tensor_converter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf);
 static GstFlowReturn gst_tensor_converter_transform_ip (GstBaseTransform *
@@ -131,20 +166,201 @@ static gboolean gst_tensor_converter_set_caps (GstBaseTransform * trans,
 static gboolean gst_tensor_converter_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
-/* GObject vmethod implementations */
+
+/**
+ * @brief Check tensor config is consistent
+ * @param self "this" pointer to check consistency
+ * @param config newly configured tensor metadata
+ */
+static gboolean
+gst_tensor_converter_check_consistency (GstTensorConverter * self,
+    const GstTensorConfig * config)
+{
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  if (self->tensor_configured) {
+    return gst_tensor_config_is_same (&self->tensor_config, config);
+  }
+
+  /** not configured yet */
+  return FALSE;
+}
+
+/**
+ * @brief Parse structure and return tensor caps
+ * @param self "this" pointer
+ * @param structure structure to be interpreted
+ */
+static GstCaps *
+gst_tensor_converter_caps_from_structure (GstTensorConverter * self,
+    const GstStructure * structure)
+{
+  GstTensorConfig config;
+
+  if (!gst_tensor_config_from_structure (&config, structure)) {
+    return NULL;
+  }
+
+  /**
+   * @todo How can we get the frames per buffer?
+   * It depends on the tensorflow model, so added property frames-per-buffer.
+   * If frames-per-buffer is 0, do nothing. (default sample rate)
+   */
+  if (config.tensor_media_type == _NNS_AUDIO) {
+    if (self->frames_per_buffer > 0) {
+      config.dimension[1] = self->frames_per_buffer;
+    }
+  }
+
+  return gst_tensor_caps_from_config (&config);
+}
+
+/**
+ * @brief Configure tensor metadata for video (internal static function)
+ * @param self "this" pointer to be configured.
+ * @param caps the sink cap.
+ * @return FALSE if error. TRUE if ok.
+ */
+static gboolean
+gst_tensor_converter_configure_for_video (GstTensorConverter * self,
+    const GstCaps * caps)
+{
+  GstVideoInfo info;
+  GstTensorConfig config;
+  GstTensorVideoInfo v_info;
+
+  gst_video_info_init (&info);
+  if (!gst_video_info_from_caps (&info, caps)) {
+    err_print ("Failed to get video info from caps.\n");
+    return FALSE;
+  }
+
+  v_info.format = GST_VIDEO_INFO_FORMAT (&info);
+  v_info.w = GST_VIDEO_INFO_WIDTH (&info);
+  v_info.h = GST_VIDEO_INFO_HEIGHT (&info);
+  v_info.fn = GST_VIDEO_INFO_FPS_N (&info);
+  v_info.fd = GST_VIDEO_INFO_FPS_D (&info);
+
+  silent_debug ("video info : format[%d] width[%d] height[%d] fps[%d/%d]",
+      v_info.format, v_info.w, v_info.h, v_info.fn, v_info.fd);
+
+  if (!gst_tensor_config_from_video_info (&config, &v_info)) {
+    /** unsupported format */
+    return FALSE;
+  }
+
+  if (self->tensor_configured &&
+      !gst_tensor_converter_check_consistency (self, &config)) {
+    /** mismatched to old metadata */
+    return FALSE;
+  }
+
+  /**
+   * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
+   * @todo: Add more conditions!
+   */
+  if (gst_tensor_video_stride_padding_per_row (v_info.format, v_info.w)) {
+    self->removePadding = TRUE;
+  }
+
+  self->tensor_config = config;
+  self->in_info.video = info;
+  return TRUE;
+}
+
+/**
+ * @brief Configure tensor metadata for audio (internal static function)
+ * @param self "this" pointer to be configured.
+ * @param caps the sink cap.
+ * @return FALSE if error. TRUE if ok.
+ */
+static gboolean
+gst_tensor_converter_configure_for_audio (GstTensorConverter * self,
+    const GstCaps * caps)
+{
+  GstAudioInfo info;
+  GstTensorConfig config;
+  GstTensorAudioInfo a_info;
+
+  gst_audio_info_init (&info);
+  if (!gst_audio_info_from_caps (&info, caps)) {
+    err_print ("Failed to get audio info from caps.\n");
+    return FALSE;
+  }
+
+  a_info.format = GST_AUDIO_INFO_FORMAT (&info);
+  a_info.ch = GST_AUDIO_INFO_CHANNELS (&info);
+  a_info.rate = GST_AUDIO_INFO_RATE (&info);
+  a_info.frames =
+      (self->frames_per_buffer > 0) ? self->frames_per_buffer : a_info.rate;
+
+  silent_debug ("audio info : format[%d] channel[%d] rate[%d] bpf[%d]",
+      a_info.format, a_info.ch, a_info.rate, GST_AUDIO_INFO_BPF (&info));
+
+  if (!gst_tensor_config_from_audio_info (&config, &a_info)) {
+    /** unsupported format */
+    return FALSE;
+  }
+
+  if (self->tensor_configured &&
+      !gst_tensor_converter_check_consistency (self, &config)) {
+    /** mismatched to old metadata */
+    return FALSE;
+  }
+
+  self->tensor_config = config;
+  self->in_info.audio = info;
+  return TRUE;
+}
+
+/**
+ * @brief Configure tensor metadata from sink caps (internal static function)
+ * @param self "this" pointer to be configured.
+ * @param caps the sink cap.
+ * @return FALSE if error. TRUE if ok.
+ */
+static gboolean
+gst_tensor_converter_configure_tensor (GstTensorConverter * self,
+    const GstCaps * caps)
+{
+  media_type m_type;
+
+  m_type = gst_tensor_media_type_from_caps (caps);
+
+  /** @todo Support other types */
+  switch (m_type) {
+    case _NNS_VIDEO:
+      if (!gst_tensor_converter_configure_for_video (self, caps)) {
+        return FALSE;
+      }
+      break;
+
+    case _NNS_AUDIO:
+      if (!gst_tensor_converter_configure_for_audio (self, caps)) {
+        return FALSE;
+      }
+      break;
+
+    default:
+      err_print ("Unsupported type %d\n", m_type);
+      return FALSE;
+  }
+
+  self->tensor_configured = TRUE;
+  return TRUE;
+}
 
 /**
  * @brief initialize the tensor_converter's class
  */
 static void
-gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
+gst_tensor_converter_class_init (GstTensorConverterClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
-  GstTensor_ConverterClass *klass;
 
-  klass = (GstTensor_ConverterClass *) g_class;
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
@@ -154,10 +370,17 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+          DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_FORCE_MEMCPY,
-      g_param_spec_boolean ("force_memcpy", "Force Memcpy",
-          "Disable in-place mode and do memcpy ?", FALSE, G_PARAM_READWRITE));
+      g_param_spec_boolean ("force-memcpy", "Force Memcpy",
+          "Disable in-place mode and do memcpy ?", DEFAULT_FORCE_MEMCPY,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_FRAMES_PER_BUFFER,
+      g_param_spec_uint ("frames-per-buffer", "Frames per buffer",
+          "Sample count per buffer", 0, G_MAXUINT32, DEFAULT_FRAMES_PER_BUFFER,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "Tensor_Converter",
@@ -169,22 +392,22 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sink_factory));
-  /* Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
+  /** Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
   trans_class->passthrough_on_same_caps = FALSE;
 
-  /* Processing units */
+  /** Processing units */
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensor_converter_transform);
   trans_class->transform_ip =
       GST_DEBUG_FUNCPTR (gst_tensor_converter_transform_ip);
 
-  /* Negotiation units */
+  /** Negotiation units */
   trans_class->transform_caps =
       GST_DEBUG_FUNCPTR (gst_tensor_converter_transform_caps);
   trans_class->fixate_caps =
       GST_DEBUG_FUNCPTR (gst_tensor_converter_fixate_caps);
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_converter_set_caps);
 
-  /* Allocation units */
+  /** Allocation units */
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensor_converter_transform_size);
 }
@@ -196,30 +419,36 @@ gst_tensor_converter_class_init (GstTensor_ConverterClass * g_class)
  * initialize instance structure
  */
 static void
-gst_tensor_converter_init (GstTensor_Converter * filter)
+gst_tensor_converter_init (GstTensorConverter * self)
 {
-  filter->silent = TRUE;
-  filter->tensorConfigured = FALSE;
-  filter->negotiated = FALSE;
-  filter->removePadding = FALSE;
-  filter->disableInPlace = FALSE;
+  self->silent = DEFAULT_SILENT;
+  self->tensor_configured = FALSE;
+  self->negotiated = FALSE;
+  self->removePadding = FALSE;
+  self->disableInPlace = DEFAULT_FORCE_MEMCPY;
+  self->frames_per_buffer = DEFAULT_FRAMES_PER_BUFFER;
+  gst_tensor_config_init (&self->tensor_config);
 }
 
 /**
- * @brief Set property (gst element vmethod)
+ * @brief Set property (GObject vmethod)
  */
 static void
 gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER (object);
+  GstTensorConverter *self = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
-      filter->silent = g_value_get_boolean (value);
+      self->silent = g_value_get_boolean (value);
       break;
     case PROP_FORCE_MEMCPY:
-      filter->disableInPlace = g_value_get_boolean (value);
+      self->disableInPlace = g_value_get_boolean (value);
+      break;
+    case PROP_FRAMES_PER_BUFFER:
+      self->frames_per_buffer = g_value_get_uint (value);
+      silent_debug ("Set frames per buffer = %d", self->frames_per_buffer);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -228,20 +457,23 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief Get property (gst element vmethod)
+ * @brief Get property (GObject vmethod)
  */
 static void
 gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER (object);
+  GstTensorConverter *self = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
-      g_value_set_boolean (value, filter->silent);
+      g_value_set_boolean (value, self->silent);
       break;
     case PROP_FORCE_MEMCPY:
-      g_value_set_boolean (value, filter->disableInPlace);
+      g_value_set_boolean (value, self->disableInPlace);
+      break;
+    case PROP_FRAMES_PER_BUFFER:
+      g_value_set_uint (value, self->frames_per_buffer);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -250,121 +482,366 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief Determine if we need zero-padding (internal static function)
- * @return 1 if we need to remove stride per row from the stream data. 0 otherwise.
+ * @brief copies sink pad buffer to src pad buffer (internal static function)
+ * @param self "this" pointer
+ * @param inbuf sink pad buffer
+ * @param outbuf src pad buffer
+ * @return GST_FLOW_OK if ok. other values represents error
  */
-static int
-remove_stride_padding_per_row (const gchar * format, int width)
+static GstFlowReturn
+gst_tensor_converter_copy_buffer (GstTensorConverter * self,
+    GstBuffer * inbuf, GstBuffer * outbuf)
 {
-  /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
-  if ((!g_strcmp0 (format, "RGB") || !g_strcmp0 (format, "BGR")
-          || !g_strcmp0 (format, "I420")) && (width % 4))
-    return 1;
-  return 0;
+  GstMapInfo src_info, dest_info;
+  unsigned char *srcptr, *destptr;
+  GstTensorConfig *config;
+  gsize block_size;
+
+  g_assert (self->tensor_configured);
+
+  config = &self->tensor_config;
+  block_size = config->frame_size;
+  g_assert (gst_buffer_get_size (outbuf) >= block_size);
+
+  g_assert (gst_buffer_map (inbuf, &src_info, GST_MAP_READ));
+  g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE));
+
+  srcptr = src_info.data;
+  destptr = dest_info.data;
+
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+      if (self->removePadding == TRUE) {
+        int d0, d1;
+        unsigned int src_idx = 0, dest_idx = 0;
+        size_t size, offset;
+
+        size = offset = config->dimension[0] * config->dimension[1];
+
+        g_assert (offset % 4);
+        if (offset % 4)
+          offset += 4 - (offset % 4);
+        /** Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
+
+        for (d0 = 0; d0 < config->dimension[3]; d0++) { /** Supposed to be 0 only */
+          g_assert (d0 == 0);
+          for (d1 = 0; d1 < config->dimension[2]; d1++) { /** Height */
+            memcpy (destptr + dest_idx, srcptr + src_idx, size);
+            dest_idx += size;
+            src_idx += offset;
+          }
+        }
+
+        err_print
+            ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (1)\nPlease use 4 x n as image width for inputs.\n\n\n");
+        goto done;
+      }
+      break;
+
+    default:
+      break;
+  }
+
+  memcpy (destptr, srcptr, block_size);
+
+done:
+  gst_buffer_unmap (inbuf, &src_info);
+  gst_buffer_unmap (outbuf, &dest_info);
+  return GST_FLOW_OK;
 }
 
-
-/******************************************************************
- * GstElement vmethod implementations
- */
-
-#define return_false_if_fail(x)	\
-  ret = (x); \
-  if (!ret) \
-    return FALSE; \
-  ;
 /**
- * @brief Configure tensor metadata from sink caps (internal static function)
- * @param caps the sink cap.
- * @param filter "this" pointer to be configured.
- * @return FALSE if error. TRUE if ok.
+ * @brief non-ip transform. required vmethod for BaseTransform class.
+ */
+static GstFlowReturn
+gst_tensor_converter_transform (GstBaseTransform * trans,
+    GstBuffer * inbuf, GstBuffer * outbuf)
+{
+  GstTensorConverter *self;
+  GstTensorConfig *config;
+  GstFlowReturn res;
+
+  self = GST_TENSOR_CONVERTER_CAST (trans);
+
+  if (G_UNLIKELY (!self->negotiated))
+    goto unknown_format;
+  if (G_UNLIKELY (!self->tensor_configured))
+    goto unknown_tensor;
+
+  config = &self->tensor_config;
+
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+    case _NNS_AUDIO:
+      res = gst_tensor_converter_copy_buffer (self, inbuf, outbuf);
+      break;
+
+    case _NNS_STRING:
+    default:
+      err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
+      goto unknown_type;
+  }
+
+  return res;
+
+unknown_format:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_tensor:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("unknown format for tensor"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_type:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("not implemented type of media"));
+  return GST_FLOW_NOT_SUPPORTED;
+}
+
+/**
+ * @brief in-place transform. required vmethod for BaseTransform class.
+ */
+static GstFlowReturn
+gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
+{
+  GstTensorConverter *self;
+  GstTensorConfig *config;
+
+  self = GST_TENSOR_CONVERTER_CAST (trans);
+
+  if (G_UNLIKELY (!self->negotiated))
+    goto unknown_format;
+  if (G_UNLIKELY (!self->tensor_configured))
+    goto unknown_tensor;
+
+  config = &self->tensor_config;
+
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+      if (self->removePadding == TRUE) {
+        /** Remove zero-padding between rows */
+        GstMapInfo info;
+        unsigned char *ptr;
+        unsigned int row, d0;
+        unsigned int src_idx = 0, dest_idx = 0;
+        size_t size, offset;
+
+        size = offset = config->dimension[0] * config->dimension[1];
+
+        g_assert (offset % 4);
+        if (offset % 4)
+          offset += 4 - (offset % 4);
+        /** Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
+
+        gst_buffer_map (buf, &info, GST_MAP_READWRITE);
+        ptr = info.data;
+
+        for (d0 = 0; d0 < config->dimension[3]; d0++) { /** Supposed to be 0 only */
+          g_assert (d0 == 0);
+          for (row = 0; row < config->dimension[2]; row++) { /** Height */
+            if (dest_idx != src_idx)
+              memmove (ptr + dest_idx, ptr + src_idx, size);
+            dest_idx += size;
+            src_idx += offset;
+          }
+        }
+        /** @todo: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
+        gst_buffer_unmap (buf, &info);
+
+        err_print
+            ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (2)\nPlease use 4 x n as image width for inputs.\n\n\n");
+      }
+      break;
+
+    case _NNS_AUDIO:
+      break;
+
+    case _NNS_STRING:
+    default:
+      err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
+      goto unknown_type;
+  }
+
+  /** DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
+  return GST_FLOW_OK;
+
+unknown_format:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_tensor:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("unknown format for tensor"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_type:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("not implemented type of media"));
+  return GST_FLOW_NOT_SUPPORTED;
+}
+
+/**
+ * @brief configure srcpad cap from "proposed" cap. (required vmethod for BaseTransform)
+ *
+ * @param trans ("this" pointer)
+ * @param direction (why do we need this?)
+ * @param caps sinkpad cap
+ * @param filter this element's cap (don't know specifically.)
+ */
+static GstCaps *
+gst_tensor_converter_transform_caps (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, GstCaps * filter)
+{
+  GstTensorConverter *self;
+  GstCaps *result;
+
+  self = GST_TENSOR_CONVERTER_CAST (trans);
+
+  silent_debug_caps (caps, "from");
+  silent_debug_caps (filter, "filter");
+
+  if (direction == GST_PAD_SINK) {
+    GstStructure *s = gst_caps_get_structure (caps, 0);
+    result = gst_tensor_converter_caps_from_structure (self, s);
+  } else if (direction == GST_PAD_SRC) {
+    GstStaticCaps raw_sink_caps = SINK_CAPS;
+    result = gst_static_caps_get (&raw_sink_caps);
+  } else {
+    silent_debug ("Direction = %d\n", direction);
+    g_assert (0);
+    return NULL;
+  }
+
+  if (filter) {
+    GstCaps *intersection;
+
+    intersection =
+        gst_caps_intersect_full (filter, result, GST_CAPS_INTERSECT_FIRST);
+
+    gst_caps_unref (result);
+    result = intersection;
+  }
+
+  silent_debug_caps (result, "to");
+
+  GST_DEBUG_OBJECT (trans, "Direction[%d] transformed %" GST_PTR_FORMAT
+      " into %" GST_PTR_FORMAT, direction, caps, result);
+  return result;
+}
+
+/**
+ * @brief fixate caps. required vmethod of BaseTransform
+ */
+static GstCaps *
+gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
+{
+  GstTensorConverter *self;
+  GstCaps *result;
+
+  self = GST_TENSOR_CONVERTER_CAST (trans);
+
+  silent_debug_caps (caps, "from caps");
+  silent_debug_caps (othercaps, "from othercaps");
+
+  GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
+      " based on caps %" GST_PTR_FORMAT, othercaps, caps);
+
+  if (direction == GST_PAD_SINK) {
+    GstCaps *supposed;
+
+    if (gst_tensor_converter_configure_tensor (self, caps)) {
+      supposed = gst_tensor_caps_from_config (&self->tensor_config);
+    } else {
+      /**
+       * Failed to get media info (caps is not fixed yet)
+       * Parse caps from structure.
+       */
+      GstStructure *s = gst_caps_get_structure (caps, 0);
+      supposed = gst_tensor_converter_caps_from_structure (self, s);
+    }
+
+    result = gst_caps_intersect (othercaps, supposed);
+    gst_caps_unref (supposed);
+  } else {
+    result = gst_caps_copy (othercaps);
+  }
+
+  if (gst_caps_is_empty (result)) {
+    gst_caps_unref (result);
+    result = othercaps;
+  } else {
+    gst_caps_unref (othercaps);
+  }
+
+  GST_DEBUG_OBJECT (trans, "now fixating %" GST_PTR_FORMAT, result);
+
+  result = gst_caps_make_writable (result);
+  result = gst_caps_fixate (result);
+
+  if (direction == GST_PAD_SINK) {
+    if (gst_caps_is_subset (caps, result)) {
+      gst_caps_replace (&result, caps);
+    }
+  }
+  return result;
+}
+
+/**
+ * @brief set caps. required vmethod of BaseTransform
  */
 static gboolean
-gst_tensor_converter_configure_tensor (const GstCaps * caps,
-    GstTensor_Converter * filter)
+gst_tensor_converter_set_caps (GstBaseTransform * trans,
+    GstCaps * incaps, GstCaps * outcaps)
 {
-  GstStructure *structure;
-  gint rank;
-  tensor_dim dimension;
-  gint dim;
-  tensor_type type;
-  gint framerate_numerator;
-  gint framerate_denominator;
-  gsize tensorFrameSize;
-  gboolean ret;
-  const gchar *format;
-  int i;
-
-  /* This caps is coming from video/x-raw */
-  structure = gst_caps_get_structure (caps, 0);
-  rank = 3;                     /* [color-space][height][width] */
-
-  return_false_if_fail (gst_structure_get_int (structure, "width", &dim));
-  dimension[1] = dim;
-  return_false_if_fail (gst_structure_get_int (structure, "height", &dim));
-  dimension[2] = dim;
-  return_false_if_fail (gst_structure_get_fraction (structure, "framerate",
-          &framerate_numerator, &framerate_denominator));
-  type = _NNS_UINT8;            /* Assume color depth per component is 8 bit */
-
-  format = gst_structure_get_string (structure, "format");
-
-  if (!g_strcmp0 (format, "RGB"))
-    dimension[0] = 3;           /* R G B */
-  else if (!g_strcmp0 (format, "BGRx"))
-    dimension[0] = 4;           /* B G R x */
-  else {
-    err_print ("Format = %s\n", format);
-    return FALSE;
-  }
-
   /**
-   * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
-   * @todo: Add more conditions!
+   * This is notifier of cap changes for subclass.
+   * However, we do not have subclass (This is the concrete class)
    */
-  if (remove_stride_padding_per_row (format, dimension[1])) {
-    filter->removePadding = TRUE;
-  }
+  GstTensorConverter *self;
 
-  dimension[3] = 1;             /* This is 3-D Tensor */
-  tensorFrameSize =
-      tensor_element_size[type] * get_tensor_element_count (dimension);
-  /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
+  self = GST_TENSOR_CONVERTER_CAST (trans);
 
-  if (filter->tensorConfigured == TRUE) {
-    /* It has been already configured. Check if they are consistent */
-    if (rank == filter->rank &&
-        type == filter->type &&
-        framerate_numerator == filter->framerate_numerator &&
-        tensorFrameSize == filter->tensorFrameSize &&
-        framerate_denominator == filter->framerate_denominator) {
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-        if (dimension[i] != filter->dimension[i]) {
-          err_print ("  Dimension %d Mismatch with cached: %d --> %d\n", i,
-              dimension[i], filter->dimension[i]);
-          return FALSE;
-        }
-      return TRUE;
+  silent_debug_caps (incaps, "from incaps");
+  silent_debug_caps (outcaps, "from outcaps");
+
+  GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
+      " to %" GST_PTR_FORMAT, incaps, outcaps);
+
+  gst_base_transform_set_in_place (trans, !self->disableInPlace);
+
+  /** compare and verify outcaps */
+  if (gst_tensor_converter_configure_tensor (self, incaps)) {
+    GstTensorConfig config;
+    GstStructure *s = gst_caps_get_structure (outcaps, 0);
+
+    if (gst_tensor_config_from_structure (&config, s) &&
+        gst_tensor_converter_check_consistency (self, &config)) {
+      self->negotiated = TRUE;
     }
-    err_print ("  Something's wrong. The tensor metadata is inconsistent.\n");
-    return FALSE;
   }
 
-  filter->rank = rank;
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    filter->dimension[i] = dimension[i];
-  filter->type = type;
-  filter->framerate_numerator = framerate_numerator;
-  filter->framerate_denominator = framerate_denominator;
-  filter->tensorFrameSize = tensorFrameSize;
-
-  filter->tensorConfigured = TRUE;
-
-  /** @todo Support other types */
-  filter->input_media_type = _NNS_VIDEO;
-  return TRUE;
+  /** now return true if negotiated */
+  return self->negotiated;
 }
 
+/**
+ * @brief Tell the framework the required size of buffer based on the info of the other side pad. optional vmethod of BaseTransform
+ *
+ * We cannot directly get the value from size value, we need to review the pad-caps.
+ * This is called when non-ip mode is used.
+ */
+static gboolean
+gst_tensor_converter_transform_size (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize)
+{
+  GstTensorConverter *self;
+
+  self = GST_TENSOR_CONVERTER_CAST (trans);
+
+  g_assert (self->tensor_configured);
+  *othersize = self->tensor_config.frame_size;
+
+  return TRUE;
+}
 
 /**
  * @brief entry point to initialize the plug-in
@@ -372,7 +849,7 @@ gst_tensor_converter_configure_tensor (const GstCaps * caps,
  * register the element factories and other features
  */
 static gboolean
-tensor_converter_init (GstPlugin * tensor_converter)
+gst_tensor_converter_plugin_init (GstPlugin * plugin)
 {
   /**
    * debug category for fltering log messages
@@ -382,7 +859,7 @@ tensor_converter_init (GstPlugin * tensor_converter)
   GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter",
       0, "Template tensor_converter");
 
-  return gst_element_register (tensor_converter, "tensor_converter",
+  return gst_element_register (plugin, "tensor_converter",
       GST_RANK_NONE, GST_TYPE_TENSOR_CONVERTER);
 }
 
@@ -405,482 +882,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_converter,
     "tensor_converter",
-    tensor_converter_init,
+    gst_tensor_converter_plugin_init,
     VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
-
-/**
- * @brief copies sink pad buffer to src pad buffer (internal static function)
- * @param filter "this" pointer
- * @param inbuf sink pad buffer
- * @param outbuf src pad buffer
- * @return GST_FLOW_OK if ok. other values represents error
- */
-static GstFlowReturn
-gst_c2t_transformer_videoframe (GstTensor_Converter *
-    filter, GstBuffer * inbuf, GstBuffer * outbuf)
-{
-  size_t sizeB =
-      filter->dimension[0] * filter->dimension[1] * filter->dimension[2] *
-      filter->dimension[3];
-
-  g_assert (outbuf);
-  g_assert (gst_buffer_get_size (outbuf) >= sizeB);
-
-  if (filter->removePadding == TRUE) {
-    int d0, d1;
-    unsigned char *srcptr, *destptr;
-    unsigned int src_idx = 0, dest_idx = 0;
-    size_t size = filter->dimension[0] * filter->dimension[1];
-    size_t offset = filter->dimension[0] * filter->dimension[1];
-    GstMapInfo src_info, dest_info;
-
-    g_assert (offset % 4);
-
-    /** @todo: We don't know if outbuf is already allocated at this point, yet! */
-    g_assert (gst_buffer_get_size (outbuf) >=
-        (get_tensor_element_count (filter->dimension) *
-            tensor_element_size[filter->type]));
-
-    if (offset % 4)
-      offset += 4 - (offset % 4);
-    /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
-
-    gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
-    gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
-
-    srcptr = src_info.data;
-    destptr = dest_info.data;
-
-    for (d0 = 0; d0 < filter->dimension[3]; d0++) {     /* Supposed to be 0 only */
-      g_assert (d0 == 0);
-      for (d1 = 0; d1 < filter->dimension[2]; d1++) {   /* Height */
-        memcpy (destptr + dest_idx, srcptr + src_idx, size);
-        dest_idx += size;
-        src_idx += offset;
-      }
-    }
-
-    gst_buffer_unmap (inbuf, &src_info);
-    gst_buffer_unmap (outbuf, &dest_info);
-
-    err_print
-        ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (1)\nPlease use 4 x n as image width for inputs.\n\n\n");
-    return GST_FLOW_OK;
-  } else {
-    unsigned char *srcptr, *destptr;
-    GstMapInfo src_info, dest_info;
-
-    g_assert (gst_buffer_map (inbuf, &src_info, GST_MAP_READ) == TRUE);
-    g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE) == TRUE);
-
-    srcptr = src_info.data;
-    destptr = dest_info.data;
-
-    memcpy (destptr, srcptr, sizeB);
-
-    gst_buffer_unmap (inbuf, &src_info);
-    gst_buffer_unmap (outbuf, &dest_info);
-
-    return GST_FLOW_OK;
-  }
-  return GST_FLOW_ERROR;
-}
-
-/**
- * @brief non-ip transform. required vmethod for BaseTransform class.
- */
-static GstFlowReturn
-gst_tensor_converter_transform (GstBaseTransform * trans,
-    GstBuffer * inbuf, GstBuffer * outbuf)
-{
-  GstFlowReturn res;
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
-
-  if (G_UNLIKELY (!filter->negotiated))
-    goto unknown_format;
-  if (G_UNLIKELY (!filter->tensorConfigured))
-    goto unknown_tensor;
-
-  switch (filter->input_media_type) {
-    case _NNS_VIDEO:
-      res = gst_c2t_transformer_videoframe (filter, inbuf, outbuf);
-      break;
-      /* NOT SUPPORTED */
-    case _NNS_AUDIO:
-    case _NNS_STRING:
-    default:
-      err_print ("  Unsupported Media Type (%d)\n", filter->input_media_type);
-      goto unknown_type;
-  }
-
-  return res;
-
-unknown_format:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_tensor:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL),
-      ("unknown format for tensor"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_type:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL),
-      ("not implemented type of media"));
-  return GST_FLOW_NOT_SUPPORTED;
-}
-
-/**
- * @brief in-place transform. required vmethod for BaseTransform class.
- */
-static GstFlowReturn
-gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
-{
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
-
-  if (G_UNLIKELY (!filter->negotiated))
-    goto unknown_format;
-  if (G_UNLIKELY (!filter->tensorConfigured))
-    goto unknown_tensor;
-
-  switch (filter->input_media_type) {
-    case _NNS_VIDEO:
-      if (filter->removePadding == TRUE) {
-        /* Remove zero-padding between rows */
-        unsigned char *ptr;
-        unsigned int row, d0;
-        unsigned int dest_idx = 0, src_idx = 0;
-        size_t size = filter->dimension[0] * filter->dimension[1];
-        size_t offset = size;
-        GstMapInfo info;
-
-        g_assert (offset % 4);
-        if (offset % 4)
-          offset += 4 - (offset % 4);
-        /* Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html */
-
-        gst_buffer_map (buf, &info, GST_MAP_READWRITE);
-        ptr = info.data;
-
-        for (d0 = 0; d0 < filter->dimension[3]; d0++) { /* Supposed to be 0 only */
-          g_assert (d0 == 0);
-          for (row = 0; row < filter->dimension[2]; row++) {    /* Height */
-            if (dest_idx != src_idx)
-              memmove (ptr + dest_idx, ptr + src_idx, size);
-            dest_idx += size;
-            src_idx += offset;
-          }
-        }
-        /** @todo: Remove the clutter (reduce the size?) after memcpy. (Check if that's really helpful, first) */
-        gst_buffer_unmap (buf, &info);
-
-        err_print
-            ("\n\n\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION! (2)\nPlease use 4 x n as image width for inputs.\n\n\n");
-      }
-      break;
-      /* NOT SUPPORTED */
-    case _NNS_AUDIO:
-    case _NNS_STRING:
-    default:
-      err_print ("  Unsupported Media Type (%d)\n", filter->input_media_type);
-      goto unknown_type;
-  }
-
-  /* DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
-  return GST_FLOW_OK;
-
-unknown_format:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_tensor:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL),
-      ("unknown format for tensor"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_type:
-  GST_ELEMENT_ERROR (filter, CORE, NOT_IMPLEMENTED, (NULL),
-      ("not implemented type of media"));
-  return GST_FLOW_NOT_SUPPORTED;
-}
-
-/**
- * @brief configure srcpad cap from "proposed" cap. (required vmethod for BaseTransform)
- *
- * @param trans ("this" pointer)
- * @param direction (why do we need this?)
- * @param caps sinkpad cap
- * @param filter this element's cap (don't know specifically.)
- */
-static GstCaps *
-gst_tensor_converter_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * filter)
-{
-  GstCaps *tmp;
-  gboolean ret;
-  GstTensor_Converter bogusFilter = { 0 };
-  bogusFilter.tensorConfigured = FALSE;
-  GstTensor_Converter *obj = GST_TENSOR_CONVERTER_CAST (trans);
-
-  /** @todo: Verify if direction == GST_PAD_SINK means caps is sink pad */
-  if (direction == GST_PAD_SINK) {
-    GstStructure *structure;
-    gchar *str;
-    /**
-     * Skip verifying if caps is compatible: let's assume sink_factory will do that.
-     * @todo: Verify if this assumption is correct
-     * @todo CRITICAL: Handle when caps is in range, not fixed
-     */
-
-    /* Construct bogusFilter from caps (sinkpad) */
-    ret = gst_tensor_converter_configure_tensor (caps, &bogusFilter);
-    if (ret == FALSE) {
-      GstStructure *structure = gst_caps_get_structure (caps, 0);
-      gchar *str = gst_structure_to_string (structure);
-      gchar str2[2048];
-      gchar framerate[1024], width[1024], height[1024], colors[1024];
-      const gchar *format;
-      int fn = -1, fd, w, h;
-
-
-      if (TRUE == gst_structure_get_fraction (structure, "framerate", &fn, &fd))
-        g_sprintf (framerate, "%d/%d", fn, fd);
-      else
-        g_sprintf (framerate, "[ 0/1, 2147483647/1 ]");
-
-      if (TRUE == gst_structure_get_int (structure, "width", &w))
-        g_sprintf (width, "%d", w);
-      else
-        g_sprintf (width, "[1, 65535]");
-
-      if (TRUE == gst_structure_get_int (structure, "height", &h))
-        g_sprintf (height, "%d", h);
-      else
-        g_sprintf (height, "[1, 65535]");
-
-      format = gst_structure_get_string (structure, "format");
-      if (!g_strcmp0 (format, "RGB"))
-        g_sprintf (colors, "3");
-      else if (!g_strcmp0 (format, "BGRx"))
-        g_sprintf (colors, "4");
-      else
-        g_sprintf (colors, "{3, 4}");
-
-      debug_print (!obj->silent, "Structure from caps = %s\n", str);
-      g_free (str);
-
-      g_sprintf (str2,
-          "other/tensor, "
-          "rank = (int)3, "
-          "type = (string)uint8, "
-          "framerate = (fraction) %s, "
-          "dim1 = (int) %s, "
-          "dim2 = (int) %s, "
-          "dim3 = (int) %s, "
-          "dim4 = (int) 1", framerate, colors, width, height);
-      tmp = gst_caps_from_string (str2);
-      debug_print (!obj->silent, "Structure from caps to = %s\n", str2);
-
-      /**
-       * If given caps are in range for width/height,
-       * we cannot configure tensor, however, we may return proper srcpad caps
-       * @todo: see if the error is from ranging width/height before entering here
-       */
-      return tmp;
-    }
-
-    g_assert (bogusFilter.tensorConfigured == TRUE);
-
-    /* Construct GstCap (srcpad) from bugusFilter */
-    tmp = gst_caps_new_simple ("other/tensor",
-        "rank", G_TYPE_INT, bogusFilter.rank,
-        "dim1", G_TYPE_INT, bogusFilter.dimension[0],
-        "dim2", G_TYPE_INT, bogusFilter.dimension[1],
-        "dim3", G_TYPE_INT, bogusFilter.dimension[2],
-        "dim4", G_TYPE_INT, bogusFilter.dimension[3],
-        "type", G_TYPE_STRING, tensor_element_typename[bogusFilter.type],
-        "framerate", GST_TYPE_FRACTION, bogusFilter.framerate_numerator,
-        bogusFilter.framerate_denominator, NULL);
-    if (filter) {
-      GstCaps *tmp2 =
-          gst_caps_intersect_full (filter, tmp, GST_CAPS_INTERSECT_FIRST);
-      gst_caps_unref (tmp);
-      tmp = tmp2;
-    }
-    if (obj->silent == FALSE) {
-      structure = gst_caps_get_structure (caps, 0);
-      str = gst_structure_to_string (structure);
-      debug_print (TRUE, "From = %s\n", str);
-      g_free (str);
-      structure = gst_caps_get_structure (tmp, 0);
-      str = gst_structure_to_string (structure);
-      debug_print (TRUE, "To = %s\n", str);
-      g_free (str);
-    }
-
-    GST_DEBUG_OBJECT (trans, "SINK transformed %" GST_PTR_FORMAT " into %"
-        GST_PTR_FORMAT, caps, tmp);
-    return tmp;
-  } else if (direction == GST_PAD_SRC) {
-
-    GstStructure *structure;
-    gchar *str;
-
-    /**
-     * Construct possible GstCap (sinkpad) with src_factory
-     * @todo This supports video only!
-     */
-    GstStaticCaps staticcap =
-        GST_STATIC_CAPS
-        ("video/x-raw, format = (string){RGB, BGRx}, views = (int)1, "
-        "interlace-mode = (string)progressive, "
-        "framerate = (fraction)[ 0/1, 2147483647/1 ], "
-        "width = (int)[1, 65535], " "height = (int)[1, 65535]");
-    tmp = gst_static_caps_get (&staticcap);
-
-    if (obj->silent == FALSE) {
-      structure = gst_caps_get_structure (caps, 0);
-      str = gst_structure_to_string (structure);
-      debug_print (TRUE, "Structure from src = %s\n", str);
-      g_free (str);
-    }
-    if (filter) {
-      GstCaps *tmp2;
-      if (obj->silent == FALSE) {
-        structure = gst_caps_get_structure (filter, 0);
-        str = gst_structure_to_string (structure);
-        debug_print (TRUE, "Structure from filter = %s\n", str);
-        g_free (str);
-      }
-
-      tmp2 = gst_caps_intersect_full (filter, tmp, GST_CAPS_INTERSECT_FIRST);
-
-      if (obj->silent == FALSE) {
-        structure = gst_caps_get_structure (tmp2, 0);
-        str = gst_structure_to_string (structure);
-        debug_print (TRUE, "Structure from intersection = %s\n", str);
-        g_free (str);
-      }
-
-      gst_caps_unref (tmp);
-      tmp = tmp2;
-    }
-
-    GST_DEBUG_OBJECT (trans, "SRC transformed %" GST_PTR_FORMAT " into %"
-        GST_PTR_FORMAT, caps, tmp);
-    return tmp;
-  }
-  /* Neither SRC/SINK? Impossible! */
-  err_print ("Direction = %d\n", direction);
-  GST_DEBUG_OBJECT (trans, "Error pad direction type. direction: %d",
-      direction);
-  g_assert (TRUE == FALSE);
-  return NULL;
-}
-
-/**
- * @brief fixate caps. required vmethod of BaseTransform
- */
-static GstCaps *
-gst_tensor_converter_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
-{
-  GstCaps *supposed =
-      gst_tensor_converter_transform_caps (trans, direction, caps, NULL);
-  GstCaps *result;
-
-  GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
-      " based on caps %" GST_PTR_FORMAT, othercaps, caps);
-
-  result = gst_caps_intersect (othercaps, supposed);
-  if (gst_caps_is_empty (result)) {
-    gst_caps_unref (result);
-    result = othercaps;
-  } else {
-    gst_caps_unref (othercaps);
-  }
-  gst_caps_unref (supposed);
-
-  GST_DEBUG_OBJECT (trans, "now fixating %" GST_PTR_FORMAT, result);
-
-  result = gst_caps_make_writable (result);
-  result = gst_caps_fixate (result);
-
-  if (direction == GST_PAD_SINK) {
-    if (gst_caps_is_subset (caps, result)) {
-      gst_caps_replace (&result, caps);
-    }
-  }
-  return result;
-}
-
-/**
- * @brief set caps. required vmethod of BaseTransform
- */
-static gboolean
-gst_tensor_converter_set_caps (GstBaseTransform * trans,
-    GstCaps * incaps, GstCaps * outcaps)
-{
-  /** This is notifier of cap changes for subclass.
-   *  However, we do not have subclass (This is the concrete class)
-   */
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
-  GstVideoInfo in_info;
-
-  GST_DEBUG_OBJECT (trans, "converting from  %" GST_PTR_FORMAT
-      " to %" GST_PTR_FORMAT, incaps, outcaps);
-
-  /**
-   * @todo Supports video only
-   * input caps
-   */
-  if (!gst_video_info_from_caps (&in_info, incaps)) {
-    err_print ("Cannot set_caps\n");
-    return FALSE;
-  }
-
-  filter->in_info.video = in_info;
-  gst_base_transform_set_in_place (trans,
-      (filter->disableInPlace == TRUE) ? FALSE : TRUE);
-
-  filter->negotiated = gst_tensor_converter_configure_tensor (incaps, filter);
-
-  /** @todo Verity if outcaps and filter conf are compatible */
-  /** @todo THIS IS REQUIRED TO FILL IN: Return FALSE if filter is not compatible with outcaps */
-
-  return TRUE;
-}
-
-/**
- * @brief Tell the framework the required size of buffer based on the info of the other side pad. optional vmethod of BaseTransform
- *
- * We cannot directly get the value from size value, we need to review the pad-caps.
- * This is called when non-ip mode is used.
- */
-static gboolean
-gst_tensor_converter_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
-{
-  GstTensor_Converter *filter = GST_TENSOR_CONVERTER_CAST (trans);
-  const GstCaps *srccap = (direction == GST_PAD_SINK) ? othercaps : caps;
-  tensor_dim dim;
-  tensor_type type;
-  GstTensor_Filter_CheckStatus ret =
-      get_tensor_from_padcap (srccap, dim, &type, NULL, NULL);
-
-  g_assert ((ret & _TFC_ALL) == _TFC_ALL);
-
-  if (!filter->silent) {
-    debug_print (TRUE, "transform_size, direction = %s\n",
-        (direction == GST_PAD_SINK) ? "sink" : "src");
-    GstStructure *structure = gst_caps_get_structure (caps, 0);
-    gchar *str = gst_structure_to_string (structure);
-    debug_print (TRUE, "cap = %s\n", str);
-    g_free (str);
-    structure = gst_caps_get_structure (othercaps, 0);
-    str = gst_structure_to_string (structure);
-    debug_print (TRUE, "othercap = %s\n", str);
-    g_free (str);
-  }
-
-  *othersize = get_tensor_element_count (dim) * tensor_element_size[type];
-
-  return TRUE;
-}
