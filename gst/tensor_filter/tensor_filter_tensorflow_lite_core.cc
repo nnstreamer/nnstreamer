@@ -151,7 +151,10 @@ TFLiteCore::setInputTensorProp ()
   inputTensorSize = input_idx_list.size ();
 
   for (int i = 0; i < inputTensorSize; i++) {
-    if (getTensorDim (input_idx_list[i], inputDimension[i])) {
+    inputTensorRank[i] = NNS_TENSOR_RANK_LIMIT;
+
+    if (getTensorDim (input_idx_list[i], inputDimension[i],
+            &inputTensorRank[i])) {
       return -1;
     }
     inputType[i] =
@@ -179,7 +182,10 @@ TFLiteCore::setOutputTensorProp ()
   outputTensorSize = output_idx_list.size ();
 
   for (int i = 0; i < outputTensorSize; i++) {
-    if (getTensorDim (output_idx_list[i], outputDimension[i])) {
+    outputTensorRank[i] = NNS_TENSOR_RANK_LIMIT;
+
+    if (getTensorDim (output_idx_list[i], outputDimension[i],
+            &outputTensorRank[i])) {
       return -1;
     }
     outputType[i] =
@@ -200,12 +206,14 @@ TFLiteCore::setOutputTensorProp ()
  * @brief	return the Dimension of Tensor.
  * @param tensor_idx	: the real index of model of the tensor
  * @param[out] dim	: the array of the tensor
+ * @param[out] rank	: the rank of the tensor
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim)
+TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, unsigned int *rank)
 {
   int len = interpreter->tensor (tensor_idx)->dims->size;
+  *rank = len;
   g_assert (len <= NNS_TENSOR_RANK_LIMIT);
 
   /* the order of dimension is reversed at CAPS negotiation */
@@ -252,6 +260,9 @@ TFLiteCore::getInputTensorDim (tensor_dim dim, tensor_type * type)
 {
   memcpy (dim, inputDimension[0], sizeof (tensor_dim));
   *type = inputType[0];
+  printf ("[IN]\nDim: %d %d %d %d \nType: %d \nRank: %u\n",
+      inputDimension[0][0], inputDimension[0][1], inputDimension[0][2],
+      inputDimension[0][3], inputType[0], inputTensorRank[0]);
   return inputTensorSize;
 }
 
@@ -267,6 +278,9 @@ TFLiteCore::getOutputTensorDim (tensor_dim dim, tensor_type * type)
 {
   memcpy (dim, outputDimension[0], sizeof (tensor_dim));
   *type = outputType[0];
+  printf ("[OUT]\nDim: %d %d %d %d \nType: %d \nRank: %u\n",
+      outputDimension[0][0], outputDimension[0][1], outputDimension[0][2],
+      outputDimension[0][3], outputType[0], outputTensorRank[0]);
   return outputTensorSize;
 }
 

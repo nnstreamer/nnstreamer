@@ -101,9 +101,9 @@ typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
  */
 typedef struct {
   unsigned int num_tensors;    /**< Number of tensors in each frame */
-  tensor_dim *dims;     /**< Array of tensor_dim, [num_tensors] */
-  tensor_type *types;   /**< Array of tensor_type, [num_tensors] */
-  unsigned int *ranks;          /**< Array of rank, [num_tensors] */
+  tensor_dim dims[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensor_dim, [num_tensors] */
+  tensor_type types[NNS_TENSOR_SIZE_LIMIT];   /**< Array of tensor_type, [num_tensors] */
+  unsigned int ranks[NNS_TENSOR_SIZE_LIMIT];          /**< Array of rank, [num_tensors] */
 } GstTensor_TensorsMeta;
 
 /**

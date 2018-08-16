@@ -69,12 +69,15 @@ private:
   int inputTensorSize; /**< The number of input tensors */
   int outputTensorSize; /**< The number of output tensors */
 
+  unsigned int inputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The rank of input tensors */
+  unsigned int outputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The rank of output tensors */
+
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
 
   double get_ms (struct timeval t);
   _nns_tensor_type getTensorType (TfLiteType tfType);
-  int getTensorDim (int tensor_idx, tensor_dim dim);
+  int getTensorDim (int tensor_idx, tensor_dim dim, unsigned int *rank);
 };
 
 /**

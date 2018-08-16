@@ -972,9 +972,6 @@ get_tensors_from_structure (const GstStructure * str,
     return 0;
 
   meta->num_tensors = num;
-  meta->dims = g_new (tensor_dim, num);
-  meta->types = g_new (tensor_type, num);
-  meta->ranks = (unsigned int *) g_malloc (sizeof (gint) * num);
 
   if (gst_structure_get_int (str, "rank", (int *) &rank)) {
     if (rank != NNS_TENSOR_RANK_LIMIT) {
@@ -983,7 +980,7 @@ get_tensors_from_structure (const GstStructure * str,
     }
   }
   if (0 == rank)
-    goto err_alloc;
+    return 0;
 
   if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
     if (framerate_num)
@@ -1001,17 +998,17 @@ get_tensors_from_structure (const GstStructure * str,
     if (counter >= num) {
       err_print
           ("The number of dimensions does not match the number of tensors.\n");
-      goto err_alloc;
+      return 0;
     }
     ret = get_tensor_dimension (ftrim (strv[counter]), meta->dims[counter]);
     if (ret > NNS_TENSOR_RANK_LIMIT || ret < 1)
-      goto err_alloc;
+      return 0;
     counter++;
   }
   if (counter != num) {
     err_print
         ("The number of dimensions does not match the number of tensors.\n");
-    goto err_alloc;
+    return 0;
   }
   g_strfreev (strv);
 
@@ -1021,29 +1018,19 @@ get_tensors_from_structure (const GstStructure * str,
   while (strv[counter]) {
     if (counter >= num) {
       err_print ("The number of types does not match the number of tensors.\n");
-      goto err_alloc;
+      return 0;
     }
     meta->types[counter] = get_tensor_type (ftrim (strv[counter]));
     if (meta->types[counter] >= _NNS_END)
-      goto err_alloc;
+      return 0;
     counter++;
   }
   if (counter != num) {
     err_print ("The number of types does not match the number of tensors.\n");
-    goto err_alloc;
+    return 0;
   }
   g_strfreev (strv);
   return num;
-
-err_alloc:
-  meta->num_tensors = 0;
-  g_free (meta->dims);
-  meta->dims = NULL;
-  g_free (meta->types);
-  meta->types = NULL;
-  g_free (meta->ranks);
-  meta->ranks = NULL;
-  return 0;
 }
 
 /**
