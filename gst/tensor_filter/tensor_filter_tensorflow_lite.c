@@ -104,17 +104,11 @@ static int
 tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim inputDimension, tensor_type * type)
 {
-  int temp_idx = 0;
   tflite_data *tf;
   tf = *private_data;
-  temp_idx = tflite_core_getInputSize (tf->tflite_private_data);
-  if (temp_idx > 0)
-    temp_idx--;
-  else
-    temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tflite_core_getInputDim (tf->tflite_private_data, temp_idx,
-      inputDimension, type);
+  return tflite_core_getInputDim (tf->tflite_private_data, inputDimension,
+      type);
 }
 
 /**
@@ -124,17 +118,11 @@ static int
 tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
     tensor_dim outputDimension, tensor_type * type)
 {
-  int temp_idx = 0;
   tflite_data *tf;
   tf = *private_data;
-  temp_idx = tflite_core_getOutputSize (tf->tflite_private_data);
-  if (temp_idx > 0)
-    temp_idx--;
-  else
-    temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tflite_core_getOutputDim (tf->tflite_private_data, temp_idx,
-      outputDimension, type);
+  return tflite_core_getOutputDim (tf->tflite_private_data, outputDimension,
+      type);
 }
 
 /**

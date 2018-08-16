@@ -94,7 +94,7 @@ typedef enum {
 } GstTensor_Filter_CheckStatus;
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
-
+typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
 
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
