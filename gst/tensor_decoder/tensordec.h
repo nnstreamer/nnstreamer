@@ -20,7 +20,7 @@
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert tensors to media types
  *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -32,13 +32,10 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
-#include <gst/video/video-info.h>
-#include <gst/video/video-frame.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_TENSORDEC \
   (gst_tensordec_get_type())
 #define GST_TENSORDEC(obj) \
@@ -52,40 +49,26 @@ G_BEGIN_DECLS
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
 
 typedef struct _GstTensorDec GstTensorDec;
-
 typedef struct _GstTensorDecClass GstTensorDecClass;
-
-typedef enum _video_interlaced_mode {
-    _VIDEO_PROGRESSIVE = 0,
-    _VIDEO_PLAIN_INTERLACED,
-    _VIDEO_TELECINE
-} interlaced_mode;
 
 /**
  * @brief Internal data structure for tensordec instances.
  */
 struct _GstTensorDec
 {
-  GstBaseTransform element;	/**< This is the parent object */
+  GstBaseTransform element; /**< This is the parent object */
 
-  /* For transformer */
-  gboolean negotiated; /**< %TRUE if tensor metadata is set */
-  media_type output_media_type; /**< Denotes the input media stream type */
-  gboolean addPadding; /* If TRUE, zero-padding must be removed during transform */
-  gint format;
-  interlaced_mode mode;
-  tensor_dim dimension;
+  /** For transformer */
+  gboolean negotiated; /**< TRUE if tensor metadata is set */
+  gboolean add_padding; /**< If TRUE, zero-padding must be added during transform */
+  gboolean silent; /**< True if logging is minimized */
 
-  /* For Tensor */
-  gboolean silent;	/**< True if logging is minimized */
-  gboolean Configured;	/**< True if already successfully configured tensor metadata */
-  tensor_type type;		/**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
-  gint  views;
-  gint framerate_numerator;	/**< framerate is in fraction, which is numerator/denominator */
-  gint framerate_denominator;	/**< framerate is in fraction, which is numerator/denominator */
+  /** For Tensor */
+  gboolean configured; /**< TRUE if already successfully configured tensor metadata */
+  GstTensorConfig tensor_config; /**< configured tensor info */
 };
 
-/*
+/**
  * @brief GstTensorDecClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
@@ -94,10 +77,10 @@ struct _GstTensorDec
  */
 struct _GstTensorDecClass
 {
-  GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
+  GstBaseTransformClass parent_class; /**< Inherits GstBaseTransformClass */
 };
 
-/*
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensordec_get_type (void);
