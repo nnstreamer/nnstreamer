@@ -122,22 +122,21 @@ _nns_tensor_type TFLiteCore::getTensorType (TfLiteType tfType)
   switch (tfType) {
     case kTfLiteFloat32:
       return _NNS_FLOAT32;
-      break;
     case kTfLiteUInt8:
       return _NNS_UINT8;
-      break;
     case kTfLiteInt32:
       return _NNS_INT32;
-      break;
     case kTfLiteBool:
       return _NNS_INT8;
-      break;
     case kTfLiteInt64:
+      return _NNS_INT64;
     case kTfLiteString:
     default:
-      return _NNS_END;
+      /** @todo Support other types */
       break;
   }
+
+  return _NNS_END;
 }
 
 /**

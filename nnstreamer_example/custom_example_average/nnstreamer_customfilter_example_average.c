@@ -153,7 +153,12 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
     case _NNS_FLOAT64:
       do_avg (double, long double);
       break;
-
+    case _NNS_INT64:
+      do_avg (int64_t, int64_t);
+      break;
+    case _NNS_UINT64:
+      do_avg (uint64_t, uint64_t);
+      break;
     default:
       assert (0);               /* Type Mismatch */
   }

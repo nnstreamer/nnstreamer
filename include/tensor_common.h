@@ -48,7 +48,7 @@ G_BEGIN_DECLS
 #define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0/1, 2147483647/1 ]"
 #define GST_TENSOR_TENSORS_RANGE "(int) [ 1, 65535 ]"
-#define GST_TENSOR_TYPE_ALL "{ float32, float64, int32, uint32, int16, uint16, int8, uint8 }"
+#define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 #define GST_TENSOR_CAP_DEFAULT \
     "other/tensor, " \
@@ -90,7 +90,7 @@ G_BEGIN_DECLS
 typedef enum _nns_media_type
 {
   _NNS_VIDEO = 0, /**< supposedly video/x-raw */
-  _NNS_AUDIO, /**< Not Supported Yet */
+  _NNS_AUDIO, /**< supposedly audio/x-raw */
   _NNS_STRING, /**< Not Supported Yet */
 
   _NNS_MEDIA_END, /**< End Marker */
@@ -131,7 +131,7 @@ typedef struct
   gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
   gsize frame_size; /**< Size of a single tensor frame in # bytes */
   media_type tensor_media_type; /**< Denotes the input media stream type */
-  gint media_format; /**< Denotes the input media stream format */
+  gint tensor_media_format; /**< Denotes the input media stream format */
 } GstTensorConfig;
 
 /**

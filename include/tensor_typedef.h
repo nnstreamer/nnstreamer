@@ -1,7 +1,7 @@
 /**
  * NNStreamer Common Header, Typedef part, for export as devel package.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -47,6 +47,8 @@ typedef enum _nns_tensor_type {
   _NNS_UINT8,
   _NNS_FLOAT64,
   _NNS_FLOAT32,
+  _NNS_INT64,
+  _NNS_UINT64,
 
   _NNS_END,
 } tensor_type;
@@ -63,6 +65,8 @@ static const unsigned int tensor_element_size[] = {
         [_NNS_UINT8] = 1,
         [_NNS_FLOAT64] = 8,
         [_NNS_FLOAT32] = 4,
+        [_NNS_INT64] = 8,
+        [_NNS_UINT64] = 8,
 };
 
 /**

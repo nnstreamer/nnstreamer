@@ -478,6 +478,8 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
     case _NNS_UINT32: castloop(uint32_t, otype, num); break; \
     case _NNS_FLOAT32: castloop(float, otype, num); break; \
     case _NNS_FLOAT64: castloop(double, otype, num); break; \
+    case _NNS_INT64: castloop(int64_t, otype, num); break; \
+    case _NNS_UINT64: castloop(uint64_t, otype, num); break; \
     default: g_assert(0); \
     }; \
   } while (0)
@@ -519,6 +521,12 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
       break;
     case _NNS_FLOAT64:
       numotype_castloop_per_itype (double, num);
+      break;
+    case _NNS_INT64:
+      numotype_castloop_per_itype (int64_t, num);
+      break;
+    case _NNS_UINT64:
+      numotype_castloop_per_itype (uint64_t, num);
       break;
     default:
       g_assert (0);

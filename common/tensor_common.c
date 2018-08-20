@@ -40,6 +40,8 @@ const gchar *tensor_element_typename[] = {
   [_NNS_UINT8] = "uint8",
   [_NNS_FLOAT64] = "float64",
   [_NNS_FLOAT32] = "float32",
+  [_NNS_INT64] = "int64",
+  [_NNS_UINT64] = "uint64",
   [_NNS_END] = NULL,
 };
 
@@ -188,7 +190,7 @@ gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
 
   g_return_val_if_fail (config->tensor_media_type == _NNS_VIDEO, FALSE);
 
-  v_info->format = (GstVideoFormat) config->media_format;
+  v_info->format = (GstVideoFormat) config->tensor_media_format;
   v_info->w = config->dimension[1];
   v_info->h = config->dimension[2];
   v_info->fn = config->rate_n;
@@ -214,7 +216,7 @@ gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
 
   g_return_val_if_fail (config->tensor_media_type == _NNS_AUDIO, FALSE);
 
-  a_info->format = (GstAudioFormat) config->media_format;
+  a_info->format = (GstAudioFormat) config->tensor_media_format;
   a_info->ch = config->dimension[0];
   a_info->frames = config->dimension[1];
   a_info->rate = config->rate_n;
@@ -244,7 +246,7 @@ gst_tensor_config_init (GstTensorConfig * config)
   config->rate_d = -1;
   config->frame_size = 0;
   config->tensor_media_type = _NNS_MEDIA_END;
-  config->media_format = 0;
+  config->tensor_media_format = 0;
 }
 
 /**
@@ -273,7 +275,7 @@ gst_tensor_config_validate (GstTensorConfig * config)
     return FALSE;
   }
 
-  if (config->frame_size == 0 || config->media_format == 0) {
+  if (config->frame_size == 0 || config->tensor_media_format == 0) {
     return FALSE;
   }
 
@@ -305,7 +307,7 @@ gst_tensor_config_is_same (const GstTensorConfig * c1,
     return FALSE;
   }
 
-  if (c1->media_format != c2->media_format) {
+  if (c1->tensor_media_format != c2->tensor_media_format) {
     return FALSE;
   }
 
@@ -377,32 +379,32 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
     if (config->type == _NNS_UINT8) {
       switch (config->dimension[0]) {
         case 3:
-          config->media_format = GST_VIDEO_FORMAT_RGB;
+          config->tensor_media_format = GST_VIDEO_FORMAT_RGB;
           break;
         case 4:
-          config->media_format = GST_VIDEO_FORMAT_BGRx;
+          config->tensor_media_format = GST_VIDEO_FORMAT_BGRx;
           break;
         default:
-          config->media_format = GST_VIDEO_FORMAT_UNKNOWN;
+          config->tensor_media_format = GST_VIDEO_FORMAT_UNKNOWN;
           break;
       }
     }
   } else if (config->tensor_media_type == _NNS_AUDIO) {
     switch (config->type) {
       case _NNS_INT8:
-        config->media_format = GST_AUDIO_FORMAT_S8;
+        config->tensor_media_format = GST_AUDIO_FORMAT_S8;
         break;
       case _NNS_UINT8:
-        config->media_format = GST_AUDIO_FORMAT_U8;
+        config->tensor_media_format = GST_AUDIO_FORMAT_U8;
         break;
       case _NNS_INT16:
-        config->media_format = GST_AUDIO_FORMAT_S16;
+        config->tensor_media_format = GST_AUDIO_FORMAT_S16;
         break;
       case _NNS_UINT16:
-        config->media_format = GST_AUDIO_FORMAT_U16;
+        config->tensor_media_format = GST_AUDIO_FORMAT_U16;
         break;
       default:
-        config->media_format = GST_AUDIO_FORMAT_UNKNOWN;
+        config->tensor_media_format = GST_AUDIO_FORMAT_UNKNOWN;
         break;
     }
   }
@@ -523,7 +525,7 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   }
 
   config->tensor_media_type = _NNS_VIDEO;
-  config->media_format = v_info->format;
+  config->tensor_media_format = v_info->format;
   return res;
 }
 
@@ -589,7 +591,7 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
   }
 
   config->tensor_media_type = _NNS_AUDIO;
-  config->media_format = a_info->format;
+  config->tensor_media_format = a_info->format;
   return res;
 }
 
@@ -792,6 +794,8 @@ get_tensor_type (const gchar * typestr)
         return _NNS_UINT16;
       else if (typestr[4] == '3' && typestr[5] == '2')
         return _NNS_UINT32;
+      else if (typestr[4] == '6' && typestr[5] == '4')
+        return _NNS_UINT64;
     } else if (len == 5) {      /* uint8 */
       if (typestr[4] == '8')
         return _NNS_UINT8;
@@ -806,6 +810,8 @@ get_tensor_type (const gchar * typestr)
         return _NNS_INT16;
       else if (typestr[3] == '3' && typestr[4] == '2')
         return _NNS_INT32;
+      else if (typestr[3] == '6' && typestr[4] == '4')
+        return _NNS_INT64;
     } else if (len == 4) {      /* int8 */
       if (typestr[3] == '8')
         return _NNS_INT8;
