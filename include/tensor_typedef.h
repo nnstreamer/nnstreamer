@@ -129,11 +129,13 @@ typedef struct _GstTensor_Filter_Properties
 
   tensor_dim inputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each input tensors */
   tensor_type inputType[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
+  int inputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
   int inputCapNegotiated; /**< @todo check if this is really needed */
   int inputTensorSize; /**< The number of input tensors */
 
   tensor_dim outputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each output tensors */
   tensor_type outputType[NNS_TENSOR_SIZE_LIMIT];  /**< The list of types for each output tensors */
+  int outputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
   int outputCapNegotiated; /**< @todo check if this is really needed */
   int outputTensorSize; /**< The number of output tensors */
 

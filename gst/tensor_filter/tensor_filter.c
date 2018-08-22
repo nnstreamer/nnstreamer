@@ -548,26 +548,38 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (!(prop->inputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int rank = get_tensor_dimension (g_value_get_string (value),
-            prop->inputDimension[0]);
-        g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
+        int i;
+        prop->inputTensorSize =
+            get_tensor_dimension (g_value_get_string (value),
+            prop->inputDimension, prop->inputTensorRank);
+        for (i = 0; i < prop->inputTensorSize; i++) {
+          g_assert (prop->inputTensorRank[i] > 0
+              && prop->inputTensorRank[i] <= NNS_TENSOR_RANK_LIMIT);
+          silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
+              prop->inputDimension[i][0], prop->inputDimension[i][1],
+              prop->inputDimension[i][2], prop->inputDimension[i][3],
+              prop->inputTensorRank[i]);
+        }
         prop->inputConfigured |= _TFC_DIMENSION;
-        silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
-            prop->inputDimension[0][0], prop->inputDimension[0][1],
-            prop->inputDimension[0][2], prop->inputDimension[0][3], rank);
       }
       break;
     case PROP_OUTPUT:
       g_assert (!(prop->outputConfigured & _TFC_DIMENSION) && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int rank = get_tensor_dimension (g_value_get_string (value),
-            prop->outputDimension[0]);
-        g_assert (rank > 0 && rank <= NNS_TENSOR_RANK_LIMIT);
+        int i;
+        prop->outputTensorSize =
+            get_tensor_dimension (g_value_get_string (value),
+            prop->outputDimension, prop->outputTensorRank);
+        for (i = 0; i < prop->outputTensorSize; i++) {
+          g_assert (prop->outputTensorRank[i] > 0
+              && prop->outputTensorRank[i] <= NNS_TENSOR_RANK_LIMIT);
+          silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
+              prop->outputDimension[i][0], prop->outputDimension[i][1],
+              prop->outputDimension[i][2], prop->outputDimension[i][3],
+              prop->outputTensorRank[i]);
+        }
         prop->outputConfigured |= _TFC_DIMENSION;
-        silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
-            prop->outputDimension[0][0], prop->outputDimension[0][1],
-            prop->outputDimension[0][2], prop->outputDimension[0][3], rank);
       }
       break;
     case PROP_INPUTTYPE:

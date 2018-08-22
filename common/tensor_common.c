@@ -990,26 +990,35 @@ find_key_strv (const gchar ** strv, const gchar * key)
  * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  */
 int
-get_tensor_dimension (const gchar * param, uint32_t dim[NNS_TENSOR_RANK_LIMIT])
+get_tensor_dimension (const gchar * param,
+    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT],
+    int rank[NNS_TENSOR_SIZE_LIMIT])
 {
-  gchar **strv = g_strsplit (param, ":", NNS_TENSOR_RANK_LIMIT);
-  int i, retval = 0;
+  int i, j = 0;
   guint64 val;
+  gchar **_strv = g_strsplit (param, ",./", -1);
+  gint num_tensor = g_strv_length (_strv);
 
-  g_assert (strv != NULL);
+  for (i = 0; i < num_tensor; i++) {
+    gchar **strv = g_strsplit (_strv[i], ":", NNS_TENSOR_RANK_LIMIT);
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (strv[i] == NULL)
-      break;
-    val = g_ascii_strtoull (strv[i], NULL, 10);
-    dim[i] = val;
-    retval = i + 1;
+    g_assert (strv != NULL);
+
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      if (strv[j] == NULL)
+        break;
+      val = g_ascii_strtoull (strv[j], NULL, 10);
+      dim[i][j] = val;
+      rank[i] = j + 1;
+    }
+    for (; j < NNS_TENSOR_RANK_LIMIT; j++)
+      dim[i][j] = 1;
+    g_strfreev (strv);
   }
-  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
-    dim[i] = 1;
 
-  g_strfreev (strv);
-  return retval;
+  g_strfreev (_strv);
+
+  return num_tensor;
 }
 
 /**
@@ -1094,7 +1103,7 @@ get_tensors_from_structure (const GstStructure * str,
     GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denom)
 {
   int num = 0;
-  int rank = 0;
+  int rank[NNS_TENSOR_SIZE_LIMIT];
   const gchar *strval;
   gint fn = 0, fd = 0;
   gchar **strv;
@@ -1112,14 +1121,21 @@ get_tensors_from_structure (const GstStructure * str,
 
   meta->num_tensors = num;
 
-  if (gst_structure_get_int (str, "rank", (int *) &rank)) {
-    if (rank != NNS_TENSOR_RANK_LIMIT) {
+  strval = gst_structure_get_string (str, "rank");
+
+  strv = g_strsplit (strval, ",./", -1);
+  counter = 0;
+  while (strv[counter]) {
+    rank[counter] = g_ascii_strtod (strv[counter], NULL);
+    if (rank[counter] != NNS_TENSOR_RANK_LIMIT) {
       err_print ("rank value of other/tensors incorrect.\n");
-      rank = 0;
+      rank[counter] = 0;
+      return 0;
     }
+    counter++;
   }
-  if (0 == rank)
-    return 0;
+
+  g_strfreev (strv);
 
   if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
     if (framerate_num)
@@ -1129,27 +1145,14 @@ get_tensors_from_structure (const GstStructure * str,
   }
 
   strval = gst_structure_get_string (str, "dimensions");
-  strv = g_strsplit (strval, ",", -1);
-  counter = 0;
-  while (strv[counter]) {
-    int ret;
 
-    if (counter >= num) {
-      err_print
-          ("The number of dimensions does not match the number of tensors.\n");
-      return 0;
-    }
-    ret = get_tensor_dimension (ftrim (strv[counter]), meta->dims[counter]);
-    if (ret > NNS_TENSOR_RANK_LIMIT || ret < 1)
-      return 0;
-    counter++;
-  }
+  counter = get_tensor_dimension (strval, meta->dims, rank);
+
   if (counter != num) {
     err_print
         ("The number of dimensions does not match the number of tensors.\n");
     return 0;
   }
-  g_strfreev (strv);
 
   strval = gst_structure_get_string (str, "types");
   strv = g_strsplit (strval, ",", -1);
