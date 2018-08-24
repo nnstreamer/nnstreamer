@@ -93,8 +93,7 @@ enum
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-    );
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
 
 /**
  * @brief The capabilities of the outputs
@@ -102,8 +101,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
-    );
+    GST_STATIC_CAPS ("ANY"));
 
 #define gst_tensordec_parent_class parent_class
 G_DEFINE_TYPE (GstTensorDec, gst_tensordec, GST_TYPE_BASE_TRANSFORM);
@@ -146,13 +144,8 @@ gst_tensordec_media_caps_from_structure (GstTensorDec * self,
   }
 
   if (result == NULL) {
-    /** raw caps for video, audio */
-    GstStaticCaps caps_video = GST_STATIC_CAPS (GST_TENSOR_VIDEO_CAPS_STR);
-    GstStaticCaps caps_audio = GST_STATIC_CAPS (GST_TENSOR_AUDIO_CAPS_STR);
-
-    result = gst_caps_merge (gst_static_caps_get (&caps_video),
-        gst_static_caps_get (&caps_audio));
-    result = gst_caps_simplify (result);
+    /** raw caps for supported media types */
+    result = gst_caps_from_string (GST_TENSOR_MEDIA_CAPS_STR);
   }
 
   return result;
@@ -322,6 +315,7 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
       break;
     }
     case _NNS_AUDIO:
+    case _NNS_STRING:
       break;
     default:
       err_print ("Unsupported type %d\n", config.tensor_media_type);
@@ -414,9 +408,9 @@ gst_tensordec_transform (GstBaseTransform * trans,
   switch (config->tensor_media_type) {
     case _NNS_VIDEO:
     case _NNS_AUDIO:
+    case _NNS_STRING:
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
       break;
-    case _NNS_STRING:
     default:
       err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
       goto unknown_type;
@@ -464,8 +458,8 @@ gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
       }
       break;
     case _NNS_AUDIO:
-      break;
     case _NNS_STRING:
+      break;
     default:
       err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
       goto unknown_type;
@@ -504,6 +498,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
   self = GST_TENSORDEC_CAST (trans);
 
+  silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
 
@@ -512,14 +507,13 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
    * Currently video/x-raw and audio/x-raw supported.
    */
   if (direction == GST_PAD_SINK) {
+    /** caps from media */
     GstStructure *s = gst_caps_get_structure (caps, 0);
     result = gst_tensordec_media_caps_from_structure (self, s);
   } else if (direction == GST_PAD_SRC) {
     /** caps from tensor */
-    GstStaticCaps raw_caps = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-    result = gst_static_caps_get (&raw_caps);
+    result = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
   } else {
-    silent_debug ("Direction = %d\n", direction);
     g_assert (0);
     return NULL;
   }
@@ -652,7 +646,7 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
 
     *othersize = offset * config->dimension[2] * config->dimension[3];
   } else {
-    *othersize = self->tensor_config.frame_size;
+    *othersize = size;
   }
 
   return TRUE;

@@ -30,6 +30,7 @@ SET(PKG_MODULES
 	gstreamer-controller-1.0
 	gstreamer-video-1.0
 	gstreamer-audio-1.0
+	gstreamer-app-1.0
 	glib-2.0
 )
 

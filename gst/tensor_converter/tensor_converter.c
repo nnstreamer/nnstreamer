@@ -120,19 +120,13 @@ enum
  */
 #define DEFAULT_FRAMES_PER_BUFFER 0
 
-#define SINK_CAPS \
-    GST_STATIC_CAPS (GST_TENSOR_VIDEO_CAPS_STR "; " GST_TENSOR_AUDIO_CAPS_STR)
-
-#define SRC_CAPS \
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-
 /**
  * @brief The capabilities of the inputs
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    SINK_CAPS);
+    GST_STATIC_CAPS (GST_TENSOR_MEDIA_CAPS_STR));
 
 /**
  * @brief The capabilities of the outputs
@@ -140,7 +134,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    SRC_CAPS);
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
 
 #define gst_tensor_converter_parent_class parent_class
 G_DEFINE_TYPE (GstTensorConverter, gst_tensor_converter,
@@ -185,6 +179,75 @@ gst_tensor_converter_check_consistency (GstTensorConverter * self,
 
   /** not configured yet */
   return FALSE;
+}
+
+/**
+ * @brief Validate newly configured tensor metadata
+ * @param self "this" pointer
+ * @param config newly configured tensor metadata
+ */
+static gboolean
+gst_tensor_converter_validate_config (GstTensorConverter * self,
+    const GstTensorConfig * config)
+{
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  if (self->tensor_configured &&
+      !gst_tensor_converter_check_consistency (self, config)) {
+    /** mismatched to old metadata */
+    return FALSE;
+  }
+
+  if (!gst_tensor_config_validate (config)) {
+    /** not fully configured */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Get output frame size
+ * @param self "this" pointer
+ * @param in_size received buffer size
+ */
+static gsize
+gst_tensor_converter_get_frame_size (GstTensorConverter * self, gsize in_size)
+{
+  GstTensorConfig *config;
+  gsize out_size = 0;
+
+  g_assert (self->tensor_configured);
+  config = &self->tensor_config;
+
+  /**
+   * @todo Do we need to aggregate the buffers to meet tensor dimension?
+   * video : supposed 1 frame per buffer.
+   * audio : we can get samples in buffer, but it would not be equal to tensor dimension.
+   * text : just passes the size of bytearray.
+   */
+  switch (config->tensor_media_type) {
+    case _NNS_VIDEO:
+      out_size =
+          tensor_element_size[config->type] *
+          get_tensor_element_count (config->dimension);
+      break;
+    case _NNS_AUDIO:
+      /**
+       * samples in buffer = size / GST_AUDIO_INFO_BPF (&self->in_info.audio)
+       */
+      out_size = in_size;
+      break;
+    case _NNS_STRING:
+      out_size = in_size;
+      break;
+    default:
+      /** unsupported type */
+      break;
+  }
+
+  return out_size;
 }
 
 /**
@@ -250,9 +313,7 @@ gst_tensor_converter_configure_for_video (GstTensorConverter * self,
     return FALSE;
   }
 
-  if (self->tensor_configured &&
-      !gst_tensor_converter_check_consistency (self, &config)) {
-    /** mismatched to old metadata */
+  if (!gst_tensor_converter_validate_config (self, &config)) {
     return FALSE;
   }
 
@@ -303,14 +364,42 @@ gst_tensor_converter_configure_for_audio (GstTensorConverter * self,
     return FALSE;
   }
 
-  if (self->tensor_configured &&
-      !gst_tensor_converter_check_consistency (self, &config)) {
-    /** mismatched to old metadata */
+  if (!gst_tensor_converter_validate_config (self, &config)) {
     return FALSE;
   }
 
   self->tensor_config = config;
   self->in_info.audio = info;
+  return TRUE;
+}
+
+/**
+ * @brief Configure tensor metadata for text (internal static function)
+ * @param self "this" pointer to be configured.
+ * @param caps the sink cap.
+ * @return FALSE if error. TRUE if ok.
+ */
+static gboolean
+gst_tensor_converter_configure_for_text (GstTensorConverter * self,
+    const GstCaps * caps)
+{
+  GstStructure *structure;
+  GstTensorConfig config;
+  GstTensorTextInfo t_info;
+
+  structure = gst_caps_get_structure (caps, 0);
+  gst_tensor_text_info_from_structure (&t_info, structure);
+
+  if (!gst_tensor_config_from_text_info (&config, &t_info)) {
+    /** unsupported format */
+    return FALSE;
+  }
+
+  if (!gst_tensor_converter_validate_config (self, &config)) {
+    return FALSE;
+  }
+
+  self->tensor_config = config;
   return TRUE;
 }
 
@@ -328,20 +417,22 @@ gst_tensor_converter_configure_tensor (GstTensorConverter * self,
 
   m_type = gst_tensor_media_type_from_caps (caps);
 
-  /** @todo Support other types */
   switch (m_type) {
     case _NNS_VIDEO:
       if (!gst_tensor_converter_configure_for_video (self, caps)) {
         return FALSE;
       }
       break;
-
     case _NNS_AUDIO:
       if (!gst_tensor_converter_configure_for_audio (self, caps)) {
         return FALSE;
       }
       break;
-
+    case _NNS_STRING:
+      if (!gst_tensor_converter_configure_for_text (self, caps)) {
+        return FALSE;
+      }
+      break;
     default:
       err_print ("Unsupported type %d\n", m_type);
       return FALSE;
@@ -500,11 +591,12 @@ gst_tensor_converter_copy_buffer (GstTensorConverter * self,
   g_assert (self->tensor_configured);
 
   config = &self->tensor_config;
-  block_size = config->frame_size;
-  g_assert (gst_buffer_get_size (outbuf) >= block_size);
 
   g_assert (gst_buffer_map (inbuf, &src_info, GST_MAP_READ));
   g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE));
+
+  block_size = gst_tensor_converter_get_frame_size (self, src_info.size);
+  g_assert (gst_buffer_get_size (outbuf) >= block_size);
 
   srcptr = src_info.data;
   destptr = dest_info.data;
@@ -573,10 +665,9 @@ gst_tensor_converter_transform (GstBaseTransform * trans,
   switch (config->tensor_media_type) {
     case _NNS_VIDEO:
     case _NNS_AUDIO:
+    case _NNS_STRING:
       res = gst_tensor_converter_copy_buffer (self, inbuf, outbuf);
       break;
-
-    case _NNS_STRING:
     default:
       err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
       goto unknown_type;
@@ -653,9 +744,9 @@ gst_tensor_converter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
       break;
 
     case _NNS_AUDIO:
+    case _NNS_STRING:
       break;
 
-    case _NNS_STRING:
     default:
       err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
       goto unknown_type;
@@ -694,6 +785,7 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
 
   self = GST_TENSOR_CONVERTER_CAST (trans);
 
+  silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
 
@@ -701,10 +793,8 @@ gst_tensor_converter_transform_caps (GstBaseTransform * trans,
     GstStructure *s = gst_caps_get_structure (caps, 0);
     result = gst_tensor_converter_caps_from_structure (self, s);
   } else if (direction == GST_PAD_SRC) {
-    GstStaticCaps raw_sink_caps = SINK_CAPS;
-    result = gst_static_caps_get (&raw_sink_caps);
+    result = gst_caps_from_string (GST_TENSOR_MEDIA_CAPS_STR);
   } else {
-    silent_debug ("Direction = %d\n", direction);
     g_assert (0);
     return NULL;
   }
@@ -838,9 +928,9 @@ gst_tensor_converter_transform_size (GstBaseTransform * trans,
   self = GST_TENSOR_CONVERTER_CAST (trans);
 
   g_assert (self->tensor_configured);
-  *othersize = self->tensor_config.frame_size;
+  *othersize = gst_tensor_converter_get_frame_size (self, size);
 
-  return TRUE;
+  return (*othersize > 0);
 }
 
 /**
