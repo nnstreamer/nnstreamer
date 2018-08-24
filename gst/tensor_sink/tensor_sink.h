@@ -19,7 +19,7 @@
  * @file	tensor_sink.h
  * @date	15 June 2018
  * @brief	GStreamer plugin to handle tensor stream
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items

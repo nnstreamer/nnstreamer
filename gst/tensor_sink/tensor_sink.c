@@ -23,7 +23,7 @@
  * @file	tensor_sink.c
  * @date	15 June 2018
  * @brief	GStreamer plugin to handle tensor stream
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -84,26 +84,11 @@ enum
 #define DEFAULT_SILENT TRUE
 
 /**
- * @brief Flag to synchronize on the clock.
- *
- * See GstBaseSink:sync property for more details.
- */
-#define DEFAULT_SYNC TRUE
-
-/**
  * @brief Flag for qos event.
  *
  * See GstBaseSink:qos property for more details.
  */
 #define DEFAULT_QOS TRUE
-
-/**
- * @brief Max lateness to handle delayed buffer.
- *
- * Default 30ms.
- * See GstBaseSink:max-lateness property for more details.
- */
-#define DEFAULT_LATENESS (30 * GST_MSECOND)
 
 /**
  * @brief Template for sink pad.
@@ -246,9 +231,7 @@ gst_tensor_sink_init (GstTensorSink * self)
   self->last_render_time = GST_CLOCK_TIME_NONE;
   self->in_caps = NULL;
 
-  /** enable qos event */
-  gst_base_sink_set_sync (bsink, DEFAULT_SYNC);
-  gst_base_sink_set_max_lateness (bsink, DEFAULT_LATENESS);
+  /** enable qos */
   gst_base_sink_set_qos_enabled (bsink, DEFAULT_QOS);
 }
 

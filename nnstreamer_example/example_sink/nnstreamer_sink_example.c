@@ -2,6 +2,7 @@
  * @file	nnstreamer_sink_example.c
  * @date	3 July 2018
  * @brief	Sample code for tensor sink plugin
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
@@ -14,7 +15,10 @@
  * $ ./nnstreamer_sink_example
  */
 
+#include <stdlib.h>
+#include <string.h>
 #include <gst/gst.h>
+#include <gst/app/gstappsrc.h>
 
 /**
  * @brief Macro for debug mode.
@@ -38,6 +42,16 @@
   }
 
 /**
+ * @brief Test media type.
+ */
+typedef enum
+{
+  TEST_TYPE_VIDEO,
+  TEST_TYPE_AUDIO,
+  TEST_TYPE_TEXT
+} test_media_type;
+
+/**
  * @brief Data structure for app.
  */
 typedef struct
@@ -47,6 +61,7 @@ typedef struct
   GstBus *bus; /**< gst bus for test */
 
   guint received; /**< received buffer count */
+  test_media_type media_type; /**< test media type */
 } AppData;
 
 /**
@@ -61,6 +76,10 @@ static void
 _free_app_data (void)
 {
   if (g_app.loop) {
+    if (g_main_loop_is_running (g_app.loop)) {
+      g_main_loop_quit (g_app.loop);
+    }
+
     g_main_loop_unref (g_app.loop);
     g_app.loop = NULL;
   }
@@ -183,7 +202,11 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 
       if (gst_memory_map (mem, &info, GST_MAP_READ)) {
         /** check data (info.data, info.size) */
-        _print_log ("received %zd", info.size);
+        if (g_app.media_type == TEST_TYPE_TEXT) {
+          _print_log ("received %zd [%s]", info.size, (gchar *) info.data);
+        } else {
+          _print_log ("received %zd", info.size);
+        }
 
         gst_memory_unmap (mem, &info);
       }
@@ -238,16 +261,71 @@ _eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 }
 
 /**
+ * @brief Timer callback to push buffer.
+ * @return True to ensure the timer continues
+ */
+static gboolean
+_test_src_timer_cb (gpointer user_data)
+{
+  GstElement *appsrc;
+  GstBuffer *buf;
+  GstMapInfo info;
+  guint buffer_index;
+
+  buffer_index = g_app.received + 1;
+  appsrc = gst_bin_get_by_name (GST_BIN (g_app.pipeline), "appsrc");
+
+  switch (g_app.media_type) {
+    case TEST_TYPE_TEXT:
+    {
+      gchar *text_data;
+
+      /** send 20 text buffers */
+      if (buffer_index > 20) {
+        if (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)) != GST_FLOW_OK) {
+          _print_log ("failed to indicate eos");
+        }
+        return FALSE;
+      }
+
+      text_data = g_strdup_printf ("example for text [%d/20]", buffer_index);
+
+      buf = gst_buffer_new_allocate (NULL, strlen (text_data) + 1, NULL);
+      gst_buffer_map (buf, &info, GST_MAP_WRITE);
+
+      strcpy ((gchar *) info.data, text_data);
+
+      gst_buffer_unmap (buf, &info);
+
+      GST_BUFFER_PTS (buf) = 20 * GST_MSECOND * buffer_index;
+      GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf);
+
+      if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
+        _print_log ("failed to push buffer [%d]", buffer_index);
+      }
+
+      g_free (text_data);
+      break;
+    }
+    default:
+      /** nothing to do */
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Test pipeline for given type.
- * @param type 0 for video test, 1 for audio test
+ * @param type test media type
  */
 static gchar *
-_test_pipeline (guint type)
+_test_pipeline (test_media_type type)
 {
   gchar *str_pipeline;
 
   switch (type) {
-    case 0:
+    case TEST_TYPE_VIDEO:
       /** video 640x480 30fps 100 buffers */
       str_pipeline =
           g_strdup_printf
@@ -255,11 +333,19 @@ _test_pipeline (guint type)
           "tensor_converter ! tensor_sink name=tensor_sink");
       break;
 
-    case 1:
-      /** audio sample rate 16000 10 buffers */
+    case TEST_TYPE_AUDIO:
+      /** audio sample rate 16000 (16 bits, signed, little endian) 30 buffers */
       str_pipeline =
           g_strdup_printf
-          ("audiotestsrc num-buffers=10 samplesperbuffer=16000 ! audio/x-raw,rate=16000 ! "
+          ("audiotestsrc num-buffers=30 ! audio/x-raw,format=S16LE,rate=16000 ! "
+          "tensor_converter ! tensor_sink name=tensor_sink");
+      break;
+
+    case TEST_TYPE_TEXT:
+      /** text 20 buffers */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
           "tensor_converter ! tensor_sink name=tensor_sink");
       break;
 
@@ -276,23 +362,28 @@ _test_pipeline (guint type)
 int
 main (int argc, char **argv)
 {
+  test_media_type test_type = TEST_TYPE_VIDEO;
   gchar *str_pipeline;
   gulong handle_id;
   GstStateChangeReturn state_ret;
   GstElement *element;
+
+  if (argc > 1) {
+    test_type = atoi (argv[1]);
+  }
 
   /** init gstreamer */
   gst_init (&argc, &argv);
 
   /** init app variable */
   g_app.received = 0;
+  g_app.media_type = test_type;
 
   /** main loop and pipeline */
   g_app.loop = g_main_loop_new (NULL, FALSE);
   _check_cond_err (g_app.loop != NULL);
 
-  /** set type 1 for audio test */
-  str_pipeline = _test_pipeline (0);
+  str_pipeline = _test_pipeline (test_type);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
@@ -337,6 +428,8 @@ main (int argc, char **argv)
   /** start pipeline */
   state_ret = gst_element_set_state (g_app.pipeline, GST_STATE_PLAYING);
   _check_cond_err (state_ret != GST_STATE_CHANGE_FAILURE);
+
+  _check_cond_err (g_timeout_add (20, _test_src_timer_cb, NULL) > 0);
 
   /** run main loop */
   g_main_loop_run (g_app.loop);

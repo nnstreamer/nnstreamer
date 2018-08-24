@@ -286,14 +286,14 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "sync", &res_sync, NULL);
   EXPECT_EQ (res_sync, !sync);
 
-  /** GstBaseSink:max-lateness 30ms */
+  /** GstBaseSink:max-lateness -1 (unlimited time) */
   g_object_get (g_test_data.sink, "max-lateness", &lateness, NULL);
-  EXPECT_EQ (lateness, (30 * GST_MSECOND));
+  EXPECT_EQ (lateness, -1);
 
-  /** -1 means unlimited time */
-  g_object_set (g_test_data.sink, "max-lateness", (gint64) (-1), NULL);
+  lateness = 30 * GST_MSECOND;
+  g_object_set (g_test_data.sink, "max-lateness", lateness, NULL);
   g_object_get (g_test_data.sink, "max-lateness", &res_lateness, NULL);
-  EXPECT_EQ (res_lateness, -1);
+  EXPECT_EQ (res_lateness, lateness);
 
   /** GstBaseSink:qos TRUE */
   g_object_get (g_test_data.sink, "qos", &qos, NULL);
