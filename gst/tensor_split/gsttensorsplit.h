@@ -17,7 +17,7 @@
  */
 /**
  * @file	gsttensorsplit.h
- * @date	03 July 2018
+ * @date	27 Aug 2018
  * @brief	GStreamer plugin to split tensor (as a filter for other general neural network filters)
  * @bug         No known bugs
  *

@@ -17,7 +17,7 @@
  */
 /**
  * @file	gsttensorsplit.c
- * @date	03 July 2018
+ * @date	27 Aug 2018
  * @brief	GStreamer plugin to split tensor (as a filter for other general neural network filters)
  * @bug         No known bugs
  *
@@ -51,10 +51,10 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
-#include <stdlib.h>
 
 #include "gsttensorsplit.h"
 #include <tensor_meta.h>
+#include <tensor_common.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_split_debug);
 #define GST_CAT_DEFAULT gst_tensor_split_debug
@@ -120,13 +120,13 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
 
-  g_object_class_install_property (gobject_class, PROP_TENSORSEG,
-      g_param_spec_boolean ("segment", "Segment", "How to split tensor ?",
-          FALSE, G_PARAM_READWRITE));
-
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
       g_param_spec_string ("tensorpick", "TensorPick",
           "Choose nth tensor among tensors ?", "", G_PARAM_READWRITE));
+
+  g_object_class_install_property (gobject_class, PROP_TENSORSEG,
+      g_param_spec_string ("tensorseg", "TensorSeg",
+          "How to split tensor ?", "", G_PARAM_READWRITE));
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_split_change_state);
@@ -168,6 +168,7 @@ gst_tensor_split_init (GstTensorSplit * tensor_split)
   tensor_split->have_group_id = FALSE;
   tensor_split->group_id = G_MAXUINT;
   tensor_split->srcpads = NULL;
+  gst_tensor_config_init (&tensor_split->sink_tensor_conf);
 }
 
 /**
@@ -212,6 +213,13 @@ gst_tensor_split_get_capsparam (GstTensorSplit * tensor_split, GstCaps * caps)
 {
   gboolean ret = FALSE;
 
+  GstStructure *s = gst_caps_get_structure (caps, 0);
+  if (gst_structure_has_name (s, "other/tensor")) {
+    gst_tensor_config_from_structure (&tensor_split->sink_tensor_conf, s);
+
+    ret = TRUE;
+  }
+
   return ret;
 }
 
@@ -229,7 +237,10 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      gst_tensor_split_get_capsparam (tensor_split, caps);
+      if (!gst_tensor_split_get_capsparam (tensor_split, caps)) {
+        GST_ELEMENT_ERROR (tensor_split, STREAM, WRONG_TYPE,
+            ("This stream contains no valid type."), NULL);
+      }
       return gst_pad_event_default (pad, parent, event);
     }
     case GST_EVENT_EOS:
@@ -248,6 +259,7 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
   }
 }
 
+
 /**
  * @brief chain function for sink (gst element vmethod)
  */
@@ -255,7 +267,7 @@ static GstFlowReturn
 gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstFlowReturn res = GST_FLOW_OK;
-
+  /* NYI */
   return res;
 }
 
@@ -331,7 +343,7 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
         num = g_strv_length (p);
         d = g_new0 (tensor_dim, 1);
         for (k = 0; k < num; k++) {
-          (*d)[k] = atoi (p[k]);
+          (*d)[k] = g_ascii_strtod (p[k], NULL);
         }
         g_array_append_val (self->tensorseg, d);
         g_strfreev (p);
@@ -352,10 +364,10 @@ static void
 gst_tensor_split_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensorSplit *filter = GST_TENSOR_SPLIT (object);
+  GstTensorSplit *self = GST_TENSOR_SPLIT (object);
   switch (prop_id) {
     case PROP_SILENT:
-      g_value_set_boolean (value, filter->silent);
+      g_value_set_boolean (value, self->silent);
       break;
     case PROP_TENSORPICK:
     {
@@ -364,7 +376,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       GPtrArray *arr = g_ptr_array_new ();
       gchar **strings;
 
-      for (list = filter->tensorpick; list != NULL; list = list->next) {
+      for (list = self->tensorpick; list != NULL; list = list->next) {
         g_ptr_array_add (arr, g_strdup_printf ("%i",
                 GPOINTER_TO_INT (list->data)));
       }
@@ -377,9 +389,27 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
     }
     case PROP_TENSORSEG:
     {
+      tensor_dim *dim = NULL;
+      int i, j;
+      gchar **strings;
+      gchar *p = "";
+      gchar *strv = "";
+
+      for (i = 0; i < self->tensorseg->len; i++) {
+        GPtrArray *arr = g_ptr_array_new ();
+        dim = g_array_index (self->tensorseg, tensor_dim *, i);
+        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+          g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
+        }
+        g_ptr_array_add (arr, NULL);
+        strings = (gchar **) g_ptr_array_free (arr, FALSE);
+        p = g_strjoinv (":", strings);
+        g_free (strings);
+        strv = g_strjoin (",", strv, p, NULL);
+      }
+      g_value_set_string (value, strv);
       break;
     }
-
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
