@@ -33,7 +33,6 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
-#include <tensor_meta.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_SPLIT (gst_tensor_split_get_type ())

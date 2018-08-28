@@ -259,6 +259,201 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
   }
 }
 
+/**
+ * @brief Checking if the source pad is created and if not, create TensorPad
+ * @param tesnor_split TensorSplit Object
+ * @param inbuf inputbuf GstBuffer Object including GstMeta
+ * @param[out] created will be updated in this function
+ * @param nth source ordering
+ * @return TensorPad if pad is already created, then return created pad.
+ *         If not return new pad after creation.
+ */
+static GstTensorPad *
+gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
+    gboolean * created, gint nth)
+{
+  GSList *walk;
+  walk = tensor_split->srcpads;
+  while (walk) {
+    GstTensorPad *pad = (GstTensorPad *) walk->data;
+    if (nth == pad->nth) {
+      if (created) {
+        *created = FALSE;
+      }
+      return pad;
+    }
+    walk = walk->next;
+  }
+
+  GstPad *pad;
+  GstTensorPad *tensorpad;
+  gchar *name;
+  GstEvent *event;
+  gchar *stream_id;
+  GstCaps *caps;
+  gchar *caps_string;
+  tensor_dim *dim;
+  tensor_type type;
+
+  tensorpad = g_new0 (GstTensorPad, 1);
+  GST_DEBUG_OBJECT (tensor_split, "createing pad: %d(%dth)",
+      tensor_split->num_srcpads, nth);
+
+  name = g_strdup_printf ("src_%u", tensor_split->num_srcpads);
+  pad = gst_pad_new_from_static_template (&src_templ, name);
+  g_free (name);
+
+  tensorpad->pad = pad;
+  tensorpad->nth = nth;
+  tensorpad->last_ret = GST_FLOW_OK;
+  tensorpad->last_ts = GST_CLOCK_TIME_NONE;
+  tensorpad->discont = TRUE;
+
+  tensor_split->srcpads = g_slist_append (tensor_split->srcpads, tensorpad);
+  dim =
+      g_array_index (tensor_split->tensorseg, tensor_dim *,
+      tensor_split->num_srcpads);
+  type = tensor_split->sink_tensor_conf.type;
+
+  tensor_split->num_srcpads++;
+
+  gst_pad_use_fixed_caps (pad);
+  gst_pad_set_active (pad, TRUE);
+
+  if (!tensor_split->have_group_id) {
+    event =
+        gst_pad_get_sticky_event (tensor_split->sinkpad, GST_EVENT_STREAM_START,
+        0);
+    if (event) {
+      tensor_split->have_group_id =
+          gst_event_parse_group_id (event, &tensor_split->group_id);
+      gst_event_unref (event);
+    } else if (!tensor_split->have_group_id) {
+      tensor_split->have_group_id = TRUE;
+      tensor_split->group_id = gst_util_group_id_next ();
+    }
+  }
+
+  stream_id =
+      gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (tensor_split),
+      "other/tensor");
+
+  event = gst_event_new_stream_start (stream_id);
+  if (tensor_split->have_group_id)
+    gst_event_set_group_id (event, tensor_split->group_id);
+
+  gst_pad_store_sticky_event (pad, event);
+  g_free (stream_id);
+  gst_event_unref (event);
+
+  caps_string = g_strdup_printf ("other/tensor, "
+      "rank = (int)4, "
+      "type = (string)%s,"
+      "framerate = (fraction) %d/%d, "
+      "dim1 = (int) %d, "
+      "dim2 = (int) %d, "
+      "dim3 = (int) %d, "
+      "dim4 = (int) %d", tensor_element_typename[type],
+      tensor_split->sink_tensor_conf.rate_n,
+      tensor_split->sink_tensor_conf.rate_d, (*dim)[0], (*dim)[1], (*dim)[2],
+      (*dim)[3]);
+
+  caps = gst_caps_from_string (caps_string);
+  GST_DEBUG_OBJECT (tensor_split, "caps for pad : %s", caps_string);
+
+  g_free (caps_string);
+  gst_pad_set_caps (pad, caps);
+  gst_element_add_pad (GST_ELEMENT_CAST (tensor_split), pad);
+
+  gst_caps_unref (caps);
+
+  if (created) {
+    *created = TRUE;
+  }
+
+  if (tensor_split->tensorpick != NULL) {
+    GST_DEBUG_OBJECT (tensor_split, "TensorPick is set! : %dth tensor\n", nth);
+    if (g_list_length (tensor_split->tensorpick) == tensor_split->num_srcpads) {
+      gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_split));
+    }
+  }
+
+  return tensorpad;
+}
+
+/**
+ * @brief Check the status among sources in split
+ * @param tensor_split TensorSplit Object
+ * @param TensorPad Tensorpad
+ * @param ret return status of current pad
+ * @return return status after check sources
+ */
+static GstFlowReturn
+gst_tensorsplit_combine_flows (GstTensorSplit * tensor_split,
+    GstTensorPad * pad, GstFlowReturn ret)
+{
+  GSList *walk;
+  pad->last_ret = ret;
+
+  if (ret != GST_FLOW_NOT_LINKED)
+    goto done;
+
+  for (walk = tensor_split->srcpads; walk; walk = g_slist_next (walk)) {
+    GstTensorPad *opad = (GstTensorPad *) walk->data;
+    ret = opad->last_ret;
+    if (ret != GST_FLOW_NOT_LINKED)
+      goto done;
+  }
+done:
+  return ret;
+}
+
+/**
+ * @brief Make Splited Tensor
+ * @param tensor_split TensorSplit Object
+ * @param buffer gstbuffer form src
+ * @param nth orther of tensor
+ * @return return GstMemory for splited tensor
+ */
+static GstMemory *
+gst_get_splited_tensor (GstTensorSplit * split, GstBuffer * buffer, gint nth)
+{
+  GstMemory *mem;
+  tensor_dim *dim;
+  int i, j;
+  size_t size, offset, temp;
+  GstMapInfo src_info, dest_info;
+  unsigned char *srcptr, *destptr;
+
+  size = 0;
+  offset = 0;
+  temp = 1;
+  dim = g_array_index (split->tensorseg, tensor_dim *, nth);
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    temp *= (*dim)[i];
+  size += temp * tensor_element_size[split->sink_tensor_conf.type];
+  mem = gst_allocator_alloc (NULL, size, NULL);
+  gst_memory_map (mem, &dest_info, GST_MAP_WRITE);
+  gst_buffer_map (buffer, &src_info, GST_MAP_READ);
+
+  srcptr = src_info.data;
+  destptr = dest_info.data;
+
+  for (i = 0; i < nth; i++) {
+    dim = g_array_index (split->tensorseg, tensor_dim *, i);
+    size_t t = 1;
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      t *= (*dim)[j];
+    }
+    offset += t;
+  }
+
+  memcpy (destptr, srcptr + offset, size);
+  gst_buffer_unmap (buffer, &src_info);
+  gst_memory_unmap (mem, &dest_info);
+
+  return mem;
+}
 
 /**
  * @brief chain function for sink (gst element vmethod)
@@ -266,8 +461,72 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
 static GstFlowReturn
 gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
+  gint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
-  /* NYI */
+  GstTensorSplit *tensor_split;
+  tensor_split = GST_TENSOR_SPLIT (parent);
+  if (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DISCONT)) {
+    GSList *l;
+    for (l = tensor_split->srcpads; l != NULL; l = l->next) {
+      GstTensorPad *srcpad = l->data;
+      srcpad->discont = TRUE;
+    }
+  }
+
+  num_tensors = tensor_split->num_tensors;
+  GST_DEBUG_OBJECT (tensor_split, " Number or Tensors: %d", num_tensors);
+  for (i = 0; i < num_tensors; i++) {
+    if (tensor_split->tensorpick != NULL) {
+      gboolean found = FALSE;
+      GList *list;
+      for (list = tensor_split->tensorpick; list != NULL; list = list->next) {
+        if (i == GPOINTER_TO_INT (list->data)) {
+          found = TRUE;
+          break;
+        }
+      }
+      if (!found)
+        continue;
+    }
+
+    GstTensorPad *srcpad;
+    GstBuffer *outbuf;
+    GstMemory *mem;
+    gboolean created;
+    GstClockTime ts;
+    srcpad = gst_get_tensor_pad (tensor_split, buf, &created, i);
+
+    outbuf = gst_buffer_new ();
+    mem = gst_get_splited_tensor (tensor_split, buf, i);
+    gst_buffer_append_memory (outbuf, mem);
+    ts = GST_BUFFER_PTS (buf);
+    if (created) {
+      GstSegment segment;
+      gst_segment_init (&segment, GST_FORMAT_TIME);
+      gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+    }
+    outbuf = gst_buffer_make_writable (outbuf);
+    if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
+      GST_BUFFER_TIMESTAMP (outbuf) = ts;
+      srcpad->last_ts = ts;
+    } else {
+      GST_BUFFER_TIMESTAMP (outbuf) = GST_CLOCK_TIME_NONE;
+    }
+    if (srcpad->discont) {
+      GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
+      srcpad->discont = FALSE;
+    } else {
+      GST_BUFFER_FLAG_UNSET (outbuf, GST_BUFFER_FLAG_DISCONT);
+    }
+    GST_DEBUG_OBJECT (tensor_split,
+        "pushing buffer with timestamp %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));
+    res = gst_pad_push (srcpad->pad, outbuf);
+    res = gst_tensorsplit_combine_flows (tensor_split, srcpad, res);
+    if (res != GST_FLOW_OK)
+      break;
+  }
+
   return res;
 }
 
@@ -375,7 +634,6 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       char *p = "";
       GPtrArray *arr = g_ptr_array_new ();
       gchar **strings;
-
       for (list = self->tensorpick; list != NULL; list = list->next) {
         g_ptr_array_add (arr, g_strdup_printf ("%i",
                 GPOINTER_TO_INT (list->data)));
@@ -394,7 +652,6 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       gchar **strings;
       gchar *p = "";
       gchar *strv = "";
-
       for (i = 0; i < self->tensorseg->len; i++) {
         GPtrArray *arr = g_ptr_array_new ();
         dim = g_array_index (self->tensorseg, tensor_dim *, i);
