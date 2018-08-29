@@ -47,3 +47,51 @@ if target == -1 or target == 10:
     buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase')[0]
     bmp.write('testcase.golden', buf)
     bmp.gen_BMP_stream('testsequence', 'testcase_stream.golden', 1)
+if target == -1 or target == 11:
+    buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase')[0]
+    bmp.write('testcase_0_0.golden', buf)
+
+    s=b''
+    for y in range(0,100):
+        for x in range(0,100):
+            s+=buf[y*100+x];
+    bmp.write('testcase_1_0.golden', s);
+
+    s = b''
+    for i in range(1, 3):
+        for y in range(0,100):
+            for x in range(0,100):
+                s+=buf[y*100+x + i*100*100];
+    bmp.write('testcase_1_1.golden', s);
+
+    for i in range(0,3):
+        s = b''
+        for y in range(0,100):
+            for x in range(0,100):
+                s += buf[y*100+x + i*100*100]
+        bmp.write('testcase_2_'+str(i)+'.golden', s)
+
+    string = bmp.gen_BMP_stream('testsequence', 'testcase_stream.golden', 1)
+
+    s=b''
+    for i in range (0,10):
+        for y in range(0,16):
+            for x in range(0,16):
+                s += string[i][y*16+x]
+    bmp.write('testcase_stream_1_0.golden',s)
+
+    s=b''
+    for i in range (0,10):
+        for j in range (1,3):
+            for y in range(0,16):
+                for x in range(0,16):
+                    s += string[i][j*16*16+ y*16+x]
+    bmp.write('testcase_stream_1_1.golden',s)
+
+    for j in range (0,3):
+        s=b''
+        for i in range (0,10):
+            for y in range(0,16):
+                for x in range(0,16):
+                    s += string[i][j*16*16+ y*16+x]
+        bmp.write('testcase_stream_2_'+str(j)+'.golden',s)

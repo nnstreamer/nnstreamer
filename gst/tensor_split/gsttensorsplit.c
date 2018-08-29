@@ -37,6 +37,9 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
+ * gst-launch -v -m filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1 ! tensor_converter
+ * ! tensorsplit name=split tensorseg=1:100:100:2,1:100:100:1 split.src_0 ! queue ! filesink location=src0.log
+ * split.src_1 ! queue ! filesink location=src1.log
  * ]|
  *
  * </refsect2>
