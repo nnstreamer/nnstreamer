@@ -94,6 +94,7 @@ ADD_EXECUTABLE(unittest_sink tests/nnstreamer_sink/unittest_sink.cpp ${gtestSrc}
 TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
 TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${gtestLink})
 
+ADD_SUBDIRECTORY(gst/tensor_aggregator)
 ADD_SUBDIRECTORY(gst/tensor_converter)
 ADD_SUBDIRECTORY(gst/tensor_filter)
 ADD_SUBDIRECTORY(gst/tensor_decoder)
