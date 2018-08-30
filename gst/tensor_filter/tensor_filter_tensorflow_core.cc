@@ -51,8 +51,6 @@
 TFCore::TFCore (const char *_model_path)
 {
   model_path = _model_path;
-  input_idx_list_len = 0;
-  output_idx_list_len = 0;
 
   loadModel ();
 }
@@ -63,8 +61,6 @@ TFCore::TFCore (const char *_model_path)
  */
 TFCore::~TFCore ()
 {
-  delete[]input_idx_list;
-  delete[]output_idx_list;
 }
 
 /**
@@ -112,12 +108,10 @@ TFCore::getTensorType (int tensor_idx, tensor_type * type)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
+TFCore::getInputTensorDim (tensor_dim dim, tensor_type * type,
+    unsigned int *num_tensors)
 {
-  if (idx >= input_size) {
-    return -1;
-  }
-  int ret = getTensorDim (input_idx_list[idx], dim, type);
+  int ret = getTensorDim (dim, type);
   return ret;
 }
 
@@ -129,12 +123,10 @@ TFCore::getInputTensorDim (int idx, tensor_dim dim, tensor_type * type)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
+TFCore::getOutputTensorDim (tensor_dim dim, tensor_type * type,
+    unsigned int *num_tensors)
 {
-  if (idx >= output_size) {
-    return -1;
-  }
-  int ret = getTensorDim (output_idx_list[idx], dim, type);
+  int ret = getTensorDim (dim, type);
   return ret;
 }
 
@@ -146,7 +138,7 @@ TFCore::getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type)
+TFCore::getTensorDim (tensor_dim dim, tensor_type * type)
 {
 
   return 0;
@@ -223,10 +215,11 @@ tf_core_getModelPath (void *tf)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getInputDim (void *tf, int idx, tensor_dim dim, tensor_type * type)
+tf_core_getInputDim (void *tf, tensor_dim dim, tensor_type * type,
+    unsigned int *num_tensors)
 {
   TFCore *c = (TFCore *) tf;
-  return c->getInputTensorDim (idx, dim, type);
+  return c->getInputTensorDim (dim, type, num_tensors);
 }
 
 /**
@@ -238,10 +231,11 @@ tf_core_getInputDim (void *tf, int idx, tensor_dim dim, tensor_type * type)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getOutputDim (void *tf, int idx, tensor_dim dim, tensor_type * type)
+tf_core_getOutputDim (void *tf, tensor_dim dim, tensor_type * type,
+    unsigned int *num_tensors)
 {
   TFCore *c = (TFCore *) tf;
-  return c->getOutputTensorDim (idx, dim, type);
+  return c->getOutputTensorDim (dim, type, num_tensors);
 }
 
 /**

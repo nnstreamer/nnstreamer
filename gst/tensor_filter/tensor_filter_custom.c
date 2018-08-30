@@ -144,8 +144,8 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
     uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
         &(filter->prop), inptr, &size);
     g_assert (size ==
-        (get_tensor_element_count (filter->prop.outputDimension[0]) *
-            tensor_element_size[filter->prop.outputType[0]]));
+        (get_tensor_element_count (filter->prop.outputMeta.dims[0]) *
+            tensor_element_size[filter->prop.outputMeta.types[0]]));
     return retptr;
   } else {
     return NULL;
@@ -157,7 +157,7 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim inputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -166,11 +166,12 @@ custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
-  if (ptr->methods->getInputDim == NULL)
+  if (ptr->methods->getInputDim == NULL) {
     return -1;
+  }
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, &(filter->prop),
-      inputDimension, type);
+      meta);
 }
 
 /**
@@ -178,7 +179,7 @@ custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim outputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -187,11 +188,12 @@ custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
 
   g_assert (filter->privateData && *private_data == filter->privateData);
   ptr = *private_data;
-  if (ptr->methods->getOutputDim == NULL)
+  if (ptr->methods->getOutputDim == NULL) {
     return -1;
+  }
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
-      &(filter->prop), outputDimension, type);
+      &(filter->prop), meta);
 }
 
 /**

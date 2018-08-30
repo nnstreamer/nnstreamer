@@ -102,7 +102,7 @@ tf_invoke (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 tf_getInputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim inputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   int temp_idx = 0;
   tf_data *tf;
@@ -113,8 +113,8 @@ tf_getInputDim (const GstTensor_Filter * filter, void **private_data,
   else
     temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tf_core_getInputDim (tf->tf_private_data, temp_idx,
-      inputDimension, type);
+  return tf_core_getInputDim (tf->tf_private_data, meta->dims[0],
+      &meta->types[0], &meta->num_tensors);
 }
 
 /**
@@ -122,7 +122,7 @@ tf_getInputDim (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 tf_getOutputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim outputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   int temp_idx = 0;
   tf_data *tf;
@@ -133,8 +133,8 @@ tf_getOutputDim (const GstTensor_Filter * filter, void **private_data,
   else
     temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tf_core_getOutputDim (tf->tf_private_data, temp_idx,
-      outputDimension, type);
+  return tf_core_getOutputDim (tf->tf_private_data, meta->dims[0],
+      &meta->types[0], &meta->num_tensors);
 }
 
 /**

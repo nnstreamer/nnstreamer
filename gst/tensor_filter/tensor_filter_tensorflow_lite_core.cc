@@ -147,26 +147,25 @@ int
 TFLiteCore::setInputTensorProp ()
 {
   auto input_idx_list = interpreter->inputs ();
-  inputTensorSize = input_idx_list.size ();
+  inputTensorMeta.num_tensors = input_idx_list.size ();
 
-  for (int i = 0; i < inputTensorSize; i++) {
-    inputTensorRank[i] = NNS_TENSOR_RANK_LIMIT;
+  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    inputTensorMeta.ranks[i] = NNS_TENSOR_RANK_LIMIT;
 
-    if (getTensorDim (input_idx_list[i], inputDimension[i],
-            &inputTensorRank[i])) {
+    if (getTensorDim (input_idx_list[i], inputTensorMeta.dims[i],
+            &inputTensorMeta.ranks[i])) {
       return -1;
     }
-    inputType[i] =
+    inputTensorMeta.types[i] =
         getTensorType (interpreter->tensor (input_idx_list[i])->type);
-  }
+
 #if (DBG)
-  if (ret) {
-    _print_log ("Failed to getInputTensorDim");
-  } else {
-    _print_log ("InputTensorDim idx[%d] type[%d] dim[%d:%d:%d:%d]",
-        idx, *type, dim[0], dim[1], dim[2], dim[3]);
-  }
+    _print_log ("inputTensorMeta[%d] >> type:%d, dim[%d:%d:%d:%d], rank: %d",
+        i, inputTensorMeta.types[i], inputTensorMeta.dims[i][0],
+        inputTensorMeta.dims[i][1], inputTensorMeta.dims[i][2],
+        inputTensorMeta.dims[i][3], inputTensorMeta.ranks[i]);
 #endif
+  }
   return 0;
 }
 
@@ -178,26 +177,25 @@ int
 TFLiteCore::setOutputTensorProp ()
 {
   auto output_idx_list = interpreter->outputs ();
-  outputTensorSize = output_idx_list.size ();
+  outputTensorMeta.num_tensors = output_idx_list.size ();
 
-  for (int i = 0; i < outputTensorSize; i++) {
-    outputTensorRank[i] = NNS_TENSOR_RANK_LIMIT;
+  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+    outputTensorMeta.ranks[i] = NNS_TENSOR_RANK_LIMIT;
 
-    if (getTensorDim (output_idx_list[i], outputDimension[i],
-            &outputTensorRank[i])) {
+    if (getTensorDim (output_idx_list[i], outputTensorMeta.dims[i],
+            &outputTensorMeta.ranks[i])) {
       return -1;
     }
-    outputType[i] =
+    outputTensorMeta.types[i] =
         getTensorType (interpreter->tensor (output_idx_list[i])->type);
-  }
+
 #if (DBG)
-  if (ret) {
-    _print_log ("Failed to getOutputTensorDim");
-  } else {
-    _print_log ("OutputTensorDim idx[%d] type[%d] dim[%d:%d:%d:%d]",
-        idx, *type, dim[0], dim[1], dim[2], dim[3]);
-  }
+    _print_log ("outputTensorMeta[%d] >> type:%d, dim[%d:%d:%d:%d], rank: %d",
+        i, outputTensorMeta.types[i], outputTensorMeta.dims[i][0],
+        outputTensorMeta.dims[i][1], outputTensorMeta.dims[i][2],
+        outputTensorMeta.dims[i][3], outputTensorMeta.ranks[i]);
 #endif
+  }
   return 0;
 }
 
@@ -209,7 +207,7 @@ TFLiteCore::setOutputTensorProp ()
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, unsigned int *rank)
+TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, int *rank)
 {
   int len = interpreter->tensor (tensor_idx)->dims->size;
   *rank = len;
@@ -234,7 +232,7 @@ TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim, unsigned int *rank)
 int
 TFLiteCore::getInputTensorSize ()
 {
-  return inputTensorSize;
+  return inputTensorMeta.num_tensors;
 }
 
 /**
@@ -244,7 +242,7 @@ TFLiteCore::getInputTensorSize ()
 int
 TFLiteCore::getOutputTensorSize ()
 {
-  return outputTensorSize;
+  return outputTensorMeta.num_tensors;
 }
 
 /**
@@ -252,17 +250,18 @@ TFLiteCore::getOutputTensorSize ()
  * @param[out] dim	: the array of the input tensors
  * @param[out] type	: the data type of the input tensors
  * @todo : return whole array rather than index 0
- * @return the number of input tensors;
+ * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getInputTensorDim (tensor_dim dim, tensor_type * type)
+TFLiteCore::getInputTensorDim (GstTensor_TensorsMeta * meta)
 {
-  memcpy (dim, inputDimension[0], sizeof (tensor_dim));
-  *type = inputType[0];
-  printf ("[IN]\nDim: %d %d %d %d \nType: %d \nRank: %u\n",
-      inputDimension[0][0], inputDimension[0][1], inputDimension[0][2],
-      inputDimension[0][3], inputType[0], inputTensorRank[0]);
-  return inputTensorSize;
+  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    memcpy (meta->dims[i], inputTensorMeta.dims[i], sizeof (meta->dims[i]));
+    meta->types[i] = inputTensorMeta.types[i];
+    meta->ranks[i] = inputTensorMeta.ranks[i];
+  }
+  meta->num_tensors = inputTensorMeta.num_tensors;
+  return 0;
 }
 
 /**
@@ -270,17 +269,18 @@ TFLiteCore::getInputTensorDim (tensor_dim dim, tensor_type * type)
  * @param[out] dim	: the array of the tensors
  * @param[out] type	: the data type of the tensors
  * @todo : return whole array rather than index 0
- * @return the number of output tensors;
+ * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getOutputTensorDim (tensor_dim dim, tensor_type * type)
+TFLiteCore::getOutputTensorDim (GstTensor_TensorsMeta * meta)
 {
-  memcpy (dim, outputDimension[0], sizeof (tensor_dim));
-  *type = outputType[0];
-  printf ("[OUT]\nDim: %d %d %d %d \nType: %d \nRank: %u\n",
-      outputDimension[0][0], outputDimension[0][1], outputDimension[0][2],
-      outputDimension[0][3], outputType[0], outputTensorRank[0]);
-  return outputTensorSize;
+  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+    memcpy (meta->dims, outputTensorMeta.dims[i], sizeof (meta->dims[i]));
+    meta->types[i] = outputTensorMeta.types[i];
+    meta->ranks[i] = outputTensorMeta.ranks[i];
+  }
+  meta->num_tensors = outputTensorMeta.num_tensors;
+  return 0;
 }
 
 /**
@@ -302,7 +302,7 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
 
   for (int i = 0; i < sizeOfArray; i++) {
-    output_number_of_pixels *= inputDimension[0][i];
+    output_number_of_pixels *= inputTensorMeta.dims[0][i];
   }
 
   for (int i = 0; i < getInputTensorSize (); i++) {
@@ -315,10 +315,10 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
 
     inputTensors[0] = inptr;
     for (int j = 0; j < output_number_of_pixels; j++) {
-      if (inputType[i] == _NNS_FLOAT32) {
+      if (inputTensorMeta.types[i] == _NNS_FLOAT32) {
         (interpreter->typed_tensor < float >(input))[j] =
             ((float) inputTensors[i][j] - 127.5f) / 127.5f;
-      } else if (inputType[i] == _NNS_UINT8) {
+      } else if (inputTensorMeta.types[i] == _NNS_UINT8) {
         (interpreter->typed_tensor < uint8_t > (input))[j] = inputTensors[i][j];
       }
     }
@@ -329,12 +329,12 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
     return -3;
   }
 
-  for (int i = 0; i < outputTensorSize; i++) {
+  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
 
-    if (outputType[i] == _NNS_FLOAT32) {
+    if (outputTensorMeta.types[i] == _NNS_FLOAT32) {
       outputTensors[i] =
           (uint8_t *) interpreter->typed_output_tensor < float >(i);
-    } else if (outputType[i] == _NNS_UINT8) {
+    } else if (outputTensorMeta.types[i] == _NNS_UINT8) {
       outputTensors[i] = interpreter->typed_output_tensor < uint8_t > (i);
     }
   }
@@ -380,10 +380,10 @@ tflite_core_delete (void *tflite)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getInputDim (void *tflite, tensor_dim dim, tensor_type * type)
+tflite_core_getInputDim (void *tflite, GstTensor_TensorsMeta * meta)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  int ret = c->getInputTensorDim (dim, type);
+  int ret = c->getInputTensorDim (meta);
   return ret;
 }
 
@@ -395,10 +395,10 @@ tflite_core_getInputDim (void *tflite, tensor_dim dim, tensor_type * type)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getOutputDim (void *tflite, tensor_dim dim, tensor_type * type)
+tflite_core_getOutputDim (void *tflite, GstTensor_TensorsMeta * meta)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  int ret = c->getOutputTensorDim (dim, type);
+  int ret = c->getOutputTensorDim (meta);
   return ret;
 }
 

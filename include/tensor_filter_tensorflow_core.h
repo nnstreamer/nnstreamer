@@ -64,8 +64,10 @@ public:
   double get_ms (struct timeval t);
   int getInputTensorSize ();
   int getOutputTensorSize ();
-  int getInputTensorDim (int idx, tensor_dim dim, tensor_type * type);
-  int getOutputTensorDim (int idx, tensor_dim dim, tensor_type * type);
+  int getInputTensorDim (tensor_dim dim, tensor_type * type,
+      unsigned int *num_tensors);
+  int getOutputTensorDim (tensor_dim dim, tensor_type * type,
+      unsigned int *num_tensors);
   int getInputTensorDimSize ();
   int getOutputTensorDimSize ();
   int invoke (uint8_t * inptr, uint8_t ** outptr);
@@ -79,12 +81,8 @@ private:
   int node_size;
   int input_size;
   int output_size;
-  int *input_idx_list;
-  int *output_idx_list;
-  int input_idx_list_len;
-  int output_idx_list_len;
   int getTensorType (int tensor_idx, tensor_type * type);
-  int getTensorDim (int tensor_idx, tensor_dim dim, tensor_type * type);
+  int getTensorDim (tensor_dim dim, tensor_type * type);
 };
 
 /**
@@ -97,10 +95,10 @@ extern "C"
   extern void *tf_core_new (const char *_model_path);
   extern void tf_core_delete (void *tf);
   extern const char *tf_core_getModelPath (void *tf);
-  extern int tf_core_getInputDim (void *tf, int idx, tensor_dim dim,
-      tensor_type * type);
-  extern int tf_core_getOutputDim (void *tf, int idx, tensor_dim dim,
-      tensor_type * type);
+  extern int tf_core_getInputDim (void *tf, tensor_dim dim,
+      tensor_type * type, unsigned int *num_tensors);
+  extern int tf_core_getOutputDim (void *tf, tensor_dim dim,
+      tensor_type * type, unsigned int *num_tensors);
   extern int tf_core_getInputSize (void *tf);
   extern int tf_core_getOutputSize (void *tf);
   extern int tf_core_invoke (void *tf, uint8_t * inptr, uint8_t ** outptr);

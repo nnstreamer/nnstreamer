@@ -8,6 +8,7 @@
  * @date	11 Jun 2018
  * @brief	Custom NNStreamer Filter Example 1. "Pass-Through"
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug		No known bugs except for NYI items
  *
  * this will supports "3x280x40" uint8 tensors (hardcoded dimensions)
  */
@@ -22,6 +23,9 @@
 #define D2	(280)
 #define D3	(40)
 
+/**
+ * @brief _pt_data
+ */
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
@@ -29,6 +33,9 @@ typedef struct _pt_data
   tensor_type type;
 } pt_data;
 
+/**
+ * @brief _pt_data
+ */
 static void *
 pt_init (const GstTensor_Filter_Properties * prop)
 {
@@ -46,6 +53,9 @@ pt_init (const GstTensor_Filter_Properties * prop)
   return data;
 }
 
+/**
+ * @brief _pt_data
+ */
 static void
 pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
 {
@@ -54,43 +64,53 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
   free (data);
 }
 
+/**
+ * @brief _pt_data
+ */
 static int
 get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    tensor_dim inputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   pt_data *data = private_data;
   int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
-  inputDimension[0] = D1;
-  inputDimension[1] = D2;
-  inputDimension[2] = D3;
+  meta->dims[0][0] = D1;
+  meta->dims[0][1] = D2;
+  meta->dims[0][2] = D3;
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    inputDimension[i] = 1;
-  *type = _NNS_UINT8;
-  return 0;
+    meta->dims[0][i] = 1;
+  meta->types[0] = _NNS_UINT8;
+  meta->num_tensors = 1;
   return 0;
 }
 
+/**
+ * @brief _pt_data
+ */
 static int
 get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    tensor_dim outputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   pt_data *data = private_data;
   int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
-  outputDimension[0] = D1;
-  outputDimension[1] = D2;
-  outputDimension[2] = D3;
+  meta->dims[0][0] = D1;
+  meta->dims[0][1] = D2;
+  meta->dims[0][2] = D3;
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    outputDimension[i] = 1;
-  *type = _NNS_UINT8;
+    meta->dims[0][i] = 1;
+  meta->types[0] = _NNS_UINT8;
+  meta->num_tensors = 1;
   return 0;
 }
 
+/**
+ * @brief _pt_data
+ */
 static int
 pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
     const uint8_t * inptr, uint8_t * outptr)

@@ -103,11 +103,12 @@ typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
  */
-typedef struct {
-  unsigned int num_tensors;    /**< Number of tensors in each frame */
-  tensor_dim dims[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensor_dim, [num_tensors] */
-  tensor_type types[NNS_TENSOR_SIZE_LIMIT];   /**< Array of tensor_type, [num_tensors] */
-  unsigned int ranks[NNS_TENSOR_SIZE_LIMIT];          /**< Array of rank, [num_tensors] */
+typedef struct
+{
+  unsigned int num_tensors;    /**< The number of tensors */
+  tensor_dim dims[NNS_TENSOR_SIZE_LIMIT];     /**< The list of dimensions of each tensors */
+  tensor_type types[NNS_TENSOR_SIZE_LIMIT];   /**< The list of types for each tensors */
+  int ranks[NNS_TENSOR_SIZE_LIMIT];          /**< The list of types for each tensors */
 } GstTensor_TensorsMeta;
 
 /**
@@ -127,17 +128,11 @@ typedef struct _GstTensor_Filter_Properties
   int fwClosed; /**< true IF close() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *modelFilename; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
-  tensor_dim inputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each input tensors */
-  tensor_type inputType[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
-  int inputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
   int inputCapNegotiated; /**< @todo check if this is really needed */
-  int inputTensorSize; /**< The number of input tensors */
+  GstTensor_TensorsMeta inputMeta;
 
-  tensor_dim outputDimension[NNS_TENSOR_SIZE_LIMIT]; /**< The list of dimensions of each output tensors */
-  tensor_type outputType[NNS_TENSOR_SIZE_LIMIT];  /**< The list of types for each output tensors */
-  int outputTensorRank[NNS_TENSOR_SIZE_LIMIT]; /**< The list of types for each input tensors */
   int outputCapNegotiated; /**< @todo check if this is really needed */
-  int outputTensorSize; /**< The number of output tensors */
+  GstTensor_TensorsMeta outputMeta;
 
   const char *customProperties; /**< sub-plugin specific custom property values in string */
 } GstTensor_Filter_Properties;
