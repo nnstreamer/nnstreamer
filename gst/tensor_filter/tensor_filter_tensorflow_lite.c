@@ -102,13 +102,13 @@ tflite_invoke (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim inputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   tflite_data *tf;
   tf = *private_data;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tflite_core_getInputDim (tf->tflite_private_data, inputDimension,
-      type);
+  int ret = tflite_core_getInputDim (tf->tflite_private_data, meta);
+  return ret;
 }
 
 /**
@@ -116,13 +116,13 @@ tflite_getInputDim (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 tflite_getOutputDim (const GstTensor_Filter * filter, void **private_data,
-    tensor_dim outputDimension, tensor_type * type)
+    GstTensor_TensorsMeta * meta)
 {
   tflite_data *tf;
   tf = *private_data;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tflite_core_getOutputDim (tf->tflite_private_data, outputDimension,
-      type);
+  int ret = tflite_core_getOutputDim (tf->tflite_private_data, meta);
+  return ret;
 }
 
 /**

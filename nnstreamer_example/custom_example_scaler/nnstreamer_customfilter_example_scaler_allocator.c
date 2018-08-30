@@ -142,8 +142,8 @@ pt_allocate_invoke (void *private_data,
   uint32_t iidx0, iidx1, iidx2;
 
   *size =
-      get_tensor_element_count (prop->outputDimension[0]) *
-      tensor_element_size[prop->outputType[0]];
+      get_tensor_element_count (prop->outputMeta.dims[0]) *
+      tensor_element_size[prop->outputMeta.types[0]];
   uint8_t *outptr = (uint8_t *) malloc (sizeof (uint8_t) * *size);
 
   assert (data);
@@ -153,36 +153,36 @@ pt_allocate_invoke (void *private_data,
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
 
-  assert (prop->inputDimension[0][0] == prop->outputDimension[0][0]);
-  assert (prop->inputDimension[0][3] == prop->outputDimension[0][3]);
-  assert (prop->inputType[0] == prop->outputType[0]);
+  assert (prop->inputMeta.dims[0][0] == prop->outputMeta.dims[0][0]);
+  assert (prop->inputMeta.dims[0][3] == prop->outputMeta.dims[0][3]);
+  assert (prop->inputMeta.types[0] == prop->outputMeta.types[0]);
 
-  elementsize = tensor_element_size[prop->inputType[0]];
+  elementsize = tensor_element_size[prop->inputMeta.types[0]];
 
-  ox = (data->new_x > 0) ? data->new_x : prop->outputDimension[0][1];
-  oy = (data->new_y > 0) ? data->new_y : prop->outputDimension[0][2];
+  ox = (data->new_x > 0) ? data->new_x : prop->outputMeta.dims[0][1];
+  oy = (data->new_y > 0) ? data->new_y : prop->outputMeta.dims[0][2];
 
-  oidx0 = prop->outputDimension[0][0];
-  oidx1 = oidx0 * prop->outputDimension[0][1];
-  oidx2 = oidx1 * prop->outputDimension[0][2];
+  oidx0 = prop->outputMeta.dims[0][0];
+  oidx1 = oidx0 * prop->outputMeta.dims[0][1];
+  oidx2 = oidx1 * prop->outputMeta.dims[0][2];
 
-  iidx0 = prop->inputDimension[0][0];
-  iidx1 = iidx0 * prop->inputDimension[0][1];
-  iidx2 = iidx1 * prop->inputDimension[0][2];
+  iidx0 = prop->inputMeta.dims[0][0];
+  iidx1 = iidx0 * prop->inputMeta.dims[0][1];
+  iidx2 = iidx1 * prop->inputMeta.dims[0][2];
 
-  for (z = 0; z < prop->inputDimension[0][3]; z++) {
+  for (z = 0; z < prop->inputMeta.dims[0][3]; z++) {
     for (y = 0; y < oy; y++) {
       for (x = 0; x < ox; x++) {
         unsigned int c;
-        for (c = 0; c < prop->inputDimension[0][0]; c++) {
+        for (c = 0; c < prop->inputMeta.dims[0][0]; c++) {
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
           unsigned ix, iy, sz;
 
-          ix = x * prop->inputDimension[0][1] / ox;
-          iy = y * prop->inputDimension[0][2] / oy;
+          ix = x * prop->inputMeta.dims[0][1] / ox;
+          iy = y * prop->inputMeta.dims[0][2] / oy;
 
-          assert (ix >= 0 && iy >= 0 && ix < prop->inputDimension[0][1]
-              && iy < prop->inputDimension[0][2]);
+          assert (ix >= 0 && iy >= 0 && ix < prop->inputMeta.dims[0][1]
+              && iy < prop->inputMeta.dims[0][2]);
 
           /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)

@@ -59,8 +59,8 @@ typedef void (*NNS_custom_exit_func)(void *private_data, const GstTensor_Filter_
  * @param[out] inputDimension uint32_t[NNS_TENSOR_RANK_LIMIT] (tensor_dim)
  * @param[out] type Type of each element in the input tensor
  */
-typedef int (*NNS_custom_get_input_dimension)(void *private_data, const GstTensor_Filter_Properties *prop,
-    tensor_dim inputDimension, tensor_type *type);
+typedef int (*NNS_custom_get_input_dimension) (void *private_data,
+    const GstTensor_Filter_Properties * prop, GstTensor_TensorsMeta * meta);
 
 /**
  * @brief Get output tensor type.
@@ -69,8 +69,8 @@ typedef int (*NNS_custom_get_input_dimension)(void *private_data, const GstTenso
  * @param[out] outputDimension uint32_t[NNS_TENSOR_RANK_LIMIT] (tensor_dim)
  * @param[out] type Type of each element in the output tensor
  */
-typedef int (*NNS_custom_get_output_dimension)(void *private_data, const GstTensor_Filter_Properties *prop,
-    tensor_dim outputDimension, tensor_type *type);
+typedef int (*NNS_custom_get_output_dimension) (void *private_data,
+    const GstTensor_Filter_Properties * prop, GstTensor_TensorsMeta * meta);
 
 /**
  * @brief Set input dim by framework. Let custom plutin set output dim accordingly.

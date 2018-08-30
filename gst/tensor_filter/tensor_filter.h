@@ -116,7 +116,7 @@ struct _GstTensor_Filter_Framework
        */
 
   int (*getInputDimension) (const GstTensor_Filter * filter,
-      void **private_data, tensor_dim inputDimension, tensor_type * type);
+      void **private_data, GstTensor_TensorsMeta * meta);
       /**< Optional. Set NULL if not supported. Get dimension of input tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
@@ -128,7 +128,7 @@ struct _GstTensor_Filter_Framework
        * @return the size of input tensors
        */
   int (*getOutputDimension) (const GstTensor_Filter * filter,
-      void **private_data, tensor_dim outputDimension, tensor_type * type);
+      void **private_data, GstTensor_TensorsMeta * meta);
       /**< Optional. Set NULL if not supported. Get dimension of output tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
