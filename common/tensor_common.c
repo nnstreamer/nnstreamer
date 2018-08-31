@@ -449,6 +449,9 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
   if (config->tensor_media_type == _NNS_VIDEO) {
     if (config->type == _NNS_UINT8) {
       switch (config->dimension[0]) {
+        case 1:
+          config->tensor_media_format = GST_VIDEO_FORMAT_GRAY8;
+          break;
         case 3:
           config->tensor_media_format = GST_VIDEO_FORMAT_RGB;
           break;
@@ -584,6 +587,10 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   config->rank = 3;
 
   switch (v_info->format) {
+    case GST_VIDEO_FORMAT_GRAY8:
+      config->type = _NNS_UINT8;
+      config->dimension[0] = 1;
+      break;
     case GST_VIDEO_FORMAT_RGB:
       config->type = _NNS_UINT8;
       config->dimension[0] = 3;
@@ -889,6 +896,7 @@ gst_tensor_video_stride_padding_per_row (GstVideoFormat format, gint width)
 {
   /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
   switch (format) {
+    case GST_VIDEO_FORMAT_GRAY8:
     case GST_VIDEO_FORMAT_RGB:
     case GST_VIDEO_FORMAT_BGR:
     case GST_VIDEO_FORMAT_I420:
