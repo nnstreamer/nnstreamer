@@ -36,11 +36,23 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef struct
+typedef enum {
+  RGB = 0,
+  GRAY8,
+} colorformat_t;
+
+typedef union
 {
-  uint8_t red;
-  uint8_t green;
-  uint8_t blue;
+  struct
+  {
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+  };
+  struct
+  {
+    uint8_t gray;
+  };
 } pixel_t;
 
 typedef struct
@@ -48,6 +60,7 @@ typedef struct
   pixel_t *pixels;
   size_t width;
   size_t height;
+  colorformat_t color_format;
 } bitmap_t;
 
 /**
@@ -83,8 +96,17 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
    * The following number is set by trial and error only. I cannot
    * see where it it is documented in the libpng manual.
    */
-  int pixel_size = 3;
+  int pixel_size;
   int depth = 8;
+  int color_type;
+
+  if (bitmap->color_format == GRAY8) {
+    pixel_size = 1;
+    color_type = PNG_COLOR_TYPE_GRAY;
+  } else {
+    pixel_size = 3;
+    color_type = PNG_COLOR_TYPE_RGB;
+  }
 
   fp = fopen (path, "wb");
   if (!fp) {
@@ -114,7 +136,7 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
       bitmap->width,
       bitmap->height,
       depth,
-      PNG_COLOR_TYPE_RGB,
+      color_type,
       PNG_INTERLACE_NONE,
       PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
@@ -127,9 +149,13 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
     row_pointers[y] = row;
     for (x = 0; x < bitmap->width; x++) {
       pixel_t *pixel = pixel_at (bitmap, x, y);
-      *row++ = pixel->red;
-      *row++ = pixel->green;
-      *row++ = pixel->blue;
+      if (bitmap->color_format == GRAY8) {
+        *row++ = pixel->gray;
+      } else {
+        *row++ = pixel->red;
+        *row++ = pixel->green;
+        *row++ = pixel->blue;
+      }
     }
   }
 
@@ -166,6 +192,7 @@ fopen_failed:
 int
 main (int argc, char *argv[])
 {
+  const char option_gray[] = "--GRAY8";
   FILE *bmpF;
   bitmap_t bmp;
   int x, y;
@@ -178,14 +205,22 @@ main (int argc, char *argv[])
   int strn;
 
   /** Read the .bmp file (argv[1]) */
-  if (argc < 2) {
-    printf ("Usage: %s BMPfilename\n\n", argv[0]);
+  if (argc < 2 || argc > 3) {
+    printf ("Usage: %s BMPfilename [OPTION:--GRAY8]\n\n", argv[0]);
     return 1;
   }
   strn = strlen (argv[1]);
   if (strn < 5 || argv[1][strn - 4] != '.' || argv[1][strn - 3] != 'b' ||
       argv[1][strn - 2] != 'm' || argv[1][strn - 1] != 'p') {
     printf ("The BMPfilename must be ending with \".bmp\"\n\n");
+  }
+  /** Check the option, --GRAY8 */
+  strn = strlen (option_gray);
+  if ((argc == 3) && (strlen (argv[2]) == strn)
+      && (!strncmp (option_gray, argv[2], strn))) {
+    bmp.color_format = GRAY8;
+  } else {
+    bmp.color_format = RGB;
   }
 
   bmpF = fopen (argv[1], "rb");
@@ -213,16 +248,27 @@ main (int argc, char *argv[])
   for (y = (int) height - 1; y >= 0; y--) {
     for (x = 0; x < (int) width; x++) {
       pixel_t *pixel = pixel_at (&bmp, x, y);
-      uint8_t bgr[3];
-      size = fread (bgr, 1, 3, bmpF);
-      if (size != 3) {
-        printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width, height,
-            size);
-        goto error;
+      if (bmp.color_format == GRAY8) {
+        uint8_t gray;
+        size = fread (&gray, 1, 1, bmpF);
+        if (size != 1) {
+          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width, height,
+              size);
+          goto error;
+        }
+        pixel->gray = gray;
+      } else {
+        uint8_t bgr[3];
+        size = fread (bgr, 1, 3, bmpF);
+        if (size != 3) {
+          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width, height,
+              size);
+          goto error;
+        }
+        pixel->red = bgr[2];
+        pixel->green = bgr[1];
+        pixel->blue = bgr[0];
       }
-      pixel->red = bgr[2];
-      pixel->green = bgr[1];
-      pixel->blue = bgr[0];
     }
     for (x = 0; x < (width * 3) % 4; x++) {
       size = fread (&byte, 1, 1, bmpF);
