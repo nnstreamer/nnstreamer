@@ -25,9 +25,11 @@ import sys
 def saveBMP(filename, data, colorspace, width, height):
     size = len(data)
     graphics = b''
+    # Default value of bytes per pixel value for RGB
+    bytes_per_px = 3
 
     if colorspace == 'RGB':
-        assert(size == (width * height * 3))
+        assert(size == (width * height * bytes_per_px))
         # BMP is stored bottom to top. Reverse the order
         for h in range(height-1, -1, -1):
             for w in range(0, width):
@@ -38,14 +40,25 @@ def saveBMP(filename, data, colorspace, width, height):
             for x in range(0, (width * 3) % 4):
                 graphics += pack('<B', 0)
     elif colorspace == 'BGRx':
-        assert(size == (width * height * 4))
+        bytes_per_px = 4
+        assert(size == (width * height * bytes_per_px))
         # BMP is stored bottom to top. Reverse the order
         for h in range(height-1, -1, -1):
             for w in range(0, width):
-                pos = 4 * (w + width * h)
+                pos = bytes_per_px * (w + width * h)
                 graphics += data[pos]
                 graphics += data[pos+1]
                 graphics += data[pos+2]
+            for x in range(0, (width * 3) % 4):
+                graphics += pack('<B', 0)
+    elif colorspace == 'GRAY8':
+        bytes_per_px = 1
+        assert(size == (width * height * bytes_per_px))
+        # BMP is stored bottom to top. Reverse the order
+        for h in range(height-1, -1, -1):
+            for w in range(0, width):
+                pos = bytes_per_px * (w + width * h)
+                graphics += data[pos]
             for x in range(0, (width * 3) % 4):
                 graphics += pack('<B', 0)
     else:
@@ -53,8 +66,12 @@ def saveBMP(filename, data, colorspace, width, height):
         sys.exit(1)
 
     # BMP file header
-    header = pack('<HLHHL', 19778, (26 + width * height * 3), 0, 0, 26)
-    header += pack('<LHHHH', 12, width, height, 1, 24)
+    if colorspace == 'GRAY8':
+        header = pack('<HLHHL', 19778, (26 + width * height), 0, 0, 26)
+        header += pack('<LHHHH', 12, width, height, 1, 8)
+    else:
+        header = pack('<HLHHL', 19778, (26 + width * height * 3), 0, 0, 26)
+        header += pack('<LHHHH', 12, width, height, 1, 24)
 
     with open(filename, 'wb') as file:
         file.write(header)
@@ -254,6 +271,101 @@ def gen_BGRx():
 
 
 ##
+# @brief Generate Golden Test Case, a single videosrctest frame of 280x40xGRAY8
+# @return (string, string_size, expected_size)
+#
+# If string_size < expected_size, you do not need to check the results offset >= string_size.
+# string: binary string (b'\xff\x00....')
+def gen_GRAY8():
+    string = b''
+    string_size = 0
+    expected_size = 280 * 40
+    for i in range(0, 26):
+        # 0xEB
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 235)
+        # 0xD2
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 210)
+        # 0xAA
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 170)
+        # 0x91
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 145)
+        # 0x6A
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 106)
+        # 0x51
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 81)
+        # 0x29
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 41)
+    for i in range(26, 30):
+        # 0x29
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 41)
+        # 0x10
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 16)
+        # 0x6A
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 106)
+        # 0x10
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 16)
+        # 0xAA
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 170)
+        # 0x10
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 16)
+        # 0xEB
+        string_size = string_size + 40
+        for j in range(0, 40):
+            string += pack('B', 235)
+    for i in range(0, 46):
+        # 0x10
+        string_size = string_size + 46
+        string += pack('B', 16)
+    for i in range(46, 93):
+        # 0xEB
+        string_size = string_size + 47
+        string += pack('B', 235)
+    for i in range(93, 140):
+        # 0x10
+        string_size = string_size + 47
+        string += pack('B', 16)
+    for i in range(140, 163):
+        # 0x00
+        string_size = string_size + 23
+        string += pack('B', 0)
+    for i in range(163, 186):
+        # 0x10
+        string_size = string_size + 23
+        string += pack('B', 16)
+    for i in range(186, 210):
+        # 0x20
+        string_size = string_size + 24
+        string += pack('B', 32)
+    # We do not check the reset pixels: they are randomly generated.
+    return string, string_size, expected_size
+
+##
 # @brief Generate Golden Test Case, a randomly generated BMP image
 # @return (string, string_size, expected_size)
 #
@@ -263,6 +375,8 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
     size_per_pixel = 3
     if color_type == 'BGRx':
         size_per_pixel = 4
+    elif color_type == "GRAY8":
+        size_per_pixel = 1
     expected_size = width * height * size_per_pixel
     # The result has no stride for other/tensor types.
 
@@ -273,6 +387,13 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
                 pixel = pack('BBBB', pval[2], pval[1], pval[0], 255)
                 string += pixel
                 string_size += 4
+    elif color_type == 'GRAY8':
+        for y in range(0, height):
+            for x in range(0, width):
+                pval = random.randrange(256)
+                pixel = pack('B', pval)
+                string += pixel
+                string_size += size_per_pixel
     else:
         # Assume RGB
         for y in range(0, height):
