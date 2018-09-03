@@ -14,8 +14,11 @@ convertBMP2PNG
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location=\"test.bgrx.log\" sync=true t. ! queue ! filesink location=\"test.rgb.log\" sync=true" 1
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=0/1 ! queue ! tensor_converter silent=TRUE ! filesink location=\"test.gray8.log\" sync=true" 1
+
 compareAllSizeLimit testcase01.bgrx.golden test.bgrx.log 1-1
 compareAllSizeLimit testcase01.rgb.golden test.rgb.log 1-2
+compareAllSizeLimit testcase01.gray8.golden test.gray8.log 1-3
 
 function do_test {
 	gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.log\" sync=true" ${4}
@@ -30,13 +33,17 @@ function do_test_nonip {
 
 do_test BGRx 640 480 2-1
 do_test RGB 640 480 2-2
-do_test BGRx 642 480 2-3
-do_test RGB 642 480 2-4
+do_test GRAY8 640 480 2-3
+do_test BGRx 642 480 2-4
+do_test RGB 642 480 2-5
+do_test GRAY8 642 480 2-6
 
 do_test_nonip BGRx 640 480 3-1
 do_test_nonip RGB 640 480 3-2
-do_test_nonip BGRx 642 480 3-3
-do_test_nonip RGB 642 480 3-4
+do_test_nonip GRAY8 640 480 3-3
+do_test_nonip BGRx 642 480 3-4
+do_test_nonip RGB 642 480 3-5
+do_test_nonip GRAY8 642 480 3-6
 
 # @TODO Change this when YUV becomes supported by tensor_converter
 # Fail Test: YUV is given

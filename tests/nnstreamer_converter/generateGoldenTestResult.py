@@ -24,11 +24,14 @@ if len(sys.argv) >= 2:  # There's some arguments
 if target == -1 or target == 1:
     bmp.write('testcase01.rgb.golden', bmp.gen_RGB()[0])
     bmp.write('testcase01.bgrx.golden', bmp.gen_BGRx()[0])
+    bmp.write('testcase01.gray8.golden', bmp.gen_GRAY8()[0])
 if target == -1 or target == 2:
     bmp.write('testcase02_RGB_640x480.golden', bmp.gen_BMP_random('RGB', 640, 480, 'testcase02')[0])
     bmp.write('testcase02_BGRx_640x480.golden', bmp.gen_BMP_random('BGRx', 640, 480, 'testcase02')[0])
+    bmp.write('testcase02_GRAY8_640x480.golden', bmp.gen_BMP_random('GRAY8', 640, 480, 'testcase02')[0])
     bmp.write('testcase02_RGB_642x480.golden', bmp.gen_BMP_random('RGB', 642, 480, 'testcase02')[0])
     bmp.write('testcase02_BGRx_642x480.golden', bmp.gen_BMP_random('BGRx', 642, 480, 'testcase02')[0])
+    bmp.write('testcase02_GRAY8_642x480.golden', bmp.gen_BMP_random('GRAY8', 642, 480, 'testcase02')[0])
 if target == -1 or target == 8:
     bmp.gen_BMP_stream('testsequence', 'testcase08.golden', 1)
 if target == -1 or target == 9:
