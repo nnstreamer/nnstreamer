@@ -210,6 +210,10 @@ function convertBMP2PNG {
 	fi
 	for X in `ls *.bmp`
 	do
-		$tool $X
+		if [[ $X  = *"GRAY8"* ]]; then
+			$tool $X --GRAY8
+		else
+			$tool $X
+		fi
 	done
 }
