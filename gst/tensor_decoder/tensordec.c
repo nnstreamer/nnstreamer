@@ -57,30 +57,52 @@
 #define silent_debug(...) \
     debug_print (DBG, __VA_ARGS__)
 
-#define silent_debug_caps(caps,msg) if (DBG) { \
-  if (caps) { \
-    GstStructure *caps_s; \
-    gchar *caps_s_string; \
-    guint caps_size, caps_idx; \
-    caps_size = gst_caps_get_size (caps);\
-    for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-      caps_s = gst_caps_get_structure (caps, caps_idx); \
-      caps_s_string = gst_structure_to_string (caps_s); \
-      debug_print (TRUE, msg " = %s\n", caps_s_string); \
-      g_free (caps_s_string); \
+#define silent_debug_caps(caps,msg) do {\
+  if (DBG) { \
+    if (caps) { \
+      GstStructure *caps_s; \
+      gchar *caps_s_string; \
+      guint caps_size, caps_idx; \
+      caps_size = gst_caps_get_size (caps);\
+      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
+        caps_s = gst_caps_get_structure (caps, caps_idx); \
+        caps_s_string = gst_structure_to_string (caps_s); \
+        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        g_free (caps_s_string); \
+      } \
     } \
   } \
-}
+} while (0)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensordec_debug);
 #define GST_CAT_DEFAULT gst_tensordec_debug
 
-/** properties */
+/**
+ * @brief Output type.
+ * @todo Change output type (eg, image box, label)
+ */
+enum
+{
+  OUTPUT_VIDEO,
+  OUTPUT_AUDIO,
+  OUTPUT_TEXT,
+  OUTPUT_UNKNOWN
+};
+
+/**
+ * @brief Properties.
+ */
 enum
 {
   PROP_0,
+  PROP_OUTPUT_TYPE,
   PROP_SILENT
 };
+
+/**
+ * @brief Default output type.
+ */
+#define DEFAULT_OUTPUT_TYPE OUTPUT_VIDEO
 
 /**
  * @brief Flag to print minimized log.
@@ -128,6 +150,135 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize);
 
 /**
+ * @brief Get video caps from tensor config
+ * @param self "this" pointer
+ * @param config tensor config info
+ * @return caps for given config
+ */
+static GstCaps *
+gst_tensordec_video_caps_from_config (GstTensorDec * self,
+    const GstTensorConfig * config)
+{
+  GstTensorVideoInfo v_info;
+  GstCaps *caps;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
+
+  gst_tensor_video_info_from_config (&v_info, config);
+
+  if (v_info.format != GST_VIDEO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_video_format_to_string (v_info.format);
+    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
+  }
+
+  if (v_info.w > 0) {
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, v_info.w, NULL);
+  }
+
+  if (v_info.h > 0) {
+    gst_caps_set_simple (caps, "height", G_TYPE_INT, v_info.h, NULL);
+  }
+
+  if (v_info.fn > 0 && v_info.fd > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        v_info.fn, v_info.fd, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Get audio caps from tensor config
+ * @param self "this" pointer
+ * @param config tensor config info
+ * @return caps for given config
+ */
+static GstCaps *
+gst_tensordec_audio_caps_from_config (GstTensorDec * self,
+    const GstTensorConfig * config)
+{
+  GstTensorAudioInfo a_info;
+  GstCaps *caps;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_caps_from_string (GST_TENSOR_AUDIO_CAPS_STR);
+
+  gst_tensor_audio_info_from_config (&a_info, config);
+
+  if (a_info.format != GST_AUDIO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_audio_format_to_string (a_info.format);
+    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
+  }
+
+  if (a_info.ch > 0) {
+    gst_caps_set_simple (caps, "channels", G_TYPE_INT, a_info.ch, NULL);
+  }
+
+  if (a_info.rate > 0) {
+    gst_caps_set_simple (caps, "rate", G_TYPE_INT, a_info.rate, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Get text caps from tensor config
+ * @param self "this" pointer
+ * @param config tensor config info
+ * @return caps for given config
+ */
+static GstCaps *
+gst_tensordec_text_caps_from_config (GstTensorDec * self,
+    const GstTensorConfig * config)
+{
+  GstTensorTextInfo t_info;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  gst_tensor_text_info_from_config (&t_info, config);
+
+  /** utf8 */
+  g_return_val_if_fail (t_info.format != 1, NULL);
+
+  return gst_caps_from_string (GST_TENSOR_TEXT_CAPS_STR);
+}
+
+/**
+ * @brief Get media caps from tensor config
+ * @param self "this" pointer
+ * @param config tensor config info
+ * @return caps for media type
+ */
+static GstCaps *
+gst_tensordec_media_caps_from_config (GstTensorDec * self,
+    const GstTensorConfig * config)
+{
+  GstCaps *caps = NULL;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  switch (self->output_type) {
+    case OUTPUT_VIDEO:
+      caps = gst_tensordec_video_caps_from_config (self, config);
+      break;
+    case OUTPUT_AUDIO:
+      caps = gst_tensordec_audio_caps_from_config (self, config);
+      break;
+    case OUTPUT_TEXT:
+      caps = gst_tensordec_text_caps_from_config (self, config);
+      break;
+    default:
+      err_print ("Unsupported type %d\n", self->output_type);
+      break;
+  }
+
+  return caps;
+}
+
+/**
  * @brief Parse structure and return media caps
  * @param self "this" pointer
  * @param structure structure to be interpreted
@@ -140,7 +291,7 @@ gst_tensordec_media_caps_from_structure (GstTensorDec * self,
   GstCaps *result = NULL;
 
   if (gst_tensor_config_from_structure (&config, structure)) {
-    result = gst_tensor_media_caps_from_config (&config);
+    result = gst_tensordec_media_caps_from_config (self, &config);
   }
 
   if (result == NULL) {
@@ -187,13 +338,18 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
   gobject_class->set_property = gst_tensordec_set_property;
   gobject_class->get_property = gst_tensordec_get_property;
 
+  g_object_class_install_property (gobject_class, PROP_OUTPUT_TYPE,
+      g_param_spec_uint ("output-type", "Output type",
+          "Output type from the plugin", 0, G_MAXUINT,
+          DEFAULT_OUTPUT_TYPE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
+      g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDec",
-      "Convert tensor stream to media stream",
+      "Converter/Tensor",
       "Converts tensor stream of C-Array for neural network framework filters to audio or video stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 
@@ -234,6 +390,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->configured = FALSE;
   self->negotiated = FALSE;
   self->add_padding = FALSE;
+  self->output_type = OUTPUT_VIDEO;
   gst_tensor_config_init (&self->tensor_config);
 }
 
@@ -247,6 +404,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
   GstTensorDec *self = GST_TENSORDEC (object);
 
   switch (prop_id) {
+    case PROP_OUTPUT_TYPE:
+      self->output_type = g_value_get_uint (value);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -266,6 +426,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
   GstTensorDec *self = GST_TENSORDEC (object);
 
   switch (prop_id) {
+    case PROP_OUTPUT_TYPE:
+      g_value_set_uint (value, self->output_type);
+      break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
@@ -302,23 +465,24 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
     return FALSE;
   }
 
-  switch (config.tensor_media_type) {
-    case _NNS_VIDEO:
+  switch (self->output_type) {
+    case OUTPUT_VIDEO:
     {
       GstTensorVideoInfo v_info;
 
-      if (gst_tensor_video_info_from_config (&v_info, &config) &&
-          gst_tensor_video_stride_padding_per_row (v_info.format, v_info.w)) {
-        self->add_padding = TRUE;
+      if (gst_tensor_video_info_from_config (&v_info, &config)) {
+        if (gst_tensor_video_stride_padding_per_row (v_info.format, v_info.w)) {
+          self->add_padding = TRUE;
+        }
       }
 
       break;
     }
-    case _NNS_AUDIO:
-    case _NNS_STRING:
+    case OUTPUT_AUDIO:
+    case OUTPUT_TEXT:
       break;
     default:
-      err_print ("Unsupported type %d\n", config.tensor_media_type);
+      err_print ("Unsupported type %d\n", self->output_type);
       return FALSE;
   }
 
@@ -351,7 +515,7 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
 
   /** flag add_padding only for video */
   g_assert (self->add_padding);
-  g_assert (config->tensor_media_type == _NNS_VIDEO);
+  g_assert (self->output_type == OUTPUT_VIDEO);
 
   size = offset = config->dimension[0] * config->dimension[1];
 
@@ -393,7 +557,6 @@ gst_tensordec_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensorDec *self;
-  GstTensorConfig *config;
   GstFlowReturn res;
 
   self = GST_TENSORDEC_CAST (trans);
@@ -403,16 +566,14 @@ gst_tensordec_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
 
-  config = &self->tensor_config;
-
-  switch (config->tensor_media_type) {
-    case _NNS_VIDEO:
-    case _NNS_AUDIO:
-    case _NNS_STRING:
+  switch (self->output_type) {
+    case OUTPUT_VIDEO:
+    case OUTPUT_AUDIO:
+    case OUTPUT_TEXT:
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
       break;
     default:
-      err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
+      err_print ("Unsupported Media Type (%d)\n", self->output_type);
       goto unknown_type;
   }
 
@@ -438,7 +599,6 @@ static GstFlowReturn
 gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
   GstTensorDec *self;
-  GstTensorConfig *config;
 
   self = GST_TENSORDEC_CAST (trans);
 
@@ -447,21 +607,19 @@ gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   if (G_UNLIKELY (!self->configured))
     goto unknown_tensor;
 
-  config = &self->tensor_config;
-
-  switch (config->tensor_media_type) {
-    case _NNS_VIDEO:
+  switch (self->output_type) {
+    case OUTPUT_VIDEO:
       if (self->add_padding) {
         /**
          * @todo Do we need to add padding for x-raw here?
          */
       }
       break;
-    case _NNS_AUDIO:
-    case _NNS_STRING:
+    case OUTPUT_AUDIO:
+    case OUTPUT_TEXT:
       break;
     default:
-      err_print ("Unsupported Media Type (%d)\n", config->tensor_media_type);
+      err_print ("Unsupported Media Type (%d)\n", self->output_type);
       goto unknown_type;
   }
 
@@ -555,7 +713,8 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
       " based on caps %" GST_PTR_FORMAT, othercaps, caps);
 
   if (gst_tensordec_configure (self, caps)) {
-    supposed = gst_tensor_media_caps_from_config (&self->tensor_config);
+    supposed =
+        gst_tensordec_media_caps_from_config (self, &self->tensor_config);
   } else {
     GstStructure *s = gst_caps_get_structure (caps, 0);
     supposed = gst_tensordec_media_caps_from_structure (self, s);
@@ -637,7 +796,7 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
     gsize offset;
 
     /** flag add_padding only for video */
-    g_assert (config->tensor_media_type == _NNS_VIDEO);
+    g_assert (self->output_type == OUTPUT_VIDEO);
 
     offset = config->dimension[0] * config->dimension[1];
 
