@@ -62,6 +62,7 @@ struct _GstTensorDec
   gboolean negotiated; /**< TRUE if tensor metadata is set */
   gboolean add_padding; /**< If TRUE, zero-padding must be added during transform */
   gboolean silent; /**< True if logging is minimized */
+  guint output_type; /**< Denotes the output type */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
