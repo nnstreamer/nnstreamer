@@ -1,0 +1,8 @@
+{
+    "github": {
+        "website": "github.com",
+        "id": "taos-ci",
+        "email": "taos-ci@github.io",
+        "secret": "********"
+    }
+}

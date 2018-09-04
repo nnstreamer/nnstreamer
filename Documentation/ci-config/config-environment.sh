@@ -3,7 +3,7 @@
 ##
 # @file config-environment.sh
 # @brief Environment file to control all scripts commonly for CI bot
-# @see      https://github.sec.samsung.net/STAR/TAOS-CI
+# @see      https://github.com/nnsuite/TAOS-CI
 # @author   Geunsik Lim <geunsik.lim@samsung.com>
 #
 # This script to maintain consistently all scripts files via this file. 
@@ -16,15 +16,22 @@
 # c. In case that you need to create new project
 #
 
-################# Modify the below statements for your server  #######################
+################# Default: Modify the below statements for your server  #######################
 
 
 #### Repository setting
-# Project name of github.sec.samsung.net
+# Connecting to a repository using token id instead of your-gitbot-id@github.io id
+# because of two-authentification. Refer to https://github.com/settings/tokens
+TOKEN="2e44d5b23fda558807ed7a0cdd02bf**********"
+
+# Name of account (or orgranzation)
+GITHUB_ACCOUNT="nnsuite"
+
+# Project name of github website
 PRJ_REPO_UPSTREAM="nnstreamer"
 
 # CI Server webaddress. Should end with /
-CISERVER="http://aaci.mooo.com/"
+CISERVER="http://www.<your-dns>.net/"
 
 # Format area (pr-format)
 # Add root path of source folders
@@ -78,33 +85,35 @@ pr_doxygen_check_level=1
 filesize_limit=5
 
 
-################# Do not modify the below statements #################################
+#### Build mode of software platform
+
+# BUILD_MODE_***=0  : execute a build process without a debug file.
+# BUILD_MODE_***=1  : execute a build process with a debug file.
+# BUILD_MODE_***=99 : skip a build process (by default)
+#
+# Note: if a packaging management is not normally executed for package build, you must declare `BUILD_MODE_***=99` unavoidably
+# 1) Tizen (packaging/*.spec): If a maintainer done the gbs based build process, you may change builde mode from 99 to 0.
+# 2) Ubuntu (debian/*.rule)  : If a maintainer done the pdebuild based build process, you may change builde mode from 99 to 0.
+# 3) Yocto (CMakeLists.txt)  : If a maintainer done the devtool based build process, you may change builde mode from 99 to 0.
+BUILD_MODE_TIZEN=0
+BUILD_MODE_UBUNTU=99
+BUILD_MODE_YOCTO=99
 
 # Version format: Major.Minor
-VERSION="1.20180709"
+VERSION="1.20180820"
 
-# Connecting to a repository using token id instead of git.bot.sec@samsung.com id
-# because of two-authentification. Refer to https://github.sec.samsung.net/settings/tokens
-TOKEN="01eec554abcaae8755c06c2b06f5d6bb84d4b4a5"
-
-# Email-address
-# Note that we have to log-in at least 3 times per a month to avoid deletion of the ID
-# according to announcement of "전자녹스포탈" (knoxportal.sec@samsung.com).
-EMAIL="git.bot.sec@samsung.com"
+#### Location
 
 # Reference repository to speed up "git clone" command
-REFERENCE_REPOSITORY="/var/www/html/$PRJ_REPO_UPSTREAM/"
+REFERENCE_REPOSITORY="/home/taos/public_html/$PRJ_REPO_UPSTREAM/"
 
 # RPM repo cache for GBS build
-REPOCACHE="/var/www/html/$PRJ_REPO_UPSTREAM/repo_cache/"
+REPOCACHE="/home/taos/public_html/$PRJ_REPO_UPSTREAM/repo_cache/"
 
 # Github repostiroy webaddress
-REPOSITORY_WEB="https://github.sec.samsung.net/STAR/$PRJ_REPO_UPSTREAM"
-REPOSITORY_GIT="https://github.sec.samsung.net/STAR/$PRJ_REPO_UPSTREAM.git"
+REPOSITORY_WEB="https://github.com/$GITHUB_ACCOUNT/$PRJ_REPO_UPSTREAM"
+REPOSITORY_GIT="https://github.com/$GITHUB_ACCOUNT/$PRJ_REPO_UPSTREAM.git"
 
 # Github webhook API
-GITHUB_WEBHOOK_API="https://github.sec.samsung.net/api/v3/repos/STAR/$PRJ_REPO_UPSTREAM"
-
-
-
+GITHUB_WEBHOOK_API="https://api.github.com/repos/$GITHUB_ACCOUNT/$PRJ_REPO_UPSTREAM"
 
