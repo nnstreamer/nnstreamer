@@ -491,7 +491,7 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
     /* 3-1.2. Configure resultCap from rdim/rtype */
     if (resultCaps == NULL) {
-      rank = gst_tensor_filter_get_rank ( meta.dims[0]);
+      rank = gst_tensor_filter_get_rank (meta.dims[0]);
       resultCaps =
           gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
           "type", G_TYPE_STRING, tensor_element_typename[meta.types[0]], "dim1",
