@@ -445,6 +445,8 @@ get_tensors_from_structure (const GstStructure * str,
  */
 extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
 
+extern void gst_tensor_meta_copy(GstTensor_TensorsMeta * dest, GstTensor_TensorsMeta src);
+
 #define GST_TENSOR_TYPEFIND_REGISTER(plugin)  do { \
     gst_type_find_register (plugin, "other/tensorsave", \
         GST_RANK_PRIMARY, gst_tensors_typefind_function, "tnsr", \

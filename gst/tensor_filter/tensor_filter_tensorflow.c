@@ -142,8 +142,7 @@ tf_getOutputDim (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 tf_setInputDim (const GstTensor_Filter * filter, void **private_data,
-    const tensor_dim iDimension, const tensor_type iType,
-    tensor_dim oDimension, tensor_type * oType)
+    const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta)
 {
   /** @todo call tflite core apis */
   return 0;                     /** NYI */
