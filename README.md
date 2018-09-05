@@ -4,12 +4,14 @@ Neural Network Support as Gstreamer Plugins.
 
 NNStreamer is a set of Gstreamer plugins, which allows
 Gstreamer developers to adopt neural network models easily and efficiently and
-neural network developers to manage stream pipelines and their filters easily and efficiently
+neural network developers to manage stream pipelines and their filters easily and efficiently.
+
+[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)
 
 ## Objectives
 
 - Provide neural network framework connectivities (e.g., tensorflow, caffe) for gstreamer streams.
-  - **Efficient Streaming for AI Projects**: Neural network models wanted to use efficient and flexible streaming management as well. 
+  - **Efficient Streaming for AI Projects**: Neural network models wanted to use efficient and flexible streaming management as well.
   - **Intelligent Media Filters!**: Use a neural network model as a media filter / converter.
   - **Composite Models!**: Allow to use multiple neural network models in a single stream instance.
   - **Multi Modal Intelligence!**: Allow to use multiple sources for neural network models.
@@ -19,88 +21,22 @@ neural network developers to manage stream pipelines and their filters easily an
   - Allow any neural network developers to manage media streams fairly easily.
 
 ## Maintainers
-* MyungJoo Ham (myungjoo.ham@samsung.com)
+* [MyungJoo Ham](https://github.com/myungjoo/)
 
 ## Reviewers
-* Jijoong Moon (jijoon.moon@samsung.com)
-* Geunsik Lim (geunsik.lim@samsung.com)
-* Sangjung Woo (sangjung.woo@samsung.com)
-* Wook Song (wook16.song@samsung.com)
-* Jaeyun Jung (jy1210.jung@samsung.com)
-* Jinhyuck Park (jinhyuck83.park@samsung.com)
-* Hyoungjoo Ahn (hello.ahn@samsung.com)
-* Sewon Oh (sewon.oh@samsung.com)
+* [Jijoong Moon](https://github.com/jijoongmoon)
+* [Geunsik Lim](https://github.com/leemgs)
+* [Sangjung Woo](https://github.com/again4you)
+* [Wook Song](https://github.com/wooksong)
+* [Jaeyun Jung](https://github.com/jaeyun-jung)
+* [Jinhyuck Park](https://github.com/jinhyuck-park)
+* [Hyoungjoo Ahn](https://github.com/helloahn)
+* [Sewon Oh](https://github.com/ohsewon)
 
 ## Components
 
-Note that this project has just started and most of the components are in design phase.
-
-### Gstreamer Type
-
-- other/tensor
-- other/tensors (W.I.P. jijoong-moon)
-- other/tensorsave (W.I.P. myungjoo)
-
-findtype specifics: refer to the wiki (other/tensorsave)
-meta specifics: W.I.P. jijoong-moon
-
-### Gstreamer Elements (Plugins)
-
-- tensor\_converter
-  - Video
-    - Prototype for video/xraw (RGB/BGRx) is implemented.
-    - Caution: if width is not divisible by 4, RGB video incurs memcpy.
-  - Audio
-    - Planned (wooksong)
-  - Text
-    - Planned
-- tensor\_filter
-  - Main
-    - Supported
-      - Fixed input/ouput dimensions (fixed by subplugin)
-      - Flexible dimensions (output dimension determined by subplugin according to the input dimension determined by pipeline initialization)
-      - Invoke subplugin with pre-allocated buffers
-      - Invoke subplugin and let subplugin allocate output buffers.
-    - TODO: Accept other/tensors.
-    - TODO: Allow to manage synchronization policies.
-  - Tensorflow-Lite
-    - Supported: jinhyuck83-park hello-ahn
-  - Custom
-    - Supported with example custom subplugins.
-  - Other NNFW TBD (coming soon: tensorflow, caffe2, caffe)
-- tensor\_sink
-  - Supported jy1210-jung
-  - TODO: ROS integration
-- tensor\_transformer
-  - Partially supported.
-  - TODO: a lot of features to be implemented
-- tensor\_merge
-  - Planned
-- tensor\_decode
-  - Partially supported: jijoong-moon
-  - TODO: prepare tensor-to-media transforms for many popular neural network models.
-- tensormux
-  - Supported
-    - Mux mutiple "other/tensor"s and make "other/tensors"
-    - Currently maximum number of tensor to be muxed is 16
-  - TODO: Allow to manage synchronization policies.
-- tensordemux
-  - Supported
-    - Demux "other/tensors' to "other/tensor"s
-    - tensor to be pushed to downstream can be choosen with "tensorpick" option.
-- tensor\_source
-  - Planned
-- tensor\_save
-  - Planned
-- tensor\_load
-  - Planned
-
-Note that test elements in /tests/ are not elements for applications. They exist as scaffoldings to test the above elements especially in the case where related elements are not yet implemented.
-
-### Other Components
-- CI (internal in-house): up and running. sewon-oh
-- CI (github.com): W.I.P. sewon-oh, leemgs
-- Stream test cases: partially supported. will be extended by sangjung-woo wook16-song
+Note that this project has just started and many of the components are in design phase.
+In [Component Description](Documentation/component-description.md) page, we describe nnstreamer components of the following three categories: data type definitions, gstreamer elements (plugins), and other misc components.
 
 ## Getting Started
 For more details, please access the following manual.
@@ -110,13 +46,10 @@ For more details, please access the following manual.
 * Press [Here](Documentation/how-to-use-testcases.md) to read how to write and run Test Cases.
 
 ## Usage Examples
-
-The implementation is not there yet for using neural network frameworks.
+- [Example app with camera](nnstreamer_example/example_cam) (stable)
+- Wiki page [usage example screenshots](https://github.com/nnsuite/nnstreamer/wiki/usage-examples-screenshots) (stable)
 
 ## CI Server
-For more details, please access the following web page.
-* Press [Here](http://aaci.mooo.com/nnstreamer/ci/standalone/).
-* Note that the CI server is being migrated and you won't be able to access it.
 
-TAOS-CI config files for nnstreamer
-* Press [Here](Documentation/ci-config).
+- [CI service status](http://nnsuite.mooo.com/)
+- [TAOS-CI config files for nnstreamer](Documentation/ci-config).
