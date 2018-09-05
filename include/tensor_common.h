@@ -17,7 +17,7 @@
  * @file	tensor_common.h
  * @date	23 May 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -34,6 +34,13 @@
 #include <gst/audio/audio-format.h>
 
 G_BEGIN_DECLS
+
+/**
+ * @brief Fixed size of string type
+ */
+#ifndef GST_TENSOR_STRING_SIZE
+#define GST_TENSOR_STRING_SIZE (1024)
+#endif
 
 #define GST_TENSOR_VIDEO_CAPS_STR \
     GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
@@ -118,6 +125,7 @@ typedef struct
   gint h; /**< height */
   gint fn; /**< framerate numerator */
   gint fd; /**< framerate denominator */
+  gint frames; /**< number of frames per tensor */
 } GstTensorVideoInfo;
 
 /**
@@ -128,7 +136,7 @@ typedef struct
   GstAudioFormat format; /**< audio format */
   gint ch; /**< channels */
   gint rate; /**< rate */
-  gint frames; /**< samples per buffer */
+  gint frames; /**< samples per tensor */
 } GstTensorAudioInfo;
 
 /**
@@ -137,6 +145,8 @@ typedef struct
 typedef struct
 {
   gint format; /**< text format (0:unknown, 1:utf8) */
+  gint size; /**< string length (now it is fixed size GST_TENSOR_STRING_SIZE) */
+  gint frames; /**< number of frames per tensor */
 } GstTensorTextInfo;
 
 /**
@@ -144,13 +154,14 @@ typedef struct
  */
 typedef struct
 {
+  /**
+   * @todo remove rank.
+   */
   gint rank; /**< Tensor Rank (# dimensions) */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   tensor_dim dimension; /**< Dimensions. We support up to 4th ranks.  */
   gint rate_n; /**< framerate is in fraction, which is numerator/denominator */
   gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
-  media_type tensor_media_type; /**< Denotes the input media stream type */
-  gint tensor_media_format; /**< Denotes the input media stream format */
 } GstTensorConfig;
 
 /**
@@ -199,6 +210,7 @@ gst_tensor_text_info_init (GstTensorTextInfo * t_info);
  * @brief Set video info to configure tensor
  * @param v_info video info structure to be filled
  * @param structure caps structure
+ * @note Fill frames in GstTensorVideoInfo after calling this function.
  */
 extern void
 gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
@@ -208,6 +220,7 @@ gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
  * @brief Set audio info to configure tensor
  * @param a_info audio info structure to be filled
  * @param structure caps structure
+ * @note Fill frames in GstTensorAudioInfo after calling this function.
  */
 extern void
 gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
@@ -217,6 +230,7 @@ gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
  * @brief Set text info to configure tensor
  * @param t_info text info structure to be filled
  * @param structure caps structure
+ * @note Fill size and frames in GstTensorTextInfo after calling this function.
  */
 extern void
 gst_tensor_text_info_from_structure (GstTensorTextInfo * t_info,
@@ -226,7 +240,8 @@ gst_tensor_text_info_from_structure (GstTensorTextInfo * t_info,
  * @brief Set the video info structure from tensor config
  * @param v_info video info structure to be filled
  * @param config tensor config structure to be interpreted
- * @return TRUE if supported format
+ * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
+ * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
@@ -236,7 +251,8 @@ gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
  * @brief Set the audio info structure from tensor config
  * @param a_info audio info structure to be filled
  * @param config tensor config structure to be interpreted
- * @return TRUE if supported format
+ * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
+ * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
@@ -246,7 +262,8 @@ gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
  * @brief Set the text info structure from tensor config
  * @param t_info text info structure to be filled
  * @param config tensor config structure to be interpreted
- * @return TRUE if supported format
+ * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
+ * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_text_info_from_config (GstTensorTextInfo * t_info,
@@ -279,7 +296,8 @@ gst_tensor_config_is_same (const GstTensorConfig * c1,
  * @brief Parse structure and set tensor config info
  * @param config tensor config structure to be filled
  * @param structure structure to be interpreted
- * @return TRUE if ok
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_config_from_structure (GstTensorConfig * config,
@@ -289,7 +307,8 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
  * @brief Set the tensor config structure from video info
  * @param config tensor config structure to be filled
  * @param v_info video info structure to be interpreted
- * @return TRUE if supported format
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
  */
 extern gboolean
 gst_tensor_config_from_video_info (GstTensorConfig * config,
@@ -299,7 +318,8 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
  * @brief Set the tensor config structure from audio info
  * @param config tensor config structure to be filled
  * @param a_info audio info structure to be interpreted
- * @return TRUE if supported format
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
  */
 extern gboolean
 gst_tensor_config_from_audio_info (GstTensorConfig * config,
@@ -309,7 +329,8 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
  * @brief Set the tensor config structure from text info
  * @param config tensor config structure to be filled
  * @param t_info text info structure to be interpreted
- * @return TRUE if supported format
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
  */
 extern gboolean
 gst_tensor_config_from_text_info (GstTensorConfig * config,
@@ -322,14 +343,6 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
  */
 extern GstCaps *
 gst_tensor_caps_from_config (const GstTensorConfig * config);
-
-/**
- * @brief Get media caps from tensor config
- * @param config tensor config info
- * @return caps for given config
- */
-extern GstCaps *
-gst_tensor_media_caps_from_config (const GstTensorConfig * config);
 
 /**
  * @brief Determine if we need zero-padding
