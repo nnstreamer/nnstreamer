@@ -191,8 +191,33 @@ gst_tensor_transform_init (GstTensor_Transform * filter)
 static const gchar *gst_tensor_transform_mode_string[] = {
   [GTT_DIMCHG] = "dimchg",
   [GTT_TYPECAST] = "typecast",
+  [GTT_ARITHMETIC] = "arithmetic",
   [GTT_END] = "error",
 };
+
+ /*TODO*/
+/* [ARITH_MAD] = "mad", (pixel[] + a) * b should be supported */
+static const gchar *gst_tensor_transform_arithmetic_string[] = {
+  [ARITH_ADD] = "add",
+  [ARITH_MUL] = "mul",
+  [ARITH_END] = "error",
+};
+
+/**
+ * @brief Get the corresponding mode from the string value
+ * @param[in] str The string value for the mode
+ * @return corresponding mode for the string. ARITH_END for errors
+ */
+static tensor_transform_arith_mode
+gst_tensor_transform_get_arith_mode (const gchar * str)
+{
+  int i;
+  for (i = 0; i < ARITH_END; i++) {
+    if (!g_ascii_strcasecmp (gst_tensor_transform_arithmetic_string[i], str))
+      return i;
+  }
+  return ARITH_END;
+}
 
 /**
  * @brief Get the corresponding mode from the string value
@@ -243,6 +268,19 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
       filter->data_typecast.to = get_tensor_type (filter->option);
       if (filter->data_typecast.to != _NNS_END)
         filter->loaded = TRUE;
+    }
+      break;
+    case GTT_ARITHMETIC:
+    {
+      gchar **strv = g_strsplit (filter->option, ":", 2);
+      if (strv[0] != NULL) {
+        filter->data_arithmetic.mode =
+            gst_tensor_transform_get_arith_mode (strv[0]);
+      }
+      if (strv[1] != NULL)
+        filter->data_arithmetic.value = g_ascii_strtod (strv[1], NULL);
+
+      filter->loaded = TRUE;
     }
       break;
     default:
@@ -536,6 +574,67 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
 }
 
 /**
+ * Macro to run loop for various data types with simple arithmetic
+ */
+#define arith(itype, num, op, a) do { \
+    size_t i; \
+    itype *in = (itype *) inptr; \
+    itype *out = (itype *) outptr; \
+    for (i=0;i<num;i++){ \
+      *(out+i) = (*(in+i) op a); \
+    } \
+  }while(0);
+
+
+/**
+ * Macro to run loop for various data types with simple arithmetic
+ */
+#define arithloopcase(typecase, itype, num, mode, value) \
+  case typecase: \
+  { \
+    itype a = (itype) value; \
+    switch (mode) { \
+    case ARITH_ADD : arith(itype, num, +, a); break; \
+    case ARITH_MUL : arith(itype, num, *, a); break; \
+    default: g_assert(0); \
+    };                    \
+  };                      \
+  break; \
+
+/**
+ * @brief subrouting for tensor-tranform, "arithmetic" case.
+ * @param[in/out] filter "this" pointer
+ * @param[in] inptr input tensor
+ * @param[out] outptr output tensor
+ * @return Gst flow status
+ */
+static GstFlowReturn
+gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
+    const uint8_t * inptr, uint8_t * outptr)
+{
+  uint32_t num = get_tensor_element_count (filter->fromDim);
+  tensor_transform_arith_mode mode = filter->data_arithmetic.mode;
+  double value = filter->data_arithmetic.value;
+  switch (filter->type) {
+      arithloopcase (_NNS_INT8, int8_t, num, mode, value);
+      arithloopcase (_NNS_INT16, int16_t, num, mode, value);
+      arithloopcase (_NNS_INT32, int32_t, num, mode, value);
+      arithloopcase (_NNS_UINT8, uint8_t, num, mode, value);
+      arithloopcase (_NNS_UINT16, uint16_t, num, mode, value);
+      arithloopcase (_NNS_UINT32, uint32_t, num, mode, value);
+      arithloopcase (_NNS_FLOAT32, float, num, mode, value);
+      arithloopcase (_NNS_FLOAT64, double, num, mode, value);
+      arithloopcase (_NNS_INT64, int64_t, num, mode, value);
+      arithloopcase (_NNS_UINT64, uint64_t, num, mode, value);
+    default:
+      g_assert (0);
+  }
+
+  return GST_FLOW_OK;
+}
+
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -563,6 +662,9 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       break;
     case GTT_TYPECAST:
       res = gst_tensor_transform_typecast (filter, inptr, outptr);
+      break;
+    case GTT_ARITHMETIC:
+      res = gst_tensor_transform_arithmetic (filter, inptr, outptr);
       break;
     default:
       res = GST_FLOW_NOT_SUPPORTED;
@@ -742,6 +844,16 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
       ret = TRUE;
     }
       break;
+    case GTT_ARITHMETIC:
+    {
+      int i;
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        destDim[i] = srcDim[i];
+      }
+      *destType = srcType;
+      ret = TRUE;
+    }
+      break;
     default:
       return FALSE;
   }
@@ -894,6 +1006,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     filter->type = itype;
 
   switch (filter->mode) {
+    case GTT_ARITHMETIC:
     case GTT_DIMCHG:
       if (itype != otype || filter->type != itype) {
         debug_print (!filter->silent, "Filter Type Not Matched\n");
@@ -928,6 +1041,7 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
 {
   GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
   switch (filter->mode) {
+    case GTT_ARITHMETIC:
     case GTT_DIMCHG:
       *othersize = size;        /* size of input = size of output if dimchg */
       break;
