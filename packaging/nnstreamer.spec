@@ -80,20 +80,20 @@ pushd build
 make %{?_smp_mflags}
 popd
 
+%install
+pushd build
+%make_install
+popd
+
 # DO THE TEST!
+export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 
 pushd build
 ./unittest_common
 ./unittest_sink --gst-plugin-path=./gst
 popd
 
-%install
-pushd build
-%make_install
-popd
-
 pushd tests
-export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 ./testAll.sh
 popd
 
