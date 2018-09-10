@@ -63,14 +63,12 @@ G_BEGIN_DECLS
     GST_TENSOR_TEXT_CAPS_STR
 
 /** @todo I'm not sure if the range is to be 1, 65535 or larger */
-#define GST_TENSOR_RANK_RANGE "(int) [ 1, 4 ]"
 #define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0/1, 2147483647/1 ]"
 #define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 #define GST_TENSOR_CAP_DEFAULT \
     "other/tensor, " \
-    "rank = " GST_TENSOR_RANK_RANGE ", " \
     "dim1 = " GST_TENSOR_DIM_RANGE ", " \
     "dim2 = " GST_TENSOR_DIM_RANGE ", " \
     "dim3 = " GST_TENSOR_DIM_RANGE ", " \
@@ -97,7 +95,6 @@ G_BEGIN_DECLS
  */
 #define GST_TENSORS_CAP_DEFAULT \
     "other/tensors, " \
-    "rank = " GST_TENSOR_RANK_RANGE ", " \
     "num_tensors = " GST_TENSOR_NUM_TENSORS_RANGE ", "\
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
@@ -163,10 +160,6 @@ typedef struct
  */
 typedef struct
 {
-  /**
-   * @todo remove rank.
-   */
-  gint rank; /**< Tensor Rank (# dimensions) */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
   tensor_dim dimension; /**< Dimensions. We support up to 4th ranks.  */
   gint rate_n; /**< framerate is in fraction, which is numerator/denominator */

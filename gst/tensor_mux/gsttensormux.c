@@ -453,8 +453,8 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   if (!tensor_mux->negotiated) {
     GstCaps *newcaps;
     newcaps =
-        gst_caps_new_simple ("other/tensors", "rank", G_TYPE_INT,
-        tensor_mux->rank, "num_tensors", G_TYPE_INT,
+        gst_caps_new_simple ("other/tensors",
+        "num_tensors", G_TYPE_INT,
         tensor_mux->num_tensors, "types", G_TYPE_STRING,
         types->str, "framerate", GST_TYPE_FRACTION,
         tensor_mux->framerate_numerator, tensor_mux->framerate_denominator,
