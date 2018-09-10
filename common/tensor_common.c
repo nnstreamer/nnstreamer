@@ -344,7 +344,6 @@ gst_tensor_config_init (GstTensorConfig * config)
 
   g_return_if_fail (config != NULL);
 
-  config->rank = 0;
   config->type = _NNS_END;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -366,10 +365,6 @@ gst_tensor_config_validate (const GstTensorConfig * config)
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
-
-  if (config->rank == 0) {
-    return FALSE;
-  }
 
   if (config->type == _NNS_END) {
     return FALSE;
@@ -400,10 +395,6 @@ gst_tensor_config_is_same (const GstTensorConfig * c1,
 
   g_return_val_if_fail (c1 != NULL, FALSE);
   g_return_val_if_fail (c2 != NULL, FALSE);
-
-  if (c1->rank != c2->rank) {
-    return FALSE;
-  }
 
   if (c1->type != c2->type) {
     return FALSE;
@@ -445,7 +436,6 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
     return FALSE;
   }
 
-  gst_structure_get_int (structure, "rank", &config->rank);
   gst_structure_get_int (structure, "dim1", (gint *) (&config->dimension[0]));
   gst_structure_get_int (structure, "dim2", (gint *) (&config->dimension[1]));
   gst_structure_get_int (structure, "dim3", (gint *) (&config->dimension[2]));
@@ -568,9 +558,6 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
 
   gst_tensor_config_init (config);
 
-  /** @todo remove rank */
-  config->rank = 3;
-
   /** [color-space][width][height][frames] */
   switch (v_info->format) {
     case GST_VIDEO_FORMAT_GRAY8:
@@ -621,9 +608,6 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
   g_return_val_if_fail (a_info != NULL, FALSE);
 
   gst_tensor_config_init (config);
-
-  /** @todo remove rank */
-  config->rank = 2;
 
   /** [channels][frames] */
   switch (a_info->format) {
@@ -678,9 +662,6 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
 
   gst_tensor_config_init (config);
 
-  /** @todo remove rank */
-  config->rank = 2;
-
   /** [size][frames] */
   switch (t_info->format) {
     case 1:
@@ -718,10 +699,6 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
-
-  if (config->rank > 0) {
-    gst_caps_set_simple (caps, "rank", G_TYPE_INT, config->rank, NULL);
-  }
 
   if (config->dimension[0] > 0) {
     gst_caps_set_simple (caps, "dim1", G_TYPE_INT, config->dimension[0], NULL);
@@ -921,8 +898,6 @@ get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
 {
   GstTensor_Filter_CheckStatus ret = _TFC_INIT;
   const gchar *strval;
-  int rank;
-  int j;
   gint fn, fd;
 
   if (!gst_structure_has_name (str, "other/tensor"))
@@ -933,10 +908,6 @@ get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
       gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
       gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
     ret |= _TFC_DIMENSION;
-    if (gst_structure_get_int (str, "rank", &rank)) {
-      for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
-        g_assert (dim[j] == 1);
-    }
   }
   strval = gst_structure_get_string (str, "type");
   if (strval) {
@@ -993,22 +964,6 @@ get_tensors_from_structure (const GstStructure * str,
     return 0;
 
   meta->num_tensors = num;
-
-  strval = gst_structure_get_string (str, "rank");
-
-  strv = g_strsplit (strval, ",./", -1);
-  counter = 0;
-  while (strv[counter]) {
-    rank[counter] = g_ascii_strtod (strv[counter], NULL);
-    if (rank[counter] != NNS_TENSOR_RANK_LIMIT) {
-      err_print ("rank value of other/tensors incorrect.\n");
-      rank[counter] = 0;
-      return 0;
-    }
-    counter++;
-  }
-
-  g_strfreev (strv);
 
   if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
     if (framerate_num)

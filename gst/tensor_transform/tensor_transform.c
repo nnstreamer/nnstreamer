@@ -594,27 +594,6 @@ gst_tensor_read_cap (GstCaps * caps, tensor_dim dim, tensor_type * type,
 }
 
 /**
- * @brief Calculate the rank of a tensor
- * @param dimension The dimension vector (tensor_dim = uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
- * @return the rank value
- */
-static int
-get_rank (const tensor_dim dimension)
-{
-  int i = 0;
-  int rank = 0;
-  g_assert (dimension);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_assert (dimension[i] > 0);
-    if (dimension[i] > 1)
-      rank = i + 1;
-  }
-  if (rank == 0)                /* a scalar (assume it is 1-dim vector) */
-    return 1;
-  return rank;
-}
-
-/**
  * @brief Write cap from the given dim/type. You need to free the returned value
  * @param[in] dim The given tensor dimension
  * @param[in] type The given tensor element type
@@ -625,7 +604,6 @@ get_rank (const tensor_dim dimension)
 static GstCaps *
 gst_tensor_write_cap (const tensor_dim dim, tensor_type type, gint fn, gint fd)
 {
-  int rank = get_rank (dim);
   GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
   GstCaps *tmp, *tmp2;
   GstCaps *staticcap = gst_static_caps_get (&rawcap);
@@ -634,13 +612,13 @@ gst_tensor_write_cap (const tensor_dim dim, tensor_type type, gint fn, gint fd)
     /* type: certain. dim: uncertain */
     if (fn != -1 && fd != -1) {
       tmp2 =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
+          gst_caps_new_simple ("other/tensor",
           "dim1", G_TYPE_INT, dim[0], "dim2", G_TYPE_INT, dim[1],
           "dim3", G_TYPE_INT, dim[2], "dim4", G_TYPE_INT, dim[3],
           "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
     } else {
       tmp2 =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
+          gst_caps_new_simple ("other/tensor",
           "dim1", G_TYPE_INT, dim[0], "dim2", G_TYPE_INT, dim[1],
           "dim3", G_TYPE_INT, dim[2], "dim4", G_TYPE_INT, dim[3], NULL);
     }
@@ -648,14 +626,14 @@ gst_tensor_write_cap (const tensor_dim dim, tensor_type type, gint fn, gint fd)
     /* type: certain. dim: certain */
     if (fn != -1 && fd != -1) {
       tmp2 =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+          gst_caps_new_simple ("other/tensor", "type",
           G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
           dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
           dim[2], "dim4", G_TYPE_INT, dim[3],
           "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
     } else {
       tmp2 =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+          gst_caps_new_simple ("other/tensor", "type",
           G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
           dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
           dim[2], "dim4", G_TYPE_INT, dim[3], NULL);

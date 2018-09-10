@@ -303,27 +303,6 @@ gst_tensor_filter_init (GstTensor_Filter * filter)
       filter->prop.fw->fwClosed = TRUE; \
     } while (0);
 
-/**
- * @brief Calculate the rank of a tensor
- * @param dimension The dimension vector (tensor_dim = uint32_t[NNS_TENSOR_RANK_LIMIT]) of tensor.
- * @return the rank value
- */
-static int
-gst_tensor_filter_get_rank (const tensor_dim dimension)
-{
-  int i = 0;
-  int rank = 0;
-  g_assert (dimension);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_assert (dimension[i] > 0);
-    if (dimension[i] > 1)
-      rank = i + 1;
-  }
-  if (rank == 0)                /* a scalar (assume it is 1-dim vector) */
-    return 1;
-  return rank;
-}
-
 static GstTensor_Filter_CheckStatus
 gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, const tensor_dim dim,
     tensor_type * type);
@@ -350,7 +329,6 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   GstTensor_Filter_Properties *prop = &filter->prop;
   GstCaps *tmp = NULL, *tmp2 = NULL, *staticcap = NULL, *resultCaps = NULL;
   GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-  int rank;
   staticcap = gst_static_caps_get (&rawcap);
 
   if (isInput == TRUE) {
@@ -371,18 +349,16 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
   /* 2. configure caps based on type & dimension */
   if (configured == _TFC_ALL) {
-    rank = gst_tensor_filter_get_rank (dimension[0]);
     tmp2 =
-        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+        gst_caps_new_simple ("other/tensor", "type",
         G_TYPE_STRING, tensor_element_typename[type[0]], "dim1", G_TYPE_INT,
         dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1], "dim3",
         G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT, dimension[0][3], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else if (configured == _TFC_DIMENSION) {
-    rank = gst_tensor_filter_get_rank (dimension[0]);
     tmp2 =
-        gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "dim1",
+        gst_caps_new_simple ("other/tensor", "dim1",
         G_TYPE_INT, dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1],
         "dim3", G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT,
         dimension[0][3], NULL);
@@ -463,9 +439,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
     /* 3-1.2. Configure resultCap from rdim/rtype */
     if (resultCaps == NULL) {
-      rank = gst_tensor_filter_get_rank (outputMeta.dims[0]);
       resultCaps =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank, "type",
+          gst_caps_new_simple ("other/tensor", "type",
           G_TYPE_STRING, tensor_element_typename[outputMeta.types[0]], "dim1",
           G_TYPE_INT, outputMeta.dims[0][0], "dim2", G_TYPE_INT,
           outputMeta.dims[0][1], "dim3", G_TYPE_INT, outputMeta.dims[0][2],
@@ -491,9 +466,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
 
     /* 3-1.2. Configure resultCap from rdim/rtype */
     if (resultCaps == NULL) {
-      rank = gst_tensor_filter_get_rank (meta.dims[0]);
       resultCaps =
-          gst_caps_new_simple ("other/tensor", "rank", G_TYPE_INT, rank,
+          gst_caps_new_simple ("other/tensor",
           "type", G_TYPE_STRING, tensor_element_typename[meta.types[0]], "dim1",
           G_TYPE_INT, meta.dims[0][0], "dim2", G_TYPE_INT, meta.dims[0][1],
           "dim3", G_TYPE_INT, meta.dims[0][2], "dim4", G_TYPE_INT,
@@ -1018,7 +992,6 @@ gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, const tensor_dim dim,
   unsigned int i, capsize;
   const GstStructure *str;
   GstTensor_Filter_CheckStatus ret = _TFC_INIT;
-  int rank;
   const gchar *strval;
 
   if (!caps) {
@@ -1033,12 +1006,7 @@ gst_tensor_filter_generate_dim_from_cap (GstCaps * caps, const tensor_dim dim,
         gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
         gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
         gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
-      int j;
       ret |= _TFC_DIMENSION;
-      if (gst_structure_get_int (str, "rank", &rank)) {
-        for (j = rank; j < NNS_TENSOR_RANK_LIMIT; j++)
-          g_assert (dim[j] == 1);
-      }
     }
     strval = gst_structure_get_string (str, "type");
     if (strval) {
