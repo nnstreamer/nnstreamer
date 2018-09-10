@@ -66,7 +66,6 @@ G_BEGIN_DECLS
 #define GST_TENSOR_RANK_RANGE "(int) [ 1, 4 ]"
 #define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0/1, 2147483647/1 ]"
-#define GST_TENSOR_TENSORS_RANGE "(int) [ 1, 65535 ]"
 #define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 #define GST_TENSOR_CAP_DEFAULT \
@@ -79,6 +78,16 @@ G_BEGIN_DECLS
     "type = (string) " GST_TENSOR_TYPE_ALL ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
 
+
+/**
+ * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
+ * which is GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c.
+ * We redefined the value because GST_BUFFER_MEM_MAX is not exported and
+ * we need static value. To modify (increase) this value, you need to update
+ * gstreamer/gstbuffer.c as well.
+ */
+#define GST_TENSOR_NUM_TENSORS_RANGE "(int) [ 1, " NNS_TENSOR_SIZE_LIMIT_STR " ]"
+
 /**
  * @brief Default static capibility for other/tensors
  *
@@ -89,7 +98,7 @@ G_BEGIN_DECLS
 #define GST_TENSORS_CAP_DEFAULT \
     "other/tensors, " \
     "rank = " GST_TENSOR_RANK_RANGE ", " \
-    "num_tensors = " GST_TENSOR_TENSORS_RANGE ", "\
+    "num_tensors = " GST_TENSOR_NUM_TENSORS_RANGE ", "\
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
      * type should be one of
