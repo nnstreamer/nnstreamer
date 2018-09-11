@@ -44,6 +44,7 @@
 #include <config.h>
 #endif
 
+#include <glib.h>
 #include <string.h>
 #include "tensordec.h"
 
@@ -96,8 +97,30 @@ enum
 {
   PROP_0,
   PROP_OUTPUT_TYPE,
-  PROP_SILENT
+  PROP_SILENT,
+  PROP_MODE,
+  PROP_MODE_OPTION1
 };
+
+/**
+ * @brief Data structure for image labeling info.
+ */
+typedef struct
+{
+  gchar *label_path; /**< label file path */
+  GList *labels; /**< list of loaded labels */
+  guint total_labels; /**< count of labels */
+} Mode_image_labeling;
+
+/**
+ * @brief Data structure for tensor decoder image labeling mode.
+ */
+typedef struct
+{
+  gint current_label_index; /**< current label index */
+  gint new_label_index; /**< new label index */
+  Mode_image_labeling image_labeling_info; /**< tflite image labeling mode info */
+} TensorDec_Mode_image_Label;
 
 /**
  * @brief Default output type.
@@ -391,6 +414,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->negotiated = FALSE;
   self->add_padding = FALSE;
   self->output_type = OUTPUT_VIDEO;
+  self->mode = Mode[0];
   gst_tensor_config_init (&self->tensor_config);
 }
 
@@ -409,6 +433,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
+      break;
+    case PROP_MODE:
+      self->mode = g_value_dup_string (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -431,6 +458,8 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
+      break;
+    case PROP_MODE:
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
