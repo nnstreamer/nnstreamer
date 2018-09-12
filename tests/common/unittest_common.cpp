@@ -175,10 +175,8 @@ TEST (common_find_key_strv, key_index)
 TEST (common_get_tensor_dimension, case1)
 {
   uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT];
-  int rank[NNS_TENSOR_RANK_LIMIT];
-  int num_tensors = get_tensor_dimension ("345:123:433:177", dim, rank);
+  int num_tensors = get_tensor_dimension ("345:123:433:177", dim);
   EXPECT_EQ (num_tensors, 1);
-  EXPECT_EQ (rank[0], 4);
   EXPECT_EQ (dim[0][0], 345);
   EXPECT_EQ (dim[0][1], 123);
   EXPECT_EQ (dim[0][2], 433);
@@ -191,10 +189,8 @@ TEST (common_get_tensor_dimension, case1)
 TEST (common_get_tensor_dimension, case2)
 {
   uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT];
-  int rank[NNS_TENSOR_RANK_LIMIT];
-  int num_tensors = get_tensor_dimension ("345:123:433", dim, rank);
+  int num_tensors = get_tensor_dimension ("345:123:433", dim);
   EXPECT_EQ (num_tensors, 1);
-  EXPECT_EQ (rank[0], 3);
   EXPECT_EQ (dim[0][0], 345);
   EXPECT_EQ (dim[0][1], 123);
   EXPECT_EQ (dim[0][2], 433);
@@ -207,10 +203,8 @@ TEST (common_get_tensor_dimension, case2)
 TEST (common_get_tensor_dimension, case3)
 {
   uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT];
-  int rank[NNS_TENSOR_RANK_LIMIT];
-  int num_tensors = get_tensor_dimension ("345:123", dim, rank);
+  int num_tensors = get_tensor_dimension ("345:123", dim);
   EXPECT_EQ (num_tensors, 1);
-  EXPECT_EQ (rank[0], 2);
   EXPECT_EQ (dim[0][0], 345);
   EXPECT_EQ (dim[0][1], 123);
   EXPECT_EQ (dim[0][2], 1);
@@ -223,10 +217,8 @@ TEST (common_get_tensor_dimension, case3)
 TEST (common_get_tensor_dimension, case4)
 {
   uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT];
-  int rank[NNS_TENSOR_RANK_LIMIT];
-  int num_tensors = get_tensor_dimension ("345", dim, rank);
+  int num_tensors = get_tensor_dimension ("345", dim);
   EXPECT_EQ (num_tensors, 1);
-  EXPECT_EQ (rank[0], 1);
   EXPECT_EQ (dim[0][0], 345);
   EXPECT_EQ (dim[0][1], 1);
   EXPECT_EQ (dim[0][2], 1);

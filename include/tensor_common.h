@@ -98,8 +98,7 @@ G_BEGIN_DECLS
     "num_tensors = " GST_TENSOR_NUM_TENSORS_RANGE ", "\
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
-     * type should be one of
-     * { float32, float64, int32, uint32, int16, uint16, int8, uint8 }
+     * type should be one of types in GST_TENSOR_TYPE_ALL
      * "types = (string) uint8, uint8, uint8"
      * Dimensions of Tensors for negotiation. It's comment out here,
        but when we call gst_structure_get_string, it actually is working well
@@ -122,49 +121,24 @@ typedef enum _nns_media_type
 } media_type;
 
 /**
- * @brief Internal data structure for video info to configure tensor.
+ * @brief Internal data structure for configured tensor info (for other/tensor).
  */
 typedef struct
 {
-  GstVideoFormat format; /**< video format */
-  gint w; /**< width */
-  gint h; /**< height */
-  gint fn; /**< framerate numerator */
-  gint fd; /**< framerate denominator */
-  gint frames; /**< number of frames per tensor */
-} GstTensorVideoInfo;
-
-/**
- * @brief Internal data structure for audio info to configure tensor.
- */
-typedef struct
-{
-  GstAudioFormat format; /**< audio format */
-  gint ch; /**< channels */
-  gint rate; /**< rate */
-  gint frames; /**< samples per tensor */
-} GstTensorAudioInfo;
-
-/**
- * @brief Internal data structure for text info to configure tensor.
- */
-typedef struct
-{
-  gint format; /**< text format (0:unknown, 1:utf8) */
-  gint size; /**< string length (now it is fixed size GST_TENSOR_STRING_SIZE) */
-  gint frames; /**< number of frames per tensor */
-} GstTensorTextInfo;
-
-/**
- * @brief Internal data structure for configured tensor info.
- */
-typedef struct
-{
-  tensor_type type; /**< Type of each element in the tensor. User must designate this. Otherwise, this is UINT8 for video/x-raw byte stream */
-  tensor_dim dimension; /**< Dimensions. We support up to 4th ranks.  */
+  GstTensorInfo info; /**< tensor info*/
   gint rate_n; /**< framerate is in fraction, which is numerator/denominator */
   gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorConfig;
+
+/**
+ * @brief Internal data structure for configured tensors info (for other/tensors).
+ */
+typedef struct
+{
+  GstTensorsInfo info; /**< tensor info*/
+  gint rate_n; /**< framerate is in fraction, which is numerator/denominator */
+  gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
+} GstTensorsConfig;
 
 /**
  * @brief String representations for each tensor element type.
@@ -188,88 +162,48 @@ extern media_type
 gst_tensor_media_type_from_structure (const GstStructure * structure);
 
 /**
- * @brief Initialize the video info structure
- * @param v_info video info structure to be initialized
+ * @brief Initialize the tensor info structure
+ * @param info tensor info structure to be initialized
  */
 extern void
-gst_tensor_video_info_init (GstTensorVideoInfo * v_info);
+gst_tensor_info_init (GstTensorInfo * info);
 
 /**
- * @brief Initialize the audio info structure
- * @param a_info audio info structure to be initialized
- */
-extern void
-gst_tensor_audio_info_init (GstTensorAudioInfo * a_info);
-
-/**
- * @brief Initialize the text info structure
- * @param t_info text info structure to be initialized
- */
-extern void
-gst_tensor_text_info_init (GstTensorTextInfo * t_info);
-
-/**
- * @brief Set video info to configure tensor
- * @param v_info video info structure to be filled
- * @param structure caps structure
- * @note Fill frames in GstTensorVideoInfo after calling this function.
- */
-extern void
-gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
-    const GstStructure * structure);
-
-/**
- * @brief Set audio info to configure tensor
- * @param a_info audio info structure to be filled
- * @param structure caps structure
- * @note Fill frames in GstTensorAudioInfo after calling this function.
- */
-extern void
-gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
-    const GstStructure * structure);
-
-/**
- * @brief Set text info to configure tensor
- * @param t_info text info structure to be filled
- * @param structure caps structure
- * @note Fill size and frames in GstTensorTextInfo after calling this function.
- */
-extern void
-gst_tensor_text_info_from_structure (GstTensorTextInfo * t_info,
-    const GstStructure * structure);
-
-/**
- * @brief Set the video info structure from tensor config
- * @param v_info video info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
+ * @brief Check the tensor info is valid
+ * @param info tensor info structure
+ * @return TRUE if info is valid
  */
 extern gboolean
-gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
-    const GstTensorConfig * config);
+gst_tensor_info_validate (const GstTensorInfo * info);
 
 /**
- * @brief Set the audio info structure from tensor config
- * @param a_info audio info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
+ * @brief Compare tensor info
+ * @param TRUE if equal
  */
 extern gboolean
-gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
-    const GstTensorConfig * config);
+gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
 
 /**
- * @brief Set the text info structure from tensor config
- * @param t_info text info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
+ * @brief Initialize the tensors info structure
+ * @param info tensors info structure to be initialized
+ */
+extern void
+gst_tensors_info_init (GstTensorsInfo * info);
+
+/**
+ * @brief Check the tensors info is valid
+ * @param info tensors info structure
+ * @return TRUE if info is valid
  */
 extern gboolean
-gst_tensor_text_info_from_config (GstTensorTextInfo * t_info,
-    const GstTensorConfig * config);
+gst_tensors_info_validate (const GstTensorsInfo * info);
+
+/**
+ * @brief Compare tensors info
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
 
 /**
  * @brief Initialize the tensor config info structure
@@ -288,14 +222,14 @@ gst_tensor_config_validate (const GstTensorConfig * config);
 
 /**
  * @brief Compare tensor config info
- * @param TRUE if same
+ * @param TRUE if equal
  */
 extern gboolean
-gst_tensor_config_is_same (const GstTensorConfig * c1,
+gst_tensor_config_is_equal (const GstTensorConfig * c1,
     const GstTensorConfig * c2);
 
 /**
- * @brief Parse structure and set tensor config info
+ * @brief Parse structure and set tensor config info (for other/tensor)
  * @param config tensor config structure to be filled
  * @param structure structure to be interpreted
  * @note Change dimention if tensor contains N frames.
@@ -306,45 +240,53 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
     const GstStructure * structure);
 
 /**
- * @brief Set the tensor config structure from video info
- * @param config tensor config structure to be filled
- * @param v_info video info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-extern gboolean
-gst_tensor_config_from_video_info (GstTensorConfig * config,
-    const GstTensorVideoInfo * v_info);
-
-/**
- * @brief Set the tensor config structure from audio info
- * @param config tensor config structure to be filled
- * @param a_info audio info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-extern gboolean
-gst_tensor_config_from_audio_info (GstTensorConfig * config,
-    const GstTensorAudioInfo * a_info);
-
-/**
- * @brief Set the tensor config structure from text info
- * @param config tensor config structure to be filled
- * @param t_info text info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-extern gboolean
-gst_tensor_config_from_text_info (GstTensorConfig * config,
-    const GstTensorTextInfo * t_info);
-
-/**
- * @brief Get tensor caps from tensor config
+ * @brief Get tensor caps from tensor config (for other/tensor)
  * @param config tensor config info
  * @return caps for given config
  */
 extern GstCaps *
 gst_tensor_caps_from_config (const GstTensorConfig * config);
+
+/**
+ * @brief Initialize the tensors config info structure (for other/tensors)
+ * @param config tensors config structure to be initialized
+ */
+extern void
+gst_tensors_config_init (GstTensorsConfig * config);
+
+/**
+ * @brief Check the tensors are all configured (for other/tensors)
+ * @param config tensor config structure
+ * @return TRUE if configured
+ */
+extern gboolean
+gst_tensors_config_validate (const GstTensorsConfig * config);
+
+/**
+ * @brief Compare tensor config info (for other/tensors)
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensors_config_is_equal (const GstTensorsConfig * c1,
+    const GstTensorsConfig * c2);
+
+/**
+ * @brief Parse structure and set tensors config (for other/tensors)
+ * @param config tensors config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if no error
+ */
+extern gboolean
+gst_tensors_config_from_structure (GstTensorsConfig * config,
+    const GstStructure * structure);
+
+/**
+ * @brief Get caps from tensors config (for other/tensors)
+ * @param config tensors config info
+ * @return caps for given config
+ */
+extern GstCaps *
+gst_tensors_caps_from_config (const GstTensorsConfig * config);
 
 /**
  * @brief Determine if we need zero-padding
@@ -374,8 +316,7 @@ extern int find_key_strv (const gchar ** strv, const gchar * key);
  * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  */
 extern int get_tensor_dimension (const gchar * param,
-    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT],
-    int rank[NNS_TENSOR_SIZE_LIMIT]);
+    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT]);
 
 /**
  * @brief Count the number of elemnts of a tensor

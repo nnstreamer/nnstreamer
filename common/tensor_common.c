@@ -87,249 +87,140 @@ gst_tensor_media_type_from_caps (const GstCaps * caps)
 }
 
 /**
- * @brief Initialize the video info structure
- * @param v_info video info structure to be initialized
+ * @brief Initialize the tensor info structure
+ * @param info tensor info structure to be initialized
  */
 void
-gst_tensor_video_info_init (GstTensorVideoInfo * v_info)
+gst_tensor_info_init (GstTensorInfo * info)
 {
-  g_return_if_fail (v_info != NULL);
+  guint i;
 
-  /**
-   * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
-   */
-  v_info->format = GST_VIDEO_FORMAT_UNKNOWN;
-  v_info->w = 0;
-  v_info->h = 0;
-  v_info->fn = -1;
-  v_info->fd = -1;
-  v_info->frames = 0;
+  g_return_if_fail (info != NULL);
+
+  info->type = _NNS_END;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    info->dimension[i] = 0;
+  }
 }
 
 /**
- * @brief Initialize the audio info structure
- * @param a_info audio info structure to be initialized
+ * @brief Check the tensor info is valid
+ * @param info tensor info structure
+ * @return TRUE if info is valid
  */
-void
-gst_tensor_audio_info_init (GstTensorAudioInfo * a_info)
+gboolean
+gst_tensor_info_validate (const GstTensorInfo * info)
 {
-  g_return_if_fail (a_info != NULL);
+  guint i;
 
-  /**
-   * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-audio-raw.html
-   */
-  a_info->format = GST_AUDIO_FORMAT_UNKNOWN;
-  a_info->ch = 0;
-  a_info->rate = 0;
-  a_info->frames = 0;
-}
+  g_return_val_if_fail (info != NULL, FALSE);
 
-/**
- * @brief Initialize the text info structure
- * @param t_info text info structure to be initialized
- */
-void
-gst_tensor_text_info_init (GstTensorTextInfo * t_info)
-{
-  g_return_if_fail (t_info != NULL);
-
-  /**
-   * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-text-raw.html
-   */
-  t_info->format = 0;
-  t_info->size = 0;
-  t_info->frames = 0;
-}
-
-/**
- * @brief Set video info to configure tensor
- * @param v_info video info structure to be filled
- * @param structure caps structure
- * @note Fill frames in GstTensorVideoInfo after calling this function.
- */
-void
-gst_tensor_video_info_from_structure (GstTensorVideoInfo * v_info,
-    const GstStructure * structure)
-{
-  const gchar *format;
-
-  g_return_if_fail (v_info != NULL);
-  g_return_if_fail (structure != NULL);
-
-  gst_tensor_video_info_init (v_info);
-
-  format = gst_structure_get_string (structure, "format");
-  if (format) {
-    v_info->format = gst_video_format_from_string (format);
+  if (info->type == _NNS_END) {
+    return FALSE;
   }
 
-  gst_structure_get_int (structure, "width", &v_info->w);
-  gst_structure_get_int (structure, "height", &v_info->h);
-  gst_structure_get_fraction (structure, "framerate", &v_info->fn, &v_info->fd);
-}
-
-/**
- * @brief Set audio info to configure tensor
- * @param a_info audio info structure to be filled
- * @param structure caps structure
- * @note Fill frames in GstTensorAudioInfo after calling this function.
- */
-void
-gst_tensor_audio_info_from_structure (GstTensorAudioInfo * a_info,
-    const GstStructure * structure)
-{
-  const gchar *format;
-
-  g_return_if_fail (a_info != NULL);
-  g_return_if_fail (structure != NULL);
-
-  gst_tensor_audio_info_init (a_info);
-
-  format = gst_structure_get_string (structure, "format");
-  if (format) {
-    a_info->format = gst_audio_format_from_string (format);
-  }
-
-  gst_structure_get_int (structure, "channels", &a_info->ch);
-  gst_structure_get_int (structure, "rate", &a_info->rate);
-}
-
-/**
- * @brief Set text info to configure tensor
- * @param t_info text info structure to be filled
- * @param structure caps structure
- * @note Fill size and frames in GstTensorTextInfo after calling this function.
- */
-void
-gst_tensor_text_info_from_structure (GstTensorTextInfo * t_info,
-    const GstStructure * structure)
-{
-  const gchar *format;
-
-  g_return_if_fail (t_info != NULL);
-  g_return_if_fail (structure != NULL);
-
-  gst_tensor_text_info_init (t_info);
-
-  format = gst_structure_get_string (structure, "format");
-  if (format) {
-    if (g_str_equal (format, "utf8")) {
-      t_info->format = 1;
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (info->dimension[i] == 0) {
+      return FALSE;
     }
   }
-}
 
-/**
- * @brief Set the video info structure from tensor config
- * @param v_info video info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
- */
-gboolean
-gst_tensor_video_info_from_config (GstTensorVideoInfo * v_info,
-    const GstTensorConfig * config)
-{
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (v_info != NULL, FALSE);
-
-  gst_tensor_video_info_init (v_info);
-
-  /**
-   * Set video format with the dimension (color-space).
-   */
-  switch (config->dimension[0]) {
-    case 1:
-      v_info->format = GST_VIDEO_FORMAT_GRAY8;
-      break;
-    case 3:
-      v_info->format = GST_VIDEO_FORMAT_RGB;
-      break;
-    case 4:
-      v_info->format = GST_VIDEO_FORMAT_BGRx;
-      break;
-    default:
-      v_info->format = GST_VIDEO_FORMAT_UNKNOWN;
-      break;
-  }
-
-  v_info->w = config->dimension[1];
-  v_info->h = config->dimension[2];
-  v_info->frames = config->dimension[3];
-  v_info->fn = config->rate_n;
-  v_info->fd = config->rate_d;
   return TRUE;
 }
 
 /**
- * @brief Set the audio info structure from tensor config
- * @param a_info audio info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
+ * @brief Compare tensor info
+ * @param TRUE if equal
  */
 gboolean
-gst_tensor_audio_info_from_config (GstTensorAudioInfo * a_info,
-    const GstTensorConfig * config)
+gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 {
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (a_info != NULL, FALSE);
+  guint i;
 
-  gst_tensor_audio_info_init (a_info);
+  g_return_val_if_fail (i1 != NULL, FALSE);
+  g_return_val_if_fail (i2 != NULL, FALSE);
 
-  /**
-   * Set audio format with the type.
-   */
-  switch (config->type) {
-    case _NNS_INT8:
-      a_info->format = GST_AUDIO_FORMAT_S8;
-      break;
-    case _NNS_UINT8:
-      a_info->format = GST_AUDIO_FORMAT_U8;
-      break;
-    case _NNS_INT16:
-      a_info->format = GST_AUDIO_FORMAT_S16;
-      break;
-    case _NNS_UINT16:
-      a_info->format = GST_AUDIO_FORMAT_U16;
-      break;
-    default:
-      a_info->format = GST_AUDIO_FORMAT_UNKNOWN;
-      break;
+  if (i1->type != i2->type) {
+    return FALSE;
   }
 
-  a_info->ch = config->dimension[0];
-  a_info->frames = config->dimension[1];
-  a_info->rate = config->rate_n;
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (i1->dimension[i] != i2->dimension[i]) {
+      return FALSE;
+    }
+  }
+
+  /** matched all */
   return TRUE;
 }
 
 /**
- * @brief Set the text info structure from tensor config
- * @param t_info text info structure to be filled
- * @param config tensor config structure to be interpreted
- * @note We cannot get the exact media info from tensor config, you have to check media info after calling this function.
- * @return TRUE if no error
+ * @brief Initialize the tensors info structure
+ * @param info tensors info structure to be initialized
+ */
+void
+gst_tensors_info_init (GstTensorsInfo * info)
+{
+  guint i;
+
+  g_return_if_fail (info != NULL);
+
+  info->num_tensors = 0;
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    gst_tensor_info_init (&info->info[i]);
+  }
+}
+
+/**
+ * @brief Check the tensors info is valid
+ * @param info tensors info structure
+ * @return TRUE if info is valid
  */
 gboolean
-gst_tensor_text_info_from_config (GstTensorTextInfo * t_info,
-    const GstTensorConfig * config)
+gst_tensors_info_validate (const GstTensorsInfo * info)
 {
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (t_info != NULL, FALSE);
+  guint i;
 
-  gst_tensor_text_info_init (t_info);
+  g_return_val_if_fail (info != NULL, FALSE);
 
-  /**
-   * Set text format. Supposed utf8 if type is int8.
-   */
-  if (config->type == _NNS_INT8) {
-    /** Supposed utf8 */
-    t_info->format = 1;
+  if (info->num_tensors < 1) {
+    return FALSE;
   }
 
-  t_info->size = config->dimension[0];
-  t_info->frames = config->dimension[1];
+  for (i = 0; i < info->num_tensors; i++) {
+    if (!gst_tensor_info_validate (&info->info[i])) {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Compare tensors info
+ * @param TRUE if equal
+ */
+gboolean
+gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
+{
+  guint i;
+
+  g_return_val_if_fail (i1 != NULL, FALSE);
+  g_return_val_if_fail (i2 != NULL, FALSE);
+
+  if (i1->num_tensors != i2->num_tensors) {
+    return FALSE;
+  }
+
+  for (i = 0; i < i1->num_tensors; i++) {
+    if (!gst_tensor_info_is_equal (&i1->info[i], &i2->info[i])) {
+      return FALSE;
+    }
+  }
+
+  /** matched all */
   return TRUE;
 }
 
@@ -340,15 +231,9 @@ gst_tensor_text_info_from_config (GstTensorTextInfo * t_info,
 void
 gst_tensor_config_init (GstTensorConfig * config)
 {
-  guint i;
-
   g_return_if_fail (config != NULL);
 
-  config->type = _NNS_END;
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->dimension[i] = 0;
-  }
+  gst_tensor_info_init (&config->info);
 
   config->rate_n = -1;
   config->rate_d = -1;
@@ -362,60 +247,35 @@ gst_tensor_config_init (GstTensorConfig * config)
 gboolean
 gst_tensor_config_validate (const GstTensorConfig * config)
 {
-  guint i;
-
   g_return_val_if_fail (config != NULL, FALSE);
-
-  if (config->type == _NNS_END) {
-    return FALSE;
-  }
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (config->dimension[i] == 0) {
-      return FALSE;
-    }
-  }
 
   if (config->rate_n < 0 || config->rate_d < 0) {
     return FALSE;
   }
 
-  return TRUE;
+  return gst_tensor_info_validate (&config->info);
 }
 
 /**
  * @brief Compare tensor config info
- * @param TRUE if same
+ * @param TRUE if equal
  */
 gboolean
-gst_tensor_config_is_same (const GstTensorConfig * c1,
+gst_tensor_config_is_equal (const GstTensorConfig * c1,
     const GstTensorConfig * c2)
 {
-  guint i;
-
   g_return_val_if_fail (c1 != NULL, FALSE);
   g_return_val_if_fail (c2 != NULL, FALSE);
-
-  if (c1->type != c2->type) {
-    return FALSE;
-  }
 
   if (c1->rate_n != c2->rate_n || c1->rate_d != c2->rate_d) {
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (c1->dimension[i] != c2->dimension[i]) {
-      return FALSE;
-    }
-  }
-
-  /** matched all */
-  return TRUE;
+  return gst_tensor_info_is_equal (&c1->info, &c2->info);
 }
 
 /**
- * @brief Parse structure and set tensor config info
+ * @brief Parse structure and set tensor config info (internal static function)
  * @param config tensor config structure to be filled
  * @param structure structure to be interpreted
  * @return TRUE if ok
@@ -424,30 +284,211 @@ static gboolean
 gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
     const GstStructure * structure)
 {
+  GstTensorInfo *info;
   const gchar *type_string;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (structure != NULL, FALSE);
-
   gst_tensor_config_init (config);
+  info = &config->info;
+
+  g_return_val_if_fail (structure != NULL, FALSE);
 
   if (!gst_structure_has_name (structure, "other/tensor")) {
     err_print ("caps is not tensor %s\n", gst_structure_get_name (structure));
     return FALSE;
   }
 
-  gst_structure_get_int (structure, "dim1", (gint *) (&config->dimension[0]));
-  gst_structure_get_int (structure, "dim2", (gint *) (&config->dimension[1]));
-  gst_structure_get_int (structure, "dim3", (gint *) (&config->dimension[2]));
-  gst_structure_get_int (structure, "dim4", (gint *) (&config->dimension[3]));
+  gst_structure_get_int (structure, "dim1", (gint *) (&info->dimension[0]));
+  gst_structure_get_int (structure, "dim2", (gint *) (&info->dimension[1]));
+  gst_structure_get_int (structure, "dim3", (gint *) (&info->dimension[2]));
+  gst_structure_get_int (structure, "dim4", (gint *) (&info->dimension[3]));
 
   type_string = gst_structure_get_string (structure, "type");
-  config->type = get_tensor_type (type_string);
+  info->type = get_tensor_type (type_string);
 
   gst_structure_get_fraction (structure, "framerate", &config->rate_n,
       &config->rate_d);
 
   return TRUE;
+}
+
+/**
+ * @brief Set the tensor config structure from video info (internal static function)
+ * @param config tensor config structure to be filled
+ * @param structure caps structure
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
+ */
+static gboolean
+gst_tensor_config_from_video_info (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  /**
+   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/image
+   * A 4-D uint8 or float32 Tensor of shape [batch_size, height, width, channels]
+   * where channels is 1, 3, or 4.
+   */
+  const gchar *format_string;
+  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
+  gint width = 0;
+  gint height = 0;
+  gint fn = -1; /** numerator */
+  gint fd = -1; /** denominator */
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensor_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  format_string = gst_structure_get_string (structure, "format");
+  if (format_string) {
+    format = gst_video_format_from_string (format_string);
+  }
+
+  gst_structure_get_int (structure, "width", &width);
+  gst_structure_get_int (structure, "height", &height);
+  gst_structure_get_fraction (structure, "framerate", &fn, &fd);
+
+  /** [color-space][width][height][frames] */
+  switch (format) {
+    case GST_VIDEO_FORMAT_GRAY8:
+      config->info.type = _NNS_UINT8;
+      config->info.dimension[0] = 1;
+      break;
+    case GST_VIDEO_FORMAT_RGB:
+      config->info.type = _NNS_UINT8;
+      config->info.dimension[0] = 3;
+      break;
+    case GST_VIDEO_FORMAT_BGRx:
+      config->info.type = _NNS_UINT8;
+      config->info.dimension[0] = 4;
+      break;
+    default:
+      /** unsupported format */
+      err_print ("Unsupported format = %d\n", format);
+      break;
+  }
+
+  config->info.dimension[1] = width;
+  config->info.dimension[2] = height;
+  config->info.dimension[3] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames. */
+
+  config->rate_n = fn;
+  config->rate_d = fd;
+
+  return (config->info.type != _NNS_END);
+}
+
+/**
+ * @brief Set the tensor config structure from audio info (internal static function)
+ * @param config tensor config structure to be filled
+ * @param structure caps structure
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
+ */
+static gboolean
+gst_tensor_config_from_audio_info (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  /**
+   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/audio
+   * A 3-D float32 Tensor of shape [batch_size, frames, channels]
+   * or a 2-D float32 Tensor of shape [batch_size, frames].
+   */
+  const gchar *format_string;
+  GstAudioFormat format = GST_AUDIO_FORMAT_UNKNOWN;
+  gint channels = 0;
+  gint rate = 0;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensor_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  format_string = gst_structure_get_string (structure, "format");
+  if (format_string) {
+    format = gst_audio_format_from_string (format_string);
+  }
+
+  gst_structure_get_int (structure, "channels", &channels);
+  gst_structure_get_int (structure, "rate", &rate);
+
+  /** [channels][frames] */
+  switch (format) {
+    case GST_AUDIO_FORMAT_S8:
+      config->info.type = _NNS_INT8;
+      break;
+    case GST_AUDIO_FORMAT_U8:
+      config->info.type = _NNS_UINT8;
+      break;
+    case GST_AUDIO_FORMAT_S16:
+      config->info.type = _NNS_INT16;
+      break;
+    case GST_AUDIO_FORMAT_U16:
+      config->info.type = _NNS_UINT16;
+      break;
+    default:
+      /** unsupported format */
+      err_print ("Unsupported format = %d\n", format);
+      break;
+  }
+
+  config->info.dimension[0] = channels;
+  config->info.dimension[1] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames */
+  config->info.dimension[2] = 1;
+  config->info.dimension[3] = 1;
+
+  if (rate > 0) {
+    config->rate_n = rate;
+    config->rate_d = 1;
+  }
+
+  return (config->info.type != _NNS_END);
+}
+
+/**
+ * @brief Set the tensor config structure from text info (internal static function)
+ * @param config tensor config structure to be filled
+ * @param structure caps structure
+ * @note Change dimention if tensor contains N frames.
+ * @return TRUE if supported type
+ */
+static gboolean
+gst_tensor_config_from_text_info (GstTensorConfig * config,
+    const GstStructure * structure)
+{
+  /**
+   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/text
+   * A string-type Tensor
+   */
+  const gchar *format_string;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensor_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  format_string = gst_structure_get_string (structure, "format");
+  if (format_string) {
+    if (g_str_equal (format_string, "utf8")) {
+      config->info.type = _NNS_INT8;
+    } else {
+      /** unsupported format */
+      err_print ("Unsupported format\n");
+    }
+  }
+
+  /** [size][frames] */
+  config->info.dimension[0] = GST_TENSOR_STRING_SIZE; /** fixed size of string */
+  config->info.dimension[1] = 1; /** Supposed 1 frame in tensor,, change this if tensor contains N frames */
+  config->info.dimension[2] = 1;
+  config->info.dimension[3] = 1;
+
+  /** cannot get the framerate for text type */
+  config->rate_n = 0;
+  config->rate_d = 1;
+
+  return (config->info.type != _NNS_END);
 }
 
 /**
@@ -463,51 +504,22 @@ gst_tensor_config_from_media_structure (GstTensorConfig * config,
   media_type m_type;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (structure != NULL, FALSE);
-
   gst_tensor_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
 
   m_type = gst_tensor_media_type_from_structure (structure);
 
   switch (m_type) {
     case _NNS_VIDEO:
-    {
-      GstTensorVideoInfo v_info;
-
-      gst_tensor_video_info_from_structure (&v_info, structure);
-
-      /** supposed 1 frame in tensor */
-      v_info.frames = 1;
-
-      gst_tensor_config_from_video_info (config, &v_info);
+      gst_tensor_config_from_video_info (config, structure);
       break;
-    }
     case _NNS_AUDIO:
-    {
-      GstTensorAudioInfo a_info;
-
-      gst_tensor_audio_info_from_structure (&a_info, structure);
-
-      /** supposed 1 frame in tensor */
-      a_info.frames = 1;
-
-      gst_tensor_config_from_audio_info (config, &a_info);
+      gst_tensor_config_from_audio_info (config, structure);
       break;
-    }
     case _NNS_STRING:
-    {
-      GstTensorTextInfo t_info;
-
-      gst_tensor_text_info_from_structure (&t_info, structure);
-
-      /** fixed size of string */
-      t_info.size = GST_TENSOR_STRING_SIZE;
-      /** supposed 1 frame in tensor */
-      t_info.frames = 1;
-
-      gst_tensor_config_from_text_info (config, &t_info);
+      gst_tensor_config_from_text_info (config, structure);
       break;
-    }
     default:
       err_print ("Unsupported type %d\n", m_type);
       return FALSE;
@@ -533,157 +545,9 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
   if (gst_structure_has_name (structure, "other/tensor")) {
     return gst_tensor_config_from_tensor_structure (config, structure);
   } else {
+    /** tensor config from media stream */
     return gst_tensor_config_from_media_structure (config, structure);
   }
-}
-
-/**
- * @brief Set the tensor config structure from video info
- * @param config tensor config structure to be filled
- * @param v_info video info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-gboolean
-gst_tensor_config_from_video_info (GstTensorConfig * config,
-    const GstTensorVideoInfo * v_info)
-{
-  /**
-   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/image
-   * A 4-D uint8 or float32 Tensor of shape [batch_size, height, width, channels]
-   * where channels is 1, 3, or 4.
-   */
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (v_info != NULL, FALSE);
-
-  gst_tensor_config_init (config);
-
-  /** [color-space][width][height][frames] */
-  switch (v_info->format) {
-    case GST_VIDEO_FORMAT_GRAY8:
-      config->type = _NNS_UINT8;
-      config->dimension[0] = 1;
-      break;
-    case GST_VIDEO_FORMAT_RGB:
-      config->type = _NNS_UINT8;
-      config->dimension[0] = 3;
-      break;
-    case GST_VIDEO_FORMAT_BGRx:
-      config->type = _NNS_UINT8;
-      config->dimension[0] = 4;
-      break;
-    default:
-      /** unsupported format */
-      err_print ("Unsupported format = %d\n", v_info->format);
-      break;
-  }
-
-  config->dimension[1] = v_info->w;
-  config->dimension[2] = v_info->h;
-  config->dimension[3] = v_info->frames; /** change this if tensor contains N frames */
-
-  config->rate_n = v_info->fn;
-  config->rate_d = v_info->fd;
-
-  return (config->type != _NNS_END);
-}
-
-/**
- * @brief Set the tensor config structure from audio info
- * @param config tensor config structure to be filled
- * @param a_info audio info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-gboolean
-gst_tensor_config_from_audio_info (GstTensorConfig * config,
-    const GstTensorAudioInfo * a_info)
-{
-  /**
-   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/audio
-   * A 3-D float32 Tensor of shape [batch_size, frames, channels]
-   * or a 2-D float32 Tensor of shape [batch_size, frames].
-   */
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (a_info != NULL, FALSE);
-
-  gst_tensor_config_init (config);
-
-  /** [channels][frames] */
-  switch (a_info->format) {
-    case GST_AUDIO_FORMAT_S8:
-      config->type = _NNS_INT8;
-      break;
-    case GST_AUDIO_FORMAT_U8:
-      config->type = _NNS_UINT8;
-      break;
-    case GST_AUDIO_FORMAT_S16:
-      config->type = _NNS_INT16;
-      break;
-    case GST_AUDIO_FORMAT_U16:
-      config->type = _NNS_UINT16;
-      break;
-    default:
-      /** unsupported format */
-      err_print ("Unsupported format = %d\n", a_info->format);
-      break;
-  }
-
-  config->dimension[0] = a_info->ch;
-  config->dimension[1] = a_info->frames; /** change this if tensor contains N frames */
-  config->dimension[2] = 1;
-  config->dimension[3] = 1;
-
-  if (a_info->rate > 0) {
-    config->rate_n = a_info->rate;
-    config->rate_d = 1;
-  }
-
-  return (config->type != _NNS_END);
-}
-
-/**
- * @brief Set the tensor config structure from text info
- * @param config tensor config structure to be filled
- * @param t_info text info structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if supported type
- */
-gboolean
-gst_tensor_config_from_text_info (GstTensorConfig * config,
-    const GstTensorTextInfo * t_info)
-{
-  /**
-   * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/text
-   * A string-type Tensor
-   */
-  g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (t_info != NULL, FALSE);
-
-  gst_tensor_config_init (config);
-
-  /** [size][frames] */
-  switch (t_info->format) {
-    case 1:
-      /** utf8 */
-      config->type = _NNS_INT8;
-      break;
-    default:
-      /** unsupported format */
-      err_print ("Unsupported format = %d\n", t_info->format);
-      break;
-  }
-
-  config->dimension[0] = t_info->size;
-  config->dimension[1] = t_info->frames; /** change this if tensor contains N frames */
-  config->dimension[2] = 1;
-  config->dimension[3] = 1;
-
-  /** cannot get the framerate for text type */
-  config->rate_n = 0;
-  config->rate_d = 1;
-
-  return (config->type != _NNS_END);
 }
 
 /**
@@ -700,25 +564,238 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
 
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
-  if (config->dimension[0] > 0) {
-    gst_caps_set_simple (caps, "dim1", G_TYPE_INT, config->dimension[0], NULL);
+  if (config->info.dimension[0] > 0) {
+    gst_caps_set_simple (caps, "dim1", G_TYPE_INT, config->info.dimension[0],
+        NULL);
   }
 
-  if (config->dimension[1] > 0) {
-    gst_caps_set_simple (caps, "dim2", G_TYPE_INT, config->dimension[1], NULL);
+  if (config->info.dimension[1] > 0) {
+    gst_caps_set_simple (caps, "dim2", G_TYPE_INT, config->info.dimension[1],
+        NULL);
   }
 
-  if (config->dimension[2] > 0) {
-    gst_caps_set_simple (caps, "dim3", G_TYPE_INT, config->dimension[2], NULL);
+  if (config->info.dimension[2] > 0) {
+    gst_caps_set_simple (caps, "dim3", G_TYPE_INT, config->info.dimension[2],
+        NULL);
   }
 
-  if (config->dimension[3] > 0) {
-    gst_caps_set_simple (caps, "dim4", G_TYPE_INT, config->dimension[3], NULL);
+  if (config->info.dimension[3] > 0) {
+    gst_caps_set_simple (caps, "dim4", G_TYPE_INT, config->info.dimension[3],
+        NULL);
   }
 
-  if (config->type != _NNS_END) {
+  if (config->info.type != _NNS_END) {
     gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-        tensor_element_typename[config->type], NULL);
+        tensor_element_typename[config->info.type], NULL);
+  }
+
+  if (config->rate_n >= 0 && config->rate_d > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
+  }
+
+  return gst_caps_simplify (caps);
+}
+
+/**
+ * @brief Initialize the tensors config info structure (for other/tensors)
+ * @param config tensors config structure to be initialized
+ */
+void
+gst_tensors_config_init (GstTensorsConfig * config)
+{
+  g_return_if_fail (config != NULL);
+
+  gst_tensors_info_init (&config->info);
+
+  config->rate_n = -1;
+  config->rate_d = -1;
+}
+
+/**
+ * @brief Check the tensors are all configured
+ * @param config tensor config structure
+ * @return TRUE if configured
+ */
+gboolean
+gst_tensors_config_validate (const GstTensorsConfig * config)
+{
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  if (config->rate_n < 0 || config->rate_d < 0) {
+    return FALSE;
+  }
+
+  return gst_tensors_info_validate (&config->info);
+}
+
+/**
+ * @brief Compare tensor config info
+ * @param TRUE if equal
+ */
+gboolean
+gst_tensors_config_is_equal (const GstTensorsConfig * c1,
+    const GstTensorsConfig * c2)
+{
+  g_return_val_if_fail (c1 != NULL, FALSE);
+  g_return_val_if_fail (c2 != NULL, FALSE);
+
+  if (c1->rate_n != c2->rate_n || c1->rate_d != c2->rate_d) {
+    return FALSE;
+  }
+
+  return gst_tensors_info_is_equal (&c1->info, &c2->info);
+}
+
+/**
+ * @brief Parse structure and set tensors config (for other/tensors)
+ * @param config tensors config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if no error
+ */
+gboolean
+gst_tensors_config_from_structure (GstTensorsConfig * config,
+    const GstStructure * structure)
+{
+  const gchar *name;
+  guint i, j;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensors_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  name = gst_structure_get_name (structure);
+
+  if (g_str_equal (name, "other/tensor")) {
+    GstTensorConfig c;
+
+    gst_tensor_config_from_tensor_structure (&c, structure);
+
+    config->info.num_tensors = 1;
+    config->info.info[0] = c.info;
+    config->rate_d = c.rate_d;
+    config->rate_n = c.rate_n;
+  } else if (g_str_equal (name, "other/tensors")) {
+    const gchar *dims_string;
+    const gchar *types_string;
+
+    gst_structure_get_uint (structure, "num_tensors",
+        &config->info.num_tensors);
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
+
+    /* parse dimensions */
+    dims_string = gst_structure_get_string (structure, "dimensions");
+    if (dims_string) {
+      gchar **str_dim, **str_dims;
+      gint num_dim, num_dims;
+      guint64 val;
+
+      str_dims = g_strsplit (dims_string, ",", -1);
+      num_dims = g_strv_length (str_dims);
+
+      if (config->info.num_tensors != num_dims) {
+        err_print ("Invalid param, dimensions (%d) tensors (%d)\n",
+            num_dims, config->info.num_tensors);
+      }
+
+      for (i = 0; i < num_dims; i++) {
+        str_dim = g_strsplit (str_dims[i], ":", NNS_TENSOR_RANK_LIMIT);
+        num_dim = g_strv_length (str_dim);
+
+        for (j = 0; j < num_dim; j++) {
+          val = g_ascii_strtoull (str_dim[j], NULL, 10);
+          config->info.info[i].dimension[j] = (uint32_t) val;
+        }
+
+        for (; j < NNS_TENSOR_RANK_LIMIT; j++) {
+          config->info.info[i].dimension[j] = 1;
+        }
+
+        g_strfreev (str_dim);
+      }
+
+      g_strfreev (str_dims);
+    }
+
+    /** parse types */
+    types_string = gst_structure_get_string (structure, "types");
+    if (types_string) {
+      gchar **str_types;
+      gint num_types;
+
+      str_types = g_strsplit (dims_string, ",", -1);
+      num_types = g_strv_length (str_types);
+
+      if (config->info.num_tensors != num_types) {
+        err_print ("Invalid param, types (%d) tensors (%d)\n",
+            num_types, config->info.num_tensors);
+      }
+
+      for (i = 0; i < num_types; i++) {
+        config->info.info[i].type = get_tensor_type (str_types[i]);
+      }
+
+      g_strfreev (str_types);
+    }
+  } else {
+    err_print ("Unsupported type = %s\n", name);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Get caps from tensors config (for other/tensors)
+ * @param config tensors config info
+ * @return caps for given config
+ */
+GstCaps *
+gst_tensors_caps_from_config (const GstTensorsConfig * config)
+{
+  GstCaps *caps;
+  guint i;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+
+  if (config->info.num_tensors > 0) {
+    GString *dimensions = g_string_new (NULL);
+    GString *types = g_string_new (NULL);
+
+    /** dimensions and types */
+    for (i = 0; i < config->info.num_tensors; i++) {
+      /**
+       * @note supposed dimension with rank 4 (NNS_TENSOR_RANK_LIMIT)
+       */
+      gchar *dim_string = g_strdup_printf ("%d:%d:%d:%d",
+          config->info.info[i].dimension[0], config->info.info[i].dimension[1],
+          config->info.info[i].dimension[2], config->info.info[i].dimension[3]);
+
+      dimensions = g_string_append (dimensions, dim_string);
+      types =
+          g_string_append (types,
+          tensor_element_typename[config->info.info[i].type]);
+
+      if (i < config->info.num_tensors - 1) {
+        dimensions = g_string_append (dimensions, ",");
+        types = g_string_append (types, ",");
+      }
+
+      g_free (dim_string);
+    }
+
+    gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
+        config->info.num_tensors, NULL);
+    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dimensions->str,
+        NULL);
+    gst_caps_set_simple (caps, "types", G_TYPE_STRING, types->str, NULL);
+
+    g_string_free (dimensions, TRUE);
+    g_string_free (types, TRUE);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -841,8 +918,7 @@ find_key_strv (const gchar ** strv, const gchar * key)
  */
 int
 get_tensor_dimension (const gchar * param,
-    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT],
-    int rank[NNS_TENSOR_SIZE_LIMIT])
+    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT])
 {
   int i, j = 0;
   guint64 val;
@@ -859,7 +935,6 @@ get_tensor_dimension (const gchar * param,
         break;
       val = g_ascii_strtoull (strv[j], NULL, 10);
       dim[i][j] = val;
-      rank[i] = j + 1;
     }
     for (; j < NNS_TENSOR_RANK_LIMIT; j++)
       dim[i][j] = 1;
@@ -947,7 +1022,6 @@ get_tensors_from_structure (const GstStructure * str,
     GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denom)
 {
   int num = 0;
-  int rank[NNS_TENSOR_SIZE_LIMIT];
   const gchar *strval;
   gint fn = 0, fd = 0;
   gchar **strv;
@@ -974,7 +1048,7 @@ get_tensors_from_structure (const GstStructure * str,
 
   strval = gst_structure_get_string (str, "dimensions");
 
-  counter = get_tensor_dimension (strval, meta->dims, rank);
+  counter = get_tensor_dimension (strval, meta->dims);
 
   if (counter != num) {
     err_print

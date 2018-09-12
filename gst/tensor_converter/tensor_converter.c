@@ -53,7 +53,7 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_convert ! tensor_sink
+ * gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_sink
  * ]|
  * </refsect2>
  */
@@ -472,8 +472,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   switch (self->in_media_type) {
     case _NNS_VIDEO:
       frame_size =
-          config->dimension[0] * config->dimension[1] * config->dimension[2] *
-          tensor_element_size[config->type];
+          config->info.dimension[0] * config->info.dimension[1] *
+          config->info.dimension[2] * tensor_element_size[config->info.type];
       frames_in = 1; /** supposed 1 frame in buffer */
 
       if (self->remove_padding) {
@@ -495,7 +495,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
          */
-        size = offset = config->dimension[0] * config->dimension[1];
+        size = offset = config->info.dimension[0] * config->info.dimension[1];
 
         g_assert (offset % 4);
         if (offset % 4) {
@@ -505,7 +505,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         for (d0 = 0; d0 < frames_in; d0++) {
           /** Supposed to be 0 only, 1 frame in buffer. */
           g_assert (d0 == 0);
-          for (d1 = 0; d1 < config->dimension[2]; d1++) { /** Height */
+          for (d1 = 0; d1 < config->info.dimension[2]; d1++) { /** Height */
             memcpy (destptr + dest_idx, srcptr + src_idx, size);
             dest_idx += size;
             src_idx += offset;
@@ -747,7 +747,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   }
 
   /** set the number of frames in dimension */
-  config.dimension[frames_dim] = self->frames_per_tensor;
+  config.info.dimension[frames_dim] = self->frames_per_tensor;
 
   self->in_media_type = in_type;
   self->tensor_configured = TRUE;
