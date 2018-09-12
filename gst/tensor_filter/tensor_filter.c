@@ -531,10 +531,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         int i;
         prop->inputMeta.num_tensors =
             get_tensor_dimension (g_value_get_string (value),
-            prop->inputMeta.dims, prop->inputMeta.ranks);
+            prop->inputMeta.dims);
         for (i = 0; i < prop->inputMeta.num_tensors; i++) {
-          g_assert (prop->inputMeta.ranks[i] > 0
-              && prop->inputMeta.ranks[i] <= NNS_TENSOR_RANK_LIMIT);
           silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
               prop->inputMeta.dims[i][0], prop->inputMeta.dims[i][1],
               prop->inputMeta.dims[i][2], prop->inputMeta.dims[i][3],
@@ -550,10 +548,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         int i;
         prop->outputMeta.num_tensors =
             get_tensor_dimension (g_value_get_string (value),
-            prop->outputMeta.dims, prop->outputMeta.ranks);
+            prop->outputMeta.dims);
         for (i = 0; i < prop->outputMeta.num_tensors; i++) {
-          g_assert (prop->outputMeta.ranks[i] > 0
-              && prop->outputMeta.ranks[i] <= NNS_TENSOR_RANK_LIMIT);
           silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
               prop->outputMeta.dims[i][0], prop->outputMeta.dims[i][1],
               prop->outputMeta.dims[i][2], prop->outputMeta.dims[i][3],

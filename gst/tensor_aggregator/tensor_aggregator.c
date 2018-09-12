@@ -661,7 +661,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   /** update dimension in output tensor */
   if (self->frames_dim >= 0) {
-    config.dimension[self->frames_dim] = self->frames_out;
+    config.info.dimension[self->frames_dim] = self->frames_out;
   }
 
   self->out_config = config;

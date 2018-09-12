@@ -316,7 +316,7 @@ gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
   dim =
       g_array_index (tensor_split->tensorseg, tensor_dim *,
       tensor_split->num_srcpads);
-  type = tensor_split->sink_tensor_conf.type;
+  type = tensor_split->sink_tensor_conf.info.type;
 
   tensor_split->num_srcpads++;
 
@@ -434,7 +434,7 @@ gst_get_splited_tensor (GstTensorSplit * split, GstBuffer * buffer, gint nth)
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     temp *= (*dim)[i];
-  size += temp * tensor_element_size[split->sink_tensor_conf.type];
+  size += temp * tensor_element_size[split->sink_tensor_conf.info.type];
   mem = gst_allocator_alloc (NULL, size, NULL);
   gst_memory_map (mem, &dest_info, GST_MAP_WRITE);
   gst_buffer_map (buffer, &src_info, GST_MAP_READ);

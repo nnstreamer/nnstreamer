@@ -704,11 +704,11 @@ TEST (tensor_stream_test, video_rgb)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 3);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -741,11 +741,11 @@ TEST (tensor_stream_test, video_rgb_padding)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 3);
-  EXPECT_EQ (g_test_data.config.dimension[1], 162);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -778,11 +778,11 @@ TEST (tensor_stream_test, video_rgb_3f)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 3);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 3);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 3);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -815,11 +815,11 @@ TEST (tensor_stream_test, video_bgrx)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 4);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 4);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -852,11 +852,11 @@ TEST (tensor_stream_test, video_bgrx_2f)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 4);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 2);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 4);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 2);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -889,11 +889,11 @@ TEST (tensor_stream_test, video_gray8)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -926,11 +926,11 @@ TEST (tensor_stream_test, video_gray8_padding)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 162);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -963,11 +963,11 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 162);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 3);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 3);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1000,11 +1000,11 @@ TEST (tensor_stream_test, audio_s8)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_INT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 500);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 500);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1037,11 +1037,11 @@ TEST (tensor_stream_test, audio_u8_100F)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 100);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 100);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1074,11 +1074,11 @@ TEST (tensor_stream_test, audio_s16)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_INT16);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 500);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 500);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1111,11 +1111,11 @@ TEST (tensor_stream_test, audio_u16_1000f)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT16);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1000);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1000);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1151,11 +1151,11 @@ TEST (tensor_stream_test, text_utf8)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_INT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1191,11 +1191,11 @@ TEST (tensor_stream_test, text_utf8_3f)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_INT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 3);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1233,11 +1233,11 @@ TEST (tensor_stream_test, typecast_int32)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1275,11 +1275,11 @@ TEST (tensor_stream_test, typecast_uint32)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1317,11 +1317,11 @@ TEST (tensor_stream_test, typecast_int16)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1359,11 +1359,11 @@ TEST (tensor_stream_test, typecast_uint16)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1401,11 +1401,11 @@ TEST (tensor_stream_test, typecast_float64)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1443,11 +1443,11 @@ TEST (tensor_stream_test, typecast_float32)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1485,11 +1485,11 @@ TEST (tensor_stream_test, typecast_int64)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1527,11 +1527,11 @@ TEST (tensor_stream_test, typecast_uint64)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, t_type);
-  EXPECT_EQ (g_test_data.config.dimension[0], GST_TENSOR_STRING_SIZE);
-  EXPECT_EQ (g_test_data.config.dimension[1], 1);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 0);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1564,11 +1564,11 @@ TEST (tensor_stream_test, video_aggregate)
 
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.config.dimension[0], 3);
-  EXPECT_EQ (g_test_data.config.dimension[1], 160);
-  EXPECT_EQ (g_test_data.config.dimension[2], 120);
-  EXPECT_EQ (g_test_data.config.dimension[3], 10);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 10);
   EXPECT_EQ (g_test_data.config.rate_n, 30);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1601,11 +1601,11 @@ TEST (tensor_stream_test, audio_aggregate_s16)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_INT16);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 2000);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 2000);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 
@@ -1638,11 +1638,11 @@ TEST (tensor_stream_test, audio_aggregate_u16)
 
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
-  EXPECT_EQ (g_test_data.config.type, _NNS_UINT16);
-  EXPECT_EQ (g_test_data.config.dimension[0], 1);
-  EXPECT_EQ (g_test_data.config.dimension[1], 100);
-  EXPECT_EQ (g_test_data.config.dimension[2], 1);
-  EXPECT_EQ (g_test_data.config.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 100);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.config.rate_n, 16000);
   EXPECT_EQ (g_test_data.config.rate_d, 1);
 

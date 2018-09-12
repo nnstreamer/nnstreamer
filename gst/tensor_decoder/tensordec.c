@@ -182,31 +182,49 @@ static GstCaps *
 gst_tensordec_video_caps_from_config (GstTensorDec * self,
     const GstTensorConfig * config)
 {
-  GstTensorVideoInfo v_info;
+  GstVideoFormat format;
+  gint width, height, fn, fd;
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
 
-  gst_tensor_video_info_from_config (&v_info, config);
+  switch (config->info.dimension[0]) {
+    case 1:
+      format = GST_VIDEO_FORMAT_GRAY8;
+      break;
+    case 3:
+      format = GST_VIDEO_FORMAT_RGB;
+      break;
+    case 4:
+      format = GST_VIDEO_FORMAT_BGRx;
+      break;
+    default:
+      format = GST_VIDEO_FORMAT_UNKNOWN;
+      break;
+  }
 
-  if (v_info.format != GST_VIDEO_FORMAT_UNKNOWN) {
-    const gchar *format_string = gst_video_format_to_string (v_info.format);
+  width = config->info.dimension[1];
+  height = config->info.dimension[2];
+  fn = config->rate_n;
+  fd = config->rate_d;
+
+  if (format != GST_VIDEO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_video_format_to_string (format);
     gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
   }
 
-  if (v_info.w > 0) {
-    gst_caps_set_simple (caps, "width", G_TYPE_INT, v_info.w, NULL);
+  if (width > 0) {
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, width, NULL);
   }
 
-  if (v_info.h > 0) {
-    gst_caps_set_simple (caps, "height", G_TYPE_INT, v_info.h, NULL);
+  if (height > 0) {
+    gst_caps_set_simple (caps, "height", G_TYPE_INT, height, NULL);
   }
 
-  if (v_info.fn > 0 && v_info.fd > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
-        v_info.fn, v_info.fd, NULL);
+  if (fn > 0 && fd > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
   }
 
   return gst_caps_simplify (caps);
@@ -222,26 +240,46 @@ static GstCaps *
 gst_tensordec_audio_caps_from_config (GstTensorDec * self,
     const GstTensorConfig * config)
 {
-  GstTensorAudioInfo a_info;
+  GstAudioFormat format;
+  gint ch, rate;
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSOR_AUDIO_CAPS_STR);
 
-  gst_tensor_audio_info_from_config (&a_info, config);
+  switch (config->info.type) {
+    case _NNS_INT8:
+      format = GST_AUDIO_FORMAT_S8;
+      break;
+    case _NNS_UINT8:
+      format = GST_AUDIO_FORMAT_U8;
+      break;
+    case _NNS_INT16:
+      format = GST_AUDIO_FORMAT_S16;
+      break;
+    case _NNS_UINT16:
+      format = GST_AUDIO_FORMAT_U16;
+      break;
+    default:
+      format = GST_AUDIO_FORMAT_UNKNOWN;
+      break;
+  }
 
-  if (a_info.format != GST_AUDIO_FORMAT_UNKNOWN) {
-    const gchar *format_string = gst_audio_format_to_string (a_info.format);
+  ch = config->info.dimension[0];
+  rate = config->rate_n;
+
+  if (format != GST_AUDIO_FORMAT_UNKNOWN) {
+    const gchar *format_string = gst_audio_format_to_string (format);
     gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
   }
 
-  if (a_info.ch > 0) {
-    gst_caps_set_simple (caps, "channels", G_TYPE_INT, a_info.ch, NULL);
+  if (ch > 0) {
+    gst_caps_set_simple (caps, "channels", G_TYPE_INT, ch, NULL);
   }
 
-  if (a_info.rate > 0) {
-    gst_caps_set_simple (caps, "rate", G_TYPE_INT, a_info.rate, NULL);
+  if (rate > 0) {
+    gst_caps_set_simple (caps, "rate", G_TYPE_INT, rate, NULL);
   }
 
   return gst_caps_simplify (caps);
@@ -257,14 +295,12 @@ static GstCaps *
 gst_tensordec_text_caps_from_config (GstTensorDec * self,
     const GstTensorConfig * config)
 {
-  GstTensorTextInfo t_info;
-
   g_return_val_if_fail (config != NULL, NULL);
 
-  gst_tensor_text_info_from_config (&t_info, config);
-
-  /** utf8 */
-  g_return_val_if_fail (t_info.format != 1, NULL);
+  /**
+   * Set text format. Supposed utf8 if type is int8.
+   */
+  g_return_val_if_fail (config->info.type == _NNS_INT8, NULL);
 
   return gst_caps_from_string (GST_TENSOR_TEXT_CAPS_STR);
 }
@@ -337,7 +373,7 @@ gst_tensordec_check_consistency (GstTensorDec * self, GstTensorConfig * config)
   g_return_val_if_fail (config != NULL, FALSE);
 
   if (self->configured) {
-    return gst_tensor_config_is_same (&self->tensor_config, config);
+    return gst_tensor_config_is_equal (&self->tensor_config, config);
   }
 
   /** not configured yet */
@@ -497,12 +533,27 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
   switch (self->output_type) {
     case OUTPUT_VIDEO:
     {
-      GstTensorVideoInfo v_info;
+      GstVideoFormat format;
+      gint width;
 
-      if (gst_tensor_video_info_from_config (&v_info, &config)) {
-        if (gst_tensor_video_stride_padding_per_row (v_info.format, v_info.w)) {
-          self->add_padding = TRUE;
-        }
+      switch (config.info.dimension[0]) {
+        case 1:
+          format = GST_VIDEO_FORMAT_GRAY8;
+          break;
+        case 3:
+          format = GST_VIDEO_FORMAT_RGB;
+          break;
+        case 4:
+          format = GST_VIDEO_FORMAT_BGRx;
+          break;
+        default:
+          format = GST_VIDEO_FORMAT_UNKNOWN;
+          break;
+      }
+      width = config.info.dimension[1];
+
+      if (gst_tensor_video_stride_padding_per_row (format, width)) {
+        self->add_padding = TRUE;
       }
 
       break;
@@ -546,12 +597,12 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
   g_assert (self->add_padding);
   g_assert (self->output_type == OUTPUT_VIDEO);
 
-  size = offset = config->dimension[0] * config->dimension[1];
+  size = offset = config->info.dimension[0] * config->info.dimension[1];
 
   if (offset % 4)
     offset += 4 - (offset % 4);
 
-  size_out = offset * config->dimension[2] * config->dimension[3];
+  size_out = offset * config->info.dimension[2] * config->info.dimension[3];
 
   if (gst_buffer_get_size (outbuf) < size_out) {
     gst_buffer_set_size (outbuf, size_out);
@@ -563,9 +614,9 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
   inptr = inInfo.data;
   outptr = outInfo.data;
 
-  for (d0 = 0; d0 < config->dimension[3]; d0++) {
+  for (d0 = 0; d0 < config->info.dimension[3]; d0++) {
     g_assert (d0 == 0);
-    for (row = 0; row < config->dimension[2]; row++) {
+    for (row = 0; row < config->info.dimension[2]; row++) {
       memcpy (outptr + dest_idx, inptr + src_idx, size);
       dest_idx += offset;
       src_idx += size;
@@ -827,12 +878,12 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
     /** flag add_padding only for video */
     g_assert (self->output_type == OUTPUT_VIDEO);
 
-    offset = config->dimension[0] * config->dimension[1];
+    offset = config->info.dimension[0] * config->info.dimension[1];
 
     if (offset % 4)
       offset += 4 - (offset % 4);
 
-    *othersize = offset * config->dimension[2] * config->dimension[3];
+    *othersize = offset * config->info.dimension[2] * config->info.dimension[3];
   } else {
     *othersize = size;
   }
