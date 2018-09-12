@@ -71,6 +71,7 @@ typedef enum
   GTT_DIMCHG = 0,               /* Dimension Change. "dimchg" */
   GTT_TYPECAST = 1,             /* Type change. "typecast" */
   GTT_ARITHMETIC = 2,           /* Type change. "typecast" */
+  GTT_TRANSPOSE = 3,            /* Transpose. "transpose" */
 
   GTT_END,
 } tensor_transform_mode;
@@ -107,6 +108,13 @@ typedef struct _tensor_transform_arithmetic {
 } tensor_transform_arithmetic;
 
 /**
+ * @brief Internal data structure for transpose mode.
+ */
+typedef struct _tensor_transform_transpose {
+  uint8_t trans_order[NNS_TENSOR_RANK_LIMIT];
+} tensor_transform_transpose;
+
+/**
  * @brief Internal data structure for tensor_transform instances.
  */
 struct _GstTensor_Transform
@@ -120,6 +128,7 @@ struct _GstTensor_Transform
     tensor_transform_dimchg data_dimchg; /**< Parsed option value for "dimchg" mode */
     tensor_transform_typecast data_typecast; /**< Parsed option value for "typecast" mode. */
     tensor_transform_arithmetic data_arithmetic; /**< Parsed option value for "arithmetic" mode. */
+    tensor_transform_transpose data_transpose; /**< Parsed option value for "transpose" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
 

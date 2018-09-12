@@ -192,6 +192,7 @@ static const gchar *gst_tensor_transform_mode_string[] = {
   [GTT_DIMCHG] = "dimchg",
   [GTT_TYPECAST] = "typecast",
   [GTT_ARITHMETIC] = "arithmetic",
+  [GTT_TRANSPOSE] = "transpose",
   [GTT_END] = "error",
 };
 
@@ -280,6 +281,20 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
       if (strv[1] != NULL)
         filter->data_arithmetic.value = g_ascii_strtod (strv[1], NULL);
 
+      filter->loaded = TRUE;
+    }
+      break;
+    case GTT_TRANSPOSE:
+    {
+      int a, i;
+      gchar **strv = g_strsplit (filter->option, ":", 4);
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        if (strv[i] != NULL)
+          a = g_ascii_strtoull (strv[i], NULL, 10);
+        else
+          a = 0;
+        filter->data_transpose.trans_order[i] = a;
+      }
       filter->loaded = TRUE;
     }
       break;
@@ -635,6 +650,89 @@ gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
 
 
 /**
+ * Macro to run loop for various data types with transpose
+ */
+#define transposeloop(cl, ck, cj, ci, sl, sk, sj, si, typesize) do {        \
+    size_t i, j, k, l;                                  \
+    int inidx = 0, outidx=0;                            \
+    for(cl=0;cl<sl;cl++)                      \
+      for(ci=0;ci<si;ci++)                    \
+	for(cj=0;cj<sj;cj++)                  \
+	  for(ck=0;ck<sk;ck++){               \
+	    outidx=si*sj*sk*cl + sj*sk*ci + sk*cj+ck; \
+	    inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
+	    const uint8_t *_in = inptr+inidx*typesize; \
+	    uint8_t *_out = outptr + outidx *typesize; \
+	    memcpy(_out, _in, typesize);\
+	  }                                                      \
+  } while(0);
+
+/**
+ * @brief subrouting for tensor-tranform, "transpose" case.
+ * @param[in/out] filter "this" pointer
+ * @param[in] inptr input tensor
+ * @param[out] outptr output tensor
+ * @return Gst flow status
+ */
+static GstFlowReturn
+gst_tensor_transform_transpose (GstTensor_Transform * filter,
+    const uint8_t * inptr, uint8_t * outptr)
+{
+  int i, from, to;
+  gboolean checkdim = FALSE;
+  uint32_t *fromDim = filter->fromDim;
+  size_t type_size = tensor_element_size[filter->type];
+  size_t indexI, indexJ, SL, SI, SJ, SK;
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    from = i;
+    to = filter->data_transpose.trans_order[i];
+    if (from != to) {
+      checkdim = TRUE;
+      break;
+    }
+  }
+
+  if (!checkdim) {
+    memcpy (outptr, inptr,
+        get_tensor_element_count (filter->fromDim) * type_size);
+    g_printerr
+        ("Calling tensor_transform with high memcpy overhead WITHOUT any effects!");
+    return GST_FLOW_OK;
+  }
+
+  indexI = filter->data_transpose.trans_order[1];
+  indexJ = filter->data_transpose.trans_order[2];
+  SL = fromDim[0], SI = fromDim[1], SJ = fromDim[2], SK = fromDim[3];
+
+  switch (indexI) {
+    case 1:
+      if (indexJ == 2) {
+        transposeloop (l, i, j, k, SL, SI, SJ, SK, type_size);
+      } else {
+        transposeloop (l, i, k, j, SL, SI, SK, SJ, type_size);
+      }
+      break;
+    case 2:
+      if (indexJ == 1) {
+        transposeloop (l, j, i, k, SL, SJ, SI, SK, type_size);
+      } else {
+        transposeloop (l, j, k, i, SL, SJ, SK, SI, type_size);
+      }
+      break;
+    case 3:
+      if (indexJ == 1) {
+        transposeloop (l, k, i, j, SL, SK, SI, SJ, type_size);
+      } else {
+        transposeloop (l, k, j, i, SL, SK, SJ, SI, type_size);
+      }
+      break;
+  }
+
+  return GST_FLOW_OK;
+}
+
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -665,6 +763,9 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       break;
     case GTT_ARITHMETIC:
       res = gst_tensor_transform_arithmetic (filter, inptr, outptr);
+      break;
+    case GTT_TRANSPOSE:
+      res = gst_tensor_transform_transpose (filter, inptr, outptr);
       break;
     default:
       res = GST_FLOW_NOT_SUPPORTED;
@@ -854,6 +955,22 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
       ret = TRUE;
     }
       break;
+    case GTT_TRANSPOSE:
+    {
+      *destType = srcType;
+      int i;
+      if (direction == GST_PAD_SINK) {
+        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+          destDim[i] = srcDim[filter->data_transpose.trans_order[i]];
+        }
+      } else {
+        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+          destDim[filter->data_transpose.trans_order[i]] = srcDim[i];
+        }
+      }
+      ret = TRUE;
+    }
+      break;
     default:
       return FALSE;
   }
@@ -1006,6 +1123,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     filter->type = itype;
 
   switch (filter->mode) {
+    case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
     case GTT_DIMCHG:
       if (itype != otype || filter->type != itype) {
@@ -1041,6 +1159,7 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
 {
   GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
   switch (filter->mode) {
+    case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
     case GTT_DIMCHG:
       *othersize = size;        /* size of input = size of output if dimchg */
