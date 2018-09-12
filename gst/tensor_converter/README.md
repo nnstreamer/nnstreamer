@@ -47,10 +47,10 @@ For each outgoing frame (on the source pad), there always is a **single** instan
 
 ### Properties for debugging
 
-- silent: Enable/diable debugging messages.
+- silent: Enable/disable debugging messages.
 
 ## Usage Examples
 
 ```
-$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_convert ! tensor_sink
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_sink
 ```
