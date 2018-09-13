@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 ##
-# @file config-plugins-audit.sh
-# @brief add plugin modules for a github repository
+# @file     config-plugins-audit.sh
+# @brief    Configuraiton file to maintain audit modules (after completing a build procedure)
 # @see      https://github.com/nnsuite/TAOS-CI
 # @author   Geunsik Lim <geunsik.lim@samsung.com>
 
@@ -10,7 +10,7 @@
 declare -i idx=-1
 
 ###### plugins-base ###############################################################################################
-echo "[MODULE] plugins-base: Plugin group that is maintained with good quality"
+echo "[MODULE] plugins-base: Plugin group is a well-maintained collection of plugin modules."
 # Please append your plugin modules here.
 
 audit_plugins[++idx]="pr-audit-build-tizen"
@@ -19,7 +19,6 @@ echo "[DEBUG] ${audit_plugins[idx]} is started."
 echo "[DEBUG] TAOS/${audit_plugins[idx]}: Check if Tizen rpm package is successfully generated."
 echo "[DEBUG] Current path: $(pwd)."
 source ${REFERENCE_REPOSITORY}/ci/taos/plugins-base/${audit_plugins[idx]}.sh
-# Note that do not append the below "$module_name" because build step is implemented as a built-in module partially
 
 
 audit_plugins[++idx]="pr-audit-build-ubuntu"
@@ -28,21 +27,19 @@ echo "[DEBUG] ${audit_plugins[idx]} is started."
 echo "[DEBUG] TAOS/${audit_plugins[idx]}: Check if Ubuntu deb package is successfully generated."
 echo "[DEBUG] Current path: $(pwd)."
 source ${REFERENCE_REPOSITORY}/ci/taos/plugins-base/${audit_plugins[idx]}.sh
-# Note that do not append the below "$module_name" because build step is implemented as a built-in module partially
 
 
-#audit_plugins[++idx]="pr-audit-build-yocto"
-#echo "[DEBUG] The default BUILD_MODE of ${audit_plugins[idx]} is declared with 99 by default in plugins-base folder."
-#echo "[DEBUG] ${audit_plugins[idx]} is started."
-#echo "[DEBUG] TAOS/${audit_plugins[idx]}: Check if YOCTO deb package is successfully generated."
-#echo "[DEBUG] Current path: $(pwd)."
-#source ${REFERENCE_REPOSITORY}/ci/taos/plugins-base/${audit_plugins[idx]}.sh
-# Note that do not append the below "$module_name" because build step is implemented as a built-in module partially
+audit_plugins[++idx]="pr-audit-build-yocto"
+echo "[DEBUG] The default BUILD_MODE of ${audit_plugins[idx]} is declared with 99 (SKIP MODE) by default in plugins-base folder."
+echo "[DEBUG] ${audit_plugins[idx]} is started."
+echo "[DEBUG] TAOS/${audit_plugins[idx]}: Check if YOCTO deb package is successfully generated."
+echo "[DEBUG] Current path: $(pwd)."
+source ${REFERENCE_REPOSITORY}/ci/taos/plugins-base/${audit_plugins[idx]}.sh
 
 
 
 ###### plugins-good ###############################################################################################
-echo "[MODULE] plugins-base: Plugin group that is maintained with good quality"
+echo "[MODULE] plugins-good: Plugin group that follow a writing rule with good quality"
 # Please append your plugin modules here.
 
 

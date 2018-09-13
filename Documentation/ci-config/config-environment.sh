@@ -22,7 +22,7 @@
 #### Repository setting
 # Connecting to a repository using token id instead of your-gitbot-id@github.io id
 # because of two-authentification. Refer to https://github.com/settings/tokens
-TOKEN="2e44d5b23fda558807ed7a0cdd02bf**********"
+TOKEN="xxxxxxxxxxxx558807ed7a0cdd02bfd6d431d7ca"
 
 # Name of account (or orgranzation)
 GITHUB_ACCOUNT="nnsuite"
@@ -31,7 +31,7 @@ GITHUB_ACCOUNT="nnsuite"
 PRJ_REPO_UPSTREAM="nnstreamer"
 
 # CI Server webaddress. Should end with /
-CISERVER="http://www.<your-dns>.net/"
+CISERVER="http://nnsuite.mooo.com/"
 
 # Format area (pr-format)
 # Add root path of source folders
@@ -96,7 +96,7 @@ filesize_limit=5
 # 2) Ubuntu (debian/*.rule)  : If a maintainer done the pdebuild based build process, you may change builde mode from 99 to 0.
 # 3) Yocto (CMakeLists.txt)  : If a maintainer done the devtool based build process, you may change builde mode from 99 to 0.
 BUILD_MODE_TIZEN=0
-BUILD_MODE_UBUNTU=99
+BUILD_MODE_UBUNTU=0
 BUILD_MODE_YOCTO=99
 
 # Version format: Major.Minor
