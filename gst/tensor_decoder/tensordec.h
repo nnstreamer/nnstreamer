@@ -35,7 +35,6 @@
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_TENSORDEC \
   (gst_tensordec_get_type())
 #define GST_TENSORDEC(obj) \
@@ -47,7 +46,6 @@ G_BEGIN_DECLS
 #define GST_IS_TENSORDEC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSORDEC))
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
-
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
 
@@ -63,6 +61,7 @@ struct _GstTensorDec
   gboolean add_padding; /**< If TRUE, zero-padding must be added during transform */
   gboolean silent; /**< True if logging is minimized */
   guint output_type; /**< Denotes the output type */
+  gchar *mode; /** Mode for tensor decoder "direct_video" or "image_labeling" */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
@@ -82,10 +81,17 @@ struct _GstTensorDecClass
 };
 
 /**
+ * @brief Tensor decoder modes
+ */
+gchar *Mode[] = {
+  "direct_video",
+  "image_labeling"
+};
+
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensordec_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_TENSORDEC_H__ */

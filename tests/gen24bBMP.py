@@ -463,3 +463,4 @@ def gen_BMP_stream(filename_prefix, golden_filename, num_sink):
             saveBMP(filename_prefix + '_' + str(i) + '.bmp', string[i], 'RGB', 16, 16)
             for j in range(0, num_sink):
                 file.write(string[i])
+    return string

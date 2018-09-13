@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
+#include <tensor_common.h>
 
 /**
  * @brief Macro for debug mode.
@@ -51,11 +52,27 @@ typedef enum
  */
 typedef enum
 {
-  TEST_TYPE_VIDEO, /**< pipeline for video */
-  TEST_TYPE_AUDIO, /**< pipeline for audio */
+  TEST_TYPE_VIDEO_RGB, /**< pipeline for video (RGB) */
+  TEST_TYPE_VIDEO_RGB_PADDING, /**< pipeline for video (RGB), remove padding */
+  TEST_TYPE_VIDEO_RGB_3F, /**< pipeline for video (RGB) 3 frames */
+  TEST_TYPE_VIDEO_BGRx, /**< pipeline for video (BGRx) */
+  TEST_TYPE_VIDEO_BGRx_2F, /**< pipeline for video (BGRx) 2 frames */
+  TEST_TYPE_VIDEO_GRAY8, /**< pipeline for video (GRAY8) */
+  TEST_TYPE_VIDEO_GRAY8_PADDING, /**< pipeline for video (GRAY8), remove padding */
+  TEST_TYPE_VIDEO_GRAY8_3F_PADDING, /**< pipeline for video (GRAY8) 3 frames, remove padding */
+  TEST_TYPE_AUDIO_S8, /**< pipeline for audio (S8) */
+  TEST_TYPE_AUDIO_U8_100F, /**< pipeline for audio (U8) 100 frames */
+  TEST_TYPE_AUDIO_S16, /**< pipeline for audio (S16) */
+  TEST_TYPE_AUDIO_U16_1000F, /**< pipeline for audio (U16) 1000 frames */
   TEST_TYPE_TEXT, /**< pipeline for text */
+  TEST_TYPE_TEXT_3F, /**< pipeline for text 3 frames */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensormux */
   TEST_TYPE_NEGO_FAILED, /**< pipeline to test caps negotiation */
+  TEST_TYPE_VIDEO_RGB_AGGR, /**< pipeline to test tensor-aggregator */
+  TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor-aggregator */
+  TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor-aggregator */
+  TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor-transform */
+  TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
 
 /**
@@ -65,6 +82,7 @@ typedef struct
 {
   guint num_buffers; /**< count of buffers */
   TestType test_type; /**< test pipeline */
+  tensor_type t_type; /**< tensor type */
 } TestOption;
 
 /**
@@ -77,10 +95,14 @@ typedef struct
   GstBus *bus; /**< gst bus for test */
   GstElement *sink; /**< tensor sink element */
   TestStatus status; /**< current status */
+  TestType tc_type; /**< pipeline for testcase type */
+  tensor_type t_type; /**< tensor type */
   guint received; /**< received buffer count */
+  gsize received_size; /**< received buffer size */
   gboolean start; /**< stream started */
   gboolean end; /**< eos reached */
   gchar *caps_name; /**< negotiated caps name */
+  GstTensorConfig config; /**< tensor config from negotiated caps */
 } TestData;
 
 /**
@@ -153,7 +175,20 @@ static void
 _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
   g_test_data.received++;
-  _print_log ("new data callback [%d]", g_test_data.received);
+  g_test_data.received_size = gst_buffer_get_size (buffer);
+
+  _print_log ("new data callback [%d] size [%zd]",
+      g_test_data.received, g_test_data.received_size);
+
+  if (DBG) {
+    GstClockTime pts, dts;
+
+    pts = GST_BUFFER_PTS (buffer);
+    dts = GST_BUFFER_DTS (buffer);
+
+    _print_log ("pts %" GST_TIME_FORMAT, GST_TIME_ARGS (pts));
+    _print_log ("dts %" GST_TIME_FORMAT, GST_TIME_ARGS (dts));
+  }
 
   if (g_test_data.caps_name == NULL) {
     GstPad *sink_pad;
@@ -167,6 +202,12 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 
     g_test_data.caps_name = (gchar *) gst_structure_get_name (structure);
     _print_log ("caps name [%s]", g_test_data.caps_name);
+
+    if (g_str_equal (g_test_data.caps_name, "other/tensor")) {
+      if (!gst_tensor_config_from_structure (&g_test_data.config, structure)) {
+        _print_log ("failed to get config from caps");
+      }
+    }
 
     gst_caps_unref (caps);
   }
@@ -193,6 +234,47 @@ _eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 }
 
 /**
+ * @brief Push text data to appsrc for text utf8 type.
+ */
+static gboolean
+_push_text_data (const guint num_buffers)
+{
+  GstElement *appsrc;
+  gboolean failed = FALSE;
+  guint i;
+
+  appsrc = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "appsrc");
+
+  for (i = 0; i < num_buffers; i++) {
+    GstBuffer *buf = gst_buffer_new_allocate (NULL, 10, NULL);
+    GstMapInfo info;
+
+    gst_buffer_map (buf, &info, GST_MAP_WRITE);
+    sprintf ((char *) info.data, "%d", i);
+    gst_buffer_unmap (buf, &info);
+
+    GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
+    GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf);
+
+    if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
+      _print_log ("failed to push buffer [%d]", i);
+      failed = TRUE;
+      goto error;
+    }
+  }
+
+  if (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)) != GST_FLOW_OK) {
+    _print_log ("failed to set eos");
+    failed = TRUE;
+    goto error;
+  }
+
+error:
+  gst_object_unref (appsrc);
+  return !failed;
+}
+
+/**
  * @brief Prepare test pipeline.
  */
 static gboolean
@@ -203,9 +285,13 @@ _setup_pipeline (TestOption & option)
 
   g_test_data.status = TEST_START;
   g_test_data.received = 0;
+  g_test_data.received_size = 0;
   g_test_data.start = FALSE;
   g_test_data.end = FALSE;
   g_test_data.caps_name = NULL;
+  g_test_data.tc_type = option.test_type;
+  g_test_data.t_type = option.t_type;
+  gst_tensor_config_init (&g_test_data.config);
 
   _print_log ("option num_buffers[%d] test_type[%d]",
       option.num_buffers, option.test_type);
@@ -214,25 +300,111 @@ _setup_pipeline (TestOption & option)
   _check_cond_err (g_test_data.loop != NULL);
 
   switch (option.test_type) {
-    case TEST_TYPE_VIDEO:
-      /** video 160x120 */
+    case TEST_TYPE_VIDEO_RGB:
+      /** video 160x120 RGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
-    case TEST_TYPE_AUDIO:
+    case TEST_TYPE_VIDEO_RGB_PADDING:
+      /** video 162x120 RGB, remove padding */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_RGB_3F:
+      /** video 160x120 RGB, 3 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_BGRx:
+      /** video 160x120 BGRx */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_BGRx_2F:
+      /** video 160x120 BGRx, 2 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx,framerate=(fraction)30/1 ! "
+          "tensor_converter frames-per-tensor=2 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_GRAY8:
+      /** video 160x120 GRAY8 */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_GRAY8_PADDING:
+      /** video 162x120 GRAY8, remove padding */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_GRAY8_3F_PADDING:
+      /** video 162x120 GRAY8, 3 frames, remove padding */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_S8:
+      /** audio sample rate 16000 (8 bits, signed, little endian) */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S8,rate=16000 ! "
+          "tensor_converter frames-per-tensor=500 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_U8_100F:
+      /** audio sample rate 16000 (8 bits, unsigned, little endian), 100 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=U8,rate=16000 ! "
+          "tensor_converter frames-per-tensor=100 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_S16:
       /** audio sample rate 16000 (16 bits, signed, little endian) */
       str_pipeline =
           g_strdup_printf
-          ("audiotestsrc num-buffers=%d ! audio/x-raw,format=S16LE,rate=16000 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000 ! "
+          "tensor_converter frames-per-tensor=500 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_U16_1000F:
+      /** audio sample rate 16000 (16 bits, unsigned, little endian), 1000 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000 ! "
+          "tensor_converter frames-per-tensor=1000 ! tensor_sink name=test_sink",
+          option.num_buffers);
       break;
     case TEST_TYPE_TEXT:
+      /** text stream */
       str_pipeline =
           g_strdup_printf
           ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
           "tensor_converter ! tensor_sink name=test_sink");
+      break;
+    case TEST_TYPE_TEXT_3F:
+      /** text stream 3 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
+          "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink");
+      break;
       break;
     case TEST_TYPE_TENSORS:
       /** other/tensors with tensormux */
@@ -247,8 +419,40 @@ _setup_pipeline (TestOption & option)
       /** caps negotiation failed */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
           "videoconvert ! tensor_sink name=test_sink", option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_RGB_AGGR:
+      /** video stream with tensor_aggregator */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=3 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_S16_AGGR:
+      /** audio stream with tensor_aggregator, 4 buffers with 2000 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! "
+          "tensor_converter frames-per-tensor=500 ! tensor_aggregator frames-in=500 frames-out=2000 frames-dim=1 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_AUDIO_U16_AGGR:
+      /** audio stream with tensor_aggregator, divided into 5 buffers with 100 frames */
+      str_pipeline =
+          g_strdup_printf
+          ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=1 ! "
+          "tensor_converter frames-per-tensor=500 ! tensor_aggregator frames-in=500 frames-out=100 frames-dim=1 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_TYPECAST:
+      /** text stream to test typecast */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
+          "tensor_converter ! tensor_transform mode=typecast option=%s ! tensor_sink name=test_sink",
+          tensor_element_typename[option.t_type]);
       break;
     default:
       goto error;
@@ -275,6 +479,11 @@ _setup_pipeline (TestOption & option)
     g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
   }
 
+  /** signal for new data */
+  handle_id = g_signal_connect (g_test_data.sink, "new-data",
+      (GCallback) _new_data_cb, NULL);
+  _check_cond_err (handle_id > 0);
+
   g_test_data.status = TEST_INIT;
   return TRUE;
 
@@ -294,7 +503,7 @@ TEST (tensor_sink_test, properties)
   gboolean emit, res_emit;
   gboolean sync, res_sync;
   gboolean qos, res_qos;
-  TestOption option = { 1, TEST_TYPE_VIDEO };
+  TestOption option = { 1, TEST_TYPE_VIDEO_RGB };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -302,9 +511,10 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "signal-rate", &rate, NULL);
   EXPECT_EQ (rate, 0);
 
-  g_object_set (g_test_data.sink, "signal-rate", (rate + 10), NULL);
+  rate += 10;
+  g_object_set (g_test_data.sink, "signal-rate", rate, NULL);
   g_object_get (g_test_data.sink, "signal-rate", &res_rate, NULL);
-  EXPECT_EQ (res_rate, (rate + 10));
+  EXPECT_EQ (res_rate, rate);
 
   /** default emit-signal is TRUE */
   g_object_get (g_test_data.sink, "emit-signal", &emit, NULL);
@@ -355,17 +565,13 @@ TEST (tensor_sink_test, properties)
  */
 TEST (tensor_sink_test, signals)
 {
-  const guint num_buffers = 10;
+  const guint num_buffers = 5;
   gulong handle_id;
-  TestOption option = { num_buffers, TEST_TYPE_VIDEO };
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   /** tensor sink signals */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
   handle_id = g_signal_connect (g_test_data.sink, "stream-start",
       (GCallback) _stream_start_cb, NULL);
   EXPECT_TRUE (handle_id > 0);
@@ -374,7 +580,6 @@ TEST (tensor_sink_test, signals)
       (GCallback) _eos_cb, NULL);
   EXPECT_TRUE (handle_id > 0);
 
-  _print_log ("start pipeline for signals test");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -398,21 +603,14 @@ TEST (tensor_sink_test, signals)
  */
 TEST (tensor_sink_test, signal_rate)
 {
-  const guint num_buffers = 10;
-  gulong handle_id;
-  TestOption option = { num_buffers, TEST_TYPE_VIDEO };
+  const guint num_buffers = 6;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   /** set signal-rate */
   g_object_set (g_test_data.sink, "signal-rate", (guint) 15, NULL);
 
-  /** signal for new data */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
-  _print_log ("start pipeline for signal-rate test");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -430,59 +628,16 @@ TEST (tensor_sink_test, signal_rate)
 }
 
 /**
- * @brief Test for unknown property and signal.
- */
-TEST (tensor_sink_test, unknown_case)
-{
-  const guint num_buffers = 5;
-  gulong handle_id;
-  gint unknown = -1;
-  TestOption option = { num_buffers, TEST_TYPE_VIDEO };
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  /** try to set/get unknown property */
-  g_object_set (g_test_data.sink, "unknown-prop", 1, NULL);
-  g_object_get (g_test_data.sink, "unknown-prop", &unknown, NULL);
-  EXPECT_EQ (unknown, -1);
-
-  /** unknown signal */
-  handle_id = g_signal_connect (g_test_data.sink, "unknown-sig",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_EQ (handle_id, 0);
-
-  _print_log ("start pipeline for unknown case test");
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-  g_main_loop_run (g_test_data.loop);
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, 0);
-
-  _free_test_data ();
-}
-
-/**
  * @brief Test for caps negotiation failed.
  */
 TEST (tensor_sink_test, caps_error)
 {
   const guint num_buffers = 5;
-  gulong handle_id;
   TestOption option = { num_buffers, TEST_TYPE_NEGO_FAILED };
 
   /** failed : cannot link videoconvert and tensor_sink */
   ASSERT_TRUE (_setup_pipeline (option));
 
-  /** signal for new data */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
-  _print_log ("start pipeline for caps error test");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -502,17 +657,10 @@ TEST (tensor_sink_test, caps_error)
 TEST (tensor_sink_test, caps_tensors)
 {
   const guint num_buffers = 5;
-  gulong handle_id;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
-  /** signal for new data */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
-  _print_log ("start pipeline to test caps other/tensors");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -522,6 +670,7 @@ TEST (tensor_sink_test, caps_tensors)
 
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 115200);
 
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
@@ -530,22 +679,15 @@ TEST (tensor_sink_test, caps_tensors)
 }
 
 /**
- * @brief Test for audio stream.
+ * @brief Test for video format RGB.
  */
-TEST (tensor_sink_test, audio_stream)
+TEST (tensor_stream_test, video_rgb)
 {
-  const guint num_buffers = 10;
-  gulong handle_id;
-  TestOption option = { num_buffers, TEST_TYPE_AUDIO };
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
-  /** signal for new data */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
-  _print_log ("start pipeline to test audio stream");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -553,54 +695,446 @@ TEST (tensor_sink_test, audio_stream)
   /** check eos message */
   EXPECT_EQ (g_test_data.status, TEST_EOS);
 
-  /** check received buffers */
+  /** check received buffers and signals */
   EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 57600);
 
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
 
   _free_test_data ();
 }
 
 /**
- * @brief Test for text stream.
+ * @brief Test for video format RGB, remove padding.
  */
-TEST (tensor_sink_test, text_stream)
+TEST (tensor_stream_test, video_rgb_padding)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_PADDING };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 58320);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format RGB, 3 frames from tensor_converter.
+ */
+TEST (tensor_stream_test, video_rgb_3f)
+{
+  const guint num_buffers = 7;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_3F };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers / 3);
+  EXPECT_EQ (g_test_data.received_size, 57600 * 3);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 3);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format BGRx.
+ */
+TEST (tensor_stream_test, video_bgrx)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRx };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 76800);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 4);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format BGRx, 2 frames from tensor_converter.
+ */
+TEST (tensor_stream_test, video_bgrx_2f)
+{
+  const guint num_buffers = 6;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRx_2F };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers / 2);
+  EXPECT_EQ (g_test_data.received_size, 76800 * 2);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 4);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 2);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format GRAY8.
+ */
+TEST (tensor_stream_test, video_gray8)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 19200);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format GRAY8, remove padding.
+ */
+TEST (tensor_stream_test, video_gray8_padding)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8_PADDING };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 19440);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video format GRAY8, 3 frames from tensor_converter, remove padding.
+ */
+TEST (tensor_stream_test, video_gray8_3f_padding)
+{
+  const guint num_buffers = 6;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8_3F_PADDING };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers / 3);
+  EXPECT_EQ (g_test_data.received_size, 19440 * 3);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 162);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 3);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio format S8.
+ */
+TEST (tensor_stream_test, audio_s8)
+{
+  const guint num_buffers = 5; /** 5 * 500 frames */
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_S8 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 500);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 500);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio format U8, 100 frames from tensor_converter.
+ */
+TEST (tensor_stream_test, audio_u8_100F)
+{
+  const guint num_buffers = 5; /** 5 * 500 frames */
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_U8_100F };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 5);
+  EXPECT_EQ (g_test_data.received_size, 100);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 100);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio format S16.
+ */
+TEST (tensor_stream_test, audio_s16)
+{
+  const guint num_buffers = 5; /** 5 * 500 frames */
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_S16 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, 500 * 2);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 500);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio format U16, 1000 frames from tensor_converter.
+ */
+TEST (tensor_stream_test, audio_u16_1000f)
+{
+  const guint num_buffers = 5; /** 5 * 500 frames */
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_U16_1000F };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers / 2);
+  EXPECT_EQ (g_test_data.received_size, 500 * 2 * 2);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1000);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for text format utf8.
+ */
+TEST (tensor_stream_test, text_utf8)
 {
   const guint num_buffers = 10;
-  gulong handle_id;
-  guint i;
-  GstElement *appsrc;
   TestOption option = { num_buffers, TEST_TYPE_TEXT };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
-  appsrc = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "appsrc");
-
-  /** signal for new data */
-  handle_id = g_signal_connect (g_test_data.sink, "new-data",
-      (GCallback) _new_data_cb, NULL);
-  EXPECT_TRUE (handle_id > 0);
-
-  _print_log ("start pipeline to test text stream");
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  for (i = 0; i < num_buffers; i++) {
-    GstBuffer *buf = gst_buffer_new_allocate (NULL, 5, NULL);
-    GstMapInfo info;
-
-    gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    strcpy ((gchar *) info.data, "test");
-    gst_buffer_unmap (buf, &info);
-
-    GST_BUFFER_PTS (buf) = (i + 1) * 20 * GST_MSECOND;
-    GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf);
-
-    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf),
-        GST_FLOW_OK);
-  }
-
-  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)), GST_FLOW_OK);
+  _push_text_data (num_buffers);
 
   g_main_loop_run (g_test_data.loop);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -610,9 +1144,507 @@ TEST (tensor_sink_test, text_stream)
 
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE);
 
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for text format utf8, 3 frames from tensor_converter.
+ */
+TEST (tensor_stream_test, text_utf8_3f)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_TEXT_3F };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers / 3);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * 3);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to int32 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_int32)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_INT32;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to uint32 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_uint32)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_UINT32;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to int16 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_int16)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_INT16;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to uint16 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_uint16)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_UINT16;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to float64 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_float64)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_FLOAT64;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to float32 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_float32)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_FLOAT32;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to int64 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_int64)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_INT64;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to uint64 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_uint64)
+{
+  const guint num_buffers = 2;
+  const tensor_type t_type = _NNS_UINT64;
+  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
+  unsigned int t_size = tensor_element_size[t_type];
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received_size, GST_TENSOR_STRING_SIZE * t_size);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, t_type);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], GST_TENSOR_STRING_SIZE);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 0);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video stream with tensor_aggregator.
+ */
+TEST (tensor_stream_test, video_aggregate)
+{
+  const guint num_buffers = 35;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_AGGR };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, (num_buffers - 10) / 5 + 1);
+  EXPECT_EQ (g_test_data.received_size, 57600 * 10);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 160);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 10);
+  EXPECT_EQ (g_test_data.config.rate_n, 30);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio stream with tensor_aggregator.
+ */
+TEST (tensor_stream_test, audio_aggregate_s16)
+{
+  const guint num_buffers = 21;
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_S16_AGGR };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers / 4);
+  EXPECT_EQ (g_test_data.received_size, 500 * 2 * 4);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_INT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 2000);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
+
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for audio stream with tensor_aggregator.
+ */
+TEST (tensor_stream_test, audio_aggregate_u16)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_AUDIO_U16_AGGR };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 5);
+  EXPECT_EQ (g_test_data.received_size, 500 * 2 / 5);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check tensor config for audio */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.config));
+  EXPECT_EQ (g_test_data.config.info.type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[1], 100);
+  EXPECT_EQ (g_test_data.config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.config.rate_n, 16000);
+  EXPECT_EQ (g_test_data.config.rate_d, 1);
 
   _free_test_data ();
 }

@@ -34,7 +34,8 @@ BuildRequires:  pkgconfig(libpng)
 BuildRequires: tensorflow-lite-devel
 
 %if 0%{?testcoverage}
-BuildRequires:	taos-ci-unittest-coverage-assessment
+BuildRequires: lcov
+# BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 
 %package unittest-coverage
@@ -79,20 +80,20 @@ pushd build
 make %{?_smp_mflags}
 popd
 
+%install
+pushd build
+%make_install
+popd
+
 # DO THE TEST!
+export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 
 pushd build
 ./unittest_common
 ./unittest_sink --gst-plugin-path=./gst
 popd
 
-%install
-pushd build
-%make_install
-popd
-
 pushd tests
-export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 ./testAll.sh
 popd
 
@@ -108,8 +109,7 @@ popd
 # Intentionally excluded directories are:
 #
 # tests: We are not going to show testcoverage of the test code itself.
-
-    unittestcoverage.py module $(pwd)/gst $(pwd)/nnstreamer_example $(pwd)/common $(pwd)/include
+    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/nnstreamer_example $(pwd)/common $(pwd)/include
 
 # Get commit info
     VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`

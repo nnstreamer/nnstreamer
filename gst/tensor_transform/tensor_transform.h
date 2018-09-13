@@ -66,22 +66,53 @@ typedef struct _GstTensor_Transform GstTensor_Transform;
 
 typedef struct _GstTensor_TransformClass GstTensor_TransformClass;
 
-typedef enum {
-  GTT_DIMCHG = 0, /* Dimension Change. "dimchg" */
-  GTT_TYPECAST = 1, /* Type change. "typecast" */
-
+typedef enum
+{
+  GTT_DIMCHG = 0,               /* Dimension Change. "dimchg" */
+  GTT_TYPECAST = 1,             /* Type change. "typecast" */
+  GTT_ARITHMETIC = 2,           /* Type change. "typecast" */
+  GTT_TRANSPOSE = 3,            /* Transpose. "transpose" */
 
   GTT_END,
 } tensor_transform_mode;
 
+typedef enum
+{
+  ARITH_ADD = 0,
+  ARITH_MUL = 1,
+  ARITH_END,
+} tensor_transform_arith_mode;
+
+/**
+ * @brief Internal data structure for dimchg mode.
+ */
 typedef struct _tensor_transform_dimchg {
   int from;
   int to;
 } tensor_transform_dimchg;
 
+/**
+ * @brief Internal data structure for typecast mode.
+ */
 typedef struct _tensor_transform_typecast {
   tensor_type to; /**< tensor_type after cast. _NNS_END if unknown */
 } tensor_transform_typecast;
+
+/**
+ * @brief Internal data structure for arithmetic mode.
+ */
+typedef struct _tensor_transform_arithmetic {
+  tensor_transform_arith_mode mode;
+  /* TODO : Better to use union for various type*/
+  int64_t value;
+} tensor_transform_arithmetic;
+
+/**
+ * @brief Internal data structure for transpose mode.
+ */
+typedef struct _tensor_transform_transpose {
+  uint8_t trans_order[NNS_TENSOR_RANK_LIMIT];
+} tensor_transform_transpose;
 
 /**
  * @brief Internal data structure for tensor_transform instances.
@@ -96,6 +127,8 @@ struct _GstTensor_Transform
   union {
     tensor_transform_dimchg data_dimchg; /**< Parsed option value for "dimchg" mode */
     tensor_transform_typecast data_typecast; /**< Parsed option value for "typecast" mode. */
+    tensor_transform_arithmetic data_arithmetic; /**< Parsed option value for "arithmetic" mode. */
+    tensor_transform_transpose data_transpose; /**< Parsed option value for "transpose" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
 
@@ -104,7 +137,7 @@ struct _GstTensor_Transform
   tensor_type type; /**< tensor_type of input. Most transform share the same type for both input and output. However, this does not hold for typecast. */
 };
 
-/*
+/**
  * @brief GstTensor_TransformClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
@@ -116,7 +149,7 @@ struct _GstTensor_TransformClass
   GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
 };
 
-/*
+/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_transform_get_type (void);

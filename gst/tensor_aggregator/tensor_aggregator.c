@@ -75,6 +75,7 @@ enum
   PROP_FRAMES_IN,
   PROP_FRAMES_OUT,
   PROP_FRAMES_FLUSH,
+  PROP_FRAMES_DIMENSION,
   PROP_SILENT
 };
 
@@ -97,6 +98,11 @@ enum
  * @brief The number of frames to flush.
  */
 #define DEFAULT_FRAMES_FLUSH 0
+
+/**
+ * @brief The index of frames in tensor dimension.
+ */
+#define DEFAULT_FRAMES_DIMENSION (-1)
 
 /**
  * @brief Template for sink pad.
@@ -125,6 +131,10 @@ static void gst_tensor_aggregator_get_property (GObject * object,
 
 static gboolean gst_tensor_aggregator_sink_event (GstPad * pad,
     GstObject * parent, GstEvent * event);
+static gboolean gst_tensor_aggregator_sink_query (GstPad * pad,
+    GstObject * parent, GstQuery * query);
+static gboolean gst_tensor_aggregator_src_query (GstPad * pad,
+    GstObject * parent, GstQuery * query);
 static GstFlowReturn gst_tensor_aggregator_chain (GstPad * pad,
     GstObject * parent, GstBuffer * buf);
 static GstStateChangeReturn
@@ -132,8 +142,9 @@ gst_tensor_aggregator_change_state (GstElement * element,
     GstStateChange transition);
 
 static void gst_tensor_aggregator_reset (GstTensorAggregator * self);
-static gboolean
-gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
+static GstCaps *gst_tensor_aggregator_query_caps (GstTensorAggregator * self,
+    GstPad * pad, GstCaps * filter);
+static gboolean gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     const GstCaps * caps);
 
 /**
@@ -152,21 +163,61 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
   object_class->get_property = gst_tensor_aggregator_get_property;
   object_class->finalize = gst_tensor_aggregator_finalize;
 
+  /**
+   * GstTensorAggregator:frames-in:
+   *
+   * The number of frames in incoming buffer.
+   * GstTensorAggregator itself cannot get the frames in buffer. (buffer is a sinle tensor instance)
+   * GstTensorAggregator calculates the size of single frame with this property.
+   */
   g_object_class_install_property (object_class, PROP_FRAMES_IN,
       g_param_spec_uint ("frames-in", "Frames in input",
-          "The number of frames in input buffer", 1, G_MAXUINT,
+          "The number of frames in incoming buffer", 1, G_MAXUINT,
           DEFAULT_FRAMES_IN, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstTensorAggregator:frames-out:
+   *
+   * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
+   * GstTensorAggregator calculates the size of outgoing frames and pushes a buffer to source pad.
+   */
   g_object_class_install_property (object_class, PROP_FRAMES_OUT,
       g_param_spec_uint ("frames-out", "Frames in output",
-          "The number of frames in output buffer", 1, G_MAXUINT,
+          "The number of frames in outgoing buffer", 1, G_MAXUINT,
           DEFAULT_FRAMES_OUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstTensorAggregator:frames-flush:
+   *
+   * The number of frames to flush.
+   * GstTensorAggregator flushes the bytes (N frames) in GstAdapter after pushing a buffer.
+   * If set 0 (default value), all outgoing frames will be flushed.
+   */
   g_object_class_install_property (object_class, PROP_FRAMES_FLUSH,
       g_param_spec_uint ("frames-flush", "Frames to flush",
           "The number of frames to flush (0 to flush all output)", 0, G_MAXUINT,
           DEFAULT_FRAMES_FLUSH, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstTensorAggregator:frames-dim:
+   *
+   * The dimension index of frames in tensor.
+   * If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
+   * With this property, GstTensorAggregator changes the out-caps.
+   * If set -1 (default value), GstTensorAggregator does not change the dimension in outgoing tensor.
+   * (This may cause an error if in/out frames are different.)
+   */
+  g_object_class_install_property (object_class, PROP_FRAMES_DIMENSION,
+      g_param_spec_int ("frames-dim", "Dimension index of frames",
+          "The dimension index of frames in tensor",
+          -1, (NNS_TENSOR_RANK_LIMIT - 1), DEFAULT_FRAMES_DIMENSION,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstTensorAggregator:silent:
+   *
+   * The flag to enable/disable debugging messages.
+   */
   g_object_class_install_property (object_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -194,6 +245,8 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   self->sinkpad = gst_pad_new_from_static_template (&sink_template, "sink");
   gst_pad_set_event_function (self->sinkpad,
       GST_DEBUG_FUNCPTR (gst_tensor_aggregator_sink_event));
+  gst_pad_set_query_function (self->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_aggregator_sink_query));
   gst_pad_set_chain_function (self->sinkpad,
       GST_DEBUG_FUNCPTR (gst_tensor_aggregator_chain));
   GST_PAD_SET_PROXY_CAPS (self->sinkpad);
@@ -201,6 +254,8 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
 
   /** setup src pad */
   self->srcpad = gst_pad_new_from_static_template (&src_template, "src");
+  gst_pad_set_query_function (self->srcpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_aggregator_src_query));
   GST_PAD_SET_PROXY_CAPS (self->srcpad);
   gst_element_add_pad (GST_ELEMENT (self), self->srcpad);
 
@@ -209,13 +264,10 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   self->frames_in = DEFAULT_FRAMES_IN;
   self->frames_out = DEFAULT_FRAMES_OUT;
   self->frames_flush = DEFAULT_FRAMES_FLUSH;
+  self->frames_dim = DEFAULT_FRAMES_DIMENSION;
 
   self->adapter = gst_adapter_new ();
   gst_tensor_aggregator_reset (self);
-
-  self->tensor_configured = FALSE;
-  gst_tensor_config_init (&self->in_config);
-  gst_tensor_config_init (&self->out_config);
 }
 
 /**
@@ -259,6 +311,9 @@ gst_tensor_aggregator_set_property (GObject * object, guint prop_id,
     case PROP_FRAMES_FLUSH:
       self->frames_flush = g_value_get_uint (value);
       break;
+    case PROP_FRAMES_DIMENSION:
+      self->frames_dim = g_value_get_int (value);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -288,6 +343,9 @@ gst_tensor_aggregator_get_property (GObject * object, guint prop_id,
       break;
     case PROP_FRAMES_FLUSH:
       g_value_set_uint (value, self->frames_flush);
+      break;
+    case PROP_FRAMES_DIMENSION:
+      g_value_set_int (value, self->frames_dim);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -345,6 +403,90 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
 }
 
 /**
+ * @brief This function handles sink pad query.
+ */
+static gboolean
+gst_tensor_aggregator_sink_query (GstPad * pad, GstObject * parent,
+    GstQuery * query)
+{
+  GstTensorAggregator *self;
+
+  self = GST_TENSOR_AGGREGATOR (parent);
+
+  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+      GST_QUERY_TYPE_NAME (query), query);
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *filter;
+
+      gst_query_parse_caps (query, &filter);
+      caps = gst_tensor_aggregator_query_caps (self, pad, filter);
+
+      gst_query_set_caps_result (query, caps);
+      gst_caps_unref (caps);
+      return TRUE;
+    }
+    case GST_QUERY_ACCEPT_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *template_caps;
+      gboolean res;
+
+      gst_query_parse_accept_caps (query, &caps);
+      silent_debug_caps (caps, "accept-caps");
+
+      template_caps = gst_pad_get_pad_template_caps (pad);
+      res = gst_caps_can_intersect (template_caps, caps);
+
+      gst_query_set_accept_caps_result (query, res);
+      gst_caps_unref (template_caps);
+      return TRUE;
+    }
+    default:
+      break;
+  }
+
+  return gst_pad_query_default (pad, parent, query);
+}
+
+/**
+ * @brief This function handles src pad query.
+ */
+static gboolean
+gst_tensor_aggregator_src_query (GstPad * pad, GstObject * parent,
+    GstQuery * query)
+{
+  GstTensorAggregator *self;
+
+  self = GST_TENSOR_AGGREGATOR (parent);
+
+  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+      GST_QUERY_TYPE_NAME (query), query);
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *filter;
+
+      gst_query_parse_caps (query, &filter);
+      caps = gst_tensor_aggregator_query_caps (self, pad, filter);
+
+      gst_query_set_caps_result (query, caps);
+      gst_caps_unref (caps);
+      return TRUE;
+    }
+    default:
+      break;
+  }
+
+  return gst_pad_query_default (pad, parent, query);
+}
+
+/**
  * @brief Chain function, this function does the actual processing.
  */
 static GstFlowReturn
@@ -382,10 +524,19 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   while ((avail = gst_adapter_available (adapter)) >= out_size &&
       ret == GST_FLOW_OK) {
     GstBuffer *outbuf;
-    gsize flush;
+    GstClockTime pts, dts;
+    gsize flush, offset;
+
+    /** offset for last frame */
+    offset = frame_size * (frames_out - 1);
+
+    pts = gst_adapter_prev_pts_at_offset (adapter, offset, NULL);
+    dts = gst_adapter_prev_dts_at_offset (adapter, offset, NULL);
 
     outbuf = gst_adapter_get_buffer (adapter, out_size);
-    outbuf = gst_buffer_make_writable (outbuf);
+
+    GST_BUFFER_PTS (outbuf) = pts;
+    GST_BUFFER_DTS (outbuf) = dts;
 
     ret = gst_pad_push (self->srcpad, outbuf);
 
@@ -444,6 +595,41 @@ gst_tensor_aggregator_reset (GstTensorAggregator * self)
   if (self->adapter) {
     gst_adapter_clear (self->adapter);
   }
+
+  self->tensor_configured = FALSE;
+  gst_tensor_config_init (&self->in_config);
+  gst_tensor_config_init (&self->out_config);
+}
+
+/**
+ * @brief Get pad caps for caps negotiation.
+ */
+static GstCaps *
+gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
+    GstCaps * filter)
+{
+  GstCaps *caps;
+
+  if (pad == self->sinkpad) {
+    caps = gst_tensor_caps_from_config (&self->in_config);
+  } else {
+    caps = gst_tensor_caps_from_config (&self->out_config);
+  }
+
+  silent_debug_caps (caps, "caps");
+  silent_debug_caps (filter, "filter");
+
+  if (caps && filter) {
+    GstCaps *intersection;
+
+    intersection =
+        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+
+    gst_caps_unref (caps);
+    caps = intersection;
+  }
+
+  return caps;
 }
 
 /**
@@ -473,10 +659,10 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   self->in_config = config;
 
-  /**
-   * @todo Do we need to change tensor dimension?
-   * (Tensor with media type audio has [frames])
-   */
+  /** update dimension in output tensor */
+  if (self->frames_dim >= 0) {
+    config.info.dimension[self->frames_dim] = self->frames_out;
+  }
 
   self->out_config = config;
   self->tensor_configured = TRUE;

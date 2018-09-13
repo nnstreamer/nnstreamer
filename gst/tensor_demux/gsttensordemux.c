@@ -353,7 +353,6 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
   gst_event_unref (event);
 
   caps_string = g_strdup_printf ("other/tensor, "
-      "rank = (int)4, "
       "type = (string)%s,"
       "framerate = (fraction) %d/%d, "
       "dim1 = (int) %d, "

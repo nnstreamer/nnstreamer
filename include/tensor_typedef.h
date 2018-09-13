@@ -31,6 +31,7 @@
 
 #define NNS_TENSOR_RANK_LIMIT	(4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
+#define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 /**
  * @brief Possible data element types of other/tensor.
@@ -102,6 +103,7 @@ typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
 
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
+ * @todo replace this to GstTensorsInfo
  */
 typedef struct
 {
@@ -110,6 +112,24 @@ typedef struct
   tensor_type types[NNS_TENSOR_SIZE_LIMIT];   /**< The list of types for each tensors */
   int ranks[NNS_TENSOR_SIZE_LIMIT];          /**< The list of types for each tensors */
 } GstTensor_TensorsMeta;
+
+/**
+ * @brief Internal data structure for tensor info.
+ */
+typedef struct
+{
+  tensor_type type; /**< Type of each element in the tensor. User must designate this. */
+  tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+} GstTensorInfo;
+
+/**
+ * @brief Internal meta data exchange format for a other/tensors instance
+ */
+typedef struct
+{
+  unsigned int num_tensors; /**< The number of tensors */
+  GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
+} GstTensorsInfo;
 
 /**
  * @brief Tensor_Filter's properties (internal data structure)
