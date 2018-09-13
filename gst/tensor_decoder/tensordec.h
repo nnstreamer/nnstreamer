@@ -61,7 +61,7 @@ struct _GstTensorDec
   gboolean add_padding; /**< If TRUE, zero-padding must be added during transform */
   gboolean silent; /**< True if logging is minimized */
   guint output_type; /**< Denotes the output type */
-  gchar *mode; /** Mode for tensor decoder "direct_video" or "image_labeling" */
+  const gchar *mode; /** Mode for tensor decoder "direct_video" or "image_labeling" */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
@@ -83,7 +83,7 @@ struct _GstTensorDecClass
 /**
  * @brief Tensor decoder modes
  */
-gchar *Mode[] = {
+static const gchar *Mode[] = {
   "direct_video",
   "image_labeling"
 };
