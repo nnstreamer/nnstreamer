@@ -143,9 +143,12 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
     size_t size;
     uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
         &(filter->prop), inptr, &size);
-    g_assert (size ==
-        (get_tensor_element_count (filter->prop.outputMeta.dims[0]) *
-            tensor_element_size[filter->prop.outputMeta.types[0]]));
+    int i;
+    for (i = 0; i < filter->prop.outputMeta.num_tensors; i++) {
+      g_assert (size ==
+          (get_tensor_element_count (filter->prop.outputMeta.dims[i]) *
+              tensor_element_size[filter->prop.outputMeta.types[i]]));
+    }
     return retptr;
   } else {
     return NULL;
@@ -201,8 +204,7 @@ custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
  */
 static int
 custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
-    const tensor_dim iDimension, const tensor_type iType,
-    tensor_dim oDimension, tensor_type * oType)
+    const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -215,7 +217,7 @@ custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
     return -1;
 
   return ptr->methods->setInputDim (ptr->customFW_private_data,
-      &(filter->prop), iDimension, iType, oDimension, oType);
+      &(filter->prop), inputMeta, outputMeta);
 }
 
 /**

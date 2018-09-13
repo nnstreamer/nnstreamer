@@ -1162,3 +1162,19 @@ gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata)
         gst_caps_new_simple ("other/tensorsave", NULL, NULL));
   }
 }
+
+/**
+* @brief Copy src meta data to dest structure
+*/
+void
+gst_tensor_meta_copy (GstTensor_TensorsMeta * dest,
+    const GstTensor_TensorsMeta src)
+{
+  int i;
+  for (i = 0; i < src.num_tensors; i++) {
+    memcpy (dest->dims[i], src.dims[i], sizeof (tensor_dim));
+    dest->types[i] = src.types[i];
+    dest->ranks[i] = src.ranks[i];
+  }
+  dest->num_tensors = src.num_tensors;
+}

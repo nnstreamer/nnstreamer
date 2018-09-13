@@ -107,23 +107,22 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  */
 static int
 set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    const tensor_dim iDim, const tensor_type iType,
-    tensor_dim oDim, tensor_type * oType)
+    const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta)
 {
   int i;
   pt_data *data = private_data;
   assert (data);
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    oDim[i] = iDim[i];
+    outputMeta->dims[0][i] = inputMeta->dims[0][i];
 
   /* Update [1] and [2] oDim with new-x, new-y */
   if (data->new_x > 0)
-    oDim[1] = data->new_x;
+    outputMeta->dims[0][1] = data->new_x;
   if (data->new_y > 0)
-    oDim[2] = data->new_y;
+    outputMeta->dims[0][2] = data->new_y;
 
-  *oType = iType;
+  outputMeta->types[0] = inputMeta->types[0];
   return 0;
 }
 

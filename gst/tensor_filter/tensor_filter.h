@@ -140,9 +140,7 @@ struct _GstTensor_Filter_Framework
        * @return the size of output tensors
        */
   int (*setInputDimension) (const GstTensor_Filter * filter,
-      void **private_data, const tensor_dim inputDimension,
-      const tensor_type inputType, tensor_dim outputDimension,
-      tensor_type * outputType);
+      void **private_data, const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta);
       /**< Optional. Set Null if not supported. Tensor_filter::main will
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension

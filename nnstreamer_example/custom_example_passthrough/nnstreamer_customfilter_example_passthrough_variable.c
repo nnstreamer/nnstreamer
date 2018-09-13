@@ -53,14 +53,13 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  */
 static int
 set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    const tensor_dim iDim, const tensor_type iType,
-    tensor_dim oDim, tensor_type * oType)
+    const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta)
 {
   int i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    oDim[i] = iDim[i];
-  *oType = iType;
+    outputMeta->dims[0][i] = inputMeta->dims[0][i];
+  outputMeta->types[0] = inputMeta->types[0];
 
   return 0;
 }

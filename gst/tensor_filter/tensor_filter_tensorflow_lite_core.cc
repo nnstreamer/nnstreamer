@@ -117,7 +117,8 @@ TFLiteCore::loadModel ()
  * @param tfType	: the defined type of Tensorflow Lite
  * @return the enum of defined _NNS_TYPE
  */
-_nns_tensor_type TFLiteCore::getTensorType (TfLiteType tfType)
+_nns_tensor_type
+TFLiteCore::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
     case kTfLiteFloat32:
@@ -297,16 +298,19 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   gettimeofday (&start_time, nullptr);
 #endif
 
-  int output_number_of_pixels = 1;
+  int num_of_input[NNS_TENSOR_SIZE_LIMIT];
+  for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    num_of_input[i] = 1;
+  }
 
   int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
 
-  for (int i = 0; i < sizeOfArray; i++) {
-    output_number_of_pixels *= inputTensorMeta.dims[0][i];
-  }
-
   for (int i = 0; i < getInputTensorSize (); i++) {
     int input = interpreter->inputs ()[i];
+
+    for (int j = 0; j < sizeOfArray; j++) {
+      num_of_input[i] *= inputTensorMeta.dims[i][j];
+    }
 
     if (interpreter->AllocateTensors () != kTfLiteOk) {
       _print_log ("Failed to allocate tensors");
@@ -314,7 +318,7 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
     }
 
     inputTensors[0] = inptr;
-    for (int j = 0; j < output_number_of_pixels; j++) {
+    for (int j = 0; j < num_of_input[i]; j++) {
       if (inputTensorMeta.types[i] == _NNS_FLOAT32) {
         (interpreter->typed_tensor < float >(input))[j] =
             ((float) inputTensors[i][j] - 127.5f) / 127.5f;

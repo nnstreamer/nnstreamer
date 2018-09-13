@@ -322,9 +322,7 @@ static GstCaps *
 gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     GstCaps * fromCaps)
 {
-  tensor_type *type = NULL, _type[NNS_TENSOR_SIZE_LIMIT];
-  const uint32_t *dimension[NNS_TENSOR_SIZE_LIMIT];
-  tensor_dim dim[NNS_TENSOR_SIZE_LIMIT];
+  GstTensor_TensorsMeta meta;
   GstTensor_Filter_CheckStatus configured = _TFC_INIT;
   GstTensor_Filter_Properties *prop = &filter->prop;
   GstCaps *tmp = NULL, *tmp2 = NULL, *staticcap = NULL, *resultCaps = NULL;
@@ -332,18 +330,10 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   staticcap = gst_static_caps_get (&rawcap);
 
   if (isInput == TRUE) {
-    type = prop->inputMeta.types;
-    int i;
-    for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-      dimension[i] = prop->inputMeta.dims[i];
-    }
+    gst_tensor_meta_copy (&meta, prop->inputMeta);
     configured = prop->inputConfigured & _TFC_ALL;
   } else {
-    type = prop->outputMeta.types;
-    int i;
-    for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-      dimension[i] = prop->outputMeta.dims[i];
-    }
+    gst_tensor_meta_copy (&meta, prop->outputMeta);
     configured = prop->outputConfigured & _TFC_ALL;
   }
 
@@ -351,23 +341,24 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   if (configured == _TFC_ALL) {
     tmp2 =
         gst_caps_new_simple ("other/tensor", "type",
-        G_TYPE_STRING, tensor_element_typename[type[0]], "dim1", G_TYPE_INT,
-        dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1], "dim3",
-        G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT, dimension[0][3], NULL);
+        G_TYPE_STRING, tensor_element_typename[meta.types[0]], "dim1",
+        G_TYPE_INT, meta.dims[0][0], "dim2", G_TYPE_INT, meta.dims[0][1],
+        "dim3", G_TYPE_INT, meta.dims[0][2], "dim4", G_TYPE_INT,
+        meta.dims[0][3], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else if (configured == _TFC_DIMENSION) {
     tmp2 =
         gst_caps_new_simple ("other/tensor", "dim1",
-        G_TYPE_INT, dimension[0][0], "dim2", G_TYPE_INT, dimension[0][1],
-        "dim3", G_TYPE_INT, dimension[0][2], "dim4", G_TYPE_INT,
-        dimension[0][3], NULL);
+        G_TYPE_INT, meta.dims[0][0], "dim2", G_TYPE_INT, meta.dims[0][1],
+        "dim3", G_TYPE_INT, meta.dims[0][2], "dim4", G_TYPE_INT,
+        meta.dims[0][3], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else if (configured == _TFC_TYPE) {
     tmp2 =
         gst_caps_new_simple ("other/tensor", "type", G_TYPE_STRING,
-        tensor_element_typename[type[0]], NULL);
+        tensor_element_typename[meta.types[0]], NULL);
     tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (tmp2);
   } else {
@@ -405,9 +396,9 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
   }
 
   /* 2-2. Extract effective dim info from tmp */
-  dimension[0] = dim[0];
   configured =
-      gst_tensor_filter_generate_dim_from_cap (tmp, dimension[0], &_type[0]);
+      gst_tensor_filter_generate_dim_from_cap (tmp, meta.dims[0],
+      &meta.types[0]);
   configured &= _TFC_ALL;
   /* tmp is no more needed */
   gst_caps_unref (tmp);
@@ -424,8 +415,8 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     }
     /* 3-1-1-a. If inputdim is available but outputdim is not available */
     if (ret != 0 && configured == _TFC_ALL && prop->fw->setInputDimension) {
-      gst_tensor_filter_call (filter, ret, setInputDimension, dimension[0],
-          _type[0], outputMeta.dims[0], &outputMeta.types[0]);
+      gst_tensor_filter_call (filter, ret, setInputDimension, &meta,
+          &outputMeta);
     }
     /* if ret == 0, either get or set has been successful. */
     if (ret != 0) {
@@ -448,12 +439,12 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     }
   } else {
     /* result == sinkpad (input) */
-    GstTensor_TensorsMeta meta;
+    GstTensor_TensorsMeta inputMeta;
     int ret = -1;
 
     /* 3-1-1. Try get output dim for srcpad */
     if (prop->fw->getInputDimension) {
-      gst_tensor_filter_call (filter, ret, getInputDimension, &meta);
+      gst_tensor_filter_call (filter, ret, getInputDimension, &inputMeta);
     }
     if (ret != 0) {
       /* We do not have output->input dimension conversion. */
@@ -468,10 +459,10 @@ gst_tensor_filter_fix_caps (GstTensor_Filter * filter, gboolean isInput,
     if (resultCaps == NULL) {
       resultCaps =
           gst_caps_new_simple ("other/tensor",
-          "type", G_TYPE_STRING, tensor_element_typename[meta.types[0]], "dim1",
-          G_TYPE_INT, meta.dims[0][0], "dim2", G_TYPE_INT, meta.dims[0][1],
-          "dim3", G_TYPE_INT, meta.dims[0][2], "dim4", G_TYPE_INT,
-          meta.dims[0][3], NULL);
+          "type", G_TYPE_STRING, tensor_element_typename[inputMeta.types[0]],
+          "dim1", G_TYPE_INT, inputMeta.dims[0][0], "dim2", G_TYPE_INT,
+          inputMeta.dims[0][1], "dim3", G_TYPE_INT, inputMeta.dims[0][2],
+          "dim4", G_TYPE_INT, inputMeta.dims[0][3], NULL);
     }
   }
 
@@ -894,8 +885,7 @@ gst_tensor_filter_property_process (GstTensor_Filter * filter, gboolean fixate)
       }
     }
 
-    gst_tensor_filter_call (filter, ret, setInputDimension, cmpMeta->dims[0],
-        cmpMeta->types[0], meta.dims[0], &meta.types[0]);
+    gst_tensor_filter_call (filter, ret, setInputDimension, cmpMeta, &meta);
     if (ret != 0)
       goto finalize;
 
@@ -1130,8 +1120,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     if (fw->setInputDimension) {
       int ret = 0;
       gst_tensor_filter_call (obj, ret, setInputDimension,
-          obj->prop.inputMeta.dims[0], obj->prop.inputMeta.types[0],
-          obj->prop.outputMeta.dims[0], &obj->prop.outputMeta.types[0]);
+          &obj->prop.inputMeta, &obj->prop.outputMeta);
       obj->prop.outputConfigured |= _TFC_ALL;
       g_assert (ret == 0);
       return result;

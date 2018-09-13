@@ -86,8 +86,7 @@ typedef int (*NNS_custom_get_output_dimension) (void *private_data,
  * Fix values when invoke is finally called.
  */
 typedef int (*NNS_custom_set_input_dimension)(void *private_data, const GstTensor_Filter_Properties *prop,
-    const tensor_dim inputDimension, const tensor_type inputType,
-    tensor_dim outputDimension, tensor_type *outputType);
+    const GstTensor_TensorsMeta * inputMeta, GstTensor_TensorsMeta * outputMeta);
 
 /**
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
