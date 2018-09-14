@@ -37,7 +37,7 @@ typedef struct _pt_data
  * @brief _pt_data
  */
 static void *
-pt_init (const GstTensor_Filter_Properties * prop)
+pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   int i;
@@ -57,7 +57,7 @@ pt_init (const GstTensor_Filter_Properties * prop)
  * @brief _pt_data
  */
 static void
-pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
   g_assert (data);
@@ -68,21 +68,22 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  * @brief _pt_data
  */
 static int
-get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    GstTensor_TensorsMeta * meta)
+get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
+    GstTensorsInfo * info)
 {
   pt_data *data = private_data;
   int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
-  meta->dims[0][0] = D1;
-  meta->dims[0][1] = D2;
-  meta->dims[0][2] = D3;
+
+  info->info[0].dimension[0] = D1;
+  info->info[0].dimension[1] = D2;
+  info->info[0].dimension[2] = D3;
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    meta->dims[0][i] = 1;
-  meta->types[0] = _NNS_UINT8;
-  meta->num_tensors = 1;
+    info->info[0].dimension[i] = 1;
+  info->info[0].type = _NNS_UINT8;
+  info->num_tensors = 1;
   return 0;
 }
 
@@ -90,21 +91,22 @@ get_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief _pt_data
  */
 static int
-get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    GstTensor_TensorsMeta * meta)
+get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
+    GstTensorsInfo * info)
 {
   pt_data *data = private_data;
   int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
-  meta->dims[0][0] = D1;
-  meta->dims[0][1] = D2;
-  meta->dims[0][2] = D3;
+
+  info->info[0].dimension[0] = D1;
+  info->info[0].dimension[1] = D2;
+  info->info[0].dimension[2] = D3;
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    meta->dims[0][i] = 1;
-  meta->types[0] = _NNS_UINT8;
-  meta->num_tensors = 1;
+    info->info[0].dimension[i] = 1;
+  info->info[0].type = _NNS_UINT8;
+  info->num_tensors = 1;
   return 0;
 }
 
@@ -112,7 +114,7 @@ get_outputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief _pt_data
  */
 static int
-pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
+pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;

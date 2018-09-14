@@ -53,12 +53,12 @@ _strdup (const char *src)
  * @brief tensor_filter_custom::NNS_custom_init_func
  */
 static void *
-pt_init (const GstTensor_Filter_Properties * prop)
+pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
 
-  if (prop->customProperties && strlen (prop->customProperties) > 0)
-    data->property = _strdup (prop->customProperties);
+  if (prop->custom_properties && strlen (prop->custom_properties) > 0)
+    data->property = _strdup (prop->custom_properties);
   else
     data->property = NULL;
   data->new_x = 0;
@@ -93,7 +93,7 @@ pt_init (const GstTensor_Filter_Properties * prop)
  * @brief tensor_filter_custom::NNS_custom_exit_func
  */
 static void
-pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
   assert (data);
@@ -106,24 +106,28 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  * @brief tensor_filter_custom::NNS_custom_set_input_dimension
  */
 static int
-set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    const tensor_dim iDim, const tensor_type iType,
-    tensor_dim oDim, tensor_type * oType)
+set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int i;
   pt_data *data = private_data;
+
   assert (data);
+  assert (in_info);
+  assert (out_info);
+
+  out_info->num_tensors = 1;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    oDim[i] = iDim[i];
+    out_info->info[0].dimension[i] = in_info->info[0].dimension[i];
 
   /* Update [1] and [2] oDim with new-x, new-y */
   if (data->new_x > 0)
-    oDim[1] = data->new_x;
+    out_info->info[0].dimension[1] = data->new_x;
   if (data->new_y > 0)
-    oDim[2] = data->new_y;
+    out_info->info[0].dimension[2] = data->new_y;
 
-  *oType = iType;
+  out_info->info[0].type = in_info->info[0].type;
   return 0;
 }
 
@@ -131,7 +135,7 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief tensor_filter_custom::NNS_custom_invoke
  */
 static int
-pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
+pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
@@ -146,37 +150,40 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
 
-  assert (prop->inputMeta.dims[0][0] == prop->outputMeta.dims[0][0]);
-  assert (prop->inputMeta.dims[0][3] == prop->outputMeta.dims[0][3]);
-  assert (prop->inputMeta.types[0] == prop->outputMeta.types[0]);
+  assert (prop->input_meta.info[0].dimension[0] ==
+      prop->output_meta.info[0].dimension[0]);
+  assert (prop->input_meta.info[0].dimension[3] ==
+      prop->output_meta.info[0].dimension[3]);
+  assert (prop->input_meta.info[0].type == prop->output_meta.info[0].type);
 
-  elementsize = tensor_element_size[prop->inputMeta.types[0]];
+  elementsize = tensor_element_size[prop->input_meta.info[0].type];
 
-  ox = (data->new_x > 0) ? data->new_x : prop->outputMeta.dims[0][1];
-  oy = (data->new_y > 0) ? data->new_y : prop->outputMeta.dims[0][2];
+  ox = (data->new_x > 0) ? data->new_x : prop->output_meta.info[0].dimension[1];
+  oy = (data->new_y > 0) ? data->new_y : prop->output_meta.info[0].dimension[2];
 
-  oidx0 = prop->outputMeta.dims[0][0];
-  oidx1 = oidx0 * prop->outputMeta.dims[0][1];
-  oidx2 = oidx1 * prop->outputMeta.dims[0][2];
+  oidx0 = prop->output_meta.info[0].dimension[0];
+  oidx1 = oidx0 * prop->output_meta.info[0].dimension[1];
+  oidx2 = oidx1 * prop->output_meta.info[0].dimension[2];
 
-  iidx0 = prop->inputMeta.dims[0][0];
-  iidx1 = iidx0 * prop->inputMeta.dims[0][1];
-  iidx2 = iidx1 * prop->inputMeta.dims[0][2];
+  iidx0 = prop->input_meta.info[0].dimension[0];
+  iidx1 = iidx0 * prop->input_meta.info[0].dimension[1];
+  iidx2 = iidx1 * prop->input_meta.info[0].dimension[2];
 
-  for (z = 0; z < prop->inputMeta.dims[0][3]; z++) {
+  for (z = 0; z < prop->input_meta.info[0].dimension[3]; z++) {
     for (y = 0; y < oy; y++) {
       for (x = 0; x < ox; x++) {
         unsigned int c;
-        for (c = 0; c < prop->inputMeta.dims[0][0]; c++) {
+        for (c = 0; c < prop->input_meta.info[0].dimension[0]; c++) {
           int sz;
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
           unsigned ix, iy;
 
-          ix = x * prop->inputMeta.dims[0][1] / ox;
-          iy = y * prop->inputMeta.dims[0][2] / oy;
+          ix = x * prop->input_meta.info[0].dimension[1] / ox;
+          iy = y * prop->input_meta.info[0].dimension[2] / oy;
 
-          assert (ix >= 0 && iy >= 0 && ix < prop->inputMeta.dims[0][1]
-              && iy < prop->inputMeta.dims[0][2]);
+          assert (ix >= 0 && iy >= 0
+              && ix < prop->input_meta.info[0].dimension[1]
+              && iy < prop->input_meta.info[0].dimension[2]);
 
           /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)
