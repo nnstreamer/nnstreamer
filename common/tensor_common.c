@@ -480,7 +480,7 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
 
   /** [size][frames] */
   config->info.dimension[0] = GST_TENSOR_STRING_SIZE; /** fixed size of string */
-  config->info.dimension[1] = 1; /** Supposed 1 frame in tensor,, change this if tensor contains N frames */
+  config->info.dimension[1] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames */
   config->info.dimension[2] = 1;
   config->info.dimension[3] = 1;
 
@@ -658,7 +658,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const GstStructure * structure)
 {
   const gchar *name;
-  guint i, j;
+  guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensors_config_init (config);
@@ -680,17 +680,16 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const gchar *dims_string;
     const gchar *types_string;
 
-    gst_structure_get_uint (structure, "num_tensors",
-        &config->info.num_tensors);
+    gst_structure_get_int (structure, "num_tensors",
+        (gint *) (&config->info.num_tensors));
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
         &config->rate_d);
 
     /* parse dimensions */
     dims_string = gst_structure_get_string (structure, "dimensions");
     if (dims_string) {
-      gchar **str_dim, **str_dims;
-      gint num_dim, num_dims;
-      guint64 val;
+      gchar **str_dims;
+      gint num_dims;
 
       str_dims = g_strsplit (dims_string, ",", -1);
       num_dims = g_strv_length (str_dims);
@@ -701,19 +700,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       }
 
       for (i = 0; i < num_dims; i++) {
-        str_dim = g_strsplit (str_dims[i], ":", NNS_TENSOR_RANK_LIMIT);
-        num_dim = g_strv_length (str_dim);
-
-        for (j = 0; j < num_dim; j++) {
-          val = g_ascii_strtoull (str_dim[j], NULL, 10);
-          config->info.info[i].dimension[j] = (uint32_t) val;
-        }
-
-        for (; j < NNS_TENSOR_RANK_LIMIT; j++) {
-          config->info.info[i].dimension[j] = 1;
-        }
-
-        g_strfreev (str_dim);
+        get_tensor_dimension (str_dims[i], config->info.info[i].dimension);
       }
 
       g_strfreev (str_dims);
@@ -725,7 +712,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       gchar **str_types;
       gint num_types;
 
-      str_types = g_strsplit (dims_string, ",", -1);
+      str_types = g_strsplit (types_string, ",", -1);
       num_types = g_strv_length (str_types);
 
       if (config->info.num_tensors != num_types) {
@@ -765,27 +752,22 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
   if (config->info.num_tensors > 0) {
     GString *dimensions = g_string_new (NULL);
     GString *types = g_string_new (NULL);
+    gchar *dim_str;
 
     /** dimensions and types */
     for (i = 0; i < config->info.num_tensors; i++) {
-      /**
-       * @note supposed dimension with rank 4 (NNS_TENSOR_RANK_LIMIT)
-       */
-      gchar *dim_string = g_strdup_printf ("%d:%d:%d:%d",
-          config->info.info[i].dimension[0], config->info.info[i].dimension[1],
-          config->info.info[i].dimension[2], config->info.info[i].dimension[3]);
+      dim_str = get_tensor_dimension_string (config->info.info[i].dimension);
 
-      dimensions = g_string_append (dimensions, dim_string);
-      types =
-          g_string_append (types,
+      g_string_append (dimensions, dim_str);
+      g_string_append (types,
           tensor_element_typename[config->info.info[i].type]);
 
       if (i < config->info.num_tensors - 1) {
-        dimensions = g_string_append (dimensions, ",");
-        types = g_string_append (types, ",");
+        g_string_append (dimensions, ",");
+        g_string_append (types, ",");
       }
 
-      g_free (dim_string);
+      g_free (dim_str);
     }
 
     gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
@@ -839,55 +821,61 @@ tensor_type
 get_tensor_type (const gchar * typestr)
 {
   int len;
+  gchar *type_string;
+  tensor_type type = _NNS_END;
 
-  if (!typestr)
-    return _NNS_END;
-  len = strlen (typestr);
+  g_return_val_if_fail (typestr != NULL, _NNS_END);
 
-  if (typestr[0] == 'u' || typestr[0] == 'U') {
+  /** remove spaces */
+  type_string = g_strdup (typestr);
+  g_strstrip (type_string);
+
+  len = strlen (type_string);
+
+  if (type_string[0] == 'u' || type_string[0] == 'U') {
     /**
      * Let's believe the developer and the following three letters are "int"
      * (case insensitive)
      */
     if (len == 6) {             /* uint16, uint32 */
-      if (typestr[4] == '1' && typestr[5] == '6')
-        return _NNS_UINT16;
-      else if (typestr[4] == '3' && typestr[5] == '2')
-        return _NNS_UINT32;
-      else if (typestr[4] == '6' && typestr[5] == '4')
-        return _NNS_UINT64;
+      if (type_string[4] == '1' && type_string[5] == '6')
+        type = _NNS_UINT16;
+      else if (type_string[4] == '3' && type_string[5] == '2')
+        type = _NNS_UINT32;
+      else if (type_string[4] == '6' && type_string[5] == '4')
+        type = _NNS_UINT64;
     } else if (len == 5) {      /* uint8 */
-      if (typestr[4] == '8')
-        return _NNS_UINT8;
+      if (type_string[4] == '8')
+        type = _NNS_UINT8;
     }
-  } else if (typestr[0] == 'i' || typestr[0] == 'I') {
+  } else if (type_string[0] == 'i' || type_string[0] == 'I') {
     /**
      * Let's believe the developer and the following two letters are "nt"
      * (case insensitive)
      */
     if (len == 5) {             /* int16, int32 */
-      if (typestr[3] == '1' && typestr[4] == '6')
-        return _NNS_INT16;
-      else if (typestr[3] == '3' && typestr[4] == '2')
-        return _NNS_INT32;
-      else if (typestr[3] == '6' && typestr[4] == '4')
-        return _NNS_INT64;
+      if (type_string[3] == '1' && type_string[4] == '6')
+        type = _NNS_INT16;
+      else if (type_string[3] == '3' && type_string[4] == '2')
+        type = _NNS_INT32;
+      else if (type_string[3] == '6' && type_string[4] == '4')
+        type = _NNS_INT64;
     } else if (len == 4) {      /* int8 */
-      if (typestr[3] == '8')
-        return _NNS_INT8;
+      if (type_string[3] == '8')
+        type = _NNS_INT8;
     }
-    return _NNS_END;
-  } else if (typestr[0] == 'f' || typestr[0] == 'F') {
+  } else if (type_string[0] == 'f' || type_string[0] == 'F') {
     /* Let's assume that the following 4 letters are "loat" */
     if (len == 7) {
-      if (typestr[5] == '6' && typestr[6] == '4')
-        return _NNS_FLOAT64;
-      else if (typestr[5] == '3' && typestr[6] == '2')
-        return _NNS_FLOAT32;
+      if (type_string[5] == '6' && type_string[6] == '4')
+        type = _NNS_FLOAT64;
+      else if (type_string[5] == '3' && type_string[6] == '2')
+        type = _NNS_FLOAT32;
     }
   }
 
-  return _NNS_END;
+  g_free (type_string);
+  return type;
 }
 
 /**
@@ -914,36 +902,68 @@ find_key_strv (const gchar ** strv, const gchar * key)
 /**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @param dim dimension to be filled.
  */
 int
-get_tensor_dimension (const gchar * param,
-    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT])
+get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
 {
-  int i, j = 0;
+  int rank = 0;
   guint64 val;
-  gchar **_strv = g_strsplit (param, ",./", -1);
-  gint num_tensor = g_strv_length (_strv);
+  gchar **strv;
+  gchar *dim_string;
+  gint i, num_dims;
 
-  for (i = 0; i < num_tensor; i++) {
-    gchar **strv = g_strsplit (_strv[i], ":", NNS_TENSOR_RANK_LIMIT);
+  g_return_val_if_fail (dimstr != NULL, 0);
 
-    g_assert (strv != NULL);
+  /** remove spaces */
+  dim_string = g_strdup (dimstr);
+  g_strstrip (dim_string);
 
-    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      if (strv[j] == NULL)
-        break;
-      val = g_ascii_strtoull (strv[j], NULL, 10);
-      dim[i][j] = val;
-    }
-    for (; j < NNS_TENSOR_RANK_LIMIT; j++)
-      dim[i][j] = 1;
-    g_strfreev (strv);
+  strv = g_strsplit (dim_string, ":", NNS_TENSOR_RANK_LIMIT);
+  num_dims = g_strv_length (strv);
+
+  for (i = 0; i < num_dims; i++) {
+    g_strstrip (strv[i]);
+    if (strv[i] == NULL || strlen (strv[i]) == 0)
+      break;
+
+    val = g_ascii_strtoull (strv[i], NULL, 10);
+    dim[i] = (uint32_t) val;
+    rank = i + 1;
   }
 
-  g_strfreev (_strv);
+  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
+    dim[i] = 1;
 
-  return num_tensor;
+  g_strfreev (strv);
+  g_free (dim_string);
+  return rank;
+}
+
+/**
+ * @brief Get dimension string from given tensor dimension.
+ * @param dim tensor dimension
+ * @return Formatted string of given dimension (d1:d2:d3:d4).
+ * @note The returned value should be freed with g_free()
+ */
+gchar *
+get_tensor_dimension_string (const tensor_dim dim)
+{
+  gint i;
+  GString *dim_str;
+
+  dim_str = g_string_new (NULL);
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    g_string_append_printf (dim_str, "%d", dim[i]);
+
+    if (i < NNS_TENSOR_RANK_LIMIT - 1) {
+      g_string_append (dim_str, ":");
+    }
+  }
+
+  return g_string_free (dim_str, FALSE);
 }
 
 /**
@@ -998,83 +1018,6 @@ get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
     ret |= _TFC_FRAMERATE;
   }
   return ret;
-}
-
-/**
- * @brief internal static function to trim the front.
- */
-static const gchar *
-ftrim (const gchar * str)
-{
-  if (!str)
-    return str;
-  while (*str && (*str == ' ' || *str == '\t')) {
-    str++;
-  }
-  return str;
-}
-
-/**
- * @brief Extract other/tensors dim/type from GstStructure
- */
-int
-get_tensors_from_structure (const GstStructure * str,
-    GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denom)
-{
-  int num = 0;
-  const gchar *strval;
-  gint fn = 0, fd = 0;
-  gchar **strv;
-  int counter = 0;
-
-  if (!gst_structure_has_name (str, "other/tensors"))
-    return 0;
-
-  if (gst_structure_get_int (str, "num_tensors", (int *) &num)) {
-    if (num > 16 || num < 1)
-      num = 0;
-  }
-  if (0 == num)
-    return 0;
-
-  meta->num_tensors = num;
-
-  if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
-    if (framerate_num)
-      *framerate_num = fn;
-    if (framerate_denom)
-      *framerate_denom = fd;
-  }
-
-  strval = gst_structure_get_string (str, "dimensions");
-
-  counter = get_tensor_dimension (strval, meta->dims);
-
-  if (counter != num) {
-    err_print
-        ("The number of dimensions does not match the number of tensors.\n");
-    return 0;
-  }
-
-  strval = gst_structure_get_string (str, "types");
-  strv = g_strsplit (strval, ",", -1);
-  counter = 0;
-  while (strv[counter]) {
-    if (counter >= num) {
-      err_print ("The number of types does not match the number of tensors.\n");
-      return 0;
-    }
-    meta->types[counter] = get_tensor_type (ftrim (strv[counter]));
-    if (meta->types[counter] >= _NNS_END)
-      return 0;
-    counter++;
-  }
-  if (counter != num) {
-    err_print ("The number of types does not match the number of tensors.\n");
-    return 0;
-  }
-  g_strfreev (strv);
-  return num;
 }
 
 /**

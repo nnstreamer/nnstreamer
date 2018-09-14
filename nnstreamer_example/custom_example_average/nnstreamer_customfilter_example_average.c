@@ -33,7 +33,7 @@ typedef struct _pt_data
  * @brief pt_init
  */
 static void *
-pt_init (const GstTensor_Filter_Properties * prop)
+pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
 
@@ -45,7 +45,7 @@ pt_init (const GstTensor_Filter_Properties * prop)
  * @brief pt_exit
  */
 static void
-pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
   assert (data);
@@ -56,22 +56,26 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  * @brief set_inputDim
  */
 static int
-set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    const tensor_dim iDim, const tensor_type iType,
-    tensor_dim oDim, tensor_type * oType)
+set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int i;
   pt_data *data = private_data;
+
   assert (data);
+  assert (in_info);
+  assert (out_info);
+
+  out_info->num_tensors = 1;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    oDim[i] = iDim[i];
+    out_info->info[0].dimension[i] = in_info->info[0].dimension[i];
 
-  /* Update [1] and [2] oDim with new-x, new-y */
-  oDim[1] = 1;
-  oDim[2] = 1;
+  /* Update output dimension [1] and [2] with new-x, new-y */
+  out_info->info[0].dimension[1] = 1;
+  out_info->info[0].dimension[2] = 1;
 
-  *oType = iType;
+  out_info->info[0].type = in_info->info[0].type;
   return 0;
 }
 
@@ -80,21 +84,21 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief do_avg
  */
 #define do_avg(type, sumtype) do {\
-      sumtype *avg = (sumtype *) malloc(sizeof(sumtype) * prop->inputMeta.dims[0][0]); \
+      sumtype *avg = (sumtype *) malloc(sizeof(sumtype) * prop->input_meta.info[0].dimension[0]); \
       type *iptr = (type *) inptr; \
       type *optr = (type *) outptr; \
-      for (z = 0; z < prop->inputMeta.dims[0][3]; z++) { \
-        for (y = 0; y < prop->inputMeta.dims[0][0]; y++) \
+      for (z = 0; z < prop->input_meta.info[0].dimension[3]; z++) { \
+        for (y = 0; y < prop->input_meta.info[0].dimension[0]; y++) \
           avg[y] = 0; \
-        for (y = 0; y < prop->inputMeta.dims[0][2]; y++) { \
-          for (x = 0; x < prop->inputMeta.dims[0][1]; x++) { \
-            for (c = 0; c < prop->inputMeta.dims[0][0]; c++) { \
+        for (y = 0; y < prop->input_meta.info[0].dimension[2]; y++) { \
+          for (x = 0; x < prop->input_meta.info[0].dimension[1]; x++) { \
+            for (c = 0; c < prop->input_meta.info[0].dimension[0]; c++) { \
               avg[c] += *(iptr + c + x * ix + y * iy + z * iz); \
             } \
           } \
         } \
-        for (c = 0; c < prop->inputMeta.dims[0][0]; c++) { \
-          *(optr + c + z * prop->inputMeta.dims[0][0]) = (type) (avg[c] / xy); \
+        for (c = 0; c < prop->input_meta.info[0].dimension[0]; c++) { \
+          *(optr + c + z * prop->input_meta.info[0].dimension[0]) = (type) (avg[c] / xy); \
         } \
       } \
       free(avg); \
@@ -104,18 +108,23 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief pt_invoke
  */
 static int
-pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
+pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
   uint32_t c, x, y, z;
 
-  unsigned ix = prop->inputMeta.dims[0][0];
-  unsigned iy = prop->inputMeta.dims[0][0] * prop->inputMeta.dims[0][1];
-  unsigned iz =
-      prop->inputMeta.dims[0][0] * prop->inputMeta.dims[0][1] *
-      prop->inputMeta.dims[0][2];
-  unsigned xy = prop->inputMeta.dims[0][1] * prop->inputMeta.dims[0][2];
+  uint32_t ix = prop->input_meta.info[0].dimension[0];
+  uint32_t iy =
+      prop->input_meta.info[0].dimension[0] *
+      prop->input_meta.info[0].dimension[1];
+  uint32_t iz =
+      prop->input_meta.info[0].dimension[0] *
+      prop->input_meta.info[0].dimension[1] *
+      prop->input_meta.info[0].dimension[2];
+  uint32_t xy =
+      prop->input_meta.info[0].dimension[1] *
+      prop->input_meta.info[0].dimension[2];
 
   assert (data);
   assert (inptr);
@@ -124,11 +133,13 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
 
-  assert (prop->inputMeta.dims[0][0] == prop->outputMeta.dims[0][0]);
-  assert (prop->inputMeta.dims[0][3] == prop->outputMeta.dims[0][3]);
-  assert (prop->inputMeta.types[0] == prop->outputMeta.types[0]);
+  assert (prop->input_meta.info[0].dimension[0] ==
+      prop->output_meta.info[0].dimension[0]);
+  assert (prop->input_meta.info[0].dimension[3] ==
+      prop->output_meta.info[0].dimension[3]);
+  assert (prop->input_meta.info[0].type == prop->output_meta.info[0].type);
 
-  switch (prop->inputMeta.types[0]) {
+  switch (prop->input_meta.info[0].type) {
     case _NNS_INT8:
       do_avg (int8_t, int64_t);
       break;

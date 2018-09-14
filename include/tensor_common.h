@@ -312,11 +312,19 @@ extern int find_key_strv (const gchar ** strv, const gchar * key);
 
 /**
  * @brief Parse tensor dimension parameter string
- * @return The Rank.
- * @param param The parameter string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @return The Rank. 0 if error.
+ * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @param dim dimension to be filled.
  */
-extern int get_tensor_dimension (const gchar * param,
-    uint32_t dim[NNS_TENSOR_SIZE_LIMIT][NNS_TENSOR_RANK_LIMIT]);
+extern int get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
+
+/**
+ * @brief Get dimension string from given tensor dimension.
+ * @param dim tensor dimension
+ * @return Formatted string of given dimension (d1:d2:d3:d4).
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *get_tensor_dimension_string (const tensor_dim dim);
 
 /**
  * @brief Count the number of elemnts of a tensor
@@ -350,18 +358,6 @@ get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
 extern GstTensor_Filter_CheckStatus
 get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
     tensor_type * type, int *framerate_num, int *framerate_denum);
-
-/**
- * @brief Read GstStructure, return corresponding tensor-dim/type. (other/tensor)
- * @return The number of tensors.
- * @param[in] str the GstStructure to be interpreted.
- * @param[out] meta An allocated but filled with Null meta, to be used as output.
- * @param[out] framerate_num Numerator of framerate. Set null to not use this.
- * @param[out] framerate_denum Denumerator of framerate. Set null to not use this.
- */
-extern int
-get_tensors_from_structure (const GstStructure * str,
-    GstTensor_TensorsMeta * meta, int *framerate_num, int *framerate_denum);
 
 /**
  * @brief Make str(xyz) ==> "xyz" with macro expansion

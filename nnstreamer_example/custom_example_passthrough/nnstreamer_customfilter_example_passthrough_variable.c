@@ -29,7 +29,7 @@ typedef struct _pt_data
  * @brief pt_init
  */
 static void *
-pt_init (const GstTensor_Filter_Properties * prop)
+pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
 
@@ -41,7 +41,7 @@ pt_init (const GstTensor_Filter_Properties * prop)
  * @brief pt_exit
  */
 static void
-pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
   g_assert (data);
@@ -52,15 +52,20 @@ pt_exit (void *private_data, const GstTensor_Filter_Properties * prop)
  * @brief set_inputDim
  */
 static int
-set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
-    const tensor_dim iDim, const tensor_type iType,
-    tensor_dim oDim, tensor_type * oType)
+set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int i;
 
+  g_assert (in_info);
+  g_assert (out_info);
+
+  out_info->num_tensors = 1;
+
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    oDim[i] = iDim[i];
-  *oType = iType;
+    out_info->info[0].dimension[i] = in_info->info[0].dimension[i];
+
+  out_info->info[0].type = in_info->info[0].type;
 
   return 0;
 }
@@ -69,7 +74,7 @@ set_inputDim (void *private_data, const GstTensor_Filter_Properties * prop,
  * @brief pt_invoke
  */
 static int
-pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
+pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const uint8_t * inptr, uint8_t * outptr)
 {
   pt_data *data = private_data;
@@ -79,8 +84,8 @@ pt_invoke (void *private_data, const GstTensor_Filter_Properties * prop,
   g_assert (inptr);
   g_assert (outptr);
 
-  size = get_tensor_element_count (prop->outputMeta.dims[0]) *
-      tensor_element_size[prop->outputMeta.types[0]];
+  size = get_tensor_element_count (prop->output_meta.info[0].dimension) *
+      tensor_element_size[prop->output_meta.info[0].type];
 
   g_assert (inptr != outptr);
   memcpy (outptr, inptr, size);

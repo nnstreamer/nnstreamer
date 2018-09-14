@@ -23,7 +23,7 @@
  * @bug		No known bugs except for NYI items
  *
  * This is the per-NN-framework plugin (tensorflow) for tensor_filter.
- * Fill in "GstTensor_Filter_Framework" for tensor_filter.h/c
+ * Fill in "GstTensorFilterFramework" for tensor_filter.h/c
  *
  */
 
@@ -47,16 +47,16 @@ typedef struct _Tf_data tf_data;
  * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
  */
 static int
-tf_loadModelFile (const GstTensor_Filter * filter, void **private_data)
+tf_loadModelFile (const GstTensorFilter * filter, void **private_data)
 {
   tf_data *tf;
   if (filter->privateData != NULL) {
-    /** @todo : Check the integrity of filter->data and filter->modelFilename, nnfw */
+    /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     return 1;
   }
   tf = g_new0 (tf_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
-  tf->tf_private_data = tf_core_new (filter->prop.modelFilename);
+  tf->tf_private_data = tf_core_new (filter->prop.model_file);
   if (tf->tf_private_data) {
     return 0;
   } else {
@@ -65,24 +65,24 @@ tf_loadModelFile (const GstTensor_Filter * filter, void **private_data)
 }
 
 /**
- * @brief The open callback for GstTensor_Filter_Framework. Called before anything else
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
  * @param filter : tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
  */
 static void
-tf_open (const GstTensor_Filter * filter, void **private_data)
+tf_open (const GstTensorFilter * filter, void **private_data)
 {
   int retval = tf_loadModelFile (filter, private_data);
   g_assert (retval == 0);       /** This must be called only once */
 }
 
 /**
- * @brief The mandatory callback for GstTensor_Filter_Framework
+ * @brief The mandatory callback for GstTensorFilterFramework
  * @param[in] inptr The input tensor
  * @param[out] outptr The output tensor
  */
 static uint8_t *
-tf_invoke (const GstTensor_Filter * filter, void **private_data,
+tf_invoke (const GstTensorFilter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
   int retval;
@@ -98,11 +98,11 @@ tf_invoke (const GstTensor_Filter * filter, void **private_data,
 }
 
 /**
- * @brief The optional callback for GstTensor_Filter_Framework
+ * @brief The optional callback for GstTensorFilterFramework
  */
 static int
-tf_getInputDim (const GstTensor_Filter * filter, void **private_data,
-    GstTensor_TensorsMeta * meta)
+tf_getInputDim (const GstTensorFilter * filter, void **private_data,
+    GstTensorsInfo * info)
 {
   int temp_idx = 0;
   tf_data *tf;
@@ -113,16 +113,15 @@ tf_getInputDim (const GstTensor_Filter * filter, void **private_data,
   else
     temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tf_core_getInputDim (tf->tf_private_data, meta->dims[0],
-      &meta->types[0], &meta->num_tensors);
+  return tf_core_getInputDim (tf->tf_private_data, info);
 }
 
 /**
- * @brief The optional callback for GstTensor_Filter_Framework
+ * @brief The optional callback for GstTensorFilterFramework
  */
 static int
-tf_getOutputDim (const GstTensor_Filter * filter, void **private_data,
-    GstTensor_TensorsMeta * meta)
+tf_getOutputDim (const GstTensorFilter * filter, void **private_data,
+    GstTensorsInfo * info)
 {
   int temp_idx = 0;
   tf_data *tf;
@@ -133,17 +132,15 @@ tf_getOutputDim (const GstTensor_Filter * filter, void **private_data,
   else
     temp_idx = 0;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  return tf_core_getOutputDim (tf->tf_private_data, meta->dims[0],
-      &meta->types[0], &meta->num_tensors);
+  return tf_core_getOutputDim (tf->tf_private_data, info);
 }
 
 /**
- * @brief The set-input-dim callback for GstTensor_Filter_Framework
+ * @brief The set-input-dim callback for GstTensorFilterFramework
  */
 static int
-tf_setInputDim (const GstTensor_Filter * filter, void **private_data,
-    const tensor_dim iDimension, const tensor_type iType,
-    tensor_dim oDimension, tensor_type * oType)
+tf_setInputDim (const GstTensorFilter * filter, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   /** @todo call tflite core apis */
   return 0;                     /** NYI */
@@ -153,7 +150,7 @@ tf_setInputDim (const GstTensor_Filter * filter, void **private_data,
  * @brief Free privateData and move on.
  */
 static void
-tf_close (const GstTensor_Filter * filter, void **private_data)
+tf_close (const GstTensorFilter * filter, void **private_data)
 {
   tf_data *tf;
   tf = *private_data;
@@ -163,7 +160,7 @@ tf_close (const GstTensor_Filter * filter, void **private_data)
   g_assert (filter->privateData == NULL);
 }
 
-GstTensor_Filter_Framework NNS_support_tensorflow = {
+GstTensorFilterFramework NNS_support_tensorflow = {
   .name = "tensorflow",
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,

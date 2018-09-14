@@ -102,32 +102,30 @@ TFCore::getTensorType (int tensor_idx, tensor_type * type)
 
 /**
  * @brief	return the Dimension of Input Tensor.
- * @param idx	: the index of the input tensor
- * @param[out] dim	: the array of the input tensor
- * @param[out] type	: the data type of the input tensor
+ * @param[out] info Structure for tensor info.
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getInputTensorDim (tensor_dim dim, tensor_type * type,
-    unsigned int *num_tensors)
+TFCore::getInputTensorDim (GstTensorsInfo * info)
 {
-  int ret = getTensorDim (dim, type);
-  return ret;
+  /**
+   * @todo fill here
+   */
+  return 0;
 }
 
 /**
  * @brief	return the Dimension of Output Tensor.
- * @param idx	: the index of the output tensor
- * @param[out] dim	: the array of the output tensor
- * @param[out] type	: the data type of the output tensor
+ * @param[out] info Structure for tensor info.
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getOutputTensorDim (tensor_dim dim, tensor_type * type,
-    unsigned int *num_tensors)
+TFCore::getOutputTensorDim (GstTensorsInfo * info)
 {
-  int ret = getTensorDim (dim, type);
-  return ret;
+  /**
+   * @todo fill here
+   */
+  return 0;
 }
 
 /**
@@ -208,34 +206,28 @@ tf_core_getModelPath (void *tf)
 
 /**
  * @brief	get the Dimension of Input Tensor of model
- * @param	tf	: the class object
- * @param idx	: the index of the input tensor
- * @param[out] dim	: the array of the input tensor
- * @param[out] type	: the data type of the input tensor
+ * @param	tf	the class object
+ * @param[out] info Structure for tensor info.
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getInputDim (void *tf, tensor_dim dim, tensor_type * type,
-    unsigned int *num_tensors)
+tf_core_getInputDim (void *tf, GstTensorsInfo * info)
 {
   TFCore *c = (TFCore *) tf;
-  return c->getInputTensorDim (dim, type, num_tensors);
+  return c->getInputTensorDim (info);
 }
 
 /**
  * @brief	get the Dimension of Output Tensor of model
- * @param	tf	: the class object
- * @param idx	: the index of the output tensor
- * @param[out] dim	: the array of the output tensor
- * @param[out] type	: the data type of the output tensor
+ * @param	tf	the class object
+ * @param[out] info Structure for tensor info.
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getOutputDim (void *tf, tensor_dim dim, tensor_type * type,
-    unsigned int *num_tensors)
+tf_core_getOutputDim (void *tf, GstTensorsInfo * info)
 {
   TFCore *c = (TFCore *) tf;
-  return c->getOutputTensorDim (dim, type, num_tensors);
+  return c->getOutputTensorDim (info);
 }
 
 /**

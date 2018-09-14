@@ -49,8 +49,8 @@ public:
   int setOutputTensorProp ();
   int getInputTensorSize ();
   int getOutputTensorSize ();
-  int getInputTensorDim (GstTensor_TensorsMeta * meta);
-  int getOutputTensorDim (GstTensor_TensorsMeta * meta);
+  int getInputTensorDim (GstTensorsInfo * info);
+  int getOutputTensorDim (GstTensorsInfo * info);
   int invoke (uint8_t * inptr, uint8_t ** outptr);
 
 private:
@@ -60,15 +60,15 @@ private:
   tensors inputTensors; /**< The list of input tensors */
   tensors outputTensors; /**< The list of output tensors */
 
-  GstTensor_TensorsMeta inputTensorMeta;  /**< The meta of input tensors */
-  GstTensor_TensorsMeta outputTensorMeta;  /**< The meta of input tensors */
+  GstTensorsInfo inputTensorMeta;  /**< The meta of input tensors */
+  GstTensorsInfo outputTensorMeta;  /**< The meta of input tensors */
 
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
 
   double get_ms (struct timeval t);
   _nns_tensor_type getTensorType (TfLiteType tfType);
-  int getTensorDim (int tensor_idx, tensor_dim dim, int *rank);
+  int getTensorDim (int tensor_idx, tensor_dim dim);
 };
 
 /**
@@ -82,9 +82,9 @@ extern "C"
   extern void tflite_core_delete (void *tflite);
   extern const char *tflite_core_getModelPath (void *tflite);
   extern int tflite_core_getInputDim (void *tflite,
-      GstTensor_TensorsMeta * meta);
+      GstTensorsInfo * info);
   extern int tflite_core_getOutputDim (void *tflite,
-      GstTensor_TensorsMeta * meta);
+      GstTensorsInfo * info);
   extern int tflite_core_getOutputSize (void *tflite);
   extern int tflite_core_getInputSize (void *tflite);
   extern int tflite_core_invoke (void *tflite, uint8_t * inptr,

@@ -23,7 +23,7 @@
  * @bug		No known bugs except for NYI items
  *
  * This is the per-NN-framework plugin (custom) for tensor_filter.
- * Fill in "GstTensor_Filter_Framework" for tensor_filter.h/c
+ * Fill in "GstTensorFilterFramework" for tensor_filter.h/c
  *
  */
 
@@ -37,7 +37,7 @@
  */
 struct _internal_data
 {
-  GstTensor_Filter *parent;
+  GstTensorFilter *parent;
 
   void *handle;
   NNStreamer_custom_class *methods;
@@ -51,23 +51,23 @@ typedef struct _internal_data internal_data;
  * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
  */
 static int
-custom_loadlib (const GstTensor_Filter * filter, void **private_data)
+custom_loadlib (const GstTensorFilter * filter, void **private_data)
 {
   internal_data *ptr;
   char *dlsym_error;
 
   if (filter->privateData != NULL) {
-    /** @todo : Check the integrity of filter->data and filter->modelFilename, nnfw */
+    /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     return 1;
   }
 
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
   *private_data = ptr;
   g_assert (*private_data == filter->privateData);
-  ptr->parent = GstTensor_Filter_of_privateData (private_data);
+  ptr->parent = GstTensorFilter_of_privateData (private_data);
 
   /* Load .so if this is the first time for this instance. */
-  ptr->handle = dlopen (filter->prop.modelFilename, RTLD_NOW);
+  ptr->handle = dlopen (filter->prop.model_file, RTLD_NOW);
   if (!ptr->handle) {
     g_free (ptr);
     *private_data = NULL;
@@ -98,10 +98,10 @@ custom_loadlib (const GstTensor_Filter * filter, void **private_data)
 }
 
 /**
- * @brief The open callback for GstTensor_Filter_Framework. Called before anything else
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
  */
 static void
-custom_open (const GstTensor_Filter * filter, void **private_data)
+custom_open (const GstTensorFilter * filter, void **private_data)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -116,13 +116,13 @@ custom_open (const GstTensor_Filter * filter, void **private_data)
 }
 
 /**
- * @brief The mandatory callback for GstTensor_Filter_Framework
+ * @brief The mandatory callback for GstTensorFilterFramework
  * @param filter The parent object
  * @param[in] inptr The input tensor
  * @param[out] outptr The output tensor
  */
 static uint8_t *
-custom_invoke (const GstTensor_Filter * filter, void **private_data,
+custom_invoke (const GstTensorFilter * filter, void **private_data,
     const uint8_t * inptr, uint8_t * outptr)
 {
   int retval = custom_loadlib (filter, private_data);
@@ -145,8 +145,8 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
     uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
         &(filter->prop), inptr, &size);
     g_assert (size ==
-        (get_tensor_element_count (filter->prop.outputMeta.dims[0]) *
-            tensor_element_size[filter->prop.outputMeta.types[0]]));
+        (get_tensor_element_count (filter->prop.output_meta.info[0].dimension) *
+            tensor_element_size[filter->prop.output_meta.info[0].type]));
     return retptr;
   } else {
     return NULL;
@@ -154,11 +154,11 @@ custom_invoke (const GstTensor_Filter * filter, void **private_data,
 }
 
 /**
- * @brief The optional callback for GstTensor_Filter_Framework
+ * @brief The optional callback for GstTensorFilterFramework
  */
 static int
-custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
-    GstTensor_TensorsMeta * meta)
+custom_getInputDim (const GstTensorFilter * filter, void **private_data,
+    GstTensorsInfo * info)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -172,15 +172,15 @@ custom_getInputDim (const GstTensor_Filter * filter, void **private_data,
   }
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, &(filter->prop),
-      meta);
+      info);
 }
 
 /**
- * @brief The optional callback for GstTensor_Filter_Framework
+ * @brief The optional callback for GstTensorFilterFramework
  */
 static int
-custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
-    GstTensor_TensorsMeta * meta)
+custom_getOutputDim (const GstTensorFilter * filter, void **private_data,
+    GstTensorsInfo * info)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -194,16 +194,15 @@ custom_getOutputDim (const GstTensor_Filter * filter, void **private_data,
   }
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data,
-      &(filter->prop), meta);
+      &(filter->prop), info);
 }
 
 /**
- * @brief The set-input-dim callback for GstTensor_Filter_Framework
+ * @brief The set-input-dim callback for GstTensorFilterFramework
  */
 static int
-custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
-    const tensor_dim iDimension, const tensor_type iType,
-    tensor_dim oDimension, tensor_type * oType)
+custom_setInputDim (const GstTensorFilter * filter, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -216,14 +215,14 @@ custom_setInputDim (const GstTensor_Filter * filter, void **private_data,
     return -1;
 
   return ptr->methods->setInputDim (ptr->customFW_private_data,
-      &(filter->prop), iDimension, iType, oDimension, oType);
+      &(filter->prop), in_info, out_info);
 }
 
 /**
  * @brief Free privateData and move on.
  */
 static void
-custom_close (const GstTensor_Filter * filter, void **private_data)
+custom_close (const GstTensorFilter * filter, void **private_data)
 {
   internal_data *ptr = *private_data;
 
@@ -233,7 +232,7 @@ custom_close (const GstTensor_Filter * filter, void **private_data)
   g_assert (filter->privateData == NULL);
 }
 
-GstTensor_Filter_Framework NNS_support_custom = {
+GstTensorFilterFramework NNS_support_custom = {
   .name = "custom",
   .allow_in_place = FALSE,      /* custom cannot support in-place (outptr == inptr). */
   .allocate_in_invoke = FALSE,  /* Let tensor_flow allocate output buffers */

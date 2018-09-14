@@ -84,8 +84,8 @@ typedef enum _nnfw_type {
   _T_F_NNFW_END,
 } nnfw_type;
 
-struct _GstTensor_Filter_Framework;
-typedef struct _GstTensor_Filter_Framework GstTensor_Filter_Framework;
+struct _GstTensorFilterFramework;
+typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
 typedef enum {
   _TFC_INIT = 0,
@@ -100,18 +100,6 @@ typedef enum {
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
-
-/**
- * @brief Internal meta data exchange format for a other/tensors instance
- * @todo replace this to GstTensorsInfo
- */
-typedef struct
-{
-  unsigned int num_tensors;    /**< The number of tensors */
-  tensor_dim dims[NNS_TENSOR_SIZE_LIMIT];     /**< The list of dimensions of each tensors */
-  tensor_type types[NNS_TENSOR_SIZE_LIMIT];   /**< The list of types for each tensors */
-  int ranks[NNS_TENSOR_SIZE_LIMIT];          /**< The list of types for each tensors */
-} GstTensor_TensorsMeta;
 
 /**
  * @brief Internal data structure for tensor info.
@@ -132,29 +120,25 @@ typedef struct
 } GstTensorsInfo;
 
 /**
- * @brief Tensor_Filter's properties (internal data structure)
+ * @brief Tensor_Filter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
  * of Tensor_Filter, we define this data structure here.
  */
-typedef struct _GstTensor_Filter_Properties
+typedef struct _GstTensorFilterProperties
 {
-  int silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
-  GstTensor_Filter_CheckStatus inputConfigured; /**< input dimension status */
-  GstTensor_Filter_CheckStatus outputConfigured; /**< output dimension status */
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
-  GstTensor_Filter_Framework *fw; /**< The implementation core of the NNFW. NULL if not configured */
-  int fwOpened; /**< true IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
-  int fwClosed; /**< true IF close() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
-  const char *modelFilename; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
+  GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+  int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
+  const char *model_file; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
-  int inputCapNegotiated; /**< @todo check if this is really needed */
-  GstTensor_TensorsMeta inputMeta;
+  int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
+  GstTensorsInfo input_meta; /**< configured input tensor info */
 
-  int outputCapNegotiated; /**< @todo check if this is really needed */
-  GstTensor_TensorsMeta outputMeta;
+  int output_configured; /**< TRUE if output tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
+  GstTensorsInfo output_meta; /**< configured output tensor info */
 
-  const char *customProperties; /**< sub-plugin specific custom property values in string */
-} GstTensor_Filter_Properties;
+  const char *custom_properties; /**< sub-plugin specific custom property values in string */
+} GstTensorFilterProperties;
 
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
