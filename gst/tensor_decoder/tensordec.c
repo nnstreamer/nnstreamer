@@ -103,26 +103,6 @@ enum
 };
 
 /**
- * @brief Data structure for image labeling info.
- */
-typedef struct
-{
-  gchar *label_path; /**< label file path */
-  GList *labels; /**< list of loaded labels */
-  guint total_labels; /**< count of labels */
-} Mode_image_labeling;
-
-/**
- * @brief Data structure for tensor decoder image labeling mode.
- */
-typedef struct
-{
-  gint current_label_index; /**< current label index */
-  gint new_label_index; /**< new label index */
-  Mode_image_labeling image_labeling_info; /**< tflite image labeling mode info */
-} TensorDec_Mode_image_Label;
-
-/**
  * @brief Default output type.
  */
 #define DEFAULT_OUTPUT_TYPE OUTPUT_VIDEO
@@ -171,6 +151,20 @@ static gboolean gst_tensordec_set_caps (GstBaseTransform * trans,
 static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
+
+/**
+ * @brief initialize data in tensor decoder image labeling info structure.
+ */
+static void
+gst_tensordec_image_labeling_init (TensorDec_Mode_image_Label *
+    mode_image_label)
+{
+  mode_image_label->image_labeling_info.label_path = NULL;
+  mode_image_label->image_labeling_info.labels = NULL;
+  mode_image_label->image_labeling_info.total_labels = 0;
+  mode_image_label->current_label_index = 0;
+  mode_image_label->new_label_index = 0;
+}
 
 /**
  * @brief Get video caps from tensor config
@@ -416,6 +410,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->output_type = OUTPUT_VIDEO;
   self->mode = Mode[0];
   gst_tensor_config_init (&self->tensor_config);
+  gst_tensordec_image_labeling_init (&self->tensordec_mode_image_label);
 }
 
 /**
