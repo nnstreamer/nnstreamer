@@ -40,12 +40,17 @@
  * </refsect2>
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-
+#include <stdio.h>
 #include <glib.h>
 #include <string.h>
+#include <stdlib.h>
 #include "tensordec.h"
 
 /**
@@ -156,14 +161,52 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
  * @brief initialize data in tensor decoder image labeling info structure.
  */
 static void
-gst_tensordec_image_labeling_init (TensorDec_Mode_image_Label *
-    mode_image_label)
+gst_tensordec_image_labeling_init (TensorDec_Image_Label * mode_image_label)
 {
-  mode_image_label->image_labeling_info.label_path = NULL;
-  mode_image_label->image_labeling_info.labels = NULL;
-  mode_image_label->image_labeling_info.total_labels = 0;
+  mode_image_label->labeling_info.label_path = NULL;
+  mode_image_label->labeling_info.labels = NULL;
+  mode_image_label->labeling_info.total_labels = 0;
   mode_image_label->current_label_index = 0;
   mode_image_label->new_label_index = 0;
+}
+
+/**
+ * @brief set label info data for Tensor decoder.
+ */
+static gboolean
+gst_set_mode_image_label_info (GstTensorDec * self)
+{
+  FILE *fp;
+
+  if ((fp =
+          fopen (self->tensordec_image_label.labeling_info.label_path,
+              "r")) != NULL) {
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    gchar *label;
+
+    while ((read = getline (&line, &len, fp)) != -1) {
+      label = g_strdup ((gchar *) line);
+      self->tensordec_image_label.labeling_info.labels =
+          g_list_append (self->tensordec_image_label.labeling_info.labels,
+          label);
+    }
+
+    if (line) {
+      free (line);
+    }
+
+    fclose (fp);
+  } else {
+    err_print ("cannot find label file in tensor decoder");
+    return FALSE;
+  }
+
+  self->tensordec_image_label.labeling_info.total_labels =
+      g_list_length (self->tensordec_image_label.labeling_info.labels);
+  err_print ("finished to load labels");
+  return TRUE;
 }
 
 /**
@@ -446,7 +489,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->output_type = OUTPUT_VIDEO;
   self->mode = Mode[0];
   gst_tensor_config_init (&self->tensor_config);
-  gst_tensordec_image_labeling_init (&self->tensordec_mode_image_label);
+  gst_tensordec_image_labeling_init (&self->tensordec_image_label);
 }
 
 /**
@@ -467,6 +510,13 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:
       self->mode = g_value_dup_string (value);
+      break;
+    case PROP_MODE_OPTION1:
+      if (g_strcmp0 (self->mode, "image_labeling") == 0) {
+        self->tensordec_image_label.labeling_info.label_path =
+            g_value_dup_string (value);
+        gst_set_mode_image_label_info (self);
+      }
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -491,6 +541,11 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
+      g_value_set_string (value, self->mode);
+      break;
+    case PROP_MODE_OPTION1:
+      g_value_set_string (value,
+          self->tensordec_image_label.labeling_info.label_path);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

@@ -66,8 +66,8 @@ typedef struct
 {
   gint current_label_index; /**< current label index */
   gint new_label_index; /**< new label index */
-  Mode_image_labeling image_labeling_info; /**< tflite image labeling mode info */
-} TensorDec_Mode_image_Label;
+  Mode_image_labeling labeling_info; /**< tflite image labeling mode info */
+} TensorDec_Image_Label;
 
 /**
  * @brief Internal data structure for tensordec instances.
@@ -86,7 +86,7 @@ struct _GstTensorDec
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   GstTensorConfig tensor_config; /**< configured tensor info */
-  TensorDec_Mode_image_Label tensordec_mode_image_label;/** tensor decoder image labeling mode info */
+  TensorDec_Image_Label tensordec_image_label;/** tensor decoder image labeling mode info */
 };
 
 /**
