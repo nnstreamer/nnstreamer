@@ -39,7 +39,8 @@
  * The current version supports NNS_UINT8 only as video-input.
  * There is no restrictions for inter-NN or sink-to-app.
  */
-typedef enum _nns_tensor_type {
+typedef enum _nns_tensor_type
+{
   _NNS_INT32 = 0,
   _NNS_UINT32,
   _NNS_INT16,
@@ -58,22 +59,23 @@ typedef enum _nns_tensor_type {
  * @brief Byte-per-element of each tensor element type.
  */
 static const unsigned int tensor_element_size[] = {
-        [_NNS_INT32] = 4,
-        [_NNS_UINT32] = 4,
-        [_NNS_INT16] = 2,
-        [_NNS_UINT16] = 2,
-        [_NNS_INT8] = 1,
-        [_NNS_UINT8] = 1,
-        [_NNS_FLOAT64] = 8,
-        [_NNS_FLOAT32] = 4,
-        [_NNS_INT64] = 8,
-        [_NNS_UINT64] = 8,
+  [_NNS_INT32] = 4,
+  [_NNS_UINT32] = 4,
+  [_NNS_INT16] = 2,
+  [_NNS_UINT16] = 2,
+  [_NNS_INT8] = 1,
+  [_NNS_UINT8] = 1,
+  [_NNS_FLOAT64] = 8,
+  [_NNS_FLOAT32] = 4,
+  [_NNS_INT64] = 8,
+  [_NNS_UINT64] = 8,
 };
 
 /**
  * @brief NN Frameworks available for the tensor_filter element.
  */
-typedef enum _nnfw_type {
+typedef enum _nnfw_type
+{
   _T_F_UNDEFINED = 0, /**< Not defined or supported. Cannot proceed in this status */
 
   _T_F_CUSTOM, /**< Custom filter provided as a shared object (dysym) */
@@ -87,7 +89,8 @@ typedef enum _nnfw_type {
 struct _GstTensorFilterFramework;
 typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
-typedef enum {
+typedef enum
+{
   _TFC_INIT = 0,
   _TFC_DIMENSION = 1,
   _TFC_TYPE = 2,
@@ -100,6 +103,16 @@ typedef enum {
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
+
+/**
+ * @brief The unit of each data tensors. It will be used as an input/output tensor of other/tensors.
+ */
+typedef struct
+{
+  void *data;
+  size_t size;
+  tensor_type type;
+} GstTensorMemory;
 
 /**
  * @brief Internal data structure for tensor info.
