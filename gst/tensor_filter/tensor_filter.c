@@ -72,7 +72,7 @@
 #define silent_debug(...) \
     debug_print (DBG, __VA_ARGS__)
 
-#define silent_debug_caps(caps,msg) do {\
+#define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
     if (caps) { \
       GstStructure *caps_s; \
@@ -85,6 +85,19 @@
         debug_print (TRUE, msg " = %s\n", caps_s_string); \
         g_free (caps_s_string); \
       } \
+    } \
+  } \
+} while (0)
+
+#define silent_debug_info(i,msg) do { \
+  if (DBG) { \
+    guint info_idx; \
+    gchar *dim_str; \
+    debug_print (TRUE, msg " total %d", (i)->num_tensors); \
+    for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
+      dim_str = get_tensor_dimension_string ((i)->info[info_idx].dimension); \
+      debug_print (TRUE, "[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
+      g_free (dim_str); \
     } \
   } \
 } while (0)
@@ -338,7 +351,7 @@ gst_tensor_filter_out_size (GstTensorFilter * self, gint index)
 
   g_assert (self->configured);
 
-  info = &self->out_config.info;
+  info = &self->prop.output_meta;
 
   if (index < 0) {
     /** calculate all output tensors */
@@ -417,11 +430,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
               prop->input_meta.info[i].dimension);
           g_assert (rank > 0);
 
-          silent_debug ("Input Prop: %d:%d:%d:%d Rank %d\n",
-              prop->input_meta.info[i].dimension[0],
-              prop->input_meta.info[i].dimension[1],
-              prop->input_meta.info[i].dimension[2],
-              prop->input_meta.info[i].dimension[3], rank);
+          silent_debug_info (&prop->input_meta, "input prop");
         }
 
         g_strfreev (str_dims);
@@ -443,11 +452,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
               prop->output_meta.info[i].dimension);
           g_assert (rank > 0);
 
-          silent_debug ("Output Prop: %d:%d:%d:%d Rank %d\n",
-              prop->output_meta.info[i].dimension[0],
-              prop->output_meta.info[i].dimension[1],
-              prop->output_meta.info[i].dimension[2],
-              prop->output_meta.info[i].dimension[3], rank);
+          silent_debug_info (&prop->output_meta, "output prop");
         }
 
         g_strfreev (str_dims);
@@ -757,7 +762,9 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
         }
 
         prop->input_configured = TRUE;
-        self->in_config.info = prop->input_meta = in_info;
+        prop->input_meta = in_info;
+
+        silent_debug_info (&in_info, "input tensor");
       }
     }
   }
@@ -781,7 +788,9 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
         }
 
         prop->output_configured = TRUE;
-        self->out_config.info = prop->output_meta = out_info;
+        prop->output_meta = out_info;
+
+        silent_debug_info (&out_info, "output tensor");
       }
     }
   }
@@ -830,7 +839,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     }
 
     prop->input_configured = TRUE;
-    self->in_config.info = prop->input_meta = in_config.info;
+    prop->input_meta = in_config.info;
 
     /** call setInputDimension if output tensor is not configured */
     if (!prop->output_configured) {
@@ -852,7 +861,9 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
           }
 
           prop->output_configured = TRUE;
-          self->out_config.info = prop->output_meta = out_info;
+          prop->output_meta = out_info;
+
+          silent_debug_info (&out_info, "output tensor");
         }
       }
 
@@ -864,7 +875,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     }
 
     /**
-     * @todo how can we update the framerate?
+     * @todo framerate of output tensors
+     * How can we update the framerate?
      * GstTensorFilter cannot assure the framerate.
      * Simply set the framerate of out-tensor from incaps.
      */
@@ -932,9 +944,11 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter)
 {
   GstTensorFilter *self;
+  GstTensorsConfig config;
   GstCaps *result;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  gst_tensors_config_init (&config);
 
   silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
@@ -952,7 +966,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     /* caps: sink pad. get src pad info */
     if (self->prop.output_configured) {
       /** fixed tensor info */
-      result = gst_tensor_filter_caps_from_config (self, &self->out_config);
+      config.info = self->prop.output_meta;
+      result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /** we don't know the exact tensor info yet */
       result = gst_caps_from_string (CAPS_STRING);
@@ -961,7 +976,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     /* caps: src pad. get sink pad info */
     if (self->prop.input_configured) {
       /** fixed tensor info */
-      result = gst_tensor_filter_caps_from_config (self, &self->in_config);
+      config.info = self->prop.input_meta;
+      result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /** we don't know the exact tensor info yet */
       result = gst_caps_from_string (CAPS_STRING);
@@ -992,7 +1008,6 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   GstTensorFilter *self;
   GstTensorsConfig in_config, out_config;
   GstStructure *structure;
-  GstCaps *supposed;
   GstCaps *result;
 
   self = GST_TENSOR_FILTER_CAST (trans);
@@ -1001,6 +1016,9 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   silent_debug_caps (caps, "caps");
   silent_debug_caps (othercaps, "othercaps");
 
+  gst_caps_unref (othercaps);
+
+  /** get caps from tensor info */
   gst_tensors_config_init (&in_config);
   gst_tensors_config_init (&out_config);
 
@@ -1026,18 +1044,19 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
         &out_config.info);
 
     if (res != 0) {
-      silent_debug ("Cannot get the output tensor info.");
+      err_print ("Cannot get the output tensor info.");
+      g_assert (0);
+      return NULL;
     }
   }
 
+  /**
+   * @todo framerate of output tensors
+   */
   out_config.rate_n = in_config.rate_n;
   out_config.rate_d = in_config.rate_d;
 
-  supposed = gst_tensor_filter_caps_from_config (self, &out_config);
-
-  result = gst_caps_intersect (othercaps, supposed);
-  gst_caps_unref (supposed);
-
+  result = gst_tensor_filter_caps_from_config (self, &out_config);
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
 
@@ -1114,7 +1133,6 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   *othersize = gst_tensor_filter_out_size (self, -1);
   return TRUE;
 }
-
 
 /**
  * @brief Called when the element starts processing. optional vmethod of BaseTransform
