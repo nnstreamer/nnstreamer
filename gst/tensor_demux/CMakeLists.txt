@@ -1,14 +1,14 @@
-ADD_LIBRARY(tensordemux SHARED gsttensordemux.c )
-ADD_LIBRARY(tensordemuxStatic STATIC gsttensordemux.c)
+ADD_LIBRARY(tensor_demux SHARED gsttensordemux.c )
+ADD_LIBRARY(tensor_demuxStatic STATIC gsttensordemux.c)
 
-TARGET_LINK_LIBRARIES(tensordemux ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(tensordemux PUBLIC ${pkgs_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(tensordemux PUBLIC ${pkgs_CFLAGS_OTHER})
-TARGET_LINK_LIBRARIES(tensordemuxStatic ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(tensordemuxStatic PUBLIC ${pkgs_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(tensordemuxStatic PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(tensor_demux ${pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(tensor_demux PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(tensor_demux PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(tensor_demuxStatic ${pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(tensor_demuxStatic PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(tensor_demuxStatic PUBLIC ${pkgs_CFLAGS_OTHER})
 
-INSTALL(TARGETS tensordemux tensordemuxStatic
+INSTALL(TARGETS tensor_demux tensor_demuxStatic
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${GST_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}

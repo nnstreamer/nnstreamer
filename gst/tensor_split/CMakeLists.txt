@@ -1,14 +1,14 @@
-ADD_LIBRARY(tensorsplit SHARED gsttensorsplit.c )
-ADD_LIBRARY(tensorsplitStatic STATIC gsttensorsplit.c)
+ADD_LIBRARY(tensor_split SHARED gsttensorsplit.c )
+ADD_LIBRARY(tensor_splitStatic STATIC gsttensorsplit.c)
 
-TARGET_LINK_LIBRARIES(tensorsplit ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(tensorsplit PUBLIC ${pkgs_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(tensorsplit PUBLIC ${pkgs_CFLAGS_OTHER})
-TARGET_LINK_LIBRARIES(tensorsplitStatic ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(tensorsplitStatic PUBLIC ${pkgs_INCLUDE_DIRS})
-TARGET_COMPILE_OPTIONS(tensorsplitStatic PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(tensor_split ${pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(tensor_split PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(tensor_split PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(tensor_splitStatic ${pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(tensor_splitStatic PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(tensor_splitStatic PUBLIC ${pkgs_CFLAGS_OTHER})
 
-INSTALL(TARGETS tensorsplit tensorsplitStatic
+INSTALL(TARGETS tensor_split tensor_splitStatic
 	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${GST_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
