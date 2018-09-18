@@ -33,8 +33,10 @@
 /**
  * SECTION:element-tensor_filter
  *
- * A filter that converts media stream to tensor stream for NN frameworks.
- * The output is always in the format of other/tensor or other/tensors.
+ * A plugin that invokes neural network models and their framework or
+ * an independent shared object implementing tensor_filter_custom.h.
+ * The input and output are always in the format of other/tensor or
+ * other/tensors.
  *
  * <refsect2>
  * <title>Example launch line</title>
