@@ -83,10 +83,10 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 /**
  * @brief do_avg
  */
-#define do_avg(type, sumtype) do {\
+#define do_avg(type,sumtype) do {\
       sumtype *avg = (sumtype *) malloc(sizeof(sumtype) * prop->input_meta.info[0].dimension[0]); \
-      type *iptr = (type *) inptr; \
-      type *optr = (type *) outptr; \
+      type *iptr = (type *) input[0].data; \
+      type *optr = (type *) output[0].data; \
       for (z = 0; z < prop->input_meta.info[0].dimension[3]; z++) { \
         for (y = 0; y < prop->input_meta.info[0].dimension[0]; y++) \
           avg[y] = 0; \
@@ -109,7 +109,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
  */
 static int
 pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
-    const uint8_t * inptr, uint8_t * outptr)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   pt_data *data = private_data;
   uint32_t c, x, y, z;
@@ -127,8 +127,8 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
       prop->input_meta.info[0].dimension[2];
 
   assert (data);
-  assert (inptr);
-  assert (outptr);
+  assert (input);
+  assert (output);
 
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
@@ -173,7 +173,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     default:
       assert (0);               /* Type Mismatch */
   }
-  assert (inptr != outptr);
+  assert (input[0].data != output[0].data);
 
   return 0;
 }

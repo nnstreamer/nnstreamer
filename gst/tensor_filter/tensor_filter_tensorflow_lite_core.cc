@@ -117,7 +117,7 @@ TFLiteCore::loadModel ()
  * @param tfType	: the defined type of Tensorflow Lite
  * @return the enum of defined _NNS_TYPE
  */
-_nns_tensor_type
+tensor_type
 TFLiteCore::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
@@ -272,41 +272,44 @@ TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
 
 /**
  * @brief	run the model with the input.
- * @param[in] inptr : The input tensor
- * @param[out]  outptr : The output tensor
+ * @param[in] input : The array of input tensors
+ * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
+TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 {
 #if (DBG)
   struct timeval start_time, stop_time;
   gettimeofday (&start_time, nullptr);
 #endif
 
-  int output_number_of_pixels = 1;
+  int num_of_input[NNS_TENSOR_SIZE_LIMIT];
+  for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    num_of_input[i] = 1;
+  }
 
   int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
 
-  for (int i = 0; i < sizeOfArray; i++) {
-    output_number_of_pixels *= inputTensorMeta.info[0].dimension[i];
+  if (interpreter->AllocateTensors () != kTfLiteOk) {
+    printf ("Failed to allocate tensors\n");
+    return -2;
   }
 
   for (int i = 0; i < getInputTensorSize (); i++) {
-    int input = interpreter->inputs ()[i];
+    int in_tensor = interpreter->inputs ()[i];
 
-    if (interpreter->AllocateTensors () != kTfLiteOk) {
-      _print_log ("Failed to allocate tensors");
-      return -2;
+    for (int j = 0; j < sizeOfArray; j++) {
+      num_of_input[i] *= inputTensorMeta.info[i].dimension[j];
     }
 
-    inputTensors[0] = inptr;
-    for (int j = 0; j < output_number_of_pixels; j++) {
+    for (int j = 0; j < num_of_input[i]; j++) {
       if (inputTensorMeta.info[i].type == _NNS_FLOAT32) {
-        (interpreter->typed_tensor < float >(input))[j] =
-            ((float) inputTensors[i][j] - 127.5f) / 127.5f;
+        (interpreter->typed_tensor < float >(in_tensor))[j] =
+            (((float *) input[i].data)[j] - 127.5f) / 127.5f;
       } else if (inputTensorMeta.info[i].type == _NNS_UINT8) {
-        (interpreter->typed_tensor < uint8_t > (input))[j] = inputTensors[i][j];
+        (interpreter->typed_tensor < uint8_t > (in_tensor))[j] =
+            ((uint8_t *) input[i].data)[j];
       }
     }
   }
@@ -317,15 +320,12 @@ TFLiteCore::invoke (uint8_t * inptr, uint8_t ** outptr)
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
-
     if (outputTensorMeta.info[i].type == _NNS_FLOAT32) {
-      outputTensors[i] =
-          (uint8_t *) interpreter->typed_output_tensor < float >(i);
+      output[i].data = interpreter->typed_output_tensor < float >(i);
     } else if (outputTensorMeta.info[i].type == _NNS_UINT8) {
-      outputTensors[i] = interpreter->typed_output_tensor < uint8_t > (i);
+      output[i].data = interpreter->typed_output_tensor < uint8_t > (i);
     }
   }
-  *outptr = outputTensors[0];
 
 #if (DBG)
   gettimeofday (&stop_time, nullptr);
@@ -414,13 +414,14 @@ tflite_core_getOutputSize (void *tflite)
 /**
  * @brief	invoke the model
  * @param	tflite	: the class object
- * @param[in] inptr : The input tensor
- * @param[out]  outptr : The output tensor
+ * @param[in] input : The array of input tensors
+ * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_invoke (void *tflite, uint8_t * inptr, uint8_t ** outptr)
+tflite_core_invoke (void *tflite, const GstTensorMemory * input,
+    GstTensorMemory * output)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->invoke (inptr, outptr);
+  return c->invoke (input, output);
 }

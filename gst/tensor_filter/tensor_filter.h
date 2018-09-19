@@ -110,15 +110,15 @@ struct _GstTensorFilterFramework
   gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
 
-  uint8_t *(*invoke_NN) (const GstTensorFilter * filter, void **private_data,
-      const uint8_t * inputptr, uint8_t * outputptr);
+  int (*invoke_NN) (const GstTensorFilter * filter, void **private_data,
+      const GstTensorMemory * input, GstTensorMemory * output);
       /**< Mandatory callback. Invoke the given network model.
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
-       * @param[in] inputptr Input tensor. Allocated and filled by tensor_filter/main
-       * @param[out] outputptr Output tensor. Allocated by tensor_filter/main and to be filled by invoke_NN. N/C if allocate_in_invoke is TRUE.
-       * @return outputptr if allocate_in_invoke = 00 if OK. non-zero if error.
+       * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
+       * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke_NN. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
+       * @return 0 if OK. non-zero if error.
        */
 
   int (*getInputDimension) (const GstTensorFilter * filter,

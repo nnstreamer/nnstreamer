@@ -115,19 +115,19 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
  */
 static int
 pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
-    const uint8_t * inptr, uint8_t * outptr)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   pt_data *data = private_data;
   size_t size;
 
   g_assert (data);
-  g_assert (inptr);
-  g_assert (outptr);
+  g_assert (input);
+  g_assert (output);
 
   size = get_tensor_element_count (data->dim) * tensor_element_size[data->type];
 
-  g_assert (inptr != outptr);
-  memcpy (outptr, inptr, size);
+  g_assert (input[0].data != output[0].data);
+  memcpy (output[0].data, input[0].data, size);
 
   return 0;
 }
