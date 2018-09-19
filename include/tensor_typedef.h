@@ -102,7 +102,6 @@ typedef enum
 } GstTensor_Filter_CheckStatus;
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
-typedef uint8_t *tensors[NNS_TENSOR_SIZE_LIMIT];     /**< Array of tensors */
 
 /**
  * @brief The unit of each data tensors. It will be used as an input/output tensor of other/tensors.
@@ -133,10 +132,10 @@ typedef struct
 } GstTensorsInfo;
 
 /**
- * @brief Tensor_Filter's properties for NN framework (internal data structure)
+ * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
- * of Tensor_Filter, we define this data structure here.
+ * of GstTensorFilter, we define this data structure here.
  */
 typedef struct _GstTensorFilterProperties
 {

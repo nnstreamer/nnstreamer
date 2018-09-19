@@ -636,67 +636,85 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensorFilter *self;
-  gsize outBufSize;
-  uint8_t *inptr, *outptr;
-  uint8_t *retoutptr;
-  GstMapInfo inInfo, outInfo;
+  GstTensorFilterProperties *prop;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+  gint i, ret;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  prop = &self->prop;
 
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
-  if (G_UNLIKELY (!self->prop.fw))
+  if (G_UNLIKELY (!prop->fw))
     goto unknown_framework;
-  if (G_UNLIKELY (!self->prop.model_file))
+  if (G_UNLIKELY (!prop->model_file))
     goto unknown_model;
-  if (G_UNLIKELY (!self->prop.fw->invoke_NN))
+  if (G_UNLIKELY (!prop->fw->invoke_NN))
     goto unknown_invoke;
 
-  /* 0. Check all properties and inbuf size. */
-  silent_debug ("Invoking %s with %s model\n", self->prop.fw->name,
-      self->prop.model_file);
+  /* 0. Check all properties. */
+  silent_debug ("Invoking %s with %s model\n", prop->fw->name,
+      prop->model_file);
 
-  /* 1. Allocate outbuf if allocate_in_invoke is FALSE */
-  g_assert (outbuf);
+  /* 1. Set input tensors from inbuf. */
+  g_assert (gst_buffer_n_memory (inbuf) == prop->input_meta.num_tensors);
 
-  outBufSize = gst_tensor_filter_out_size (self, -1);
+  for (i = 0; i < prop->input_meta.num_tensors; i++) {
+    in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+    g_assert (gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ));
 
-  if (self->prop.fw->allocate_in_invoke == FALSE) {
-    if (gst_buffer_get_size (outbuf) < outBufSize) {
-      /** @todo: write a routine to say aloud when this happens */
-      gst_buffer_set_size (outbuf, outBufSize);
-    }
-    silent_debug ("outbuf = %lu / expected = %lu\n",
-        gst_buffer_get_size (outbuf), outBufSize);
-    g_assert (gst_buffer_get_size (outbuf) >= outBufSize);
-
-    /* 2. Call the filter-subplugin callback, "invoke" */
-    gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-    gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
-    inptr = inInfo.data;
-    outptr = outInfo.data;
-
-    gst_tensor_filter_call (self, retoutptr, invoke_NN, inptr, outptr);
-    g_assert (outptr == retoutptr);
-
-    gst_buffer_unmap (inbuf, &inInfo);
-    gst_buffer_unmap (outbuf, &outInfo);
-  } else {
-    GstMemory *mem;
-    gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-    g_assert (gst_buffer_get_size (outbuf) == 0);
-
-    inptr = inInfo.data;
-    gst_tensor_filter_call (self, retoutptr, invoke_NN, inptr, NULL);
-    gst_buffer_unmap (inbuf, &inInfo);
-
-    mem =
-        gst_memory_new_wrapped (0, retoutptr, outBufSize, 0, outBufSize, NULL,
-        NULL);
-    gst_buffer_insert_memory (outbuf, -1, mem);
+    in_tensors[i].data = in_info[i].data;
+    in_tensors[i].size = in_info[i].size;
+    in_tensors[i].type = prop->input_meta.info[i].type;
   }
 
-  /* 3. Return result! */
+  /* 2. Prepare output tensors. */
+  g_assert (outbuf);
+  g_assert (gst_buffer_get_size (outbuf) == 0);
+
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    out_tensors[i].data = NULL;
+    out_tensors[i].size = gst_tensor_filter_out_size (self, i);
+    out_tensors[i].type = prop->output_meta.info[i].type;
+
+    /* allocate memory if allocate_in_invoke is FALSE */
+    if (prop->fw->allocate_in_invoke == FALSE) {
+      out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
+      g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
+
+      out_tensors[i].data = out_info[i].data;
+    }
+  }
+
+  /* 3. Call the filter-subplugin callback, "invoke" */
+  gst_tensor_filter_call (self, ret, invoke_NN, in_tensors, out_tensors);
+  g_assert (ret == 0);
+
+  /* 4. Update result and free map info. */
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    if (prop->fw->allocate_in_invoke) {
+      /* filter-subplugin allocated new memory, update this */
+      out_mem[i] =
+          gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
+          0, out_tensors[i].size, NULL, NULL);
+    } else {
+      gst_memory_unmap (out_mem[i], &out_info[i]);
+    }
+
+    /* append the memory block to outbuf */
+    gst_buffer_append_memory (outbuf, out_mem[i]);
+  }
+
+  for (i = 0; i < prop->input_meta.num_tensors; i++) {
+    gst_memory_unmap (in_mem[i], &in_info[i]);
+  }
+
+  /* 5. Return result! */
   return GST_FLOW_OK;
 unknown_format:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
@@ -1124,13 +1142,11 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
 
   g_assert (self->configured);
 
-  if (self->prop.fw->allocate_in_invoke == TRUE) {
-    /* Do not allocate outbuf. invoke_NN will allocate! */
-    *othersize = 0;
-    return TRUE;
-  }
-
-  *othersize = gst_tensor_filter_out_size (self, -1);
+  /**
+   * Consider multi-tensors.
+   * Set each memory block in transform()
+   */
+  *othersize = 0;
   return TRUE;
 }
 

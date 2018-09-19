@@ -78,23 +78,21 @@ tflite_open (const GstTensorFilter * filter, void **private_data)
 
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
- * @param[in] inptr The input tensor
- * @param[out] outptr The output tensor
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
+ * @return 0 if OK. non-zero if error.
  */
-static uint8_t *
+static int
 tflite_invoke (const GstTensorFilter * filter, void **private_data,
-    const uint8_t * inptr, uint8_t * outptr)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   int retval;
-  uint8_t *allocated_outptr;
   tflite_data *tf;
   tf = *private_data;
   g_assert (filter->privateData && *private_data == filter->privateData);
-  retval =
-      tflite_core_invoke (tf->tflite_private_data, (uint8_t *) inptr,
-      &allocated_outptr);
+  retval = tflite_core_invoke (tf->tflite_private_data, input, output);
   g_assert (retval == 0);
-  return allocated_outptr;
+  return retval;
 }
 
 /**

@@ -68,7 +68,7 @@ public:
   int getOutputTensorDim (GstTensorsInfo * info);
   int getInputTensorDimSize ();
   int getOutputTensorDimSize ();
-  int invoke (uint8_t * inptr, uint8_t ** outptr);
+  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
 
 private:
   /**
@@ -97,7 +97,7 @@ extern "C"
   extern int tf_core_getOutputDim (void *tf, GstTensorsInfo * info);
   extern int tf_core_getInputSize (void *tf);
   extern int tf_core_getOutputSize (void *tf);
-  extern int tf_core_invoke (void *tf, uint8_t * inptr, uint8_t ** outptr);
+  extern int tf_core_invoke (void *tf, const GstTensorMemory * input, GstTensorMemory * output);
 
 #ifdef __cplusplus
 }

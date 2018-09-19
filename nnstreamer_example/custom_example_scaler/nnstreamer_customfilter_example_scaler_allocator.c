@@ -135,24 +135,28 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 /**
  * @brief invoke-alloc callback of tensor_filter custom
  */
-static uint8_t *
+static int
 pt_allocate_invoke (void *private_data,
-    const GstTensorFilterProperties * prop, const uint8_t * inptr,
-    size_t * size)
+    const GstTensorFilterProperties * prop, const GstTensorMemory * input,
+    GstTensorMemory * output)
 {
   pt_data *data = private_data;
   uint32_t ox, oy, x, y, z, elementsize;
   uint32_t oidx0, oidx1, oidx2;
   uint32_t iidx0, iidx1, iidx2;
-
-  *size =
-      get_tensor_element_count (prop->output_meta.info[0].dimension) *
-      tensor_element_size[prop->output_meta.info[0].type];
-  uint8_t *outptr = (uint8_t *) malloc (sizeof (uint8_t) * *size);
+  size_t size;
 
   assert (data);
-  assert (inptr);
-  assert (outptr);
+  assert (input);
+  assert (output);
+
+  /* allocate output data */
+  elementsize = tensor_element_size[prop->output_meta.info[0].type];
+
+  size =
+      elementsize *
+      get_tensor_element_count (prop->output_meta.info[0].dimension);
+  output[0].data = malloc (size);
 
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
@@ -162,8 +166,6 @@ pt_allocate_invoke (void *private_data,
   assert (prop->input_meta.info[0].dimension[3] ==
       prop->output_meta.info[0].dimension[3]);
   assert (prop->input_meta.info[0].type == prop->output_meta.info[0].type);
-
-  elementsize = tensor_element_size[prop->input_meta.info[0].type];
 
   ox = (data->new_x > 0) ? data->new_x : prop->output_meta.info[0].dimension[1];
   oy = (data->new_y > 0) ? data->new_y : prop->output_meta.info[0].dimension[2];
@@ -191,20 +193,20 @@ pt_allocate_invoke (void *private_data,
               && ix < prop->input_meta.info[0].dimension[1]
               && iy < prop->input_meta.info[0].dimension[2]);
 
-          /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
+          /* output[z][y][x][c] = input[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)
-            *(outptr + elementsize * (c + x * oidx0 + y * oidx1 + z * oidx2) +
-                sz) =
-                *(inptr + elementsize * (c + ix * iidx0 + iy * iidx1 +
-                    z * iidx2) + sz);
+            *((uint8_t *) output[0].data + elementsize * (c + x * oidx0 +
+                    y * oidx1 + z * oidx2) + sz) =
+                *((uint8_t *) input[0].data + elementsize * (c + ix * iidx0 +
+                    iy * iidx1 + z * iidx2) + sz);
         }
       }
     }
   }
 
-  assert (inptr != outptr);
+  assert (input[0].data != output[0].data);
 
-  return outptr;
+  return 0;
 }
 
 /**

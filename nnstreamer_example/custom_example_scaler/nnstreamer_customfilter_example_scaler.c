@@ -136,7 +136,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
  */
 static int
 pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
-    const uint8_t * inptr, uint8_t * outptr)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   pt_data *data = private_data;
   uint32_t ox, oy, x, y, z, elementsize;
@@ -144,8 +144,8 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   uint32_t iidx0, iidx1, iidx2;
 
   assert (data);
-  assert (inptr);
-  assert (outptr);
+  assert (input);
+  assert (output);
 
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);
@@ -185,18 +185,18 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
               && ix < prop->input_meta.info[0].dimension[1]
               && iy < prop->input_meta.info[0].dimension[2]);
 
-          /* outptr[z][y][x][c] = inptr[z][iy][ix][c]; */
+          /* output[z][y][x][c] = input[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)
-            *(outptr + elementsize * (c + x * oidx0 + y * oidx1 + z * oidx2) +
-                sz) =
-                *(inptr + elementsize * (c + ix * iidx0 + iy * iidx1 +
-                    z * iidx2) + sz);
+            *((uint8_t *) output[0].data + elementsize * (c + x * oidx0 +
+                    y * oidx1 + z * oidx2) + sz) =
+                *((uint8_t *) input[0].data + elementsize * (c + ix * iidx0 +
+                    iy * iidx1 + z * iidx2) + sz);
         }
       }
     }
   }
 
-  assert (inptr != outptr);
+  assert (input[0].data != output[0].data);
 
   return 0;
 }

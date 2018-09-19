@@ -164,12 +164,12 @@ TFCore::getOutputTensorSize ()
 
 /**
  * @brief	run the model with the input.
- * @param[in] inptr : The input tensor
- * @param[out]  outptr : The output tensor
+ * @param[in] input : The array of input tensors
+ * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::invoke (uint8_t * inptr, uint8_t ** outptr)
+TFCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 {
   return 0;
 }
@@ -257,13 +257,14 @@ tf_core_getOutputSize (void *tf)
 /**
  * @brief	invoke the model
  * @param	tf	: the class object
- * @param[in] inptr : The input tensor
- * @param[out]  outptr : The output tensor
+ * @param[in] input : The array of input tensors
+ * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_invoke (void *tf, uint8_t * inptr, uint8_t ** outptr)
+tf_core_invoke (void *tf, const GstTensorMemory * input,
+    GstTensorMemory * output)
 {
   TFCore *c = (TFCore *) tf;
-  return c->invoke (inptr, outptr);
+  return c->invoke (input, output);
 }

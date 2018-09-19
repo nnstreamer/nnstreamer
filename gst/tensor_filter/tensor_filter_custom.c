@@ -118,12 +118,13 @@ custom_open (const GstTensorFilter * filter, void **private_data)
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
  * @param filter The parent object
- * @param[in] inptr The input tensor
- * @param[out] outptr The output tensor
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
+ * @return 0 if OK. non-zero if error.
  */
-static uint8_t *
+static int
 custom_invoke (const GstTensorFilter * filter, void **private_data,
-    const uint8_t * inptr, uint8_t * outptr)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
@@ -134,22 +135,13 @@ custom_invoke (const GstTensorFilter * filter, void **private_data,
   ptr = *private_data;
 
   if (ptr->methods->invoke) {
-    retval = ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
-        inptr, outptr);
-    if (retval == 0)
-      return outptr;
-    else
-      return NULL;
+    return ptr->methods->invoke (ptr->customFW_private_data, &(filter->prop),
+        input, output);
   } else if (ptr->methods->allocate_invoke) {
-    size_t size;
-    uint8_t *retptr = ptr->methods->allocate_invoke (ptr->customFW_private_data,
-        &(filter->prop), inptr, &size);
-    g_assert (size ==
-        (get_tensor_element_count (filter->prop.output_meta.info[0].dimension) *
-            tensor_element_size[filter->prop.output_meta.info[0].type]));
-    return retptr;
+    return ptr->methods->allocate_invoke (ptr->customFW_private_data,
+        &(filter->prop), input, output);
   } else {
-    return NULL;
+    return -1;
   }
 }
 
@@ -234,8 +226,8 @@ custom_close (const GstTensorFilter * filter, void **private_data)
 
 GstTensorFilterFramework NNS_support_custom = {
   .name = "custom",
-  .allow_in_place = FALSE,      /* custom cannot support in-place (outptr == inptr). */
-  .allocate_in_invoke = FALSE,  /* Let tensor_flow allocate output buffers */
+  .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
+  .allocate_in_invoke = FALSE,  /* GstTensorFilter allocates output buffers */
   .invoke_NN = custom_invoke,
 
   /* We need to disable getI/O-dim or setI-dim with the first call */

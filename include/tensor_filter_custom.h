@@ -40,7 +40,7 @@
 
 /**
  * @brief A function that is called before calling other functions.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @return The returned pointer will be passed to other functions as "private_data".
  */
 typedef void *(*NNS_custom_init_func) (const GstTensorFilterProperties * prop);
@@ -48,7 +48,7 @@ typedef void *(*NNS_custom_init_func) (const GstTensorFilterProperties * prop);
 /**
  * @brief A function that is called after calling other functions, when it's ready to close.
  * @param[in] private_data If you have allocated *private_data at init, free it here.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
  */
 typedef void (*NNS_custom_exit_func) (void *private_data,
     const GstTensorFilterProperties * prop);
@@ -56,7 +56,7 @@ typedef void (*NNS_custom_exit_func) (void *private_data,
 /**
  * @brief Get input tensor type.
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @param[out] info Structure for tensor info.
  */
 typedef int (*NNS_custom_get_input_dimension) (void *private_data,
@@ -65,7 +65,7 @@ typedef int (*NNS_custom_get_input_dimension) (void *private_data,
 /**
  * @brief Get output tensor type.
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @param[out] info Structure for tensor info.
  */
 typedef int (*NNS_custom_get_output_dimension) (void *private_data,
@@ -74,7 +74,7 @@ typedef int (*NNS_custom_get_output_dimension) (void *private_data,
 /**
  * @brief Set input dim by framework. Let custom plutin set output dim accordingly.
  * @param[in] private_data The pointer returned by NNStreamer_custom_init
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @param[in] in_info Input tensor info designated by the gstreamer framework. Note that this is not a fixed value and gstreamer may try different values during pad-cap negotiations.
  * @param[out] out_info Output tensor info according to the input tensor info.
  *
@@ -88,24 +88,25 @@ typedef int (*NNS_custom_set_input_dimension) (void *private_data,
 /**
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
- * @param[in] inptr pointer to input tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
- * @param[out] outptr pointer to output tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
+ * @param[in] input The array of input tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[out] output The array of output tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
  * @return 0 if success
  */
 typedef int (*NNS_custom_invoke) (void *private_data,
-    const GstTensorFilterProperties * prop, const uint8_t * inptr, uint8_t * outptr);
+    const GstTensorFilterProperties * prop, const GstTensorMemory * input, GstTensorMemory * output);
 
 /**
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
- * @param[in] prop Tensor_Filter's property values. Do not change its values.
- * @param[in] inptr pointer to input tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[in] prop GstTensorFilter's property values. Do not change its values.
+ * @param[in] input pointer to input tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[out] output The array of output tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, the memory block for output tensor should be allocated. (data in GstTensorMemory)
  * @param[out] size The allocated size.
  * @return The output buffer allocated in the invoke function
  */
-typedef uint8_t *(*NNS_custom_allocate_invoke) (void *private_data,
-    const GstTensorFilterProperties * prop, const uint8_t * inptr, size_t * size);
+typedef int (*NNS_custom_allocate_invoke) (void *private_data,
+    const GstTensorFilterProperties * prop, const GstTensorMemory * input, GstTensorMemory * output);
 
 /**
  * @brief Custom Filter Class
