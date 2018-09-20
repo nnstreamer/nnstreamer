@@ -21,7 +21,7 @@
  * @brief	GStreamer plugin to demux tensors (as a filter for other general neural network filters)
  * @bug         No known bugs
  *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -70,7 +70,6 @@
 #include <glib.h>
 
 #include "gsttensordemux.h"
-#include <tensor_meta.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_demux_debug);
 #define GST_CAT_DEFAULT gst_tensor_demux_debug
@@ -171,13 +170,14 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
   gst_pad_set_event_function (tensor_demux->sinkpad,
       GST_DEBUG_FUNCPTR (gst_tensor_demux_event));
 
-  tensor_demux->num_tensors = 0;
   tensor_demux->num_srcpads = 0;
   tensor_demux->silent = FALSE;
   tensor_demux->tensorpick = NULL;
   tensor_demux->have_group_id = FALSE;
   tensor_demux->group_id = G_MAXUINT;
   tensor_demux->srcpads = NULL;
+
+  gst_tensors_config_init (&tensor_demux->tensors_config);
 }
 
 /**
@@ -194,8 +194,9 @@ gst_tensor_demux_remove_src_pads (GstTensorDemux * tensor_demux)
         g_slist_delete_link (tensor_demux->srcpads, tensor_demux->srcpads);
   }
   tensor_demux->srcpads = NULL;
-  tensor_demux->num_tensors = 0;
   tensor_demux->num_srcpads = 0;
+
+  gst_tensors_config_init (&tensor_demux->tensors_config);
 }
 
 /**
@@ -212,25 +213,23 @@ gst_tensor_demux_dispose (GObject * object)
 }
 
 /**
- * @brief Set Caps in pad.
+ * @brief Parse caps and configure tensors info.
  * @param tensor_demux GstTensorDemux Ojbect
  * @param caps incomming capablity
- * @return TRUE/FALSE (if successfully generate & set cap, return TRUE)
+ * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 static gboolean
-gst_tensor_demux_get_capsparam (GstTensorDemux * tensor_demux, GstCaps * caps)
+gst_tensor_demux_parse_caps (GstTensorDemux * tensor_demux, GstCaps * caps)
 {
-  gboolean ret = FALSE;
+  GstStructure *structure;
+  GstTensorsConfig *config;
 
-  GstStructure *s = gst_caps_get_structure (caps, 0);
-  if (gst_structure_get_int (s, "num_tensors",
-          (int *) &tensor_demux->num_tensors)
-      && gst_structure_get_fraction (s, "framerate",
-          &tensor_demux->framerate_numerator,
-          &tensor_demux->framerate_denominator))
-    ret = TRUE;
+  config = &tensor_demux->tensors_config;
 
-  return ret;
+  structure = gst_caps_get_structure (caps, 0);
+  gst_tensors_config_from_structure (config, structure);
+
+  return gst_tensors_config_validate (config);
 }
 
 /**
@@ -247,7 +246,7 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      gst_tensor_demux_get_capsparam (tensor_demux, caps);
+      gst_tensor_demux_parse_caps (tensor_demux, caps);
       return gst_pad_event_default (pad, parent, event);
     }
     case GST_EVENT_EOS:
@@ -267,16 +266,42 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 /**
+ * @brief Get tensor config info from configured tensors
+ * @param tensor_demux "this" pointer
+ * @param config tensor config to be filled
+ * @param index index of configured tensors
+ * @return
+ */
+static gboolean
+gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
+    GstTensorConfig * config, guint index)
+{
+  GstTensorsConfig *tensors_info;
+
+  g_return_val_if_fail (tensor_demux != NULL, FALSE);
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  tensors_info = &tensor_demux->tensors_config;
+  g_return_val_if_fail (index < tensors_info->info.num_tensors, FALSE);
+
+  config->info = tensors_info->info.info[index];
+  config->rate_n = tensors_info->rate_n;
+  config->rate_d = tensors_info->rate_d;
+  return TRUE;
+}
+
+/**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param tesnor_demux TensorDemux Object
- * @param inbuf inputbuf GstBuffer Object including GstMeta
  * @param[out] created will be updated in this function
  * @param nth source ordering
  * @return TensorPad if pad is already created, then return created pad.
  *         If not return new pad after creation.
  */
 static GstTensorPad *
-gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
+gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     gboolean * created, gint nth)
 {
   GSList *walk;
@@ -298,9 +323,7 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
   GstEvent *event;
   gchar *stream_id;
   GstCaps *caps;
-  gchar *caps_string;
-  tensor_dim *dim;
-  tensor_type type;
+  GstTensorConfig config;
 
   tensorpad = g_new0 (GstTensorPad, 1);
   GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d(%dth)",
@@ -317,8 +340,8 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
   tensorpad->discont = TRUE;
 
   tensor_demux->srcpads = g_slist_append (tensor_demux->srcpads, tensorpad);
-  dim = gst_get_tensordim (inbuf, tensor_demux->num_srcpads);
-  type = gst_get_tensortype (inbuf, tensor_demux->num_srcpads);
+  gst_tensor_demux_get_tensor_config (tensor_demux, &config,
+      tensor_demux->num_srcpads);
 
   tensor_demux->num_srcpads++;
 
@@ -352,20 +375,7 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
   g_free (stream_id);
   gst_event_unref (event);
 
-  caps_string = g_strdup_printf ("other/tensor, "
-      "type = (string)%s,"
-      "framerate = (fraction) %d/%d, "
-      "dim1 = (int) %d, "
-      "dim2 = (int) %d, "
-      "dim3 = (int) %d, "
-      "dim4 = (int) %d", tensor_element_typename[type],
-      tensor_demux->framerate_numerator, tensor_demux->framerate_denominator,
-      (*dim)[0], (*dim)[1], (*dim)[2], (*dim)[3]);
-
-  caps = gst_caps_from_string (caps_string);
-  GST_DEBUG_OBJECT (tensor_demux, "caps for pad : %s", caps_string);
-
-  g_free (caps_string);
+  caps = gst_tensor_caps_from_config (&config);
   gst_pad_set_caps (pad, caps);
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_demux), pad);
 
@@ -393,7 +403,7 @@ gst_get_tensor_pad (GstTensorDemux * tensor_demux, GstBuffer * inbuf,
  * @return return status after check sources
  */
 static GstFlowReturn
-gst_tensordemux_combine_flows (GstTensorDemux * tensor_demux,
+gst_tensor_demux_combine_flows (GstTensorDemux * tensor_demux,
     GstTensorPad * pad, GstFlowReturn ret)
 {
   GSList *walk;
@@ -431,9 +441,11 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     }
   }
 
-  num_tensors = gst_get_num_tensors (buf);
-
+  num_tensors = tensor_demux->tensors_config.info.num_tensors;
   GST_DEBUG_OBJECT (tensor_demux, " Number or Tensors: %d", num_tensors);
+
+  /* supposed n memory blocks in buffer */
+  g_assert (gst_buffer_n_memory (buf) == num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
     if (tensor_demux->tensorpick != NULL) {
@@ -454,10 +466,10 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     GstMemory *mem;
     gboolean created;
     GstClockTime ts;
-    srcpad = gst_get_tensor_pad (tensor_demux, buf, &created, i);
+    srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i);
 
     outbuf = gst_buffer_new ();
-    mem = gst_get_tensor (buf, i);
+    mem = gst_buffer_peek_memory (buf, i);
     gst_buffer_append_memory (outbuf, mem);
     ts = GST_BUFFER_PTS (buf);
 
@@ -486,7 +498,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         "pushing buffer with timestamp %" GST_TIME_FORMAT,
         GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));
     res = gst_pad_push (srcpad->pad, outbuf);
-    res = gst_tensordemux_combine_flows (tensor_demux, srcpad, res);
+    res = gst_tensor_demux_combine_flows (tensor_demux, srcpad, res);
 
     if (res != GST_FLOW_OK)
       break;

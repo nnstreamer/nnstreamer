@@ -21,7 +21,7 @@
  * @brief	GStreamer plugin to demux tensors (as a filter for other general neural network filters)
  * @bug         No known bugs
  *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -33,7 +33,6 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
-#include <tensor_meta.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_DEMUX (gst_tensor_demux_get_type ())
@@ -65,13 +64,12 @@ struct _GstTensorDemux
   gboolean silent;
   GstPad *sinkpad;
   GSList *srcpads;
-  guint32 num_tensors;
   guint32 num_srcpads;
   GList *tensorpick;
   gboolean have_group_id;
   guint group_id;
-  gint framerate_numerator;
-  gint framerate_denominator;
+
+  GstTensorsConfig tensors_config; /**< input tensors info */
 };
 
 /**
