@@ -198,7 +198,7 @@ main (int argc, char **argv)
       "sink_1::xpos=0 sink_1::ypos=0 sink_1::zorder=1 sink_1::alpha=0.7 ! "
       "videoconvert ! ximagesink name=img_mixed "
       "t_raw. ! queue ! mix.sink_0 "
-      "t_raw. ! queue ! tensor_converter ! tensordec ! videoscale ! video/x-raw,width=%d,height=%d ! mix.sink_1 "
+      "t_raw. ! queue ! tensor_converter ! tensor_decoder ! videoscale ! video/x-raw,width=%d,height=%d ! mix.sink_1 "
       "t_raw. ! queue ! videoconvert ! ximagesink name=img_origin",
       width, height, width / 2, height / 2);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
