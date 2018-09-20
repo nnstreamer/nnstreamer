@@ -38,7 +38,7 @@
  * <title>Example launch line</title>
  * |[
  * gst-launch -v -m filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1 ! tensor_converter
- * ! tensorsplit name=split tensorseg=1:100:100:2,1:100:100:1 split.src_0 ! queue ! filesink location=src0.log
+ * ! tensor_split name=split tensorseg=1:100:100:2,1:100:100:1 split.src_0 ! queue ! filesink location=src0.log
  * split.src_1 ! queue ! filesink location=src1.log
  * ]|
  *
@@ -140,7 +140,7 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
       gst_static_pad_template_get (&src_templ));
 
   gst_element_class_set_details_simple (gstelement_class,
-      "tensorsplit",
+      "TensorSplit",
       "Split other/tensor stream",
       "Split tensor stream to other/tensor stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
@@ -683,7 +683,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensorsplit"
+#define PACKAGE "tensor_split"
 #endif
 
 /**
@@ -697,9 +697,9 @@ gst_tensor_split_plugin_init (GstPlugin * tensorsplit)
   /** debug category for fltering log messages
    * exchange the string 'Template tensor_split' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_split_debug, "tensorsplit", 0,
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_split_debug, "tensor_split", 0,
       "Tensor Spliter");
-  return gst_element_register (tensorsplit, "tensorsplit",
+  return gst_element_register (tensorsplit, "tensor_split",
       GST_RANK_NONE, GST_TYPE_TENSOR_SPLIT);
 }
 
@@ -708,7 +708,7 @@ gst_tensor_split_plugin_init (GstPlugin * tensorsplit)
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    tensorsplit,
-    "tensorsplit",
+    tensor_split,
+    "tensor split plugin",
     gst_tensor_split_plugin_init, VERSION, "LGPL", "GStreamer",
     "http://gstreamer.net/");
