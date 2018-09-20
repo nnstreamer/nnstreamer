@@ -36,7 +36,8 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef enum {
+typedef enum
+{
   RGB = 0,
   GRAY8,
 } colorformat_t;
@@ -241,8 +242,16 @@ main (int argc, char *argv[])
   ptr16 = (uint16_t *) & (header[20]);
   height = *ptr16;
 
+  /** Let's not accept BMP files larger than 10000 x 10000 (Fix Covertify Issue #1029514) */
+  if (width > 10000 || height > 10000) {
+    printf
+        ("We do not accept BMP files with height or width larger than 10000.\n");
+    fclose (bmpF);
+    return 100;
+  }
   bmp.width = width;
   bmp.height = height;
+
   bmp.pixels = calloc (width * height, sizeof (pixel_t));
 
   for (y = (int) height - 1; y >= 0; y--) {
@@ -252,8 +261,8 @@ main (int argc, char *argv[])
         uint8_t gray;
         size = fread (&gray, 1, 1, bmpF);
         if (size != 1) {
-          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width, height,
-              size);
+          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width,
+              height, size);
           goto error;
         }
         pixel->gray = gray;
@@ -261,8 +270,8 @@ main (int argc, char *argv[])
         uint8_t bgr[3];
         size = fread (bgr, 1, 3, bmpF);
         if (size != 3) {
-          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width, height,
-              size);
+          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width,
+              height, size);
           goto error;
         }
         pixel->red = bgr[2];
