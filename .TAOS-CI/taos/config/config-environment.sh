@@ -80,6 +80,11 @@ pr_build_arch_type="x86_64 armv7l"
 # Advanced = 1 (Basic + "@author, @bug and functions with ctags")
 pr_doxygen_check_level=1
 
+### Check level of CPPCheck:
+# CPPCheck Level 0: The check level is 'err'.
+# CPPCheck Level 1: 'err' + 'warning,performance,unusedFunction'
+pr_cppcheck_check_level=0
+
 #### File size limit
 # unit of the file size is MB.
 filesize_limit=5
