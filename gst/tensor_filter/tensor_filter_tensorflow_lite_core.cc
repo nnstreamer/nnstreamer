@@ -51,7 +51,6 @@ TFLiteCore::TFLiteCore (const char *_model_path)
   loadModel ();
   setInputTensorProp ();
   setOutputTensorProp ();
-
 }
 
 /**
@@ -95,7 +94,8 @@ TFLiteCore::loadModel ()
       _print_log ("Failed to mmap model\n");
       return -1;
     }
-    model->error_reporter ();
+    /* If got any trouble at model, active below code. It'll be help to analyze. */
+    /* model->error_reporter (); */
 
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder (*model, resolver) (&interpreter);
