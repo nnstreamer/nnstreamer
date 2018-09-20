@@ -38,7 +38,7 @@
  * <title>Example launch line</title>
  * |[
  * gst-launch -v -m filesrc location=testcase_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1 ! tensor_converter
- * ! tensor_split name=split tensorseg=1:100:100:2,1:100:100:1 split.src_0 ! queue ! filesink location=src0.log
+ * ! tensor_split name=split tensorseg=2:100:100,1:100:100 split.src_0 ! queue ! filesink location=src0.log
  * split.src_1 ! queue ! filesink location=src1.log
  * ]|
  *
@@ -607,6 +607,9 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
         for (k = 0; k < num; k++) {
           (*d)[k] = g_ascii_strtod (p[k], NULL);
         }
+        for (k = num; k < NNS_TENSOR_RANK_LIMIT; k++)
+          (*d)[k] = 1;
+
         g_array_append_val (self->tensorseg, d);
         g_strfreev (p);
       }
