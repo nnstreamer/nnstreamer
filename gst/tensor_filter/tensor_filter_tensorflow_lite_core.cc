@@ -306,7 +306,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     for (int j = 0; j < num_of_input[i]; j++) {
       if (inputTensorMeta.info[i].type == _NNS_FLOAT32) {
         (interpreter->typed_tensor < float >(in_tensor))[j] =
-            (((float *) input[i].data)[j] - 127.5f) / 127.5f;
+            ((float *) input[i].data)[j];
       } else if (inputTensorMeta.info[i].type == _NNS_UINT8) {
         (interpreter->typed_tensor < uint8_t > (in_tensor))[j] =
             ((uint8_t *) input[i].data)[j];
