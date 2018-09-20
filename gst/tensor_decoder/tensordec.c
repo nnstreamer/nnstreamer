@@ -35,7 +35,7 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v -m fakesink ! tensordec ! fakesrc silent=TRUE
+ * gst-launch -v -m fakesink ! tensor_decoder ! fakesrc silent=TRUE
  * ]|
  * </refsect2>
  */
@@ -444,7 +444,7 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
-      "TensorDec",
+      "TensorDecoder",
       "Converter/Tensor",
       "Converts tensor stream of C-Array for neural network framework filters to audio or video stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
@@ -952,10 +952,10 @@ gst_tensordec_plugin_init (GstPlugin * plugin)
   /**
    * debug category for fltering log messages
    */
-  GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensordec",
+  GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensor_decoder",
       0, "Element to convert tensor to media stream");
 
-  return gst_element_register (plugin, "tensordec", GST_RANK_NONE,
+  return gst_element_register (plugin, "tensor_decoder", GST_RANK_NONE,
       GST_TYPE_TENSORDEC);
 }
 
@@ -966,15 +966,15 @@ gst_tensordec_plugin_init (GstPlugin * plugin)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensordec"
+#define PACKAGE "tensor_decoder"
 #endif
 
 /**
- * gstreamer looks for this structure to register tensordec
+ * gstreamer looks for this structure to register tensor_decoder
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    tensordec,
+    tensor_decoder,
     "Element to convert tensor to media stream",
     gst_tensordec_plugin_init,
     VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
