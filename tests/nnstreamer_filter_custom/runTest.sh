@@ -35,10 +35,15 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 
 compareAll testcase03.direct.log testcase03.passthrough.log 3
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_V}\" ! filesink location=\"testcase04.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase04.direct.log\" sync=true" 4
+# Test single tensor (other/tensor)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_V}\" ! filesink location=\"testcase04.tensor.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase04.tensor.direct.log\" sync=true" 4-1
 
-compareAll testcase04.direct.log testcase04.passthrough.log 4
+compareAll testcase04.tensor.direct.log testcase04.tensor.passthrough.log 4-2
 
+# Test multi tensors with mux (other/tensors)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_V}\" ! filesink location=\"testcase04.tensors.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase04.tensors.direct.log\" sync=true videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=160,height=120,framerate=0/1 ! tensor_converter ! mux.sink_0 videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=120,height=80,framerate=0/1 ! tensor_converter ! mux.sink_1 videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=64,height=48,framerate=0/1 ! tensor_converter ! mux.sink_2" 4-3
+
+compareAll testcase04.tensors.direct.log testcase04.tensors.passthrough.log 4-4
 
 # Test scaler (5, 6, 7)
 PATH_TO_MODEL_S="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler.so"
