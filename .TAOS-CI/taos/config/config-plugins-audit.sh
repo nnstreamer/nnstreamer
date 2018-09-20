@@ -59,3 +59,9 @@ echo "[MODULE] plugins-staging: Plugin group that does not have evaluation and a
 # $module_name
 # echo "[DEBUG] $module_name is done."
 
+audit_plugins[++idx]="pr-audit-nnstreamer-ubuntu-apptest"
+echo "[DEBUG] TAOS/${audit_plugins[idx]}: Check nnstreamer sample app"
+echo "[DEBUG] ${audit_plugins[idx]} is started."
+echo "[DEBUG] Current path: $(pwd)."
+source ${REFERENCE_REPOSITORY}/ci/taos/plugins-staging/${audit_plugins[idx]}.sh
+

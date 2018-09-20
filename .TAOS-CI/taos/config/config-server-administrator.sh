@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-
 ##
 # @file config-server-administrator.sh
 # @brief configuration file to declare contents that a server administrator installed.
