@@ -66,7 +66,7 @@ typedef enum
   TEST_TYPE_AUDIO_U16_1000F, /**< pipeline for audio (U16) 1000 frames */
   TEST_TYPE_TEXT, /**< pipeline for text */
   TEST_TYPE_TEXT_3F, /**< pipeline for text 3 frames */
-  TEST_TYPE_TENSORS, /**< pipeline for tensors with tensormux */
+  TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
   TEST_TYPE_NEGO_FAILED, /**< pipeline to test caps negotiation */
   TEST_TYPE_VIDEO_RGB_AGGR, /**< pipeline to test tensor-aggregator */
   TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor-aggregator */
@@ -416,10 +416,10 @@ _setup_pipeline (TestOption & option)
       break;
       break;
     case TEST_TYPE_TENSORS:
-      /** other/tensors with tensormux */
+      /** other/tensors with tensor_mux */
       str_pipeline =
           g_strdup_printf
-          ("tensormux name=mux ! tensor_sink name=test_sink "
+          ("tensor_mux name=mux ! tensor_sink name=test_sink "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 ",
           option.num_buffers, option.num_buffers);

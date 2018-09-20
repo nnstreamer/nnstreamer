@@ -10,7 +10,7 @@
  *
  * [1st pipeline : videotestsrc-tensor_converter-tensor_sink]
  * push buffer to appsrc
- * [2nd pipeline : appsrc-tensordec-videoconvert-ximagesink]
+ * [2nd pipeline : appsrc-tensor_decoder-videoconvert-ximagesink]
  *
  * Run example :
  * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
@@ -297,7 +297,7 @@ main (int argc, char **argv)
   /** init player pipeline */
   str_pipeline =
       g_strdup_printf
-      ("appsrc name=player_src ! tensordec ! videoconvert ! ximagesink");
+      ("appsrc name=player_src ! tensor_decoder ! videoconvert ! ximagesink");
   g_app.player_pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.player_pipeline != NULL);
