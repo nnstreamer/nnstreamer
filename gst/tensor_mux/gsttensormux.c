@@ -38,14 +38,14 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v -m tensormux name=mux ! fakesink
+ * gst-launch -v -m tensor_mux name=mux ! fakesink
  * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0
  * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1
  * filesrc location=b.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2
  * ]|
  *
  * |[
- * gst-launch -v -m tensormux name=mux ! filesink location=mux.log
+ * gst-launch -v -m tensor_mux name=mux ! filesink location=mux.log
  * multifilesrc location="testsequence_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_0
  * multifilesrc location="testsequence_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_1
  * multifilesrc location="testsequence_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_2
@@ -145,7 +145,7 @@ gst_tensor_mux_class_init (GstTensorMuxClass * klass)
       gst_static_pad_template_get (&src_templ));
 
   gst_element_class_set_details_simple (gstelement_class,
-      "tensormux",
+      "TensorMux",
       "Mux multiple tensor stream",
       "Merge multiple tensor stream to tensors stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
@@ -586,7 +586,7 @@ gst_tensor_mux_get_property (GObject * object, guint prop_id,
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensormux"
+#define PACKAGE "tensor_mux"
 #endif
 
 /**
@@ -600,9 +600,9 @@ gst_tensor_mux_plugin_init (GstPlugin * tensormux)
   /** debug category for fltering log messages
    * exchange the string 'Template tensor_mux' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_mux_debug, "tensormux", 0,
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_mux_debug, "tensor_mux", 0,
       "Tensor Muxer");
-  return gst_element_register (tensormux, "tensormux",
+  return gst_element_register (tensormux, "tensor_mux",
       GST_RANK_NONE, GST_TYPE_TENSOR_MUX);
 }
 
@@ -611,7 +611,7 @@ gst_tensor_mux_plugin_init (GstPlugin * tensormux)
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    tensormux,
-    "tensormux",
+    tensor_mux,
+    "tensor mux plugin",
     gst_tensor_mux_plugin_init, VERSION, "LGPL", "GStreamer",
     "http://gstreamer.net/");
