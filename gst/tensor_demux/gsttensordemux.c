@@ -29,7 +29,7 @@
  */
 
 /**
- * SECTION:element-tensordemux
+ * SECTION:element-tensor_demux
  *
  * A Deuxer that demux tensors stream to tensor stream for NN frameworks.
  * The outputs are always in the format of other/tensor
@@ -37,7 +37,7 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch-1.0 tensormux name=mux ! tensordemux name=demux \
+ * gst-launch-1.0 tensor_mux name=mux ! tensor_demux name=demux \
  * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_0 \
  * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_1 \
  * filesrc location=testcase01_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! tensor_converter ! mux.sink_2 \
@@ -47,7 +47,7 @@
  * ]|
  *
  * |[
- * gst-launch-1.0 tensormux name=mux ! tensordemux name=demux \
+ * gst-launch-1.0 tensor_mux name=mux ! tensor_demux name=demux \
  * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_0 \
  * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_1 \
  * multifilesrc location="testsequence01_%1d.png" index=0 caps="image/png, framerate=(fraction)30/1" ! pngdec ! tensor_converter ! mux.sink_2 \
@@ -148,7 +148,7 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
       gst_static_pad_template_get (&src_templ));
 
   gst_element_class_set_details_simple (gstelement_class,
-      "tensordemux",
+      "TensorDemux",
       "Demux other/tensors stream",
       "Demux tensors stream to other/tensor stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
@@ -599,7 +599,7 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensordemux"
+#define PACKAGE "tensor_demux"
 #endif
 
 /**
@@ -613,18 +613,18 @@ gst_tensor_demux_plugin_init (GstPlugin * tensordemux)
   /** debug category for fltering log messages
    * exchange the string 'Template tensor_demux' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_demux_debug, "tensordemux", 0,
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_demux_debug, "tensor_demux", 0,
       "Tensor Demuxer");
-  return gst_element_register (tensordemux, "tensordemux",
+  return gst_element_register (tensordemux, "tensor_demux",
       GST_RANK_NONE, GST_TYPE_TENSOR_DEMUX);
 }
 
 /**
- * @brief gstreamer looks for this structure to register tensormux
+ * @brief gstreamer looks for this structure to register tensor_mux
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    tensordemux,
-    "tensordemux",
+    tensor_demux,
+    "tensor_demux",
     gst_tensor_demux_plugin_init, VERSION, "LGPL", "GStreamer",
     "http://gstreamer.net/");
