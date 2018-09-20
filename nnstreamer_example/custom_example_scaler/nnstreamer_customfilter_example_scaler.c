@@ -70,15 +70,11 @@ pt_init (const GstTensorFilterProperties * prop)
     gchar **strv = g_strsplit_set (data->property, s, 3);
     if (strv[0] != NULL) {
       data->new_x = (uint32_t) g_ascii_strtoll (strv[0], NULL, 10);
-      if (data->new_x < 0)
-        data->new_x = 0;
     } else {
       data->new_x = 0;
     }
     if (strv[1] != NULL) {
       data->new_y = (uint32_t) g_ascii_strtoll (strv[1], NULL, 10);
-      if (data->new_y < 0)
-        data->new_y = 0;
     } else {
       data->new_y = 0;
     }
