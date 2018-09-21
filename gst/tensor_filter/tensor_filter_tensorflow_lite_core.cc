@@ -271,6 +271,14 @@ TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
 }
 
 /**
+ * @breif A macro to reduce repeated switch-case lines
+ */
+#define case4type(casename, type, element) \
+  case casename: \
+    inputTensor->data.element = (type *) input[i].data; \
+    break;
+
+/**
  * @brief	run the model with the input.
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
@@ -295,21 +303,10 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     TfLiteTensor *inputTensor = interpreter->tensor (in_tensor);
 
     switch (inputTensorMeta.info[i].type) {
-      case _NNS_FLOAT32:
-        inputTensor->data.f = (float *) input[i].data;
-        break;
-
-      case _NNS_UINT8:
-        inputTensor->data.uint8 = (uint8_t *) input[i].data;
-        break;
-
-      case _NNS_INT32:
-        inputTensor->data.i32 = (int *) input[i].data;
-        break;
-
-      case _NNS_INT64:
-        inputTensor->data.i64 = (int64_t *) input[i].data;
-        break;
+      case4type (_NNS_FLOAT32, float, f);
+      case4type (_NNS_UINT8, uint8_t, uint8);
+      case4type (_NNS_INT32, int, i32);
+      case4type (_NNS_INT64, int64_t, i64);
 
       case _NNS_UINT32:
       case _NNS_INT16:
