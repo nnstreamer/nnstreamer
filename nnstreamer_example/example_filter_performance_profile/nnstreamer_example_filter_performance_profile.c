@@ -2,7 +2,7 @@
  * @file	nnstreamer_example_filter_performance_profile.c
  * @date	27 August 2018
  * @brief	A NNStreamer Example of tensor_filter using TensorFlow Lite:
- *          Perfromance Profiling (i.e., FPS)
+ * 		Perfromance Profiling (i.e., FPS)
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Wook Song <wook16.song@samsung.com>
  * @bug		No known bugs.
@@ -20,9 +20,7 @@
  * https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/lite/g3doc/models.md#image-classification-quantized-models
  * By using the 'new-data' signal of tensor_sink, Frames per Second (FPS) is measured
  * as well as the clasification result is fed to 'textoverlay'.
- *_filterS for the frames from v4l2src,
- *_filterthe frames from the tensor_convert filter.
- *_filter
+ *
  * How to run this application: Before running this example,
  * GST_PLUGIN_PATH should be updated for the path where the nnstreamer plug-ins are placed.
  * $ export GST_PLUGIN_PATH=/where/NNSTreamer/plugins/located:$GST_PLUGIN_PATH
