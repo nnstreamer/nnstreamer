@@ -680,6 +680,48 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
 }
 
 /**
+ * @brief update top label index by given tensor data 
+ * @param self "this" pointer
+ * @param scores given tensor data
+ * @param len length of valid given tensor data
+ */
+static void
+gst_tensordec_update_top_label_index (GstTensorDec * self,
+    guint8 * scores, guint len)
+{
+/** Not yet implemented TBD*/
+}
+
+/**
+ * @brief get image label by incomming tensor 
+ * @param self "this" pointer
+ * @param inbuf sink pad buffer
+ * @param outbuf src pad buffer
+ * @return GST_FLOW_OK if ok. other values represents error
+ */
+static GstFlowReturn
+gst_tensordec_get_label (GstTensorDec * self,
+    GstBuffer * inbuf, GstBuffer * outbuf)
+{
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  guint num_mems;
+
+  num_mems = gst_buffer_n_memory (inbuf);
+  for (i = 0; i < num_mems; i++) {
+    mem = gst_buffer_peek_memory (inbuf, i);
+    if (gst_memory_map (mem, &info, GST_MAP_READ)) {
+      /** update label index with max score */
+      gst_tensordec_update_top_label_index (self, info.data, (guint) info.size);
+      gst_memory_unmap (mem, &info);
+    }
+  }
+
+  return GST_FLOW_OK;
+}
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  */
 static GstFlowReturn
@@ -699,8 +741,14 @@ gst_tensordec_transform (GstBaseTransform * trans,
   switch (self->output_type) {
     case OUTPUT_VIDEO:
     case OUTPUT_AUDIO:
-    case OUTPUT_TEXT:
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
+      break;
+    case OUTPUT_TEXT:
+      if (g_strcmp0 (self->mode, "image_labeling") == 0) {
+        res = gst_tensordec_get_label (self, inbuf, outbuf);
+      } else {
+        res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
+      }
       break;
     default:
       err_print ("Unsupported Media Type (%d)\n", self->output_type);
