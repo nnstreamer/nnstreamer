@@ -19,9 +19,7 @@
  * @file	gsttensorsplit.c
  * @date	27 Aug 2018
  * @brief	GStreamer plugin to split tensor (as a filter for other general neural network filters)
- * @bug         No known bugs
- *
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -56,7 +54,6 @@
 #include <glib.h>
 
 #include "gsttensorsplit.h"
-#include <tensor_meta.h>
 #include <tensor_common.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_split_debug);
@@ -141,7 +138,7 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorSplit",
-      "Split other/tensor stream",
+      "Demuxer/Tensor",
       "Split tensor stream to other/tensor stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 }

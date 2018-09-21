@@ -19,8 +19,6 @@
  * @file	gsttensordemux.c
  * @date	03 July 2018
  * @brief	GStreamer plugin to demux tensors (as a filter for other general neural network filters)
- * @bug         No known bugs
- *
  * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
@@ -148,7 +146,7 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDemux",
-      "Demux other/tensors stream",
+      "Demuxer/Tensor",
       "Demux tensors stream to other/tensor stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 }
@@ -632,7 +630,7 @@ gst_tensor_demux_plugin_init (GstPlugin * tensordemux)
 }
 
 /**
- * @brief gstreamer looks for this structure to register tensor_mux
+ * @brief gstreamer looks for this structure to register tensor_demux
  */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
