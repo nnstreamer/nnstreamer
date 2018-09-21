@@ -284,13 +284,6 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   gettimeofday (&start_time, nullptr);
 #endif
 
-  int num_of_input[NNS_TENSOR_SIZE_LIMIT];
-  for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    num_of_input[i] = 1;
-  }
-
-  int sizeOfArray = NNS_TENSOR_RANK_LIMIT;
-
   if (interpreter->AllocateTensors () != kTfLiteOk) {
     printf ("Failed to allocate tensors\n");
     return -2;
@@ -299,18 +292,35 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   for (int i = 0; i < getInputTensorSize (); i++) {
     int in_tensor = interpreter->inputs ()[i];
 
-    for (int j = 0; j < sizeOfArray; j++) {
-      num_of_input[i] *= inputTensorMeta.info[i].dimension[j];
-    }
+    TfLiteTensor *inputTensor = interpreter->tensor (in_tensor);
 
-    for (int j = 0; j < num_of_input[i]; j++) {
-      if (inputTensorMeta.info[i].type == _NNS_FLOAT32) {
-        (interpreter->typed_tensor < float >(in_tensor))[j] =
-            ((float *) input[i].data)[j];
-      } else if (inputTensorMeta.info[i].type == _NNS_UINT8) {
-        (interpreter->typed_tensor < uint8_t > (in_tensor))[j] =
-            ((uint8_t *) input[i].data)[j];
-      }
+    switch (inputTensorMeta.info[i].type) {
+      case _NNS_FLOAT32:
+        inputTensor->data.f = (float *) input[i].data;
+        break;
+
+      case _NNS_UINT8:
+        inputTensor->data.uint8 = (uint8_t *) input[i].data;
+        break;
+
+      case _NNS_INT32:
+        inputTensor->data.i32 = (int *) input[i].data;
+        break;
+
+      case _NNS_INT64:
+        inputTensor->data.i64 = (int64_t *) input[i].data;
+        break;
+
+      case _NNS_UINT32:
+      case _NNS_INT16:
+      case _NNS_UINT16:
+      case _NNS_INT8:
+      case _NNS_FLOAT64:
+      case _NNS_UINT64:
+      default:
+        _print_log ("Not Supported Type");
+        return -3;
+        break;
     }
   }
 
