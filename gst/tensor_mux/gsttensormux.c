@@ -20,9 +20,7 @@
  * @file	gsttensormux.c
  * @date	03 July 2018
  * @brief	GStreamer plugin to mux tensors (as a filter for other general neural network filters)
- * @bug         No known bugs
- *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -64,7 +62,6 @@
 #include <glib.h>
 
 #include "gsttensormux.h"
-#include <tensor_meta.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_mux_debug);
 #define GST_CAT_DEFAULT gst_tensor_mux_debug
@@ -146,7 +143,7 @@ gst_tensor_mux_class_init (GstTensorMuxClass * klass)
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorMux",
-      "Mux multiple tensor stream",
+      "Muxer/Tensor",
       "Merge multiple tensor stream to tensors stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 
@@ -179,9 +176,8 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
       (GstCollectPadsFunction) GST_DEBUG_FUNCPTR (gst_tensor_mux_collected),
       tensor_mux);
 
-  tensor_mux->num_tensors = 0;
   tensor_mux->silent = FALSE;
-  tensor_mux->rank = 0;
+  gst_tensors_config_init (&tensor_mux->tensors_config);
 }
 
 /**
@@ -214,7 +210,8 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   tensor_mux = GST_TENSOR_MUX (element);
 
-  name = g_strdup_printf ("sink_%u", tensor_mux->num_tensors);
+  name =
+      g_strdup_printf ("sink_%u", tensor_mux->tensors_config.info.num_tensors);
   newpad = gst_pad_new_from_template (templ, name);
   g_free (name);
 
@@ -225,7 +222,7 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
         newpad, sizeof (GstTensorMuxPadData), NULL, TRUE);
     tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
-    tensor_mux->num_tensors++;
+    tensor_mux->tensors_config.info.num_tensors++;
     gst_element_add_pad (element, newpad);
   } else {
     GST_WARNING_OBJECT (tensor_mux, "failed to create request pad");
@@ -299,9 +296,9 @@ gst_tensor_mux_compare_pads (GstTensorMux * tensor_mux,
     newtime = new->pts_timestamp;
   }
 
-  if (oldtime == GST_CLOCK_TIME_NONE)
+  if (!GST_CLOCK_TIME_IS_VALID (oldtime))
     return -1;
-  if (newtime == GST_CLOCK_TIME_NONE)
+  if (!GST_CLOCK_TIME_IS_VALID (newtime))
     return 1;
 
   if (newtime < oldtime)
@@ -316,60 +313,41 @@ gst_tensor_mux_compare_pads (GstTensorMux * tensor_mux,
  * @brief Looping to generete outbut buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
- * @param dimensions collected dimensions as string
- * @param types collected types as string
  * @param pts_time earliest pts time (present timestamp)
  * @param dts_time earliest dts time (decoding timestamp)
  * @return isEOS boolean EOS ( End of Stream )
  */
-gboolean
+static gboolean
 gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
-    GstBuffer * tensors_buf, GString * dimensions, GString * types,
-    GstClockTime * pts_time, GstClockTime * dts_time)
+    GstBuffer * tensors_buf, GstClockTime * pts_time, GstClockTime * dts_time)
 {
   GSList *walk = NULL;
   GstTensorMuxPadData *bestpad = NULL;
-
-  tensor_dim dim;
-  tensor_type type;
   GstMemory *mem;
-  GstTensor_Filter_CheckStatus status;
   gboolean isEOS = FALSE;
-  gint i;
-
-  gint old_numerator = 2147483647, old_denominator = 2147483647;
-  gint new_numerator, new_denominator;
+  gint old_numerator = G_MAXINT;
+  gint old_denominator = G_MAXINT;
   gint counting = 0;
-  tensor_mux->rank = NNS_TENSOR_RANK_LIMIT;
+  GstTensorConfig config;
 
   walk = tensor_mux->collect->data;
 
   while (walk) {
     GstCollectData *data = (GstCollectData *) walk->data;
     GstTensorMuxPadData *pad = (GstTensorMuxPadData *) data;
-
     GstCaps *caps = gst_pad_get_current_caps (pad->pad);
-    status =
-        get_tensor_from_padcap (caps, dim, &type, &new_numerator,
-        &new_denominator);
-    g_assert ((status & _TFC_ALL) == _TFC_ALL);
+    GstStructure *s = gst_caps_get_structure (caps, 0);
 
-    if (new_denominator < old_denominator)
-      old_denominator = new_denominator;
-    if (new_numerator < old_numerator)
-      old_numerator = new_numerator;
+    gst_tensor_config_from_structure (&config, s);
+    g_assert (gst_tensor_config_validate (&config));
 
-    if (dimensions->len != 0)
-      dimensions = g_string_append (dimensions, ",");
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-      dimensions = g_string_append (dimensions, g_strdup_printf ("%d", dim[i]));
-      if (i < NNS_TENSOR_RANK_LIMIT - 1)
-        dimensions = g_string_append (dimensions, ":");
-    }
-    if (types->len != 0)
-      types = g_string_append (types, ",");
-    types = g_string_append (types, tensor_element_typename[type]);
+    if (config.rate_d < old_denominator)
+      old_denominator = config.rate_d;
+    if (config.rate_n < old_numerator)
+      old_numerator = config.rate_n;
+
     gst_caps_unref (caps);
+
     walk = g_slist_next (walk);
     GstBuffer *buf = NULL;
     buf = gst_collect_pads_pop (tensor_mux->collect, data);
@@ -390,25 +368,28 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
 
     pad->buffer = buf;
     if (GST_IS_BUFFER (buf)) {
-      gst_buffer_unref (pad->buffer);
       mem = gst_buffer_get_memory (buf, 0);
-      gst_memory_ref (mem);
-      if (!gst_append_tensor (tensors_buf, mem, dim, type, counting))
-        return FALSE;
-      if (pad->buffer != NULL)
+      gst_buffer_append_memory (tensors_buf, mem);
+
+      if (pad->buffer != NULL) {
         if (gst_tensor_mux_compare_pads (tensor_mux, bestpad, pad) > 0) {
           bestpad = pad;
           *pts_time = bestpad->pts_timestamp;
           *dts_time = bestpad->dts_timestamp;
         }
+      }
+
+      gst_buffer_unref (buf);
     } else {
       isEOS = TRUE;
     }
+
+    tensor_mux->tensors_config.info.info[counting] = config.info;
     counting++;
   }
 
-  tensor_mux->framerate_denominator = old_denominator;
-  tensor_mux->framerate_numerator = old_numerator;
+  tensor_mux->tensors_config.rate_d = old_denominator;
+  tensor_mux->tensors_config.rate_n = old_numerator;
 
   return isEOS;
 }
@@ -424,9 +405,8 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf;
-  GString *dimensions = g_string_new (NULL);
-  GString *types = g_string_new (NULL);
-  GstClockTime pts_time, dts_time;
+  GstClockTime pts_time = GST_CLOCK_TIME_NONE;
+  GstClockTime dts_time = GST_CLOCK_TIME_NONE;
   GstClockTime time = 0;
   gboolean isEOS = FALSE;
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
@@ -438,10 +418,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   }
 
   tensors_buf = gst_buffer_new ();
-  gst_make_tensors (tensors_buf);
   isEOS =
-      gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, dimensions,
-      types, &pts_time, &dts_time);
+      gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &pts_time,
+      &dts_time);
+
   if (isEOS) {
     if (tensors_buf)
       gst_buffer_unref (tensors_buf);
@@ -452,13 +432,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 
   if (!tensor_mux->negotiated) {
     GstCaps *newcaps;
-    newcaps =
-        gst_caps_new_simple ("other/tensors",
-        "num_tensors", G_TYPE_INT,
-        tensor_mux->num_tensors, "types", G_TYPE_STRING,
-        types->str, "framerate", GST_TYPE_FRACTION,
-        tensor_mux->framerate_numerator, tensor_mux->framerate_denominator,
-        "dimensions", G_TYPE_STRING, dimensions->str, NULL);
+
+    g_assert (gst_tensors_config_validate (&tensor_mux->tensors_config));
+    newcaps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
+
     if (!gst_pad_set_caps (tensor_mux->srcpad, newcaps)) {
       gst_caps_unref (newcaps);
       goto nego_error;
@@ -470,9 +447,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 
   if (tensor_mux->need_segment) {
     GstSegment segment;
-    if (dts_time != GST_CLOCK_TIME_NONE) {
+
+    if (GST_CLOCK_TIME_IS_VALID (dts_time)) {
       time = dts_time;
-    } else if (pts_time != GST_CLOCK_TIME_NONE) {
+    } else if (GST_CLOCK_TIME_IS_VALID (pts_time)) {
       time = pts_time;
     } else {
       time = 0;

@@ -19,9 +19,7 @@
  * @file	gsttensormux.h
  * @date	03 July 2018
  * @brief	GStreamer plugin to mux tensors (as a filter for other general neural network filters)
- * @bug         No known bugs
- *
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -34,7 +32,6 @@
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
 #include <tensor_common.h>
-#include <tensor_meta.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_MUX (gst_tensor_mux_get_type ())
@@ -72,12 +69,9 @@ struct _GstTensorMux
   gboolean negotiated;
   gboolean need_segment;
   gboolean need_stream_start;
-
-  guint32 num_tensors;
-  gint rank;
-  gint framerate_numerator;
-  gint framerate_denominator;
   gboolean send_stream_start;
+
+  GstTensorsConfig tensors_config; /**< output tensors info */
 };
 
 /**
