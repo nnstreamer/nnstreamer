@@ -994,7 +994,8 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filtercap)
 {
   /** @todo NYI: framerate configuration! */
-  tensor_dim in, out;
+  tensor_dim in = { 0, };
+  tensor_dim out = { 0, };
   tensor_type itype, otype;
   gboolean ret;
   GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
