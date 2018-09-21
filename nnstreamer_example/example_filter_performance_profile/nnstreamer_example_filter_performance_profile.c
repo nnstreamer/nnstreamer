@@ -412,11 +412,6 @@ _set_and_parse_option_info (int argc, char *argv[], nnstrmr_app_context_t * ctx)
   }
   ctx->input_src_height = height;
 
-  if (width == -1) {
-    width = DEFAULT_WIDTH_INPUT_SRC;
-  }
-  ctx->input_src_width = width;
-
   if (framerates == NULL) {
     framerates = g_strndup (DEFAULT_FRAME_RATES_INPUT_SRC,
         strlen (DEFAULT_FRAME_RATES_INPUT_SRC));
