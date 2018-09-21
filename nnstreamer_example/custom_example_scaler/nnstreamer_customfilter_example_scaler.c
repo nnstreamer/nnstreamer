@@ -172,14 +172,17 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
         for (c = 0; c < prop->input_meta.info[0].dimension[0]; c++) {
           int sz;
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
-          unsigned ix, iy;
+          unsigned int ix, iy;
 
           ix = x * prop->input_meta.info[0].dimension[1] / ox;
           iy = y * prop->input_meta.info[0].dimension[2] / oy;
 
-          assert (ix >= 0 && iy >= 0
-              && ix < prop->input_meta.info[0].dimension[1]
-              && iy < prop->input_meta.info[0].dimension[2]);
+          if (ix >= prop->input_meta.info[0].dimension[1] ||
+              iy >= prop->input_meta.info[0].dimension[2]) {
+            /* index error */
+            assert (0);
+            return -1;
+          }
 
           /* output[z][y][x][c] = input[z][iy][ix][c]; */
           for (sz = 0; sz < elementsize; sz++)
