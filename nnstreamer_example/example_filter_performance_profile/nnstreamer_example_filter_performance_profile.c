@@ -963,7 +963,7 @@ _unregister_signals (nnstrmr_app_context_t * ctx)
 int
 main (int argc, char *argv[])
 {
-  nnstrmr_app_context_t app_ctx;
+  nnstrmr_app_context_t app_ctx = {};
   gboolean ret;
   GstBus *bus;
   guint bus_watch_id;
