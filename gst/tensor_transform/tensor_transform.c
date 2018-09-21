@@ -965,8 +965,8 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
         }
       } else {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-          g_assert (filter->data_transpose.trans_order[i] >= 0 &&
-              filter->data_transpose.trans_order[i] < NNS_TENSOR_RANK_LIMIT);
+          g_assert (filter->data_transpose.trans_order[i] <
+              NNS_TENSOR_RANK_LIMIT);
           destDim[filter->data_transpose.trans_order[i]] = srcDim[i];
         }
       }
