@@ -161,13 +161,11 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
  * @brief initialize data in tensor decoder image labeling info structure.
  */
 static void
-gst_tensordec_image_labeling_init (TensorDec_Image_Label * mode_image_label)
+gst_tensordec_image_labeling_init (Mode_image_labeling * mode_image_label)
 {
-  mode_image_label->labeling_info.label_path = NULL;
-  mode_image_label->labeling_info.labels = NULL;
-  mode_image_label->labeling_info.total_labels = 0;
-  mode_image_label->current_label_index = 0;
-  mode_image_label->new_label_index = 0;
+  mode_image_label->label_path = NULL;
+  mode_image_label->labels = NULL;
+  mode_image_label->total_labels = 0;
 }
 
 /**
@@ -178,9 +176,7 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 {
   FILE *fp;
 
-  if ((fp =
-          fopen (self->tensordec_image_label.labeling_info.label_path,
-              "r")) != NULL) {
+  if ((fp = fopen (self->tensordec_image_label.label_path, "r")) != NULL) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -188,9 +184,8 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 
     while ((read = getline (&line, &len, fp)) != -1) {
       label = g_strdup ((gchar *) line);
-      self->tensordec_image_label.labeling_info.labels =
-          g_list_append (self->tensordec_image_label.labeling_info.labels,
-          label);
+      self->tensordec_image_label.labels =
+          g_list_append (self->tensordec_image_label.labels, label);
     }
 
     if (line) {
@@ -203,8 +198,8 @@ gst_set_mode_image_label_info (GstTensorDec * self)
     return FALSE;
   }
 
-  self->tensordec_image_label.labeling_info.total_labels =
-      g_list_length (self->tensordec_image_label.labeling_info.labels);
+  self->tensordec_image_label.total_labels =
+      g_list_length (self->tensordec_image_label.labels);
   err_print ("finished to load labels");
   return TRUE;
 }
@@ -513,8 +508,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE_OPTION1:
       if (g_strcmp0 (self->mode, "image_labeling") == 0) {
-        self->tensordec_image_label.labeling_info.label_path =
-            g_value_dup_string (value);
+        self->tensordec_image_label.label_path = g_value_dup_string (value);
         gst_set_mode_image_label_info (self);
       }
       break;
@@ -544,8 +538,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, self->mode);
       break;
     case PROP_MODE_OPTION1:
-      g_value_set_string (value,
-          self->tensordec_image_label.labeling_info.label_path);
+      g_value_set_string (value, self->tensordec_image_label.label_path);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -685,9 +678,59 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
  * @param scores given tensor data
  * @param len length of valid given tensor data
  */
-static void
+static gint
 gst_tensordec_update_top_label_index (GstTensorDec * self,
     guint8 * scores, guint len)
+{
+  gint i;
+  gint ret;
+  gint index = -1;
+  guint8 max_score = 0;
+
+  /** -1 if failed to get max score index */
+  ret = -1;
+
+  g_return_if_fail (scores != NULL);
+  g_return_if_fail (len == self->tensordec_image_label.total_labels);
+
+  for (i = 0; i < len; i++) {
+    if (scores[i] > 0 && scores[i] > max_score) {
+      index = i;
+      max_score = scores[i];
+    }
+  }
+
+  ret = index;
+  return ret;
+}
+
+/**
+ * @brief get image label text with given index 
+ * @param self "this" pointer
+ */
+static gchar *
+gst_get_image_label (GstTensorDec * self, gint label)
+{
+  guint length;
+  guint check_label = label;
+  g_return_val_if_fail (self != NULL, NULL);
+  g_return_val_if_fail (self->tensordec_image_label.labels != NULL, NULL);
+
+  length = g_list_length (self->tensordec_image_label.labels);
+  g_return_val_if_fail (check_label >= 0 && check_label < length, NULL);
+
+  return (gchar *) g_list_nth_data
+      (self->tensordec_image_label.labels, check_label);
+}
+
+/**
+ * @brief set output of tensor decoder that will send to src pad  
+ * @param self "this" pointer
+ * @param outbuf src pad buffer
+ */
+static void
+gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
+    gchar * label)
 {
 /** Not yet implemented TBD*/
 }
@@ -705,7 +748,9 @@ gst_tensordec_get_label (GstTensorDec * self,
 {
   GstMemory *mem;
   GstMapInfo info;
+  gchar *image_label;
   guint i;
+  gint max_label = -1;
   guint num_mems;
 
   num_mems = gst_buffer_n_memory (inbuf);
@@ -713,11 +758,14 @@ gst_tensordec_get_label (GstTensorDec * self,
     mem = gst_buffer_peek_memory (inbuf, i);
     if (gst_memory_map (mem, &info, GST_MAP_READ)) {
       /** update label index with max score */
-      gst_tensordec_update_top_label_index (self, info.data, (guint) info.size);
+      max_label =
+          gst_tensordec_update_top_label_index (self, info.data,
+          (guint) info.size);
       gst_memory_unmap (mem, &info);
     }
   }
-
+  image_label = gst_get_image_label (self, max_label);
+  gst_tensordec_label_set_output (self, outbuf, image_label);
   return GST_FLOW_OK;
 }
 
