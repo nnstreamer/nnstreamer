@@ -130,11 +130,12 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+          TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
       g_param_spec_string ("tensorpick", "TensorPick",
-          "Choose nth tensor among tensors ?", "", G_PARAM_READWRITE));
+          "Choose nth tensor among tensors ?", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_demux_change_state);
@@ -169,7 +170,7 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
       GST_DEBUG_FUNCPTR (gst_tensor_demux_event));
 
   tensor_demux->num_srcpads = 0;
-  tensor_demux->silent = FALSE;
+  tensor_demux->silent = TRUE;
   tensor_demux->tensorpick = NULL;
   tensor_demux->have_group_id = FALSE;
   tensor_demux->group_id = G_MAXUINT;
