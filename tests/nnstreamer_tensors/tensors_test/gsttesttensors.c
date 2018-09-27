@@ -3,29 +3,6 @@
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -36,26 +13,22 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Library General Public License for more details.
- *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
  */
+
 /**
  * @file	gsttesttensors.c
  * @date	26 June 2018
  * @brief	Element to test tensors (witch generates tensors)
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		https://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
- * @bug		no known bugs
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
- *
+ * @bug		No known bugs except for NYI items
  */
+
 /**
  * SECTION:element-testtensors
  *
- * FIXME:Describe testtensors here.
+ * This is the element to test tensors only.
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -69,31 +42,22 @@
 #include <config.h>
 #endif
 
-#include <gst/gst.h>
-
 #include "gsttesttensors.h"
 #include <string.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_testtensors_debug);
 #define GST_CAT_DEFAULT gst_testtensors_debug
 
-/** Filter signals and args */
-enum
-{
-  /** FILL ME */
-  LAST_SIGNAL
-};
-
+/** Properties */
 enum
 {
   PROP_0,
+  PROP_PASSTHROUGH,
   PROP_SILENT
 };
 
-gint num_sink = 0;
-
-/** the capabilities of the inputs and outputs.
- *
+/**
+ * the capabilities of the inputs and outputs.
  * describe the real formats here.
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -112,6 +76,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_testtensors_parent_class parent_class
 G_DEFINE_TYPE (Gsttesttensors, gst_testtensors, GST_TYPE_ELEMENT);
 
+/** GObject vmethod implementations */
 static void gst_testtensors_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_testtensors_get_property (GObject * object, guint prop_id,
@@ -121,8 +86,6 @@ static gboolean gst_testtensors_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static GstFlowReturn gst_testtensors_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
-
-/** GObject vmethod implementations */
 
 /**
  * @brief initialize the testtensors's class
@@ -139,13 +102,17 @@ gst_testtensors_class_init (GsttesttensorsClass * klass)
   gobject_class->set_property = gst_testtensors_set_property;
   gobject_class->get_property = gst_testtensors_get_property;
 
+  g_object_class_install_property (gobject_class, PROP_PASSTHROUGH,
+      g_param_spec_boolean ("passthrough", "Passthrough",
+          "Flag to pass incoming buufer", FALSE, G_PARAM_READWRITE));
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+          TRUE, G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple (gstelement_class,
       "testtensors",
-      "Test Tensors",
+      "Test/Tensor",
       "Get x-raw and push tensors including three tensors",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 
@@ -174,7 +141,8 @@ gst_testtensors_init (Gsttesttensors * filter)
   filter->srcpad = gst_pad_new_from_static_template (&src_factory, "src");
   gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
 
-  filter->silent = FALSE;
+  filter->silent = TRUE;
+  filter->passthrough = FALSE;
 }
 
 /**
@@ -187,6 +155,9 @@ gst_testtensors_set_property (GObject * object, guint prop_id,
   Gsttesttensors *filter = GST_TESTTENSORS (object);
 
   switch (prop_id) {
+    case PROP_PASSTHROUGH:
+      filter->passthrough = g_value_get_boolean (value);
+      break;
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
       break;
@@ -206,6 +177,9 @@ gst_testtensors_get_property (GObject * object, guint prop_id,
   Gsttesttensors *filter = GST_TESTTENSORS (object);
 
   switch (prop_id) {
+    case PROP_PASSTHROUGH:
+      g_value_set_boolean (value, filter->passthrough);
+      break;
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
       break;
@@ -216,90 +190,46 @@ gst_testtensors_get_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-static gboolean
-testtensors_init (GstPlugin * testtensors)
-{
-  /** debug category for fltering log messages
-   *
-   * exchange the string 'Template testtensors' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_testtensors_debug, "testtensors",
-      0, "Template testtensors");
-
-  return gst_element_register (testtensors, "testtensors", GST_RANK_NONE,
-      GST_TYPE_TESTTENSORS);
-}
-
-/** PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "testtensors"
-#endif
-
-/** gstreamer looks for this structure to register testtensorss
- *
- * exchange the string 'Template testtensors' with your testtensors description
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    testtensors,
-    "Template testtensors",
-    testtensors_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")
-
-/**
  * @brief Set Caps in pad.
  * @param filter Gsttesttensors instance
  * @param caps incomming capablity
  * @return TRUE/FALSE (if successfully generate & set cap, return TRUE)
  */
-     static gboolean
-         gst_test_tensors_setcaps (Gsttesttensors * filter, GstCaps * caps)
+static gboolean
+gst_test_tensors_setcaps (Gsttesttensors * filter, const GstCaps * caps)
 {
-  const gchar *format;
-  gint dim;
   GstCaps *othercaps;
   gboolean ret;
-  unsigned int i;
-
+  guint i, num_tensors;
+  GstTensorConfig config;
+  GstTensorsConfig tensors_config;
   GstStructure *s = gst_caps_get_structure (caps, 0);
 
-  format = gst_structure_get_string (s, "format");
-  if (!g_strcmp0 (format, "RGB"))
-    filter->num_tensors = 3;
-  else
-    filter->num_tensors = 4;
-  gst_structure_get_int (s, "width", &dim);
-  filter->width = dim;
-  gst_structure_get_int (s, "height", &dim);
-  filter->height = dim;
-  gst_structure_get_fraction (s, "framerate", &filter->framerate_numerator,
-      &filter->framerate_denominator);
-  filter->type = _NNS_UINT8;
-  filter->rank = 3;
+  g_assert (gst_tensor_config_from_structure (&config, s));
+  g_assert (gst_tensor_config_validate (&config));
 
-  char str[256];
-  strcpy (str, tensor_element_typename[filter->type]);
-  for (i = 1; i < filter->num_tensors; i++) {
-    strcat (str, ",");
-    strcat (str, tensor_element_typename[filter->type]);
+  filter->in_config = config;
+
+  /* parse config to test tensors */
+  gst_tensors_config_init (&tensors_config);
+
+  num_tensors = tensors_config.info.num_tensors = config.info.dimension[0];
+
+  config.info.dimension[0] = 1;
+  for (i = 0; i < num_tensors; i++) {
+    tensors_config.info.info[i] = config.info;
   }
 
-  othercaps = gst_caps_new_simple ("other/tensors",
-      "rank", G_TYPE_INT, filter->rank,
-      "num_tensors", G_TYPE_INT, filter->num_tensors,
-      "types", G_TYPE_STRING, str,
-      "framerate", GST_TYPE_FRACTION, filter->framerate_numerator,
-      filter->framerate_denominator, "dimensions", G_TYPE_STRING,
-      "1:640:480:1 ,1:640:480:3 ,1:640:480:1", NULL);
+  tensors_config.rate_n = config.rate_n;
+  tensors_config.rate_d = config.rate_d;
+  g_assert (gst_tensors_config_validate (&tensors_config));
+
+  filter->out_config = tensors_config;
+
+  othercaps = gst_tensors_caps_from_config (&tensors_config);
   ret = gst_pad_set_caps (filter->srcpad, othercaps);
   gst_caps_unref (othercaps);
+
   return ret;
 }
 
@@ -313,41 +243,37 @@ static GstBuffer *
 gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
 {
   GstBuffer *outbuf;
-  gint num_tensor;
+  guint i, num_tensors;
+  guint d1, d2;
+  guint width, height;
   GstMapInfo src_info;
+  size_t span, span1;
 
-  int d1, d2;
   outbuf = gst_buffer_new ();
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
 
-  gst_make_tensors (outbuf);
+  num_tensors = filter->out_config.info.num_tensors;
 
-  for (num_tensor = 0; num_tensor < filter->num_tensors; num_tensor++) {
+  for (i = 0; i < num_tensors; i++) {
     GstMapInfo info;
-    GstMemory *mem = gst_allocator_alloc (NULL, filter->width * filter->height,
-        NULL);
+    GstMemory *mem;
 
+    width = filter->out_config.info.info[i].dimension[1];
+    height = filter->out_config.info.info[i].dimension[2];
+
+    mem = gst_allocator_alloc (NULL, width * height, NULL);
     gst_memory_map (mem, &info, GST_MAP_WRITE);
-    size_t span = 0;
-    size_t span1 = 0;
 
-    for (d1 = 0; d1 < filter->height; d1++) {
-      span = d1 * filter->width * filter->num_tensors;
-      span1 = d1 * filter->width;
-      for (d2 = 0; d2 < filter->width; d2++) {
-        info.data[span1 + d2] =
-            src_info.data[span + (d2 * filter->num_tensors) + num_tensor];
+    for (d1 = 0; d1 < height; d1++) {
+      span = d1 * width * num_tensors;
+      span1 = d1 * width;
+      for (d2 = 0; d2 < width; d2++) {
+        info.data[span1 + d2] = src_info.data[span + (d2 * num_tensors) + i];
       }
     }
 
-    tensor_dim dim;
-    dim[0] = 1;
-    dim[1] = filter->width;
-    dim[2] = filter->height;
-    dim[3] = 1;
-
     gst_memory_unmap (mem, &info);
-    gst_append_tensor (outbuf, mem, dim, filter->type, num_sink++);
+    gst_buffer_append_memory (outbuf, mem);
   }
 
   gst_buffer_unmap (inbuf, &src_info);
@@ -355,10 +281,9 @@ gst_test_tensors (Gsttesttensors * filter, GstBuffer * inbuf)
   return outbuf;
 }
 
-/** GstElement vmethod implementations */
-
 /**
- * @brief this function handles sink events
+ * @brief this function handles sink events.
+ * GstElement vmethod implementations.
  */
 static gboolean
 gst_testtensors_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
@@ -389,8 +314,8 @@ gst_testtensors_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 /**
- * @brief chain function
- * this function does the actual processing
+ * @brief chain function, this function does the actual processing.
+ * GstElement vmethod implementations.
  */
 static GstFlowReturn
 gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
@@ -413,3 +338,42 @@ gst_testtensors_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   return gst_pad_push (filter->srcpad, out);
 }
+
+/**
+ * @brief entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+static gboolean
+testtensors_init (GstPlugin * plugin)
+{
+  /**
+   * debug category for fltering log messages
+   * exchange the string 'Template testtensors' with your description
+   */
+  GST_DEBUG_CATEGORY_INIT (gst_testtensors_debug, "testtensors",
+      0, "Element testtensors to test tensors");
+
+  return gst_element_register (plugin, "testtensors", GST_RANK_NONE,
+      GST_TYPE_TESTTENSORS);
+}
+
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "testtensors"
+#endif
+
+/**
+ * gstreamer looks for this structure to register testtensorss
+ * exchange the string 'Template testtensors' with your testtensors description
+ */
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    testtensors,
+    "Element testtensors to test tensors",
+    testtensors_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")

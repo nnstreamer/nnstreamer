@@ -50,7 +50,6 @@
 #include <glib.h>
 
 #include "tensor_load.h"
-#include <tensor_meta.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_load_debug);
 #define GST_CAT_DEFAULT gst_tensor_load_debug
