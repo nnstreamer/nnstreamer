@@ -129,7 +129,7 @@ gst_tensor_mux_class_init (GstTensorMuxClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+          TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gstelement_class->request_new_pad =
       GST_DEBUG_FUNCPTR (gst_tensor_mux_request_new_pad);
@@ -176,7 +176,7 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
       (GstCollectPadsFunction) GST_DEBUG_FUNCPTR (gst_tensor_mux_collected),
       tensor_mux);
 
-  tensor_mux->silent = FALSE;
+  tensor_mux->silent = TRUE;
   gst_tensors_config_init (&tensor_mux->tensors_config);
 }
 
@@ -391,6 +391,14 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
   tensor_mux->tensors_config.rate_d = old_denominator;
   tensor_mux->tensors_config.rate_n = old_numerator;
 
+  debug_print (!tensor_mux->silent, "pts %" GST_TIME_FORMAT,
+      GST_TIME_ARGS (*pts_time));
+  debug_print (!tensor_mux->silent, "dts %" GST_TIME_FORMAT,
+      GST_TIME_ARGS (*dts_time));
+
+  /* set timestamp */
+  GST_BUFFER_PTS (tensors_buf) = *pts_time;
+  GST_BUFFER_DTS (tensors_buf) = *dts_time;
   return isEOS;
 }
 
