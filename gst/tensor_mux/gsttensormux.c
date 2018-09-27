@@ -463,8 +463,11 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   }
 
   ret = gst_pad_push (tensor_mux->srcpad, tensors_buf);
-  if (ret != GST_FLOW_OK)
-    goto beach;
+  if (ret != GST_FLOW_OK) {
+    GST_WARNING_OBJECT (tensor_mux, "pushed outbuf, result = %s",
+        gst_flow_get_name (ret));
+    /* fall-through, returns result */
+  }
 beach:
   return ret;
 nego_error:
