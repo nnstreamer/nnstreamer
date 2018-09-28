@@ -489,7 +489,7 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
   format_string = gst_structure_get_string (structure, "format");
   if (format_string) {
     if (g_str_equal (format_string, "utf8")) {
-      config->info.type = _NNS_INT8;
+      config->info.type = _NNS_UINT8;
     } else {
       /** unsupported format */
       err_print ("Unsupported format\n");
