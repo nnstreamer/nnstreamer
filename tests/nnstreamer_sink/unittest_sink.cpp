@@ -102,8 +102,10 @@ typedef struct
   guint received; /**< received buffer count */
   guint mem_blocks; /**< memory blocks in received buffer */
   gsize received_size; /**< received buffer size */
-  gboolean start; /**< stream started */
-  gboolean end; /**< eos reached */
+  gboolean invalid_timestamp; /**< flag to check timestamp */
+  gboolean test_failed; /**< flag to indicate error */
+  gboolean start; /**< stream started (for tensor_sink signal) */
+  gboolean end; /**< eos reached (for tensor_sink signal) */
   gchar *caps_name; /**< negotiated caps name */
   GstTensorConfig tensor_config; /**< tensor config from negotiated caps */
   GstTensorsConfig tensors_config; /**< tensors config from negotiated caps */
@@ -140,6 +142,8 @@ _free_test_data (void)
     gst_object_unref (g_test_data.pipeline);
     g_test_data.pipeline = NULL;
   }
+
+  g_free (g_test_data.caps_name);
 }
 
 /**
@@ -153,6 +157,7 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
     case GST_MESSAGE_WARNING:
       _print_log ("received error message");
       g_test_data.status = TEST_ERR_MESSAGE;
+      g_test_data.test_failed = TRUE;
       g_main_loop_quit (g_test_data.loop);
       break;
 
@@ -185,13 +190,13 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     if (g_test_data.mem_blocks != mem_blocks) {
       _print_log ("invalid memory, old[%d] new[%d]", g_test_data.mem_blocks,
           mem_blocks);
-      g_assert (0);
+      g_test_data.test_failed = TRUE;
     }
 
     if (g_test_data.received_size != buf_size) {
       _print_log ("invalid size, old[%zd] new[%zd]", g_test_data.received_size,
           buf_size);
-      g_assert (0);
+      g_test_data.test_failed = TRUE;
     }
   }
 
@@ -212,6 +217,11 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     _print_log ("dts %" GST_TIME_FORMAT, GST_TIME_ARGS (dts));
   }
 
+  /** check timestamp */
+  if (!GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DTS_OR_PTS (buffer))) {
+    g_test_data.invalid_timestamp = TRUE;
+  }
+
   if (g_test_data.caps_name == NULL) {
     GstPad *sink_pad;
     GstCaps *caps;
@@ -222,20 +232,20 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     caps = gst_pad_get_current_caps (sink_pad);
     structure = gst_caps_get_structure (caps, 0);
 
-    g_test_data.caps_name = (gchar *) gst_structure_get_name (structure);
+    g_test_data.caps_name = g_strdup (gst_structure_get_name (structure));
     _print_log ("caps name [%s]", g_test_data.caps_name);
 
     if (g_str_equal (g_test_data.caps_name, "other/tensor")) {
       if (!gst_tensor_config_from_structure (&g_test_data.tensor_config,
               structure)) {
         _print_log ("failed to get tensor config from caps");
-        g_assert (0);
+        g_test_data.test_failed = TRUE;
       }
     } else if (g_str_equal (g_test_data.caps_name, "other/tensors")) {
       if (!gst_tensors_config_from_structure (&g_test_data.tensors_config,
               structure)) {
         _print_log ("failed to get tensors config from caps");
-        g_assert (0);
+        g_test_data.test_failed = TRUE;
       }
     }
 
@@ -288,14 +298,14 @@ _push_text_data (const guint num_buffers)
 
     if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
       _print_log ("failed to push buffer [%d]", i);
-      failed = TRUE;
+      g_test_data.test_failed = failed = TRUE;
       goto error;
     }
   }
 
   if (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)) != GST_FLOW_OK) {
     _print_log ("failed to set eos");
-    failed = TRUE;
+    g_test_data.test_failed = failed = TRUE;
     goto error;
   }
 
@@ -317,6 +327,8 @@ _setup_pipeline (TestOption & option)
   g_test_data.received = 0;
   g_test_data.mem_blocks = 0;
   g_test_data.received_size = 0;
+  g_test_data.invalid_timestamp = FALSE;
+  g_test_data.test_failed = FALSE;
   g_test_data.start = FALSE;
   g_test_data.end = FALSE;
   g_test_data.caps_name = NULL;
@@ -437,7 +449,6 @@ _setup_pipeline (TestOption & option)
           ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink");
       break;
-      break;
     case TEST_TYPE_TENSORS:
       /** other/tensors with tensor_mux */
       str_pipeline =
@@ -538,6 +549,7 @@ _setup_pipeline (TestOption & option)
   return TRUE;
 
 error:
+  g_test_data.test_failed = TRUE;
   _free_test_data ();
   return FALSE;
 }
@@ -607,6 +619,7 @@ TEST (tensor_sink_test, properties)
   g_object_get (g_test_data.sink, "qos", &res_qos, NULL);
   EXPECT_EQ (res_qos, !qos);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -645,6 +658,9 @@ TEST (tensor_sink_test, signals)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check caps and config for tensor */
   {
     GstCaps *caps;
@@ -661,6 +677,7 @@ TEST (tensor_sink_test, signals)
     gst_caps_unref (caps);
   }
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -690,6 +707,9 @@ TEST (tensor_sink_test, signal_rate)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check caps and config for tensor */
   {
     GstCaps *caps;
@@ -706,6 +726,7 @@ TEST (tensor_sink_test, signal_rate)
     gst_caps_unref (caps);
   }
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -730,6 +751,7 @@ TEST (tensor_sink_test, caps_error)
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, 0);
 
+  EXPECT_TRUE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -758,6 +780,9 @@ TEST (tensor_sink_test, caps_tensors)
 
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   /** check tensors config for video */
   EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
@@ -790,6 +815,7 @@ TEST (tensor_sink_test, caps_tensors)
     gst_caps_unref (caps);
   }
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -818,6 +844,9 @@ TEST (tensor_stream_test, video_rgb)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -828,6 +857,7 @@ TEST (tensor_stream_test, video_rgb)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -856,6 +886,9 @@ TEST (tensor_stream_test, video_rgb_padding)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -866,6 +899,7 @@ TEST (tensor_stream_test, video_rgb_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -894,6 +928,9 @@ TEST (tensor_stream_test, video_rgb_3f)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -904,6 +941,7 @@ TEST (tensor_stream_test, video_rgb_3f)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -932,6 +970,9 @@ TEST (tensor_stream_test, video_bgrx)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -942,6 +983,7 @@ TEST (tensor_stream_test, video_bgrx)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -970,6 +1012,9 @@ TEST (tensor_stream_test, video_bgrx_2f)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -980,6 +1025,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1008,6 +1054,9 @@ TEST (tensor_stream_test, video_gray8)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1018,6 +1067,7 @@ TEST (tensor_stream_test, video_gray8)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1046,6 +1096,9 @@ TEST (tensor_stream_test, video_gray8_padding)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1056,6 +1109,7 @@ TEST (tensor_stream_test, video_gray8_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1084,6 +1138,9 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1094,6 +1151,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1122,6 +1180,9 @@ TEST (tensor_stream_test, audio_s8)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT8);
@@ -1132,6 +1193,7 @@ TEST (tensor_stream_test, audio_s8)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1160,6 +1222,9 @@ TEST (tensor_stream_test, audio_u8_100f)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1170,6 +1235,7 @@ TEST (tensor_stream_test, audio_u8_100f)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1198,6 +1264,9 @@ TEST (tensor_stream_test, audio_s16)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT16);
@@ -1208,6 +1277,7 @@ TEST (tensor_stream_test, audio_s16)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1236,6 +1306,9 @@ TEST (tensor_stream_test, audio_u16_1000f)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT16);
@@ -1246,6 +1319,7 @@ TEST (tensor_stream_test, audio_u16_1000f)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1277,9 +1351,12 @@ TEST (tensor_stream_test, text_utf8)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[0],
       GST_TENSOR_STRING_SIZE);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
@@ -1288,6 +1365,7 @@ TEST (tensor_stream_test, text_utf8)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1319,9 +1397,12 @@ TEST (tensor_stream_test, text_utf8_3f)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[0],
       GST_TENSOR_STRING_SIZE);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 3);
@@ -1330,6 +1411,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1358,6 +1440,9 @@ TEST (tensor_stream_test, custom_filter_tensor)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1384,6 +1469,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
     gst_caps_unref (caps);
   }
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1411,6 +1497,9 @@ TEST (tensor_stream_test, custom_filter_tensors)
 
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   /** check tensors config for video */
   EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
@@ -1453,6 +1542,7 @@ TEST (tensor_stream_test, custom_filter_tensors)
     gst_caps_unref (caps);
   }
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1486,6 +1576,9 @@ TEST (tensor_stream_test, typecast_int32)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1497,6 +1590,7 @@ TEST (tensor_stream_test, typecast_int32)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1530,6 +1624,9 @@ TEST (tensor_stream_test, typecast_uint32)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1541,6 +1638,7 @@ TEST (tensor_stream_test, typecast_uint32)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1574,6 +1672,9 @@ TEST (tensor_stream_test, typecast_int16)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1585,6 +1686,7 @@ TEST (tensor_stream_test, typecast_int16)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1618,6 +1720,9 @@ TEST (tensor_stream_test, typecast_uint16)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1629,6 +1734,7 @@ TEST (tensor_stream_test, typecast_uint16)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1662,6 +1768,9 @@ TEST (tensor_stream_test, typecast_float64)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1673,6 +1782,7 @@ TEST (tensor_stream_test, typecast_float64)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1706,6 +1816,9 @@ TEST (tensor_stream_test, typecast_float32)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1717,6 +1830,7 @@ TEST (tensor_stream_test, typecast_float32)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1750,6 +1864,9 @@ TEST (tensor_stream_test, typecast_int64)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1761,6 +1878,7 @@ TEST (tensor_stream_test, typecast_int64)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1794,6 +1912,9 @@ TEST (tensor_stream_test, typecast_uint64)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
@@ -1805,6 +1926,7 @@ TEST (tensor_stream_test, typecast_uint64)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1833,6 +1955,9 @@ TEST (tensor_stream_test, video_aggregate)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for video */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
@@ -1843,6 +1968,7 @@ TEST (tensor_stream_test, video_aggregate)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1871,6 +1997,9 @@ TEST (tensor_stream_test, audio_aggregate_s16)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT16);
@@ -1881,6 +2010,7 @@ TEST (tensor_stream_test, audio_aggregate_s16)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 
@@ -1909,6 +2039,9 @@ TEST (tensor_stream_test, audio_aggregate_u16)
   /** check caps name */
   EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
 
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
   /** check tensor config for audio */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
   EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT16);
@@ -1919,6 +2052,7 @@ TEST (tensor_stream_test, audio_aggregate_u16)
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
+  EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 }
 

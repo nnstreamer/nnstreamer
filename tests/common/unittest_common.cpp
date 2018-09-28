@@ -175,12 +175,19 @@ TEST (common_find_key_strv, key_index)
 TEST (common_get_tensor_dimension, case1)
 {
   tensor_dim dim;
-  int rank = get_tensor_dimension ("345:123:433:177", dim);
+  gchar *dim_str;
+  int rank;
+
+  rank = get_tensor_dimension ("345:123:433:177", dim);
   EXPECT_EQ (rank, 4);
   EXPECT_EQ (dim[0], 345);
   EXPECT_EQ (dim[1], 123);
   EXPECT_EQ (dim[2], 433);
   EXPECT_EQ (dim[3], 177);
+
+  dim_str = get_tensor_dimension_string (dim);
+  EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:177"));
+  g_free (dim_str);
 }
 
 /**
@@ -189,12 +196,19 @@ TEST (common_get_tensor_dimension, case1)
 TEST (common_get_tensor_dimension, case2)
 {
   tensor_dim dim;
-  int rank = get_tensor_dimension ("345:123:433", dim);
+  gchar *dim_str;
+  int rank;
+
+  rank = get_tensor_dimension ("345:123:433", dim);
   EXPECT_EQ (rank, 3);
   EXPECT_EQ (dim[0], 345);
   EXPECT_EQ (dim[1], 123);
   EXPECT_EQ (dim[2], 433);
   EXPECT_EQ (dim[3], 1);
+
+  dim_str = get_tensor_dimension_string (dim);
+  EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:1"));
+  g_free (dim_str);
 }
 
 /**
@@ -203,12 +217,19 @@ TEST (common_get_tensor_dimension, case2)
 TEST (common_get_tensor_dimension, case3)
 {
   tensor_dim dim;
-  int rank = get_tensor_dimension ("345:123", dim);
+  gchar *dim_str;
+  int rank;
+
+  rank = get_tensor_dimension ("345:123", dim);
   EXPECT_EQ (rank, 2);
   EXPECT_EQ (dim[0], 345);
   EXPECT_EQ (dim[1], 123);
   EXPECT_EQ (dim[2], 1);
   EXPECT_EQ (dim[3], 1);
+
+  dim_str = get_tensor_dimension_string (dim);
+  EXPECT_TRUE (g_str_equal (dim_str, "345:123:1:1"));
+  g_free (dim_str);
 }
 
 /**
@@ -217,12 +238,19 @@ TEST (common_get_tensor_dimension, case3)
 TEST (common_get_tensor_dimension, case4)
 {
   tensor_dim dim;
-  int rank = get_tensor_dimension ("345", dim);
+  gchar *dim_str;
+  int rank;
+
+  rank = get_tensor_dimension ("345", dim);
   EXPECT_EQ (rank, 1);
   EXPECT_EQ (dim[0], 345);
   EXPECT_EQ (dim[1], 1);
   EXPECT_EQ (dim[2], 1);
   EXPECT_EQ (dim[3], 1);
+
+  dim_str = get_tensor_dimension_string (dim);
+  EXPECT_TRUE (g_str_equal (dim_str, "345:1:1:1"));
+  g_free (dim_str);
 }
 
 /**
