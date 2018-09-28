@@ -17,7 +17,7 @@
  * @file	tensor_common_typedef.h
  * @date	01 Jun 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		http://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items

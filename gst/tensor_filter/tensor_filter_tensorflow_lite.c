@@ -17,7 +17,7 @@
  * @file	tensor_filter_tensorflow_lite.c
  * @date	24 May 2018
  * @brief	Tensorflow-lite module for tensor_filter gstreamer plugin
- * @see		http://github.com/TO-BE-DETERMINED-SOON
+ * @see		http://github.com/nnsuite/nnstreamer
  * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
