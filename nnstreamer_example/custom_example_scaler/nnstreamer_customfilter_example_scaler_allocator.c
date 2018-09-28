@@ -152,10 +152,8 @@ pt_allocate_invoke (void *private_data,
 
   /* allocate output data */
   elementsize = tensor_element_size[prop->output_meta.info[0].type];
+  size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
 
-  size =
-      elementsize *
-      get_tensor_element_count (prop->output_meta.info[0].dimension);
   output[0].data = malloc (size);
 
   /* This assumes the limit is 4 */

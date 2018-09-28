@@ -29,8 +29,7 @@
 typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
-  tensor_dim dim;
-  tensor_type type;
+  GstTensorInfo info; /**< tensor info */
 } pt_data;
 
 /**
@@ -43,12 +42,12 @@ pt_init (const GstTensorFilterProperties * prop)
   int i;
 
   data->id = 0;
-  data->dim[0] = D1;
-  data->dim[1] = D2;
-  data->dim[2] = D3;
+  data->info.dimension[0] = D1;
+  data->info.dimension[1] = D2;
+  data->info.dimension[2] = D3;
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    data->dim[i] = 1;
-  data->type = _NNS_UINT8;
+    data->info.dimension[i] = 1;
+  data->info.type = _NNS_UINT8;
 
   return data;
 }
@@ -72,18 +71,12 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
-  int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
-  info->info[0].dimension[0] = D1;
-  info->info[0].dimension[1] = D2;
-  info->info[0].dimension[2] = D3;
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    info->info[0].dimension[i] = 1;
-  info->info[0].type = _NNS_UINT8;
   info->num_tensors = 1;
+  info->info[0] = data->info;
   return 0;
 }
 
@@ -95,18 +88,12 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
-  int i;
 
   g_assert (data);
   g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
-  info->info[0].dimension[0] = D1;
-  info->info[0].dimension[1] = D2;
-  info->info[0].dimension[2] = D3;
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    info->info[0].dimension[i] = 1;
-  info->info[0].type = _NNS_UINT8;
   info->num_tensors = 1;
+  info->info[0] = data->info;
   return 0;
 }
 
@@ -124,7 +111,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   g_assert (input);
   g_assert (output);
 
-  size = get_tensor_element_count (data->dim) * tensor_element_size[data->type];
+  size = gst_tensor_info_get_size (&data->info);
 
   g_assert (input[0].data != output[0].data);
   memcpy (output[0].data, input[0].data, size);

@@ -184,6 +184,14 @@ extern gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
 
 /**
+ * @brief Get data size of single tensor
+ * @param info tensor info structure
+ * @return data size
+ */
+extern gsize
+gst_tensor_info_get_size (const GstTensorInfo * info);
+
+/**
  * @brief Initialize the tensors info structure
  * @param info tensors info structure to be initialized
  */
