@@ -356,16 +356,12 @@ gst_tensor_filter_out_size (GstTensorFilter * self, gint index)
   if (index < 0) {
     /** calculate all output tensors */
     for (i = 0; i < info->num_tensors; i++) {
-      out_size +=
-          get_tensor_element_count (info->info[i].dimension) *
-          tensor_element_size[info->info[i].type];
+      out_size += gst_tensor_info_get_size (&info->info[i]);
     }
   } else {
     g_assert (index < info->num_tensors);
 
-    out_size =
-        get_tensor_element_count (info->info[index].dimension) *
-        tensor_element_size[info->info[index].type];
+    out_size = gst_tensor_info_get_size (&info->info[index]);
   }
 
   return out_size;

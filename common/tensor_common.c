@@ -156,6 +156,24 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 }
 
 /**
+ * @brief Get data size of single tensor
+ * @param info tensor info structure
+ * @return data size
+ */
+gsize
+gst_tensor_info_get_size (const GstTensorInfo * info)
+{
+  gsize data_size;
+
+  g_return_val_if_fail (info != NULL, 0);
+
+  data_size = get_tensor_element_count (info->dimension) *
+      tensor_element_size[info->type];
+
+  return data_size;
+}
+
+/**
  * @brief Initialize the tensors info structure
  * @param info tensors info structure to be initialized
  */
@@ -972,7 +990,7 @@ get_tensor_dimension_string (const tensor_dim dim)
  * @param dim The tensor dimension
  */
 size_t
-get_tensor_element_count (const uint32_t dim[NNS_TENSOR_RANK_LIMIT])
+get_tensor_element_count (const tensor_dim dim)
 {
   size_t count = 1;
   int i;

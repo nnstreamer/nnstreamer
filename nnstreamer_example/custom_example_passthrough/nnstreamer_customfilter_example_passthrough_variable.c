@@ -90,8 +90,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   g_assert (output);
 
   for (t = 0; t < prop->output_meta.num_tensors; t++) {
-    size = get_tensor_element_count (prop->output_meta.info[t].dimension) *
-        tensor_element_size[prop->output_meta.info[t].type];
+    size = gst_tensor_info_get_size (&prop->output_meta.info[t]);
 
     g_assert (input[t].data != output[t].data);
     memcpy (output[t].data, input[t].data, size);

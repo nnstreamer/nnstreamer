@@ -249,8 +249,7 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
   gst_buffer_map (inbuf, &src_info, GST_MAP_READ);
 
   /** Making output buffer (one big buffer for check tensors) */
-  out_size = get_tensor_element_count (filter->out_config.info.dimension) *
-      tensor_element_size[filter->out_config.info.type];
+  out_size = gst_tensor_info_get_size (&filter->out_config.info);
   outbuf = gst_buffer_new_allocate (NULL, out_size, NULL);
   gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
 
