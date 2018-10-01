@@ -52,9 +52,8 @@ compareAll test.audio16k.u8.origin.log test.audio16k.u8.log 7-4
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=2 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k2c.u16le.log\" sync=true t. ! queue ! filesink location=\"test.audio16k2c.u16le.origin.log\" sync=true" 7-5
 compareAll test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 7-6
 
-# @TODO Change this when audio format S32LE becomes supported by tensor_converter
-# Fail Test: S32LE is given
-gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S32LE,rate=8000 ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s32le.fail.log\" sync=true" 7-F
+# audio format S32LE, 8k sample rate, samples per buffer 8000
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S32LE,rate=8000 ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s32le.log\" sync=true" 7-7
 
 # Stream test case (genCase08 in generateGoldenTestResult.py)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 8
