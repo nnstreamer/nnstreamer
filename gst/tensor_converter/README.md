@@ -43,7 +43,7 @@ For each outgoing frame (on the source pad), there always is a **single** instan
 
 ## Properties
 
-- frames-per-buffer: The number of incoming media frames that will be contained in a single instance of tensors. With the value > 1, you can put multiple frames in a single tensor.
+- frames-per-tensor: The number of incoming media frames that will be contained in a single instance of tensors. With the value > 1, you can put multiple frames in a single tensor.
 
 ### Properties for debugging
 

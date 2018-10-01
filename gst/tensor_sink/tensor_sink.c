@@ -45,13 +45,15 @@
 /**
  * @brief Macro for debug message.
  */
-#define DLOG(...) \
+#define silent_debug(...) \
     debug_print (DBG, __VA_ARGS__)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
 
-/** signals and args */
+/**
+ * @brief tensor_sink signals.
+ */
 enum
 {
   SIGNAL_NEW_DATA,
@@ -60,6 +62,9 @@ enum
   LAST_SIGNAL
 };
 
+/**
+ * @brief tensor_sink properties.
+ */
 enum
 {
   PROP_0,
@@ -162,32 +167,67 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   gobject_class->dispose = gst_tensor_sink_dispose;
   gobject_class->finalize = gst_tensor_sink_finalize;
 
-  /** properties */
+  /**
+   * GstTensorSink::signal-rate:
+   *
+   * The number of new data signals per second (Default 0 for unlimited, MAX 500)
+   * If signal-rate is larger than 0, GstTensorSink calculates the time to emit a signal with this property.
+   * If set 0 (default value), all the received buffers will be passed to the application.
+   *
+   * Please note that this property does not guarantee the periodic signals.
+   * This means if GstTensorSink cannot get the buffers in time, it will pass all the buffers. (working like default 0)
+   */
   g_object_class_install_property (gobject_class, PROP_SIGNAL_RATE,
       g_param_spec_uint ("signal-rate", "Signal rate",
           "New data signals per second (0 for unlimited, max 500)", 0, 500,
           DEFAULT_SIGNAL_RATE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstTensorSink::emit-signal:
+   *
+   * The flag to emit the signals for new data, stream start, and eos.
+   */
   g_object_class_install_property (gobject_class, PROP_EMIT_SIGNAL,
       g_param_spec_boolean ("emit-signal", "Emit signal",
-          "Emit signal for new data, eos", DEFAULT_EMIT_SIGNAL,
+          "Emit signal for new data, stream start, eos", DEFAULT_EMIT_SIGNAL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstTensorSink::silent:
+   *
+   * The flag to enable/disable debugging messages.
+   */
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  /** signals */
+  /**
+   * GstTensorSink::new-data:
+   *
+   * Signal to get the buffer from GstTensorSink.
+   */
   _tensor_sink_signals[SIGNAL_NEW_DATA] =
       g_signal_new ("new-data", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstTensorSinkClass, new_data), NULL, NULL, NULL,
       G_TYPE_NONE, 1, GST_TYPE_BUFFER | G_SIGNAL_TYPE_STATIC_SCOPE);
 
+  /**
+   * GstTensorSink::stream-start:
+   *
+   * Signal to indicate the start of a new stream.
+   * Optional. An application can use this signal to detect the start of a new stream, instead of the message GST_MESSAGE_STREAM_START from pipeline.
+   */
   _tensor_sink_signals[SIGNAL_STREAM_START] =
       g_signal_new ("stream-start", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstTensorSinkClass, stream_start),
       NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
 
+  /**
+   * GstTensorSink::eos:
+   *
+   * Signal to indicate the end-of-stream.
+   * Optional. An application can use this signal to detect the EOS (end-of-stream), instead of the message GST_MESSAGE_EOS from pipeline.
+   */
   _tensor_sink_signals[SIGNAL_EOS] =
       g_signal_new ("eos", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstTensorSinkClass, eos), NULL, NULL, NULL,
@@ -373,23 +413,22 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
   self = GST_TENSOR_SINK (sink);
   type = GST_EVENT_TYPE (event);
 
+  silent_debug ("received event %s", GST_EVENT_TYPE_NAME (event));
+
   switch (type) {
     case GST_EVENT_STREAM_START:
-      DLOG ("event STREAM_START");
       if (_tensor_sink_get_emit_signal (self)) {
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_STREAM_START], 0);
       }
       break;
 
     case GST_EVENT_EOS:
-      DLOG ("event EOS");
       if (_tensor_sink_get_emit_signal (self)) {
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_EOS], 0);
       }
       break;
 
     default:
-      DLOG ("event type is %d", type);
       break;
   }
 
@@ -411,16 +450,16 @@ gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
   self = GST_TENSOR_SINK (sink);
   type = GST_QUERY_TYPE (query);
 
+  silent_debug ("received query %s", GST_QUERY_TYPE_NAME (query));
+
   switch (type) {
     case GST_QUERY_SEEKING:
-      DLOG ("query SEEKING");
       /** tensor sink does not support seeking */
       gst_query_parse_seeking (query, &format, NULL, NULL, NULL);
       gst_query_set_seeking (query, format, FALSE, 0, -1);
       return TRUE;
 
     default:
-      DLOG ("query type is %d", type);
       break;
   }
 
@@ -487,13 +526,13 @@ gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps)
     guint caps_size, i;
 
     caps_size = gst_caps_get_size (caps);
-    DLOG ("set caps, size is %d", caps_size);
+    silent_debug ("set caps, size is %d", caps_size);
 
     for (i = 0; i < caps_size; i++) {
       GstStructure *structure = gst_caps_get_structure (caps, i);
       gchar *str = gst_structure_to_string (structure);
 
-      DLOG ("[%d] %s", i, str);
+      silent_debug ("[%d] %s", i, str);
       g_free (str);
     }
   }
@@ -577,7 +616,7 @@ _tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
     _tensor_sink_set_last_render_time (self, now);
 
     if (_tensor_sink_get_emit_signal (self)) {
-      DLOG ("signal for new data [%" GST_TIME_FORMAT "], rate [%d]",
+      silent_debug ("signal for new data [%" GST_TIME_FORMAT "], rate [%d]",
           GST_TIME_ARGS (now), signal_rate);
       g_signal_emit (self, _tensor_sink_signals[SIGNAL_NEW_DATA], 0, buffer);
     }
@@ -622,7 +661,7 @@ _tensor_sink_set_signal_rate (GstTensorSink * self, guint rate)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  DLOG ("set signal_rate to %d", rate);
+  silent_debug ("set signal_rate to %d", rate);
   g_mutex_lock (&self->mutex);
   self->signal_rate = rate;
   g_mutex_unlock (&self->mutex);
@@ -653,7 +692,7 @@ _tensor_sink_set_emit_signal (GstTensorSink * self, gboolean emit)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  DLOG ("set emit_signal to %d", emit);
+  silent_debug ("set emit_signal to %d", emit);
   g_mutex_lock (&self->mutex);
   self->emit_signal = emit;
   g_mutex_unlock (&self->mutex);
@@ -684,7 +723,7 @@ _tensor_sink_set_silent (GstTensorSink * self, gboolean silent)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  DLOG ("set silent to %d", silent);
+  silent_debug ("set silent to %d", silent);
   self->silent = silent;
 }
 
