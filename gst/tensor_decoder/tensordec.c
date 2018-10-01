@@ -727,12 +727,29 @@ gst_get_image_label (GstTensorDec * self, gint label)
  * @brief set output of tensor decoder that will send to src pad  
  * @param self "this" pointer
  * @param outbuf src pad buffer
+ * @param label image label text that will copy to outbuf
  */
 static void
 gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
     gchar * label)
 {
-/** Not yet implemented TBD*/
+  guint len;
+  GstMemory *out_mem;
+  GstMapInfo out_info;
+
+  g_assert (gst_buffer_get_size (outbuf) == 0);
+
+  len = strlen (label);
+
+  out_mem = gst_allocator_alloc (NULL, (len + 1), NULL);
+  g_assert (out_mem != NULL);
+  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
+
+  strncpy ((char *) out_info.data, label, len);
+
+  gst_buffer_append_memory (outbuf, out_mem);
+
+  gst_memory_unmap (out_mem, &out_info);
 }
 
 /**
