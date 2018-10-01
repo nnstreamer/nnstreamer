@@ -47,7 +47,7 @@ G_BEGIN_DECLS
     ", views = (int) 1, interlace-mode = (string) progressive"
 
 #define GST_TENSOR_AUDIO_CAPS_STR \
-    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE }") \
+    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE, S32LE, S32BE, U32LE, U32BE, F32LE, F32BE, F64LE, F64BE }") \
     ", layout = (string) interleaved"
 
 #define GST_TENSOR_TEXT_CAPS_STR \
