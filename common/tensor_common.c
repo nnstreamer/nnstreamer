@@ -445,6 +445,18 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
     case GST_AUDIO_FORMAT_U16:
       config->info.type = _NNS_UINT16;
       break;
+    case GST_AUDIO_FORMAT_S32:
+      config->info.type = _NNS_INT32;
+      break;
+    case GST_AUDIO_FORMAT_U32:
+      config->info.type = _NNS_UINT32;
+      break;
+    case GST_AUDIO_FORMAT_F32:
+      config->info.type = _NNS_FLOAT32;
+      break;
+    case GST_AUDIO_FORMAT_F64:
+      config->info.type = _NNS_FLOAT64;
+      break;
     default:
       /** unsupported format */
       err_print ("Unsupported format = %d\n", format);
