@@ -683,15 +683,11 @@ gst_tensordec_update_top_label_index (GstTensorDec * self,
     guint8 * scores, guint len)
 {
   gint i;
-  gint ret;
   gint index = -1;
   guint8 max_score = 0;
 
-  /** -1 if failed to get max score index */
-  ret = -1;
-
   g_return_if_fail (scores != NULL);
-  g_return_if_fail (len == self->tensordec_image_label.total_labels);
+  g_return_val_if_fail (len == self->tensordec_image_label.total_labels, -1);
 
   for (i = 0; i < len; i++) {
     if (scores[i] > 0 && scores[i] > max_score) {
@@ -700,8 +696,7 @@ gst_tensordec_update_top_label_index (GstTensorDec * self,
     }
   }
 
-  ret = index;
-  return ret;
+  return index;
 }
 
 /**
@@ -712,7 +707,7 @@ static gchar *
 gst_get_image_label (GstTensorDec * self, gint label)
 {
   guint length;
-  guint check_label = label;
+  gint check_label = label;
   g_return_val_if_fail (self != NULL, NULL);
   g_return_val_if_fail (self->tensordec_image_label.labels != NULL, NULL);
 
