@@ -686,7 +686,7 @@ gst_tensordec_update_top_label_index (GstTensorDec * self,
   gint index = -1;
   guint8 max_score = 0;
 
-  g_return_if_fail (scores != NULL);
+  g_return_val_if_fail (scores != NULL, -1);
   g_return_val_if_fail (len == self->tensordec_image_label.total_labels, -1);
 
   for (i = 0; i < len; i++) {

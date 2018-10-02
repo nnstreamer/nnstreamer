@@ -426,13 +426,13 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   }
 
   tensors_buf = gst_buffer_new ();
+  g_assert (tensors_buf);
   isEOS =
       gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &pts_time,
       &dts_time);
 
   if (isEOS) {
-    if (tensors_buf)
-      gst_buffer_unref (tensors_buf);
+    gst_buffer_unref (tensors_buf);
     gst_pad_push_event (tensor_mux->srcpad, gst_event_new_eos ());
     ret = GST_FLOW_EOS;
     goto beach;
