@@ -46,7 +46,7 @@
 #define silent_debug(...) \
     debug_print (DBG, __VA_ARGS__)
 
-#define silent_debug_caps(caps,msg) do {\
+#define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
     if (caps) { \
       GstStructure *caps_s; \
@@ -100,7 +100,7 @@ enum
 #define DEFAULT_FRAMES_FLUSH 0
 
 /**
- * @brief The index of frames in tensor dimension.
+ * @brief The dimension index of frames in configured tensor.
  */
 #define DEFAULT_FRAMES_DIMENSION (-1)
 
@@ -164,7 +164,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
   object_class->finalize = gst_tensor_aggregator_finalize;
 
   /**
-   * GstTensorAggregator:frames-in:
+   * GstTensorAggregator::frames-in:
    *
    * The number of frames in incoming buffer.
    * GstTensorAggregator itself cannot get the frames in buffer. (buffer is a sinle tensor instance)
@@ -176,7 +176,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
           DEFAULT_FRAMES_IN, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstTensorAggregator:frames-out:
+   * GstTensorAggregator::frames-out:
    *
    * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
    * GstTensorAggregator calculates the size of outgoing frames and pushes a buffer to source pad.
@@ -187,7 +187,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
           DEFAULT_FRAMES_OUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstTensorAggregator:frames-flush:
+   * GstTensorAggregator::frames-flush:
    *
    * The number of frames to flush.
    * GstTensorAggregator flushes the bytes (N frames) in GstAdapter after pushing a buffer.
@@ -199,7 +199,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
           DEFAULT_FRAMES_FLUSH, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstTensorAggregator:frames-dim:
+   * GstTensorAggregator::frames-dim:
    *
    * The dimension index of frames in tensor.
    * If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
@@ -214,7 +214,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstTensorAggregator:silent:
+   * GstTensorAggregator::silent:
    *
    * The flag to enable/disable debugging messages.
    */
@@ -496,7 +496,7 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn ret = GST_FLOW_OK;
   GstAdapter *adapter;
   gsize avail, buf_size, frame_size, out_size;
-  guint frames_in, frames_out;
+  guint frames_in, frames_out, frames_flush;
 
   self = GST_TENSOR_AGGREGATOR (parent);
   g_assert (self->tensor_configured);
@@ -506,6 +506,8 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   frames_in = self->frames_in;
   frames_out = self->frames_out;
+  frames_flush = self->frames_flush;
+  frame_size = buf_size / frames_in;
 
   if (frames_in == frames_out) {
     /** do nothing, push the incoming buffer  */
@@ -517,7 +519,6 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   gst_adapter_push (adapter, buf);
 
-  frame_size = buf_size / frames_in;
   out_size = frame_size * frames_out;
   g_assert (out_size > 0);
 
@@ -525,24 +526,52 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       ret == GST_FLOW_OK) {
     GstBuffer *outbuf;
     GstClockTime pts, dts;
+    guint64 pts_dist, dts_dist;
     gsize flush, offset;
 
     /** offset for last frame */
-    offset = frame_size * (frames_out - 1);
+    offset = frame_size * (frames_out - 1) + 1; /** +1 byte */
 
-    pts = gst_adapter_prev_pts_at_offset (adapter, offset, NULL);
-    dts = gst_adapter_prev_dts_at_offset (adapter, offset, NULL);
+    pts = gst_adapter_prev_pts_at_offset (adapter, offset, &pts_dist);
+    dts = gst_adapter_prev_dts_at_offset (adapter, offset, &dts_dist);
+
+    /**
+     * Update timestamp of last frame.
+     * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
+     */
+    if (frames_in > 1) {
+      gint fn, fd;
+
+      fn = self->in_config.rate_n;
+      fd = self->in_config.rate_d;
+
+      if (fn > 0 && fd > 0) {
+        if (GST_CLOCK_TIME_IS_VALID (pts)) {
+          pts =
+              gst_util_uint64_scale_int (pts_dist * fd, GST_SECOND,
+              fn * frame_size);
+        }
+
+        if (GST_CLOCK_TIME_IS_VALID (dts)) {
+          dts =
+              gst_util_uint64_scale_int (dts_dist * fd, GST_SECOND,
+              fn * frame_size);
+        }
+      }
+    }
 
     outbuf = gst_adapter_get_buffer (adapter, out_size);
+    outbuf = gst_buffer_make_writable (outbuf);
 
+    /** set timestamp */
     GST_BUFFER_PTS (outbuf) = pts;
     GST_BUFFER_DTS (outbuf) = dts;
 
     ret = gst_pad_push (self->srcpad, outbuf);
 
     /** flush data */
-    if (self->frames_flush > 0) {
-      flush = frame_size * self->frames_flush;
+    if (frames_flush > 0) {
+      flush = frame_size * frames_flush;
     } else {
       flush = out_size;
     }
