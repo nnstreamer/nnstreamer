@@ -262,6 +262,7 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
       filter->data_dimchg.from = a;
       filter->data_dimchg.to = b;
       filter->loaded = TRUE;
+      g_strfreev (strv);
     }
       break;
     case GTT_TYPECAST:
@@ -282,6 +283,7 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
         filter->data_arithmetic.value = g_ascii_strtod (strv[1], NULL);
 
       filter->loaded = TRUE;
+      g_strfreev (strv);
     }
       break;
     case GTT_TRANSPOSE:
@@ -296,6 +298,7 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
         filter->data_transpose.trans_order[i] = a;
       }
       filter->loaded = TRUE;
+      g_strfreev (strv);
     }
       break;
     default:

@@ -559,6 +559,7 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
         filter->tensorpick =
             g_list_append (filter->tensorpick, GINT_TO_POINTER (val));
       }
+      g_strfreev (strv);
       break;
     }
     default:
