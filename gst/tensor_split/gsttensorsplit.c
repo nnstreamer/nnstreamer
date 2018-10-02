@@ -291,9 +291,9 @@ gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
   GstEvent *event;
   gchar *stream_id;
   GstCaps *caps;
-  gchar *caps_string;
+  GstTensorConfig pad_config;
   tensor_dim *dim;
-  tensor_type type;
+  guint i;
 
   tensorpad = g_new0 (GstTensorPad, 1);
   GST_DEBUG_OBJECT (tensor_split, "createing pad: %d(%dth)",
@@ -313,7 +313,6 @@ gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
   dim =
       g_array_index (tensor_split->tensorseg, tensor_dim *,
       tensor_split->num_srcpads);
-  type = tensor_split->sink_tensor_conf.info.type;
 
   tensor_split->num_srcpads++;
 
@@ -346,22 +345,18 @@ gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
   g_free (stream_id);
   gst_event_unref (event);
 
-  caps_string = g_strdup_printf ("other/tensor, "
-      "rank = (int)4, "
-      "type = (string)%s,"
-      "framerate = (fraction) %d/%d, "
-      "dim1 = (int) %d, "
-      "dim2 = (int) %d, "
-      "dim3 = (int) %d, "
-      "dim4 = (int) %d", tensor_element_typename[type],
-      tensor_split->sink_tensor_conf.rate_n,
-      tensor_split->sink_tensor_conf.rate_d, (*dim)[0], (*dim)[1], (*dim)[2],
-      (*dim)[3]);
+  /* tensor config to set caps */
+  gst_tensor_config_init (&pad_config);
 
-  caps = gst_caps_from_string (caps_string);
-  GST_DEBUG_OBJECT (tensor_split, "caps for pad : %s", caps_string);
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    pad_config.info.dimension[i] = (*dim)[i];
+  }
+  pad_config.info.type = tensor_split->sink_tensor_conf.info.type;
+  pad_config.rate_n = tensor_split->sink_tensor_conf.rate_n;
+  pad_config.rate_d = tensor_split->sink_tensor_conf.rate_d;
 
-  g_free (caps_string);
+  caps = gst_tensor_caps_from_config (&pad_config);
+
   gst_pad_set_caps (pad, caps);
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_split), pad);
 
@@ -583,6 +578,7 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
         self->tensorpick =
             g_list_append (self->tensorpick, GINT_TO_POINTER (val));
       }
+      g_strfreev (strv);
       break;
     }
     case PROP_TENSORSEG:
