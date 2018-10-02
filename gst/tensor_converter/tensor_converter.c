@@ -78,7 +78,7 @@
 #define silent_debug(...) \
     debug_print (DBG, __VA_ARGS__)
 
-#define silent_debug_caps(caps,msg) do {\
+#define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
     if (caps) { \
       GstStructure *caps_s; \
@@ -178,7 +178,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   object_class->finalize = gst_tensor_converter_finalize;
 
   /**
-   * GstTensorConverter:frames-per-tensor:
+   * GstTensorConverter::frames-per-tensor:
    *
    * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
    * GstTensorConverter can push a buffer with multiple media frames.
@@ -190,7 +190,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstTensorConverter:silent:
+   * GstTensorConverter::silent:
    *
    * The flag to enable/disable debugging messages.
    */
@@ -471,10 +471,20 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   switch (self->in_media_type) {
     case _NNS_VIDEO:
-      frame_size =
-          config->info.dimension[0] * config->info.dimension[1] *
-          config->info.dimension[2] * tensor_element_size[config->info.type];
-      frames_in = 1; /** supposed 1 frame in buffer */
+    {
+      guint color, width, height, type;
+
+      color = config->info.dimension[0];
+      width = config->info.dimension[1];
+      height = config->info.dimension[2];
+      type = tensor_element_size[config->info.type];
+
+      /** colorspace * width * height * type */
+      frame_size = color * width * height * type;
+
+      /** supposed 1 frame in buffer */
+      g_assert ((buf_size / GST_VIDEO_INFO_SIZE (&self->in_info.video)) == 1);
+      frames_in = 1;
 
       if (self->remove_padding) {
         GstMapInfo src_info, dest_info;
@@ -495,7 +505,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
          */
-        size = offset = config->info.dimension[0] * config->info.dimension[1];
+        size = offset = color * width * type;
 
         g_assert (offset % 4);
         if (offset % 4) {
@@ -503,9 +513,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         }
 
         for (d0 = 0; d0 < frames_in; d0++) {
-          /** Supposed to be 0 only, 1 frame in buffer. */
-          g_assert (d0 == 0);
-          for (d1 = 0; d1 < config->info.dimension[2]; d1++) { /** Height */
+          for (d1 = 0; d1 < height; d1++) {
             memcpy (destptr + dest_idx, srcptr + src_idx, size);
             dest_idx += size;
             src_idx += offset;
@@ -519,7 +527,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
       }
       break;
-
+    }
     case _NNS_AUDIO:
       frame_size = GST_AUDIO_INFO_BPF (&self->in_info.audio);
       frames_in = buf_size / frame_size;
@@ -555,6 +563,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       return GST_FLOW_ERROR;
   }
 
+  silent_debug ("frames in incoming buffer = %d", frames_in);
+
   if (frames_in == frames_out) {
     /** do nothing, push the incoming buffer  */
     return gst_pad_push (self->srcpad, inbuf);
@@ -570,16 +580,44 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       ret == GST_FLOW_OK) {
     GstBuffer *outbuf;
     GstClockTime pts, dts;
+    guint64 pts_dist, dts_dist;
     gsize offset;
 
     /** offset for last frame */
-    offset = frame_size * (frames_out - 1);
+    offset = frame_size * (frames_out - 1) + 1; /** +1 byte */
 
-    pts = gst_adapter_prev_pts_at_offset (adapter, offset, NULL);
-    dts = gst_adapter_prev_dts_at_offset (adapter, offset, NULL);
+    pts = gst_adapter_prev_pts_at_offset (adapter, offset, &pts_dist);
+    dts = gst_adapter_prev_dts_at_offset (adapter, offset, &dts_dist);
+
+    /**
+     * Update timestamp of last frame.
+     * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
+     */
+    if (frames_in > 1) {
+      gint fn, fd;
+
+      fn = config->rate_n;
+      fd = config->rate_d;
+
+      if (fn > 0 && fd > 0) {
+        if (GST_CLOCK_TIME_IS_VALID (pts)) {
+          pts =
+              gst_util_uint64_scale_int (pts_dist * fd, GST_SECOND,
+              fn * frame_size);
+        }
+
+        if (GST_CLOCK_TIME_IS_VALID (dts)) {
+          dts =
+              gst_util_uint64_scale_int (dts_dist * fd, GST_SECOND,
+              fn * frame_size);
+        }
+      }
+    }
 
     outbuf = gst_adapter_take_buffer (adapter, out_size);
+    outbuf = gst_buffer_make_writable (outbuf);
 
+    /** set timestamp */
     GST_BUFFER_PTS (outbuf) = pts;
     GST_BUFFER_DTS (outbuf) = dts;
 
@@ -677,7 +715,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   GstStructure *structure;
   GstTensorConfig config;
   media_type in_type;
-  guint frames_dim; /** index of frames in tensor dimension */
+  gint frames_dim = -1; /** dimension index of frames in configured tensor */
 
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
@@ -687,11 +725,6 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
   if (!gst_tensor_config_from_structure (&config, structure)) {
     /** cannot configure tensor */
-    return FALSE;
-  }
-
-  if (!gst_tensor_config_validate (&config)) {
-    /** not fully configured */
     return FALSE;
   }
 
@@ -747,7 +780,15 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   }
 
   /** set the number of frames in dimension */
-  config.info.dimension[frames_dim] = self->frames_per_tensor;
+  if (frames_dim >= 0) {
+    config.info.dimension[frames_dim] = self->frames_per_tensor;
+  }
+
+  if (!gst_tensor_config_validate (&config)) {
+    /** not fully configured */
+    err_print ("Failed to configure tensor info.\n");
+    return FALSE;
+  }
 
   self->in_media_type = in_type;
   self->tensor_configured = TRUE;
