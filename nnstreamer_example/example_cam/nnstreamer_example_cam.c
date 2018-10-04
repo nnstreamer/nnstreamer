@@ -191,8 +191,8 @@ main (int argc, char **argv)
   /** init pipeline */
   str_pipeline =
       g_strdup_printf
-      ("v4l2src name=cam_src ! videoconvert ! "
-      "video/x-raw,width=%d,height=%d,format=RGB,framerate=30/1 ! tee name=t_raw "
+      ("v4l2src name=cam_src ! videoscale ! "
+      "video/x-raw,width=%d,height=%d,format=RGB ! tee name=t_raw "
       "videomixer name=mix "
       "sink_0::xpos=0 sink_0::ypos=0 sink_0::zorder=0 "
       "sink_1::xpos=0 sink_1::ypos=0 sink_1::zorder=1 sink_1::alpha=0.7 ! "
