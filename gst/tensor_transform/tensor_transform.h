@@ -72,6 +72,7 @@ typedef enum
   GTT_TYPECAST = 1,             /* Type change. "typecast" */
   GTT_ARITHMETIC = 2,           /* Type change. "typecast" */
   GTT_TRANSPOSE = 3,            /* Transpose. "transpose" */
+  GTT_STAND = 4,                /* Standardization. "stand" */
 
   GTT_END,
 } tensor_transform_mode;
@@ -82,6 +83,12 @@ typedef enum
   ARITH_MUL = 1,
   ARITH_END,
 } tensor_transform_arith_mode;
+
+typedef enum
+{
+  STAND_DEFAULT = 0,
+  STAND_END,
+} tensor_transform_stand_mode;
 
 /**
  * @brief Internal data structure for dimchg mode.
@@ -115,6 +122,13 @@ typedef struct _tensor_transform_transpose {
 } tensor_transform_transpose;
 
 /**
+ * @brief Internal data structure for arithmetic mode.
+ */
+typedef struct _tensor_transform_stand {
+  tensor_transform_stand_mode mode;
+} tensor_transform_stand;
+
+/**
  * @brief Internal data structure for tensor_transform instances.
  */
 struct _GstTensor_Transform
@@ -129,6 +143,7 @@ struct _GstTensor_Transform
     tensor_transform_typecast data_typecast; /**< Parsed option value for "typecast" mode. */
     tensor_transform_arithmetic data_arithmetic; /**< Parsed option value for "arithmetic" mode. */
     tensor_transform_transpose data_transpose; /**< Parsed option value for "transpose" mode. */
+    tensor_transform_stand data_stand; /**< Parsed option value for "stand" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
 
