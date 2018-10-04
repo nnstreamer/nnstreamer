@@ -741,6 +741,7 @@ gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
   g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
 
   strncpy ((char *) out_info.data, label, len);
+  ((char *) out_info.data)[len] = '\0';
 
   gst_buffer_append_memory (outbuf, out_mem);
 
