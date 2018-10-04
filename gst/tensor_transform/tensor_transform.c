@@ -51,6 +51,7 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <math.h>
 
 #include "tensor_transform.h"
 
@@ -193,6 +194,7 @@ static const gchar *gst_tensor_transform_mode_string[] = {
   [GTT_TYPECAST] = "typecast",
   [GTT_ARITHMETIC] = "arithmetic",
   [GTT_TRANSPOSE] = "transpose",
+  [GTT_STAND] = "stand",
   [GTT_END] = "error",
 };
 
@@ -219,6 +221,18 @@ gst_tensor_transform_get_arith_mode (const gchar * str)
   }
   return ARITH_END;
 }
+
+static const gchar *gst_tensor_transform_stand_string[] = {
+  [STAND_DEFAULT] = "default",
+  [STAND_END] = NULL,
+};
+
+/**
+ * @brief Get the corresponding mode from the string value
+ * @param[in] str The string value for the mode
+ * @return corresponding mode for the string. ARITH_END for errors
+ */
+#define gst_tensor_transform_get_stand_mode(str) find_key_strv(gst_tensor_transform_stand_string, str)
 
 /**
  * @brief Get the corresponding mode from the string value
@@ -299,6 +313,15 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
       }
       filter->loaded = TRUE;
       g_strfreev (strv);
+    }
+      break;
+    case GTT_STAND:
+    {
+      filter->data_stand.mode =
+          gst_tensor_transform_get_stand_mode (filter->option);
+
+      g_assert (filter->data_stand.mode >= 0);
+      filter->loaded = TRUE;
     }
       break;
     default:
@@ -736,6 +759,58 @@ gst_tensor_transform_transpose (GstTensor_Transform * filter,
 
 
 /**
+ * @brief subrouting for tensor-tranform, "stand" case.
+ *        : pixel = abs((pixel - average(tensor))/(std(tensor) + val))
+ * @param[in/out] filter "this" pointer
+ * @param[in] inptr input tensor
+ * @param[out] outptr output tensor
+ * @return Gst flow status
+ */
+static GstFlowReturn
+gst_tensor_transform_stand (GstTensor_Transform * filter,
+    const uint8_t * inptr, uint8_t * outptr)
+{
+  int i;
+  size_t Size;
+  uint32_t *fromDim = filter->fromDim;
+  double average, stand;
+
+  float *in = (float *) inptr;
+  float *out = (float *) outptr;
+  Size = fromDim[3] * fromDim[2] * fromDim[1] * fromDim[0];
+
+  switch (filter->data_stand.mode) {
+    case STAND_DEFAULT:
+    {
+      average = 0.0;
+
+      for (i = 0; i < Size; i++) {
+        average = (in[i] - average) / (i + 1) + average;
+      }
+
+      stand = 0.0;
+
+      for (i = 0; i < Size; i++) {
+        stand += pow (in[i] - average, 2) / (Size - 1);
+      }
+
+      stand = sqrt (stand);
+      for (i = 0; i < Size; i++) {
+        out[i] = fabs ((in[i] - average) / (stand + 1e-10));
+      }
+    }
+      break;
+    default:
+      g_printerr ("Cannot identify mode\n");
+      g_assert (0);
+  }
+
+  return GST_FLOW_OK;
+}
+
+
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -769,6 +844,9 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       break;
     case GTT_TRANSPOSE:
       res = gst_tensor_transform_transpose (filter, inptr, outptr);
+      break;
+    case GTT_STAND:
+      res = gst_tensor_transform_stand (filter, inptr, outptr);
       break;
     default:
       res = GST_FLOW_NOT_SUPPORTED;
@@ -976,6 +1054,17 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
       ret = TRUE;
     }
       break;
+    case GTT_STAND:
+    {
+      int i;
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        destDim[i] = srcDim[i];
+      }
+      *destType = srcType;
+      ret = TRUE;
+    }
+      break;
+
     default:
       return FALSE;
   }
@@ -1131,6 +1220,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   switch (filter->mode) {
     case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
+    case GTT_STAND:
     case GTT_DIMCHG:
       if (itype != otype || filter->type != itype) {
         debug_print (!filter->silent, "Filter Type Not Matched\n");
@@ -1167,6 +1257,7 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
   switch (filter->mode) {
     case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
+    case GTT_STAND:
     case GTT_DIMCHG:
       *othersize = size;        /* size of input = size of output if dimchg */
       break;
