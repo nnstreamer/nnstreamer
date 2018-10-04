@@ -267,7 +267,10 @@ gst_tensor_config_validate (const GstTensorConfig * config)
 {
   g_return_val_if_fail (config != NULL, FALSE);
 
-  if (config->rate_n < 0 || config->rate_d < 0) {
+  /**
+   * check framerate (numerator >= 0 and denominator > 0)
+   */
+  if (config->rate_n < 0 || config->rate_d <= 0) {
     return FALSE;
   }
 
@@ -652,7 +655,10 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
 {
   g_return_val_if_fail (config != NULL, FALSE);
 
-  if (config->rate_n < 0 || config->rate_d < 0) {
+  /**
+   * check framerate (numerator >= 0 and denominator > 0)
+   */
+  if (config->rate_n < 0 || config->rate_d <= 0) {
     return FALSE;
   }
 
@@ -1070,7 +1076,7 @@ get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
   for (i = 0; i < capsize; i++) {
     str = gst_caps_get_structure (caps, i);
 
-    tensor_dim _dim;
+    tensor_dim _dim = { 0, };
     tensor_type _type = _NNS_END;
     int _fn, _fd;
 
