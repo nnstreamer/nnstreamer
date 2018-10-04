@@ -438,6 +438,15 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MODE,
+      g_param_spec_string ("mode", "Mode", "Decoder mode", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
+      g_param_spec_string ("mode-option-1", "Mode option 1",
+          "Mode option like file path to the image label", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
       "Converter/Tensor",
