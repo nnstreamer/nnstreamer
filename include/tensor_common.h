@@ -53,6 +53,9 @@ G_BEGIN_DECLS
 #define GST_TENSOR_TEXT_CAPS_STR \
     "text/x-raw, format = (string) utf8"
 
+#define GST_TENSOR_OCTET_CAPS_STR \
+    "application/octet-stream"
+
 /**
  * @brief Caps string for supported types
  * @todo Support other types
@@ -60,7 +63,8 @@ G_BEGIN_DECLS
 #define GST_TENSOR_MEDIA_CAPS_STR \
     GST_TENSOR_VIDEO_CAPS_STR "; " \
     GST_TENSOR_AUDIO_CAPS_STR "; " \
-    GST_TENSOR_TEXT_CAPS_STR
+    GST_TENSOR_TEXT_CAPS_STR "; " \
+    GST_TENSOR_OCTET_CAPS_STR
 
 /** @todo I'm not sure if the range is to be 1, 65535 or larger */
 #define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
@@ -116,6 +120,7 @@ typedef enum _nns_media_type
   _NNS_VIDEO = 0, /**< supposedly video/x-raw */
   _NNS_AUDIO, /**< supposedly audio/x-raw */
   _NNS_STRING, /**< supposedly text/x-raw */
+  _NNS_OCTET, /**< supposedly application/octet-stream */
 
   _NNS_MEDIA_END, /**< End Marker */
 } media_type;

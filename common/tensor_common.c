@@ -61,10 +61,18 @@ gst_tensor_media_type_from_structure (const GstStructure * structure)
 
   if (g_str_has_prefix (name, "video/")) {
     return _NNS_VIDEO;
-  } else if (g_str_has_prefix (name, "audio/")) {
+  }
+
+  if (g_str_has_prefix (name, "audio/")) {
     return _NNS_AUDIO;
-  } else if (g_str_has_prefix (name, "text/")) {
+  }
+
+  if (g_str_has_prefix (name, "text/")) {
     return _NNS_STRING;
+  }
+
+  if (g_str_equal (name, "application/octet-stream")) {
+    return _NNS_OCTET;
   }
 
   /** unknown, or not-supported type */
@@ -353,8 +361,6 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
   gint width = 0;
   gint height = 0;
-  gint fn = -1; /** numerator */
-  gint fd = -1; /** denominator */
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -368,7 +374,8 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
 
   gst_structure_get_int (structure, "width", &width);
   gst_structure_get_int (structure, "height", &height);
-  gst_structure_get_fraction (structure, "framerate", &fn, &fd);
+  gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+      &config->rate_d);
 
   /** [color-space][width][height][frames] */
   switch (format) {
@@ -393,9 +400,6 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   config->info.dimension[1] = width;
   config->info.dimension[2] = height;
   config->info.dimension[3] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames. */
-
-  config->rate_n = fn;
-  config->rate_d = fd;
 
   return (config->info.type != _NNS_END);
 }
@@ -517,48 +521,56 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
   config->info.dimension[2] = 1;
   config->info.dimension[3] = 1;
 
-  /** cannot get the framerate for text type */
-  config->rate_n = 0;
-  config->rate_d = 1;
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
+  } else {
+    /** cannot get the framerate for text type */
+    config->rate_n = 0;
+    config->rate_d = 1;
+  }
 
   return (config->info.type != _NNS_END);
 }
 
 /**
- * @brief Parse caps and set tensor config info
+ * @brief Set the tensor config structure from octet stream (internal static function)
  * @param config tensor config structure to be filled
- * @param structure structure to be interpreted
- * @return TRUE if ok
+ * @param structure caps structure
+ * @note Change tensor dimention and type.
+ * @return TRUE if supported type
  */
 static gboolean
-gst_tensor_config_from_media_structure (GstTensorConfig * config,
+gst_tensor_config_from_octet_stream_info (GstTensorConfig * config,
     const GstStructure * structure)
 {
-  media_type m_type;
-
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
 
   g_return_val_if_fail (structure != NULL, FALSE);
 
-  m_type = gst_tensor_media_type_from_structure (structure);
+  /**
+   * Raw byte-stream (application/octet-stream)
+   * We cannot get the exact tensor info from caps.
+   * All tensor info should be updated.
+   */
+  config->info.type = _NNS_UINT8;
 
-  switch (m_type) {
-    case _NNS_VIDEO:
-      gst_tensor_config_from_video_info (config, structure);
-      break;
-    case _NNS_AUDIO:
-      gst_tensor_config_from_audio_info (config, structure);
-      break;
-    case _NNS_STRING:
-      gst_tensor_config_from_text_info (config, structure);
-      break;
-    default:
-      err_print ("Unsupported type %d\n", m_type);
-      return FALSE;
+  config->info.dimension[0] = 1;
+  config->info.dimension[1] = 1;
+  config->info.dimension[2] = 1;
+  config->info.dimension[3] = 1;
+
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
+  } else {
+    /** cannot get the framerate */
+    config->rate_n = 0;
+    config->rate_d = 1;
   }
 
-  return TRUE;
+  return (config->info.type != _NNS_END);
 }
 
 /**
@@ -572,15 +584,40 @@ gboolean
 gst_tensor_config_from_structure (GstTensorConfig * config,
     const GstStructure * structure)
 {
+  media_type m_type;
+
   g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensor_config_init (config);
+
   g_return_val_if_fail (structure != NULL, FALSE);
 
+  /** update config from tensor stream */
   if (gst_structure_has_name (structure, "other/tensor")) {
     return gst_tensor_config_from_tensor_structure (config, structure);
-  } else {
-    /** tensor config from media stream */
-    return gst_tensor_config_from_media_structure (config, structure);
   }
+
+  /** update config from media stream */
+  m_type = gst_tensor_media_type_from_structure (structure);
+
+  switch (m_type) {
+    case _NNS_VIDEO:
+      gst_tensor_config_from_video_info (config, structure);
+      break;
+    case _NNS_AUDIO:
+      gst_tensor_config_from_audio_info (config, structure);
+      break;
+    case _NNS_STRING:
+      gst_tensor_config_from_text_info (config, structure);
+      break;
+    case _NNS_OCTET:
+      gst_tensor_config_from_octet_stream_info (config, structure);
+      break;
+    default:
+      err_print ("Unsupported type %d\n", m_type);
+      return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
