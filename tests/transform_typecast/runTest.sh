@@ -38,4 +38,29 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 python checkResult.py typecast testcase04.direct.log testcase04.typecast.log uint8 1 B uint8 1 B
 casereport 4 $? "Golden test comparison"
 
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=float32 ! filesink location=\"testcase05.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase05.direct.log\" sync=true" 5
+# uint8 -> float32
+python checkResult.py typecast testcase05.direct.log testcase05.typecast.log uint8 1 B float32 4 f
+casereport 5 $? "Golden test comparison"
+
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=float64 ! filesink location=\"testcase06.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase06.direct.log\" sync=true" 6
+# uint8 -> float64
+python checkResult.py typecast testcase06.direct.log testcase06.typecast.log uint8 1 B float64 8 d
+casereport 6 $? "Golden test comparison"
+
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=typecast option=float64 ! tensor_transform mode=typecast option=int64 ! tensor_transform mode=typecast option=uint8 ! filesink location=\"testcase07.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase07.direct.log\" sync=true" 7
+# uint8 -> int8 -> float32 -> float64 -> int64 -> uint8
+python checkResult.py typecast testcase07.direct.log testcase07.typecast.log uint8 1 B uint8 1 B
+casereport 7 $? "Golden test comparison"
+
+
+# Below test case will be added after resolving the issue 618 (https://github.com/nnsuite/nnstreamer/issues/618)
+#gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=typecast option=float64 ! tensor_transform mode=typecast option=uint8 ! filesink location=\"testcase08.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8
+## uint8 -> int8 -> float32 -> float64 -> uint8
+#python checkResult.py typecast testcase08.direct.log testcase08.typecast.log uint8 1 B uint8 1 B
+#casereport 8 $? "Golden test comparison"
+
 report
