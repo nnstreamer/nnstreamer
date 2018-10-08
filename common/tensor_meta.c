@@ -18,7 +18,6 @@
  * @date	20 June 2018
  * @brief	Meta Data for Tensor type.
  * @see		http://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

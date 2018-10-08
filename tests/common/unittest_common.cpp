@@ -4,7 +4,6 @@
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @brief Unit test module for NNStreamer common library
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @bug		No known bugs.
  *
  *  @brief Unit test module for NNStreamer common library

@@ -8,7 +8,7 @@ Three features will be supported.
 - Debugging
 - Profiling(in progress)
 
-refer: https://github.sec.samsung.net/STAR/nnstreamer/issues/67
+refer: https://github.com/nnsuite/nnstreamer/issues/132
 
 ## Tracing
 

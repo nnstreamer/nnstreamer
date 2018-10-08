@@ -3,7 +3,6 @@
  * @date	3 July 2018
  * @brief	Sample code for tensor sink plugin
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  *

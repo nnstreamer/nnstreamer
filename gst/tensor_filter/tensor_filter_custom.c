@@ -18,7 +18,6 @@
  * @date	01 Jun 2018
  * @brief	Custom tensor post-processing interface for NNStreamer suite between NN developer-plugins and NNstreamer.
  * @see		http://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

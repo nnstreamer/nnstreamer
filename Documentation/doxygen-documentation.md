@@ -27,7 +27,7 @@ Doxygen is the de facto regular tool for generating documentation from annotated
     ```
     # for src app
     $ cd ./gst
-    $ doxygen ../Doxyfile.prj # from https://github.sec.samsung.net/STAR/TAOS-CI/blob/tizen/ci/Doxyfile.prj
+    $ doxygen ../Doxyfile.prj # from https://github.com/nnsuite/TAOS-CI/blob/tizen/ci/Doxyfile.prj
 
     # launch with the browser to view the results
     $ chromium-browser ./html/index.html

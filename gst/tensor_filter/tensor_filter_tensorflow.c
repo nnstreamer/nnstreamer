@@ -18,7 +18,6 @@
  * @date	02 Aug 2018
  * @brief	Tensorflow module for tensor_filter gstreamer plugin
  * @see		http://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

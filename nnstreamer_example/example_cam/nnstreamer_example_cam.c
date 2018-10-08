@@ -2,7 +2,6 @@
  * @file	nnstreamer_example_cam.c
  * @date	10 July 2018
  * @brief	Tensor stream example
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  *

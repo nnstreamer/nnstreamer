@@ -2,7 +2,6 @@
  * @file	nnstreamer_sink_example_play.c
  * @date	5 July 2018
  * @brief	Sample code for tensor sink plugin
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  *

@@ -3,7 +3,7 @@
  * @date	27 August 2018
  * @brief	A NNStreamer Example of tensor_filter using TensorFlow Lite:
  * 		Perfromance Profiling (i.e., FPS)
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
+ * @see		https://github.com/nnsuite/nnstreamer
  * @author	Wook Song <wook16.song@samsung.com>
  * @bug		No known bugs.
  *
@@ -599,8 +599,8 @@ _handle_tensor_sink_new_data_nn (GstElement * object, GstBuffer * buffer,
       GST_TIME_AS_MSECONDS (GST_CLOCK_DIFF (ctx->time_last_profile, now));
   ctx->time_last_profile = now;
 
-  g_print ("Avg. FPS = %lf (processed: %u, elapsed time (ms): %" G_GINT64_FORMAT "), ",
-      (gdouble) total_passed * G_GINT64_CONSTANT (1000) / msecs_elapsed,
+  g_print ("Avg. FPS = %lf (processed: %u, elapsed time (ms): %" G_GINT64_FORMAT
+      "), ", (gdouble) total_passed * G_GINT64_CONSTANT (1000) / msecs_elapsed,
       total_passed, msecs_elapsed);
   g_print ("Cur. FPS = %lf\n",
       (gdouble) 1 * G_GINT64_CONSTANT (1000) / msecs_interval);
@@ -637,7 +637,7 @@ _construct_nn_tflite_pipeline (nnstrmr_app_context_t * ctx)
       &((ctx->pipeline_container).nn_tflite_pipeline_container);
   GstCaps *caps;
   gchar *str_caps;
-  gboolean ret = TRUE;
+  gboolean ret;
   GstPad *pad;
 
   pipeline_cntnr->nn_tflite_queue =
@@ -963,7 +963,7 @@ _unregister_signals (nnstrmr_app_context_t * ctx)
 int
 main (int argc, char *argv[])
 {
-  nnstrmr_app_context_t app_ctx = {};
+  nnstrmr_app_context_t app_ctx = { };
   gboolean ret;
   GstBus *bus;
   guint bus_watch_id;
