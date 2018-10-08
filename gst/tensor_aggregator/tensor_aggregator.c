@@ -102,7 +102,7 @@ enum
 /**
  * @brief The dimension index of frames in configured tensor.
  */
-#define DEFAULT_FRAMES_DIMENSION (-1)
+#define DEFAULT_FRAMES_DIMENSION (NNS_TENSOR_RANK_LIMIT - 1)
 
 /**
  * @brief Template for sink pad.
@@ -204,13 +204,11 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
    * The dimension index of frames in tensor.
    * If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
    * With this property, GstTensorAggregator changes the out-caps.
-   * If set -1 (default value), GstTensorAggregator does not change the dimension in outgoing tensor.
-   * (This may cause an error if in/out frames are different.)
    */
   g_object_class_install_property (object_class, PROP_FRAMES_DIMENSION,
-      g_param_spec_int ("frames-dim", "Dimension index of frames",
+      g_param_spec_uint ("frames-dim", "Dimension index of frames",
           "The dimension index of frames in tensor",
-          -1, (NNS_TENSOR_RANK_LIMIT - 1), DEFAULT_FRAMES_DIMENSION,
+          0, (NNS_TENSOR_RANK_LIMIT - 1), DEFAULT_FRAMES_DIMENSION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
@@ -312,7 +310,7 @@ gst_tensor_aggregator_set_property (GObject * object, guint prop_id,
       self->frames_flush = g_value_get_uint (value);
       break;
     case PROP_FRAMES_DIMENSION:
-      self->frames_dim = g_value_get_int (value);
+      self->frames_dim = g_value_get_uint (value);
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
@@ -345,7 +343,7 @@ gst_tensor_aggregator_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, self->frames_flush);
       break;
     case PROP_FRAMES_DIMENSION:
-      g_value_set_int (value, self->frames_dim);
+      g_value_set_uint (value, self->frames_dim);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -670,6 +668,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 {
   GstStructure *structure;
   GstTensorConfig config;
+  uint32_t per_frame;
 
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
@@ -688,10 +687,17 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   self->in_config = config;
 
-  /** update dimension in output tensor */
-  if (self->frames_dim >= 0) {
-    config.info.dimension[self->frames_dim] = self->frames_out;
-  }
+  /**
+   * update dimension in output tensor.
+   * e.g, in-dimension 2:200:200:1
+   * if frames_out=10 and frames_dim=3, then out-dimension is 2:200:200:10.
+   * if frames_out=10 and frames_dim=2, then out-dimension is 2:200:2000:1.
+   */
+  g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
+  g_assert ((config.info.dimension[self->frames_dim] % self->frames_in) == 0);
+  per_frame = config.info.dimension[self->frames_dim] / self->frames_in;
+
+  config.info.dimension[self->frames_dim] = per_frame * self->frames_out;
 
   self->out_config = config;
   self->tensor_configured = TRUE;
