@@ -104,6 +104,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 enum
 {
   PROP_0,
+  PROP_INPUT_DIMENSION,
+  PROP_INPUT_TYPE,
   PROP_FRAMES_PER_TENSOR,
   PROP_SILENT
 };
@@ -178,6 +180,32 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   object_class->finalize = gst_tensor_converter_finalize;
 
   /**
+   * GstTensorConverter::input-dim:
+   *
+   * Input tensor dimension from inner array.
+   * Generally this property is used to set tensor configuration for byte-stream (application/octet-stream).
+   * When setting this property and input media type is video or audio stream, GstTensorConverter will compare the media info with this.
+   * (If it is different, it will be failed.)
+   */
+  g_object_class_install_property (object_class, PROP_INPUT_DIMENSION,
+      g_param_spec_string ("input-dim", "Input tensor dimension",
+          "Input tensor dimension from inner array", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstTensorConverter::input-type:
+   *
+   * Type of each element of the input tensor.
+   * Generally this property is used to set tensor configuration for byte-stream (application/octet-stream).
+   * When setting this property and input media type is video or audio stream, GstTensorConverter will compare the media info with this.
+   * (If it is different, it will be failed.)
+   */
+  g_object_class_install_property (object_class, PROP_INPUT_TYPE,
+      g_param_spec_string ("input-type", "Input tensor type",
+          "Type of each element of the input tensor", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
    * GstTensorConverter::frames-per-tensor:
    *
    * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
@@ -241,6 +269,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->frames_per_tensor = DEFAULT_FRAMES_PER_TENSOR;
   self->in_media_type = _NNS_MEDIA_END;
   self->remove_padding = FALSE;
+  gst_tensor_info_init (&self->tensor_info);
 
   self->adapter = gst_adapter_new ();
   gst_tensor_converter_reset (self);
@@ -278,6 +307,14 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
   self = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
+    case PROP_INPUT_DIMENSION:
+      g_assert (get_tensor_dimension (g_value_get_string (value),
+              self->tensor_info.dimension) > 0);
+      break;
+    case PROP_INPUT_TYPE:
+      self->tensor_info.type = get_tensor_type (g_value_get_string (value));
+      g_assert (self->tensor_info.type != _NNS_END);
+      break;
     case PROP_FRAMES_PER_TENSOR:
       self->frames_per_tensor = g_value_get_uint (value);
       silent_debug ("Set frames in output = %d", self->frames_per_tensor);
@@ -304,6 +341,19 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
   self = GST_TENSOR_CONVERTER (object);
 
   switch (prop_id) {
+    case PROP_INPUT_DIMENSION:
+    {
+      gchar *str_dim;
+
+      str_dim = get_tensor_dimension_string (self->tensor_info.dimension);
+      g_value_set_string (value, str_dim);
+      g_free (str_dim);
+      break;
+    }
+    case PROP_INPUT_TYPE:
+      g_value_set_string (value,
+          tensor_element_typename[self->tensor_info.type]);
+      break;
     case PROP_FRAMES_PER_TENSOR:
       g_value_set_uint (value, self->frames_per_tensor);
       break;
@@ -557,6 +607,13 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       }
       break;
 
+    case _NNS_OCTET:
+      /** get frame size from the properties */
+      frame_size = gst_tensor_info_get_size (&config->info);
+      g_assert ((buf_size % frame_size) == 0);
+      frames_in = buf_size / frame_size;
+      break;
+
     default:
       err_print ("Unsupported type %d\n", self->in_media_type);
       g_assert (0);
@@ -774,6 +831,17 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
     case _NNS_STRING:
       frames_dim = 1;
       break;
+    case _NNS_OCTET:
+      /**
+       * update tensor info from properties
+       */
+      if (!gst_tensor_info_validate (&self->tensor_info)) {
+        err_print ("Failed to get tensor info, update dimension and type.\n");
+        return FALSE;
+      }
+
+      config.info = self->tensor_info;
+      break;
     default:
       err_print ("Unsupported type %d\n", in_type);
       return FALSE;
@@ -790,9 +858,18 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
     return FALSE;
   }
 
+  if (gst_tensor_info_validate (&self->tensor_info)) {
+    /** compare tensor info */
+    if (!gst_tensor_info_is_equal (&self->tensor_info, &config.info)) {
+      err_print ("Failed, mismatched tensor info.\n");
+      return FALSE;
+    }
+  }
+
   self->in_media_type = in_type;
   self->tensor_configured = TRUE;
   self->tensor_config = config;
+  self->tensor_info = config.info;
   return TRUE;
 }
 

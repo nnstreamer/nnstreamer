@@ -70,6 +70,8 @@ typedef enum
   TEST_TYPE_AUDIO_F64, /**< pipeline for audio (F64) */
   TEST_TYPE_TEXT, /**< pipeline for text */
   TEST_TYPE_TEXT_3F, /**< pipeline for text 3 frames */
+  TEST_TYPE_OCTET_1, /**< pipeline for octet stream */
+  TEST_TYPE_OCTET_2, /**< pipeline for octet stream */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
   TEST_TYPE_TENSORS_MIX, /**< pipeline for tensors with tensor_mux, tensor_demux */
   TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
@@ -197,6 +199,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
   gsize buf_size = gst_buffer_get_size (buffer);
   guint mem_blocks = gst_buffer_n_memory (buffer);
+  GstClockTime timestamp = GST_BUFFER_DTS_OR_PTS (buffer);
 
   if (g_test_data.received > 0) {
     if (g_test_data.mem_blocks != mem_blocks) {
@@ -212,13 +215,6 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     }
   }
 
-  g_test_data.received++;
-  g_test_data.received_size = buf_size;
-  g_test_data.mem_blocks = mem_blocks;
-
-  _print_log ("new data callback [%d] size [%zd]",
-      g_test_data.received, g_test_data.received_size);
-
   if (DBG) {
     GstClockTime pts, dts;
 
@@ -230,9 +226,16 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
   }
 
   /** check timestamp */
-  if (!GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DTS_OR_PTS (buffer))) {
+  if (!GST_CLOCK_TIME_IS_VALID (timestamp)) {
     g_test_data.invalid_timestamp = TRUE;
   }
+
+  g_test_data.received++;
+  g_test_data.received_size = buf_size;
+  g_test_data.mem_blocks = mem_blocks;
+
+  _print_log ("new data callback [%d] size [%zd]",
+      g_test_data.received, g_test_data.received_size);
 
   if (g_test_data.caps_name == NULL) {
     GstPad *sink_pad;
@@ -493,8 +496,22 @@ _setup_pipeline (TestOption & option)
       /** text stream 3 frames */
       str_pipeline =
           g_strdup_printf
-          ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
+          ("appsrc name=appsrc caps=text/x-raw,format=utf8,framerate=(fraction)100/1 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink");
+      break;
+    case TEST_TYPE_OCTET_1:
+      /** byte stream */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=application/octet-stream ! "
+          "tensor_converter input-dim=1:10 input-type=uint8 ! tensor_sink name=test_sink");
+      break;
+    case TEST_TYPE_OCTET_2:
+      /** byte stream */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)100/1 ! "
+          "tensor_converter input-dim=1:10 input-type=uint8 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_TENSORS:
       /** other/tensors with tensor_mux */
@@ -1712,7 +1729,97 @@ TEST (tensor_stream_test, text_utf8_3f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 3);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 100);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for octet stream.
+ */
+TEST (tensor_stream_test, octet_1)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_OCTET_1 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 10);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 10);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for octet stream.
+ */
+TEST (tensor_stream_test, octet_2)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_OCTET_2 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  _push_text_data (num_buffers);
+
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 10);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 10);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 100);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
