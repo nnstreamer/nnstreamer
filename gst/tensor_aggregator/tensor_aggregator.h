@@ -61,7 +61,7 @@ struct _GstTensorAggregator
   guint frames_in; /**< number of frames in input buffer */
   guint frames_out; /**< number of frames in output buffer */
   guint frames_flush; /**< number of frames to flush */
-  gint frames_dim; /**< index of frames in tensor dimension */
+  guint frames_dim; /**< index of frames in tensor dimension */
 
   GstAdapter *adapter; /**< adapt incoming tensor */
 

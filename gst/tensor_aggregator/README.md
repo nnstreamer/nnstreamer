@@ -60,12 +60,12 @@ It does not support ```other/tensors``` because each frame (or a set of frames c
   GstTensorAggregator flushes the bytes (```frames-flush``` frames) in GstAdapter after pushing a buffer.
   If set 0 (default value), all outgoing frames will be flushed.
 
-- frames-dim: The dimension index of frames in tensor. (Default -1)
+- frames-dim: The dimension index of frames in tensor. (Default value is (NNS_TENSOR_RANK_LIMIT - 1))
 
   If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
   With this property, GstTensorAggregator changes the out-caps.
   
-  If set -1 (default value), GstTensorAggregator does not change the dimension in outgoing tensor. (This may cause an error if in/out frames are different.)
+  If set this value in 0 ~ (NNS_TENSOR_RANK_LIMIT - 2), GstTensorAggregator will concatenate the output buffer.
 
 ### Properties for debugging
 
