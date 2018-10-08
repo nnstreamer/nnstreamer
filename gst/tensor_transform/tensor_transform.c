@@ -725,27 +725,29 @@ gst_tensor_transform_transpose (GstTensor_Transform * filter,
     return GST_FLOW_OK;
   }
 
-  indexI = filter->data_transpose.trans_order[1];
-  indexJ = filter->data_transpose.trans_order[2];
-  SL = fromDim[0], SI = fromDim[1], SJ = fromDim[2], SK = fromDim[3];
+  indexI = filter->data_transpose.trans_order[0];
+  indexJ = filter->data_transpose.trans_order[1];
+  SL = fromDim[3], SI = fromDim[0], SJ = fromDim[1], SK = fromDim[2];
+
+  g_assert (filter->data_transpose.trans_order[3] == 3);
 
   switch (indexI) {
-    case 1:
-      if (indexJ == 2) {
+    case 0:
+      if (indexJ == 1) {
         transposeloop (l, i, j, k, SL, SI, SJ, SK, type_size);
       } else {
         transposeloop (l, i, k, j, SL, SI, SK, SJ, type_size);
       }
       break;
-    case 2:
-      if (indexJ == 1) {
+    case 1:
+      if (indexJ == 0) {
         transposeloop (l, j, i, k, SL, SJ, SI, SK, type_size);
       } else {
         transposeloop (l, j, k, i, SL, SJ, SK, SI, type_size);
       }
       break;
-    case 3:
-      if (indexJ == 1) {
+    case 2:
+      if (indexJ == 0) {
         transposeloop (l, k, i, j, SL, SK, SI, SJ, type_size);
       } else {
         transposeloop (l, k, j, i, SL, SK, SJ, SI, type_size);
