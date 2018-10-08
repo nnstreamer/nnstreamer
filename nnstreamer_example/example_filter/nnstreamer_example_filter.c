@@ -2,7 +2,6 @@
  * @file	nnstreamer_example_filter.c
  * @date	13 July 2018
  * @brief	Tensor stream example with filter
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  *

@@ -2,7 +2,7 @@
 
 These are TAOS-CI config files for nnstreamer.
 
-- http://suprem.sec.samsung.net/STAR/TAOS-CI
+- http://github.com/nnsuite/TAOS-CI
 
 ## How to use
 

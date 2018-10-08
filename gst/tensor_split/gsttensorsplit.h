@@ -20,7 +20,6 @@
  * @date	27 Aug 2018
  * @brief	GStreamer plugin to split tensor (as a filter for other general neural network filters)
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

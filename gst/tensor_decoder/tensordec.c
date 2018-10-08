@@ -20,7 +20,6 @@
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

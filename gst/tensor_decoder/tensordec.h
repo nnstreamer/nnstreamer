@@ -21,7 +21,6 @@
  * @brief	GStreamer plugin to convert tensors to media types
  *
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

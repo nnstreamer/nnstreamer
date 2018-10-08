@@ -18,7 +18,6 @@
  * @date	13 Jul 2018
  * @brief	Simple bmp2png converter for testcases
  * @see		http://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *
@@ -261,7 +260,7 @@ main (int argc, char *argv[])
         uint8_t gray;
         size = fread (&gray, 1, 1, bmpF);
         if (size != 1) {
-          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width,
+          printf ("x = %d / y = %d / (%d,%d) / size = %zu\n", x, y, width,
               height, size);
           goto error;
         }
@@ -270,7 +269,7 @@ main (int argc, char *argv[])
         uint8_t bgr[3];
         size = fread (bgr, 1, 3, bmpF);
         if (size != 3) {
-          printf ("x = %d / y = %d / (%d,%d) / size = %zd\n", x, y, width,
+          printf ("x = %d / y = %d / (%d,%d) / size = %zu\n", x, y, width,
               height, size);
           goto error;
         }

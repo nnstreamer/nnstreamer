@@ -20,7 +20,6 @@
  * @date	26 June 2018
  * @brief	test element to generate tensors
  * @see		https://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  */

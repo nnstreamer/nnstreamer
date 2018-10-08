@@ -21,7 +21,6 @@
  * @brief	GStreamer plugin to transform other/tensor dimensions
  *
  * @see		http://github.com/nnsuite/nnstreamer
- * @see		https://github.sec.samsung.net/STAR/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs.
  *
