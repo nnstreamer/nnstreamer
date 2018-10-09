@@ -28,6 +28,7 @@ BuildRequires:	gst-plugins-base
 BuildRequires:	gtest-devel
 # a few test cases uses python
 BuildRequires:	python
+BuildRequires:	python-numpy
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
