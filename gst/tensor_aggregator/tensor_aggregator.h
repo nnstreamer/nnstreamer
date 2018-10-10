@@ -58,6 +58,7 @@ struct _GstTensorAggregator
   GstPad *srcpad; /**< src pad */
 
   gboolean silent; /**< true to print minimized log */
+  gboolean concat; /**< true to concatenate output buffer */
   guint frames_in; /**< number of frames in input buffer */
   guint frames_out; /**< number of frames in output buffer */
   guint frames_flush; /**< number of frames to flush */
