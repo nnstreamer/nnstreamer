@@ -549,10 +549,10 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
 {
   GstBuffer *srcbuf;
   GstMapInfo src_info, dest_info;
-  guint f, d0, d1;
+  guint f;
   gsize block_size;
   gsize src_idx, dest_idx;
-  gsize frame_size;
+  gsize frame_size, copied;
 
   frame_size = gst_tensor_info_get_size (info);
   g_assert (frame_size > 0);
@@ -736,28 +736,26 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
    ********************************************************************
    */
 
-  /* get block size */
+  /** get block size */
   block_size = tensor_element_size[info->type];
-  for (d0 = 0; d0 <= self->frames_dim; d0++) {
-    block_size *= info->dimension[d0];
+  for (f = 0; f <= self->frames_dim; f++) {
+    block_size *= info->dimension[f];
   }
 
-  /**
-   * @todo add code to concatenate data with given axis (self->frames_dim)
-   * now added one case (frames_dim 1)
-   */
-  dest_idx = 0;
-  for (d0 = 0; d0 < info->dimension[3]; d0++) {
-    for (d1 = 0; d1 < info->dimension[2]; d1++) {
-      for (f = 0; f < self->frames_out; f++) {
-        src_idx = frame_size * f;
-        src_idx += ((d0 * info->dimension[2]) + d1) * block_size;
+  copied = src_idx = dest_idx = 0;
 
-        memcpy (dest_info.data + dest_idx, src_info.data + src_idx, block_size);
-        dest_idx += block_size;
-      }
+  do {
+    for (f = 0; f < self->frames_out; f++) {
+      memcpy (dest_info.data + dest_idx,
+          src_info.data + src_idx + (frame_size * f), block_size);
+      dest_idx += block_size;
     }
-  }
+
+    src_idx = block_size * ++copied;
+
+    g_assert (src_idx <= frame_size);
+    g_assert (dest_idx <= dest_info.size);
+  } while (src_idx < frame_size);
 
   gst_buffer_unmap (srcbuf, &src_info);
   gst_buffer_unmap (outbuf, &dest_info);
