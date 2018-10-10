@@ -288,12 +288,31 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
     case GTT_ARITHMETIC:
     {
       gchar **strv = g_strsplit (filter->option, ":", 2);
+      gchar *not_consumed;
+
       if (strv[0] != NULL) {
         filter->data_arithmetic.mode =
             gst_tensor_transform_get_arith_mode (strv[0]);
       }
-      if (strv[1] != NULL)
-        filter->data_arithmetic.value = g_ascii_strtod (strv[1], NULL);
+
+      if (strv[1] != NULL) {
+        if (strchr (strv[1], '.') || strchr (strv[1], 'e') ||
+            strchr (strv[1], 'E')) {
+          filter->data_arithmetic.value.type = ARITH_OPRND_TYPE_DOUBLE;
+          filter->data_arithmetic.value.value_double =
+              g_ascii_strtod (strv[1], &not_consumed);
+        } else {
+          filter->data_arithmetic.value.type = ARITH_OPRND_TYPE_INT64;
+          filter->data_arithmetic.value.value_int64 =
+              g_ascii_strtoll (strv[1], &not_consumed, 10);
+        }
+
+        if (strlen (not_consumed)) {
+          g_printerr ("%s is not a valid integer or floating point value\n",
+              strv[1]);
+          g_assert (0);
+        }
+      }
 
       filter->loaded = TRUE;
       g_strfreev (strv);
@@ -632,7 +651,12 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
 #define arithloopcase(typecase, itype, num, mode, value) \
   case typecase: \
   { \
-    itype a = (itype) value; \
+    itype a; \
+    switch (value.type) {\
+    case ARITH_OPRND_TYPE_INT64 : a = (itype) value.value_int64; break; \
+    case ARITH_OPRND_TYPE_DOUBLE : a = (itype) value.value_double; break;\
+    default: g_assert(0); \
+    }; \
     switch (mode) { \
     case ARITH_ADD : arith(itype, num, +, a); break; \
     case ARITH_MUL : arith(itype, num, *, a); break; \
@@ -654,7 +678,8 @@ gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
 {
   uint32_t num = get_tensor_element_count (filter->fromDim);
   tensor_transform_arith_mode mode = filter->data_arithmetic.mode;
-  double value = filter->data_arithmetic.value;
+  tensor_transform_arithmetic_operand value = filter->data_arithmetic.value;
+
   switch (filter->type) {
       arithloopcase (_NNS_INT8, int8_t, num, mode, value);
       arithloopcase (_NNS_INT16, int16_t, num, mode, value);

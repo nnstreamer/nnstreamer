@@ -89,6 +89,14 @@ typedef enum
   STAND_END,
 } tensor_transform_stand_mode;
 
+typedef enum
+{
+  ARITH_OPRND_TYPE_INT64 = 0,
+  ARITH_OPRND_TYPE_DOUBLE = 1,
+
+  ARITH_OPRND_TYPE_END
+} tensor_transform_arith_oprnd_type;
+
 /**
  * @brief Internal data structure for dimchg mode.
  */
@@ -105,12 +113,22 @@ typedef struct _tensor_transform_typecast {
 } tensor_transform_typecast;
 
 /**
+ * @brief Internal data structure for operand of arithmetic mode.
+ */
+typedef struct _tensor_transform_arithmetic_operand {
+  tensor_transform_arith_oprnd_type type;
+  union {
+    int64_t value_int64;
+    double value_double;
+  };
+} tensor_transform_arithmetic_operand;
+
+/**
  * @brief Internal data structure for arithmetic mode.
  */
 typedef struct _tensor_transform_arithmetic {
   tensor_transform_arith_mode mode;
-  /* TODO : Better to use union for various type*/
-  int64_t value;
+  tensor_transform_arithmetic_operand value;
 } tensor_transform_arithmetic;
 
 /**
