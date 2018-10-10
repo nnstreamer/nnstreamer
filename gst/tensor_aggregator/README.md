@@ -62,10 +62,14 @@ It does not support ```other/tensors``` because each frame (or a set of frames c
 
 - frames-dim: The dimension index of frames in tensor. (Default value is (NNS_TENSOR_RANK_LIMIT - 1))
 
-  If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
+  If ```frames-in``` and ```frames-out``` are different, GstTensorAggregator has to change the dimension of tensor.
   With this property, GstTensorAggregator changes the out-caps.
-  
-  If set this value in 0 ~ (NNS_TENSOR_RANK_LIMIT - 2), GstTensorAggregator will concatenate the output buffer.
+
+  If set this value in 0 ~ (NNS_TENSOR_RANK_LIMIT - 2) and ```concat``` is true, GstTensorAggregator will concatenate the output buffer.
+
+- concat: The flag to concatenate output buffer. (Default true)
+
+  If ```concat``` is true and ```frames-out``` is larger than 1, GstTensorAggregator will concatenate the output buffer with the axis ```frames-dim```.
 
 ### Properties for debugging
 

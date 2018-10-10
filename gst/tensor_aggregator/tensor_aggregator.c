@@ -31,6 +31,7 @@
 #include <config.h>
 #endif
 
+#include <string.h>
 #include "tensor_aggregator.h"
 
 /**
@@ -76,6 +77,7 @@ enum
   PROP_FRAMES_OUT,
   PROP_FRAMES_FLUSH,
   PROP_FRAMES_DIMENSION,
+  PROP_CONCAT,
   PROP_SILENT
 };
 
@@ -103,6 +105,11 @@ enum
  * @brief The dimension index of frames in configured tensor.
  */
 #define DEFAULT_FRAMES_DIMENSION (NNS_TENSOR_RANK_LIMIT - 1)
+
+/**
+ * @brief Flag to concatenate output buffer.
+ */
+#define DEFAULT_CONCAT TRUE
 
 /**
  * @brief Template for sink pad.
@@ -212,6 +219,16 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
+   * GstTensorAggregator::concat:
+   *
+   * The flag to concatenate output buffer.
+   * If concat is true and frames-out is larger than 1, GstTensorAggregator will concatenate the output buffer with the axis frames-dim.
+   */
+  g_object_class_install_property (object_class, PROP_CONCAT,
+      g_param_spec_boolean ("concat", "Concat", "Concatenate output buffer",
+          DEFAULT_CONCAT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
    * GstTensorAggregator::silent:
    *
    * The flag to enable/disable debugging messages.
@@ -263,6 +280,7 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   self->frames_out = DEFAULT_FRAMES_OUT;
   self->frames_flush = DEFAULT_FRAMES_FLUSH;
   self->frames_dim = DEFAULT_FRAMES_DIMENSION;
+  self->concat = DEFAULT_CONCAT;
 
   self->adapter = gst_adapter_new ();
   gst_tensor_aggregator_reset (self);
@@ -312,6 +330,9 @@ gst_tensor_aggregator_set_property (GObject * object, guint prop_id,
     case PROP_FRAMES_DIMENSION:
       self->frames_dim = g_value_get_uint (value);
       break;
+    case PROP_CONCAT:
+      self->concat = g_value_get_boolean (value);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -344,6 +365,9 @@ gst_tensor_aggregator_get_property (GObject * object, guint prop_id,
       break;
     case PROP_FRAMES_DIMENSION:
       g_value_set_uint (value, self->frames_dim);
+      break;
+    case PROP_CONCAT:
+      g_value_set_boolean (value, self->concat);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -485,6 +509,288 @@ gst_tensor_aggregator_src_query (GstPad * pad, GstObject * parent,
 }
 
 /**
+ * @brief Check tensor dimension and axis to concatenate data.
+ * @param self this pointer to GstTensorAggregator
+ * @param info tensor info for one frame
+ * @return True if needed to concatenate
+ */
+static gboolean
+gst_tensor_aggregator_check_concat_axis (GstTensorAggregator * self,
+    const GstTensorInfo * info)
+{
+  guint i;
+
+  g_assert (info != NULL);
+  g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
+
+  /**
+   * Check condition to concatenate data.
+   */
+  if (self->concat && self->frames_out > 1) {
+    for (i = self->frames_dim + 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      if (info->dimension[i] > 1) {
+        /** concatenate data */
+        return TRUE;
+      }
+    }
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Change the data in buffer with given axis.
+ * @param self this pointer to GstTensorAggregator
+ * @param outbuf buffer to be concatenated
+ * @param info tensor info for one frame
+ */
+static void
+gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
+    const GstTensorInfo * info)
+{
+  GstBuffer *srcbuf;
+  GstMapInfo src_info, dest_info;
+  guint f, d0, d1;
+  gsize block_size;
+  gsize src_idx, dest_idx;
+  gsize frame_size;
+
+  frame_size = gst_tensor_info_get_size (info);
+  g_assert (frame_size > 0);
+
+  srcbuf = gst_buffer_copy (outbuf);
+  g_assert (gst_buffer_map (srcbuf, &src_info, GST_MAP_READ));
+  g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE));
+
+  /**
+   * Concatenate output buffer with given axis (frames-dim)
+   * If frames-dim is equal to (NNS_TENSOR_RANK_LIMIT - 1), nothing to do.
+   * (In this case, this function will not be called. See gst_tensor_aggregator_check_concat_axis ())
+   ********************************************************************
+   * Ex1) concatenate 2 frames with dimension 3:4:2:1
+   ********************************************************************
+   * frame 1
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *   ]
+   *
+   * frame 2
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   ********************************************************************
+   * 1-1. result with frames-dim 3 (3:4:2:2)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *   ]
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   ********************************************************************
+   * 1-2. result with frames-dim 2 (3:4:4:1)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   ********************************************************************
+   * 1-3. result with frames-dim 1 (3:8:2:1)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112]
+   *       [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124]
+   *       [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   ********************************************************************
+   * 1-4. result with frames-dim 0 (6:4:2:1)
+   *   [
+   *     [ [1101 1102 1103 2101 2102 2103] [1104 1105 1106 2104 2105 2106]
+   *       [1107 1108 1109 2107 2108 2109] [1110 1111 1112 2110 2111 2112] ]
+   *     [ [1113 1114 1115 2113 2114 2115] [1116 1117 1118 2116 2117 2118]
+   *       [1119 1120 1121 2119 2120 2121] [1122 1123 1124 2122 2123 2124] ]
+   *   ]
+   ********************************************************************
+   * Ex2) concatenate 2 frames with dimension 3:4:2:2
+   ********************************************************************
+   * frame 1
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *   ]
+   *   [
+   *     [ [1201 1202 1203] [1204 1205 1206] [1207 1208 1209] [1210 1211 1212] ]
+   *     [ [1213 1214 1215] [1216 1217 1218] [1219 1220 1221] [1222 1223 1224] ]
+   *   ]
+   *
+   * frame 2
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   *   [
+   *     [ [2201 2202 2203] [2204 2205 2206] [2207 2208 2209] [2210 2211 2212] ]
+   *     [ [2213 2214 2215] [2216 2217 2218] [2219 2220 2221] [2222 2223 2224] ]
+   *   ]
+   ********************************************************************
+   * 2-1. result with frames-dim 3 (3:4:2:4)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *   ]
+   *   [
+   *     [ [1201 1202 1203] [1204 1205 1206] [1207 1208 1209] [1210 1211 1212] ]
+   *     [ [1213 1214 1215] [1216 1217 1218] [1219 1220 1221] [1222 1223 1224] ]
+   *   ]
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   *   [
+   *     [ [2201 2202 2203] [2204 2205 2206] [2207 2208 2209] [2210 2211 2212] ]
+   *     [ [2213 2214 2215] [2216 2217 2218] [2219 2220 2221] [2222 2223 2224] ]
+   *   ]
+   ********************************************************************
+   * 2-2. result with frames-dim 2 (3:4:4:2)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124] ]
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   *   [
+   *     [ [1201 1202 1203] [1204 1205 1206] [1207 1208 1209] [1210 1211 1212] ]
+   *     [ [1213 1214 1215] [1216 1217 1218] [1219 1220 1221] [1222 1223 1224] ]
+   *     [ [2201 2202 2203] [2204 2205 2206] [2207 2208 2209] [2210 2211 2212] ]
+   *     [ [2213 2214 2215] [2216 2217 2218] [2219 2220 2221] [2222 2223 2224] ]
+   *   ]
+   ********************************************************************
+   * 2-3. result with frames-dim 1 (3:8:2:2)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112]
+   *       [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *     [ [1113 1114 1115] [1116 1117 1118] [1119 1120 1121] [1122 1123 1124]
+   *       [2113 2114 2115] [2116 2117 2118] [2119 2120 2121] [2122 2123 2124] ]
+   *   ]
+   *   [
+   *     [ [1201 1202 1203] [1204 1205 1206] [1207 1208 1209] [1210 1211 1212]
+   *       [2201 2202 2203] [2204 2205 2206] [2207 2208 2209] [2210 2211 2212] ]
+   *     [ [1213 1214 1215] [1216 1217 1218] [1219 1220 1221] [1222 1223 1224]
+   *       [2213 2214 2215] [2216 2217 2218] [2219 2220 2221] [2222 2223 2224] ]
+   *   ]
+   ********************************************************************
+   * 2-4. result with frames-dim 0 (6:4:2:2)
+   *   [
+   *     [ [1101 1102 1103 2101 2102 2103] [1104 1105 1106 2104 2105 2106]
+   *       [1107 1108 1109 2107 2108 2109] [1110 1111 1112 2110 2111 2112] ]
+   *     [ [1113 1114 1115 2113 2114 2115] [1116 1117 1118 2116 2117 2118]
+   *       [1119 1120 1121 2119 2120 2121] [1122 1123 1124 2122 2123 2124] ]
+   *   ]
+   *   [
+   *     [ [1201 1202 1203 2201 2202 2203] [1204 1205 1206 2204 2205 2206]
+   *       [1207 1208 1209 2207 2208 2209] [1210 1211 1212 2210 2211 2212] ]
+   *     [ [1213 1214 1215 2213 2214 2215] [1216 1217 1218 2216 2217 2218]
+   *       [1219 1220 1221 2219 2220 2221] [1222 1223 1224 2222 2223 2224] ]
+   *   ]
+   ********************************************************************
+   * Ex3) concatenate 2 frames with dimension 3:4:1:1
+   ********************************************************************
+   * frame 1
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *   ]
+   *
+   * frame 2
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *   ]
+   ********************************************************************
+   * 3-1. result with frames-dim 3 (3:4:1:2)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *   ]
+   *   [
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *   ]
+   ********************************************************************
+   * 3-2. result with frames-dim 2 (3:4:2:1)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112] ]
+   *     [ [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *   ]
+   ********************************************************************
+   * 3-3. result with frames-dim 1 (3:8:1:1)
+   *   [
+   *     [ [1101 1102 1103] [1104 1105 1106] [1107 1108 1109] [1110 1111 1112]
+   *       [2101 2102 2103] [2104 2105 2106] [2107 2108 2109] [2110 2111 2112] ]
+   *   ]
+   ********************************************************************
+   * 3-4. result with frames-dim 0 (6:4:1:1)
+   *   [
+   *     [ [1101 1102 1103 2101 2102 2103] [1104 1105 1106 2104 2105 2106]
+   *       [1107 1108 1109 2107 2108 2109] [1110 1111 1112 2110 2111 2112] ]
+   *   ]
+   ********************************************************************
+   */
+
+  /* get block size */
+  block_size = tensor_element_size[info->type];
+  for (d0 = 0; d0 <= self->frames_dim; d0++) {
+    block_size *= info->dimension[d0];
+  }
+
+  /**
+   * @todo add code to concatenate data with given axis (self->frames_dim)
+   * now added one case (frames_dim 1)
+   */
+  dest_idx = 0;
+  for (d0 = 0; d0 < info->dimension[3]; d0++) {
+    for (d1 = 0; d1 < info->dimension[2]; d1++) {
+      for (f = 0; f < self->frames_out; f++) {
+        src_idx = frame_size * f;
+        src_idx += ((d0 * info->dimension[2]) + d1) * block_size;
+
+        memcpy (dest_info.data + dest_idx, src_info.data + src_idx, block_size);
+        dest_idx += block_size;
+      }
+    }
+  }
+
+  gst_buffer_unmap (srcbuf, &src_info);
+  gst_buffer_unmap (outbuf, &dest_info);
+
+  gst_buffer_unref (srcbuf);
+}
+
+/**
+ * @brief Push the buffer to source pad. (Concatenate the buffer if needed)
+ */
+static GstFlowReturn
+gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
+    gsize frame_size)
+{
+  GstTensorInfo info;
+
+  /** tensor info for one frame */
+  info = self->out_config.info;
+  g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
+  info.dimension[self->frames_dim] /= self->frames_out;
+
+  g_assert (frame_size == gst_tensor_info_get_size (&info));
+
+  if (gst_tensor_aggregator_check_concat_axis (self, &info)) {
+    /** change data in buffer with given axis */
+    gst_tensor_aggregator_concat (self, outbuf, &info);
+  }
+
+  return gst_pad_push (self->srcpad, outbuf);
+}
+
+/**
  * @brief Chain function, this function does the actual processing.
  */
 static GstFlowReturn
@@ -508,8 +814,9 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   frame_size = buf_size / frames_in;
 
   if (frames_in == frames_out) {
-    /** do nothing, push the incoming buffer  */
-    return gst_pad_push (self->srcpad, buf);
+    /** push the incoming buffer (do concat if needed) */
+    buf = gst_buffer_make_writable (buf);
+    return gst_tensor_aggregator_push (self, buf, frame_size);
   }
 
   adapter = self->adapter;
@@ -565,7 +872,7 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     GST_BUFFER_PTS (outbuf) = pts;
     GST_BUFFER_DTS (outbuf) = dts;
 
-    ret = gst_pad_push (self->srcpad, outbuf);
+    ret = gst_tensor_aggregator_push (self, outbuf, frame_size);
 
     /** flush data */
     if (frames_flush > 0) {
