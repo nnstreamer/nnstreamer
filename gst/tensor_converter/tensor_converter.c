@@ -610,6 +610,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     case _NNS_OCTET:
       /** get frame size from the properties */
       frame_size = gst_tensor_info_get_size (&config->info);
+      g_assert (frame_size > 0);
       g_assert ((buf_size % frame_size) == 0);
       frames_in = buf_size / frame_size;
       break;
@@ -620,10 +621,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       return GST_FLOW_ERROR;
   }
 
-  silent_debug ("frames in incoming buffer = %d", frames_in);
-
   if (frames_in == frames_out) {
-    /** do nothing, push the incoming buffer  */
+    /** do nothing, push the incoming buffer */
     return gst_pad_push (self->srcpad, inbuf);
   }
 
