@@ -289,7 +289,7 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
     case GTT_TRANSPOSE:
     {
       int a, i;
-      gchar **strv = g_strsplit (filter->option, ":", 4);
+      gchar **strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
         if (strv[i] != NULL)
           a = g_ascii_strtoull (strv[i], NULL, 10);
