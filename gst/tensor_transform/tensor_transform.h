@@ -60,6 +60,7 @@ G_BEGIN_DECLS
 #define GST_IS_TENSOR_TRANSFORM_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_TRANSFORM))
 #define GST_TENSOR_TRANSFORM_CAST(obj)  ((GstTensor_Transform *)(obj))
+#define ARITH_OPRND_NUM_LIMIT  2
 
 typedef struct _GstTensor_Transform GstTensor_Transform;
 
@@ -80,6 +81,9 @@ typedef enum
 {
   ARITH_ADD = 0,
   ARITH_MUL = 1,
+  ARITH_ADD_MUL = 2,            /* Fused add-multiply */
+  ARITH_MUL_ADD = 3,            /* Fused multiply-add */
+
   ARITH_END,
 } tensor_transform_arith_mode;
 
@@ -128,7 +132,7 @@ typedef struct _tensor_transform_arithmetic_operand {
  */
 typedef struct _tensor_transform_arithmetic {
   tensor_transform_arith_mode mode;
-  tensor_transform_arithmetic_operand value;
+  tensor_transform_arithmetic_operand value[ARITH_OPRND_NUM_LIMIT];
 } tensor_transform_arithmetic;
 
 /**
