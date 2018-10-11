@@ -18,8 +18,8 @@
 /**
  * @file	tensor_transform.c
  * @date	10 Jul 2018
- * @brief	GStreamer plugin to transform other/tensor dimensions
- * @see		http://github.com/nnsuite/nnstreamer
+ * @brief	GStreamer plugin to transform tensor dimension or type
+ * @see		https://github.com/nnsuite/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		This is NYI.
  *
@@ -28,8 +28,8 @@
 /**
  * SECTION:element-tensor_transform
  *
- * A filter that converts media stream to tensor stream for NN frameworks.
- * The output is always in the format of other/tensor
+ * A filter that transforms tensor dimension or type.
+ * The input and output is always in the format of other/tensor
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -48,22 +48,45 @@
 #endif
 
 #include <string.h>
-#include <gst/gst.h>
-#include <glib.h>
 #include <math.h>
-
 #include "tensor_transform.h"
+
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG (!filter->silent)
+#endif
+
+/**
+ * @brief Macro for debug message.
+ */
+#define silent_debug(...) \
+    debug_print (DBG, __VA_ARGS__)
+
+#define silent_debug_caps(caps,msg) do { \
+  if (DBG) { \
+    if (caps) { \
+      GstStructure *caps_s; \
+      gchar *caps_s_string; \
+      guint caps_size, caps_idx; \
+      caps_size = gst_caps_get_size (caps);\
+      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
+        caps_s = gst_caps_get_structure (caps, caps_idx); \
+        caps_s_string = gst_structure_to_string (caps_s); \
+        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        g_free (caps_s_string); \
+      } \
+    } \
+  } \
+} while (0)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 
-/* Filter signals and args */
-enum
-{
-  /* FILL ME */
-  LAST_SIGNAL
-};
-
+/**
+ * @brief tensor_transform properties
+ */
 enum
 {
   PROP_0,
@@ -72,12 +95,30 @@ enum
   PROP_OPTION,
 };
 
-#define silent_debug(...) debug_print (!filter->silent, __VA_ARGS__)
+static const gchar *gst_tensor_transform_mode_string[] = {
+  [GTT_DIMCHG] = "dimchg",
+  [GTT_TYPECAST] = "typecast",
+  [GTT_ARITHMETIC] = "arithmetic",
+  [GTT_TRANSPOSE] = "transpose",
+  [GTT_STAND] = "stand",
+  [GTT_END] = "error"
+};
+
+static const gchar *gst_tensor_transform_stand_string[] = {
+  [STAND_DEFAULT] = "default",
+  [STAND_END] = "error"
+};
+
+static const gchar *gst_tensor_transform_arithmetic_string[] = {
+  [ARITH_ADD] = "add",
+  [ARITH_MUL] = "mul",
+  [ARITH_ADD_MUL] = "add-mul",
+  [ARITH_MUL_ADD] = "mul-add",
+  [ARITH_END] = "error"
+};
 
 /**
- * the capabilities of the inputs
- *
- * In v0.0.1, this is "bitmap" image stream
+ * @brief The capabilities of the inputs
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -93,13 +134,15 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
 
 #define gst_tensor_transform_parent_class parent_class
-G_DEFINE_TYPE (GstTensor_Transform, gst_tensor_transform,
+G_DEFINE_TYPE (GstTensorTransform, gst_tensor_transform,
     GST_TYPE_BASE_TRANSFORM);
 
+/* GObject vmethod implementations */
 static void gst_tensor_transform_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_transform_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void gst_tensor_transform_finalize (GObject * object);
 
 /* GstBaseTransformer vmethod implementations */
 static GstFlowReturn gst_tensor_transform_transform (GstBaseTransform * trans,
@@ -113,26 +156,24 @@ static gboolean gst_tensor_transform_set_caps (GstBaseTransform * trans,
 static gboolean gst_tensor_transform_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
-/* GObject vmethod implementations */
 
 /**
  * @brief initialize the tensor_transform's class
  */
 static void
-gst_tensor_transform_class_init (GstTensor_TransformClass * g_class)
+gst_tensor_transform_class_init (GstTensorTransformClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
-  GstTensor_TransformClass *klass;
 
-  klass = (GstTensor_TransformClass *) g_class;
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
 
   gobject_class->set_property = gst_tensor_transform_set_property;
   gobject_class->get_property = gst_tensor_transform_get_property;
+  gobject_class->finalize = gst_tensor_transform_finalize;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
@@ -145,8 +186,8 @@ gst_tensor_transform_class_init (GstTensor_TransformClass * g_class)
           "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
 
   gst_element_class_set_details_simple (gstelement_class,
-      "Tensor_Transform",
-      "Transform other/tensor dimensions",
+      "TensorTransform",
+      "Converter/Filter/Tensor",
       "Transforms other/tensor dimensions for different models or frameworks",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
@@ -179,7 +220,7 @@ gst_tensor_transform_class_init (GstTensor_TransformClass * g_class)
  * initialize instance structure
  */
 static void
-gst_tensor_transform_init (GstTensor_Transform * filter)
+gst_tensor_transform_init (GstTensorTransform * filter)
 {
   filter->silent = TRUE;
   filter->mode = GTT_END;
@@ -187,23 +228,6 @@ gst_tensor_transform_init (GstTensor_Transform * filter)
   filter->loaded = FALSE;
   filter->type = _NNS_END;
 }
-
-static const gchar *gst_tensor_transform_mode_string[] = {
-  [GTT_DIMCHG] = "dimchg",
-  [GTT_TYPECAST] = "typecast",
-  [GTT_ARITHMETIC] = "arithmetic",
-  [GTT_TRANSPOSE] = "transpose",
-  [GTT_STAND] = "stand",
-  [GTT_END] = "error",
-};
-
-static const gchar *gst_tensor_transform_arithmetic_string[] = {
-  [ARITH_ADD] = "add",
-  [ARITH_MUL] = "mul",
-  [ARITH_ADD_MUL] = "add-mul",
-  [ARITH_MUL_ADD] = "mul-add",
-  [ARITH_END] = "error",
-};
 
 /**
  * @brief Get the corresponding mode from the string value
@@ -213,25 +237,27 @@ static const gchar *gst_tensor_transform_arithmetic_string[] = {
 static tensor_transform_arith_mode
 gst_tensor_transform_get_arith_mode (const gchar * str)
 {
-  int i;
-  for (i = 0; i < ARITH_END; i++) {
-    if (!g_ascii_strcasecmp (gst_tensor_transform_arithmetic_string[i], str))
-      return i;
-  }
-  return ARITH_END;
-}
+  int index;
 
-static const gchar *gst_tensor_transform_stand_string[] = {
-  [STAND_DEFAULT] = "default",
-  [STAND_END] = NULL,
-};
+  index = find_key_strv (gst_tensor_transform_arithmetic_string, str);
+
+  return (index < 0) ? ARITH_END : index;
+}
 
 /**
  * @brief Get the corresponding mode from the string value
  * @param[in] str The string value for the mode
- * @return corresponding mode for the string. ARITH_END for errors
+ * @return corresponding mode for the string. STAND_END for errors
  */
-#define gst_tensor_transform_get_stand_mode(str) find_key_strv(gst_tensor_transform_stand_string, str)
+static tensor_transform_stand_mode
+gst_tensor_transform_get_stand_mode (const gchar * str)
+{
+  int index;
+
+  index = find_key_strv (gst_tensor_transform_stand_string, str);
+
+  return (index < 0) ? STAND_END : index;
+}
 
 /**
  * @brief Get the corresponding mode from the string value
@@ -241,50 +267,52 @@ static const gchar *gst_tensor_transform_stand_string[] = {
 static tensor_transform_mode
 gst_tensor_transform_get_mode (const gchar * str)
 {
-  int i;
+  int index;
 
-  for (i = 0; i < GTT_END; i++) {
-    if (!g_ascii_strcasecmp (gst_tensor_transform_mode_string[i], str))
-      return i;
-  }
-  return GTT_END;
+  index = find_key_strv (gst_tensor_transform_mode_string, str);
+
+  return (index < 0) ? GTT_END : index;
 }
 
 /**
- * @brief Setup internal data (data_* in GstTensor_Transform)
+ * @brief Setup internal data (data_* in GstTensorTransform)
  * @param[in/out] filter "this" pointer. mode & option MUST BE set already.
  */
 static void
-gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
+gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 {
   if (filter->mode == GTT_END || filter->option == NULL)
     return;
+
   switch (filter->mode) {
     case GTT_DIMCHG:
     {
       int a, b;
       gchar **strv = g_strsplit (filter->option, ":", 2);
+
       if (strv[0] != NULL)
         a = g_ascii_strtoull (strv[0], NULL, 10);
       else
         a = 0;
+
       if (strv[1] != NULL)
         b = g_ascii_strtoull (strv[1], NULL, 10);
       else
         b = 0;
+
       filter->data_dimchg.from = a;
       filter->data_dimchg.to = b;
       filter->loaded = TRUE;
       g_strfreev (strv);
-    }
       break;
+    }
     case GTT_TYPECAST:
     {
       filter->data_typecast.to = get_tensor_type (filter->option);
       if (filter->data_typecast.to != _NNS_END)
         filter->loaded = TRUE;
-    }
       break;
+    }
     case GTT_ARITHMETIC:
     {
       gchar **strv = g_strsplit (filter->option, ":", 2);
@@ -292,6 +320,7 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
       if (strv[0] != NULL) {
         filter->data_arithmetic.mode =
             gst_tensor_transform_get_arith_mode (strv[0]);
+        g_assert (filter->data_arithmetic.mode != ARITH_END);
       }
 
       if (strv[1] != NULL) {
@@ -326,12 +355,13 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
 
       filter->loaded = TRUE;
       g_strfreev (strv);
-    }
       break;
+    }
     case GTT_TRANSPOSE:
     {
       int a, i;
       gchar **strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
+
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
         if (strv[i] != NULL)
           a = g_ascii_strtoull (strv[i], NULL, 10);
@@ -339,22 +369,23 @@ gst_tensor_transform_set_option_data (GstTensor_Transform * filter)
           a = 0;
         filter->data_transpose.trans_order[i] = a;
       }
+
       filter->loaded = TRUE;
       g_strfreev (strv);
-    }
       break;
+    }
     case GTT_STAND:
     {
       filter->data_stand.mode =
           gst_tensor_transform_get_stand_mode (filter->option);
-
-      g_assert (filter->data_stand.mode >= 0);
+      g_assert (filter->data_stand.mode != STAND_END);
       filter->loaded = TRUE;
-    }
       break;
+    }
     default:
       g_printerr ("Cannot identify mode\n");
       g_assert (0);
+      break;
   }
 }
 
@@ -365,7 +396,7 @@ static void
 gst_tensor_transform_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM (object);
+  GstTensorTransform *filter = GST_TENSOR_TRANSFORM (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -396,7 +427,7 @@ static void
 gst_tensor_transform_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM (object);
+  GstTensorTransform *filter = GST_TENSOR_TRANSFORM (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -415,57 +446,23 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
   }
 }
 
-/******************************************************************
- * GstElement vmethod implementations
- */
-
-#define return_false_if_fail(x)	\
-  ret = (x); \
-  if (!ret) \
-    return FALSE; \
-  ;
-
 /**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
+ * @brief Function to finalize instance (gst element vmethod)
  */
-static gboolean
-tensor_transform_init (GstPlugin * tensor_transform)
+static void
+gst_tensor_transform_finalize (GObject * object)
 {
-  /**
-   * debug category for fltering log messages
-   *
-   * exchange the string 'Template tensor_transform' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_transform_debug, "tensor_transform",
-      0, "Template tensor_transform");
+  GstTensorTransform *filter;
 
-  return gst_element_register (tensor_transform, "tensor_transform",
-      GST_RANK_NONE, GST_TYPE_TENSOR_TRANSFORM);
+  filter = GST_TENSOR_TRANSFORM (object);
+
+  if (filter->option) {
+    g_free (filter->option);
+    filter->option = NULL;
+  }
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
-
-/**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "tensor_transform"
-#endif
-
-/**
- * gstreamer looks for this structure to register tensor_transforms
- *
- * exchange the string 'Template tensor_transform' with your tensor_transform description
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_transform,
-    "tensor_transform",
-    tensor_transform_init,
-    VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
 
 /**
  * @brief subrouting for tensor-tranform, "dimchg" case.
@@ -475,7 +472,7 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
  * @return Gst flow status
  */
 static GstFlowReturn
-gst_tensor_transform_dimchg (GstTensor_Transform * filter,
+gst_tensor_transform_dimchg (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
   /** @todo NYI */
@@ -486,10 +483,8 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
   int i, j, k;
   unsigned int loopLimit = 1;
   size_t loopBlockSize = tensor_element_size[filter->type];
-
   size_t copyblocksize = tensor_element_size[filter->type];
   size_t copyblocklimit = 1;
-
 
   if (from == to) {
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
@@ -550,7 +545,7 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
 /**
  * Macro to run loop for various data types with simple cast
  */
-#define castloop(itype, otype, num) do { \
+#define castloop(itype,otype,num) do { \
     otype *ptr = (otype *) outptr; \
     itype *iptr = (itype *) inptr; \
     size_t i; \
@@ -562,7 +557,7 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
 /**
  * Macro to run loop for various data types with a converter function
  */
-#define convloop(itype, otype, num, convfunc) do { \
+#define convloop(itype,otype,num,convfunc) do { \
     otype *ptr = (otype *) outptr; \
     itype *iptr = (itype *) inptr; \
     size_t i; \
@@ -575,7 +570,7 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
  * Macro to unburden switch cases with castloop/convloop (per itype)
  * This is for cases otype is numeral.
  */
-#define numotype_castloop_per_itype(otype, num) do { \
+#define numotype_castloop_per_itype(otype,num) do { \
     switch (filter->type) { \
     case _NNS_INT8: castloop(int8_t, otype, num); break; \
     case _NNS_INT16: castloop(int16_t, otype, num); break; \
@@ -587,8 +582,8 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
     case _NNS_FLOAT64: castloop(double, otype, num); break; \
     case _NNS_INT64: castloop(int64_t, otype, num); break; \
     case _NNS_UINT64: castloop(uint64_t, otype, num); break; \
-    default: g_assert(0); \
-    }; \
+    default: g_assert(0); return GST_FLOW_ERROR; \
+    } \
   } while (0)
 
 /**
@@ -599,7 +594,7 @@ gst_tensor_transform_dimchg (GstTensor_Transform * filter,
  * @return Gst flow status
  */
 static GstFlowReturn
-gst_tensor_transform_typecast (GstTensor_Transform * filter,
+gst_tensor_transform_typecast (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
   uint32_t num = get_tensor_element_count (filter->fromDim);
@@ -637,6 +632,7 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
       break;
     default:
       g_assert (0);
+      return GST_FLOW_ERROR;
   }
 
   return GST_FLOW_OK;
@@ -645,7 +641,7 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
 /**
  * Macro to run loop for various data types with simple arithmetic which has single operand
  */
-#define arith(itype, num, op, a) do { \
+#define arith(itype,num,op,a) do { \
     size_t i; \
     itype *in = (itype *) inptr; \
     itype *out = (itype *) outptr; \
@@ -657,7 +653,7 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
 /**
  * Macro to run loop for various data types with simple arithmetic which has dual operands
  */
-#define arith2(itype, num, op1, a, op2, b) do { \
+#define arith2(itype,num,op1,a,op2,b) do { \
     size_t i; \
     itype *in = (itype *) inptr; \
     itype *out = (itype *) outptr; \
@@ -669,7 +665,7 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
 /**
  * Macro to handle the case of single operand
  */
-#define arithmode_single_oprnd_case(itype, num, mode, op, value) do {\
+#define arithmode_single_oprnd_case(itype,num,mode,op,value) do { \
   itype a;\
   switch (value[0].type) {\
   case ARITH_OPRND_TYPE_INT64 : a = (itype) value[0].value_int64; break; \
@@ -680,12 +676,12 @@ gst_tensor_transform_typecast (GstTensor_Transform * filter,
   g_assert(0); \
   }; \
   arith(itype, num, op, a); break; \
-} while (0); \
+} while (0);
 
 /**
  * Macro to handle the case of dual operands
  */
-#define arithmode_dual_oprnd_case(itype, num, mode, op1, op2, value) \
+#define arithmode_dual_oprnd_case(itype,num,mode,op1,op2,value) \
 do {\
   itype a;\
   itype b; \
@@ -706,12 +702,12 @@ do {\
   g_assert(0); \
   }; \
   arith2(itype, num, op1, a, op2, b); break; \
-} while (0); \
+} while (0);
 
 /**
  * Macro to run loop for various data types with simple arithmetic
  */
-#define arithloopcase(typecase, itype, num, mode, value) \
+#define arithloopcase(typecase,itype,num,mode,value) \
   case typecase: \
   { \
     switch (mode) { \
@@ -731,10 +727,10 @@ do {\
       arithmode_dual_oprnd_case (itype, num, mode, *, +, value); \
       break; \
     }; \
-    default: g_assert(0); \
+    default: g_assert(0); return GST_FLOW_ERROR; \
     } \
     break; \
-  }; \
+  }
 
 /**
  * @brief subrouting for tensor-tranform, "arithmetic" case.
@@ -744,7 +740,7 @@ do {\
  * @return Gst flow status
  */
 static GstFlowReturn
-gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
+gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
   uint32_t num = get_tensor_element_count (filter->fromDim);
@@ -764,16 +760,16 @@ gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
       arithloopcase (_NNS_UINT64, uint64_t, num, mode, value);
     default:
       g_assert (0);
+      return GST_FLOW_ERROR;
   }
 
   return GST_FLOW_OK;
 }
 
-
 /**
  * Macro to run loop for various data types with transpose
  */
-#define transposeloop(cl, ck, cj, ci, sl, sk, sj, si, typesize) do {        \
+#define transposeloop(cl,ck,cj,ci,sl,sk,sj,si,typesize) do { \
     size_t i, j, k, l;                                  \
     int inidx = 0, outidx=0;                            \
     for(cl=0;cl<sl;cl++)                      \
@@ -784,7 +780,7 @@ gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
 	    inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
 	    const uint8_t *_in = inptr+inidx*typesize; \
 	    uint8_t *_out = outptr + outidx *typesize; \
-	    memcpy(_out, _in, typesize);\
+	    memcpy(_out, _in, typesize); \
 	  }                                                      \
   } while(0);
 
@@ -796,7 +792,7 @@ gst_tensor_transform_arithmetic (GstTensor_Transform * filter,
  * @return Gst flow status
  */
 static GstFlowReturn
-gst_tensor_transform_transpose (GstTensor_Transform * filter,
+gst_tensor_transform_transpose (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
   int i, from, to;
@@ -854,7 +850,6 @@ gst_tensor_transform_transpose (GstTensor_Transform * filter,
   return GST_FLOW_OK;
 }
 
-
 /**
  * @brief subrouting for tensor-tranform, "stand" case.
  *        : pixel = abs((pixel - average(tensor))/(std(tensor) + val))
@@ -864,7 +859,7 @@ gst_tensor_transform_transpose (GstTensor_Transform * filter,
  * @return Gst flow status
  */
 static GstFlowReturn
-gst_tensor_transform_stand (GstTensor_Transform * filter,
+gst_tensor_transform_stand (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
   int i;
@@ -895,17 +890,17 @@ gst_tensor_transform_stand (GstTensor_Transform * filter,
       for (i = 0; i < Size; i++) {
         out[i] = fabs ((in[i] - average) / (stand + 1e-10));
       }
-    }
+
       break;
+    }
     default:
       g_printerr ("Cannot identify mode\n");
       g_assert (0);
+      return GST_FLOW_ERROR;
   }
 
   return GST_FLOW_OK;
 }
-
-
 
 /**
  * @brief non-ip transform. required vmethod for BaseTransform class.
@@ -919,13 +914,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstFlowReturn res;
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
+  GstTensorTransform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
   uint8_t *inptr, *outptr;
   GstMapInfo inInfo, outInfo;
 
-  gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-  gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
+  g_assert (gst_buffer_map (inbuf, &inInfo, GST_MAP_READ));
+  g_assert (gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE));
+
   inptr = inInfo.data;
   outptr = outInfo.data;
 
@@ -947,6 +943,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       break;
     default:
       res = GST_FLOW_NOT_SUPPORTED;
+      break;
   }
 
   gst_buffer_unmap (inbuf, &inInfo);
@@ -956,93 +953,46 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 }
 
 /**
- * @brief Read cap, write dim/type from the cap.
+ * @brief Read cap, parse tensor configuration (dim/type) from the cap.
  * @param[in] caps The input caps to be read
- * @param[out] dim The corresponding tensor-dim from caps
- * @param[out] type The corresponding tensor-type from caps
- * @param[out] frate_num Framerate, numerator
- * @param[out] frate_den Framerate, denomincator
+ * @param[out] config configured tensor info
  * @return TRUE if successful (both dim/type read). FALSE if not.
  */
-static gboolean inline
-gst_tensor_read_cap (GstCaps * caps, tensor_dim dim, tensor_type * type,
-    gint * frate_num, gint * frate_den)
+static gboolean
+gst_tensor_transform_read_caps (const GstCaps * caps, GstTensorConfig * config)
 {
-  GstTensor_Filter_CheckStatus ret = get_tensor_from_padcap (caps, dim, type,
-      frate_num, frate_den);
+  GstStructure *structure;
 
-  return (ret & (_TFC_ALL | _TFC_FRAMERATE)) == (_TFC_ALL | _TFC_FRAMERATE);
-}
+  g_return_val_if_fail (config != NULL, FALSE);
 
-/**
- * @brief Write cap from the given dim/type. You need to free the returned value
- * @param[in] dim The given tensor dimension
- * @param[in] type The given tensor element type
- * @param[in] fn Framerate numerator
- * @param[in] fd Framerate denominator
- * @return The new allocated GstCaps from the given dim/type.
- */
-static GstCaps *
-gst_tensor_write_cap (const tensor_dim dim, tensor_type type, gint fn, gint fd)
-{
-  GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-  GstCaps *tmp, *tmp2;
-  GstCaps *staticcap = gst_static_caps_get (&rawcap);
+  structure = gst_caps_get_structure (caps, 0);
 
-  if (type == _NNS_END) {
-    /* type: certain. dim: uncertain */
-    if (fn != -1 && fd != -1) {
-      tmp2 =
-          gst_caps_new_simple ("other/tensor",
-          "dim1", G_TYPE_INT, dim[0], "dim2", G_TYPE_INT, dim[1],
-          "dim3", G_TYPE_INT, dim[2], "dim4", G_TYPE_INT, dim[3],
-          "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
-    } else {
-      tmp2 =
-          gst_caps_new_simple ("other/tensor",
-          "dim1", G_TYPE_INT, dim[0], "dim2", G_TYPE_INT, dim[1],
-          "dim3", G_TYPE_INT, dim[2], "dim4", G_TYPE_INT, dim[3], NULL);
-    }
-  } else {
-    /* type: certain. dim: certain */
-    if (fn != -1 && fd != -1) {
-      tmp2 =
-          gst_caps_new_simple ("other/tensor", "type",
-          G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
-          dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
-          dim[2], "dim4", G_TYPE_INT, dim[3],
-          "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
-    } else {
-      tmp2 =
-          gst_caps_new_simple ("other/tensor", "type",
-          G_TYPE_STRING, tensor_element_typename[type], "dim1", G_TYPE_INT,
-          dim[0], "dim2", G_TYPE_INT, dim[1], "dim3", G_TYPE_INT,
-          dim[2], "dim4", G_TYPE_INT, dim[3], NULL);
-    }
+  if (!gst_structure_has_name (structure, "other/tensor")) {
+    err_print ("caps is not tensor %s\n", gst_structure_get_name (structure));
+    return FALSE;
   }
-  tmp = gst_caps_intersect_full (staticcap, tmp2, GST_CAPS_INTERSECT_FIRST);
-  gst_caps_unref (tmp2);
 
-  return tmp;
+  gst_tensor_config_from_structure (config, structure);
+
+  return gst_tensor_info_validate (&config->info);
 }
 
 /**
  * @brief Dimension conversion calculation
  * @param[in] filter "this" pointer
  * @param[in] direction GST_PAD_SINK if input->output conv
- * @param[in] srcDim dimension of source tensor (input if direction is SINK)
- * @param[out] destDim dimension of destinatino tensor (output if direction is SINK)
+ * @param[in] in_info tensor info structure of source tensor (input if direction is SINK)
+ * @param[out] out_info tensor info structure of destination tensor (output if direction is SINK)
  * @return TRUE if success
  */
 static gboolean
-gst_tensor_dimension_conversion (GstTensor_Transform * filter,
-    GstPadDirection direction, const tensor_dim srcDim, tensor_type srcType,
-    tensor_dim destDim, tensor_type * destType)
+gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
+    GstPadDirection direction, const GstTensorInfo * in_info,
+    GstTensorInfo * out_info)
 {
-  gboolean ret = FALSE;
   switch (filter->mode) {
     case GTT_DIMCHG:
-      *destType = srcType;
+      out_info->type = in_info->type;
 
       if (direction == GST_PAD_SINK) {
         int i;
@@ -1051,29 +1001,28 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
 
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           if (i < a && i < b) {
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           } else if (i > a && i > b) {
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           } else if (a > b) {
             if (i == b) {
-              destDim[i] = srcDim[a];
+              out_info->dimension[i] = in_info->dimension[a];
             } else {
               g_assert (i > 0 && i > b);
-              destDim[i] = srcDim[i - 1];
+              out_info->dimension[i] = in_info->dimension[i - 1];
             }
           } else if (a < b) {
             if (i == b) {
-              destDim[i] = srcDim[a];
+              out_info->dimension[i] = in_info->dimension[a];
             } else {
               g_assert (i < b && i < (NNS_TENSOR_RANK_LIMIT - 1));
-              destDim[i] = srcDim[i + 1];
+              out_info->dimension[i] = in_info->dimension[i + 1];
             }
           } else {
             /* a == b */
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           }
         }
-        ret = TRUE;
       } else {
         int i;
         int a = filter->data_dimchg.from;
@@ -1081,29 +1030,28 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
 
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           if (i < a && i < b) {
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           } else if (i > a && i > b) {
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           } else if (a > b) {
             if (i == a) {
-              destDim[i] = srcDim[b];
+              out_info->dimension[i] = in_info->dimension[b];
             } else {
               g_assert (i < a && i < (NNS_TENSOR_RANK_LIMIT - 1));
-              destDim[i] = srcDim[i + 1];
+              out_info->dimension[i] = in_info->dimension[i + 1];
             }
           } else if (a < b) {
             if (i == a) {
-              destDim[i] = srcDim[b];
+              out_info->dimension[i] = in_info->dimension[b];
             } else {
               g_assert (i > 0 && i > a);
-              destDim[i] = srcDim[i - 1];
+              out_info->dimension[i] = in_info->dimension[i - 1];
             }
           } else {
             /* a == b */
-            destDim[i] = srcDim[i];
+            out_info->dimension[i] = in_info->dimension[i];
           }
         }
-        ret = TRUE;
       }
       break;
     case GTT_TYPECAST:
@@ -1111,61 +1059,59 @@ gst_tensor_dimension_conversion (GstTensor_Transform * filter,
         /** For both directions, dimension does not change */
       int i;
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        destDim[i] = srcDim[i];
+        out_info->dimension[i] = in_info->dimension[i];
       }
       if (direction == GST_PAD_SINK) {
           /** src = SINKPAD / dest = SRCPAD */
-        *destType = filter->data_typecast.to;
+        out_info->type = filter->data_typecast.to;
       } else {
           /** src = SRCPAD / dest = SINKPAD */
-        *destType = filter->type;   /** @todo this may cause problems with Cap-Transform */
+        out_info->type = filter->type;   /** @todo this may cause problems with Cap-Transform */
       }
-      ret = TRUE;
-    }
       break;
+    }
     case GTT_ARITHMETIC:
     {
       int i;
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        destDim[i] = srcDim[i];
+        out_info->dimension[i] = in_info->dimension[i];
       }
-      *destType = srcType;
-      ret = TRUE;
-    }
+      out_info->type = in_info->type;
       break;
+    }
     case GTT_TRANSPOSE:
     {
-      *destType = srcType;
+      out_info->type = in_info->type;
       int i;
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-          destDim[i] = srcDim[filter->data_transpose.trans_order[i]];
+          out_info->dimension[i] =
+              in_info->dimension[filter->data_transpose.trans_order[i]];
         }
       } else {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           g_assert (filter->data_transpose.trans_order[i] <
               NNS_TENSOR_RANK_LIMIT);
-          destDim[filter->data_transpose.trans_order[i]] = srcDim[i];
+          out_info->dimension[filter->data_transpose.trans_order[i]] =
+              in_info->dimension[i];
         }
       }
-      ret = TRUE;
-    }
       break;
+    }
     case GTT_STAND:
     {
       int i;
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        destDim[i] = srcDim[i];
+        out_info->dimension[i] = in_info->dimension[i];
       }
-      *destType = srcType;
-      ret = TRUE;
-    }
+      out_info->type = in_info->type;
       break;
-
+    }
     default:
       return FALSE;
   }
-  return ret;
+
+  return TRUE;
 }
 
 /**
@@ -1182,65 +1128,55 @@ static GstCaps *
 gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filtercap)
 {
-  /** @todo NYI: framerate configuration! */
-  tensor_dim in = { 0, };
-  tensor_dim out = { 0, };
-  tensor_type itype, otype;
-  gboolean ret;
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
-  GstCaps *retcap = NULL;
-  gint fn = -1, fd = -1;
+  GstTensorTransform *filter;
+  GstTensorConfig in_config;
+  GstTensorConfig out_config;
+  GstCaps *result = NULL;
 
+  filter = GST_TENSOR_TRANSFORM_CAST (trans);
   g_assert (filter->loaded);
 
-  if (direction == GST_PAD_SINK) {
-    ret = gst_tensor_read_cap (caps, in, &itype, &fn, &fd);
-    if (ret == TRUE)
-      ret =
-          gst_tensor_dimension_conversion (filter, direction, in, itype, out,
-          &otype);
-    if (ret == TRUE)
-      retcap = gst_tensor_write_cap (out, otype, fn, fd);
-  } else {
-    ret = gst_tensor_read_cap (caps, out, &otype, &fn, &fd);
-    if (ret == TRUE)
-      ret =
-          gst_tensor_dimension_conversion (filter, direction, out, otype, in,
-          &itype);
-    if (ret == TRUE)
-      retcap = gst_tensor_write_cap (in, itype, fn, fd);
-  }
+  silent_debug ("Calling TransformCaps, direction = %d\n", direction);
+  silent_debug_caps (caps, "from");
+  silent_debug_caps (filtercap, "filter");
 
-  if (retcap == NULL) {
-    /* Undetermined. Return the template pad */
-    GstStaticCaps rawcap = GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT);
-    GstCaps *staticcap = gst_static_caps_get (&rawcap);
-    GstCaps *any = gst_caps_new_any ();
-    retcap = gst_caps_intersect_full (staticcap, any, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (any);
+  gst_tensor_config_init (&in_config);
+  gst_tensor_config_init (&out_config);
+
+  if (direction == GST_PAD_SINK) {
+    if (gst_tensor_transform_read_caps (caps, &in_config)) {
+      gst_tensor_transform_convert_dimension (filter, direction,
+          &in_config.info, &out_config.info);
+    }
+
+    /**
+     * supposed same framerate from input configuration
+     */
+    out_config.rate_n = in_config.rate_n;
+    out_config.rate_d = in_config.rate_d;
+
+    result = gst_tensor_caps_from_config (&out_config);
+  } else {
+    if (gst_tensor_transform_read_caps (caps, &out_config)) {
+      gst_tensor_transform_convert_dimension (filter, direction,
+          &out_config.info, &in_config.info);
+    }
+
+    result = gst_tensor_caps_from_config (&in_config);
   }
 
   if (filtercap) {
-    GstCaps *retcap2 =
-        gst_caps_intersect_full (retcap, filtercap, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (retcap);
-    retcap = retcap2;
+    GstCaps *intersection;
+
+    intersection =
+        gst_caps_intersect_full (result, filtercap, GST_CAPS_INTERSECT_FIRST);
+
+    gst_caps_unref (result);
+    result = intersection;
   }
 
-  if (filter->silent == FALSE) {
-    GstStructure *structure = gst_caps_get_structure (caps, 0);
-    gchar *str = gst_structure_to_string (structure), *str2;
-    structure = gst_caps_get_structure (retcap, 0);
-    str2 = gst_structure_to_string (structure);
-    err_print ("DIRECTION = %s | From %s | To %s\n",
-        (direction == GST_PAD_SINK) ? "GST_PAD_SINK" : "GST_PAD_SRC", str,
-        str2);
-    g_free (str);
-    g_free (str2);
-
-  }
-
-  return retcap;
+  silent_debug_caps (result, "to");
+  return result;
 }
 
 /**
@@ -1250,31 +1186,30 @@ static GstCaps *
 gst_tensor_transform_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
 {
-  /** @todo NYI: framerate configuration! */
-  GstCaps *othercaps_candidate =
-      gst_tensor_transform_transform_caps (trans, direction, caps, NULL);
-  GstCaps *filtered_candidate =
-      gst_caps_intersect_full (othercaps_candidate, othercaps,
-      GST_CAPS_INTERSECT_FIRST);
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
+  GstTensorTransform *filter;
+  GstCaps *result;
 
-  gst_caps_unref (othercaps_candidate);
+  filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  debug_print (!filter->silent, "Calling FixateCaps\n");
-  if (filter->silent == FALSE) {
-    GstStructure *structure = gst_caps_get_structure (caps, 0);
-    gchar *str = gst_structure_to_string (structure), *str2;
-    structure = gst_caps_get_structure (filtered_candidate, 0);
-    str2 = gst_structure_to_string (structure);
-    err_print ("DIRECTION = %s | From %s | To %s\n",
-        (direction == GST_PAD_SINK) ? "GST_PAD_SINK" : "GST_PAD_SRC", str,
-        str2);
-    g_free (str);
-    g_free (str2);
+  silent_debug ("Calling FixateCaps, direction = %d\n", direction);
+  silent_debug_caps (caps, "caps");
+  silent_debug_caps (othercaps, "othercaps");
 
+  result = gst_tensor_transform_transform_caps (trans, direction, caps, NULL);
+
+  if (othercaps) {
+    GstCaps *intersection;
+
+    intersection =
+        gst_caps_intersect_full (result, othercaps, GST_CAPS_INTERSECT_FIRST);
+
+    gst_caps_unref (othercaps);
+    gst_caps_unref (result);
+    result = intersection;
   }
 
-  return filtered_candidate;
+  silent_debug_caps (result, "result");
+  return result;
 }
 
 /**
@@ -1284,51 +1219,64 @@ static gboolean
 gst_tensor_transform_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
-  tensor_type itype, otype;
-  gboolean ret;
-  gint fd, fn;
+  GstTensorTransform *filter;
+  GstTensorConfig in_config;
+  GstTensorConfig out_config;
+  guint i;
 
-  debug_print (!filter->silent, "Calling SetCaps\n");
-  if (filter->silent == FALSE) {
-    GstStructure *structure = gst_caps_get_structure (incaps, 0);
-    gchar *str = gst_structure_to_string (structure), *str2;
-    structure = gst_caps_get_structure (outcaps, 0);
-    str2 = gst_structure_to_string (structure);
-    err_print ("In %s | Out %s\n", str, str2);
-    g_free (str);
-    g_free (str2);
+  filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  }
+  silent_debug ("Calling SetCaps\n");
+  silent_debug_caps (incaps, "incaps");
+  silent_debug_caps (outcaps, "outcaps");
 
-  ret = gst_tensor_read_cap (incaps, filter->fromDim, &itype, &fn, &fd);
-  if (ret == FALSE) {
-    debug_print (!filter->silent, "Cannot read cap of incaps\n");
+  if (!gst_tensor_transform_read_caps (incaps, &in_config) ||
+      !gst_tensor_config_validate (&in_config)) {
+    silent_debug ("Cannot read cap of incaps\n");
     goto error;
   }
-  ret = gst_tensor_read_cap (outcaps, filter->toDim, &otype, &fd, &fn);
-  if (ret == FALSE) {
-    debug_print (!filter->silent, "Cannot read cap of outcaps\n");
+
+  if (!gst_tensor_transform_read_caps (outcaps, &out_config) ||
+      !gst_tensor_config_validate (&out_config)) {
+    silent_debug ("Cannot read cap of outcaps\n");
     goto error;
   }
+
+  /** check framerate */
+  if (in_config.rate_n != out_config.rate_n
+      || in_config.rate_d != out_config.rate_d) {
+    silent_debug ("Framerate is not matched\n");
+    goto error;
+  }
+
+  /**
+   * Update in/out tensor info (dimension, type)
+   */
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    filter->fromDim[i] = in_config.info.dimension[i];
+    filter->toDim[i] = out_config.info.dimension[i];
+  }
+
   if (filter->type == _NNS_END)
-    filter->type = itype;
+    filter->type = in_config.info.type;
 
   switch (filter->mode) {
     case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
     case GTT_STAND:
     case GTT_DIMCHG:
-      if (itype != otype || filter->type != itype) {
-        debug_print (!filter->silent, "Filter Type Not Matched\n");
+      if (in_config.info.type != out_config.info.type
+          || filter->type != in_config.info.type) {
+        silent_debug ("Filter Type Not Matched\n");
         goto error;
       }
       break;
     case GTT_TYPECAST:
-      if (filter->type != itype || filter->data_typecast.to != otype) {
-        debug_print (!filter->silent,
-            "Filter Type Not Matched\n Input %d/%d | Output %d/%d",
-            filter->type, itype, filter->data_typecast.to, otype);
+      if (filter->type != in_config.info.type
+          || filter->data_typecast.to != out_config.info.type) {
+        silent_debug ("Filter Type Not Matched\n Input %d/%d | Output %d/%d",
+            filter->type, in_config.info.type, filter->data_typecast.to,
+            out_config.info.type);
         goto error;
       }
       break;
@@ -1338,7 +1286,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   return TRUE;
 error:
-  debug_print (!filter->silent, "Set Caps Failed!\n");
+  silent_debug ("Set Caps Failed!\n");
   return FALSE;
 }
 
@@ -1350,7 +1298,10 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize)
 {
-  GstTensor_Transform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
+  GstTensorTransform *filter;
+
+  filter = GST_TENSOR_TRANSFORM_CAST (trans);
+
   switch (filter->mode) {
     case GTT_TRANSPOSE:
     case GTT_ARITHMETIC:
@@ -1365,13 +1316,50 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
       if (size % srcunitsize > 0)
         return FALSE;
       *othersize = size / srcunitsize * dstunitsize;
-    }
       break;
+    }
     default:
       return FALSE;
-      break;
   }
   return TRUE;
 
   /** @todo add verificastion procedure */
 }
+
+/**
+ * @brief entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+static gboolean
+gst_tensor_transform_plugin_init (GstPlugin * plugin)
+{
+  /**
+   * debug category for fltering log messages
+   */
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_transform_debug, "tensor_transform",
+      0, "tensor_transform element");
+
+  return gst_element_register (plugin, "tensor_transform",
+      GST_RANK_NONE, GST_TYPE_TENSOR_TRANSFORM);
+}
+
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "tensor_transform"
+#endif
+
+/**
+ * gstreamer looks for this structure to register tensor_transforms
+ */
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    tensor_transform,
+    "GStreamer plugin to transform tensor dimension or type",
+    gst_tensor_transform_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer");

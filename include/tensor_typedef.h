@@ -88,18 +88,6 @@ typedef enum _nnfw_type
 struct _GstTensorFilterFramework;
 typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
-typedef enum
-{
-  _TFC_INIT = 0,
-  _TFC_DIMENSION = 1,
-  _TFC_TYPE = 2,
-  _TFC_ALL = _TFC_DIMENSION | _TFC_TYPE,
-
-  _TFC_FRAMERATE = 4,
-
-  /** @todo Add "consistency checked. don't check it again" and implement .c accordingly. */
-} GstTensor_Filter_CheckStatus;
-
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
