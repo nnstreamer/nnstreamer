@@ -90,7 +90,7 @@ export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
 
 pushd build
 ./unittest_common
-./unittest_sink --gst-plugin-path=./gst
+./unittest_sink --gst-plugin-path=%{buildroot}%{_libdir}
 popd
 
 pushd tests

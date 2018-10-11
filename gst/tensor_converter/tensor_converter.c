@@ -876,8 +876,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
  *
  * See GstPluginInitFunc() for more details.
  */
-static gboolean
-gst_tensor_converter_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_converter)
 {
   GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter",
       0, "tensor_converter element");
@@ -898,6 +897,7 @@ gst_tensor_converter_plugin_init (GstPlugin * plugin)
 #define PACKAGE "tensor_converter"
 #endif
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Macro to define the entry point of the plugin.
  */
@@ -906,4 +906,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     tensor_converter,
     "GStreamer plugin to convert media types to tensors",
     gst_tensor_converter_plugin_init, VERSION, "LGPL", "GStreamer",
-    "http://gstreamer.net/");
+    "http://github.com/nnsuite/nnstreamer/");
+#endif

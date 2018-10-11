@@ -15,7 +15,7 @@ if [[ $# -eq 0 ]]; then
 			fi
 		fi
 	fi
-	PATH_TO_PLUGIN="$dirpath/../build/gst"
+	PATH_TO_PLUGIN="$dirpath/../build/gst:$dirpath/../build"
 else
 	PATH_TO_PLUGIN="$1"
 fi
