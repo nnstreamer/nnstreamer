@@ -16,7 +16,7 @@ import struct
 ##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
-def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, value):
+def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, value1, value2):
   lena = len(fna)
   lenb = len(fnb)
 
@@ -30,12 +30,20 @@ def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, v
   for x in range(0, num):
     vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
     valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
-    if (mode[0:3] == 'add'):
-      diff = vala + float(value) - valb
+    if (mode == 'add'):
+      diff = vala + float(value1) - valb
       if diff > 0.01 or diff < -0.01:
         return 20
-    elif (mode[0:3] == 'mul'):
-      diff = vala * float(value) - valb
+    elif (mode == 'mul'):
+      diff = vala * float(value1) - valb
+      if diff > 0.01 or diff < -0.01:
+        return 20
+    elif (mode == 'add-mul'):
+      diff = (vala + float(value1)) * float(value2) - valb
+      if diff > 0.01 or diff < -0.01:
+        return 20
+    elif (mode == 'mul-add'):
+      diff = (vala * float(value1)) + float(value2) - valb
       if diff > 0.01 or diff < -0.01:
         return 20
     else:
@@ -52,7 +60,7 @@ if len(sys.argv) < 2:
   exit(5)
 
 if (sys.argv[1] == 'arithmetic'):
-  if len(sys.argv) < 10:
+  if len(sys.argv) < 11:
     exit(5)
   fna = readfile(sys.argv[2])
   fnb = readfile(sys.argv[3])
@@ -61,8 +69,9 @@ if (sys.argv[1] == 'arithmetic'):
   typeapack = (sys.argv[6])
   typebpack = (sys.argv[7])
   mode = sys.argv[8]
-  value = sys.argv[9]
+  value1 = sys.argv[9]
+  value2 = sys.argv[10]
 
-  exit(testArithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, value))
+  exit(testArithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, value1, value2))
 
 exit(5)
