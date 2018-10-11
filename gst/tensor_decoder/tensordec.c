@@ -331,7 +331,7 @@ gst_tensordec_text_caps_from_config (GstTensorDec * self,
   /**
    * Set text format. Supposed utf8 if type is int8.
    */
-  g_return_val_if_fail (config->info.type == _NNS_INT8, NULL);
+  g_return_val_if_fail (config->info.type == _NNS_UINT8, NULL);
 
   return gst_caps_from_string (GST_TENSOR_TEXT_CAPS_STR);
 }
@@ -740,16 +740,16 @@ gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
   GstMemory *out_mem;
   GstMapInfo out_info;
 
+  gst_buffer_set_size (outbuf, 0);
   g_assert (gst_buffer_get_size (outbuf) == 0);
 
   len = strlen (label);
 
-  out_mem = gst_allocator_alloc (NULL, (len + 1), NULL);
+  out_mem = gst_allocator_alloc (NULL, len, NULL);
   g_assert (out_mem != NULL);
   g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
 
   strncpy ((char *) out_info.data, label, len);
-  ((char *) out_info.data)[len] = '\0';
 
   gst_buffer_append_memory (outbuf, out_mem);
 
@@ -1004,20 +1004,37 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
 
+  if (g_strcmp0 (self->mode, "image_labeling") == 0) {
+
+    GstStructure *structure;
+    GstTensorsConfig config;
+
+    /* Need to update in cases video or text */
+    gst_base_transform_set_in_place (trans, FALSE);
+  /** compare output tensor */
+    structure = gst_caps_get_structure (outcaps, 0);
+    gst_tensors_config_from_structure (&config, structure);
+    self->negotiated = TRUE;
+
+    return TRUE;
+
+  } else {
   /** compare and verify outcaps */
-  if (gst_tensordec_configure (self, incaps)) {
-    GstTensorConfig config;
-    GstStructure *s = gst_caps_get_structure (outcaps, 0);
+    if (gst_tensordec_configure (self, incaps)) {
+      GstTensorConfig config;
+      GstStructure *s = gst_caps_get_structure (outcaps, 0);
 
-    if (gst_tensor_config_from_structure (&config, s) &&
-        gst_tensordec_check_consistency (self, &config)) {
-      self->negotiated = TRUE;
+      if (gst_tensor_config_from_structure (&config, s) &&
+          gst_tensordec_check_consistency (self, &config)) {
+        self->negotiated = TRUE;
+      }
     }
+
+    gst_base_transform_set_in_place (trans, !self->add_padding);
+
+    return self->negotiated;
+
   }
-
-  gst_base_transform_set_in_place (trans, !self->add_padding);
-
-  return self->negotiated;
 }
 
 /**
