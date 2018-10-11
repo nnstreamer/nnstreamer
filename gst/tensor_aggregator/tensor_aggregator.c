@@ -1013,8 +1013,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
  *
  * See GstPluginInitFunc() for more details.
  */
-static gboolean
-gst_tensor_aggregator_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_aggregator)
 {
   GST_DEBUG_CATEGORY_INIT (gst_tensor_aggregator_debug, "tensor_aggregator",
       0, "tensor_aggregator element");
@@ -1035,6 +1034,7 @@ gst_tensor_aggregator_plugin_init (GstPlugin * plugin)
 #define PACKAGE "tensor_aggregator"
 #endif
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Macro to define the entry point of the plugin.
  */
@@ -1044,3 +1044,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "GStreamer plugin to aggregate tensor stream",
     gst_tensor_aggregator_plugin_init, VERSION, "LGPL", "GStreamer",
     "http://gstreamer.net/");
+#endif

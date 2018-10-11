@@ -6,6 +6,10 @@ OPTION(TIZEN "Enable Tizen build mode" OFF)
 OPTION(DISABLE_TENSORFLOW_LITE "Disable tensorflow-lite support" OFF)
 OPTION(DISABLE_TENSORFLOW "Disable tensorflow support" OFF)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
+OPTION(SINGLE_BINARY "Generate a single binary for all nnstreamer elements" OFF)
+IF(SINGLE_BINARY)
+	ADD_DEFINITIONS(-DSINGLE_BINARY)
+ENDIF(SINGLE_BINARY)
 
 ADD_DEFINITIONS(-DVERSION="0.0.1")
 
@@ -94,8 +98,12 @@ ADD_EXECUTABLE(unittest_sink tests/nnstreamer_sink/unittest_sink.cpp ${gtestSrc}
 TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
 TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${gtestLink})
 
-ADD_SUBDIRECTORY(gst/tensor_aggregator)
-ADD_SUBDIRECTORY(gst/tensor_converter)
+# Supported projects for the single binary
+SET(PROJECTS
+	tensor_converter
+	tensor_aggregator
+)
+
 ADD_SUBDIRECTORY(gst/tensor_filter)
 ADD_SUBDIRECTORY(gst/tensor_decoder)
 ADD_SUBDIRECTORY(gst/tensor_sink)
@@ -109,6 +117,48 @@ ADD_SUBDIRECTORY(nnstreamer_example)
 ADD_SUBDIRECTORY(tests/nnstreamer_tensors/tensors_test)
 enable_testing()
 ADD_SUBDIRECTORY(tests)
+
+SET(OBJECTS)
+FOREACH(PRJ IN LISTS PROJECTS)
+	ADD_SUBDIRECTORY(gst/${PRJ})
+	LIST(APPEND OBJECTS $<TARGET_OBJECTS:${PRJ}OBJ>)
+ENDFOREACH(PRJ)
+
+
+IF (SINGLE_BINARY)
+	ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c ${OBJECTS})
+	TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
+	TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
+	TARGET_LINK_LIBRARIES(nnstreamerStatic ${pkgs_LIBRARIES})
+	ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c ${OBJECTS})
+	TARGET_INCLUDE_DIRECTORIES(nnstreamer PUBLIC ${pkgs_INCLUDE_DIRS})
+	TARGET_COMPILE_OPTIONS(nnstreamer PUBLIC ${pkgs_CFLAGS_OTHER})
+	TARGET_LINK_LIBRARIES(nnstreamer ${pkgs_LIBRARIES})
+
+	INSTALL(TARGETS nnstreamerStatic nnstreamer
+		RUNTIME DESTINATION ${EXEC_PREFIX}
+		LIBRARY DESTINATION ${GST_INSTALL_DIR}
+		ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+	)
+ELSE (SINGLE_BINARY)
+	FOREACH(PRJ IN LISTS PROJECTS)
+		ADD_LIBRARY(${PRJ}Static STATIC $<TARGET_OBJECTS:${PRJ}OBJ>)
+		TARGET_INCLUDE_DIRECTORIES(${PRJ}Static PUBLIC ${pkgs_INCLUDE_DIRS})
+		TARGET_COMPILE_OPTIONS(${PRJ}Static PUBLIC ${pkgs_CFLAGS_OTHER})
+		TARGET_LINK_LIBRARIES(${PRJ}Static ${pkgs_LIBRARIES})
+		ADD_LIBRARY(${PRJ} SHARED $<TARGET_OBJECTS:${PRJ}OBJ>)
+		TARGET_INCLUDE_DIRECTORIES(${PRJ} PUBLIC ${pkgs_INCLUDE_DIRS})
+		TARGET_COMPILE_OPTIONS(${PRJ} PUBLIC ${pkgs_CFLAGS_OTHER})
+		TARGET_LINK_LIBRARIES(${PRJ} ${pkgs_LIBRARIES})
+
+		INSTALL(TARGETS ${PRJ}Static ${PRJ}
+			RUNTIME DESTINATION ${EXEC_PREFIX}
+			LIBRARY DESTINATION ${GST_INSTALL_DIR}
+			ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+		)
+	ENDFOREACH(PRJ)
+ENDIF (SINGLE_BINARY)
+
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 

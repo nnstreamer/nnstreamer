@@ -31,6 +31,7 @@
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
 #include <gst/audio/audio-format.h>
+#include <gst/gstplugin.h>
 
 G_BEGIN_DECLS
 
@@ -415,6 +416,13 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
         gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL)); \
     } while (0)
 
-G_END_DECLS
+#ifdef SINGLE_BINARY
+#define NNSTREAMER_PLUGIN_INIT(name)	\
+  gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin * plugin)
+#else
+#define NNSTREAMER_PLUGIN_INIT(name)	\
+  static gboolean G_PASTE(G_PASTE(gst_, name), _plugin_init) (GstPlugin * plugin)
+#endif
 
+G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */
