@@ -18,25 +18,11 @@
 /**
  * @file	tensor_transform.c
  * @date	10 Jul 2018
- * @brief	GStreamer plugin to transform other/tensor dimensions
- *
- * @see		http://github.com/nnsuite/nnstreamer
+ * @brief	GStreamer plugin to transform tensor dimension or type
+ * @see		https://github.com/nnsuite/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs.
  *
- */
-/**
- * SECTION:element-tensor_transform
- *
- * A filter that converts other/tensor formats
- * The input/output is always in the format of other/tensor
- *
- * <refsect2>
- * <title>Example launch line</title>
- * |[
- * gst-launch -v -m fakesrc ! tensor_transform mode=dimchg option=0:2 ! fakesink silent=TRUE
- * ]|
- * </refsect2>
  */
 
 #ifndef __GST_TENSOR_TRANSFORM_H__
@@ -48,23 +34,22 @@
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_TENSOR_TRANSFORM \
   (gst_tensor_transform_get_type())
 #define GST_TENSOR_TRANSFORM(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_TRANSFORM,GstTensor_Transform))
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_TRANSFORM,GstTensorTransform))
 #define GST_TENSOR_TRANSFORM_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_TRANSFORM,GstTensor_TransformClass))
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_TRANSFORM,GstTensorTransformClass))
 #define GST_IS_TENSOR_TRANSFORM(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_TRANSFORM))
 #define GST_IS_TENSOR_TRANSFORM_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_TRANSFORM))
-#define GST_TENSOR_TRANSFORM_CAST(obj)  ((GstTensor_Transform *)(obj))
+#define GST_TENSOR_TRANSFORM_CAST(obj)  ((GstTensorTransform *)(obj))
+
 #define ARITH_OPRND_NUM_LIMIT  2
 
-typedef struct _GstTensor_Transform GstTensor_Transform;
-
-typedef struct _GstTensor_TransformClass GstTensor_TransformClass;
+typedef struct _GstTensorTransform GstTensorTransform;
+typedef struct _GstTensorTransformClass GstTensorTransformClass;
 
 typedef enum
 {
@@ -152,7 +137,7 @@ typedef struct _tensor_transform_stand {
 /**
  * @brief Internal data structure for tensor_transform instances.
  */
-struct _GstTensor_Transform
+struct _GstTensorTransform
 {
   GstBaseTransform element;	/**< This is the parent object */
 
@@ -174,13 +159,13 @@ struct _GstTensor_Transform
 };
 
 /**
- * @brief GstTensor_TransformClass inherits GstBaseTransformClass.
+ * @brief GstTensorTransformClass inherits GstBaseTransformClass.
  *
  * Referring another child (sibiling), GstVideoFilter (abstract class) and
  * its child (concrete class) GstVideoTransform.
- * Note that GstTensor_TransformClass is a concrete class; thus we need to look at both.
+ * Note that GstTensorTransformClass is a concrete class; thus we need to look at both.
  */
-struct _GstTensor_TransformClass
+struct _GstTensorTransformClass
 {
   GstBaseTransformClass parent_class;	/**< Inherits GstBaseTransformClass */
 };

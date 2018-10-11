@@ -909,7 +909,8 @@ get_tensor_type (const gchar * typestr)
   gchar *type_string;
   tensor_type type = _NNS_END;
 
-  g_return_val_if_fail (typestr != NULL, _NNS_END);
+  if (typestr == NULL)
+    return _NNS_END;
 
   /** remove spaces */
   type_string = g_strdup (typestr);
@@ -999,7 +1000,8 @@ get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
   gchar *dim_string;
   gint i, num_dims;
 
-  g_return_val_if_fail (dimstr != NULL, 0);
+  if (dimstr == NULL)
+    return 0;
 
   /** remove spaces */
   dim_string = g_strdup (dimstr);
@@ -1067,108 +1069,6 @@ get_tensor_element_count (const tensor_dim dim)
   }
 
   return count;
-}
-
-/**
- * @brief Extract other/tensor dim/type from GstStructure
- */
-GstTensor_Filter_CheckStatus
-get_tensor_from_structure (const GstStructure * str, tensor_dim dim,
-    tensor_type * type, int *framerate_num, int *framerate_denum)
-{
-  GstTensor_Filter_CheckStatus ret = _TFC_INIT;
-  const gchar *strval;
-  gint fn, fd;
-
-  if (!gst_structure_has_name (str, "other/tensor"))
-    return ret;
-
-  if (gst_structure_get_int (str, "dim1", (int *) &dim[0]) &&
-      gst_structure_get_int (str, "dim2", (int *) &dim[1]) &&
-      gst_structure_get_int (str, "dim3", (int *) &dim[2]) &&
-      gst_structure_get_int (str, "dim4", (int *) &dim[3])) {
-    ret |= _TFC_DIMENSION;
-  }
-  strval = gst_structure_get_string (str, "type");
-  if (strval) {
-    *type = get_tensor_type (strval);
-    g_assert (*type != _NNS_END);
-    ret |= _TFC_TYPE;
-  }
-  if (gst_structure_get_fraction (str, "framerate", &fn, &fd)) {
-    if (framerate_num)
-      *framerate_num = fn;
-    if (framerate_denum)
-      *framerate_denum = fd;
-    ret |= _TFC_FRAMERATE;
-  }
-  return ret;
-}
-
-/**
- * @brief Get tensor dimension/type from GstCaps
- */
-GstTensor_Filter_CheckStatus
-get_tensor_from_padcap (const GstCaps * caps, tensor_dim dim,
-    tensor_type * type, int *framerate_num, int *framerate_denum)
-{
-  GstTensor_Filter_CheckStatus ret = _TFC_INIT;
-  unsigned int i, capsize;
-  const GstStructure *str;
-  gint fn = 0, fd = 0;
-
-  g_assert (NNS_TENSOR_RANK_LIMIT == 4);        /* This code assumes rank limit is 4 */
-  if (!caps)
-    return ret;
-
-  capsize = gst_caps_get_size (caps);
-  for (i = 0; i < capsize; i++) {
-    str = gst_caps_get_structure (caps, i);
-
-    tensor_dim _dim = { 0, };
-    tensor_type _type = _NNS_END;
-    int _fn, _fd;
-
-    GstTensor_Filter_CheckStatus tmpret = get_tensor_from_structure (str,
-        _dim, &_type, &_fn, &_fd);
-
-    /**
-     * Already cofnigured and more cap info is coming.
-     * I'm not sure how this happens, but let's be ready for this.
-     */
-    if (tmpret & _TFC_DIMENSION) {
-      if (ret & _TFC_DIMENSION) {
-        g_assert (0 == memcmp (_dim, dim, sizeof (tensor_dim)));
-      } else {
-        memcpy (dim, _dim, sizeof (tensor_dim));
-        ret |= _TFC_DIMENSION;
-      }
-    }
-
-    if (tmpret & _TFC_TYPE) {
-      if (ret & _TFC_TYPE) {
-        g_assert (*type == _type);
-      } else {
-        *type = _type;
-        ret |= _TFC_TYPE;
-      }
-    }
-
-    if (tmpret & _TFC_FRAMERATE) {
-      if (ret & _TFC_FRAMERATE) {
-        g_assert (fn == _fn && fd == _fd);
-      } else {
-        fn = _fn;
-        fd = _fd;
-        if (framerate_num)
-          *framerate_num = fn;
-        if (framerate_denum)
-          *framerate_denum = fd;
-        ret |= _TFC_FRAMERATE;
-      }
-    }
-  }
-  return ret;
 }
 
 /**
