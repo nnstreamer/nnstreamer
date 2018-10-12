@@ -539,18 +539,18 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   }
 
   tensors_buf = gst_buffer_new ();
+  g_assert (tensors_buf != NULL);
+
   tensor_buf = gst_buffer_new ();
+  g_assert (tensor_buf != NULL);
 
   isEOS =
       gst_tensor_merge_collect_buffer (tensor_merge, tensors_buf, &pts_time,
       &dts_time);
 
   if (isEOS) {
-    if (tensors_buf)
-      gst_buffer_unref (tensors_buf);
-
-    if (tensor_buf)
-      gst_buffer_unref (tensor_buf);
+    gst_buffer_unref (tensors_buf);
+    gst_buffer_unref (tensor_buf);
 
     gst_pad_push_event (tensor_merge->srcpad, gst_event_new_eos ());
     ret = GST_FLOW_EOS;
@@ -602,6 +602,7 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   gst_buffer_append_memory (tensor_buf, mem);
   gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
       -1);
+
   gst_buffer_unref (tensors_buf);
 
   ret = gst_pad_push (tensor_merge->srcpad, tensor_buf);
