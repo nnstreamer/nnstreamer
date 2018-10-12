@@ -30,6 +30,8 @@
 
 NNSTREAMER_PLUGIN (tensor_converter);
 NNSTREAMER_PLUGIN (tensor_aggregator);
+NNSTREAMER_PLUGIN (tensor_decoder);
+NNSTREAMER_PLUGIN (tensor_demux);
 
 #define NNSTREAMER_INIT(name, plugin) \
   do { \
@@ -45,6 +47,8 @@ gst_nnstreamer_init (GstPlugin * plugin)
 {
   NNSTREAMER_INIT (tensor_converter, plugin);
   NNSTREAMER_INIT (tensor_aggregator, plugin);
+  NNSTREAMER_INIT (tensor_decoder, plugin);
+  NNSTREAMER_INIT (tensor_demux, plugin);
 
   return TRUE;
 }

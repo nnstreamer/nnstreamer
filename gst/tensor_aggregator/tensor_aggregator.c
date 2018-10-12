@@ -1022,6 +1022,7 @@ NNSTREAMER_PLUGIN_INIT (tensor_aggregator)
       GST_RANK_NONE, GST_TYPE_TENSOR_AGGREGATOR);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Definition for identifying tensor_aggregator plugin.
  *
@@ -1031,10 +1032,9 @@ NNSTREAMER_PLUGIN_INIT (tensor_aggregator)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_aggregator"
+#define PACKAGE "nnstreamer"
 #endif
 
-#ifndef SINGLE_BINARY
 /**
  * @brief Macro to define the entry point of the plugin.
  */
@@ -1042,6 +1042,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_aggregator,
     "GStreamer plugin to aggregate tensor stream",
-    gst_tensor_aggregator_plugin_init, VERSION, "LGPL", "GStreamer",
-    "http://gstreamer.net/");
+    gst_tensor_aggregator_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "http://github.com/nnsuite/nnstreamer/");
 #endif

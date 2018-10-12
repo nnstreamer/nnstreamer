@@ -885,6 +885,7 @@ NNSTREAMER_PLUGIN_INIT (tensor_converter)
       GST_RANK_NONE, GST_TYPE_TENSOR_CONVERTER);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Definition for identifying tensor_converter plugin.
  *
@@ -894,10 +895,9 @@ NNSTREAMER_PLUGIN_INIT (tensor_converter)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_converter"
+#define PACKAGE "nnstreamer"
 #endif
 
-#ifndef SINGLE_BINARY
 /**
  * @brief Macro to define the entry point of the plugin.
  */
@@ -905,6 +905,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_converter,
     "GStreamer plugin to convert media types to tensors",
-    gst_tensor_converter_plugin_init, VERSION, "LGPL", "GStreamer",
+    gst_tensor_converter_plugin_init, VERSION, "LGPL", "nnstreamer",
     "http://github.com/nnsuite/nnstreamer/");
 #endif

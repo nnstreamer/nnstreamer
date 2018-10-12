@@ -101,15 +101,15 @@ TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${gtestLink})
 
 # Supported projects for the single binary
 SET(PROJECTS
-	tensor_converter
 	tensor_aggregator
+	tensor_converter
+	tensor_decoder
+	tensor_demux
 )
 
 ADD_SUBDIRECTORY(gst/tensor_filter)
-ADD_SUBDIRECTORY(gst/tensor_decoder)
 ADD_SUBDIRECTORY(gst/tensor_sink)
 ADD_SUBDIRECTORY(gst/tensor_mux)
-ADD_SUBDIRECTORY(gst/tensor_demux)
 ADD_SUBDIRECTORY(gst/tensor_split)
 ADD_SUBDIRECTORY(gst/tensor_merge)
 ADD_SUBDIRECTORY(gst/tensor_transform)
