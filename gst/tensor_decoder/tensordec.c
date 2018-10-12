@@ -1080,8 +1080,7 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
  * initialize the plug-in itself
  * register the element factories and other features
  */
-static gboolean
-gst_tensordec_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_decoder)
 {
   /**
    * debug category for fltering log messages
@@ -1093,6 +1092,7 @@ gst_tensordec_plugin_init (GstPlugin * plugin)
       GST_TYPE_TENSORDEC);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * PACKAGE: this is usually set by autotools depending on some _INIT macro
  * in configure.ac and then written into and defined in config.h, but we can
@@ -1100,7 +1100,7 @@ gst_tensordec_plugin_init (GstPlugin * plugin)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_decoder"
+#define PACKAGE "nnstreamer"
 #endif
 
 /**
@@ -1110,5 +1110,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_decoder,
     "Element to convert tensor to media stream",
-    gst_tensordec_plugin_init,
-    VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
+    gst_tensor_decoder_plugin_init,
+    VERSION, "LGPL", "nnstreamer", "http://github.com/nnsuite/nnstreamer/");
+#endif
