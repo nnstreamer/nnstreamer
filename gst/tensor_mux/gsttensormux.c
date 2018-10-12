@@ -568,31 +568,31 @@ gst_tensor_mux_get_property (GObject * object, guint prop_id,
 
 
 /**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "tensor_mux"
-#endif
-
-/**
  * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
-gboolean
-gst_tensor_mux_plugin_init (GstPlugin * tensormux)
+NNSTREAMER_PLUGIN_INIT (tensor_mux)
 {
   /** debug category for fltering log messages
    * exchange the string 'Template tensor_mux' with your description
    */
   GST_DEBUG_CATEGORY_INIT (gst_tensor_mux_debug, "tensor_mux", 0,
       "Tensor Muxer");
-  return gst_element_register (tensormux, "tensor_mux",
+  return gst_element_register (plugin, "tensor_mux",
       GST_RANK_NONE, GST_TYPE_TENSOR_MUX);
 }
+
+#ifndef SINGLE_BINARY
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "nnstreamer"
+#endif
 
 /**
  * @brief gstreamer looks for this structure to register tensormux
@@ -601,5 +601,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_mux,
     "tensor mux plugin",
-    gst_tensor_mux_plugin_init, VERSION, "LGPL", "GStreamer",
-    "http://gstreamer.net/");
+    gst_tensor_mux_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer/");
+#endif
