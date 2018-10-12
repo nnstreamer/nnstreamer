@@ -757,6 +757,11 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
         &config->rate_d);
 
+    if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+      err_print ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
+      config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+    }
+
     /* parse dimensions */
     dims_string = gst_structure_get_string (structure, "dimensions");
     if (dims_string) {
@@ -769,6 +774,10 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       if (config->info.num_tensors != num_dims) {
         err_print ("Invalid param, dimensions (%d) tensors (%d)\n",
             num_dims, config->info.num_tensors);
+
+        if (num_dims > config->info.num_tensors) {
+          num_dims = config->info.num_tensors;
+        }
       }
 
       for (i = 0; i < num_dims; i++) {
@@ -790,6 +799,10 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       if (config->info.num_tensors != num_types) {
         err_print ("Invalid param, types (%d) tensors (%d)\n",
             num_types, config->info.num_tensors);
+
+        if (num_types > config->info.num_tensors) {
+          num_types = config->info.num_tensors;
+        }
       }
 
       for (i = 0; i < num_types; i++) {
