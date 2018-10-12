@@ -906,5 +906,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     tensor_converter,
     "GStreamer plugin to convert media types to tensors",
     gst_tensor_converter_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "http://github.com/nnsuite/nnstreamer/");
+    "https://github.com/nnsuite/nnstreamer/");
 #endif

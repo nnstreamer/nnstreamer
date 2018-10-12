@@ -740,8 +740,7 @@ gst_tensor_sink_get_silent (GstTensorSink * self)
  *
  * See GstPluginInitFunc() for more details.
  */
-static gboolean
-gst_tensor_sink_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_sink)
 {
   GST_DEBUG_CATEGORY_INIT (gst_tensor_sink_debug, "tensor_sink",
       0, "tensor_sink element");
@@ -750,6 +749,7 @@ gst_tensor_sink_plugin_init (GstPlugin * plugin)
       GST_RANK_NONE, GST_TYPE_TENSOR_SINK);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Definition for identifying tensor_sink plugin.
  *
@@ -759,7 +759,7 @@ gst_tensor_sink_plugin_init (GstPlugin * plugin)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_sink"
+#define PACKAGE "nnstreamer"
 #endif
 
 /**
@@ -771,3 +771,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "Sink element to handle tensor stream",
     gst_tensor_sink_plugin_init, VERSION, "LGPL", "nnstreamer",
     "https://github.com/nnsuite/nnstreamer");
+#endif

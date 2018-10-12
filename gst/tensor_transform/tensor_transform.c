@@ -1331,8 +1331,7 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
  * initialize the plug-in itself
  * register the element factories and other features
  */
-static gboolean
-gst_tensor_transform_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_transform)
 {
   /**
    * debug category for fltering log messages
@@ -1344,6 +1343,7 @@ gst_tensor_transform_plugin_init (GstPlugin * plugin)
       GST_RANK_NONE, GST_TYPE_TENSOR_TRANSFORM);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * PACKAGE: this is usually set by autotools depending on some _INIT macro
  * in configure.ac and then written into and defined in config.h, but we can
@@ -1351,7 +1351,7 @@ gst_tensor_transform_plugin_init (GstPlugin * plugin)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_transform"
+#define PACKAGE "nnstreamer"
 #endif
 
 /**
@@ -1363,3 +1363,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     "GStreamer plugin to transform tensor dimension or type",
     gst_tensor_transform_plugin_init, VERSION, "LGPL", "nnstreamer",
     "https://github.com/nnsuite/nnstreamer");
+#endif

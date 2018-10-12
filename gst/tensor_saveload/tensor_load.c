@@ -47,6 +47,7 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <tensor_common.h>
 
 #include "tensor_load.h"
 
@@ -230,47 +231,6 @@ gst_tensor_load_get_property (GObject * object, guint prop_id,
   ;
 
 /**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-static gboolean
-tensor_load_init (GstPlugin * tensor_load)
-{
-  /**
-   * debug category for fltering log messages
-   *
-   * exchange the string 'Template tensor_load' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_load_debug, "tensor_load",
-      0, "Template tensor_load");
-
-  return gst_element_register (tensor_load, "tensor_load",
-      GST_RANK_NONE, GST_TYPE_TENSOR_LOAD);
-}
-
-/**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "tensor_load"
-#endif
-
-/**
- * gstreamer looks for this structure to register tensor_loads
- *
- * exchange the string 'Template tensor_load' with your tensor_load description
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_load,
-    "tensor_load",
-    tensor_load_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
-
-/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  */
 static GstFlowReturn
@@ -343,3 +303,46 @@ gst_tensor_load_transform_size (GstBaseTransform * trans,
   /** @todo NYI */
   return FALSE;
 }
+
+/**
+ * @brief entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+NNSTREAMER_PLUGIN_INIT (tensor_load)
+{
+  /**
+   * debug category for fltering log messages
+   *
+   * exchange the string 'Template tensor_load' with your description
+   */
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_load_debug, "tensor_load",
+      0, "Template tensor_load");
+
+  return gst_element_register (plugin, "tensor_load",
+      GST_RANK_NONE, GST_TYPE_TENSOR_LOAD);
+}
+
+#ifndef SINGLE_BINARY
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "nnstreamer"
+#endif
+
+/**
+ * gstreamer looks for this structure to register tensor_loads
+ *
+ * exchange the string 'Template tensor_load' with your tensor_load description
+ */
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    tensor_load,
+    "Load other/tensor_save and as other/tensor or other/tensors",
+    gst_tensor_load_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer/");
+#endif

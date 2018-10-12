@@ -32,6 +32,14 @@ NNSTREAMER_PLUGIN (tensor_converter);
 NNSTREAMER_PLUGIN (tensor_aggregator);
 NNSTREAMER_PLUGIN (tensor_decoder);
 NNSTREAMER_PLUGIN (tensor_demux);
+NNSTREAMER_PLUGIN (tensor_merge);
+NNSTREAMER_PLUGIN (tensor_mux);
+NNSTREAMER_PLUGIN (tensor_load);
+/* NNSTREAMER_PLUGIN (tensor_save); */
+NNSTREAMER_PLUGIN (tensor_sink);
+NNSTREAMER_PLUGIN (tensor_split);
+NNSTREAMER_PLUGIN (tensor_transform);
+NNSTREAMER_PLUGIN (tensor_filter);
 
 #define NNSTREAMER_INIT(name, plugin) \
   do { \
@@ -49,6 +57,14 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (tensor_aggregator, plugin);
   NNSTREAMER_INIT (tensor_decoder, plugin);
   NNSTREAMER_INIT (tensor_demux, plugin);
+  NNSTREAMER_INIT (tensor_merge, plugin);
+  NNSTREAMER_INIT (tensor_mux, plugin);
+  NNSTREAMER_INIT (tensor_load, plugin);
+  /*  NNSTREAMER_INIT (tensor_save, plugin); */
+  NNSTREAMER_INIT (tensor_sink, plugin);
+  NNSTREAMER_INIT (tensor_split, plugin);
+  NNSTREAMER_INIT (tensor_transform, plugin);
+  NNSTREAMER_INIT (tensor_filter, plugin);
 
   return TRUE;
 }

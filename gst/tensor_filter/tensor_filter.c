@@ -1201,8 +1201,7 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
  * initialize the plug-in itself
  * register the element factories and other features
  */
-static gboolean
-gst_tensor_filter_plugin_init (GstPlugin * plugin)
+NNSTREAMER_PLUGIN_INIT (tensor_filter)
 {
   /**
    * debug category for filtering log messages
@@ -1214,6 +1213,7 @@ gst_tensor_filter_plugin_init (GstPlugin * plugin)
       GST_TYPE_TENSOR_FILTER);
 }
 
+#ifndef SINGLE_BINARY
 /**
  * @brief Definition for identifying tensor_filter plugin.
  *
@@ -1223,7 +1223,7 @@ gst_tensor_filter_plugin_init (GstPlugin * plugin)
  * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
  */
 #ifndef PACKAGE
-#define PACKAGE "tensor_filter"
+#define PACKAGE "nnstreamer"
 #endif
 
 /**
@@ -1234,5 +1234,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_filter,
     "GStreamer plugin to use general neural network frameworks as filters",
-    gst_tensor_filter_plugin_init, VERSION, "LGPL", "GStreamer",
-    "http://gstreamer.net/");
+    gst_tensor_filter_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer/");
+#endif

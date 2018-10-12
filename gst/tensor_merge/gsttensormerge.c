@@ -743,31 +743,31 @@ gst_tensor_merge_get_property (GObject * object, guint prop_id,
 
 
 /**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "tensor_merge"
-#endif
-
-/**
  * @brief entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
  */
-gboolean
-gst_tensor_merge_plugin_init (GstPlugin * tensormerge)
+NNSTREAMER_PLUGIN_INIT (tensor_merge)
 {
   /** debug category for fltering log messages
    * exchange the string 'Template tensor_merge' with your description
    */
   GST_DEBUG_CATEGORY_INIT (gst_tensor_merge_debug, "tensor_merge", 0,
       "Tensor Merger");
-  return gst_element_register (tensormerge, "tensor_merge",
+  return gst_element_register (plugin, "tensor_merge",
       GST_RANK_NONE, GST_TYPE_TENSOR_MERGE);
 }
+
+#ifndef SINGLE_BINARY
+/**
+ * PACKAGE: this is usually set by autotools depending on some _INIT macro
+ * in configure.ac and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use autotools to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
+#ifndef PACKAGE
+#define PACKAGE "nnstreamer"
+#endif
 
 /**
  * @brief gstreamer looks for this structure to register tensormerge
@@ -776,5 +776,6 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     tensor_merge,
     "tensor merge plugin",
-    gst_tensor_merge_plugin_init, VERSION, "LGPL", "GStreamer",
-    "http://gstreamer.net/");
+    gst_tensor_merge_plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer/");
+#endif
