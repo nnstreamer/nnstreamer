@@ -16,15 +16,17 @@ Note that "stable" does not mean that it is complete. It means that it has enoug
 
 In this page, we focus on the status of each elements. For requirements and designs of each element, please refer to the README.md of the element.
 
-- [tensor\_converter](gst/tensor_converter/)
+- [tensor\_converter](../gst/tensor_converter/)
   - Video (stable)
     - video/x-raw. Colorspaces of RGB, BGRx, Gray8 are supported.
     - Caution: if width is not divisible by 4, RGB/Gray8 video incurs memcpy.
-  - Audio (experimental)
+  - Audio (stable)
     - audio/x-raw. Users should specify the number of frames in a single buffer, which denotes the number of frames in a single tensor frame with the property of ```frames-per-buffer```. Needs more test cases.
-  - Text (experimental)
+  - Text (stable)
     - text/x-raw. Partially implemented. Needs fixes and test cases.
-- [tensor\_filter](gst/tensor_filter/)
+  - Binary (experimenal)
+    - application/octet-stream. Stream pipeline developer MUST specify the corresponding type and dimensions via properties (input-dim, input-type)
+- [tensor\_filter](../gst/tensor_filter/)
   - Main (stable)
     - Supported features
       - Fixed input/ouput dimensions (fixed by subplugin)
@@ -36,30 +38,34 @@ In this page, we focus on the status of each elements. For requirements and desi
     - TODO: Recurrent models. The first target unit-test is LSTM.
   - Tensorflow-Lite (stable)
   - Custom (stable)
-  - Tensorflow (The next incoming TODO)
+  - Tensorflow (WIP. Not working properly as of 2018/10/13)
   - Other NNFW TBD (caffe2, caffe, ...)
-- [tensor\_sink](gst/tensor_sink/) (stable)
-  - TODO: ROS integration (not determined if this will be yet another element or not)
-- [tensor\_transformer](gst/tensor_transformer/) (experimental)
-  - Only fraction of supposed features are supported.
-  - TODO: a lot more features to be implemented. Even the implemented feature is incomplete.
-  - Note: a few chosen partial features will be added & tested for Project:NS.
-- [tensor\_merge](gst/tensor_merge/) (planned)
-- [tensor\_split](gst/tensor_split/) (experimental)
-  - Basic feature is implemented. Need test & verficiation.
-  - Note: a few chosen partial features is being implemented & tested for Project:NS.
-- [tensor\_decoder](gst/tensor_decoder/) (experimental)
-  - An example feature is implemented as a template.
-  - TODO: prepare tensor-to-media transforms for many popular neural network models.
-    - Adding more functionalities for sample applications: jihyuck-park
-- [tensor\_mux](gst/tensor_mux/) (stable)
-- [tensor\_demux](gst/tensor_demux/) (stable)
-- [tensor\_source](gst/tensor_source/) (planned)
-- [tensor\_save](gst/tensor_save/) (planned)
-- [tensor\_load](gst/tensor_load/) (planned)
-- [tensor\_aggregator](gst/tensor_aggregator) (experimental)
-  - Basic features being implemented without enough test cases.
-  - Note: a few choen partial features is being implemented & tested for Project:NS.
+- [tensor\_sink](../gst/tensor_sink/) (stable)
+- [tensor\_transform](../gst/tensor_transform/) (stable, but with a lot of WIP items)
+  - Supported features
+    - Type Cast (typecast) (stable)
+    - Dimension Change (dimchg) (experimental)
+    - Arithmetic (arithmetic) (experimental. stable with limited sub features)
+    - Transpose (transpose) (experimental. stable with limited sub features)
+    - Standardization/Normalization (stand) (experimental. stable with limited sub features)
+    - More features coming soon!
+- [tensor\_merge](../gst/tensor_merge/) (stable, but with NYI WIP items)
+- [tensor\_split](../gst/tensor_split/) (stable, but with NYI WIP items)
+- [tensor\_decoder](../gst/tensor_decoder/) (stable, but with NYI WIP items)
+  - Supported features
+    - Direct video conversion (video/x-raw) (stable)
+    - Image classification labeling (text/x-raw) (stable)
+    - Bounding Boxes (video/x-raw) (WIP)
+    - More items are planned.
+- [tensor\_mux](../gst/tensor_mux/) (stable)
+- [tensor\_demux](../gst/tensor_demux/) (stable)
+- [tensor\_source](../gst/tensor_source/) (planned)
+- [tensor\_save](../gst/tensor_save/) (planned)
+- [tensor\_load](../gst/tensor_load/) (planned)
+- [tensor\_aggregator](../gst/tensor_aggregator) (stable)
+- [tensor\_ros\_sink](../gst/tensor_ros_sink/) (planned)
+- [tensor\_ros\_src](../gst/tensor_ros_src/) (planned)
+
 
 Note that test elements in /tests/ are not elements for applications. They exist as scaffoldings to test the above elements especially in the case where related elements are not yet implemented.
 
