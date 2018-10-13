@@ -4,7 +4,7 @@ PROJECT(nnstreamer C CXX)
 
 OPTION(TIZEN "Enable Tizen build mode" OFF)
 OPTION(DISABLE_TENSORFLOW_LITE "Disable tensorflow-lite support" OFF)
-OPTION(DISABLE_TENSORFLOW "Disable tensorflow support" OFF)
+OPTION(DISABLE_TENSORFLOW "Disable tensorflow support" ON)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
 OPTION(SINGLE_BINARY "Generate a single binary for all nnstreamer elements" OFF)
 IF(SINGLE_BINARY)
@@ -39,19 +39,20 @@ SET(PKG_MODULES
 )
 
 FIND_LIBRARY(GTEST_LIB gtest)
-IF(TIZEN OR GTEST_LIB)
-	# Enable dlog of Tizen.
+IF(TIZEN)
 	ADD_DEFINITIONS(-DTIZEN=1)
+	# Enable dlog of Tizen.
 	SET(PKG_MODULES ${PKG_MODULES} dlog)
-	# Use GTEST shared lib
+ENDIF(TIZEN)
+
+IF(TIZEN OR GTEST_LIB)
+	# Use GTEST shared lib (Tizen supplied gtest as shared lib)
 	SET(gtestLink gtest pthread)
 	SET(gtestSrc "")
 	SET(gtestInc "")
-	SET(DISABLE_TENSORFLOW ON)
-	MESSAGE("DISABLE_TENSORFLOW : ${DISABLE_TENSORFLOW}")
 ELSE(TIZEN OR GTEST_LIB)
 	IF (NOT EXISTS /usr/src/gtest/src/gtest-all.cc)
-		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or libgtest.so.")
+		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or (supplied with GTEST_LIB) libgtest.so.")
 	ENDIF ()
 	SET(gtestLink pthread)
 	SET(gtestSrc /usr/src/gtest/src/gtest-all.cc)
