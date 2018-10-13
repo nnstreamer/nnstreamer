@@ -84,7 +84,7 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC -g -std=
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC -g -std=c++11")
 
 # Provide common data
-ADD_LIBRARY(common STATIC common/tensor_common.c common/tensor_meta.c)
+ADD_LIBRARY(common STATIC gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_meta.c)
 TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
 SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
