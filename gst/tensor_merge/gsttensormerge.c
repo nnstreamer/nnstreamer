@@ -196,9 +196,10 @@ static const gchar *gst_tensor_merge_mode_string[] = {
 };
 
 static const gchar *gst_tensor_merge_linear_string[] = {
-  [LINEAR_WIDTH] = "width",
-  [LINEAR_HEIGHT] = "height",
-  [LINEAR_CHANNEL] = "channel",
+  [LINEAR_FIRST] = "0",
+  [LINEAR_SECOND] = "1",
+  [LINEAR_THIRD] = "2",
+  [LINEAR_FOURTH] = "3",
   [LINEAR_END] = NULL,
 };
 
@@ -371,52 +372,37 @@ gst_merge_tensors_config (GstTensorMerge * tensor_merge,
     GstTensorsConfig * configs, GstTensorConfig * config)
 {
   gboolean ret = FALSE;
+  int i, j;
+  tensor_dim dim;
+  tensor_type type;
+  type = configs->info.info[0].type;
+  memcpy (&dim, &configs->info.info[0].dimension, sizeof (tensor_dim));
+
+  for (i = 1; i < configs->info.num_tensors; i++) {
+    if (type != configs->info.info[i].type)
+      GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
+  }
+
   switch (tensor_merge->mode) {
     case GTT_LINEAR:
     {
-      switch (tensor_merge->data_linear.direction) {
-          /* TODO : Currently we merge channel only. Have to extend W,H direction */
-        case LINEAR_CHANNEL:
-        {
-          int i, width, height, channel, batch;
-          tensor_type type;
-          type = configs->info.info[0].type;
-          batch = configs->info.info[0].dimension[3];
-          width = configs->info.info[0].dimension[1];
-          height = configs->info.info[0].dimension[2];
-          channel = configs->info.info[0].dimension[0];
-
-          for (i = 1; i < configs->info.num_tensors; i++) {
-            if (type != configs->info.info[i].type)
+      int targetIdx = tensor_merge->data_linear.direction;
+      for (i = 1; i < configs->info.num_tensors; i++) {
+        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+          if (j == targetIdx) {
+            dim[j] += configs->info.info[i].dimension[j];
+          } else {
+            if (dim[j] != configs->info.info[i].dimension[j])
               GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
                   (NULL));
-            if (batch != configs->info.info[i].dimension[3])
-              GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
-                  (NULL));
-            if (width != configs->info.info[i].dimension[1])
-              GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
-                  (NULL));
-            if (height != configs->info.info[i].dimension[2])
-              GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
-                  (NULL));
-            channel += configs->info.info[i].dimension[0];
           }
-
-          config->info.type = type;
-          config->info.dimension[0] = width;
-          config->info.dimension[1] = height;
-          config->info.dimension[2] = channel;
-          config->info.dimension[3] = batch;
-          config->rate_d = configs->rate_d;
-          config->rate_n = configs->rate_n;
         }
-          ret = TRUE;
-          break;
-        case LINEAR_WIDTH:
-        case LINEAR_HEIGHT:
-        default:
-          ret = FALSE;
       }
+      config->info.type = type;
+      memcpy (&config->info.dimension, &dim, sizeof (tensor_dim));
+      config->rate_d = configs->rate_d;
+      config->rate_n = configs->rate_n;
+      ret = TRUE;
     }
       break;
     default:
@@ -472,16 +458,18 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
     if (GST_IS_BUFFER (buf)) {
       if (GST_BUFFER_PTS_IS_VALID (buf)) {
-        pad->pts_timestamp =
-            gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-            GST_BUFFER_PTS (buf));
+        if (data->segment.format == GST_FORMAT_TIME)
+          pad->pts_timestamp =
+              gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
+              GST_BUFFER_PTS (buf));
       } else {
         pad->pts_timestamp = GST_CLOCK_TIME_NONE;
       }
-      if (GST_BUFFER_DTS_IS_VALID (buf)) {
-        pad->dts_timestamp =
-            gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-            GST_BUFFER_DTS (buf));
+      if (buf && GST_BUFFER_DTS_IS_VALID (buf)) {
+        if (data->segment.format == GST_FORMAT_TIME)
+          pad->dts_timestamp =
+              gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
+              GST_BUFFER_DTS (buf));
       } else {
         pad->dts_timestamp = GST_CLOCK_TIME_NONE;
       }
@@ -518,6 +506,146 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
   return isEOS;
 }
 
+
+/**
+ * @brief Generate Output GstMemory
+ * @param tensor_merge tensor merger
+ * @param tensors_buf collected tensors buffer
+ * @param tensor_buf output tensor buffer
+ * @return boolean
+ */
+static GstFlowReturn
+gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
+    GstBuffer * tensors_buf, GstBuffer * tensor_buf)
+{
+  GstFlowReturn ret = GST_FLOW_OK;
+  GstMapInfo mInfo[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo outInfo;
+  GstMemory *outMem;
+  uint8_t *inptr, *outptr;
+  int num_mem = tensor_merge->tensors_config.info.num_tensors;
+  int i, j, k, l;
+  size_t outSize = 0;
+  tensor_dim dim;
+  tensor_type type;
+
+  memcpy (&dim, &tensor_merge->tensors_config.info.info[0].dimension,
+      sizeof (tensor_dim));
+  type = tensor_merge->tensors_config.info.info[0].type;
+
+  for (i = 0; i < num_mem; i++) {
+    mem[i] = gst_buffer_peek_memory (tensors_buf, i);
+    g_assert (gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ));
+    outSize += mInfo[i].size;
+  }
+
+  outMem = gst_allocator_alloc (NULL, outSize, NULL);
+  g_assert (gst_memory_map (outMem, &outInfo, GST_MAP_WRITE));
+  outptr = outInfo.data;
+
+  switch (tensor_merge->mode) {
+    case GTT_LINEAR:
+    {
+      switch (tensor_merge->data_linear.direction) {
+        case LINEAR_FIRST:
+        {
+          for (l = 0; l < dim[3]; l++) {
+            for (i = 0; i < dim[2]; i++) {
+              for (j = 0; j < dim[1]; j++) {
+                for (k = 0; k < num_mem; k++) {
+                  size_t c =
+                      tensor_merge->tensors_config.info.info[k].dimension[0];
+                  size_t s = tensor_element_size[type] * c;
+                  inptr =
+                      mInfo[k].data + (l * dim[2] * dim[1] + i * dim[1] +
+                      j) * s;
+                  memcpy (outptr, inptr, s);
+                  outptr += s;
+                }
+              }
+            }
+
+          }
+          ret = TRUE;
+        }
+          break;
+        case LINEAR_SECOND:
+        {
+          for (l = 0; l < dim[3]; l++) {
+            for (i = 0; i < dim[2]; i++) {
+              for (k = 0; k < num_mem; k++) {
+                size_t c = 1;
+                for (j = 0; j < LINEAR_SECOND + 1; j++)
+                  c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+
+                size_t s = tensor_element_size[type] * c;
+
+                inptr = mInfo[k].data + (l * dim[2] + i) * s;
+
+                memcpy (outptr, inptr, s);
+                outptr += s;
+              }
+            }
+          }
+          ret = TRUE;
+        }
+          break;
+        case LINEAR_THIRD:
+        {
+          for (l = 0; l < dim[3]; l++) {
+            for (k = 0; k < num_mem; k++) {
+              size_t c = 1;
+              for (j = 0; j < LINEAR_THIRD + 1; j++)
+                c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+
+              size_t s = tensor_element_size[type] * c;
+
+              inptr = mInfo[k].data + l * s;
+
+              memcpy (outptr, inptr, s);
+              outptr += s;
+            }
+          }
+          ret = TRUE;
+        }
+          break;
+        case LINEAR_FOURTH:
+        {
+          for (k = 0; k < num_mem; k++) {
+            size_t c = 1;
+            for (j = 0; j < LINEAR_FOURTH + 1; j++)
+              c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+
+            size_t s = tensor_element_size[type] * c;
+
+            inptr = mInfo[k].data;
+            memcpy (outptr, inptr, s);
+            outptr += s;
+          }
+
+          ret = TRUE;
+        }
+          break;
+        default:
+          ret = FALSE;
+      }
+    }
+      break;
+    default:
+      ret = FALSE;
+  }
+
+  gst_buffer_append_memory (tensor_buf, outMem);
+  gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
+      -1);
+  for (i = 0; i < num_mem; i++)
+    gst_memory_unmap (mem[i], &mInfo[i]);
+  gst_memory_unmap (outMem, &outInfo);
+
+  return ret;
+}
+
 /**
  * @brief Gst Collect Pads Function which is called once collect pads done.
  * @param pads GstCollectPads
@@ -530,7 +658,6 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf, *tensor_buf;
-  GstMemory *mem;
   GstClockTime pts_time = GST_CLOCK_TIME_NONE;
   GstClockTime dts_time = GST_CLOCK_TIME_NONE;
   GstClockTime time = 0;
@@ -595,21 +722,15 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     tensor_merge->need_segment = FALSE;
   }
 
-  /* TODO : Should handle Properly. This is just for the temperaly usage */
-  mem = gst_buffer_get_all_memory (tensors_buf);
-
   tensor_buf = gst_buffer_new ();
   g_assert (tensor_buf != NULL);
 
-  gst_buffer_append_memory (tensor_buf, mem);
-  gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
-      -1);
+  gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
 
   ret = gst_pad_push (tensor_merge->srcpad, tensor_buf);
   if (ret != GST_FLOW_OK) {
     GST_WARNING_OBJECT (tensor_merge, "pushed outbuf, result = %s",
         gst_flow_get_name (ret));
-    /* fall-through, returns result */
   }
 beach:
   gst_buffer_unref (tensors_buf);
