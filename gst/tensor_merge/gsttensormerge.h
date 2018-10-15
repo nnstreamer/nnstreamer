@@ -51,9 +51,10 @@ typedef enum
 
 typedef enum
 {
-  LINEAR_WIDTH = 0,
-  LINEAR_HEIGHT = 1,
-  LINEAR_CHANNEL = 2,
+  LINEAR_FIRST = 0, 		/* CHANNEL */
+  LINEAR_SECOND = 1,		/* WIDTH */
+  LINEAR_THIRD = 2,		/* HEIGHT */
+  LINEAR_FOURTH = 3,  		/* BATCH */
   LINEAR_END,
 } tensor_merge_linear_mode;
 
