@@ -136,6 +136,8 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 install build/libcommon.a %{buildroot}%{_libdir}/
+install build/libnnstreamer.a %{buildroot}%{_libdir}/
+install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
@@ -143,10 +145,8 @@ install build/libcommon.a %{buildroot}%{_libdir}/
 %files
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
-# The libraries are in LGPLv2.1 (testcases and non GST-plugin components are APL2)
 %license LICENSE
 %{gstlibdir}/*.so
-# TODO generate .so files with version info. Migrate symbolic-link .so to devel.
 
 %files devel
 %{_includedir}/nnstreamer/*
@@ -166,5 +166,8 @@ install build/libcommon.a %{buildroot}%{_libdir}/
 
 
 %changelog
+* Mon Oct 15 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Started single-binary packaging for 0.0.3
+
 * Fri May 25 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Packaged tensor_convert plugin.
