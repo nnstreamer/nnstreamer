@@ -555,6 +555,21 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
   } while (0)
 
 /**
+ * Macro to run loop for various data types with simple cast
+ * While castloop directly casts itype to otype, this macro indirectly casts
+ * itype to otype using mtype as an intermediate
+ */
+#define castloop_via_intermediate(itype, mtype, otype, num) do { \
+    otype *ptr = (otype *) outptr; \
+    itype *iptr = (itype *) inptr; \
+    size_t i; \
+    for (i = 0; i < num; i++) { \
+      mtype m = (mtype) *(iptr + i);\
+      *(ptr + i) = (otype) m; \
+    } \
+  } while (0)
+
+/**
  * Macro to run loop for various data types with a converter function
  */
 #define convloop(itype,otype,num,convfunc) do { \
@@ -586,6 +601,18 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
     } \
   } while (0)
 
+#define numotype_castloop_via_intermediate_for_float_itype(mtype, otype, num) do { \
+    switch (filter->type) { \
+     case _NNS_FLOAT32:\
+      castloop_via_intermediate(float, mtype, otype, num); \
+      break; \
+    case _NNS_FLOAT64: \
+      castloop_via_intermediate(double, mtype, otype, num); \
+      break; \
+    default: g_assert(0); \
+    } \
+  } while (0)
+
 /**
  * @brief subrouting for tensor-tranform, "typecast" case.
  * @param[in/out] filter "this" pointer
@@ -610,13 +637,28 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
       numotype_castloop_per_itype (int32_t, num);
       break;
     case _NNS_UINT8:
-      numotype_castloop_per_itype (uint8_t, num);
+      if ((filter->type == _NNS_FLOAT32) || (filter->type == _NNS_FLOAT64)) {
+        numotype_castloop_via_intermediate_for_float_itype (int8_t, uint8_t,
+            num);
+      } else {
+        numotype_castloop_per_itype (uint8_t, num);
+      }
       break;
     case _NNS_UINT16:
-      numotype_castloop_per_itype (uint16_t, num);
+      if ((filter->type == _NNS_FLOAT32) || (filter->type == _NNS_FLOAT64)) {
+        numotype_castloop_via_intermediate_for_float_itype (int16_t, uint16_t,
+            num);
+      } else {
+        numotype_castloop_per_itype (uint16_t, num);
+      }
       break;
     case _NNS_UINT32:
-      numotype_castloop_per_itype (uint32_t, num);
+      if ((filter->type == _NNS_FLOAT32) || (filter->type == _NNS_FLOAT64)) {
+        numotype_castloop_via_intermediate_for_float_itype (int32_t, uint32_t,
+            num);
+      } else {
+        numotype_castloop_per_itype (uint32_t, num);
+      }
       break;
     case _NNS_FLOAT32:
       numotype_castloop_per_itype (float, num);
@@ -628,7 +670,12 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
       numotype_castloop_per_itype (int64_t, num);
       break;
     case _NNS_UINT64:
-      numotype_castloop_per_itype (uint64_t, num);
+      if ((filter->type == _NNS_FLOAT32) || (filter->type == _NNS_FLOAT64)) {
+        numotype_castloop_via_intermediate_for_float_itype (int64_t, uint64_t,
+            num);
+      } else {
+        numotype_castloop_per_itype (uint64_t, num);
+      }
       break;
     default:
       g_assert (0);
