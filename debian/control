@@ -22,3 +22,4 @@ Depends: nnstreamer
 Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams
  This is development package for nnstreamer.
+ If you want to develop Android applications with nnstreamer+gstreamer, you need the libnnstreamer.a from this package.
