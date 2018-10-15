@@ -46,12 +46,9 @@ typedef struct _GstTensorMuxClass GstTensorMuxClass;
 typedef struct
 {
   GstCollectData collect;
-  GstBuffer *buffer;
   GstClockTime pts_timestamp;
   GstClockTime dts_timestamp;
   GstPad *pad;
-
-  gboolean have_timestamp_offset;
 } GstTensorMuxPadData;
 
 /**

@@ -69,12 +69,9 @@ typedef struct _tensor_merge_linear {
 typedef struct
 {
   GstCollectData collect;
-  GstBuffer *buffer;
   GstClockTime pts_timestamp;
   GstClockTime dts_timestamp;
   GstPad *pad;
-
-  gboolean have_timestamp_offset;
 } GstTensorMergePadData;
 
 /**

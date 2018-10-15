@@ -89,8 +89,6 @@ static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
     );
 
-static void gst_tensor_merge_finalize (GObject * object);
-
 static gboolean gst_tensor_merge_handle_src_event (GstPad * pad,
     GstObject * parent, GstEvent * event);
 static GstPad *gst_tensor_merge_request_new_pad (GstElement * element,
@@ -106,6 +104,7 @@ static void gst_tensor_merge_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_merge_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void gst_tensor_merge_finalize (GObject * object);
 
 #define gst_tensor_merge_parent_class parent_class
 G_DEFINE_TYPE (GstTensorMerge, gst_tensor_merge, GST_TYPE_ELEMENT);
@@ -228,8 +227,16 @@ gst_tensor_merge_finalize (GObject * object)
   GstTensorMerge *tensor_merge;
   tensor_merge = GST_TENSOR_MERGE (object);
 
-  if (tensor_merge->collect)
+  if (tensor_merge->collect) {
     gst_object_unref (tensor_merge->collect);
+    tensor_merge->collect = NULL;
+  }
+
+  if (tensor_merge->option) {
+    g_free (tensor_merge->option);
+    tensor_merge->option = NULL;
+  }
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -317,26 +324,26 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
 /**
  * @brief Compare dts & pts time and find earliest
  * @param tensor_merge tensor merger
- * @param old previous merge pad data
- * @param new current merge pad data
+ * @param old_data previous merge pad data
+ * @param new_data current merge pad data
  * @return if > 0, new is earlier than old
  */
 static gint
 gst_tensor_merge_compare_pads (GstTensorMerge * tensor_merge,
-    GstTensorMergePadData * old, GstTensorMergePadData * new)
+    GstTensorMergePadData * old_data, GstTensorMergePadData * new_data)
 {
   guint64 oldtime, newtime;
-  if (old == NULL || old->buffer == NULL)
+  if (old_data == NULL)
     return 1;
-  if (new == NULL || new->buffer == NULL)
+  if (new_data == NULL)
     return -1;
-  if (GST_CLOCK_TIME_IS_VALID (old->dts_timestamp) &&
-      GST_CLOCK_TIME_IS_VALID (new->dts_timestamp)) {
-    oldtime = old->dts_timestamp;
-    newtime = new->dts_timestamp;
+  if (GST_CLOCK_TIME_IS_VALID (old_data->dts_timestamp) &&
+      GST_CLOCK_TIME_IS_VALID (new_data->dts_timestamp)) {
+    oldtime = old_data->dts_timestamp;
+    newtime = new_data->dts_timestamp;
   } else {
-    oldtime = old->pts_timestamp;
-    newtime = new->pts_timestamp;
+    oldtime = old_data->pts_timestamp;
+    newtime = new_data->pts_timestamp;
   }
 
   if (!GST_CLOCK_TIME_IS_VALID (oldtime))
@@ -459,34 +466,33 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     gst_caps_unref (caps);
 
     walk = g_slist_next (walk);
+
     GstBuffer *buf = NULL;
     buf = gst_collect_pads_pop (tensor_merge->collect, data);
-    if (buf && GST_BUFFER_PTS_IS_VALID (buf)) {
-      pad->pts_timestamp =
-          gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-          GST_BUFFER_PTS (buf));
-    } else {
-      pad->pts_timestamp = GST_CLOCK_TIME_NONE;
-    }
-    if (buf && GST_BUFFER_DTS_IS_VALID (buf)) {
-      pad->dts_timestamp =
-          gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-          GST_BUFFER_DTS (buf));
-    } else {
-      pad->dts_timestamp = GST_CLOCK_TIME_NONE;
-    }
 
-    pad->buffer = buf;
     if (GST_IS_BUFFER (buf)) {
+      if (GST_BUFFER_PTS_IS_VALID (buf)) {
+        pad->pts_timestamp =
+            gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
+            GST_BUFFER_PTS (buf));
+      } else {
+        pad->pts_timestamp = GST_CLOCK_TIME_NONE;
+      }
+      if (GST_BUFFER_DTS_IS_VALID (buf)) {
+        pad->dts_timestamp =
+            gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
+            GST_BUFFER_DTS (buf));
+      } else {
+        pad->dts_timestamp = GST_CLOCK_TIME_NONE;
+      }
+
       mem = gst_buffer_get_memory (buf, 0);
       gst_buffer_append_memory (tensors_buf, mem);
 
-      if (pad->buffer != NULL) {
-        if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
-          bestpad = pad;
-          *pts_time = bestpad->pts_timestamp;
-          *dts_time = bestpad->dts_timestamp;
-        }
+      if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
+        bestpad = pad;
+        *pts_time = bestpad->pts_timestamp;
+        *dts_time = bestpad->dts_timestamp;
       }
 
       gst_buffer_unref (buf);
@@ -541,17 +547,11 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   tensors_buf = gst_buffer_new ();
   g_assert (tensors_buf != NULL);
 
-  tensor_buf = gst_buffer_new ();
-  g_assert (tensor_buf != NULL);
-
   isEOS =
       gst_tensor_merge_collect_buffer (tensor_merge, tensors_buf, &pts_time,
       &dts_time);
 
   if (isEOS) {
-    gst_buffer_unref (tensors_buf);
-    gst_buffer_unref (tensor_buf);
-
     gst_pad_push_event (tensor_merge->srcpad, gst_event_new_eos ());
     ret = GST_FLOW_EOS;
     goto beach;
@@ -563,7 +563,6 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 
     if (gst_merge_tensors_config (tensor_merge, &tensor_merge->tensors_config,
             &config)) {
-
       g_assert (gst_tensor_config_validate (&config));
       newcaps = gst_tensor_caps_from_config (&config);
     } else {
@@ -596,14 +595,15 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     tensor_merge->need_segment = FALSE;
   }
 
-
   /* TODO : Should handle Properly. This is just for the temperaly usage */
-  mem = gst_buffer_get_memory_range (tensors_buf, 0, -1);
+  mem = gst_buffer_get_all_memory (tensors_buf);
+
+  tensor_buf = gst_buffer_new ();
+  g_assert (tensor_buf != NULL);
+
   gst_buffer_append_memory (tensor_buf, mem);
   gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
       -1);
-
-  gst_buffer_unref (tensors_buf);
 
   ret = gst_pad_push (tensor_merge->srcpad, tensor_buf);
   if (ret != GST_FLOW_OK) {
@@ -612,9 +612,11 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     /* fall-through, returns result */
   }
 beach:
+  gst_buffer_unref (tensors_buf);
   return ret;
 nego_error:
   {
+    gst_buffer_unref (tensors_buf);
     GST_WARNING_OBJECT (tensor_merge, "failed to set caps");
     GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
     return GST_FLOW_NOT_NEGOTIATED;
