@@ -56,11 +56,14 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 python checkResult.py typecast testcase07.direct.log testcase07.typecast.log uint8 1 B uint8 1 B
 casereport 7 $? "Golden test comparison"
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=typecast option=float64 ! tensor_transform mode=typecast option=uint8 ! filesink location=\"testcase08.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8
+# uint8 -> int8 -> float32 -> float64 -> uint8
+python checkResult.py typecast testcase08.direct.log testcase08.typecast.log uint8 1 B uint8 1 B
+casereport 8 $? "Golden test comparison"
 
-# Below test case will be added after resolving the issue 618 (https://github.com/nnsuite/nnstreamer/issues/618)
-#gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=typecast option=float64 ! tensor_transform mode=typecast option=uint8 ! filesink location=\"testcase08.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8
-## uint8 -> int8 -> float32 -> float64 -> uint8
-#python checkResult.py typecast testcase08.direct.log testcase08.typecast.log uint8 1 B uint8 1 B
-#casereport 8 $? "Golden test comparison"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=typecast option=uint16 ! tensor_transform mode=typecast option=uint8 ! filesink location=\"testcase09.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase09.direct.log\" sync=true" 9
+# uint8 -> int8 -> float32 -> uint16 -> uint8
+python checkResult.py typecast testcase09.direct.log testcase09.typecast.log uint8 1 B uint8 1 B
+casereport 9 $? "Golden test comparison"
 
 report
