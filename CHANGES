@@ -1,0 +1,9 @@
+0.0.1 -> 0.0.2:
+	- Support multi-tensors (other/tensors) along with mux, demux.
+	- Support audio, test, binary-octet streams (tensor converter)
+	- Support image-classification decoding (tensor_decoder)
+	- Support merge.
+	- More subfeatures for transform
+	- Support frame-merging by time (tensor_aggregator)
+	- More test cases w/ TAOS_CI integration.
+	- Applied to and tested w/ real products.
