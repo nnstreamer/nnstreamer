@@ -150,7 +150,7 @@ tflite_close (const GstTensorFilter * filter, void **private_data)
 GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .name = "tensorflow-lite",
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = TRUE,
+  .allocate_in_invoke = FALSE,
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
