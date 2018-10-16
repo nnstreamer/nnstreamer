@@ -1,3 +1,9 @@
+nnstreamer (0.0.3-1rc1) stable; urgency=medium
+
+  * Start of 0.0.3 development
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Tue, 16 Oct 2018 18:31:00 +0900
+
 nnstreamer (2018.6.15) unstable; urgency=medium
 
   * Initial debian dist files added
