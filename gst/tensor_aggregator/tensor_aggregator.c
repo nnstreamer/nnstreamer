@@ -879,6 +879,16 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     /** flush data */
     if (frames_flush > 0) {
       flush = frame_size * frames_flush;
+
+      if (flush > avail) {
+        /**
+         * @todo flush data
+         * Invalid state, tried to flush large size.
+         * We have to determine how to handle this case. (flush the out-size or all available bytes)
+         * Now all available bytes in adapter will be flushed.
+         */
+        flush = avail;
+      }
     } else {
       flush = out_size;
     }
@@ -978,6 +988,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   GstStructure *structure;
   GstTensorConfig config;
   uint32_t per_frame;
+  guint count;
 
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
@@ -993,6 +1004,14 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     silent_debug ("cannot configure tensor info");
     return FALSE;
   }
+
+  /**
+   * @todo flush data
+   * Check properties to detect invalid case.
+   * Assertion when in=5 out=10 flush=20 or in=10 out=5 flush=20
+   */
+  count = (self->frames_out + self->frames_in - 1) / self->frames_in;
+  g_assert (self->frames_in * count >= self->frames_flush);
 
   self->in_config = config;
 
