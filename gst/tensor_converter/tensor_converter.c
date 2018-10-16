@@ -506,6 +506,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gsize avail, buf_size, frame_size, out_size;
   guint frames_in, frames_out;
   GstFlowReturn ret = GST_FLOW_OK;
+  GstClockTime duration;
 
   buf_size = gst_buffer_get_size (buf);
   g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
@@ -573,7 +574,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gst_buffer_unmap (inbuf, &dest_info);
 
         /** copy timestamps */
-        gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
+        gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
       }
       break;
     }
@@ -602,7 +603,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gst_buffer_unmap (inbuf, &dest_info);
 
         /** copy timestamps */
-        gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
+        gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
       }
       break;
 
@@ -628,6 +629,12 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   adapter = self->adapter;
   g_assert (adapter != NULL);
 
+  duration = GST_BUFFER_DURATION (inbuf);
+  if (GST_CLOCK_TIME_IS_VALID (duration)) {
+    /** supposed same duration for incoming buffer */
+    duration = gst_util_uint64_scale_int (duration, frames_out, frames_in);
+  }
+
   gst_adapter_push (adapter, inbuf);
 
   out_size = frames_out * frame_size;
@@ -636,16 +643,12 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     GstBuffer *outbuf;
     GstClockTime pts, dts;
     guint64 pts_dist, dts_dist;
-    gsize offset;
 
-    /** offset for last frame */
-    offset = frame_size * (frames_out - 1) + 1; /** +1 byte */
-
-    pts = gst_adapter_prev_pts_at_offset (adapter, offset, &pts_dist);
-    dts = gst_adapter_prev_dts_at_offset (adapter, offset, &dts_dist);
+    pts = gst_adapter_prev_pts (adapter, &pts_dist);
+    dts = gst_adapter_prev_dts (adapter, &dts_dist);
 
     /**
-     * Update timestamp of last frame.
+     * Update timestamp.
      * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
      */
     if (frames_in > 1) {
@@ -656,13 +659,13 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (fn > 0 && fd > 0) {
         if (GST_CLOCK_TIME_IS_VALID (pts)) {
-          pts =
+          pts +=
               gst_util_uint64_scale_int (pts_dist * fd, GST_SECOND,
               fn * frame_size);
         }
 
         if (GST_CLOCK_TIME_IS_VALID (dts)) {
-          dts =
+          dts +=
               gst_util_uint64_scale_int (dts_dist * fd, GST_SECOND,
               fn * frame_size);
         }
@@ -675,6 +678,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     /** set timestamp */
     GST_BUFFER_PTS (outbuf) = pts;
     GST_BUFFER_DTS (outbuf) = dts;
+    GST_BUFFER_DURATION (outbuf) = duration;
 
     ret = gst_pad_push (self->srcpad, outbuf);
   }
