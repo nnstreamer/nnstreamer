@@ -306,7 +306,6 @@ gst_get_tensor_pad (GstTensorSplit * tensor_split, GstBuffer * inbuf,
   tensorpad->nth = nth;
   tensorpad->last_ret = GST_FLOW_OK;
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
-  tensorpad->discont = TRUE;
 
   tensor_split->srcpads = g_slist_append (tensor_split->srcpads, tensorpad);
   dim =
@@ -459,16 +458,10 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorSplit *tensor_split;
   tensor_split = GST_TENSOR_SPLIT (parent);
-  if (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DISCONT)) {
-    GSList *l;
-    for (l = tensor_split->srcpads; l != NULL; l = l->next) {
-      GstTensorPad *srcpad = l->data;
-      srcpad->discont = TRUE;
-    }
-  }
 
   num_tensors = tensor_split->num_tensors;
-  GST_DEBUG_OBJECT (tensor_split, " Number or Tensors: %d", num_tensors);
+  GST_DEBUG_OBJECT (tensor_split, " Number of Tensors: %d", num_tensors);
+
   for (i = 0; i < num_tensors; i++) {
     if (tensor_split->tensorpick != NULL) {
       gboolean found = FALSE;
@@ -493,25 +486,26 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     outbuf = gst_buffer_new ();
     mem = gst_get_splited_tensor (tensor_split, buf, i);
     gst_buffer_append_memory (outbuf, mem);
-    ts = GST_BUFFER_PTS (buf);
+    ts = GST_BUFFER_TIMESTAMP (buf);
+
     if (created) {
       GstSegment segment;
       gst_segment_init (&segment, GST_FORMAT_TIME);
       gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
     }
+
     outbuf = gst_buffer_make_writable (outbuf);
+
+    /* metadata from incoming buffer */
+    gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
     if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
-      GST_BUFFER_TIMESTAMP (outbuf) = ts;
       srcpad->last_ts = ts;
     } else {
-      GST_BUFFER_TIMESTAMP (outbuf) = GST_CLOCK_TIME_NONE;
+      GST_DEBUG_OBJECT (tensor_split, "invalid timestamp %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (ts));
     }
-    if (srcpad->discont) {
-      GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
-      srcpad->discont = FALSE;
-    } else {
-      GST_BUFFER_FLAG_UNSET (outbuf, GST_BUFFER_FLAG_DISCONT);
-    }
+
     GST_DEBUG_OBJECT (tensor_split,
         "pushing buffer with timestamp %" GST_TIME_FORMAT,
         GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));

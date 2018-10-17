@@ -47,7 +47,6 @@ typedef struct
   GstPad *pad;
   GstClockTime last_ts;
   GstFlowReturn last_ret;
-  gboolean discont;
   gint nth;
 } GstTensorPad;
 
