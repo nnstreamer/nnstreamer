@@ -335,7 +335,6 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   tensorpad->nth = nth;
   tensorpad->last_ret = GST_FLOW_OK;
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
-  tensorpad->discont = TRUE;
 
   tensor_demux->srcpads = g_slist_append (tensor_demux->srcpads, tensorpad);
   gst_tensor_demux_get_tensor_config (tensor_demux, &config,
@@ -431,16 +430,8 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstTensorDemux *tensor_demux;
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
-  if (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DISCONT)) {
-    GSList *l;
-    for (l = tensor_demux->srcpads; l != NULL; l = l->next) {
-      GstTensorPad *srcpad = l->data;
-      srcpad->discont = TRUE;
-    }
-  }
-
   num_tensors = tensor_demux->tensors_config.info.num_tensors;
-  GST_DEBUG_OBJECT (tensor_demux, " Number or Tensors: %d", num_tensors);
+  GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
   /* supposed n memory blocks in buffer */
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
@@ -469,7 +460,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     outbuf = gst_buffer_new ();
     mem = gst_buffer_peek_memory (buf, i);
     gst_buffer_append_memory (outbuf, mem);
-    ts = GST_BUFFER_PTS (buf);
+    ts = GST_BUFFER_TIMESTAMP (buf);
 
     if (created) {
       GstSegment segment;
@@ -478,18 +469,15 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     }
 
     outbuf = gst_buffer_make_writable (outbuf);
+
+    /* metadata from incoming buffer */
+    gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
     if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
-      GST_BUFFER_TIMESTAMP (outbuf) = ts;
       srcpad->last_ts = ts;
     } else {
-      GST_BUFFER_TIMESTAMP (outbuf) = GST_CLOCK_TIME_NONE;
-    }
-
-    if (srcpad->discont) {
-      GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
-      srcpad->discont = FALSE;
-    } else {
-      GST_BUFFER_FLAG_UNSET (outbuf, GST_BUFFER_FLAG_DISCONT);
+      GST_DEBUG_OBJECT (tensor_demux, "invalid timestamp %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (ts));
     }
 
     GST_DEBUG_OBJECT (tensor_demux,
