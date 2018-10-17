@@ -79,6 +79,7 @@ typedef enum
   TEST_TYPE_VIDEO_RGB_SPLIT, /**< pipeline to test tensor_split */
   TEST_TYPE_VIDEO_RGB_AGGR_1, /**< pipeline to test tensor_aggregator (change dimension index 3 : 1 > 10)*/
   TEST_TYPE_VIDEO_RGB_AGGR_2, /**< pipeline to test tensor_aggregator (change dimension index 1 : 160 > 1600) */
+  TEST_TYPE_VIDEO_RGB_AGGR_3, /**< pipeline to test tensor_aggregator (test to get frames with the property concat) */
   TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
@@ -197,9 +198,17 @@ _message_cb (GstBus * bus, GstMessage * message, gpointer user_data)
 static void
 _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
 {
-  gsize buf_size = gst_buffer_get_size (buffer);
-  guint mem_blocks = gst_buffer_n_memory (buffer);
-  GstClockTime timestamp = GST_BUFFER_DTS_OR_PTS (buffer);
+  gsize buf_size;
+  guint mem_blocks;
+
+  if (!GST_IS_BUFFER (buffer)) {
+    _print_log ("received invalid buffer");
+    g_test_data.test_failed = TRUE;
+    return;
+  }
+
+  buf_size = gst_buffer_get_size (buffer);
+  mem_blocks = gst_buffer_n_memory (buffer);
 
   if (g_test_data.received > 0) {
     if (g_test_data.mem_blocks != mem_blocks) {
@@ -216,17 +225,16 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
   }
 
   if (DBG) {
-    GstClockTime pts, dts;
-
-    pts = GST_BUFFER_PTS (buffer);
-    dts = GST_BUFFER_DTS (buffer);
-
-    _print_log ("pts %" GST_TIME_FORMAT, GST_TIME_ARGS (pts));
-    _print_log ("dts %" GST_TIME_FORMAT, GST_TIME_ARGS (dts));
+    _print_log ("pts %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_PTS (buffer)));
+    _print_log ("dts %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_DTS (buffer)));
+    _print_log ("duration %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)));
   }
 
   /** check timestamp */
-  if (!GST_CLOCK_TIME_IS_VALID (timestamp)) {
+  if (!GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DTS_OR_PTS (buffer))) {
     g_test_data.invalid_timestamp = TRUE;
   }
 
@@ -310,8 +318,8 @@ _push_text_data (const guint num_buffers)
     sprintf ((char *) info.data, "%d", i);
     gst_buffer_unmap (buf, &info);
 
-    GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
-    GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf);
+    GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
+    GST_BUFFER_DURATION (buf) = 10 * GST_MSECOND;
 
     if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
       _print_log ("failed to push buffer [%d]", i);
@@ -584,6 +592,15 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=1 ! tensor_sink name=test_sink",
+          option.num_buffers);
+      break;
+    case TEST_TYPE_VIDEO_RGB_AGGR_3:
+      /** video stream with tensor_aggregator */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_aggregator frames-out=10 frames-dim=1 concat=false ! "
+          "tensor_aggregator frames-in=10 frames-out=8 frames-flush=10 frames-dim=1 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
     case TEST_TYPE_AUDIO_S16_AGGR:
@@ -2528,6 +2545,48 @@ TEST (tensor_stream_test, video_aggregate_2)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 3);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1600);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for video stream with tensor_aggregator.
+ */
+TEST (tensor_stream_test, video_aggregate_3)
+{
+  const guint num_buffers = 40;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_AGGR_3 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, (num_buffers / 10));
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 3 * 64 * 48 * 8);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 64 * 8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 48);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
