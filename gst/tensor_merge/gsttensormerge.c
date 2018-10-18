@@ -257,6 +257,12 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   tensor_merge = GST_TENSOR_MERGE (element);
 
+  if (tensor_merge->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
+    err_print ("supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
+    g_assert (0);
+    return NULL;
+  }
+
   name =
       g_strdup_printf ("sink_%u",
       tensor_merge->tensors_config.info.num_tensors);
@@ -465,7 +471,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
       } else {
         pad->pts_timestamp = GST_CLOCK_TIME_NONE;
       }
-      if (buf && GST_BUFFER_DTS_IS_VALID (buf)) {
+      if (GST_BUFFER_DTS_IS_VALID (buf)) {
         if (data->segment.format == GST_FORMAT_TIME)
           pad->dts_timestamp =
               gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
