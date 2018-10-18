@@ -282,7 +282,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Callback for signal stream-start.
  */
 static void
-_stream_start_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+_stream_start_cb (GstElement * element, gpointer user_data)
 {
   g_test_data.start = TRUE;
   _print_log ("stream start callback");
@@ -292,7 +292,7 @@ _stream_start_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Callback for signal eos.
  */
 static void
-_eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+_eos_cb (GstElement * element, gpointer user_data)
 {
   g_test_data.end = TRUE;
   _print_log ("eos callback");
@@ -318,7 +318,7 @@ _push_text_data (const guint num_buffers)
     sprintf ((char *) info.data, "%d", i);
     gst_buffer_unmap (buf, &info);
 
-    GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
+    GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
     GST_BUFFER_DURATION (buf) = 10 * GST_MSECOND;
 
     if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
