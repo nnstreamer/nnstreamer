@@ -245,7 +245,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Callback for signal stream-start.
  */
 static void
-_stream_start_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+_stream_start_cb (GstElement * element, gpointer user_data)
 {
   _print_log ("stream start callback");
 }
@@ -254,7 +254,7 @@ _stream_start_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
  * @brief Callback for signal eos.
  */
 static void
-_eos_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+_eos_cb (GstElement * element, gpointer user_data)
 {
   _print_log ("eos callback");
 }
@@ -268,7 +268,6 @@ _test_src_timer_cb (gpointer user_data)
 {
   GstElement *appsrc;
   GstBuffer *buf;
-  GstMapInfo info;
   guint buffer_index;
 
   buffer_index = g_app.received + 1;
@@ -288,22 +287,15 @@ _test_src_timer_cb (gpointer user_data)
       }
 
       text_data = g_strdup_printf ("example for text [%d/20]", buffer_index);
-
-      buf = gst_buffer_new_allocate (NULL, strlen (text_data) + 1, NULL);
-      gst_buffer_map (buf, &info, GST_MAP_WRITE);
-
-      strcpy ((gchar *) info.data, text_data);
-
-      gst_buffer_unmap (buf, &info);
+      buf = gst_buffer_new_wrapped (text_data, strlen (text_data));
 
       GST_BUFFER_PTS (buf) = 20 * GST_MSECOND * buffer_index;
-      GST_BUFFER_DTS (buf) = GST_BUFFER_PTS (buf);
+      GST_BUFFER_DURATION (buf) = 20 * GST_MSECOND;
 
       if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
         _print_log ("failed to push buffer [%d]", buffer_index);
       }
 
-      g_free (text_data);
       break;
     }
     default:
