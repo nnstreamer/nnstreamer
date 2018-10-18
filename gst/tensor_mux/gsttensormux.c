@@ -211,6 +211,12 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   tensor_mux = GST_TENSOR_MUX (element);
 
+  if (tensor_mux->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
+    err_print ("supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
+    g_assert (0);
+    return NULL;
+  }
+
   name =
       g_strdup_printf ("sink_%u", tensor_mux->tensors_config.info.num_tensors);
   newpad = gst_pad_new_from_template (templ, name);
