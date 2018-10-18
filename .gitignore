@@ -10,6 +10,9 @@
 /tests/*/*.png
 /tests/*/*.bmp
 /tests/performance
+*.dat
+bmp2png
+*.pyc
 
 # vi files
 *.h~
