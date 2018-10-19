@@ -959,6 +959,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorFilter *self;
   GstTensorsConfig config;
   GstCaps *result;
+  GstStructure *structure;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   gst_tensors_config_init (&config);
@@ -969,30 +970,57 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
   /**
    * GstTensorFilter has to parse the tensor dimension and type from NN model.
-   * In this stage, in-caps is not fixed yet.
-   * So, just call getInputDimension and getOutputDimension to get the tensor info.
-   * If these functions are not defined, we have to call setInputDimension in set_caps(), and then it will fully configure the tensor info.
+   * In this stage, in-caps may not be fixed yet.
+   * To get the tensor info and generate pad-caps, call getInputDimension and getOutputDimension.
+   * If these functions are not defined, we have to call setInputDimension, and then it will fully configure the tensor info.
+   *
+   * @todo how to set the framerate of output tensors
    */
   gst_tensor_filter_load_tensor_info (self);
+
+  structure = gst_caps_get_structure (caps, 0);
+  gst_tensors_config_from_structure (&config, structure);
 
   if (direction == GST_PAD_SINK) {
     /* caps: sink pad. get src pad info */
     if (self->prop.output_configured) {
-      /** fixed tensor info */
+      /* fixed tensor info */
       config.info = self->prop.output_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
-      /** we don't know the exact tensor info yet */
-      result = gst_caps_from_string (CAPS_STRING);
+      GstTensorsInfo in_info;
+
+      /* check in-tensor info to call setInputDimension */
+      in_info = config.info;
+      if (gst_tensors_info_validate (&in_info)) {
+        int res = -1;
+
+        /* call setInputDimension with given input tensor */
+        if (self->prop.fw->setInputDimension) {
+          gst_tensor_filter_call (self, res, setInputDimension, &in_info,
+              &config.info);
+        }
+
+        if (res == 0) {
+          result = gst_tensor_filter_caps_from_config (self, &config);
+        } else {
+          err_print ("Cannot get the output tensor info.");
+          g_assert (0);
+          result = gst_caps_from_string (CAPS_STRING);
+        }
+      } else {
+        /* we don't know the exact tensor info yet */
+        result = gst_caps_from_string (CAPS_STRING);
+      }
     }
   } else {
     /* caps: src pad. get sink pad info */
     if (self->prop.input_configured) {
-      /** fixed tensor info */
+      /* fixed tensor info */
       config.info = self->prop.input_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
-      /** we don't know the exact tensor info yet */
+      /* we don't know the exact tensor info from src pad caps */
       result = gst_caps_from_string (CAPS_STRING);
     }
   }
@@ -1019,8 +1047,6 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
 {
   GstTensorFilter *self;
-  GstTensorsConfig in_config, out_config;
-  GstStructure *structure;
   GstCaps *result;
 
   self = GST_TENSOR_FILTER_CAST (trans);
@@ -1029,47 +1055,12 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   silent_debug_caps (caps, "caps");
   silent_debug_caps (othercaps, "othercaps");
 
+  /**
+   * To get the out-caps, GstTensorFilter has to parse tensor info from NN model.
+   */
   gst_caps_unref (othercaps);
 
-  /** get caps from tensor info */
-  gst_tensors_config_init (&in_config);
-  gst_tensors_config_init (&out_config);
-
-  gst_tensor_filter_load_tensor_info (self);
-
-  /**
-   * Get input tensor info from caps.
-   * @todo Do we need to verify configured info from caps?
-   * If getInputDimension is defined and gets exact tensor info from NN model, we can use it.
-   */
-  structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (&in_config, structure);
-
-  /** output tensor info */
-  if (self->prop.output_configured) {
-    /** fixed tensor info */
-    out_config.info = self->prop.output_meta;
-  } else {
-    int res = -1;
-
-    /** call setInputDimension with given input tensor */
-    gst_tensor_filter_call (self, res, setInputDimension, &in_config.info,
-        &out_config.info);
-
-    if (res != 0) {
-      err_print ("Cannot get the output tensor info.");
-      g_assert (0);
-      return NULL;
-    }
-  }
-
-  /**
-   * @todo framerate of output tensors
-   */
-  out_config.rate_n = in_config.rate_n;
-  out_config.rate_d = in_config.rate_d;
-
-  result = gst_tensor_filter_caps_from_config (self, &out_config);
+  result = gst_tensor_filter_transform_caps (trans, direction, caps, NULL);
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
 
