@@ -94,6 +94,14 @@
   } \
 } while (0)
 
+#define silent_debug_timestamp(buf) do { \
+  if (DBG) { \
+    debug_print (TRUE, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
+    debug_print (TRUE, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
+    debug_print (TRUE, "duration = %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (GST_BUFFER_DURATION (buf))); \
+  } \
+} while (0)
+
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 #define GST_CAT_DEFAULT gst_tensor_converter_debug
 
@@ -622,6 +630,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   }
 
   if (frames_in == frames_out) {
+    silent_debug_timestamp (inbuf);
+
     /** do nothing, push the incoming buffer */
     return gst_pad_push (self->srcpad, inbuf);
   }
@@ -679,6 +689,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     GST_BUFFER_PTS (outbuf) = pts;
     GST_BUFFER_DTS (outbuf) = dts;
     GST_BUFFER_DURATION (outbuf) = duration;
+
+    silent_debug_timestamp (outbuf);
 
     ret = gst_pad_push (self->srcpad, outbuf);
   }
