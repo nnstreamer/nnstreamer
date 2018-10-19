@@ -65,6 +65,19 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_merge_debug);
 #define GST_CAT_DEFAULT gst_tensor_merge_debug
 
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG (!tensor_merge->silent)
+#endif
+
+/**
+ * @brief Macro for debug message.
+ */
+#define silent_debug(...) \
+    debug_print (DBG, __VA_ARGS__)
+
 enum
 {
   PROP_0,
@@ -132,11 +145,11 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
           TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_string ("mode", "Mode", "Tensor transform mode ?",
+      g_param_spec_string ("mode", "Mode", "Tensor Merge mode ?",
           "", G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
-          "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
+          "Option for the tensor Merge mode ?", "", G_PARAM_READWRITE));
 
   gstelement_class->request_new_pad =
       GST_DEBUG_FUNCPTR (gst_tensor_merge_request_new_pad);
@@ -188,6 +201,9 @@ gst_tensor_merge_init (GstTensorMerge * tensor_merge)
   tensor_merge->mode = GTT_END;
   tensor_merge->option = NULL;
   tensor_merge->loaded = FALSE;
+  tensor_merge->need_buffer = FALSE;
+  tensor_merge->current_time = 0;
+  tensor_merge->need_set_time = TRUE;
 }
 
 static const gchar *gst_tensor_merge_mode_string[] = {
@@ -441,6 +457,27 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
   walk = tensor_merge->collect->data;
 
+  if (tensor_merge->need_set_time) {
+    while (walk) {
+      GstCollectData *data = (GstCollectData *) walk->data;
+      walk = g_slist_next (walk);
+
+      GstBuffer *buf = NULL;
+
+      buf = gst_collect_pads_peek (tensor_merge->collect, data);
+
+      if (buf == NULL)
+        return TRUE;
+
+      if (tensor_merge->current_time < GST_BUFFER_PTS (buf))
+        tensor_merge->current_time = GST_BUFFER_PTS (buf);
+      gst_buffer_unref (buf);
+    }
+    tensor_merge->need_set_time = FALSE;
+  }
+
+  walk = tensor_merge->collect->data;
+
   while (walk) {
     GstCollectData *data = (GstCollectData *) walk->data;
     GstTensorMergePadData *pad = (GstTensorMergePadData *) data;
@@ -460,51 +497,56 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     walk = g_slist_next (walk);
 
     GstBuffer *buf = NULL;
-    buf = gst_collect_pads_pop (tensor_merge->collect, data);
 
-    if (GST_IS_BUFFER (buf)) {
-      if (GST_BUFFER_PTS_IS_VALID (buf)) {
-        if (data->segment.format == GST_FORMAT_TIME)
-          pad->pts_timestamp =
-              gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-              GST_BUFFER_PTS (buf));
+    buf = gst_collect_pads_peek (tensor_merge->collect, data);
+
+    if (buf == NULL && pad->buffer == NULL)
+      return TRUE;
+
+    if (buf != NULL) {
+      if (GST_BUFFER_PTS (buf) < tensor_merge->current_time) {
+        gst_buffer_unref (buf);
+        buf = gst_collect_pads_pop (tensor_merge->collect, data);
+        if (pad->buffer != NULL)
+          gst_buffer_unref (pad->buffer);
+        pad->buffer = buf;
+        silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (buf));
+        tensor_merge->need_buffer = TRUE;
+        return FALSE;
+      }
+
+      if (pad->buffer != NULL
+          && ABS (tensor_merge->current_time - GST_BUFFER_PTS (pad->buffer) <
+              ABS (tensor_merge->current_time - GST_BUFFER_PTS (buf)))) {
+        if (buf != NULL)
+          gst_buffer_unref (buf);
+        buf = pad->buffer;
       } else {
-        pad->pts_timestamp = GST_CLOCK_TIME_NONE;
+        gst_buffer_unref (buf);
+        buf = gst_collect_pads_pop (tensor_merge->collect, data);
       }
-      if (GST_BUFFER_DTS_IS_VALID (buf)) {
-        if (data->segment.format == GST_FORMAT_TIME)
-          pad->dts_timestamp =
-              gst_segment_to_running_time (&data->segment, GST_FORMAT_TIME,
-              GST_BUFFER_DTS (buf));
-      } else {
-        pad->dts_timestamp = GST_CLOCK_TIME_NONE;
-      }
-
-      mem = gst_buffer_get_memory (buf, 0);
-      gst_buffer_append_memory (tensors_buf, mem);
-
-      if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
-        bestpad = pad;
-        *pts_time = bestpad->pts_timestamp;
-        *dts_time = bestpad->dts_timestamp;
-      }
-
-      gst_buffer_unref (buf);
     } else {
-      isEOS = TRUE;
+      buf = pad->buffer;
     }
 
+    mem = gst_buffer_get_memory (buf, 0);
+    gst_buffer_append_memory (tensors_buf, mem);
+    silent_debug ("Append Memory # %d (PTS : %lu)",
+        gst_buffer_n_memory (tensors_buf), GST_BUFFER_PTS (buf));
+
+    if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
+      bestpad = pad;
+      *pts_time = bestpad->pts_timestamp;
+      *dts_time = bestpad->dts_timestamp;
+    }
+
+    gst_buffer_unref (buf);
     tensor_merge->tensors_config.info.info[counting] = config.info;
     counting++;
   }
 
   tensor_merge->tensors_config.rate_d = old_denominator;
   tensor_merge->tensors_config.rate_n = old_numerator;
-
-  debug_print (!tensor_merge->silent, "pts %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (*pts_time));
-  debug_print (!tensor_merge->silent, "dts %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (*dts_time));
 
   /* set timestamp */
   GST_BUFFER_PTS (tensors_buf) = *pts_time;
@@ -690,6 +732,12 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     goto beach;
   }
 
+  if (tensor_merge->need_buffer) {
+    tensor_merge->need_buffer = FALSE;
+    gst_buffer_unref (tensors_buf);
+    return ret;
+  }
+
   if (!tensor_merge->negotiated) {
     GstCaps *newcaps;
     GstTensorConfig config;
@@ -734,6 +782,8 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
 
   ret = gst_pad_push (tensor_merge->srcpad, tensor_buf);
+  tensor_merge->need_set_time = TRUE;
+
   if (ret != GST_FLOW_OK) {
     GST_WARNING_OBJECT (tensor_merge, "pushed outbuf, result = %s",
         gst_flow_get_name (ret));
