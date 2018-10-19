@@ -11,7 +11,7 @@
 /tests/*/*.bmp
 /tests/performance
 *.dat
-bmp2png
+/tests/bmp2png
 *.pyc
 
 # vi files
