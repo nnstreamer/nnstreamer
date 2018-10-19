@@ -403,6 +403,11 @@ gst_tensordec_check_consistency (GstTensorDec * self, GstTensorConfig * config)
   g_return_val_if_fail (self != NULL, FALSE);
   g_return_val_if_fail (config != NULL, FALSE);
 
+  if (self->mode == IMAGE_LABELING) {
+    config->rate_n = self->tensor_config.rate_n;
+    config->info.dimension[0] = self->tensor_config.info.dimension[0];
+  }
+
   if (self->configured) {
     return gst_tensor_config_is_equal (&self->tensor_config, config);
   }
@@ -490,7 +495,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->negotiated = FALSE;
   self->add_padding = FALSE;
   self->output_type = OUTPUT_VIDEO;
-  self->mode = Mode[0];
+  self->mode = DIRECT_VIDEO;
   gst_tensor_config_init (&self->tensor_config);
   gst_tensordec_image_labeling_init (&self->tensordec_image_label);
 }
@@ -503,6 +508,8 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorDec *self = GST_TENSORDEC (object);
+  gchar *temp_string;
+  int key;
 
   switch (prop_id) {
     case PROP_OUTPUT_TYPE:
@@ -512,10 +519,14 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       self->silent = g_value_get_boolean (value);
       break;
     case PROP_MODE:
-      self->mode = g_value_dup_string (value);
+      temp_string = g_value_dup_string (value);
+      key = find_key_strv (mode_names, temp_string);
+      g_assert (key >= 0);
+      self->mode = key;
+      g_free (temp_string);
       break;
     case PROP_MODE_OPTION1:
-      if (g_strcmp0 (self->mode, "image_labeling") == 0) {
+      if (self->mode == IMAGE_LABELING) {
         self->tensordec_image_label.label_path = g_value_dup_string (value);
         gst_set_mode_image_label_info (self);
       }
@@ -543,7 +554,8 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
-      g_value_set_string (value, self->mode);
+      g_assert (self->mode < DECODE_MODE_UNKNOWN);
+      g_value_set_string (value, mode_names[self->mode]);
       break;
     case PROP_MODE_OPTION1:
       g_value_set_string (value, self->tensordec_image_label.label_path);
@@ -813,7 +825,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
       break;
     case OUTPUT_TEXT:
-      if (g_strcmp0 (self->mode, "image_labeling") == 0) {
+      if (self->mode == IMAGE_LABELING) {
         res = gst_tensordec_get_label (self, inbuf, outbuf);
       } else {
         res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
@@ -1004,37 +1016,26 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
 
-  if (g_strcmp0 (self->mode, "image_labeling") == 0) {
-
-    GstStructure *structure;
-    GstTensorsConfig config;
-
-    /* Need to update in cases video or text */
-    gst_base_transform_set_in_place (trans, FALSE);
-  /** compare output tensor */
-    structure = gst_caps_get_structure (outcaps, 0);
-    gst_tensors_config_from_structure (&config, structure);
-    self->negotiated = TRUE;
-
-    return TRUE;
-
-  } else {
   /** compare and verify outcaps */
-    if (gst_tensordec_configure (self, incaps)) {
-      GstTensorConfig config;
-      GstStructure *s = gst_caps_get_structure (outcaps, 0);
+  if (gst_tensordec_configure (self, incaps)) {
+    GstTensorConfig config;
+    GstStructure *s = gst_caps_get_structure (outcaps, 0);
 
-      if (gst_tensor_config_from_structure (&config, s) &&
-          gst_tensordec_check_consistency (self, &config)) {
-        self->negotiated = TRUE;
-      }
+    if (gst_tensor_config_from_structure (&config, s) &&
+        gst_tensordec_check_consistency (self, &config)) {
+      self->negotiated = TRUE;
     }
-
-    gst_base_transform_set_in_place (trans, !self->add_padding);
-
-    return self->negotiated;
-
   }
+
+  if (self->mode == IMAGE_LABELING) {
+    gst_base_transform_set_in_place (trans, FALSE);
+  } else if (self->mode == DIRECT_VIDEO) {
+    gst_base_transform_set_in_place (trans, !self->add_padding);
+  } else {
+    gst_base_transform_set_in_place (trans, TRUE);
+  }
+  return self->negotiated;
+
 }
 
 /**
