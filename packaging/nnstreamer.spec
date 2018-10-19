@@ -35,6 +35,9 @@ BuildRequires:	python-numpy
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
 BuildRequires: tensorflow-lite-devel
+# for cairo (nnstreamer_example_object_detection)
+BuildRequires: coregl-devel
+BuildRequires: cairo-devel
 
 %if 0%{?testcoverage}
 BuildRequires: lcov
