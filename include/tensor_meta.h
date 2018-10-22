@@ -47,7 +47,7 @@ struct _GstMetaTensor {
 };
 
 /**
- * @brief Get tensor meta data type. Register Tensor Meta Data API definition
+ * @brief  Get tensor meta data type. Register API definition of a Tensor Meta Data 
  * @return Tensor Meta Data Type
  */
 GType gst_meta_tensor_api_get_type (void);
