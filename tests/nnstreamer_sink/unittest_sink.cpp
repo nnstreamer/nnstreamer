@@ -632,7 +632,7 @@ _setup_pipeline (TestOption & option)
       /** other/tensors with tensor_mux, tensor_demux */
       str_pipeline =
           g_strdup_printf
-          ("tensor_mux name=mux ! tensor_demux name=demux "
+          ("tensor_mux name=mux synch=false ! tensor_demux name=demux "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
           "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
