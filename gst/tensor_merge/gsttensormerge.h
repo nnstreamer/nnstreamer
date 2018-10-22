@@ -84,6 +84,7 @@ struct _GstTensorMerge
   GstElement element;
 
   gboolean silent;
+  gboolean synch;
   GstPad *srcpad;
   gchar *option;
   tensor_merge_mode mode;
