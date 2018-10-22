@@ -40,4 +40,25 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux
 
 compareAllSizeLimit testcase03.golden testcase03.log 7
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 8
+
+compareAllSizeLimit testsynch00_0.log testsynch00_0.golden 8-1
+compareAllSizeLimit testsynch00_1.log testsynch00_1.golden 8-2
+compareAllSizeLimit testsynch00_2.log testsynch00_2.golden 8-3
+compareAllSizeLimit testsynch00_3.log testsynch00_3.golden 8-4
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux ! multifilesink location=testsynch01_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 9
+
+compareAllSizeLimit testsynch01_0.log testsynch01_0.golden 9-1
+compareAllSizeLimit testsynch01_1.log testsynch01_1.golden 9-2
+compareAllSizeLimit testsynch01_2.log testsynch01_2.golden 9-3
+compareAllSizeLimit testsynch01_3.log testsynch01_3.golden 9-4
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux ! multifilesink location=testsynch02_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 10
+
+compareAllSizeLimit testsynch02_0.log testsynch02_0.golden 10-1
+compareAllSizeLimit testsynch02_1.log testsynch02_1.golden 10-2
+compareAllSizeLimit testsynch02_2.log testsynch02_2.golden 10-3
+compareAllSizeLimit testsynch02_3.log testsynch02_3.golden 10-4
+
 report
