@@ -83,6 +83,7 @@ enum
   PROP_0,
   PROP_MODE,
   PROP_OPTION,
+  PROP_SYNCH,
   PROP_SILENT,
 };
 
@@ -144,6 +145,11 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_SYNCH,
+      g_param_spec_boolean ("synch", "Synch",
+          "Time synchronization of input tensors ?", TRUE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_MODE,
       g_param_spec_string ("mode", "Mode", "Tensor Merge mode ?",
           "", G_PARAM_READWRITE));
@@ -197,6 +203,7 @@ gst_tensor_merge_init (GstTensorMerge * tensor_merge)
       tensor_merge);
 
   tensor_merge->silent = TRUE;
+  tensor_merge->synch = TRUE;
   gst_tensors_config_init (&tensor_merge->tensors_config);
   tensor_merge->mode = GTT_END;
   tensor_merge->option = NULL;
@@ -457,7 +464,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
   walk = tensor_merge->collect->data;
 
-  if (tensor_merge->need_set_time) {
+  if (tensor_merge->synch && tensor_merge->need_set_time) {
     while (walk) {
       GstCollectData *data = (GstCollectData *) walk->data;
       walk = g_slist_next (walk);
@@ -498,49 +505,61 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
     GstBuffer *buf = NULL;
 
-    buf = gst_collect_pads_peek (tensor_merge->collect, data);
+    if (tensor_merge->synch) {
+      buf = gst_collect_pads_peek (tensor_merge->collect, data);
 
-    if (buf == NULL && pad->buffer == NULL)
-      return TRUE;
+      if (buf == NULL && pad->buffer == NULL)
+        return TRUE;
 
-    if (buf != NULL) {
-      if (GST_BUFFER_PTS (buf) < tensor_merge->current_time) {
-        gst_buffer_unref (buf);
-        if (pad->buffer != NULL)
-          gst_buffer_unref (pad->buffer);
-        pad->buffer = gst_collect_pads_pop (tensor_merge->collect, data);
-        silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (pad->buffer));
-        tensor_merge->need_buffer = TRUE;
-        return FALSE;
-      }
+      if (buf != NULL) {
+        if (GST_BUFFER_PTS (buf) < tensor_merge->current_time) {
+          gst_buffer_unref (buf);
+          if (pad->buffer != NULL)
+            gst_buffer_unref (pad->buffer);
+          pad->buffer = gst_collect_pads_pop (tensor_merge->collect, data);
+          silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (pad->buffer));
+          tensor_merge->need_buffer = TRUE;
+          return FALSE;
+        }
 
-      if (pad->buffer != NULL &&
-          ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
-                  GST_BUFFER_PTS (pad->buffer))) <
-          ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
-                  GST_BUFFER_PTS (buf)))) {
-        gst_buffer_unref (buf);
-        buf = pad->buffer;
+        if (pad->buffer != NULL &&
+            (ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
+                        GST_BUFFER_PTS (pad->buffer))) <
+                ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
+                        GST_BUFFER_PTS (buf))))) {
+          gst_buffer_unref (buf);
+          buf = pad->buffer;
+        } else {
+          gst_buffer_unref (buf);
+          buf = gst_collect_pads_pop (tensor_merge->collect, data);
+          if (pad->buffer != NULL)
+            gst_buffer_unref (pad->buffer);
+          pad->buffer = buf;
+        }
       } else {
-        gst_buffer_unref (buf);
-        buf = gst_collect_pads_pop (tensor_merge->collect, data);
-        if (pad->buffer != NULL)
-          gst_buffer_unref (pad->buffer);
-        pad->buffer = buf;
+        buf = pad->buffer;
       }
     } else {
-      buf = pad->buffer;
+      buf = gst_collect_pads_pop (tensor_merge->collect, data);
     }
 
-    mem = gst_buffer_get_memory (buf, 0);
-    gst_buffer_append_memory (tensors_buf, mem);
-    silent_debug ("Append Memory # %d (PTS : %lu)",
-        gst_buffer_n_memory (tensors_buf), GST_BUFFER_PTS (buf));
+    if (GST_IS_BUFFER (buf)) {
+      mem = gst_buffer_get_memory (buf, 0);
+      gst_buffer_append_memory (tensors_buf, mem);
+      pad->buffer = buf;
+      silent_debug ("Append Memory # %d (PTS : %lu)",
+          gst_buffer_n_memory (tensors_buf), GST_BUFFER_PTS (buf));
 
-    if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
-      bestpad = pad;
-      *pts_time = bestpad->pts_timestamp;
-      *dts_time = bestpad->dts_timestamp;
+      if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
+        bestpad = pad;
+        *pts_time = bestpad->pts_timestamp;
+        *dts_time = bestpad->dts_timestamp;
+      }
+
+      if (!tensor_merge->synch)
+        gst_buffer_unref (buf);
+    } else {
+      isEOS = TRUE;
     }
 
     tensor_merge->tensors_config.info.info[counting] = config.info;
@@ -883,6 +902,9 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
       break;
+    case PROP_SYNCH:
+      filter->synch = g_value_get_boolean (value);
+      break;
     case PROP_MODE:
       filter->mode = gst_tensor_merge_get_mode (g_value_get_string (value));
       g_assert (filter->mode != GTT_END);
@@ -909,6 +931,9 @@ gst_tensor_merge_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
+      break;
+    case PROP_SYNCH:
+      g_value_set_boolean (value, filter->synch);
       break;
     case PROP_MODE:
       g_value_set_string (value, gst_tensor_merge_mode_string[filter->mode]);
