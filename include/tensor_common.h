@@ -43,7 +43,7 @@ G_BEGIN_DECLS
 #endif
 
 #define GST_TENSOR_VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
     ", views = (int) 1, interlace-mode = (string) progressive"
 
 #define GST_TENSOR_AUDIO_CAPS_STR \

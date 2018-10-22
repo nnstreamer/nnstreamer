@@ -360,6 +360,7 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
   gint width = 0;
   gint height = 0;
+  gint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -383,10 +384,18 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
       config->info.dimension[0] = 1;
       break;
     case GST_VIDEO_FORMAT_RGB:
+    case GST_VIDEO_FORMAT_BGR:
       config->info.type = _NNS_UINT8;
       config->info.dimension[0] = 3;
       break;
+    case GST_VIDEO_FORMAT_RGBx:
     case GST_VIDEO_FORMAT_BGRx:
+    case GST_VIDEO_FORMAT_xRGB:
+    case GST_VIDEO_FORMAT_xBGR:
+    case GST_VIDEO_FORMAT_RGBA:
+    case GST_VIDEO_FORMAT_BGRA:
+    case GST_VIDEO_FORMAT_ARGB:
+    case GST_VIDEO_FORMAT_ABGR:
       config->info.type = _NNS_UINT8;
       config->info.dimension[0] = 4;
       break;
@@ -399,6 +408,10 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   config->info.dimension[1] = width;
   config->info.dimension[2] = height;
   config->info.dimension[3] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames. */
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    config->info.dimension[i] = 1;
+  }
 
   return (config->info.type != _NNS_END);
 }
@@ -423,6 +436,7 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
   GstAudioFormat format = GST_AUDIO_FORMAT_UNKNOWN;
   gint channels = 0;
   gint rate = 0;
+  gint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -471,8 +485,10 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
 
   config->info.dimension[0] = channels;
   config->info.dimension[1] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames */
-  config->info.dimension[2] = 1;
-  config->info.dimension[3] = 1;
+
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    config->info.dimension[i] = 1;
+  }
 
   if (rate > 0) {
     config->rate_n = rate;
@@ -498,6 +514,7 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
    * A string-type Tensor
    */
   const gchar *format_string;
+  gint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -517,8 +534,10 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
   /** [size][frames] */
   config->info.dimension[0] = GST_TENSOR_STRING_SIZE; /** fixed size of string */
   config->info.dimension[1] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames */
-  config->info.dimension[2] = 1;
-  config->info.dimension[3] = 1;
+
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    config->info.dimension[i] = 1;
+  }
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -554,11 +573,6 @@ gst_tensor_config_from_octet_stream_info (GstTensorConfig * config,
    * All tensor info should be updated.
    */
   config->info.type = _NNS_UINT8;
-
-  config->info.dimension[0] = 1;
-  config->info.dimension[1] = 1;
-  config->info.dimension[2] = 1;
-  config->info.dimension[3] = 1;
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
