@@ -77,4 +77,18 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 python checkScaledTensor.py testcase11.direct.log 640 480 testcase11.scaled.log 320 240 3
 casereport 11 $? "Golden test comparison"
 
+# OpenCV Test
+# Test scaler using OpenCV (12, 13, 14)
+PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_opencv/libnnstreamer_customfilter_opencv_scaler.so"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"640x480\" ! filesink location=\"testcase12.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase12.direct.log\" sync=true" 12
+compareAll testcase12.direct.log testcase12.passthrough.log 12
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320x240\" ! filesink location=\"testcase13.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase13.direct.log\" sync=true" 13
+python checkScaledTensor.py testcase13.direct.log 640 480 testcase13.scaled.log 320 240 3
+casereport 13 $? "Golden test comparison"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"1920x1080\" ! filesink location=\"testcase14.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase14.direct.log\" sync=true" 14
+python checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 1920 1080 3
+casereport 14 $? "Golden test comparison"
+
 report

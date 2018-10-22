@@ -38,6 +38,8 @@ BuildRequires: tensorflow-lite-devel
 # for cairo (nnstreamer_example_object_detection)
 BuildRequires: coregl-devel
 BuildRequires: cairo-devel
+# custom_example_opencv filter requires opencv-devel
+BuildRequires: opencv-devel
 
 %if 0%{?testcoverage}
 BuildRequires: lcov
