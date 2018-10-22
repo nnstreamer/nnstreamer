@@ -43,11 +43,14 @@ G_BEGIN_DECLS
 typedef struct _GstTensorMux GstTensorMux;
 typedef struct _GstTensorMuxClass GstTensorMuxClass;
 
+
+
 typedef struct
 {
   GstCollectData collect;
   GstClockTime pts_timestamp;
   GstClockTime dts_timestamp;
+  GstBuffer *buffer;
   GstPad *pad;
 } GstTensorMuxPadData;
 
@@ -59,6 +62,7 @@ struct _GstTensorMux
   GstElement element;
 
   gboolean silent;
+  gboolean synch;
   GstPad *srcpad;
 
   GstCollectPads *collect;
@@ -66,6 +70,9 @@ struct _GstTensorMux
   gboolean need_segment;
   gboolean need_stream_start;
   gboolean send_stream_start;
+  gboolean need_buffer;
+  gboolean need_set_time;
+  GstClockTime current_time;
 
   GstTensorsConfig tensors_config; /**< output tensors info */
 };
