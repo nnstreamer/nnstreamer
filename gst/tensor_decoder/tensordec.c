@@ -738,6 +738,7 @@ gst_get_image_label (GstTensorDec * self, gint label)
       (self->tensordec_image_label.labels, check_label);
 }
 
+
 /**
  * @brief set output of tensor decoder that will send to src pad  
  * @param self "this" pointer
@@ -761,11 +762,22 @@ gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
   g_assert (out_mem != NULL);
   g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
 
+  /**
+   * Security: strncpy protects from buffer overflows. But, if it prevents an
+   * overflow without null termiating, a subsequent string operation cause overflow.
+   *
+   * Gstreamer: Note that gst-plugins-base/gstbasetextoverlay.c:g_utf8_validate()
+   * displays '*' at back of the string if a string includes a NULL character.
+   *
+   * Won't Fix: The warning might be a defect according to the gst-plugins-base (GStreamer),
+   * but it will not make trouble in this code.
+   */
   strncpy ((char *) out_info.data, label, len);
+
+  gst_memory_unmap (out_mem, &out_info);
 
   gst_buffer_append_memory (outbuf, out_mem);
 
-  gst_memory_unmap (out_mem, &out_info);
 }
 
 /**
