@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file	tensor_common_typedef.h
+ * @file	tensor_typedef.h
  * @date	01 Jun 2018
  * @brief	Common header file for NNStreamer, the GStreamer plugin for neural networks
  * @see		http://github.com/nnsuite/nnstreamer
