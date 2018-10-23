@@ -114,7 +114,6 @@ typedef int (*NNS_custom_allocate_invoke) (void *private_data,
  */
 struct _NNStreamer_custom_class
 {
-  int allocate_outbuf_in_invoke; /**< Set non-zero if invoke function is to allocate output buffer. Note that the allocated outbuf size MUST be consistent with output tensor dimension & type */
   NNS_custom_init_func initfunc; /**< called before any other callbacks from tensor_filter_custom.c */
   NNS_custom_exit_func exitfunc; /**< will not call other callbacks after this call */
   NNS_custom_get_input_dimension getInputDim; /**< a custom filter is required to provide input tensor dimension unless setInputdim is defined. */
