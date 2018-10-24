@@ -22,7 +22,7 @@
  * @brief Macro for debug mode.
  */
 #ifndef DBG
-#define DBG TRUE
+#define DBG FALSE
 #endif
 
 /**
