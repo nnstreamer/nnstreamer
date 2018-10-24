@@ -360,7 +360,6 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
   gint width = 0;
   gint height = 0;
-  gint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -408,11 +407,16 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
   config->info.dimension[1] = width;
   config->info.dimension[2] = height;
   config->info.dimension[3] = 1; /** Supposed 1 frame in tensor, change this if tensor contains N frames. */
-
+#if 0
+  /**
+   * @todo To fix coverity issue, now block these lines.
+   * If NNS_TENSOR_RANK_LIMIT is larger than 4, unblock these to initialize the tensor dimension.
+   */
+  gint i;
   for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
     config->info.dimension[i] = 1;
   }
-
+#endif
   return (config->info.type != _NNS_END);
 }
 
