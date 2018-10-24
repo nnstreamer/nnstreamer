@@ -103,6 +103,24 @@ TFLiteCore::loadModel ()
       _print_log ("Failed to construct interpreter\n");
       return -2;
     }
+
+    /* set allocation type to dynamic for in/out tensors */
+    int tensor_idx;
+
+    for (int i = 0; i < interpreter->inputs ().size (); i++) {
+      tensor_idx = interpreter->inputs ()[i];
+      interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
+    }
+
+    for (int i = 0; i < interpreter->outputs ().size (); i++) {
+      tensor_idx = interpreter->outputs ()[i];
+      interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
+    }
+
+    if (interpreter->AllocateTensors () != kTfLiteOk) {
+      _print_log ("Failed to allocate tensors\n");
+      return -2;
+    }
   }
 #if (DBG)
   gettimeofday (&stop_time, nullptr);
@@ -284,17 +302,26 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   gettimeofday (&start_time, nullptr);
 #endif
 
-  if (interpreter->AllocateTensors () != kTfLiteOk) {
-    printf ("Failed to allocate tensors\n");
-    return -2;
+  std::vector<int> tensors_idx;
+  int tensor_idx;
+  TfLiteTensor *tensor_ptr;
+
+  for (int i = 0; i < getOutputTensorSize (); i++) {
+    tensor_idx = interpreter->outputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    g_assert (tensor_ptr->bytes == output[i].size);
+    tensor_ptr->data.raw = (char *) output[i].data;
+    tensors_idx.push_back (tensor_idx);
   }
 
   for (int i = 0; i < getInputTensorSize (); i++) {
-    int in_index = interpreter->inputs ()[i];
-    TfLiteTensor *input_tensor = interpreter->tensor (in_index);
+    tensor_idx = interpreter->inputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
 
-    g_assert (input_tensor->bytes == input[i].size);
-    input_tensor->data.raw = (char *) input[i].data;
+    g_assert (tensor_ptr->bytes == input[i].size);
+    tensor_ptr->data.raw = (char *) input[i].data;
+    tensors_idx.push_back (tensor_idx);
   }
 
   if (interpreter->Invoke () != kTfLiteOk) {
@@ -302,12 +329,9 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     return -3;
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
-    int out_index = interpreter->outputs ()[i];
-    TfLiteTensor *output_tensor = interpreter->tensor (out_index);
-
-    g_assert (output_tensor->bytes == output[i].size);
-    memcpy (output[i].data, output_tensor->data.raw, output[i].size);
+  /* if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
+  for (int i = 0; i < tensors_idx.size (); i++) {
+    interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
   }
 
 #if (DBG)
