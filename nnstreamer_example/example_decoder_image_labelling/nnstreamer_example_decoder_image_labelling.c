@@ -2,7 +2,7 @@
  * @file	nnstreamer_example_decoder.c
  * @date	4 Oct 2018
  * @brief	Tensor stream example with tensor decoder
- * @see	https://github.com/nnsuite/nnstreamer	
+ * @see	https://github.com/nnsuite/nnstreamer
  * @author	Jinhyuck Park <jinhyuck83.park@samsung.com>
  * @bug		No known bugs.
  *
@@ -11,7 +11,7 @@
  * Pipeline :
  * v4l2src -- tee --  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- textoverlay -- videoconvert -- ximagesink
  *                  |                                                                    |
- *                  --- videoscale -- tensor_converter -- tensor_filter -- tensor_decoder 
+ *                  --- videoscale -- tensor_converter -- tensor_filter -- tensor_decoder
  *
  *
  * 'tensor_filter' for image recognition.
@@ -40,7 +40,7 @@
  * @brief Macro for debug mode.
  */
 #ifndef DBG
-#define DBG TRUE
+#define DBG FALSE
 #endif
 
 /**

@@ -9,10 +9,10 @@
  * Before running this example, GST_PLUGIN_PATH should be updated for nnstreamer plug-in.
  * $ export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:<nnstreamer plugin path>
  * $ ./nnstreamer_example_object_detection
-* 
+ *
  * Required model and resources are stored at below link
  * https://github.com/nnsuite/testcases/tree/master/DeepLearningModels/tensorflow-lite/ssd_mobilenet_v2_coco
-  */
+ */
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
