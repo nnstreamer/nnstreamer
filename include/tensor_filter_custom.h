@@ -57,6 +57,7 @@ typedef void (*NNS_custom_exit_func) (void *private_data,
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @param[out] info Structure for tensor info.
+ * @return 0 if success
  */
 typedef int (*NNS_custom_get_input_dimension) (void *private_data,
     const GstTensorFilterProperties * prop, GstTensorsInfo * info);
@@ -66,6 +67,7 @@ typedef int (*NNS_custom_get_input_dimension) (void *private_data,
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
  * @param[out] info Structure for tensor info.
+ * @return 0 if success
  */
 typedef int (*NNS_custom_get_output_dimension) (void *private_data,
     const GstTensorFilterProperties * prop, GstTensorsInfo * info);
@@ -99,10 +101,9 @@ typedef int (*NNS_custom_invoke) (void *private_data,
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
- * @param[in] input pointer to input tensor, size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[in] input The array of input tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
  * @param[out] output The array of output tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, the memory block for output tensor should be allocated. (data in GstTensorMemory)
- * @param[out] size The allocated size.
- * @return The output buffer allocated in the invoke function
+ * @return 0 if success
  */
 typedef int (*NNS_custom_allocate_invoke) (void *private_data,
     const GstTensorFilterProperties * prop, const GstTensorMemory * input, GstTensorMemory * output);
