@@ -14,7 +14,8 @@ ELSE(SINGLE_BINARY)
 	MESSAGE(STATUS "The nnstreamer elements will be created as multple plugin binaries, one binary for one element. This is no more the standard method to release since nnstreamer 0.0.3.")
 ENDIF(SINGLE_BINARY)
 
-ADD_DEFINITIONS(-DVERSION="0.0.3")
+SET(VERSION "0.0.3")
+ADD_DEFINITIONS(-DVERSION="${VERSION}")
 
 SET(PREFIX ${CMAKE_INSTALL_PREFIX})
 SET(EXEC_PREFIX "${PREFIX}/bin")
