@@ -401,9 +401,12 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
         silent_debug_caps (out_caps, "out-caps");
 
         gst_pad_set_caps (self->srcpad, out_caps);
-        gst_pad_push_event (self->srcpad, gst_event_new_caps (out_caps));
+
+        gst_event_unref (event);
+        event = gst_event_new_caps (out_caps);
+
         gst_caps_unref (out_caps);
-        return TRUE;
+        return gst_pad_push_event (self->srcpad, event);
       }
       break;
     }
