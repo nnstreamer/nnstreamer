@@ -40,6 +40,8 @@ BuildRequires: coregl-devel
 BuildRequires: cairo-devel
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
+# For './testAll.sh' time limit.
+BuildRequires: procps
 
 %if 0%{?testcoverage}
 BuildRequires: lcov
@@ -102,7 +104,23 @@ pushd build
 popd
 
 pushd tests
-./testAll.sh
+# The 'testAll.sh' script requires 6~7min to run armv7l binary files in the current CI server.
+# The timeout value is 10min as a heuristic value from our experience.
+timeout=600
+./testAll.sh &
+pid=$!
+while ((timeout > 0)); do
+    sleep 1
+    if [[ ! $(ps | grep "$pid") ]]; then
+        break;
+    fi
+    (( timeout -= 60 ))
+done
+if [[ $(ps | grep "$pid") ]]; then
+    kill $pid
+    echo "GBS is stopped because of './testAll.sh' timeout(10min)"
+    exit 124 # 124 is ubuntu status code of timeout
+fi
 popd
 
 %if 0%{?testcoverage}
