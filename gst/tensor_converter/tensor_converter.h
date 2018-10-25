@@ -81,6 +81,10 @@ struct _GstTensorConverter
   gboolean remove_padding; /**< If true, zero-padding must be removed */
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
   GstTensorConfig tensor_config; /**< output tensor info */
+
+  gboolean have_segment; /**< True if received segment */
+  gboolean need_segment; /**< True to handle seg event */
+  GstSegment segment; /**< Segment, supposed time format */
 };
 
 /**
