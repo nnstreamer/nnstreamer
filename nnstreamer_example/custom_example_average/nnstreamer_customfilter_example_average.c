@@ -70,8 +70,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     out_info->info[0].dimension[i] = in_info->info[0].dimension[i];
 
   /* Update output dimension [1] and [2] with new-x, new-y */
-  out_info->info[0].dimension[1] = 1;
-  out_info->info[0].dimension[2] = 1;
+  out_info->info[0].dimension[NNS_X_AXIS] = 1;
+  out_info->info[0].dimension[NNS_Y_AXIS] = 1;
 
   out_info->info[0].type = in_info->info[0].type;
   return 0;

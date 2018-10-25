@@ -56,6 +56,16 @@ typedef enum _nns_tensor_type
   _NNS_END,
 } tensor_type;
 
+typedef enum _nns_rank_type
+{
+  NNS_CHANNEL = 0,
+  NNS_X_AXIS,
+  NNS_Y_AXIS,
+  NNS_BATCH,
+
+  NNS_END,
+} rank_type;
+
 /**
  * @brief Byte-per-element of each tensor element type.
  */
