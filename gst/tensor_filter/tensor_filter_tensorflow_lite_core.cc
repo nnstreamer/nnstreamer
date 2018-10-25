@@ -104,15 +104,17 @@ TFLiteCore::loadModel ()
       return -2;
     }
 
-    /* set allocation type to dynamic for in/out tensors */
+    /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
 
-    for (int i = 0; i < interpreter->inputs ().size (); i++) {
+    int tensorSize = interpreter->inputs ().size ();
+    for (int i = 0; i < tensorSize; ++i) {
       tensor_idx = interpreter->inputs ()[i];
       interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
     }
 
-    for (int i = 0; i < interpreter->outputs ().size (); i++) {
+    tensorSize = interpreter->outputs ().size ();
+    for (int i = 0; i < tensorSize; ++i) {
       tensor_idx = interpreter->outputs ()[i];
       interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
     }
@@ -168,7 +170,7 @@ TFLiteCore::setInputTensorProp ()
   auto input_idx_list = interpreter->inputs ();
   inputTensorMeta.num_tensors = input_idx_list.size ();
 
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (input_idx_list[i], inputTensorMeta.info[i].dimension)) {
       return -1;
     }
@@ -196,7 +198,7 @@ TFLiteCore::setOutputTensorProp ()
   auto output_idx_list = interpreter->outputs ();
   outputTensorMeta.num_tensors = output_idx_list.size ();
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (output_idx_list[i], outputTensorMeta.info[i].dimension)) {
       return -1;
     }
@@ -231,7 +233,7 @@ TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim)
       interpreter->tensor (tensor_idx)->dims->data + len, dim);
 
   /* fill the remnants with 1 */
-  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; i++) {
+  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
     dim[i] = 1;
   }
 
@@ -306,7 +308,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
 
-  for (int i = 0; i < getOutputTensorSize (); i++) {
+  for (int i = 0; i < getOutputTensorSize (); ++i) {
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -315,7 +317,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     tensors_idx.push_back (tensor_idx);
   }
 
-  for (int i = 0; i < getInputTensorSize (); i++) {
+  for (int i = 0; i < getInputTensorSize (); ++i) {
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -329,8 +331,8 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     return -3;
   }
 
-  /* if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
-  for (int i = 0; i < tensors_idx.size (); i++) {
+  /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
+  for (int i = 0; i < tensors_idx.size (); ++i) {
     interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
   }
 
