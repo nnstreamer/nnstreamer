@@ -413,6 +413,31 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_FLUSH_STOP:
       gst_tensor_converter_reset (self);
       break;
+    case GST_EVENT_SEGMENT:
+    {
+      GstSegment seg;
+
+      gst_event_copy_segment (event, &seg);
+      silent_debug ("received seg %s", gst_format_get_name (seg.format));
+
+      self->segment = seg;
+      self->have_segment = TRUE;
+
+      if (seg.format == GST_FORMAT_TIME) {
+        return gst_pad_push_event (self->srcpad, event);
+      }
+
+      if (seg.format == GST_FORMAT_BYTES) {
+        /* handle seg event in chain function */
+        self->need_segment = TRUE;
+        gst_event_unref (event);
+        return TRUE;
+      }
+
+      err_print ("Unsupported format = %s\n", gst_format_get_name (seg.format));
+      gst_event_unref (event);
+      return FALSE;
+    }
     default:
       break;
   }
@@ -517,7 +542,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gsize avail, buf_size, frame_size, out_size;
   guint frames_in, frames_out;
   GstFlowReturn ret = GST_FLOW_OK;
-  GstClockTime duration;
+  GstClockTime pts, dts, duration;
+  gboolean have_framerate;
 
   buf_size = gst_buffer_get_size (buf);
   g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
@@ -526,6 +552,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   g_assert (self->tensor_configured);
   config = &self->tensor_config;
+
+  have_framerate = (config->rate_n > 0 && config->rate_d > 0);
 
   frames_out = self->frames_per_tensor;
   inbuf = buf;
@@ -632,6 +660,30 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       return GST_FLOW_ERROR;
   }
 
+  /* convert format (bytes > time) and push segment event */
+  if (self->need_segment) {
+    GstSegment seg;
+    guint64 start;
+
+    g_assert (self->have_segment);
+    start = self->segment.start;
+
+    gst_segment_init (&seg, GST_FORMAT_TIME);
+
+    if (have_framerate) {
+      if (start > 0) {
+        start = gst_util_uint64_scale_int (start * config->rate_d, GST_SECOND,
+            frame_size * config->rate_n);
+        seg.start = seg.time = start;
+      }
+    }
+
+    self->segment = seg;
+    self->need_segment = FALSE;
+
+    gst_pad_push_event (self->srcpad, gst_event_new_segment (&seg));
+  }
+
   if (frames_in == frames_out) {
     silent_debug_timestamp (inbuf);
 
@@ -654,7 +706,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   while ((avail = gst_adapter_available (adapter)) >= out_size &&
       ret == GST_FLOW_OK) {
     GstBuffer *outbuf;
-    GstClockTime pts, dts;
     guint64 pts_dist, dts_dist;
 
     pts = gst_adapter_prev_pts (adapter, &pts_dist);
@@ -664,24 +715,17 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
      * Update timestamp.
      * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
      */
-    if (frames_in > 1) {
-      gint fn, fd;
+    if (frames_in > 1 && have_framerate) {
+      if (GST_CLOCK_TIME_IS_VALID (pts)) {
+        pts +=
+            gst_util_uint64_scale_int (pts_dist * config->rate_d, GST_SECOND,
+            config->rate_n * frame_size);
+      }
 
-      fn = config->rate_n;
-      fd = config->rate_d;
-
-      if (fn > 0 && fd > 0) {
-        if (GST_CLOCK_TIME_IS_VALID (pts)) {
-          pts +=
-              gst_util_uint64_scale_int (pts_dist * fd, GST_SECOND,
-              fn * frame_size);
-        }
-
-        if (GST_CLOCK_TIME_IS_VALID (dts)) {
-          dts +=
-              gst_util_uint64_scale_int (dts_dist * fd, GST_SECOND,
-              fn * frame_size);
-        }
+      if (GST_CLOCK_TIME_IS_VALID (dts)) {
+        dts +=
+            gst_util_uint64_scale_int (dts_dist * config->rate_d, GST_SECOND,
+            config->rate_n * frame_size);
       }
     }
 
@@ -746,6 +790,10 @@ gst_tensor_converter_reset (GstTensorConverter * self)
 
   self->tensor_configured = FALSE;
   gst_tensor_config_init (&self->tensor_config);
+
+  self->have_segment = FALSE;
+  self->need_segment = FALSE;
+  gst_segment_init (&self->segment, GST_FORMAT_TIME);
 }
 
 /**
