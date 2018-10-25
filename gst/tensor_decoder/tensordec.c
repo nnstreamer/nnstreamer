@@ -831,35 +831,33 @@ gst_tensordec_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
 
-  switch (self->output_type) {
-    case OUTPUT_VIDEO:
-    case OUTPUT_AUDIO:
+  switch (self->mode) {
+    case DIRECT_VIDEO:
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
       break;
-    case OUTPUT_TEXT:
-      if (self->mode == IMAGE_LABELING) {
-        res = gst_tensordec_get_label (self, inbuf, outbuf);
-      } else {
-        res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
-      }
+    case IMAGE_LABELING:
+      res = gst_tensordec_get_label (self, inbuf, outbuf);
       break;
+    case BOUNDING_BOXES:
     default:
-      err_print ("Unsupported Media Type (%d)\n", self->output_type);
+      err_print ("Unsupported mode (%d)\n", self->mode);
       goto unknown_type;
   }
 
   return res;
 
 unknown_format:
+  err_print ("Hit unknown_format");
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
   return GST_FLOW_NOT_NEGOTIATED;
 unknown_tensor:
+  err_print ("Hit unknown_tensor");
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("unknown format for tensor"));
   return GST_FLOW_NOT_NEGOTIATED;
 unknown_type:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("not implemented type of media"));
+      ("not implemented decoder mode"));
   return GST_FLOW_NOT_SUPPORTED;
 }
 
