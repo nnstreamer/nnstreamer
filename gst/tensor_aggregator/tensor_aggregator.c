@@ -520,7 +520,6 @@ gst_tensor_aggregator_check_concat_axis (GstTensorAggregator * self,
   guint i;
 
   g_assert (info != NULL);
-  g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
 
   /**
    * Check condition to concatenate data.
@@ -552,7 +551,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   guint f;
   gsize block_size;
   gsize src_idx, dest_idx;
-  gsize frame_size, copied;
+  gsize frame_size;
 
   frame_size = gst_tensor_info_get_size (info);
   g_assert (frame_size > 0);
@@ -742,7 +741,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
     block_size *= info->dimension[f];
   }
 
-  copied = src_idx = dest_idx = 0;
+  src_idx = dest_idx = 0;
 
   do {
     for (f = 0; f < self->frames_out; f++) {
@@ -751,7 +750,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
       dest_idx += block_size;
     }
 
-    src_idx = block_size * ++copied;
+    src_idx += block_size;
 
     g_assert (src_idx <= frame_size);
     g_assert (dest_idx <= dest_info.size);
@@ -955,12 +954,17 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
     GstCaps * filter)
 {
   GstCaps *caps;
+  GstTensorConfig config;
 
+  /* tensor config info for given pad */
   if (pad == self->sinkpad) {
-    caps = gst_tensor_caps_from_config (&self->in_config);
+    config = self->in_config;
   } else {
-    caps = gst_tensor_caps_from_config (&self->out_config);
+    config = self->out_config;
   }
+
+  /* caps from tensor config info */
+  caps = gst_tensor_caps_from_config (&config);
 
   silent_debug_caps (caps, "caps");
   silent_debug_caps (filter, "filter");
