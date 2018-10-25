@@ -102,7 +102,14 @@ pushd build
 popd
 
 pushd tests
-./testAll.sh
+./testAll.sh &
+pid=$!
+sleep 300
+kill $pid
+if [[ $? -eq 0 ]]; then
+    echo "GBS is stopped because timeout(5min) of './testAll.sh'"
+    exit 124
+fi
 popd
 
 %if 0%{?testcoverage}
