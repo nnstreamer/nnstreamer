@@ -88,7 +88,7 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC -g -std=
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC -g -std=c++11")
 
 # Provide common data
-ADD_LIBRARY(common STATIC gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_meta.c)
+ADD_LIBRARY(common STATIC gst/nnstreamer/tensor_common.c)
 TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
 SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
@@ -142,7 +142,7 @@ ENDIF(NOT DISABLE_TENSORFLOW)
 LIST(LENGTH FILTER_DEP FILTER_DEP_LEN)
 
 IF (SINGLE_BINARY)
-	ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c ${OBJECTS} gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_meta.c)
+	ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c ${OBJECTS} gst/nnstreamer/tensor_common.c)
 	SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
 	TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
 	TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
@@ -197,7 +197,7 @@ INSTALL(FILES include/tensor_typedef.h
 	)
 
 # For nnstreamer custom filter developers
-INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h include/tensor_meta.h
+INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)
 
