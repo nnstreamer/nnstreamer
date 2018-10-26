@@ -66,6 +66,7 @@ struct _GstTensorConverter
   GstPad *srcpad; /**< src pad */
 
   gboolean silent; /**< true to print minimized log */
+  gboolean set_timestamp; /**< true to set timestamp when received a buffer with invalid timestamp */
   guint frames_per_tensor; /**< number of frames in output tensor */
   GstTensorInfo tensor_info; /**< data structure to get/set tensor info */
 
