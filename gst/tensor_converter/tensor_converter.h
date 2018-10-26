@@ -86,6 +86,7 @@ struct _GstTensorConverter
   gboolean have_segment; /**< True if received segment */
   gboolean need_segment; /**< True to handle seg event */
   GstSegment segment; /**< Segment, supposed time format */
+  GstClockTime old_timestamp; /**< timestamp at prev buffer */
 };
 
 /**
