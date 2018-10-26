@@ -114,8 +114,14 @@ enum
   PROP_INPUT_DIMENSION,
   PROP_INPUT_TYPE,
   PROP_FRAMES_PER_TENSOR,
+  PROP_SET_TIMESTAMP,
   PROP_SILENT
 };
+
+/**
+ * @brief Flag to set timestamp when received a buffer with invalid timestamp.
+ */
+#define DEFAULT_SET_TIMESTAMP TRUE
 
 /**
  * @brief Flag to print minimized log.
@@ -225,6 +231,16 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
+   * GstTensorConverter::set-timestamp:
+   *
+   * The flag to set timestamp when received a buffer with invalid timestamp.
+   */
+  g_object_class_install_property (object_class, PROP_SET_TIMESTAMP,
+      g_param_spec_boolean ("set-timestamp", "Set timestamp",
+          "The flag to set timestamp when received a buffer with invalid timestamp",
+          DEFAULT_SET_TIMESTAMP, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
    * GstTensorConverter::silent:
    *
    * The flag to enable/disable debugging messages.
@@ -273,6 +289,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
 
   /** init properties */
   self->silent = DEFAULT_SILENT;
+  self->set_timestamp = DEFAULT_SET_TIMESTAMP;
   self->frames_per_tensor = DEFAULT_FRAMES_PER_TENSOR;
   self->in_media_type = _NNS_MEDIA_END;
   self->remove_padding = FALSE;
@@ -326,6 +343,10 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
       self->frames_per_tensor = g_value_get_uint (value);
       silent_debug ("Set frames in output = %d", self->frames_per_tensor);
       break;
+    case PROP_SET_TIMESTAMP:
+      self->set_timestamp = g_value_get_boolean (value);
+      silent_debug ("Set timestamp = %d", self->set_timestamp);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       silent_debug ("Set silent = %d", self->silent);
@@ -363,6 +384,9 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
       break;
     case PROP_FRAMES_PER_TENSOR:
       g_value_set_uint (value, self->frames_per_tensor);
+      break;
+    case PROP_SET_TIMESTAMP:
+      g_value_set_boolean (value, self->set_timestamp);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -682,6 +706,21 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     self->need_segment = FALSE;
 
     gst_pad_push_event (self->srcpad, gst_event_new_segment (&seg));
+  }
+
+  /**
+   * @todo fill here
+   */
+  if (self->set_timestamp) {
+    /* set duration */
+    if (!GST_BUFFER_DURATION_IS_VALID (inbuf)) {
+    }
+
+    /* set timestamp if buffer has invalid timestamp */
+    pts = GST_BUFFER_TIMESTAMP (inbuf);
+
+    if (!GST_CLOCK_TIME_IS_VALID (pts)) {
+    }
   }
 
   if (frames_in == frames_out) {
