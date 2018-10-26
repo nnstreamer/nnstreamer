@@ -332,7 +332,8 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
-  for (int i = 0; i < tensors_idx.size (); ++i) {
+  int tensorSize = tensors_idx.size ();
+  for (int i = 0; i < tensorSize; ++i) {
     interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
   }
 
