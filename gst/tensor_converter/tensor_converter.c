@@ -708,20 +708,52 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gst_pad_push_event (self->srcpad, gst_event_new_segment (&seg));
   }
 
-  /**
-   * @todo fill here
-   */
   if (self->set_timestamp) {
     /* set duration */
-    if (!GST_BUFFER_DURATION_IS_VALID (inbuf)) {
+    duration = GST_BUFFER_DURATION (inbuf);
+
+    if (!GST_CLOCK_TIME_IS_VALID (duration)) {
+      if (have_framerate) {
+        duration =
+            gst_util_uint64_scale_int (frames_in * config->rate_d, GST_SECOND,
+            config->rate_n);
+
+        GST_BUFFER_DURATION (inbuf) = duration;
+      }
     }
 
     /* set timestamp if buffer has invalid timestamp */
     pts = GST_BUFFER_TIMESTAMP (inbuf);
 
     if (!GST_CLOCK_TIME_IS_VALID (pts)) {
+      pts = self->segment.start;
+
+      if (have_framerate) {
+        if (GST_CLOCK_TIME_IS_VALID (self->old_timestamp)) {
+          pts = self->old_timestamp + duration;
+        }
+      } else {
+        GstClock *clock;
+
+        clock = gst_element_get_clock (GST_ELEMENT (self));
+
+        if (clock) {
+          GstClockTime now, base;
+
+          base = gst_element_get_base_time (GST_ELEMENT (self));
+          now = gst_clock_get_time (clock);
+
+          pts = (base < now) ? (now - base) : 0;
+          gst_object_unref (clock);
+        }
+      }
+
+      GST_BUFFER_TIMESTAMP (inbuf) = pts;
     }
   }
+
+  /* update old timestamp */
+  self->old_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
 
   if (frames_in == frames_out) {
     silent_debug_timestamp (inbuf);
@@ -833,6 +865,8 @@ gst_tensor_converter_reset (GstTensorConverter * self)
   self->have_segment = FALSE;
   self->need_segment = FALSE;
   gst_segment_init (&self->segment, GST_FORMAT_TIME);
+
+  self->old_timestamp = GST_CLOCK_TIME_NONE;
 }
 
 /**
