@@ -59,4 +59,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 8
 compareAll testcase08.golden testcase08.log 8
 
+# PTS test case 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=100/1 ! tensor_converter silent=false ! filesink location=\"test.video.log\" sync=true" 9-1 &> temp
+cat temp | grep pts | cut -d '=' -f 2 | cut -d ' ' -f 2 > testPTS01.log
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 timestamp-offset=100000000 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=100/1 ! tensor_converter silent=false ! filesink location=\"test.offset.log\" sync=true" 9-2 &> temp
+cat temp | grep pts | cut -d '=' -f 2 | cut -d ' ' -f 2 > testPTS02.log
+
+compareAll testPTS01.golden testPTS01.log 9-1
+compareAll testPTS02.golden testPTS02.log 9-2
+
 report

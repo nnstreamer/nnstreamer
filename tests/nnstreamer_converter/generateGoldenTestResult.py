@@ -14,6 +14,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import gen24bBMP as bmp
+import genPTSLog as pts
 
 
 # Allow to create specific cases only if proper argument is given
@@ -95,3 +96,6 @@ if target == -1 or target == 11:
                 for x in range(0,16):
                     s += string[i][j*16*16+ y*16+x]
         bmp.write('testcase_stream_2_'+str(j)+'.golden',s)
+if target == -1 or target == 12:
+    pts.genVideoPTS("testPTS01.golden", 10, 100/1, 0)
+    pts.genVideoPTS("testPTS02.golden", 10, 100/1, 100000000)
