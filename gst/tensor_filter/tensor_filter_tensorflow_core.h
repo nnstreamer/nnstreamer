@@ -15,7 +15,7 @@
  *
  */
 /**
- * @file   tensor_filter_tensorflow_lite_core.h
+ * @file   tensor_filter_tensorflow_core.h
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>
  * @author Jijoong Moon <jijoong.moon@samsung.com>
  * @date   08/02/2018
