@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
+
+display_help() {
+    echo -e "Usage: $0 [option...]" >&2
+    echo -e ""
+    echo -e "   1       Generate GStreamer Pipeline Graphs"
+    echo -e "           with GST_DEBUG_DUMP_DOT_DIR"
+    echo -e ""
+    exit 1
+}
+
+case $1 in
+	-h) display_help ;;
+	--help) display_help ;;
+esac
+
 dirpath="$( cd "$( dirname "$0")" && pwd )"
 
 if [[ $1 -eq 1 ]]; then
-export GST_DEBUG_DUMP_DOT_DIR=$dirpath/performance
-export LD_PRELOAD=/usr/local/lib/libgstintercept.so
-export GST_DEBUG_DUMP_TRACE_DIR=$GST_DEBUG_DUMP_DOT_DIR
-export PERFORMANCE=1
-mkdir -p $GST_DEBUG_DUMP_DOT_DIR
+	export GST_DEBUG_DUMP_DOT_DIR=$dirpath/performance
+	export LD_PRELOAD=/usr/local/lib/libgstintercept.so
+	export GST_DEBUG_DUMP_TRACE_DIR=$GST_DEBUG_DUMP_DOT_DIR
+	export PERFORMANCE=1
+	mkdir -p $GST_DEBUG_DUMP_DOT_DIR
 fi
 shift 1
 source $dirpath/testAPI.sh 
