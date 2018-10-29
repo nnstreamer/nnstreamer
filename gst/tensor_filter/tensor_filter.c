@@ -199,25 +199,32 @@ static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 
 /**
- * @brief Invoke callbacks of filter->prop.fw. Guarantees calling open for the first call.
+ * @brief Open nn framework.
  */
-#define gst_tensor_filter_call(filter,ret,funcname,...) do { \
+#define gst_tensor_filter_open_fw(filter) do { \
       if (filter->prop.fw_opened == FALSE) { \
-        if (filter->prop.fw->open != NULL) \
-          filter->prop.fw->open (filter, &filter->privateData); \
+        if (filter->fw->open != NULL) \
+          filter->fw->open (filter, &filter->privateData); \
         filter->prop.fw_opened = TRUE; \
       } \
-      ret = filter->prop.fw->funcname (filter, &filter->privateData, __VA_ARGS__); \
-    } while(0)
+    } while (0)
 
 /**
  * @brief Close nn framework.
  */
-#define gst_tensor_filter_close(filter) do { \
+#define gst_tensor_filter_close_fw(filter) do { \
       g_assert (filter->prop.fw_opened); \
-      if (filter->prop.fw->close) \
-        filter->prop.fw->close (filter, &filter->privateData); \
+      if (filter->fw->close) \
+        filter->fw->close (filter, &filter->privateData); \
       filter->prop.fw_opened = FALSE; \
+    } while (0)
+
+/**
+ * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
+ */
+#define gst_tensor_filter_call(filter,ret,funcname,...) do { \
+      gst_tensor_filter_open_fw (filter); \
+      ret = filter->fw->funcname (filter, &filter->privateData, __VA_ARGS__); \
     } while (0)
 
 /**
@@ -318,7 +325,6 @@ gst_tensor_filter_init (GstTensorFilter * self)
 
   /* init NNFW properties */
   prop->nnfw = _T_F_UNDEFINED;
-  prop->fw = NULL;
   prop->fw_opened = FALSE;
   prop->input_configured = FALSE;
   prop->output_configured = FALSE;
@@ -328,6 +334,7 @@ gst_tensor_filter_init (GstTensorFilter * self)
   gst_tensors_info_init (&prop->output_meta);
 
   /* init internal properties */
+  self->fw = NULL;
   self->privateData = NULL;
   self->silent = TRUE;
   self->configured = FALSE;
@@ -394,13 +401,13 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (prop->nnfw != -1);
       g_assert (prop->nnfw != _T_F_UNDEFINED);
       g_assert (tensor_filter_supported[prop->nnfw] != NULL);
-      prop->fw = tensor_filter_supported[prop->nnfw];
-      g_assert (prop->fw != NULL);
+      self->fw = tensor_filter_supported[prop->nnfw];
+      g_assert (self->fw != NULL);
 
       /* See if mandatory methods are filled in */
-      g_assert (prop->fw->invoke_NN);
-      g_assert ((prop->fw->getInputDimension && prop->fw->getOutputDimension)
-          || prop->fw->setInputDimension);
+      g_assert (self->fw->invoke_NN);
+      g_assert ((self->fw->getInputDimension && self->fw->getOutputDimension)
+          || self->fw->setInputDimension);
       break;
     case PROP_MODEL:
       g_assert (prop->model_file == NULL && value);
@@ -645,15 +652,15 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
-  if (G_UNLIKELY (!prop->fw))
+  if (G_UNLIKELY (!self->fw))
     goto unknown_framework;
   if (G_UNLIKELY (!prop->model_file))
     goto unknown_model;
-  if (G_UNLIKELY (!prop->fw->invoke_NN))
+  if (G_UNLIKELY (!self->fw->invoke_NN))
     goto unknown_invoke;
 
   /* 0. Check all properties. */
-  silent_debug ("Invoking %s with %s model\n", prop->fw->name,
+  silent_debug ("Invoking %s with %s model\n", self->fw->name,
       prop->model_file);
 
   /* 1. Set input tensors from inbuf. */
@@ -678,7 +685,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].type = prop->output_meta.info[i].type;
 
     /* allocate memory if allocate_in_invoke is FALSE */
-    if (prop->fw->allocate_in_invoke == FALSE) {
+    if (self->fw->allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
 
@@ -692,7 +699,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    if (prop->fw->allocate_in_invoke) {
+    if (self->fw->allocate_in_invoke) {
       /* filter-subplugin allocated new memory, update this */
       out_mem[i] =
           gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
@@ -760,7 +767,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
    * supposed fixed in-tensor info if getInputDimension is defined.
    */
   if (!prop->input_configured) {
-    if (prop->fw->getInputDimension) {
+    if (self->fw->getInputDimension) {
       GstTensorsInfo in_info;
 
       gst_tensors_info_init (&in_info);
@@ -786,7 +793,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
    * supposed fixed out-tensor info if getOutputDimension is defined.
    */
   if (!prop->output_configured) {
-    if (prop->fw->getOutputDimension) {
+    if (self->fw->getOutputDimension) {
       GstTensorsInfo out_info;
 
       gst_tensors_info_init (&out_info);
@@ -856,7 +863,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
     /** call setInputDimension if output tensor is not configured */
     if (!prop->output_configured) {
-      if (prop->fw->setInputDimension) {
+      if (self->fw->setInputDimension) {
         GstTensorsInfo out_info;
         int res;
 
@@ -996,7 +1003,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
         int res = -1;
 
         /* call setInputDimension with given input tensor */
-        if (self->prop.fw->setInputDimension) {
+        if (self->fw->setInputDimension) {
           gst_tensor_filter_call (self, res, setInputDimension, &in_info,
               &config.info);
         }
@@ -1145,16 +1152,11 @@ static gboolean
 gst_tensor_filter_start (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
-  GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER_CAST (trans);
-  prop = &self->prop;
+  g_assert (self->fw != NULL);
 
-  if (!prop->fw_opened && prop->fw->open) {
-    prop->fw->open (self, &self->privateData);
-  }
-  prop->fw_opened = TRUE;
-
+  gst_tensor_filter_open_fw (self);
   return TRUE;
 }
 
@@ -1170,9 +1172,11 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
   GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  g_assert (self->fw != NULL);
+
   prop = &self->prop;
 
-  gst_tensor_filter_close (self);
+  gst_tensor_filter_close_fw (self);
 
   if (prop->model_file) {
     g_free ((void *) prop->model_file);

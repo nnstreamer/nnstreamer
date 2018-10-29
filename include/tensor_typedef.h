@@ -87,9 +87,6 @@ typedef enum _nnfw_type
   _T_F_NNFW_END,
 } nnfw_type;
 
-struct _GstTensorFilterFramework;
-typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
-
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
@@ -129,7 +126,6 @@ typedef struct
 typedef struct _GstTensorFilterProperties
 {
   nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
-  GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
   int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *model_file; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 

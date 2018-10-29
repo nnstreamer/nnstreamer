@@ -50,6 +50,7 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorFilter GstTensorFilter;
 typedef struct _GstTensorFilterClass GstTensorFilterClass;
+typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
 extern const char *nnfw_names[];
 
@@ -62,6 +63,7 @@ struct _GstTensorFilter
 
   void *privateData; /**< NNFW plugin's private data is stored here */
   GstTensorFilterProperties prop; /**< NNFW plugin's properties */
+  GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
   /** internal properties for tensor-filter */
   int silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
