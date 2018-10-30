@@ -514,9 +514,11 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
         return FALSE;
       }
 
-      if (pad->buffer != NULL
-          && ABS (tensor_merge->current_time - GST_BUFFER_PTS (pad->buffer)) <
-          ABS (tensor_merge->current_time - GST_BUFFER_PTS (buf))) {
+      if (pad->buffer != NULL &&
+          ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
+                  GST_BUFFER_PTS (pad->buffer))) <
+          ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
+                  GST_BUFFER_PTS (buf)))) {
         gst_buffer_unref (buf);
         buf = pad->buffer;
       } else {
