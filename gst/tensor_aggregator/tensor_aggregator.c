@@ -457,16 +457,19 @@ gst_tensor_aggregator_sink_query (GstPad * pad, GstObject * parent,
     {
       GstCaps *caps;
       GstCaps *template_caps;
-      gboolean res;
+      gboolean res = FALSE;
 
       gst_query_parse_accept_caps (query, &caps);
       silent_debug_caps (caps, "accept-caps");
 
-      template_caps = gst_pad_get_pad_template_caps (pad);
-      res = gst_caps_can_intersect (template_caps, caps);
+      if (gst_caps_is_fixed (caps)) {
+        template_caps = gst_pad_get_pad_template_caps (pad);
+
+        res = gst_caps_can_intersect (template_caps, caps);
+        gst_caps_unref (template_caps);
+      }
 
       gst_query_set_accept_caps_result (query, res);
-      gst_caps_unref (template_caps);
       return TRUE;
     }
     default:
