@@ -48,6 +48,9 @@ BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 
+# Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
+BuildRequires: ssat
+
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
 %description unittest-coverage
@@ -86,29 +89,19 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 pushd build
+export GST_PLUGIN_PATH=$(pwd)
+export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
 %cmake .. -DTIZEN=ON -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF
 make %{?_smp_mflags}
-popd
-
-%install
-pushd build
-%make_install
-popd
-
-# DO THE TEST!
-export LD_LIBRARY_PATH=%{buildroot}%{gstlibdir}
-
-pushd build
 ./unittest_common
-./unittest_sink --gst-plugin-path=%{buildroot}%{_libdir}
+./unittest_sink --gst-plugin-path=.
 popd
-
 pushd tests
 # The 'testAll.sh' script requires 6~7min to run armv7l binary files in the current CI server.
 # The timeout value is 10min as a heuristic value from our experience.
 timeout=600
 interval=60
-./testAll.sh &
+ssat &
 pid=$!
 while ((timeout > 0)); do
     sleep $interval
@@ -122,6 +115,11 @@ if [[ $(ps | grep "$pid") ]]; then
     echo "GBS is stopped because of './testAll.sh' timeout(10min)"
     exit 124 # 124 is ubuntu status code of timeout
 fi
+popd
+
+%install
+pushd build
+%make_install
 popd
 
 %if 0%{?testcoverage}

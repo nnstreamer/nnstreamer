@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
-source ../testAPI.sh
+##
+## @file runTest.sh
+## @author MyungJoo Ham <myungjoo.ham@gmail.com>
+## @date Nov 01 2018
+## @brief SSAT Test Cases for NNStreamer
+##
+if [[ "$SSATAPILOADED" != "1" ]]
+then
+	SILENT=0
+	INDEPENDENT=1
+	search="ssat-api.sh"
+	source $search
+	printf "${Blue}Independent Mode${NC}
+"
+fi
+
+# This is compatible with SSAT (https://github.com/myungjoo/SSAT)
+testInit $1
 
 if [ "$SKIPGEN" == "YES" ]
 then
@@ -12,18 +29,28 @@ else
 fi
 convertBMP2PNG
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location=\"test.bgrx.log\" sync=true t. ! queue ! filesink location=\"test.rgb.log\" sync=true" 1
+PATH_TO_PLUGIN="../../build"
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=0/1 ! queue ! tensor_converter silent=TRUE ! filesink location=\"test.gray8.log\" sync=true" 1
+gst-launch-1.0 -m -v videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location="test.bgrx.log" sync=true t. ! queue ! filesink location="test.rgb.log" sync=true
 
-compareAllSizeLimit testcase01.bgrx.golden test.bgrx.log 1-1
-compareAllSizeLimit testcase01.rgb.golden test.rgb.log 1-2
-compareAllSizeLimit testcase01.gray8.golden test.gray8.log 1-3
+gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location=\"test.bgrx.log\" sync=true t. ! queue ! filesink location=\"test.rgb.log\" sync=true" 1R 0 0 $PERFORMANCE
 
+gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=0/1 ! queue ! tensor_converter silent=TRUE ! filesink location=\"test.gray8.log\" sync=true" 1G 0 0 $PERFORMANCE
+
+callCompareTest testcase01.bgrx.golden test.bgrx.log 1-1 "BGRX Golden Test" 1 0
+callCompareTest testcase01.rgb.golden test.rgb.log 1-2 "RGB Golden Test" 1 0
+callCompareTest testcase01.gray8.golden test.gray8.log 1-3 "Gray8 Golden Test" 1 0
+
+##
+## @brief Execute gstreamer pipeline and do golden-test with the output of the pipeline.
+## @param $1 Colorspace
+## @param $2 Width
+## @param $3 Height
+## @param $4 Test Case Number
 function do_test {
-	gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.log\" sync=true" ${4}
+	gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.log\" sync=true" ${4} 0 0 $PERFORMANCE
 
-	compareAllSizeLimit testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.log ${4}
+	callCompareTest testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.log ${4} "PNG Golden Testing ${4}" 1 0
 }
 
 do_test BGRx 640 480 2-1
@@ -35,28 +62,28 @@ do_test GRAY8 642 480 2-6
 
 # @TODO Change this when YUV becomes supported by tensor_converter
 # Fail Test: YUV is given
-gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=YUV,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=YUV ! tensor_converter silent=TRUE ! filesink location=\"test.yuv.fail.log\" sync=true" 5-F
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=YUV,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=YUV ! tensor_converter silent=TRUE ! filesink location=\"test.yuv.fail.log\" sync=true" 5-F 0 1 $PERFORMANCE
 
 # Fail Test: Unknown property is given
-gstFailTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter silent=TRUE whatthehell=isthis ! filesink location=\"test.yuv.fail.log\" sync=true" 6-F
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter silent=TRUE whatthehell=isthis ! filesink location=\"test.yuv.fail.log\" sync=true" 6-F 0 1 $PERFORMANCE
 
 # audio format S16LE, 8k sample rate, samples per buffer 8000
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S16LE,rate=8000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s16le.log\" sync=true t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 7-1
-compareAll test.audio8k.s16le.origin.log test.audio8k.s16le.log 7-2
+callCompareTest test.audio8k.s16le.origin.log test.audio8k.s16le.log 7-2 "Audio8k-s16le Golden Test" 0 0
 
 # audio format U8, 16k sample rate, samples per buffer 8000
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U8,rate=16000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k.u8.log\" sync=true t. ! queue ! filesink location=\"test.audio16k.u8.origin.log\" sync=true" 7-3
-compareAll test.audio16k.u8.origin.log test.audio16k.u8.log 7-4
+callCompareTest test.audio16k.u8.origin.log test.audio16k.u8.log 7-4 "Audio16k-u8 Golden Test" 0 0
 
 # audio format U16LE, 16k sample rate, 2 channels, samples per buffer 8000
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=2 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k2c.u16le.log\" sync=true t. ! queue ! filesink location=\"test.audio16k2c.u16le.origin.log\" sync=true" 7-5
-compareAll test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 7-6
+callCompareTest test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 7-6 "Audio16k2c-u16le Golden Test" 0 0
 
 # audio format S32LE, 8k sample rate, samples per buffer 8000
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S32LE,rate=8000 ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s32le.log\" sync=true" 7-7
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S32LE,rate=8000 ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s32le.log\" sync=true" 7-7 0 0 $PERFORMANCE
 
 # Stream test case (genCase08 in generateGoldenTestResult.py)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 8
-compareAll testcase08.golden testcase08.log 8
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 8 0 0 $PERFORMANCE
+callCompareTest testcase08.golden testcase08.log 8 "PNG Stream Test" 0 0
 
 report
