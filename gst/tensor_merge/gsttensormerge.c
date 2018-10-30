@@ -506,20 +506,18 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     if (buf != NULL) {
       if (GST_BUFFER_PTS (buf) < tensor_merge->current_time) {
         gst_buffer_unref (buf);
-        buf = gst_collect_pads_pop (tensor_merge->collect, data);
         if (pad->buffer != NULL)
           gst_buffer_unref (pad->buffer);
-        pad->buffer = buf;
-        silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (buf));
+        pad->buffer = gst_collect_pads_pop (tensor_merge->collect, data);
+        silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (pad->buffer));
         tensor_merge->need_buffer = TRUE;
         return FALSE;
       }
 
       if (pad->buffer != NULL
-          && ABS (tensor_merge->current_time - GST_BUFFER_PTS (pad->buffer) <
-              ABS (tensor_merge->current_time - GST_BUFFER_PTS (buf)))) {
-        if (buf != NULL)
-          gst_buffer_unref (buf);
+          && ABS (tensor_merge->current_time - GST_BUFFER_PTS (pad->buffer)) <
+          ABS (tensor_merge->current_time - GST_BUFFER_PTS (buf))) {
+        gst_buffer_unref (buf);
         buf = pad->buffer;
       } else {
         gst_buffer_unref (buf);
