@@ -84,7 +84,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 pushd build
-%cmake .. -DTIZEN=ON -DGST_INSTALL_DIR=%{gstlibdir}
+%cmake .. -DTIZEN=ON -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF
 make %{?_smp_mflags}
 popd
 
