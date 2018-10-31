@@ -73,7 +73,7 @@ pr_comment_many_commit=0
 pr_comment_pr_monitor=0
 
 #### Build test: Write build type to test ex) "x86_64 armv7l" 
-pr_build_arch_type="x86_64 armv7l"
+pr_build_arch_type="x86_64 armv7l aarch64"
 
 ### Check level of doxygen tag:
 # Basic = 0 (@file + @brief)
