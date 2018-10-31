@@ -64,16 +64,10 @@ ELSE(TIZEN OR GTEST_LIB)
 	SET(gtestInc /usr/src/gtest)
 ENDIF(TIZEN OR GTEST_LIB)
 
-IF (NOT INCLUDE_INSTALL_DIR)
-	# We need to define includedir path
-	SET (INCLUDE_INSTALL_DIR /usr/include)
-	MESSAGE ("Warning: INCLUDE_INSTALL_DIR not defined. Using /usr/include")
-ENDIF (NOT INCLUDE_INSTALL_DIR)
-
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 
 INCLUDE_DIRECTORIES(
-	${CMAKE_SOURCE_DIR}/include
+	${CMAKE_SOURCE_DIR}/gst/nnstreamer
 )
 INCLUDE_DIRECTORIES(
 	SYSTEM
@@ -193,12 +187,12 @@ ENDIF (SINGLE_BINARY)
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 
 # For nnstreamer users (gst app developers using via gstreamer API)
-INSTALL(FILES include/tensor_typedef.h
+INSTALL(FILES gst/nnstreamer/tensor_typedef.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)
 
 # For nnstreamer custom filter developers
-INSTALL(FILES include/tensor_common.h include/tensor_filter_custom.h
+INSTALL(FILES gst/nnstreamer/tensor_common.h gst/nnstreamer/tensor_filter_custom.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
 	)
 
