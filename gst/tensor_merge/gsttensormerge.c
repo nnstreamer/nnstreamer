@@ -524,6 +524,9 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
       } else {
         gst_buffer_unref (buf);
         buf = gst_collect_pads_pop (tensor_merge->collect, data);
+        if (pad->buffer != NULL)
+          gst_buffer_unref (pad->buffer);
+        pad->buffer = buf;
       }
     } else {
       buf = pad->buffer;
@@ -540,7 +543,6 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
       *dts_time = bestpad->dts_timestamp;
     }
 
-    gst_buffer_unref (buf);
     tensor_merge->tensors_config.info.info[counting] = config.info;
     counting++;
   }
@@ -552,6 +554,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
   GST_BUFFER_PTS (tensors_buf) = *pts_time;
   GST_BUFFER_DTS (tensors_buf) = *dts_time;
   return isEOS;
+
 }
 
 
