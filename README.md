@@ -42,9 +42,6 @@ In [Component Description](Documentation/component-description.md) page, we desc
 For more details, please access the following manual.
 * Press [Here](Documentation/getting-started.md)
 
-## Test Cases
-* Press [Here](Documentation/how-to-use-testcases.md) to read how to write and run Test Cases.
-
 ## Usage Examples
 - [Example app with camera](nnstreamer_example/example_cam) (stable)
 - Wiki page [usage example screenshots](https://github.com/nnsuite/nnstreamer/wiki/usage-examples-screenshots) (stable)
