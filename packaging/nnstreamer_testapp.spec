@@ -1,7 +1,7 @@
 Name:		nnstreamer_testapp
 Summary:	test app for gstremaer plugins for neural networks
-Version:	0.0.2
-Release:	rc1
+Version:	0.0.3
+Release:	1rc1
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
