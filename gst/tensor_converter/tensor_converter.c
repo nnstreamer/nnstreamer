@@ -641,6 +641,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         /** copy timestamps */
         gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+        gst_buffer_unref (buf);
       }
       break;
     }
@@ -670,6 +672,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         /** copy timestamps */
         gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+        gst_buffer_unref (buf);
       }
       break;
 
