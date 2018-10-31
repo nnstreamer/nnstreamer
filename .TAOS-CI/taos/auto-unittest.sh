@@ -14,7 +14,7 @@
 # Set-up environements
 dirpath="$( cd "$( dirname "$0")" && pwd )"
 build_root="${dirpath}/../../"
-arch_type="x86_64 armv7l"
+arch_type="x86_64 armv7l aarch64"
 echo -e "[DEBUG] dirpath : $dirpath"
 echo -e "[DEBUG] build_root : $build_root"
 source ./common/api_collection.sh
