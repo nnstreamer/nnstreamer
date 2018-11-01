@@ -168,6 +168,25 @@ gst_tensordec_image_labeling_init (Mode_image_labeling * mode_image_label)
 }
 
 /**
+ * @brief initialize data in tensor decoder image labeling info structure.
+ */
+static void
+gst_tensordec_bounding_boxes_init (Mode_boundig_boxes * mode_boundig_boxes)
+{
+  mode_boundig_boxes->label_path = NULL;
+  mode_boundig_boxes->labels = NULL;
+  mode_boundig_boxes->total_labels = 0;
+  mode_boundig_boxes->box_prior_path = NULL;
+  int i, j;
+
+  for (i = 0; i < BOX_SIZE; i++) {
+    for (j = 0; j < DETECTION_MAX; j++) {
+      mode_boundig_boxes->box_priors[i][j] = 0;
+    }
+  }
+}
+
+/**
  * @brief set label info data for Tensor decoder.
  */
 static gboolean
@@ -175,7 +194,7 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 {
   FILE *fp;
 
-  if ((fp = fopen (self->tensordec_image_label.label_path, "r")) != NULL) {
+  if ((fp = fopen (self->image_labeling.label_path, "r")) != NULL) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -183,8 +202,8 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 
     while ((read = getline (&line, &len, fp)) != -1) {
       label = g_strdup ((gchar *) line);
-      self->tensordec_image_label.labels =
-          g_list_append (self->tensordec_image_label.labels, label);
+      self->image_labeling.labels =
+          g_list_append (self->image_labeling.labels, label);
     }
 
     if (line) {
@@ -197,9 +216,103 @@ gst_set_mode_image_label_info (GstTensorDec * self)
     return FALSE;
   }
 
-  self->tensordec_image_label.total_labels =
-      g_list_length (self->tensordec_image_label.labels);
+  self->image_labeling.total_labels =
+      g_list_length (self->image_labeling.labels);
   err_print ("finished to load labels");
+  return TRUE;
+}
+
+/**
+ * @brief Read strings from file.
+ */
+static gboolean
+read_lines (const gchar * file_name, GList ** lines)
+{
+/** 
+*Not imployed yet TBD
+*/
+
+  return TRUE;
+}
+
+/**
+ * @brief Load box priors.
+ */
+static gboolean
+gst_tensordec_load_box_priors (GstTensorDec * self)
+{
+  GList *box_priors = NULL;
+  gchar *box_row;
+  int row;
+
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (read_lines (self->bounding_boxes.box_prior_path,
+          &box_priors), FALSE);
+
+  for (row = 0; row < BOX_SIZE; row++) {
+    int column = 0;
+    int i = 0, j = 0;
+    char buff[11];
+
+    memset (buff, 0, 11);
+    box_row = (gchar *) g_list_nth_data (box_priors, row);
+
+    while ((box_row[i] != '\n') && (box_row[i] != '\0')) {
+      if (box_row[i] != ' ') {
+        buff[j] = box_row[i];
+        j++;
+      } else {
+        if (j != 0) {
+          self->bounding_boxes.box_priors[row][column++] = atof (buff);
+          memset (buff, 0, 11);
+        }
+        j = 0;
+      }
+      i++;
+    }
+
+    self->bounding_boxes.box_priors[row][column++] = atof (buff);
+  }
+
+  g_list_free (box_priors);
+  return TRUE;
+}
+
+/**
+ * @brief set bounding boxes info data for Tensor decoder.
+ */
+static gboolean
+gst_set_mode_boundig_boxes_info (GstTensorDec * self)
+{
+  FILE *fp;
+
+  if ((fp = fopen (self->bounding_boxes.label_path, "r")) != NULL) {
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    gchar *label;
+
+    while ((read = getline (&line, &len, fp)) != -1) {
+      label = g_strdup ((gchar *) line);
+      self->bounding_boxes.labels =
+          g_list_append (self->bounding_boxes.labels, label);
+    }
+
+    if (line) {
+      free (line);
+    }
+
+    fclose (fp);
+  } else {
+    err_print ("cannot find label file of boundig boxes in tensor decoder");
+    return FALSE;
+  }
+
+  self->bounding_boxes.total_labels =
+      g_list_length (self->bounding_boxes.labels);
+  err_print ("finished to load labels");
+
+  gst_tensordec_load_box_priors (self);
   return TRUE;
 }
 
@@ -497,7 +610,26 @@ gst_tensordec_init (GstTensorDec * self)
   self->output_type = OUTPUT_VIDEO;
   self->mode = DIRECT_VIDEO;
   gst_tensor_config_init (&self->tensor_config);
-  gst_tensordec_image_labeling_init (&self->tensordec_image_label);
+}
+
+/**
+ * @brief initialize the new element
+ * instantiate pads and add them to element
+ * set pad calback functions
+ * initialize instance structure
+ */
+static void
+gst_tensordec_mode_init (GstTensorDec * self)
+{
+  if (self->mode == IMAGE_LABELING) {
+
+    gst_tensordec_image_labeling_init (&self->image_labeling);
+
+  } else if (self->mode == BOUNDING_BOXES) {
+
+    gst_tensordec_bounding_boxes_init (&self->bounding_boxes);
+
+  }
 }
 
 /**
@@ -527,8 +659,13 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE_OPTION1:
       if (self->mode == IMAGE_LABELING) {
-        self->tensordec_image_label.label_path = g_value_dup_string (value);
+        gst_tensordec_mode_init (self);
+        self->image_labeling.label_path = g_value_dup_string (value);
         gst_set_mode_image_label_info (self);
+      } else if (self->mode == BOUNDING_BOXES) {
+        gst_tensordec_mode_init (self);
+        self->bounding_boxes.label_path = g_value_dup_string (value);
+        gst_set_mode_boundig_boxes_info (self);
       }
       break;
     default:
@@ -536,6 +673,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
   }
 }
+
 
 /**
  * @brief Get property (GObject vmethod)
@@ -558,7 +696,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, mode_names[self->mode]);
       break;
     case PROP_MODE_OPTION1:
-      g_value_set_string (value, self->tensordec_image_label.label_path);
+      g_value_set_string (value, self->image_labeling.label_path);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -707,7 +845,7 @@ gst_tensordec_update_top_label_index (GstTensorDec * self,
   guint8 max_score = 0;
 
   g_return_val_if_fail (scores != NULL, -1);
-  g_return_val_if_fail (len == self->tensordec_image_label.total_labels, -1);
+  g_return_val_if_fail (len == self->image_labeling.total_labels, -1);
 
   for (i = 0; i < len; i++) {
     if (scores[i] > 0 && scores[i] > max_score) {
@@ -729,13 +867,12 @@ gst_get_image_label (GstTensorDec * self, gint label)
   guint length;
   gint check_label = label;
   g_return_val_if_fail (self != NULL, NULL);
-  g_return_val_if_fail (self->tensordec_image_label.labels != NULL, NULL);
+  g_return_val_if_fail (self->image_labeling.labels != NULL, NULL);
 
-  length = g_list_length (self->tensordec_image_label.labels);
+  length = g_list_length (self->image_labeling.labels);
   g_return_val_if_fail (check_label >= 0 && check_label < length, NULL);
 
-  return (gchar *) g_list_nth_data
-      (self->tensordec_image_label.labels, check_label);
+  return (gchar *) g_list_nth_data (self->image_labeling.labels, check_label);
 }
 
 
@@ -933,6 +1070,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
    * If direction is sink, check src. Depending on sink's format, we could choose video or audio.
    * Currently video/x-raw and audio/x-raw supported.
    */
+
   if (direction == GST_PAD_SINK) {
     /** caps from media */
     GstStructure *s = gst_caps_get_structure (caps, 0);
