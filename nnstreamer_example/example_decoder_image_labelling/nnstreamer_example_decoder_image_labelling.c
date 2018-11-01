@@ -293,12 +293,12 @@ main (int argc, char **argv)
   /** init pipeline */
   str_pipeline =
       g_strdup_printf
-      ("textoverlay name=overlay font-desc=\"Sans, 24\" ! videoconvert ! ximagesink name=img_test "
+      ("textoverlay name=overlay font-desc=Sans,24 ! videoconvert ! ximagesink name=img_test "
       "v4l2src name=cam_src ! videoscale ! video/x-raw,width=640,height=480,format=RGB ! tee name=t_raw "
       "t_raw. ! queue ! overlay.video_sink "
-      "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d !tensor_converter !"
+      "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter !"
       "tensor_filter framework=tensorflow-lite model=%s ! "
-      "tensor_decoder output-type=2 mode=image_labeling mode-option-1=%s ! overlay.text_sink ",
+      "tensor_decoder output-type=2 mode=image_labeling mode-option-1=%s ! overlay.text_sink",
       width, height, g_app.tflite_info.model_path, tflite_label);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
