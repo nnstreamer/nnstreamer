@@ -294,11 +294,11 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   if (newpad) {
 
-    GstTensorMergePadData *tensormergepad;
+    GstTensorCollectPadData *tensormergepad;
 
-    tensormergepad = (GstTensorMergePadData *)
+    tensormergepad = (GstTensorCollectPadData *)
         gst_collect_pads_add_pad (tensor_merge->collect, newpad,
-        sizeof (GstTensorMergePadData), NULL, TRUE);
+        sizeof (GstTensorCollectPadData), NULL, TRUE);
 
     tensormergepad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormergepad);
@@ -349,44 +349,6 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
 
   ret = gst_collect_pads_event_default (pads, data, event, FALSE);
   return ret;
-}
-
-/**
- * @brief Compare dts & pts time and find earliest
- * @param tensor_merge tensor merger
- * @param old_data previous merge pad data
- * @param new_data current merge pad data
- * @return if > 0, new is earlier than old
- */
-static gint
-gst_tensor_merge_compare_pads (GstTensorMerge * tensor_merge,
-    GstTensorMergePadData * old_data, GstTensorMergePadData * new_data)
-{
-  guint64 oldtime, newtime;
-  if (old_data == NULL)
-    return 1;
-  if (new_data == NULL)
-    return -1;
-  if (GST_CLOCK_TIME_IS_VALID (old_data->dts_timestamp) &&
-      GST_CLOCK_TIME_IS_VALID (new_data->dts_timestamp)) {
-    oldtime = old_data->dts_timestamp;
-    newtime = new_data->dts_timestamp;
-  } else {
-    oldtime = old_data->pts_timestamp;
-    newtime = new_data->pts_timestamp;
-  }
-
-  if (!GST_CLOCK_TIME_IS_VALID (oldtime))
-    return -1;
-  if (!GST_CLOCK_TIME_IS_VALID (newtime))
-    return 1;
-
-  if (newtime < oldtime)
-    return 1;
-  else if (newtime > oldtime)
-    return -1;
-
-  return 0;
 }
 
 /**
@@ -453,125 +415,30 @@ static gboolean
 gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     GstBuffer * tensors_buf, GstClockTime * pts_time, GstClockTime * dts_time)
 {
-  GSList *walk = NULL;
-  GstTensorMergePadData *bestpad = NULL;
-  GstMemory *mem;
   gboolean isEOS = FALSE;
-  gint old_numerator = G_MAXINT;
-  gint old_denominator = G_MAXINT;
-  gint counting = 0;
-  GstTensorConfig config;
-
-  walk = tensor_merge->collect->data;
-
+  int synch_option = 0;
+  if (tensor_merge->synch)
+    synch_option = SYNCH_SLOWEST;
+  /* TODO Should set synch option properly. Currently SLOWEST is default */
   if (tensor_merge->synch && tensor_merge->need_set_time) {
-    while (walk) {
-      GstCollectData *data = (GstCollectData *) walk->data;
-      walk = g_slist_next (walk);
+    if (gst_tensor_set_current_time (tensor_merge->collect,
+            &tensor_merge->current_time, synch_option))
+      return TRUE;
 
-      GstBuffer *buf = NULL;
-
-      buf = gst_collect_pads_peek (tensor_merge->collect, data);
-
-      if (buf == NULL)
-        return TRUE;
-
-      if (tensor_merge->current_time < GST_BUFFER_PTS (buf))
-        tensor_merge->current_time = GST_BUFFER_PTS (buf);
-      gst_buffer_unref (buf);
-    }
     tensor_merge->need_set_time = FALSE;
   }
+  /* TODO Should set synch option properly. Currently SLOWEST is default */
+  isEOS =
+      gst_gen_tensors_from_collectpad (tensor_merge->collect, synch_option,
+      tensor_merge->current_time, &tensor_merge->need_buffer, tensors_buf,
+      &tensor_merge->tensors_config);
 
-  walk = tensor_merge->collect->data;
+  if (tensor_merge->need_buffer)
+    return FALSE;
 
-  while (walk) {
-    GstCollectData *data = (GstCollectData *) walk->data;
-    GstTensorMergePadData *pad = (GstTensorMergePadData *) data;
-    GstCaps *caps = gst_pad_get_current_caps (pad->pad);
-    GstStructure *s = gst_caps_get_structure (caps, 0);
+  *pts_time = GST_BUFFER_PTS (tensors_buf);
+  *dts_time = GST_BUFFER_DTS (tensors_buf);
 
-    gst_tensor_config_from_structure (&config, s);
-    g_assert (gst_tensor_config_validate (&config));
-
-    if (config.rate_d < old_denominator)
-      old_denominator = config.rate_d;
-    if (config.rate_n < old_numerator)
-      old_numerator = config.rate_n;
-
-    gst_caps_unref (caps);
-
-    walk = g_slist_next (walk);
-
-    GstBuffer *buf = NULL;
-
-    if (tensor_merge->synch) {
-      buf = gst_collect_pads_peek (tensor_merge->collect, data);
-
-      if (buf == NULL && pad->buffer == NULL)
-        return TRUE;
-
-      if (buf != NULL) {
-        if (GST_BUFFER_PTS (buf) < tensor_merge->current_time) {
-          gst_buffer_unref (buf);
-          if (pad->buffer != NULL)
-            gst_buffer_unref (pad->buffer);
-          pad->buffer = gst_collect_pads_pop (tensor_merge->collect, data);
-          silent_debug ("Fame Dropped : %lu", GST_BUFFER_PTS (pad->buffer));
-          tensor_merge->need_buffer = TRUE;
-          return FALSE;
-        }
-
-        if (pad->buffer != NULL &&
-            (ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
-                        GST_BUFFER_PTS (pad->buffer))) <
-                ABS (GST_CLOCK_DIFF (tensor_merge->current_time,
-                        GST_BUFFER_PTS (buf))))) {
-          gst_buffer_unref (buf);
-          buf = pad->buffer;
-        } else {
-          gst_buffer_unref (buf);
-          buf = gst_collect_pads_pop (tensor_merge->collect, data);
-          if (pad->buffer != NULL)
-            gst_buffer_unref (pad->buffer);
-          pad->buffer = buf;
-        }
-      } else {
-        buf = pad->buffer;
-      }
-    } else {
-      buf = gst_collect_pads_pop (tensor_merge->collect, data);
-    }
-
-    if (GST_IS_BUFFER (buf)) {
-      mem = gst_buffer_get_memory (buf, 0);
-      gst_buffer_append_memory (tensors_buf, mem);
-      pad->buffer = buf;
-      silent_debug ("Append Memory # %d (PTS : %lu)",
-          gst_buffer_n_memory (tensors_buf), GST_BUFFER_PTS (buf));
-
-      if (gst_tensor_merge_compare_pads (tensor_merge, bestpad, pad) > 0) {
-        bestpad = pad;
-        *pts_time = bestpad->pts_timestamp;
-        *dts_time = bestpad->dts_timestamp;
-      }
-
-      if (!tensor_merge->synch)
-        gst_buffer_unref (buf);
-    } else {
-      isEOS = TRUE;
-    }
-
-    tensor_merge->tensors_config.info.info[counting] = config.info;
-    counting++;
-  }
-
-  tensor_merge->tensors_config.rate_d = old_denominator;
-  tensor_merge->tensors_config.rate_n = old_numerator;
-
-  /* set timestamp */
-  GST_BUFFER_PTS (tensors_buf) = *pts_time;
-  GST_BUFFER_DTS (tensors_buf) = *dts_time;
   return isEOS;
 }
 

@@ -29,7 +29,6 @@
 #define __GST_TENSOR_MERGE_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstcollectpads.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
@@ -65,16 +64,6 @@ typedef enum
 typedef struct _tensor_merge_linear {
   tensor_merge_linear_mode direction;
 } tensor_merge_linear;
-
-
-typedef struct
-{
-  GstCollectData collect;
-  GstClockTime pts_timestamp;
-  GstClockTime dts_timestamp;
-  GstBuffer *buffer;
-  GstPad *pad;
-} GstTensorMergePadData;
 
 /**
  * @brief Tensor Merge data structure
