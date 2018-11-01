@@ -604,7 +604,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (self->remove_padding) {
         GstMapInfo src_info, dest_info;
-        unsigned char *srcptr, *destptr;
         int d0, d1;
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
@@ -614,9 +613,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         g_assert (gst_buffer_map (buf, &src_info, GST_MAP_READ));
         g_assert (gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE));
-
-        srcptr = src_info.data;
-        destptr = dest_info.data;
 
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
@@ -630,7 +626,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         for (d0 = 0; d0 < frames_in; d0++) {
           for (d1 = 0; d1 < height; d1++) {
-            memcpy (destptr + dest_idx, srcptr + src_idx, size);
+            memcpy (dest_info.data + dest_idx, src_info.data + src_idx, size);
             dest_idx += size;
             src_idx += offset;
           }
