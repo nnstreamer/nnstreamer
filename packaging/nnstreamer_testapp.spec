@@ -1,25 +1,25 @@
-Name:		nnstreamer_testapp
-Summary:	test app for gstremaer plugins for neural networks
-Version:	0.0.3
-Release:	1rc1
-Group:		Applications/Multimedia
-Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
-License:	LGPL-2.1
-Source0:	nnstreamer_testapp-%{version}.tar.gz
-Source1001:	nnstreamer.manifest
+Name:           nnstreamer_testapp
+Summary:        test app for gstremaer plugins for neural networks
+Version:        0.0.3
+Release:        1rc1
+Group:          Applications/Multimedia
+Packager:       MyungJoo Ham <myungjoo.ham@samsung.com>
+License:        LGPL-2.1
+Source0:        nnstreamer_testapp-%{version}.tar.gz
+Source1001:     nnstreamer.manifest
 
-Requires:	gstreamer >= 1.8.0
-Requires:	nnstreamer
-Requires:	gst-plugins-good
-Requires:	gst-plugins-good-extra
-Requires:	gst-plugins-base
-BuildRequires:	pkg-config
-BuildRequires:	pkgconfig(nnstreamer)
-BuildRequires:	pkgconfig(gstreamer-1.0)
-BuildRequires:	pkgconfig(gstreamer-video-1.0)
-BuildRequires:	pkgconfig(gstreamer-audio-1.0)
-BuildRequires:	pkgconfig(gstreamer-app-1.0)
-BuildRequires:	cmake
+Requires:       gstreamer >= 1.8.0
+Requires:       nnstreamer
+Requires:       gst-plugins-good
+Requires:       gst-plugins-good-extra
+Requires:       gst-plugins-base
+BuildRequires:  pkg-config
+BuildRequires:  pkgconfig(nnstreamer)
+BuildRequires:  pkgconfig(gstreamer-1.0)
+BuildRequires:  pkgconfig(gstreamer-video-1.0)
+BuildRequires:  pkgconfig(gstreamer-audio-1.0)
+BuildRequires:  pkgconfig(gstreamer-app-1.0)
+BuildRequires:  cmake
 
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
