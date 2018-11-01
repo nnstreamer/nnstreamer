@@ -246,10 +246,10 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
   g_free (name);
 
   if (newpad) {
-    GstTensorMuxPadData *tensormuxpad;
-    tensormuxpad =
-        (GstTensorMuxPadData *) gst_collect_pads_add_pad (tensor_mux->collect,
-        newpad, sizeof (GstTensorMuxPadData), NULL, TRUE);
+    GstTensorCollectPadData *tensormuxpad;
+    tensormuxpad = (GstTensorCollectPadData *)
+        gst_collect_pads_add_pad (tensor_mux->collect, newpad,
+        sizeof (GstTensorCollectPadData), NULL, TRUE);
     tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
     tensor_mux->tensors_config.info.num_tensors++;
@@ -302,44 +302,6 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
 }
 
 /**
- * @brief Compare dts & pts time and find earliest
- * @param tensor_mux tensor muxer
- * @param old_data previous mux pad data
- * @param new_data current mux pad data
- * @return if > 0, new is earlier than old
- */
-static gint
-gst_tensor_mux_compare_pads (GstTensorMux * tensor_mux,
-    GstTensorMuxPadData * old_data, GstTensorMuxPadData * new_data)
-{
-  guint64 oldtime, newtime;
-  if (old_data == NULL)
-    return 1;
-  if (new_data == NULL)
-    return -1;
-  if (GST_CLOCK_TIME_IS_VALID (old_data->dts_timestamp) &&
-      GST_CLOCK_TIME_IS_VALID (new_data->dts_timestamp)) {
-    oldtime = old_data->dts_timestamp;
-    newtime = new_data->dts_timestamp;
-  } else {
-    oldtime = old_data->pts_timestamp;
-    newtime = new_data->pts_timestamp;
-  }
-
-  if (!GST_CLOCK_TIME_IS_VALID (oldtime))
-    return -1;
-  if (!GST_CLOCK_TIME_IS_VALID (newtime))
-    return 1;
-
-  if (newtime < oldtime)
-    return 1;
-  else if (newtime > oldtime)
-    return -1;
-
-  return 0;
-}
-
-/**
  * @brief Looping to generete outbut buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
@@ -351,131 +313,31 @@ static gboolean
 gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
     GstBuffer * tensors_buf, GstClockTime * pts_time, GstClockTime * dts_time)
 {
-  GSList *walk = NULL;
-  GstTensorMuxPadData *bestpad = NULL;
-  GstMemory *mem;
   gboolean isEOS = FALSE;
-  gint old_numerator = G_MAXINT;
-  gint old_denominator = G_MAXINT;
-  gint counting = 0;
-  GstTensorConfig config;
-
-  walk = tensor_mux->collect->data;
-
+  int synch_option = 0;
+  if (tensor_mux->synch)
+    synch_option = SYNCH_SLOWEST;
   if (tensor_mux->synch && tensor_mux->need_set_time) {
-    while (walk) {
-      GstCollectData *data = (GstCollectData *) walk->data;
-      walk = g_slist_next (walk);
-
-      GstBuffer *buf = NULL;
-      buf = gst_collect_pads_peek (tensor_mux->collect, data);
-
-      if (buf == NULL)
-        return TRUE;
-
-      if (tensor_mux->current_time < GST_BUFFER_PTS (buf))
-        tensor_mux->current_time = GST_BUFFER_PTS (buf);
-      gst_buffer_unref (buf);
-    }
+    /* TODO Should set synch option properly. Currently SLOWEST is default */
+    if (gst_tensor_set_current_time (tensor_mux->collect,
+            &tensor_mux->current_time, synch_option))
+      return TRUE;
     tensor_mux->need_set_time = FALSE;
     silent_debug ("Current Time : %lu", tensor_mux->current_time);
   }
 
-  walk = tensor_mux->collect->data;
+  /* TODO Should set synch option properly. Currently SLOWEST is default */
+  isEOS =
+      gst_gen_tensors_from_collectpad (tensor_mux->collect, synch_option,
+      tensor_mux->current_time, &tensor_mux->need_buffer, tensors_buf,
+      &tensor_mux->tensors_config);
 
-  while (walk) {
-    GstCollectData *data = (GstCollectData *) walk->data;
-    GstTensorMuxPadData *pad = (GstTensorMuxPadData *) data;
-    GstCaps *caps = gst_pad_get_current_caps (pad->pad);
-    GstStructure *s = gst_caps_get_structure (caps, 0);
+  if (tensor_mux->need_buffer)
+    return FALSE;
 
-    gst_tensor_config_from_structure (&config, s);
-    g_assert (gst_tensor_config_validate (&config));
+  *pts_time = GST_BUFFER_PTS (tensors_buf);
+  *dts_time = GST_BUFFER_DTS (tensors_buf);
 
-    if (config.rate_d < old_denominator)
-      old_denominator = config.rate_d;
-    if (config.rate_n < old_numerator)
-      old_numerator = config.rate_n;
-
-    gst_caps_unref (caps);
-
-    walk = g_slist_next (walk);
-
-    GstBuffer *buf = NULL;
-
-    if (tensor_mux->synch) {
-      buf = gst_collect_pads_peek (tensor_mux->collect, data);
-      if (buf == NULL && pad->buffer == NULL)
-        return TRUE;
-
-      if (buf != NULL) {
-        if (GST_BUFFER_PTS (buf) < tensor_mux->current_time) {
-          gst_buffer_unref (buf);
-          if (pad->buffer != NULL)
-            gst_buffer_unref (pad->buffer);
-          pad->buffer = gst_collect_pads_pop (tensor_mux->collect, data);
-          silent_debug ("Fame Dropped (# %d) : %lu", counting,
-              GST_BUFFER_PTS (pad->buffer));
-          tensor_mux->need_buffer = TRUE;
-          return FALSE;
-        }
-
-        if (pad->buffer != NULL &&
-            (ABS (GST_CLOCK_DIFF (tensor_mux->current_time,
-                        GST_BUFFER_PTS (pad->buffer))) <
-                ABS (GST_CLOCK_DIFF (tensor_mux->current_time,
-                        GST_BUFFER_PTS (buf))))) {
-          gst_buffer_unref (buf);
-          buf = pad->buffer;
-        } else {
-          gst_buffer_unref (buf);
-          buf = gst_collect_pads_pop (tensor_mux->collect, data);
-          if (pad->buffer != NULL)
-            gst_buffer_unref (pad->buffer);
-          pad->buffer = buf;
-        }
-      } else {
-        buf = pad->buffer;
-      }
-    } else {
-      buf = gst_collect_pads_pop (tensor_mux->collect, data);
-    }
-
-    if (GST_IS_BUFFER (buf)) {
-      mem = gst_buffer_get_memory (buf, 0);
-      gst_buffer_append_memory (tensors_buf, mem);
-      pad->buffer = buf;
-
-      silent_debug ("Append Memory # %d (PTS : %lu)",
-          gst_buffer_n_memory (tensors_buf), GST_BUFFER_PTS (buf));
-
-      if (gst_tensor_mux_compare_pads (tensor_mux, bestpad, pad) > 0) {
-        bestpad = pad;
-        *pts_time = bestpad->pts_timestamp;
-        *dts_time = bestpad->dts_timestamp;
-      }
-
-      if (!tensor_mux->synch)
-        gst_buffer_unref (buf);
-    } else {
-      isEOS = TRUE;
-    }
-
-    tensor_mux->tensors_config.info.info[counting] = config.info;
-    counting++;
-  }
-
-  tensor_mux->tensors_config.rate_d = old_denominator;
-  tensor_mux->tensors_config.rate_n = old_numerator;
-
-  debug_print (!tensor_mux->silent, "pts %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (*pts_time));
-  debug_print (!tensor_mux->silent, "dts %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (*dts_time));
-
-  /* set timestamp */
-  GST_BUFFER_PTS (tensors_buf) = *pts_time;
-  GST_BUFFER_DTS (tensors_buf) = *dts_time;
   return isEOS;
 }
 

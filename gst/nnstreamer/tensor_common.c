@@ -1108,3 +1108,147 @@ gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata)
         gst_caps_new_simple ("other/tensorsave", NULL, NULL));
   }
 }
+
+/**
+ * @brief A function call to decide current timestamp among collected pads based on PTS.
+ * It will decide current timestamp according to synch option.
+ */
+gboolean
+gst_tensor_set_current_time (GstCollectPads * collect,
+    GstClockTime * current_time, tensor_time_synch_mode synch)
+{
+  GSList *walk = NULL;
+  walk = collect->data;
+  gboolean isEOS = FALSE;
+
+  while (walk) {
+    GstCollectData *data = (GstCollectData *) walk->data;
+    walk = g_slist_next (walk);
+    GstBuffer *buf = NULL;
+    buf = gst_collect_pads_peek (collect, data);
+
+    if (buf == NULL) {
+      isEOS = TRUE;
+      return isEOS;
+    }
+
+    switch (synch) {
+      case SYNCH_SLOWEST:
+        if (*current_time < GST_BUFFER_PTS (buf))
+          *current_time = GST_BUFFER_PTS (buf);
+        gst_buffer_unref (buf);
+        break;
+      case SYNCH_BASEPAD:
+        break;
+      default:
+        break;
+    }
+  }
+
+  return isEOS;
+}
+
+/**
+ * @brief A function call to make tensors from collected pads.
+ * It decide which buffer is going to be used according to synch option.
+ */
+gboolean
+gst_gen_tensors_from_collectpad (GstCollectPads * collect,
+    tensor_time_synch_mode synch, GstClockTime current_time,
+    gboolean * need_buffer, GstBuffer * tensors_buf, GstTensorsConfig * configs)
+{
+  GSList *walk = NULL;
+  GstMemory *mem;
+  gboolean isEOS = FALSE;
+  gint old_numerator = G_MAXINT;
+  gint old_denominator = G_MAXINT;
+  gint counting = 0;
+  GstTensorConfig config;
+
+  walk = collect->data;
+  while (walk) {
+    GstCollectData *data = (GstCollectData *) walk->data;
+    GstTensorCollectPadData *pad = (GstTensorCollectPadData *) data;
+    GstCaps *caps = gst_pad_get_current_caps (pad->pad);
+    GstStructure *s = gst_caps_get_structure (caps, 0);
+
+    gst_tensor_config_from_structure (&config, s);
+    g_assert (gst_tensor_config_validate (&config));
+
+    if (config.rate_d < old_denominator)
+      old_denominator = config.rate_d;
+    if (config.rate_n < old_numerator)
+      old_numerator = config.rate_n;
+
+    gst_caps_unref (caps);
+
+    walk = g_slist_next (walk);
+
+    GstBuffer *buf = NULL;
+
+    buf = gst_collect_pads_peek (collect, data);
+
+    if (buf == NULL && pad->buffer == NULL) {
+      isEOS = TRUE;
+      return isEOS;
+    }
+
+    switch (synch) {
+      case SYNCH_SLOWEST:
+      {
+        if (buf != NULL) {
+          if (GST_BUFFER_PTS (buf) < current_time) {
+            gst_buffer_unref (buf);
+            if (pad->buffer != NULL)
+              gst_buffer_unref (pad->buffer);
+            pad->buffer = gst_collect_pads_pop (collect, data);
+            *need_buffer = TRUE;
+            return FALSE;
+          }
+
+          if (pad->buffer != NULL &&
+              (ABS (GST_CLOCK_DIFF (current_time,
+                          GST_BUFFER_PTS (pad->buffer))) <
+                  ABS (GST_CLOCK_DIFF (current_time, GST_BUFFER_PTS (buf))))) {
+            gst_buffer_unref (buf);
+            buf = pad->buffer;
+          } else {
+            gst_buffer_unref (buf);
+            buf = gst_collect_pads_pop (collect, data);
+            if (pad->buffer != NULL)
+              gst_buffer_unref (pad->buffer);
+            pad->buffer = buf;
+          }
+        } else {
+          buf = pad->buffer;
+        }
+
+      }
+        break;
+      default:
+        gst_buffer_unref (buf);
+        buf = gst_collect_pads_pop (collect, data);
+    }
+
+    if (GST_IS_BUFFER (buf)) {
+      mem = gst_buffer_get_memory (buf, 0);
+      gst_buffer_append_memory (tensors_buf, mem);
+
+      if (synch == SYNCH_NOSYNCH)
+        gst_buffer_unref (buf);
+      else
+        pad->buffer = buf;
+    } else {
+      isEOS = TRUE;
+    }
+
+    configs->info.info[counting] = config.info;
+    counting++;
+  }
+
+  configs->rate_d = old_denominator;
+  configs->rate_n = old_numerator;
+
+  GST_BUFFER_PTS (tensors_buf) = current_time;
+  return isEOS;
+}

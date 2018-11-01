@@ -31,6 +31,7 @@
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
 #include <gst/audio/audio-format.h>
+#include <gst/base/gstcollectpads.h>
 #include <gst/gstplugin.h>
 
 G_BEGIN_DECLS
@@ -144,6 +145,30 @@ typedef struct
   gint rate_n; /**< framerate is in fraction, which is numerator/denominator */
   gint rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;
+
+/**
+ * @brief time synchronization options
+ */
+
+typedef enum
+{
+  SYNCH_NOSYNCH = 0,
+  SYNCH_SLOWEST = 1,
+  SYNCH_BASEPAD = 2,
+  SYNCH_END,
+} tensor_time_synch_mode;
+
+/**
+ * @brief Internal data structure for Collect Pad in mux / merge
+ */
+typedef struct
+{
+  GstCollectData collect;
+  GstClockTime pts_timestamp;
+  GstClockTime dts_timestamp;
+  GstBuffer *buffer;
+  GstPad *pad;
+} GstTensorCollectPadData;
 
 /**
  * @brief String representations for each tensor element type.
@@ -397,6 +422,30 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
 #define NNSTREAMER_PLUGIN_INIT(name)	\
   static gboolean G_PASTE(G_PASTE(gst_, name), _plugin_init) (GstPlugin * plugin)
 #endif
+
+
+/**
+ * @brief A function call to decide current timestamp among collected pads based on PTS.
+ * It will decide current timestamp according to synch option.
+ * @return True / False if EOS, it return TRUE.
+ * @param collect Collect pad.
+ * @param current_time Current time
+ * @param synch Synchronization Option (NOSYNCH, SLOWEST, BASEPAD, END)
+ */
+extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTime *current_time, tensor_time_synch_mode synch);
+
+/**
+ * @brief  A function call to make tensors from collected pads
+ * It decide which buffer is going to be used according to synch option.
+ * @return True / False if EOS, it return TRUE.
+ * @param collect Collect pad.
+ * @param synch Synchronization Option (NOSYNCH, SLOWEST, BASEPAD, END)
+ * @param current_time Current Timestamp
+ * @param need_buffer Boolean for Update Collect Pads
+ * @param tensors_buf Generated GstBuffer for Collected Buffer
+ * @param configs Configuration Info for Collected Buffer
+ */
+extern gboolean gst_gen_tensors_from_collectpad (GstCollectPads * collect, tensor_time_synch_mode synch, GstClockTime current_time, gboolean *need_buffer, GstBuffer *tensors_buf, GstTensorsConfig *configs);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */

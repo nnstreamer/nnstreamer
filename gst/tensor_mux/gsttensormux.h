@@ -29,7 +29,6 @@
 #define __GST_TENSOR_MUX_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstcollectpads.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
@@ -42,17 +41,6 @@ G_BEGIN_DECLS
 #define GST_TENSOR_MUX_CAST(obj)((GstTensorMux*)(obj))
 typedef struct _GstTensorMux GstTensorMux;
 typedef struct _GstTensorMuxClass GstTensorMuxClass;
-
-
-
-typedef struct
-{
-  GstCollectData collect;
-  GstClockTime pts_timestamp;
-  GstClockTime dts_timestamp;
-  GstBuffer *buffer;
-  GstPad *pad;
-} GstTensorMuxPadData;
 
 /**
  * @brief Tensor Muxer data structure
