@@ -45,6 +45,8 @@ G_BEGIN_DECLS
 #define GST_IS_TENSORDEC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSORDEC))
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
+#define BOX_SIZE        4
+#define DETECTION_MAX   1917
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
 
@@ -57,6 +59,18 @@ typedef struct
   GList *labels; /**< list of loaded labels */
   guint total_labels; /**< count of labels */
 } Mode_image_labeling;
+
+/**
+ * @brief Data structure for boundig box info.
+ */
+typedef struct
+{
+  gchar *label_path; /**< label file path */
+  GList *labels; /**< list of loaded labels */
+  gchar *box_prior_path; /**< label file path */
+  gfloat box_priors[BOX_SIZE][DETECTION_MAX];
+  guint total_labels; /**< count of labels */
+} Mode_boundig_boxes;
 
 /**
  * @brief Internal data structure for tensordec instances.
@@ -75,7 +89,8 @@ struct _GstTensorDec
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   GstTensorConfig tensor_config; /**< configured tensor info */
-  Mode_image_labeling tensordec_image_label;/** tensor decoder image labeling mode info */
+  Mode_image_labeling image_labeling;/** tensor decoder image labeling mode info */
+  Mode_boundig_boxes bounding_boxes;/** tensor decoder image labeling mode info */
 };
 
 /**
