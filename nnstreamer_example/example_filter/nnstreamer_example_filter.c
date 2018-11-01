@@ -441,9 +441,9 @@ main (int argc, char **argv)
       g_strdup_printf
       ("v4l2src name=cam_src ! videoscale ! "
       "video/x-raw,width=640,height=480,format=RGB ! tee name=t_raw "
-      "t_raw. ! queue ! textoverlay name=tensor_res font-desc=\"Sans, 24\" ! "
+      "t_raw. ! queue ! textoverlay name=tensor_res font-desc=Sans,24 ! "
       "videoconvert ! ximagesink name=img_tensor "
-      "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter ! "
+      "t_raw. ! queue leaky=2 max-size-buffers=2 ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter ! "
       "tensor_filter framework=tensorflow-lite model=%s ! "
       "tensor_sink name=tensor_sink",
       width, height, g_app.tflite_info.model_path);
