@@ -71,21 +71,21 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_m
 
 callCompareTest batch.golden batch.log 10 "Compare 10" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_1" 11 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=slowest ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_1" 11 0 0 $PERFORMANCE
 
 callCompareTest testsynch00_0.log testsynch00_0.golden 11-1 "Compare 11-1" 1 0
 callCompareTest testsynch00_1.log testsynch00_1.golden 11-2 "Compare 11-2" 1 0
 callCompareTest testsynch00_2.log testsynch00_2.golden 11-3 "Compare 11-3" 1 0
 callCompareTest testsynch00_3.log testsynch00_3.golden 11-4 "Compare 11-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false ! multifilesink location=testsynch01_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1" 12 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=slowest ! multifilesink location=testsynch01_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1" 12 0 0 $PERFORMANCE
 
 callCompareTest testsynch01_0.log testsynch01_0.golden 12-1 "Compare 12-1" 1 0
 callCompareTest testsynch01_1.log testsynch01_1.golden 12-2 "Compare 12-2" 1 0
 callCompareTest testsynch01_2.log testsynch01_2.golden 12-3 "Compare 12-3" 1 0
 callCompareTest testsynch01_3.log testsynch01_3.golden 12-4 "Compare 12-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false ! multifilesink location=testsynch02_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_2" 13 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=slowest ! multifilesink location=testsynch02_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_2" 13 0 0 $PERFORMANCE
 
 callCompareTest testsynch02_0.log testsynch02_0.golden 13-1 "Compare 13-1" 1 0
 callCompareTest testsynch02_1.log testsynch02_1.golden 13-2 "Compare 13-2" 1 0
