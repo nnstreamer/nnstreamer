@@ -1111,11 +1111,11 @@ gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata)
 
 /**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
- * It will decide current timestamp according to synch option.
+ * It will decide current timestamp according to sync option.
  */
 gboolean
 gst_tensor_set_current_time (GstCollectPads * collect,
-    GstClockTime * current_time, tensor_time_synch_mode synch)
+    GstClockTime * current_time, tensor_time_sync_mode sync)
 {
   GSList *walk = NULL;
   walk = collect->data;
@@ -1132,13 +1132,13 @@ gst_tensor_set_current_time (GstCollectPads * collect,
       return isEOS;
     }
 
-    switch (synch) {
-      case SYNCH_SLOWEST:
+    switch (sync) {
+      case SYNC_SLOWEST:
         if (*current_time < GST_BUFFER_PTS (buf))
           *current_time = GST_BUFFER_PTS (buf);
         gst_buffer_unref (buf);
         break;
-      case SYNCH_BASEPAD:
+      case SYNC_BASEPAD:
         break;
       default:
         break;
@@ -1150,11 +1150,11 @@ gst_tensor_set_current_time (GstCollectPads * collect,
 
 /**
  * @brief A function call to make tensors from collected pads.
- * It decide which buffer is going to be used according to synch option.
+ * It decide which buffer is going to be used according to sync option.
  */
 gboolean
 gst_gen_tensors_from_collectpad (GstCollectPads * collect,
-    tensor_time_synch_mode synch, GstClockTime current_time,
+    tensor_time_sync_mode sync, GstClockTime current_time,
     gboolean * need_buffer, GstBuffer * tensors_buf, GstTensorsConfig * configs)
 {
   GSList *walk = NULL;
@@ -1193,8 +1193,8 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
       return isEOS;
     }
 
-    switch (synch) {
-      case SYNCH_SLOWEST:
+    switch (sync) {
+      case SYNC_SLOWEST:
       {
         if (buf != NULL) {
           if (GST_BUFFER_PTS (buf) < current_time) {
@@ -1222,22 +1222,25 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
         } else {
           buf = pad->buffer;
         }
-
       }
         break;
-      default:
+      case SYNC_NOSYNC:
         gst_buffer_unref (buf);
         buf = gst_collect_pads_pop (collect, data);
+        break;
+      default:
+        break;
     }
 
     if (GST_IS_BUFFER (buf)) {
       mem = gst_buffer_get_memory (buf, 0);
       gst_buffer_append_memory (tensors_buf, mem);
 
-      if (synch == SYNCH_NOSYNCH)
+      if (sync == SYNC_NOSYNC) {
         gst_buffer_unref (buf);
-      else
+      } else {
         pad->buffer = buf;
+      }
     } else {
       isEOS = TRUE;
     }
