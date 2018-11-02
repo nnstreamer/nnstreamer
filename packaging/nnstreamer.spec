@@ -134,8 +134,8 @@ popd
 #
 # Intentionally excluded directories are:
 #
-# tests: We are not going to show testcoverage of the test code itself.
-    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/nnstreamer_example $(pwd)/common $(pwd)/include
+# tests: We are not going to show testcoverage of the test code itself or example applications
+    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst
 
 # Get commit info
     VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
