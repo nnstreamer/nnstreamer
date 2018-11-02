@@ -107,14 +107,15 @@ pushd tests
 # The 'testAll.sh' script requires 6~7min to run armv7l binary files in the current CI server.
 # The timeout value is 10min as a heuristic value from our experience.
 timeout=600
+interval=60
 ./testAll.sh &
 pid=$!
 while ((timeout > 0)); do
-    sleep 1
+    sleep $interval
     if [[ ! $(ps | grep "$pid") ]]; then
         break;
     fi
-    (( timeout -= 60 ))
+    (( timeout -= interval ))
 done
 if [[ $(ps | grep "$pid") ]]; then
     kill $pid
