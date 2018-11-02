@@ -83,33 +83,15 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensordec_debug);
 #define GST_CAT_DEFAULT gst_tensordec_debug
 
 /**
- * @brief Output type.
- * @todo Change output type (eg, image box, label)
- */
-enum
-{
-  OUTPUT_VIDEO,
-  OUTPUT_AUDIO,
-  OUTPUT_TEXT,
-  OUTPUT_UNKNOWN
-};
-
-/**
  * @brief Properties.
  */
 enum
 {
   PROP_0,
-  PROP_OUTPUT_TYPE,
   PROP_SILENT,
   PROP_MODE,
   PROP_MODE_OPTION1
 };
-
-/**
- * @brief Default output type.
- */
-#define DEFAULT_OUTPUT_TYPE OUTPUT_VIDEO
 
 /**
  * @brief Flag to print minimized log.
@@ -433,11 +415,6 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
   gobject_class->set_property = gst_tensordec_set_property;
   gobject_class->get_property = gst_tensordec_get_property;
 
-  g_object_class_install_property (gobject_class, PROP_OUTPUT_TYPE,
-      g_param_spec_uint ("output-type", "Output type",
-          "Output type from the plugin", 0, G_MAXUINT,
-          DEFAULT_OUTPUT_TYPE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -494,7 +471,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->configured = FALSE;
   self->negotiated = FALSE;
   self->add_padding = FALSE;
-  self->output_type = OUTPUT_VIDEO;
+  self->output_type = OUTPUT_UNKNOWN;
   self->mode = DIRECT_VIDEO;
   gst_tensor_config_init (&self->tensor_config);
   gst_tensordec_image_labeling_init (&self->tensordec_image_label);
@@ -512,9 +489,6 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
   int key;
 
   switch (prop_id) {
-    case PROP_OUTPUT_TYPE:
-      self->output_type = g_value_get_uint (value);
-      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -523,6 +497,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       key = find_key_strv (mode_names, temp_string);
       g_assert (key >= 0);
       self->mode = key;
+      self->output_type = dec_output_type[key];
       g_free (temp_string);
       break;
     case PROP_MODE_OPTION1:
@@ -547,9 +522,6 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
   GstTensorDec *self = GST_TENSORDEC (object);
 
   switch (prop_id) {
-    case PROP_OUTPUT_TYPE:
-      g_value_set_uint (value, self->output_type);
-      break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
