@@ -91,6 +91,17 @@ struct _GstTensorDecClass
 };
 
 /**
+ * @brief Output type.
+ */
+typedef enum
+{
+  OUTPUT_VIDEO,
+  OUTPUT_AUDIO,
+  OUTPUT_TEXT,
+  OUTPUT_UNKNOWN
+} dec_output_type;
+
+/**
  * @brief Decoder Mode  string.
  */
 static const gchar *mode_names[] = {
@@ -99,6 +110,16 @@ static const gchar *mode_names[] = {
   "bounding_boxes",
   NULL
 };
+
+/**
+ * @brief Output type for each mode
+ */
+static const dec_output_type[] = {
+  OUTPUT_VIDEO,
+  OUTPUT_TEXT,
+  OUTPUT_VIDEO,
+  NULL
+}
 
 /**
  * @brief Decoder Mode.
