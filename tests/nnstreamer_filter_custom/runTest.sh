@@ -92,7 +92,7 @@ python checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 
 casereport 14 $? "Golden test comparison"
 
 # Test average using OpenCV (15)
-# cutom version
+# custom version
 PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.so"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase15.average.log\" sync=true" 15
 
