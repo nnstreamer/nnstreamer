@@ -102,12 +102,23 @@ typedef enum
 } dec_output_type;
 
 /**
+ * @brief Decoder Mode.
+ */
+typedef enum
+{
+  DIRECT_VIDEO = 0,
+  IMAGE_LABELING,
+  BOUNDING_BOXES,
+  DECODE_MODE_UNKNOWN
+} dec_modes;
+
+/**
  * @brief Decoder Mode  string.
  */
 static const gchar *mode_names[] = {
-  "direct_video",
-  "image_labeling",
-  "bounding_boxes",
+  [DIRECT_VIDEO] = "direct_video",
+  [IMAGE_LABELING] = "image_labeling",
+  [BOUNDING_BOXES] = "bounding_boxes",
   NULL
 };
 
@@ -120,17 +131,6 @@ static const dec_output_type[] = {
   OUTPUT_VIDEO,
   NULL
 }
-
-/**
- * @brief Decoder Mode.
- */
-enum
-{
-  DIRECT_VIDEO,
-  IMAGE_LABELING,
-  BOUNDING_BOXES,
-  DECODE_MODE_UNKNOWN
-};
 
 /**
  * @brief Get Type function required for gst elements
