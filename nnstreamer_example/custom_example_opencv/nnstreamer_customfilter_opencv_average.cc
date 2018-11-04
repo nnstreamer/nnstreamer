@@ -16,7 +16,7 @@
  * [N][y][x][M] and that of the output tensor is [N][1][1][M]. 
  */
 
-#include "opencv2/opencv.hpp"
+#include <opencv2/opencv.hpp>
 
 #include <glib.h>
 #include <tensor_filter_custom.h>
