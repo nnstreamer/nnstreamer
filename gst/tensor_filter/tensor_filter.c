@@ -703,7 +703,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       /* filter-subplugin allocated new memory, update this */
       out_mem[i] =
           gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
-          0, out_tensors[i].size, NULL, NULL);
+          0, out_tensors[i].size, out_tensors[i].data, g_free);
     } else {
       gst_memory_unmap (out_mem[i], &out_info[i]);
     }
