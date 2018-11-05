@@ -114,7 +114,7 @@ typedef enum
   OUTPUT_AUDIO,
   OUTPUT_TEXT,
   OUTPUT_UNKNOWN
-} dec_output_type;
+} dec_output_types;
 
 /**
  * @brief Decoder Mode  string.
@@ -129,12 +129,12 @@ static const gchar *mode_names[] = {
 /**
  * @brief Output type for each mode
  */
-static const dec_output_type[] = {
+static const dec_output_types dec_output_type[] = {
   OUTPUT_VIDEO,
   OUTPUT_TEXT,
   OUTPUT_VIDEO,
-  NULL
-}
+  OUTPUT_UNKNOWN,
+};
 
 /**
  * @brief Decoder Mode.
