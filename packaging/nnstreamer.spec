@@ -115,6 +115,7 @@ if [[ $(ps | grep "$pid") ]]; then
     echo "GBS is stopped because of './testAll.sh' timeout(10min)"
     exit 124 # 124 is ubuntu status code of timeout
 fi
+wait $pid
 popd
 
 %install
