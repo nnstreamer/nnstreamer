@@ -1032,8 +1032,14 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     }
   }
 
-  if (filter) {
+  if (filter && gst_caps_get_size (filter) > 0) {
     GstCaps *intersection;
+
+    /**
+     * @todo We do not have a testcase hitting here. Thus, we do not ensure the validity here.
+     * However, according to gstreamer doxygen entry, if filter is given, that's not to be ignored.
+     * For now, we assume that if caps-size is 0, filter is "ANY".
+     */
 
     intersection =
         gst_caps_intersect_full (filter, result, GST_CAPS_INTERSECT_FIRST);
@@ -1065,9 +1071,9 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   /**
    * To get the out-caps, GstTensorFilter has to parse tensor info from NN model.
    */
-  gst_caps_unref (othercaps);
 
-  result = gst_tensor_filter_transform_caps (trans, direction, caps, NULL);
+  result = gst_tensor_filter_transform_caps (trans, direction, caps, othercaps);
+  gst_caps_unref (othercaps);
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
 
