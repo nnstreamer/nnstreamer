@@ -123,17 +123,6 @@ tflite_getOutputDim (const GstTensorFilter * filter, void **private_data,
 }
 
 /**
- * @brief The set-input-dim callback for GstTensorFilterFramework
- */
-static int
-tflite_setInputDim (const GstTensorFilter * filter, void **private_data,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
-{
-  /** @todo call tflite core apis */
-  return 0;                     /** NYI */
-}
-
-/**
  * @brief Free privateData and move on.
  */
 static void
@@ -154,7 +143,6 @@ GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
-  .setInputDimension = tflite_setInputDim,
   .open = tflite_open,
   .close = tflite_close,
 };
