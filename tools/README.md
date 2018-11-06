@@ -101,10 +101,10 @@ GstShark leverages GStreamer's tracing hooks and open-source and standard tracin
 ```bash
 $ sudo apt install libgstreamer1.0-dev
 $ sudo apt install graphviz libgraphviz-dev
-$ $ sudo apt install octave epstool babeltrace
+$ sudo apt install octave epstool babeltrace
 $ git clone https://github.com/RidgeRun/gst-shark/
 $ cd gst-shark
-$ ./autogen.sh
+$ ./autogen.sh  --disable-gtk-doc  --prefix /usr/ --libdir /usr/lib/x86_64-linux-gnu/
 $ make
 $ sudo make install
 ```
@@ -123,7 +123,7 @@ $ sudo make install
 #### Generating  trace files
 The user has the capability of selecting the tracers that will be run with the pipeline by listing them (separated by the character ";") using the option "GST_TRACER_PLUGINS" or "GST_TRACERS", depending on the GStreamer version, at the time of running the pipeline in a very similar way than the "GST_DEBUG" option.
 ```bash
-$ export GST_SHARK_LOCATION=./profile/
+$ export GST_SHARK_LOCATION=./
 # For GStreamer 1.7.1
 $ GST_DEBUG="GST_TRACER:7" GST_TRACER_PLUGINS="cpuusage;proctime;framerate"\
      gst-launch-1.0 videotestsrc ! videorate max-rate=15 ! fakesink
@@ -132,6 +132,17 @@ $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="cpuusage;proctime;framerate"\
      gst-launch-1.0 videotestsrc ! videorate max-rate=15 ! fakesink
 ```
 
+#### Case study
+
+* Example: Processing time
+The GstShark processing time tracer ("proctime") provides information to the user about the amount of time that each element of the pipeline is taking for processing each data buffer that goes through it. In other words, it measures the time every element needs to process a buffer, allowing to know which element takes too much time completing its tasks, causing a slow performance, among others issues.
+```bash
+$ cd ./scripts/graphics
+$ GST_DEBUG="GST_TRACER:7" GST_TRACERS="proctime" gst-launch-1.0 videotestsrc num-buffers=60 ! \
+tee name=tee0 tee0. ! queue ! identity sleep-time=10000 ! fakesink tee0. ! queue ! \
+identity sleep-time=30000 ! fakesink tee0. ! queue ! identity sleep-time=50000 ! fakesink
+$ ../scripts/graphics/gstshark-plot ./gstshark_2018-11-06_20\:19\:58/ -s proctime.pdf
+```
 ## Profiling
 
 ### Using $GST_DEBUG_DUMP_TRACE_DIR
