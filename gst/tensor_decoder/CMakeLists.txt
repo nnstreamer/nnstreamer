@@ -1,1 +1,1 @@
-ADD_LIBRARY(tensor_decoderOBJ OBJECT tensordec.c)
+ADD_LIBRARY(tensor_decoderOBJ OBJECT tensordec.c tensordec-plugins.c)

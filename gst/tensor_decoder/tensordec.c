@@ -1,5 +1,5 @@
 /**
- * GStreamer
+ * GStreamer / NNStreamer tensor_decoder main
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
@@ -21,7 +21,7 @@
  * @brief	GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
  * @see		https://github.com/nnsuite/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
- * @bug		No known bugs except for NYI items
+ * @bug		gst_tensordec_transform_size () may be incorrect if direction is SINK.
  *
  */
 
@@ -46,6 +46,7 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#include <gst/gstinfo.h>
 #include <stdio.h>
 #include <glib.h>
 #include <string.h>
@@ -90,7 +91,18 @@ enum
   PROP_0,
   PROP_SILENT,
   PROP_MODE,
-  PROP_MODE_OPTION1
+  PROP_MODE_OPTION1,
+  PROP_MODE_OPTION2
+};
+
+/**
+ * @brief Decoder Mode  string.
+ */
+static const gchar *mode_names[] = {
+  [DIRECT_VIDEO] = "direct_video",
+  [IMAGE_LABELING] = "image_labeling",
+  [BOUNDING_BOXES] = "bounding_boxes",
+  NULL
 };
 
 /**
@@ -140,6 +152,7 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
 
 /**
  * @brief initialize data in tensor decoder image labeling info structure.
+ * @todo Move to "tensordec-imagelabel.c"
  */
 static void
 gst_tensordec_image_labeling_init (Mode_image_labeling * mode_image_label)
@@ -151,6 +164,7 @@ gst_tensordec_image_labeling_init (Mode_image_labeling * mode_image_label)
 
 /**
  * @brief initialize data in tensor decoder image labeling info structure.
+ * @todo Move to "tensordec-boundingboxes.c"
  */
 static void
 gst_tensordec_bounding_boxes_init (Mode_boundig_boxes * mode_boundig_boxes)
@@ -170,6 +184,7 @@ gst_tensordec_bounding_boxes_init (Mode_boundig_boxes * mode_boundig_boxes)
 
 /**
  * @brief set label info data for Tensor decoder.
+ * @todo Move to "tensordec-imagelabel.c"
  */
 static gboolean
 gst_set_mode_image_label_info (GstTensorDec * self)
@@ -206,6 +221,7 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 
 /**
  * @brief Read strings from file.
+ * @todo Move to "tensordec-boundingboxes.c"
  */
 static gboolean
 read_lines (const gchar * file_name, GList ** lines)
@@ -219,6 +235,7 @@ read_lines (const gchar * file_name, GList ** lines)
 
 /**
  * @brief Load box priors.
+ * @todo Move to "tensordec-boundingboxes.c"
  */
 static gboolean
 gst_tensordec_load_box_priors (GstTensorDec * self)
@@ -262,6 +279,7 @@ gst_tensordec_load_box_priors (GstTensorDec * self)
 
 /**
  * @brief set bounding boxes info data for Tensor decoder.
+ * @todo Move to "tensordec-boundingboxes.c"
  */
 static gboolean
 gst_set_mode_boundig_boxes_info (GstTensorDec * self)
@@ -303,6 +321,8 @@ gst_set_mode_boundig_boxes_info (GstTensorDec * self)
  * @param self "this" pointer
  * @param config tensor config info
  * @return caps for given config
+ * @todo This will require heavy modification after pluginization.
+ *       When, it is fully pluginized, this won't be required anymore
  */
 static GstCaps *
 gst_tensordec_video_caps_from_config (GstTensorDec * self,
@@ -361,6 +381,8 @@ gst_tensordec_video_caps_from_config (GstTensorDec * self,
  * @param self "this" pointer
  * @param config tensor config info
  * @return caps for given config
+ * @todo This will require heavy modification after pluginization.
+ *       When, it is fully pluginized, this won't be required anymore
  */
 static GstCaps *
 gst_tensordec_audio_caps_from_config (GstTensorDec * self,
@@ -416,6 +438,8 @@ gst_tensordec_audio_caps_from_config (GstTensorDec * self,
  * @param self "this" pointer
  * @param config tensor config info
  * @return caps for given config
+ * @todo This will require heavy modification after pluginization.
+ *       When, it is fully pluginized, this won't be required anymore
  */
 static GstCaps *
 gst_tensordec_text_caps_from_config (GstTensorDec * self,
@@ -438,13 +462,19 @@ gst_tensordec_text_caps_from_config (GstTensorDec * self,
  * @return caps for media type
  */
 static GstCaps *
-gst_tensordec_media_caps_from_config (GstTensorDec * self,
+gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
     const GstTensorConfig * config)
 {
   GstCaps *caps = NULL;
 
   g_return_val_if_fail (config != NULL, NULL);
 
+  if (self->mode == DECODE_MODE_PLUGIN) {
+    g_assert (self->decoder);
+    return self->decoder->getOutputDim (self, config);
+  }
+
+  /** @todo No more required from here if we fully pluginize */
   switch (self->output_type) {
     case OUTPUT_VIDEO:
       caps = gst_tensordec_video_caps_from_config (self, config);
@@ -476,7 +506,7 @@ gst_tensordec_media_caps_from_structure (GstTensorDec * self,
   GstCaps *result = NULL;
 
   if (gst_tensor_config_from_structure (&config, structure)) {
-    result = gst_tensordec_media_caps_from_config (self, &config);
+    result = gst_tensordec_media_caps_from_tensor (self, &config);
   }
 
   if (result == NULL) {
@@ -541,6 +571,11 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
           "Mode option like file path to the image label", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
+      g_param_spec_string ("mode-option-2", "Mode option 2",
+          "Secondary option for the decoder", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
       "Converter/Tensor",
@@ -586,6 +621,10 @@ gst_tensordec_init (GstTensorDec * self)
   self->add_padding = FALSE;
   self->output_type = OUTPUT_UNKNOWN;
   self->mode = DIRECT_VIDEO;
+  self->plugin_data = NULL;
+  self->option[0] = NULL;
+  self->option[1] = NULL;
+  self->decoder = NULL;
   gst_tensor_config_init (&self->tensor_config);
 }
 
@@ -594,6 +633,7 @@ gst_tensordec_init (GstTensorDec * self)
  * instantiate pads and add them to element
  * set pad calback functions
  * initialize instance structure
+ * @todo Not required with full pluginization.
  */
 static void
 gst_tensordec_mode_init (GstTensorDec * self)
@@ -607,6 +647,23 @@ gst_tensordec_mode_init (GstTensorDec * self)
     gst_tensordec_bounding_boxes_init (&self->bounding_boxes);
 
   }
+}
+
+/**
+ * @brief Process plugin (self->decoder) with given options if available
+ * @retval FALSE if error. TRUE if OK (or SKIP)
+ */
+static gboolean
+_tensordec_process_plugin_options (GstTensorDec * self, int opnum)
+{
+  g_assert (opnum < TensorDecMaxOpNum);
+  if (self->decoder == NULL)
+    return TRUE;                /* decoder plugin not available. */
+  if (self->decoder->setOption == NULL)
+    return TRUE;                /* This decoder cannot process options */
+  if (self->option[opnum] == NULL)
+    return TRUE;                /* No option to process */
+  return self->decoder->setOption (self, opnum, self->option[opnum]);
 }
 
 /**
@@ -627,13 +684,52 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     case PROP_MODE:
       temp_string = g_value_dup_string (value);
       key = find_key_strv (mode_names, temp_string);
+      if (key < 0) {
+        int i;
+        gboolean retval = TRUE;
+        TensorDecDef *decoder = tensordec_find (temp_string);
+
+        /* See if we are using "plugin" */
+        if (NULL != decoder) {
+          if (decoder == self->decoder) {
+            /* Already configured??? */
+            GST_WARNING ("nnstreamer tensor_decoder %s is already confgured.\n",
+                temp_string);
+          } else {
+            /* Changing decoder. Deallocate the previous */
+            if (self->cleanup_plugin_data) {
+              self->cleanup_plugin_data (self);
+            } else {
+              g_free (self->plugin_data);
+              self->plugin_data = NULL;
+            }
+            self->decoder = decoder;
+          }
+
+          g_assert (self->decoder->init (self));
+          self->cleanup_plugin_data = self->decoder->exit;
+
+          silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
+          for (i = 0; i < TensorDecMaxOpNum; i++)
+            retval &= _tensordec_process_plugin_options (self, i);
+          g_assert (retval == TRUE);
+          key = DECODE_MODE_PLUGIN;
+        }
+      }
       g_assert (key >= 0);
       self->mode = key;
-      self->output_type = dec_output_type[key];
+      if (key != DECODE_MODE_PLUGIN)
+        self->output_type = dec_output_type[key];
+      else
+        self->output_type = self->decoder->type;
       g_free (temp_string);
       break;
     case PROP_MODE_OPTION1:
-      if (self->mode == IMAGE_LABELING) {
+      self->option[0] = g_value_dup_string (value);
+      if (self->mode == DECODE_MODE_PLUGIN) {
+        g_assert (_tensordec_process_plugin_options (self, 0) == TRUE);
+      } else if (self->mode == IMAGE_LABELING) {
+        /** @todo Can you really sure that MODE_OPTION* is called AFTER MODE? */
         gst_tensordec_mode_init (self);
         self->image_labeling.label_path = g_value_dup_string (value);
         gst_set_mode_image_label_info (self);
@@ -641,6 +737,12 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         gst_tensordec_mode_init (self);
         self->bounding_boxes.label_path = g_value_dup_string (value);
         gst_set_mode_boundig_boxes_info (self);
+      }
+      break;
+    case PROP_MODE_OPTION2:
+      self->option[1] = g_value_dup_string (value);
+      if (self->mode == DECODE_MODE_PLUGIN) {
+        g_assert (_tensordec_process_plugin_options (self, 0) == TRUE);
       }
       break;
     default:
@@ -667,7 +769,10 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, mode_names[self->mode]);
       break;
     case PROP_MODE_OPTION1:
-      g_value_set_string (value, self->image_labeling.label_path);
+      g_value_set_string (value, self->option[0]);
+      break;
+    case PROP_MODE_OPTION2:
+      g_value_set_string (value, self->option[1]);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -702,6 +807,20 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
     return FALSE;
   }
 
+  if (self->mode == DECODE_MODE_PLUGIN) {
+    switch (self->output_type) {
+      case OUTPUT_VIDEO:
+      case OUTPUT_AUDIO:
+      case OUTPUT_TEXT:
+        break;
+      default:
+        g_printerr ("Unsupported type %d\n", self->output_type);
+        return FALSE;
+    }
+    goto configure;
+  }
+
+  /** @todo After pluginization, this switch-case statement is useless */
   switch (self->output_type) {
     case OUTPUT_VIDEO:
     {
@@ -738,6 +857,7 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
       return FALSE;
   }
 
+configure:
   self->tensor_config = config;
   self->configured = TRUE;
   return TRUE;
@@ -749,6 +869,8 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
  * @param inbuf sink pad buffer
  * @param outbuf src pad buffer
  * @return GST_FLOW_OK if ok. other values represents error
+ * @todo Not required with full pluginization.
+ *       OR Move to plugin after full pluginization.
  */
 static GstFlowReturn
 gst_tensordec_copy_buffer (GstTensorDec * self,
@@ -806,6 +928,7 @@ gst_tensordec_copy_buffer (GstTensorDec * self,
  * @param self "this" pointer
  * @param scores given tensor data
  * @param len length of valid given tensor data
+ * @todo Move to plugin after full pluginization.
  */
 static gint
 gst_tensordec_update_top_label_index (GstTensorDec * self,
@@ -831,6 +954,7 @@ gst_tensordec_update_top_label_index (GstTensorDec * self,
 /**
  * @brief get image label text with given index 
  * @param self "this" pointer
+ * @todo Move to plugin after full pluginization.
  */
 static gchar *
 gst_get_image_label (GstTensorDec * self, gint label)
@@ -852,6 +976,7 @@ gst_get_image_label (GstTensorDec * self, gint label)
  * @param self "this" pointer
  * @param outbuf src pad buffer
  * @param label image label text that will copy to outbuf
+ * @todo Move to plugin after full pluginization.
  */
 static void
 gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
@@ -894,6 +1019,7 @@ gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
  * @param inbuf sink pad buffer
  * @param outbuf src pad buffer
  * @return GST_FLOW_OK if ok. other values represents error
+ * @todo Move to plugin after full pluginization.
  */
 static GstFlowReturn
 gst_tensordec_get_label (GstTensorDec * self,
@@ -940,6 +1066,24 @@ gst_tensordec_transform (GstBaseTransform * trans,
     goto unknown_format;
 
   switch (self->mode) {
+    case DECODE_MODE_PLUGIN:{
+        /** @todo Supporting multi-tensor will require significant changes */
+      GstMemory *in_mem;
+      GstMapInfo in_info;
+      GstTensorMemory input;
+
+      in_mem = gst_buffer_peek_memory (inbuf, 0);   /** @todo support multi-tensor! */
+      g_assert (gst_memory_map (in_mem, &in_info, GST_MAP_READ));
+
+      input.data = in_info.data;
+      input.size = in_info.size;
+      input.type = self->tensor_config.info.type;
+
+      res = self->decoder->decode (self, &input, outbuf);
+
+      gst_memory_unmap (in_mem, &in_info);
+    }
+      break;
     case DIRECT_VIDEO:
       res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
       break;
@@ -971,6 +1115,7 @@ unknown_type:
 
 /**
  * @brief in-place transform. required vmethod for BaseTransform class.
+ *        This is allowed in direct-conversions only!
  */
 static GstFlowReturn
 gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
@@ -984,21 +1129,8 @@ gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   if (G_UNLIKELY (!self->configured))
     goto unknown_tensor;
 
-  switch (self->output_type) {
-    case OUTPUT_VIDEO:
-      if (self->add_padding) {
-        /**
-         * @todo Do we need to add padding for x-raw here?
-         */
-      }
-      break;
-    case OUTPUT_AUDIO:
-    case OUTPUT_TEXT:
-      break;
-    default:
-      err_print ("Unsupported Media Type (%d)\n", self->output_type);
-      goto unknown_type;
-  }
+  /* The only available direct conversion is direct-video w/o padding */
+  g_assert (self->mode == DIRECT_VIDEO && !self->add_padding);
 
   /** DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
   return GST_FLOW_OK;
@@ -1010,10 +1142,6 @@ unknown_tensor:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("unknown format for tensor"));
   return GST_FLOW_NOT_NEGOTIATED;
-unknown_type:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("not implemented type of media"));
-  return GST_FLOW_NOT_SUPPORTED;
 }
 
 /**
@@ -1043,18 +1171,18 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
    */
 
   if (direction == GST_PAD_SINK) {
-    /** caps from media */
+    /** caps = sinkpad (other/tensor) return = srcpad (media) */
     GstStructure *s = gst_caps_get_structure (caps, 0);
     result = gst_tensordec_media_caps_from_structure (self, s);
   } else if (direction == GST_PAD_SRC) {
-    /** caps from tensor */
+    /** caps = srcpad (media) return = sinkpad (other/tensor) */
     result = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
   } else {
     g_assert (0);
     return NULL;
   }
 
-  if (filter) {
+  if (filter && gst_caps_get_size (filter) > 0) {
     GstCaps *intersection;
 
     intersection =
@@ -1090,9 +1218,12 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
   GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
       " based on caps %" GST_PTR_FORMAT, othercaps, caps);
 
+  /** @todo The code below assumes that direction is GST_PAD_SINK */
+  g_assert (direction == GST_PAD_SINK);
+
   if (gst_tensordec_configure (self, caps)) {
     supposed =
-        gst_tensordec_media_caps_from_config (self, &self->tensor_config);
+        gst_tensordec_media_caps_from_tensor (self, &self->tensor_config);
   } else {
     GstStructure *s = gst_caps_get_structure (caps, 0);
     supposed = gst_tensordec_media_caps_from_structure (self, s);
@@ -1146,7 +1277,9 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
     }
   }
 
-  if (self->mode == IMAGE_LABELING) {
+  if (self->mode == DECODE_MODE_PLUGIN) {
+    gst_base_transform_set_in_place (trans, FALSE);
+  } else if (self->mode == IMAGE_LABELING) {
     gst_base_transform_set_in_place (trans, FALSE);
   } else if (self->mode == DIRECT_VIDEO) {
     gst_base_transform_set_in_place (trans, !self->add_padding);
@@ -1170,11 +1303,24 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
   GstTensorDec *self;
   GstTensorConfig *config;
 
+  if (direction == GST_PAD_SRC)
+    return FALSE;
+  /** @todo If direction = SRC, you may need different interpretation! */
   self = GST_TENSORDEC_CAST (trans);
 
   g_assert (self->configured);
 
   config = &self->tensor_config;
+
+  if (self->mode == DECODE_MODE_PLUGIN) {
+    if (self->decoder->getTransformSize)
+      *othersize = self->decoder->getTransformSize (self, caps, size,
+          othercaps, direction);
+    else
+      *othersize = 0;
+
+    return TRUE;
+  }
 
   if (self->add_padding) {
     gsize offset;
