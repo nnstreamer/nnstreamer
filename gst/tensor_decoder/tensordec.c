@@ -99,7 +99,6 @@ enum
  * @brief Decoder Mode  string.
  */
 static const gchar *mode_names[] = {
-  [DIRECT_VIDEO] = "direct_video",
   [IMAGE_LABELING] = "image_labeling",
   [BOUNDING_BOXES] = "bounding_boxes",
   NULL
@@ -138,8 +137,6 @@ static void gst_tensordec_get_property (GObject * object, guint prop_id,
 /** GstBaseTransform vmethod implementations */
 static GstFlowReturn gst_tensordec_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf);
-static GstFlowReturn gst_tensordec_transform_ip (GstBaseTransform * trans,
-    GstBuffer * buf);
 static GstCaps *gst_tensordec_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter);
 static GstCaps *gst_tensordec_fixate_caps (GstBaseTransform * trans,
@@ -593,7 +590,15 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
 
   /** Processing units */
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensordec_transform);
-  trans_class->transform_ip = GST_DEBUG_FUNCPTR (gst_tensordec_transform_ip);
+
+  /**
+    * @todo We don't have inplace ops anymore.
+    *       Need a mechanism to enable it for subplugins later
+    *       for direct_* subplugins)
+    *
+    * trans_class->transform_ip =
+    *     GST_DEBUG_FUNCPTR (gst_tensordec_transform_ip);
+    */
 
   /** Negotiation units */
   trans_class->transform_caps =
@@ -620,7 +625,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->negotiated = FALSE;
   self->add_padding = FALSE;
   self->output_type = OUTPUT_UNKNOWN;
-  self->mode = DIRECT_VIDEO;
+  self->mode = DECODE_MODE_UNKNOWN;
   self->plugin_data = NULL;
   self->option[0] = NULL;
   self->option[1] = NULL;
@@ -865,66 +870,6 @@ configure:
 }
 
 /**
- * @brief copies sink pad buffer to src pad buffer (internal static function)
- * @param self "this" pointer
- * @param inbuf sink pad buffer
- * @param outbuf src pad buffer
- * @return GST_FLOW_OK if ok. other values represents error
- * @todo Not required with full pluginization.
- *       OR Move to plugin after full pluginization.
- */
-static GstFlowReturn
-gst_tensordec_copy_buffer (GstTensorDec * self,
-    GstBuffer * inbuf, GstBuffer * outbuf)
-{
-  GstMapInfo inInfo, outInfo;
-  uint8_t *inptr, *outptr;
-  GstTensorConfig *config;
-  unsigned int row, d0;
-  unsigned int dest_idx = 0, src_idx = 0;
-  size_t size, offset, size_out;
-
-  g_assert (self->configured);
-
-  config = &self->tensor_config;
-
-  /** flag add_padding only for video */
-  g_assert (self->add_padding);
-  g_assert (self->output_type == OUTPUT_VIDEO);
-
-  size = offset = config->info.dimension[0] * config->info.dimension[1];
-
-  if (offset % 4)
-    offset += 4 - (offset % 4);
-
-  size_out = offset * config->info.dimension[2] * config->info.dimension[3];
-
-  if (gst_buffer_get_size (outbuf) < size_out) {
-    gst_buffer_set_size (outbuf, size_out);
-  }
-
-  gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-  gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
-
-  inptr = inInfo.data;
-  outptr = outInfo.data;
-
-  for (d0 = 0; d0 < config->info.dimension[3]; d0++) {
-    g_assert (d0 == 0);
-    for (row = 0; row < config->info.dimension[2]; row++) {
-      memcpy (outptr + dest_idx, inptr + src_idx, size);
-      dest_idx += offset;
-      src_idx += size;
-    }
-  }
-
-  gst_buffer_unmap (inbuf, &inInfo);
-  gst_buffer_unmap (outbuf, &outInfo);
-
-  return GST_FLOW_OK;
-}
-
-/**
  * @brief update top label index by given tensor data 
  * @param self "this" pointer
  * @param scores given tensor data
@@ -1085,9 +1030,6 @@ gst_tensordec_transform (GstBaseTransform * trans,
       gst_memory_unmap (in_mem, &in_info);
     }
       break;
-    case DIRECT_VIDEO:
-      res = gst_tensordec_copy_buffer (self, inbuf, outbuf);
-      break;
     case IMAGE_LABELING:
       res = gst_tensordec_get_label (self, inbuf, outbuf);
       break;
@@ -1112,37 +1054,6 @@ unknown_type:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("not implemented decoder mode"));
   return GST_FLOW_NOT_SUPPORTED;
-}
-
-/**
- * @brief in-place transform. required vmethod for BaseTransform class.
- *        This is allowed in direct-conversions only!
- */
-static GstFlowReturn
-gst_tensordec_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
-{
-  GstTensorDec *self;
-
-  self = GST_TENSORDEC_CAST (trans);
-
-  if (G_UNLIKELY (!self->negotiated))
-    goto unknown_format;
-  if (G_UNLIKELY (!self->configured))
-    goto unknown_tensor;
-
-  /* The only available direct conversion is direct-video w/o padding */
-  g_assert (self->mode == DIRECT_VIDEO && !self->add_padding);
-
-  /** DO NOTHING. THIS WORKS AS A PASSTHROUGH. We just remove metadata from video */
-  return GST_FLOW_OK;
-
-unknown_format:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_tensor:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("unknown format for tensor"));
-  return GST_FLOW_NOT_NEGOTIATED;
 }
 
 /**
@@ -1278,15 +1189,6 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
     }
   }
 
-  if (self->mode == DECODE_MODE_PLUGIN) {
-    gst_base_transform_set_in_place (trans, FALSE);
-  } else if (self->mode == IMAGE_LABELING) {
-    gst_base_transform_set_in_place (trans, FALSE);
-  } else if (self->mode == DIRECT_VIDEO) {
-    gst_base_transform_set_in_place (trans, !self->add_padding);
-  } else {
-    gst_base_transform_set_in_place (trans, TRUE);
-  }
   return self->negotiated;
 
 }
