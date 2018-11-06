@@ -36,7 +36,7 @@ function do_test {
 
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase01_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter ! tensor_decoder mode=direct_video ! filesink location=\"testcase01_${1}_${2}x${3}.log\" sync=true" ${4} 0 0 $PERFORMANCE
 
-    callCompareTest testcase01_${1}_${2}x${3}.log testcase01_${1}_${2}x${3}.golden.raw ${4} "Golden Test ${4}" 1 0
+    callCompareTest testcase01_${1}_${2}x${3}.golden.raw testcase01_${1}_${2}x${3}.log ${4} "Golden Test ${4}" 1 0
 }
 
 do_test RGB 640 480 1
