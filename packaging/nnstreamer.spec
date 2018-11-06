@@ -97,25 +97,25 @@ make %{?_smp_mflags}
 ./unittest_sink --gst-plugin-path=.
 popd
 pushd tests
-# The 'testAll.sh' script requires 6~7min to run armv7l binary files in the current CI server.
+# The ssat requires 6~7min to run armv7l binary files in the current CI server.
 # The timeout value is 10min as a heuristic value from our experience.
 timeout=600
-interval=60
 ssat &
 pid=$!
-while ((timeout > 0)); do
-    sleep $interval
-    if [[ ! $(ps | grep "$pid") ]]; then
-        break;
-    fi
-    (( timeout -= interval ))
-done
-if [[ $(ps | grep "$pid") ]]; then
-    kill $pid
-    echo "GBS is stopped because of './testAll.sh' timeout(10min)"
+# CAUTION: Note that you have to keep the coding style of the existing statement 
+# in case that you have to update the below statement in the future. 
+# a. Do not run repetitive statement(ex. while) to avoid too log messages in the log file. 
+# b. Declare appropriate heuristic timeout value
+# c. Do not declare too long sleep time to keep the reasonable waiting time after submitting PR
+(sleep $timeout 
+kill $pid 
+if [[ "$?" -eq 0 ]]; then
+    echo "[DEBUG] GBS is stopped because of 'ssat' timeout(10min)"
     exit 124 # 124 is ubuntu status code of timeout
-fi
+fi) &
+pid2=$!
 wait $pid
+kill $pid2
 popd
 
 %install
