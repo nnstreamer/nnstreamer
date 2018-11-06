@@ -159,6 +159,25 @@ typedef enum
 } tensor_time_sync_mode;
 
 /**
+ * @brief Tensor Merge/Mux sync data for baspad mode
+ */
+typedef struct _tensor_sync_basepad_data{
+  guint sink_id;
+  GstClockTime duration;
+} tensor_sync_basepad_data;
+
+/**
+ * @brief Tensor Merge/Mux time sync data
+ */
+typedef struct _tensor_time_sync_data {
+  tensor_time_sync_mode mode;
+  gchar *option;
+  union {
+    tensor_sync_basepad_data data_basepad;
+  };
+} tensor_time_sync_data;
+
+/**
  * @brief Internal data structure for Collect Pad in mux / merge
  */
 typedef struct
@@ -432,7 +451,7 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
  * @param current_time Current time
  * @param sync Synchronization Option (NOSYNC, SLOWEST, BASEPAD, END)
  */
-extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTime *current_time, tensor_time_sync_mode sync);
+extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTime *current_time, tensor_time_sync_data sync);
 
 /**
  * @brief  A function call to make tensors from collected pads
@@ -445,7 +464,7 @@ extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTim
  * @param tensors_buf Generated GstBuffer for Collected Buffer
  * @param configs Configuration Info for Collected Buffer
  */
-extern gboolean gst_gen_tensors_from_collectpad (GstCollectPads * collect, tensor_time_sync_mode sync, GstClockTime current_time, gboolean *need_buffer, GstBuffer *tensors_buf, GstTensorsConfig *configs);
+extern gboolean gst_gen_tensors_from_collectpad (GstCollectPads * collect, tensor_time_sync_data sync, GstClockTime current_time, gboolean *need_buffer, GstBuffer *tensors_buf, GstTensorsConfig *configs);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */

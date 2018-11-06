@@ -43,14 +43,6 @@ typedef struct _GstTensorMux GstTensorMux;
 typedef struct _GstTensorMuxClass GstTensorMuxClass;
 
 /**
- * @brief Tensor Muxer time sync data for baspad mode
- */
-typedef struct _tensor_time_sync_basepad {
-  guint sink_id;
-  guint duration;
-} tensor_time_sync_basepad;
-
-/**
  * @brief Tensor Muxer data structure
  */
 struct _GstTensorMux
@@ -58,12 +50,7 @@ struct _GstTensorMux
   GstElement element;
 
   gboolean silent;
-  tensor_time_sync_mode sync_mode;
-  gchar *sync_option;
-  union{
-    tensor_time_sync_basepad data_basepad;
-  };
-
+  tensor_time_sync_data sync;
   GstPad *srcpad;
 
   GstCollectPads *collect;

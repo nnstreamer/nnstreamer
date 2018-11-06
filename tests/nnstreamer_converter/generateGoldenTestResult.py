@@ -50,6 +50,21 @@ if target == -1 or target == 9:
             file.write(s[i])
         file.close()
 
+    for i in range(0,10):
+        sink_1 = i/3;
+        with open("testsynch03_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_1])
+        file.close()
+
+    id=[0,1,1,2,3,3,4,5,5,6]
+    for i in range(0,10):
+        sink_1 = id[i]
+        with open("testsynch04_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_1])
+        file.close()
+
     id=[0,2,3,5,6,8,9]
     for i in range(0,7):
         sink_0 = id[i]
@@ -65,6 +80,16 @@ if target == -1 or target == 9:
             file.write(s[sink_0])
             file.write(s[sink_1])
             file.write(s[i])
+        file.close()
+
+    id=[0,1,1,2,3,3,4,5,5,6]
+    for i in range(0,10):
+        sink_0 = id[i]
+        sink_1 = i/3
+        with open("testsynch05_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_0])
+            file.write(s[sink_1])
         file.close()
 
 if target == -1 or target == 10:

@@ -78,4 +78,43 @@ callCompareTest testsynch02_1.log testsynch02_1.golden 10-2 "Compare 10-2" 1 0
 callCompareTest testsynch02_2.log testsynch02_2.golden 10-3 "Compare 10-3" 1 0
 callCompareTest testsynch02_3.log testsynch02_3.golden 10-4 "Compare 10-4" 1 0
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch03_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 11 0 0 $PERFORMANCE
+
+callCompareTest testsynch03_0.log testsynch03_0.golden 11-1 "Compare 11-1" 1 0
+callCompareTest testsynch03_1.log testsynch03_1.golden 11-2 "Compare 11-2" 1 0
+callCompareTest testsynch03_2.log testsynch03_2.golden 11-3 "Compare 11-3" 1 0
+callCompareTest testsynch03_3.log testsynch03_3.golden 11-4 "Compare 11-4" 1 0
+callCompareTest testsynch03_4.log testsynch03_4.golden 11-5 "Compare 11-5" 1 0
+callCompareTest testsynch03_5.log testsynch03_5.golden 11-6 "Compare 11-6" 1 0
+callCompareTest testsynch03_6.log testsynch03_6.golden 11-7 "Compare 11-7" 1 0
+callCompareTest testsynch03_7.log testsynch03_7.golden 11-8 "Compare 11-8" 1 0
+callCompareTest testsynch03_8.log testsynch03_8.golden 11-9 "Compare 11-9" 1 0
+callCompareTest testsynch03_9.log testsynch03_9.golden 11-10 "Compare 11-10" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch04_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 12 0 0 $PERFORMANCE
+
+callCompareTest testsynch04_0.log testsynch04_0.golden 12-1 "Compare 12-1" 1 0
+callCompareTest testsynch04_1.log testsynch04_1.golden 12-2 "Compare 12-2" 1 0
+callCompareTest testsynch04_2.log testsynch04_2.golden 12-3 "Compare 12-3" 1 0
+callCompareTest testsynch04_3.log testsynch04_3.golden 12-4 "Compare 12-4" 1 0
+callCompareTest testsynch04_4.log testsynch04_4.golden 12-5 "Compare 12-5" 1 0
+callCompareTest testsynch04_5.log testsynch04_5.golden 12-6 "Compare 12-6" 1 0
+callCompareTest testsynch04_6.log testsynch04_6.golden 12-7 "Compare 12-7" 1 0
+callCompareTest testsynch04_7.log testsynch04_7.golden 12-8 "Compare 12-8" 1 0
+callCompareTest testsynch04_8.log testsynch04_8.golden 12-9 "Compare 12-9" 1 0
+callCompareTest testsynch04_9.log testsynch04_9.golden 12-10 "Compare 12-10" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_mux:5 tensor_mux name=mux silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch05_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 13 0 0 $PERFORMANCE
+
+callCompareTest testsynch05_0.log testsynch05_0.golden 13-1 "Compare 13-1" 1 0
+callCompareTest testsynch05_1.log testsynch05_1.golden 13-2 "Compare 13-2" 1 0
+callCompareTest testsynch05_2.log testsynch05_2.golden 13-3 "Compare 13-3" 1 0
+callCompareTest testsynch05_3.log testsynch05_3.golden 13-4 "Compare 13-4" 1 0
+callCompareTest testsynch05_4.log testsynch05_4.golden 13-5 "Compare 13-5" 1 0
+callCompareTest testsynch05_5.log testsynch05_5.golden 13-6 "Compare 13-6" 1 0
+callCompareTest testsynch05_6.log testsynch05_6.golden 13-7 "Compare 13-7" 1 0
+callCompareTest testsynch05_7.log testsynch05_7.golden 13-8 "Compare 13-8" 1 0
+callCompareTest testsynch05_8.log testsynch05_8.golden 13-9 "Compare 13-9" 1 0
+callCompareTest testsynch05_9.log testsynch05_9.golden 13-10 "Compare 13-10" 1 0
+
 report
