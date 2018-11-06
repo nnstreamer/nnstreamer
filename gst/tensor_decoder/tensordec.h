@@ -1,5 +1,5 @@
 /**
- * GStreamer
+ * GStreamer / NNStreamer tensor_decoder header
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
@@ -49,6 +49,7 @@ G_BEGIN_DECLS
 #define DETECTION_MAX   1917
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
+typedef struct _TensorDecDef TensorDecDef;
 
 /**
  * @brief Data structure for image labeling info.
@@ -72,6 +73,7 @@ typedef struct
   guint total_labels; /**< count of labels */
 } Mode_boundig_boxes;
 
+#define TensorDecMaxOpNum (2)
 /**
  * @brief Internal data structure for tensordec instances.
  */
@@ -85,12 +87,17 @@ struct _GstTensorDec
   gboolean silent; /**< True if logging is minimized */
   guint output_type; /**< Denotes the output type */
   guint mode; /** Mode for tensor decoder "direct_video" or "image_labeling" or "bounding_boxes */
+  gchar *option[TensorDecMaxOpNum]; /**< Assume we have two options */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
-  GstTensorConfig tensor_config; /**< configured tensor info */
+  void *plugin_data;
+  void (*cleanup_plugin_data)(GstTensorDec *self); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
+  GstTensorConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
   Mode_image_labeling image_labeling;/** tensor decoder image labeling mode info */
   Mode_boundig_boxes bounding_boxes;/** tensor decoder image labeling mode info */
+
+  TensorDecDef *decoder; /**< Plugin object */
 };
 
 /**
@@ -114,7 +121,7 @@ typedef enum
   OUTPUT_AUDIO,
   OUTPUT_TEXT,
   OUTPUT_UNKNOWN
-} dec_output_types;
+} GstDecMediaType;
 
 /**
  * @brief Decoder Mode.
@@ -124,23 +131,42 @@ typedef enum
   DIRECT_VIDEO = 0,
   IMAGE_LABELING,
   BOUNDING_BOXES,
+  DECODE_MODE_PLUGIN,
   DECODE_MODE_UNKNOWN
-} dec_modes;
+} GstDecMode;
 
 /**
- * @brief Decoder Mode  string.
+ * @brief Decoder definitions for different semantics of tensors
  */
-static const gchar *mode_names[] = {
-  [DIRECT_VIDEO] = "direct_video",
-  [IMAGE_LABELING] = "image_labeling",
-  [BOUNDING_BOXES] = "bounding_boxes",
-  NULL
+struct _TensorDecDef
+{
+  gchar *modename;
+  GstDecMediaType type;
+  gboolean (*init) (GstTensorDec *self);
+  void (*exit) (GstTensorDec *self);
+  gboolean (*setOption) (GstTensorDec *self, int opNum, const gchar *param);
+      /**< Process with the given options. It can be called repeatedly */
+  GstCaps *(*getOutputDim) (GstTensorDec *self, const GstTensorConfig *config);
+      /**< The caller should unref the returned GstCaps
+        * @todo WIP: support multi-tensor for input!!!
+        */
+  GstFlowReturn (*decode) (GstTensorDec *self, const GstTensorMemory *input,
+      GstBuffer *outbuf);
+      /**< outbuf must be allocated but empty (gst_buffer_get_size (outbuf) == 0).
+        * Note that we support single-tensor (other/tensor) only!
+        * @todo WIP: support multi-tensor for input!!!
+        */
+  gsize (*getTransformSize) (GstTensorDec *self, GstCaps *caps, gsize size, GstCaps *othercaps, GstPadDirection direction);
 };
+
+extern gboolean tensordec_probe (TensorDecDef *decoder);
+extern void tensordec_exit (const gchar *name);
+extern TensorDecDef *tensordec_find (const gchar *name);
 
 /**
  * @brief Output type for each mode
  */
-static const dec_output_types dec_output_type[] = {
+static const GstDecMediaType dec_output_type[] = {
   OUTPUT_VIDEO,
   OUTPUT_TEXT,
   OUTPUT_VIDEO,
