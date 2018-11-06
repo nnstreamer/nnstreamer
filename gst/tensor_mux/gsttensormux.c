@@ -205,7 +205,8 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
       tensor_mux);
 
   tensor_mux->silent = TRUE;
-  tensor_mux->sync_mode = SYNC_NOSYNC;
+  tensor_mux->sync.mode = SYNC_NOSYNC;
+  tensor_mux->sync.option = NULL;
   tensor_mux->need_buffer = FALSE;
   tensor_mux->current_time = 0;
   tensor_mux->need_set_time = TRUE;
@@ -326,9 +327,9 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
 {
   gboolean isEOS = FALSE;
   GstTensorMux *filter = tensor_mux;
-  if (tensor_mux->sync_mode && tensor_mux->need_set_time) {
+  if (tensor_mux->sync.mode && tensor_mux->need_set_time) {
     if (gst_tensor_set_current_time (tensor_mux->collect,
-            &tensor_mux->current_time, tensor_mux->sync_mode))
+            &tensor_mux->current_time, tensor_mux->sync))
       return TRUE;
     tensor_mux->need_set_time = FALSE;
     silent_debug ("Current Time : %lu", tensor_mux->current_time);
@@ -336,7 +337,7 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
 
   isEOS =
       gst_gen_tensors_from_collectpad (tensor_mux->collect,
-      tensor_mux->sync_mode, tensor_mux->current_time, &tensor_mux->need_buffer,
+      tensor_mux->sync, tensor_mux->current_time, &tensor_mux->need_buffer,
       tensors_buf, &tensor_mux->tensors_config);
 
   if (tensor_mux->need_buffer)
@@ -510,10 +511,10 @@ gst_tensor_get_time_sync_mode (const gchar * str)
 static void
 gst_tensor_set_time_sync_option_data (GstTensorMux * filter)
 {
-  if (filter->sync_mode == SYNC_END || filter->sync_option == NULL)
+  if (filter->sync.mode == SYNC_END || filter->sync.option == NULL)
     return;
 
-  switch (filter->sync_mode) {
+  switch (filter->sync.mode) {
     case SYNC_NOSYNC:
       break;
     case SYNC_SLOWEST:
@@ -522,7 +523,7 @@ gst_tensor_set_time_sync_option_data (GstTensorMux * filter)
     {
       guint sink_id;
       guint duration;
-      gchar **strv = g_strsplit (filter->sync_option, ":", 2);
+      gchar **strv = g_strsplit (filter->sync.option, ":", 2);
       if (strv[0] != NULL)
         sink_id = g_ascii_strtoull (strv[0], NULL, 10);
       else
@@ -533,8 +534,8 @@ gst_tensor_set_time_sync_option_data (GstTensorMux * filter)
       else
         duration = G_MAXINT;
 
-      filter->data_basepad.sink_id = sink_id;
-      filter->data_basepad.duration = duration;
+      filter->sync.data_basepad.sink_id = sink_id;
+      filter->sync.data_basepad.duration = duration;
       g_strfreev (strv);
       break;
     }
@@ -556,18 +557,18 @@ gst_tensor_mux_set_property (GObject * object, guint prop_id,
       filter->silent = g_value_get_boolean (value);
       break;
     case PROP_SYNC_MODE:
-      filter->sync_mode =
+      filter->sync.mode =
           gst_tensor_get_time_sync_mode (g_value_get_string (value));
-      if (filter->sync_mode == SYNC_END) {
-        filter->sync_mode = SYNC_NOSYNC;
+      if (filter->sync.mode == SYNC_END) {
+        filter->sync.mode = SYNC_NOSYNC;
       }
-      silent_debug ("Mode = %d(%s)\n", filter->sync_mode,
-          gst_tensor_time_sync_mode_string[filter->sync_mode]);
+      silent_debug ("Mode = %d(%s)\n", filter->sync.mode,
+          gst_tensor_time_sync_mode_string[filter->sync.mode]);
       gst_tensor_set_time_sync_option_data (filter);
       break;
     case PROP_SYNC_OPTION:
-      filter->sync_option = g_value_dup_string (value);
-      silent_debug ("Option = %s\n", filter->sync_option);
+      filter->sync.option = g_value_dup_string (value);
+      silent_debug ("Option = %s\n", filter->sync.option);
       gst_tensor_set_time_sync_option_data (filter);
       break;
     default:
@@ -590,10 +591,10 @@ gst_tensor_mux_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SYNC_MODE:
       g_value_set_string (value,
-          gst_tensor_time_sync_mode_string[filter->sync_mode]);
+          gst_tensor_time_sync_mode_string[filter->sync.mode]);
       break;
     case PROP_SYNC_OPTION:
-      g_value_set_string (value, filter->sync_option);
+      g_value_set_string (value, filter->sync.option);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

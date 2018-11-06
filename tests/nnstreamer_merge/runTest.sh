@@ -92,4 +92,43 @@ callCompareTest testsynch02_1.log testsynch02_1.golden 13-2 "Compare 13-2" 1 0
 callCompareTest testsynch02_2.log testsynch02_2.golden 13-3 "Compare 13-3" 1 0
 callCompareTest testsynch02_3.log testsynch02_3.golden 13-4 "Compare 13-4" 1 0
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch03_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_1" 14 0 0 $PERFORMANCE
+
+callCompareTest testsynch03_0.log testsynch03_0.golden 14-1 "Compare 14-1" 1 0
+callCompareTest testsynch03_1.log testsynch03_1.golden 14-2 "Compare 14-2" 1 0
+callCompareTest testsynch03_2.log testsynch03_2.golden 14-3 "Compare 14-3" 1 0
+callCompareTest testsynch03_3.log testsynch03_3.golden 14-4 "Compare 14-4" 1 0
+callCompareTest testsynch03_4.log testsynch03_4.golden 14-5 "Compare 14-5" 1 0
+callCompareTest testsynch03_5.log testsynch03_5.golden 14-6 "Compare 14-6" 1 0
+callCompareTest testsynch03_6.log testsynch03_6.golden 14-7 "Compare 14-7" 1 0
+callCompareTest testsynch03_7.log testsynch03_7.golden 14-8 "Compare 14-8" 1 0
+callCompareTest testsynch03_8.log testsynch03_8.golden 14-9 "Compare 14-9" 1 0
+callCompareTest testsynch03_9.log testsynch03_9.golden 14-10 "Compare 14-10" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch04_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1" 15 0 0 $PERFORMANCE
+
+callCompareTest testsynch04_0.log testsynch04_0.golden 15-1 "Compare 15-1" 1 0
+callCompareTest testsynch04_1.log testsynch04_1.golden 15-2 "Compare 15-2" 1 0
+callCompareTest testsynch04_2.log testsynch04_2.golden 15-3 "Compare 15-3" 1 0
+callCompareTest testsynch04_3.log testsynch04_3.golden 15-4 "Compare 15-4" 1 0
+callCompareTest testsynch04_4.log testsynch04_4.golden 15-5 "Compare 15-5" 1 0
+callCompareTest testsynch04_5.log testsynch04_5.golden 15-6 "Compare 15-6" 1 0
+callCompareTest testsynch04_6.log testsynch04_6.golden 15-7 "Compare 15-7" 1 0
+callCompareTest testsynch04_7.log testsynch04_7.golden 15-8 "Compare 15-8" 1 0
+callCompareTest testsynch04_8.log testsynch04_8.golden 15-9 "Compare 15-9" 1 0
+callCompareTest testsynch04_9.log testsynch04_9.golden 15-10 "Compare 15-10" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} --gst-debug=tensor_merge:5 tensor_merge name=merge mode=linear option=2 silent=false sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch05_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! merge.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_2" 16 0 0 $PERFORMANCE
+
+callCompareTest testsynch05_0.log testsynch05_0.golden 16-1 "Compare 16-1" 1 0
+callCompareTest testsynch05_1.log testsynch05_1.golden 16-2 "Compare 16-2" 1 0
+callCompareTest testsynch05_2.log testsynch05_2.golden 16-3 "Compare 16-3" 1 0
+callCompareTest testsynch05_3.log testsynch05_3.golden 16-4 "Compare 16-4" 1 0
+callCompareTest testsynch05_4.log testsynch05_4.golden 16-5 "Compare 16-5" 1 0
+callCompareTest testsynch05_5.log testsynch05_5.golden 16-6 "Compare 16-6" 1 0
+callCompareTest testsynch05_6.log testsynch05_6.golden 16-7 "Compare 16-7" 1 0
+callCompareTest testsynch05_7.log testsynch05_7.golden 16-8 "Compare 16-8" 1 0
+callCompareTest testsynch05_8.log testsynch05_8.golden 16-9 "Compare 16-9" 1 0
+callCompareTest testsynch05_9.log testsynch05_9.golden 16-10 "Compare 16-10" 1 0
+
 report

@@ -42,14 +42,6 @@ G_BEGIN_DECLS
 typedef struct _GstTensorMerge GstTensorMerge;
 typedef struct _GstTensorMergeClass GstTensorMergeClass;
 
-/**
- * @brief Tensor Merge time sync data for baspad mode
- */
-typedef struct _tensor_time_sync_basepad {
-  guint sink_id;
-  guint duration;
-} tensor_time_sync_basepad;
-
 typedef enum
 {
   GTT_LINEAR = 0,               /* Dimension Change. "dimchg" */
@@ -81,11 +73,7 @@ struct _GstTensorMerge
   GstElement element;
 
   gboolean silent;
-  tensor_time_sync_mode sync_mode;
-  gchar *sync_option;
-  union{
-    tensor_time_sync_basepad data_basepad;
-  };
+  tensor_time_sync_data sync;
   GstPad *srcpad;
   gchar *option;
   tensor_merge_mode mode;

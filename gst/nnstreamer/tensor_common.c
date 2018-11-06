@@ -1115,11 +1115,12 @@ gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata)
  */
 gboolean
 gst_tensor_set_current_time (GstCollectPads * collect,
-    GstClockTime * current_time, tensor_time_sync_mode sync)
+    GstClockTime * current_time, tensor_time_sync_data sync)
 {
   GSList *walk = NULL;
   walk = collect->data;
   gboolean isEOS = FALSE;
+  guint count = 0;
 
   while (walk) {
     GstCollectData *data = (GstCollectData *) walk->data;
@@ -1132,17 +1133,20 @@ gst_tensor_set_current_time (GstCollectPads * collect,
       return isEOS;
     }
 
-    switch (sync) {
+    switch (sync.mode) {
       case SYNC_SLOWEST:
         if (*current_time < GST_BUFFER_PTS (buf))
           *current_time = GST_BUFFER_PTS (buf);
-        gst_buffer_unref (buf);
         break;
       case SYNC_BASEPAD:
+        if (count == sync.data_basepad.sink_id)
+          *current_time = GST_BUFFER_PTS (buf);
         break;
       default:
         break;
     }
+    count++;
+    gst_buffer_unref (buf);
   }
 
   return isEOS;
@@ -1154,7 +1158,7 @@ gst_tensor_set_current_time (GstCollectPads * collect,
  */
 gboolean
 gst_gen_tensors_from_collectpad (GstCollectPads * collect,
-    tensor_time_sync_mode sync, GstClockTime current_time,
+    tensor_time_sync_data sync, GstClockTime current_time,
     gboolean * need_buffer, GstBuffer * tensors_buf, GstTensorsConfig * configs)
 {
   GSList *walk = NULL;
@@ -1188,14 +1192,8 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
 
     buf = gst_collect_pads_peek (collect, data);
 
-    if (buf == NULL && pad->buffer == NULL) {
-      isEOS = TRUE;
-      return isEOS;
-    }
-
-    switch (sync) {
+    switch (sync.mode) {
       case SYNC_SLOWEST:
-      {
         if (buf != NULL) {
           if (GST_BUFFER_PTS (buf) < current_time) {
             gst_buffer_unref (buf);
@@ -1222,11 +1220,40 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
         } else {
           buf = pad->buffer;
         }
-      }
         break;
       case SYNC_NOSYNC:
-        gst_buffer_unref (buf);
-        buf = gst_collect_pads_pop (collect, data);
+        if (buf != NULL) {
+          gst_buffer_unref (buf);
+          buf = gst_collect_pads_pop (collect, data);
+        }
+        break;
+      case SYNC_BASEPAD:
+        if (buf != NULL) {
+          if (GST_BUFFER_PTS (buf) < current_time) {
+            gst_buffer_unref (buf);
+            if (pad->buffer != NULL)
+              gst_buffer_unref (pad->buffer);
+            pad->buffer = gst_collect_pads_pop (collect, data);
+            *need_buffer = TRUE;
+            return FALSE;
+          }
+
+          if (pad->buffer != NULL &&
+              (ABS (GST_CLOCK_DIFF (current_time,
+                          GST_BUFFER_PTS (buf))) >
+                  sync.data_basepad.duration)) {
+            gst_buffer_unref (buf);
+            buf = pad->buffer;
+          } else {
+            gst_buffer_unref (buf);
+            buf = gst_collect_pads_pop (collect, data);
+            if (pad->buffer != NULL)
+              gst_buffer_unref (pad->buffer);
+            pad->buffer = buf;
+          }
+        } else {
+          buf = pad->buffer;
+        }
         break;
       default:
         break;
@@ -1235,14 +1262,13 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     if (GST_IS_BUFFER (buf)) {
       mem = gst_buffer_get_memory (buf, 0);
       gst_buffer_append_memory (tensors_buf, mem);
-
-      if (sync == SYNC_NOSYNC) {
+      if (sync.mode == SYNC_NOSYNC) {
         gst_buffer_unref (buf);
-      } else {
-        pad->buffer = buf;
       }
+
     } else {
       isEOS = TRUE;
+      return isEOS;
     }
 
     configs->info.info[counting] = config.info;
