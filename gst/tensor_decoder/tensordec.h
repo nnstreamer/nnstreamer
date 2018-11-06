@@ -128,7 +128,6 @@ typedef enum
  */
 typedef enum
 {
-  DIRECT_VIDEO = 0,
   IMAGE_LABELING,
   BOUNDING_BOXES,
   DECODE_MODE_PLUGIN,
