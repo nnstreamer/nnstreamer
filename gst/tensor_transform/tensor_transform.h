@@ -55,7 +55,7 @@ typedef enum
 {
   GTT_DIMCHG = 0,               /* Dimension Change. "dimchg" */
   GTT_TYPECAST = 1,             /* Type change. "typecast" */
-  GTT_ARITHMETIC = 2,           /* Type change. "typecast" */
+  GTT_ARITHMETIC = 2,           /* Arithmetic. "arithmetic" */
   GTT_TRANSPOSE = 3,            /* Transpose. "transpose" */
   GTT_STAND = 4,                /* Standardization. "stand" */
 
@@ -153,9 +153,8 @@ struct _GstTensorTransform
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
 
-  tensor_dim fromDim; /**< Input dimension */
-  tensor_dim toDim; /**< Output dimension */
-  tensor_type type; /**< tensor_type of input. Most transform share the same type for both input and output. However, this does not hold for typecast. */
+  GstTensorConfig in_config; /**< input tensor info */
+  GstTensorConfig out_config; /**< output tensor info */
 };
 
 /**
