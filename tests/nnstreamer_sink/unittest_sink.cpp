@@ -388,35 +388,35 @@ _setup_pipeline (TestOption & option)
       /** video 160x120 RGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_BGR:
       /** video 160x120 BGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGR,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGR ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_RGB_PADDING:
       /** video 162x120 RGB, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGB ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_BGR_PADDING:
       /** video 162x120 BGR, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGR,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGR ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_RGB_3F:
       /** video 160x120 RGB, 3 frames */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -424,63 +424,63 @@ _setup_pipeline (TestOption & option)
       /** video 162x120 RGBA */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBA,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBA ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_BGRA:
       /** video 162x120 BGRA */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRA,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRA ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_ARGB:
       /** video 162x120 ARGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ARGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ARGB ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_ABGR:
       /** video 162x120 ABGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ABGR,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ABGR ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_RGBx:
       /** video 162x120 RGBx */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBx,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBx ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_xRGB:
       /** video 162x120 xRGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xRGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xRGB ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_xBGR:
       /** video 162x120 xBGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xBGR,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xBGR ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_BGRx:
       /** video 162x120 BGRx */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRx,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRx ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_BGRx_2F:
       /** video 160x120 BGRx, 2 frames */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx ! "
           "tensor_converter frames-per-tensor=2 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -488,21 +488,21 @@ _setup_pipeline (TestOption & option)
       /** video 160x120 GRAY8 */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY8 ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_GRAY8_PADDING:
       /** video 162x120 GRAY8, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8 ! "
           "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_GRAY8_3F_PADDING:
       /** video 162x120 GRAY8, 3 frames, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -624,8 +624,8 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("tensor_mux name=mux ! tensor_sink name=test_sink "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1",
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB ! tensor_converter ! mux.sink_0 "
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB ! tensor_converter ! mux.sink_1",
           option.num_buffers, option.num_buffers);
       break;
     case TEST_TYPE_TENSORS_MIX:
@@ -633,9 +633,9 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("tensor_mux name=mux synch=false ! tensor_demux name=demux "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB ! tensor_converter ! mux.sink_0 "
           "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB ! tensor_converter ! mux.sink_2 "
           "demux.src_0 ! queue ! tensor_sink "
           "demux.src_1 ! queue ! tensor_sink name=test_sink "
           "demux.src_2 ! queue ! tensor_sink",
@@ -645,7 +645,7 @@ _setup_pipeline (TestOption & option)
       /** video 160x120 RGB, passthrough custom filter */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter ! tensor_filter framework=custom model=./nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.so ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -654,23 +654,23 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("tensor_mux name=mux ! tensor_filter framework=custom model=./nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.so ! tensor_sink name=test_sink "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
-          "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB ! tensor_converter ! mux.sink_0 "
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB ! tensor_converter ! mux.sink_1 "
+          "videotestsrc framerate=0/1 num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB ! tensor_converter ! mux.sink_2",
           option.num_buffers, option.num_buffers, option.num_buffers);
       break;
     case TEST_TYPE_NEGO_FAILED:
       /** caps negotiation failed */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "videoconvert ! tensor_sink name=test_sink", option.num_buffers);
       break;
     case TEST_TYPE_VIDEO_RGB_SPLIT:
       /** video stream with tensor_split */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter ! tensor_split name=split tensorseg=1:160:120,1:160:120,1:160:120 "
           "split.src_0 ! queue ! tensor_sink "
           "split.src_1 ! queue ! tensor_sink name=test_sink "
@@ -680,7 +680,7 @@ _setup_pipeline (TestOption & option)
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=3 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -688,7 +688,7 @@ _setup_pipeline (TestOption & option)
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=1 ! tensor_sink name=test_sink",
           option.num_buffers);
       break;
@@ -696,7 +696,7 @@ _setup_pipeline (TestOption & option)
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc framerate=0/1 num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-dim=1 concat=false ! "
           "tensor_aggregator frames-in=10 frames-out=8 frames-flush=10 frames-dim=1 ! tensor_sink name=test_sink",
           option.num_buffers);
