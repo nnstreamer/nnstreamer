@@ -45,8 +45,31 @@ G_BEGIN_DECLS
 #define GST_IS_TENSORDEC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSORDEC))
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
+#define Y_SCALE         10.0f
+#define X_SCALE         10.0f
+#define H_SCALE         5.0f
+#define W_SCALE         5.0f
+#define VIDEO_WIDTH     640
+#define VIDEO_HEIGHT    480
+#define MODEL_WIDTH     300
+#define MODEL_HEIGHT    300
 #define BOX_SIZE        4
+#define LABEL_SIZE      91
 #define DETECTION_MAX   1917
+/**
+ * @brief Max objects in display.
+ */
+#define MAX_OBJECT_DETECTION 5
+    typedef struct
+{
+  gint x;
+  gint y;
+  gint width;
+  gint height;
+  gint class_id;
+  gfloat prob;
+} DetectedObject;
+
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
 
@@ -127,15 +150,6 @@ typedef enum
   DECODE_MODE_UNKNOWN
 } dec_modes;
 
-/**
- * @brief Decoder Mode  string.
- */
-static const gchar *mode_names[] = {
-  [DIRECT_VIDEO] = "direct_video",
-  [IMAGE_LABELING] = "image_labeling",
-  [BOUNDING_BOXES] = "bounding_boxes",
-  NULL
-};
 
 /**
  * @brief Output type for each mode

@@ -51,6 +51,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "tensordec.h"
+#include "tensordec_bounding_boxes_core.h"
 
 /**
  * @brief Macro for debug mode.
@@ -91,6 +92,16 @@ enum
   PROP_SILENT,
   PROP_MODE,
   PROP_MODE_OPTION1
+};
+
+/**
+ * @brief Decoder Mode  string.
+ */
+static const gchar *mode_names[] = {
+  [DIRECT_VIDEO] = "direct_video",
+  [IMAGE_LABELING] = "image_labeling",
+  [BOUNDING_BOXES] = "bounding_boxes",
+  NULL
 };
 
 /**
@@ -205,19 +216,6 @@ gst_set_mode_image_label_info (GstTensorDec * self)
 }
 
 /**
- * @brief Read strings from file.
- */
-static gboolean
-read_lines (const gchar * file_name, GList ** lines)
-{
-/** 
-*Not imployed yet TBD
-*/
-
-  return TRUE;
-}
-
-/**
  * @brief Load box priors.
  */
 static gboolean
@@ -228,8 +226,8 @@ gst_tensordec_load_box_priors (GstTensorDec * self)
   int row;
 
   g_return_val_if_fail (self != NULL, FALSE);
-  g_return_val_if_fail (read_lines (self->bounding_boxes.box_prior_path,
-          &box_priors), FALSE);
+  g_return_val_if_fail (gst_tensordec_read_lines
+      (self->bounding_boxes.box_prior_path, &box_priors), FALSE);
 
   for (row = 0; row < BOX_SIZE; row++) {
     int column = 0;
@@ -924,6 +922,57 @@ gst_tensordec_get_label (GstTensorDec * self,
 }
 
 /**
+ * @brief get image label by incomming tensor 
+ * @param self "this" pointer
+ * @param inbuf sink pad buffer
+ * @param outbuf src pad buffer
+ * @return GST_FLOW_OK if ok. other values represents error
+ */
+static GstFlowReturn
+gst_tensordec_get_bounding_boxes (GstTensorDec * self,
+    GstBuffer * inbuf, GstBuffer * outbuf)
+{
+  GstMemory *mem_boxes, *mem_detections;
+  GstMapInfo info_boxes, info_detections;
+  gfloat *boxes, *detections;
+
+  /**
+   * tensor type is float32.
+   * [0] dim of boxes > BOX_SIZE : 1 : DETECTION_MAX : 1
+   * [1] dim of labels > LABEL_SIZE : DETECTION_MAX : 1 : 1
+   */
+  g_assert (gst_buffer_n_memory (inbuf) == 2);
+
+  /* boxes */
+  mem_boxes = gst_buffer_get_memory (inbuf, 0);
+  g_assert (gst_memory_map (mem_boxes, &info_boxes, GST_MAP_READ));
+  g_assert (info_boxes.size == BOX_SIZE * DETECTION_MAX * 4);
+  boxes = (gfloat *) info_boxes.data;
+
+  /* detections */
+  mem_detections = gst_buffer_get_memory (inbuf, 1);
+  g_assert (gst_memory_map (mem_detections, &info_detections, GST_MAP_READ));
+  g_assert (info_detections.size == LABEL_SIZE * DETECTION_MAX * 4);
+  detections = (gfloat *) info_detections.data;
+
+  gst_tensordec_get_detected_objects (detections, boxes);
+/**
+ * @ need to implement draw bounding boxes in mem
+ *  with detected object data and set outbuf
+ *  with video/x-raw RGBA out type
+ */
+
+  gst_memory_unmap (mem_boxes, &info_boxes);
+  gst_memory_unmap (mem_detections, &info_detections);
+
+  gst_memory_unref (mem_boxes);
+  gst_memory_unref (mem_detections);
+
+  return GST_FLOW_OK;
+}
+
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  */
 static GstFlowReturn
@@ -948,6 +997,8 @@ gst_tensordec_transform (GstBaseTransform * trans,
       res = gst_tensordec_get_label (self, inbuf, outbuf);
       break;
     case BOUNDING_BOXES:
+      res = gst_tensordec_get_bounding_boxes (self, inbuf, outbuf);
+      break;
     default:
       err_print ("Unsupported mode (%d)\n", self->mode);
       goto unknown_type;
