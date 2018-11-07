@@ -767,7 +767,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
    * supposed fixed in-tensor info if getInputDimension is defined.
    */
   if (!prop->input_configured) {
-    if (self->fw->getInputDimension) {
+    if (self->fw && self->fw->getInputDimension) {
       GstTensorsInfo in_info;
 
       gst_tensors_info_init (&in_info);
@@ -793,7 +793,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
    * supposed fixed out-tensor info if getOutputDimension is defined.
    */
   if (!prop->output_configured) {
-    if (self->fw->getOutputDimension) {
+    if (self->fw && self->fw->getOutputDimension) {
       GstTensorsInfo out_info;
 
       gst_tensors_info_init (&out_info);
@@ -1160,7 +1160,8 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   GstTensorFilter *self;
 
   self = GST_TENSOR_FILTER_CAST (trans);
-  g_assert (self->fw != NULL);
+  if (self->fw == NULL)
+    return FALSE;
 
   gst_tensor_filter_open_fw (self);
   return TRUE;
