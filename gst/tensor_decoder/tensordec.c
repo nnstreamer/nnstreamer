@@ -664,7 +664,6 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
-      g_assert (self->mode < DECODE_MODE_UNKNOWN);
       g_value_set_string (value, mode_names[self->mode]);
       break;
     case PROP_MODE_OPTION1:
