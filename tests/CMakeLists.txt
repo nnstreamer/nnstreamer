@@ -1,4 +1,42 @@
-ADD_TEST(NAME unit_test 
+# For unit test
+
+SET(PKGTEST_MODULES
+	gstreamer-app-1.0
+	gstreamer-check-1.0
+)
+
+FIND_LIBRARY(GTEST_LIB gtest)
+
+IF(TIZEN OR GTEST_LIB)
+	# Use GTEST shared lib (Tizen supplied gtest as shared lib)
+	SET(gtestLink gtest pthread)
+	SET(gtestSrc "")
+	SET(gtestInc "")
+ELSE(TIZEN OR GTEST_LIB)
+	IF (NOT EXISTS /usr/src/gtest/src/gtest-all.cc)
+		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or (supplied with GTEST_LIB) libgtest.so.")
+	ENDIF ()
+	SET(gtestLink pthread)
+	SET(gtestSrc /usr/src/gtest/src/gtest-all.cc)
+	SET(gtestInc /usr/src/gtest)
+ENDIF(TIZEN OR GTEST_LIB)
+
+pkg_check_modules(testpkgs REQUIRED ${PKGTEST_MODULES})
+
+# sub-directory for test plugins
+ADD_SUBDIRECTORY(nnstreamer_tensors/tensors_test)
+
+# Unit test for common
+ADD_EXECUTABLE(unittest_common common/unittest_common.cpp ${gtestSrc})
+TARGET_INCLUDE_DIRECTORIES(unittest_common PUBLIC ${pkgs_INCLUDE_DIRS} ${testpkgs_INCLUDE_DIRS} ${gtestInc})
+TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gtestLink})
+
+# Unit test using tensor_sink
+ADD_EXECUTABLE(unittest_sink nnstreamer_sink/unittest_sink.cpp ${gtestSrc})
+TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${testpkgs_INCLUDE_DIRS} ${gtestInc})
+TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gtestLink})
+
+ADD_TEST(NAME unit_test
         COMMAND sh -c "GST_PLUGIN_PATH=${PROJECT_SOURCE_DIR}/build ssat ${CMAKE_CURRENT_SOURCE_DIR}")
 
 SET_TESTS_PROPERTIES(unit_test PROPERTIES TIMEOUT 120)
