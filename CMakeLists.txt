@@ -8,6 +8,8 @@ OPTION(ENABLE_TENSORFLOW "Enable tensorflow support" OFF)
 OPTION(ENABLE_MODEL_DOWNLOAD "Enable download the model files" ON)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
 OPTION(SINGLE_BINARY "Generate a single binary for all nnstreamer elements" ON)
+OPTION(ENABLE_TEST "Enable tests" ON)
+
 IF(SINGLE_BINARY)
 	ADD_DEFINITIONS(-DSINGLE_BINARY)
 	MESSAGE(STATUS "The nnstreamer elements will be created as a single plugin binary.")
@@ -39,30 +41,14 @@ SET(PKG_MODULES
 	gstreamer-controller-1.0
 	gstreamer-video-1.0
 	gstreamer-audio-1.0
-	gstreamer-app-1.0
 	glib-2.0
 )
 
-FIND_LIBRARY(GTEST_LIB gtest)
 IF(TIZEN)
 	ADD_DEFINITIONS(-DTIZEN=1)
 	# Enable dlog of Tizen.
 	SET(PKG_MODULES ${PKG_MODULES} dlog)
 ENDIF(TIZEN)
-
-IF(TIZEN OR GTEST_LIB)
-	# Use GTEST shared lib (Tizen supplied gtest as shared lib)
-	SET(gtestLink gtest pthread)
-	SET(gtestSrc "")
-	SET(gtestInc "")
-ELSE(TIZEN OR GTEST_LIB)
-	IF (NOT EXISTS /usr/src/gtest/src/gtest-all.cc)
-		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or (supplied with GTEST_LIB) libgtest.so.")
-	ENDIF ()
-	SET(gtestLink pthread)
-	SET(gtestSrc /usr/src/gtest/src/gtest-all.cc)
-	SET(gtestInc /usr/src/gtest)
-ENDIF(TIZEN OR GTEST_LIB)
 
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 
@@ -88,16 +74,6 @@ TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
 TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
 SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
 
-# Unit test for common
-ADD_EXECUTABLE(unittest_common tests/common/unittest_common.cpp ${gtestSrc})
-TARGET_INCLUDE_DIRECTORIES(unittest_common PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
-TARGET_LINK_LIBRARIES(unittest_common ${pkgs_LIBRARIES} ${gtestLink})
-
-# Unit test for tensor sink
-ADD_EXECUTABLE(unittest_sink tests/nnstreamer_sink/unittest_sink.cpp ${gtestSrc})
-TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${gtestInc})
-TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${gtestLink})
-
 # Supported projects for the single binary
 SET(PROJECTS
 	tensor_aggregator
@@ -114,9 +90,11 @@ SET(PROJECTS
 )
 
 ADD_SUBDIRECTORY(nnstreamer_example)
-ADD_SUBDIRECTORY(tests/nnstreamer_tensors/tensors_test)
-enable_testing()
-ADD_SUBDIRECTORY(tests)
+
+IF(ENABLE_TEST)
+	enable_testing()
+	ADD_SUBDIRECTORY(tests)
+ENDIF(ENABLE_TEST)
 
 SET(OBJECTS)
 FOREACH(PRJ IN LISTS PROJECTS)
