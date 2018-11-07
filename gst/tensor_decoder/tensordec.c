@@ -721,12 +721,16 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
           key = DECODE_MODE_PLUGIN;
         }
       }
-      g_assert (key >= 0);
+      if (key < 0) {
+        GST_ERROR ("The given mode for tensor_decoder, %s, is unrecognized.\n",
+            temp_string);
+        key = DECODE_MODE_UNKNOWN;
+      }
       self->mode = key;
-      if (key != DECODE_MODE_PLUGIN)
-        self->output_type = dec_output_type[key];
-      else
+      if (key == DECODE_MODE_PLUGIN)
         self->output_type = self->decoder->type;
+      else
+        self->output_type = dec_output_type[key];
       g_free (temp_string);
       break;
     case PROP_MODE_OPTION1:
@@ -771,7 +775,10 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
-      g_value_set_string (value, mode_names[self->mode]);
+      if (self->mode == DECODE_MODE_PLUGIN)
+        g_value_set_string (value, self->decoder->modename);
+      else
+        g_value_set_string (value, mode_names[self->mode]);
       break;
     case PROP_MODE_OPTION1:
       g_value_set_string (value, self->option[0]);
