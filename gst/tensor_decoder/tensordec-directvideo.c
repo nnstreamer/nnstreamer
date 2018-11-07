@@ -108,12 +108,26 @@ dv_getOutputDim (GstTensorDec * self, const GstTensorConfig * config)
   return gst_caps_simplify (caps);
 }
 
+/** @brief get video output buffer size */
+static gsize
+_get_video_xraw_bufsize (tensor_dim dim)
+{
+  /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
+  return ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
+}
+
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gsize
 dv_getTransformSize (GstTensorDec * self, GstCaps * caps,
     gsize size, GstCaps * othercaps, GstPadDirection direction)
 {
-  return 0;                     /* I'll allocate. Do not allocate for me */
+  GstTensorConfig *config = &self->tensor_config;
+  uint32_t *dim = &(config->info.dimension[0]);
+
+  if (direction == GST_PAD_SINK)
+    return _get_video_xraw_bufsize (dim);
+  else
+    return 0; /** @todo NYI */
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
@@ -125,25 +139,29 @@ dv_decode (GstTensorDec * self, const GstTensorMemory * input,
   GstMemory *out_mem;
   GstTensorConfig *config = &self->tensor_config;
   uint32_t *dim = &(config->info.dimension[0]);
+  size_t size = _get_video_xraw_bufsize (dim);
 
   g_assert (outbuf);
-  g_assert (gst_buffer_get_size (outbuf) == 0);
+  if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
+    gst_buffer_set_size (outbuf, size);
+  }
   g_assert (config->info.type == _NNS_UINT8);
+
+  if (gst_buffer_get_size (outbuf) == size) {
+    /* Don't reallocate. Reuse what's already given */
+    out_mem = gst_buffer_get_all_memory (outbuf);
+  } else {
+    out_mem = gst_allocator_alloc (NULL, size, NULL);
+  }
+  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
 
   if (0 == ((dim[0] * dim[1]) % 4)) {
     /* No Padding Required */
-    out_mem = gst_allocator_alloc (NULL, input->size, NULL);
-    g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
     memcpy (out_info.data, input->data, input->size);
   } else {
     /* Do Padding */
-    size_t size;
     int h;
     uint8_t *ptr, *inp;
-
-    size = ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
-    out_mem = gst_allocator_alloc (NULL, size, NULL);
-    g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
 
     ptr = (uint8_t *) out_info.data;
     inp = (uint8_t *) input->data;
@@ -154,7 +172,9 @@ dv_decode (GstTensorDec * self, const GstTensorMemory * input,
     }
   }
   gst_memory_unmap (out_mem, &out_info);
-  gst_buffer_append_memory (outbuf, out_mem);
+
+  if (gst_buffer_get_size (outbuf) == 0)
+    gst_buffer_append_memory (outbuf, out_mem);
 
   /** @todo Caller of dv_decode in tensordec.c should call gst_memory_unmap to inbuf */
 

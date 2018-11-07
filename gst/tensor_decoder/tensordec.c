@@ -587,6 +587,7 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
 
   /** Refer: https://gstreamer.freedesktop.org/documentation/design/element-transform.html */
   trans_class->passthrough_on_same_caps = FALSE;
+  trans_class->transform_ip_on_passthrough = FALSE;
 
   /** Processing units */
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensordec_transform);
