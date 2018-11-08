@@ -52,6 +52,7 @@
 #include <config.h>
 #endif
 
+#include <gst/gstinfo.h>
 #include <gst/gst.h>
 #include <glib.h>
 #include <string.h>
@@ -382,6 +383,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 {
   GstTensorFilter *self;
   GstTensorFilterProperties *prop;
+  gchar *tmp;
 
   self = GST_TENSOR_FILTER (object);
   prop = &self->prop;
@@ -412,9 +414,14 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     case PROP_MODEL:
       g_assert (prop->model_file == NULL && value);
       /* Once configures, it cannot be changed in runtime */
-      prop->model_file = g_value_dup_string (value);
-      silent_debug ("Model = %s\n", prop->model_file);
-      g_assert (g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR));
+      tmp = g_value_dup_string (value);
+      silent_debug ("Model = %s\n", tmp);
+      if (!g_file_test (tmp, G_FILE_TEST_IS_REGULAR)) {
+        GST_ERROR ("Cannot find the model file: %s\n", tmp);
+        g_free (tmp);
+      } else {
+        prop->model_file = tmp;
+      }
       break;
     case PROP_INPUT:
       g_assert (!prop->input_configured && value);
