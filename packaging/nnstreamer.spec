@@ -95,6 +95,7 @@ export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
 make %{?_smp_mflags}
 ./tests/unittest_common
 ./tests/unittest_sink --gst-plugin-path=.
+./tests/unittest_plugins --gst-plugin-path=.
 popd
 pushd tests
 # The ssat requires 6~7min to run armv7l binary files in the current CI server.
