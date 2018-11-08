@@ -40,6 +40,10 @@ TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gt
 ADD_LIBRARY(nnscustom_framecounter SHARED nnstreamer_sink/nnscustom_framecounter.c)
 TARGET_LINK_LIBRARIES(nnscustom_framecounter ${CUSTOMFILTERDEP})
 
+# Unit test for nnstreamer plugins
+ADD_EXECUTABLE(unittest_plugins nnstreamer_plugins/unittest_plugins.cpp ${gtestSrc})
+TARGET_INCLUDE_DIRECTORIES(unittest_plugins PUBLIC ${pkgs_INCLUDE_DIRS} ${testpkgs_INCLUDE_DIRS} ${gtestInc})
+TARGET_LINK_LIBRARIES(unittest_plugins ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gtestLink})
 
 ADD_TEST(NAME unit_test
         COMMAND sh -c "GST_PLUGIN_PATH=${PROJECT_SOURCE_DIR}/build ssat ${CMAKE_CURRENT_SOURCE_DIR}")
