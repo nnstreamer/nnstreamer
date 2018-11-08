@@ -8,6 +8,7 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 #include <gtest/gtest.h>
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
@@ -95,6 +96,7 @@ typedef enum
   TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in #739 */
   TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
 
@@ -106,6 +108,7 @@ typedef struct
   guint num_buffers; /**< count of buffers */
   TestType test_type; /**< test pipeline */
   tensor_type t_type; /**< tensor type */
+  char *tmpfile; /**< tmpfile to write */
 } TestOption;
 
 /**
@@ -724,6 +727,16 @@ _setup_pipeline (TestOption & option)
           ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
           "tensor_converter ! tensor_transform mode=typecast option=%s ! tensor_sink name=test_sink",
           tensor_element_typename[option.t_type]);
+      break;
+    case TEST_TYPE_ISSUE739_MUX_PARALLEL_1:
+      /** 4x4 tensor stream, different FPS, tensor_mux them */
+      /** @todo Let it stop when one of the queue is empty */
+      /** @todo Set tensor_mux policy = slowest */
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
       break;
     default:
       goto error;
@@ -3288,6 +3301,66 @@ TEST (tensor_stream_test, audio_aggregate_u16)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_mux_parallel_1)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_mux_parallel_1_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_1 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 10);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_EQ (read, num_buffers * 10);
+  for (i = 0; i < num_buffers * 2U; i++)
+    EXPECT_EQ (load[i], i);
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
 }
 
 /**
