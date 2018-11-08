@@ -1,12 +1,10 @@
 ADD_LIBRARY(nnstreamer_customfilter_scaler SHARED nnstreamer_customfilter_example_scaler.c)
 
-TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler ${pkgs_LIBRARIES})
-TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_scaler PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler ${CUSTOMFILTERDEP})
 
 ADD_LIBRARY(nnstreamer_customfilter_scaler_allocator SHARED nnstreamer_customfilter_example_scaler_allocator.c)
 
-TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler_allocator ${pkgs_LIBRARIES})
-TARGET_COMPILE_OPTIONS(nnstreamer_customfilter_scaler_allocator PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_scaler_allocator ${CUSTOMFILTERDEP})
 
 INSTALL(TARGETS nnstreamer_customfilter_scaler nnstreamer_customfilter_scaler_allocator
 	RUNTIME DESTINATION ${EXEC_PREFIX}
