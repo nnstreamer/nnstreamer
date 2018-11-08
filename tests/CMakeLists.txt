@@ -36,6 +36,10 @@ ADD_EXECUTABLE(unittest_sink nnstreamer_sink/unittest_sink.cpp ${gtestSrc})
 TARGET_INCLUDE_DIRECTORIES(unittest_sink PUBLIC ${pkgs_INCLUDE_DIRS} ${testpkgs_INCLUDE_DIRS} ${gtestInc})
 TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gtestLink})
 
+# Unit test uses this custom filter
+ADD_LIBRARY(nnscustom_framecounter SHARED nnstreamer_sink/nnscustom_framecounter.c)
+TARGET_LINK_LIBRARIES(nnscustom_framecounter nnstreamer)
+
 ADD_TEST(NAME unit_test
         COMMAND sh -c "GST_PLUGIN_PATH=${PROJECT_SOURCE_DIR}/build ssat ${CMAKE_CURRENT_SOURCE_DIR}")
 
