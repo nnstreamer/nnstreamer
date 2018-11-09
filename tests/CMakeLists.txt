@@ -38,7 +38,7 @@ TARGET_LINK_LIBRARIES(unittest_sink ${pkgs_LIBRARIES} ${testpkgs_LIBRARIES} ${gt
 
 # Unit test uses this custom filter
 ADD_LIBRARY(nnscustom_framecounter SHARED nnstreamer_sink/nnscustom_framecounter.c)
-TARGET_LINK_LIBRARIES(nnscustom_framecounter ${CUSTOMFILTERDEP})
+TARGET_LINK_LIBRARIES(nnscustom_framecounter ${CUSTOMFILTERDEP} glib-2.0)
 
 # Unit test for nnstreamer plugins
 ADD_EXECUTABLE(unittest_plugins nnstreamer_plugins/unittest_plugins.cpp ${gtestSrc})
