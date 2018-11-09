@@ -1168,8 +1168,28 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
   gint old_denominator = G_MAXINT;
   gint counting = 0;
   GstTensorConfig config;
+  GstClockTime base = 0;
 
   walk = collect->data;
+
+  if (sync.mode == SYNC_BASEPAD) {
+    walk = g_slist_nth (walk, sync.data_basepad.sink_id);
+    GstCollectData *data = (GstCollectData *) walk->data;
+    GstTensorCollectPadData *pad = (GstTensorCollectPadData *) data;
+    GstBuffer *buf = NULL;
+    buf = gst_collect_pads_peek (collect, data);
+    if (buf != NULL) {
+      if (pad->buffer != NULL)
+        base =
+            MIN (sync.data_basepad.duration,
+            ABS (GST_CLOCK_DIFF (GST_BUFFER_PTS (buf),
+                    GST_BUFFER_PTS (pad->buffer))) - 1);
+      gst_buffer_unref (buf);
+    }
+  }
+
+  walk = collect->data;
+
   while (walk) {
     GstCollectData *data = (GstCollectData *) walk->data;
     GstTensorCollectPadData *pad = (GstTensorCollectPadData *) data;
@@ -1238,10 +1258,9 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
             return FALSE;
           }
 
-          if (pad->buffer != NULL &&
-              (ABS (GST_CLOCK_DIFF (current_time,
-                          GST_BUFFER_PTS (buf))) >
-                  sync.data_basepad.duration)) {
+          if ((pad->buffer != NULL &&
+                  (ABS (GST_CLOCK_DIFF (current_time,
+                              GST_BUFFER_PTS (buf))) > base))) {
             gst_buffer_unref (buf);
             buf = pad->buffer;
           } else {
