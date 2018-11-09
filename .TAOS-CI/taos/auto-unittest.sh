@@ -37,16 +37,16 @@ for arch in $arch_type
 do
     # Gbs build for unit test
     # Unit test for ${arch}
-    gbs build -A ${arch} --overwrite --clean > temp.txt
+    gbs build -A ${arch} --overwrite --clean --define "unit_test 1" > temp.txt
 
     # Parsing result 
     test_flag=0
     while IFS='' read -r line || [[ -n "$line" ]]; do
-        if [[ $line =~  "./unittest_common" ]]; then
+        if [[ $line =~  "./tests/unittest_common" ]]; then
             test_flag=1
         fi
 
-        if [[ $line =~ "./testAll.sh" ]]; then
+        if [[ $line =~ "+ ssat" ]]; then
             test_flag=2
             mv result.txt ci/unittest_result/unit_test_common_result_${arch}.txt
         fi
@@ -59,7 +59,8 @@ do
             echo "$line" >> result.txt
         fi
     done < temp.txt
-    mv result.txt ci/unittest_result/unit_test_case_result_${arch}.txt   
+    mv result.txt ci/unittest_result/ssat_result_${arch}.txt   
 done
 rm temp.txt
 popd
+
