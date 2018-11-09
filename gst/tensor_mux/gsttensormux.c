@@ -332,7 +332,8 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
             &tensor_mux->current_time, tensor_mux->sync))
       return TRUE;
     tensor_mux->need_set_time = FALSE;
-    silent_debug ("Current Time : %lu", tensor_mux->current_time);
+    silent_debug ("Current Time : %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (tensor_mux->current_time));
   }
 
   isEOS =
