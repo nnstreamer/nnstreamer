@@ -97,6 +97,13 @@ typedef enum
   TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
   TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_2, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_3, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_4, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_1, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_2, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_3, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
 
@@ -729,15 +736,63 @@ _setup_pipeline (TestOption & option)
           tensor_element_typename[option.t_type]);
       break;
     case TEST_TYPE_ISSUE739_MUX_PARALLEL_1:
-      /** 4x4 tensor stream, different FPS, tensor_mux them */
-      /** @todo Let it stop when one of the queue is empty */
-      /** @todo Set tensor_mux policy = slowest */
+      /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
       str_pipeline =
           g_strdup_printf
 	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
 	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
 	  "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
       break;
+    case TEST_TYPE_ISSUE739_MUX_PARALLEL_2:
+      /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_mux sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    case TEST_TYPE_ISSUE739_MUX_PARALLEL_3:
+      /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_mux sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    case TEST_TYPE_ISSUE739_MUX_PARALLEL_4:
+      /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
+      /** @todo Because of the bug mentioned in #739, this is not registered as gtest case, yet */
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_mux sync_mode=basepad sync_option=1:1000000000 name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    case TEST_TYPE_ISSUE739_MERGE_PARALLEL_1:
+      /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_merge mode=linear option=3 sync_mode=slowest name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    case TEST_TYPE_ISSUE739_MERGE_PARALLEL_2:
+      /** 4x4 tensor stream, different FPS, tensor_merge them @ basepad*/
+      str_pipeline =
+          g_strdup_printf
+	  ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    case TEST_TYPE_ISSUE739_MERGE_PARALLEL_3:
+      /** 4x4 tensor stream, different FPS, tensor_merge them @ basepad*/
+      str_pipeline =
+          g_strdup_printf (
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_0 "
+	  "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! mux.sink_1 "
+	  "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=./tests/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s", option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
+      break;
+    /** @todo Add tensor_mux policy = more policies! */
     default:
       goto error;
   }
@@ -3356,6 +3411,335 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
   EXPECT_EQ (read, num_buffers * 10);
   for (i = 0; i < num_buffers * 2U; i++)
     EXPECT_EQ (load[i], i);
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_mux_parallel_2)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_mux_parallel_2_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 10);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_EQ (read, num_buffers * 10);
+  for (i = 0; i < num_buffers * 2U; i++)
+    EXPECT_EQ (load[i], i);
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_mux_parallel_3)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i, lastval;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_mux_parallel_3_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_3 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_GE (g_test_data.received, num_buffers * 25 - 1);
+  EXPECT_LE (g_test_data.received, num_buffers * 25);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_TRUE (read >= (num_buffers * 25 - 1));
+  EXPECT_TRUE (read <= (num_buffers * 25));
+
+  lastval = 0;
+  for (i = 0; i < read; i++) {
+    EXPECT_TRUE (load[i] >= lastval);
+    EXPECT_TRUE (load[i] <= lastval + 1);
+    lastval = load[i];
+  }
+  EXPECT_TRUE (lastval <= (num_buffers * 10));
+  EXPECT_TRUE (lastval >= (num_buffers * 10 - 1));
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_mux_parallel_4)
+{
+  /** @todo Write this after the tensor-mux/merge sync-option "basepad" is updated */
+  EXPECT_EQ (1, 1);
+}
+
+
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_merge_parallel_1)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_merge_parallel_1_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_1 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 10);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_EQ (read, num_buffers * 10);
+  for (i = 0; i < num_buffers * 2U; i++)
+    EXPECT_EQ (load[i], i);
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_merge_parallel_2)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_merge_parallel_2_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers * 10);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_EQ (read, num_buffers * 10);
+  for (i = 0; i < num_buffers * 2U; i++)
+    EXPECT_EQ (load[i], i);
+
+  fclose(fp);
+  close(fd);
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data();
+}
+
+/**
+ * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
+ */
+TEST (tensor_stream_test, issue739_merge_parallel_3)
+{
+  const guint num_buffers = 2;
+  FILE *fp;
+  uint32_t load[50], i, lastval;
+  size_t read;
+  int fd;
+  char tmpfilename[1024] = "/tmp/nnstreamer_unittest_issue739_merge_parallel_3_XXXXXX";
+
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_3 };
+  option.tmpfile = tmpfilename;
+  fd = mkstemp(tmpfilename);
+
+  EXPECT_TRUE (fd >= 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_GE (g_test_data.received, num_buffers * 25 - 1);
+  EXPECT_LE (g_test_data.received, num_buffers * 25);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 4); /* uint32_t, 1:1:1:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT32);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+
+  /** @todo Check contents in the sink */
+  fp = fopen(option.tmpfile, "r");
+  EXPECT_TRUE (fp != NULL);
+  read = fread(load, sizeof(uint32_t), 50, fp);
+  EXPECT_TRUE (read >= (num_buffers * 25 - 1));
+  EXPECT_TRUE (read <= (num_buffers * 25));
+
+  lastval = 0;
+  for (i = 0; i < read; i++) {
+    EXPECT_TRUE (load[i] >= lastval);
+    EXPECT_TRUE (load[i] <= lastval + 1);
+    lastval = load[i];
+  }
+  EXPECT_GE (lastval, (num_buffers - 1) * 25);
+  EXPECT_LE (lastval, num_buffers * 25);
 
   fclose(fp);
   close(fd);
