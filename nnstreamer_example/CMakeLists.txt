@@ -5,6 +5,7 @@ SET(PKGAPP_MODULES
 	gstreamer-base-1.0
 	gstreamer-controller-1.0
 	gstreamer-video-1.0
+	gstreamer-audio-1.0
 	gstreamer-app-1.0
 )
 pkg_check_modules(apppkgs REQUIRED ${PKGAPP_MODULES})

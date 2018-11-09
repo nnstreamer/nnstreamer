@@ -2,7 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(nnstreamer C CXX)
 
-OPTION(TIZEN "Enable Tizen build mode" OFF)
 OPTION(ENABLE_TENSORFLOW_LITE "Enable tensorflow-lite support" ON)
 OPTION(ENABLE_TENSORFLOW "Enable tensorflow support" OFF)
 OPTION(ENABLE_MODEL_DOWNLOAD "Enable download the model files" ON)
@@ -45,12 +44,6 @@ SET(PKG_MODULES
 	gstreamer-audio-1.0
 	glib-2.0
 )
-
-IF(TIZEN)
-	ADD_DEFINITIONS(-DTIZEN=1)
-	# Enable dlog of Tizen.
-	SET(PKG_MODULES ${PKG_MODULES} dlog)
-ENDIF(TIZEN)
 
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 

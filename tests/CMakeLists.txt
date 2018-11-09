@@ -7,19 +7,19 @@ SET(PKGTEST_MODULES
 
 FIND_LIBRARY(GTEST_LIB gtest)
 
-IF(TIZEN OR GTEST_LIB)
-	# Use GTEST shared lib (Tizen supplied gtest as shared lib)
+IF(GTEST_LIB)
+	# Use GTEST shared lib
 	SET(gtestLink gtest pthread)
 	SET(gtestSrc "")
 	SET(gtestInc "")
-ELSE(TIZEN OR GTEST_LIB)
+ELSE(GTEST_LIB)
 	IF (NOT EXISTS /usr/src/gtest/src/gtest-all.cc)
 		MESSAGE(FATAL FATAL_ERROR "You need to install libgtest-dev or (supplied with GTEST_LIB) libgtest.so.")
 	ENDIF ()
 	SET(gtestLink pthread)
 	SET(gtestSrc /usr/src/gtest/src/gtest-all.cc)
 	SET(gtestInc /usr/src/gtest)
-ENDIF(TIZEN OR GTEST_LIB)
+ENDIF(GTEST_LIB)
 
 pkg_check_modules(testpkgs REQUIRED ${PKGTEST_MODULES})
 
