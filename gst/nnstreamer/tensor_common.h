@@ -396,30 +396,23 @@ extern size_t get_tensor_element_count (const tensor_dim dim);
 #define str(s) xstr(s)
 #define xstr(s) #s
 
-#include <glib/gprintf.h>
-#ifdef TIZEN
-#include <dlog.h>
-#else
-#define dlog_print(loglevel, component, ...) \
-  do { \
-    g_message(__VA_ARGS__); \
-  } while (0)
-#endif
-
 /**
- * @brief Debug message print. In Tizen, it uses dlog; otherwise,m it uses g_message().
+ * @brief Debug message print.
  */
-#define debug_print(cond, ...)	\
+#define debug_print(cond,...) \
   do { \
     if ((cond) == TRUE) { \
-      dlog_print(DLOG_DEBUG, "nnstreamer", __FILE__ ":" str(__LINE__) " "  __VA_ARGS__); \
+      g_message (__FILE__ ":" str(__LINE__) " "  __VA_ARGS__); \
     } \
   } while (0)
 
 /**
- * @brief Error message print. In Tizen, it uses dlog; otherwise,m it uses g_message().
+ * @brief Error message print.
  */
-#define err_print(...) dlog_print(DLOG_ERROR, "nnstreamer", __VA_ARGS__)
+#define err_print(...) \
+  do { \
+    g_warning (__FILE__ ":" str(__LINE__) " " __VA_ARGS__); \
+  } while (0)
 
 /**
  * @brief A callback for typefind, trying to find whether a file is other/tensors or not.

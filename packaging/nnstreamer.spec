@@ -15,12 +15,10 @@ Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
 
 Requires:	gstreamer >= 1.8.0
-Requires:	libdlog
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
 BuildRequires:	glib2-devel
 BuildRequires:	cmake
-BuildRequires:	libdlog-devel
 
 # To run test cases, we need gst plugins
 BuildRequires:	gst-plugins-good
@@ -91,7 +89,7 @@ mkdir -p build
 pushd build
 export GST_PLUGIN_PATH=$(pwd)
 export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
-%cmake .. -DTIZEN=ON -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF
+%cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF
 make %{?_smp_mflags}
 ./tests/unittest_common
 ./tests/unittest_sink --gst-plugin-path=.
