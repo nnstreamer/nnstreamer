@@ -50,6 +50,8 @@ BuildRequires: lcov
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 BuildRequires: ssat
+# Accelerate ssat execution
+BuildRequires: gbs-tmpfs
 
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
