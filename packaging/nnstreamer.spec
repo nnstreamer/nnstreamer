@@ -97,6 +97,14 @@ make %{?_smp_mflags}
 ./tests/unittest_sink --gst-plugin-path=.
 ./tests/unittest_plugins --gst-plugin-path=.
 popd
+
+# Use /tmp to accelerate I/O for systems using /tmp as tmpfs
+TMPLOC=`mktemp -d`
+CURLOC=`pwd`
+pushd $TMPLOC
+ln -s ${CURLOC}/build build
+cp -R ${CURLOC}/tests .
+
 pushd tests
 # The ssat requires 6~7min to run armv7l binary files in the current CI server.
 # The timeout value is 10min as a heuristic value from our experience.
@@ -117,6 +125,8 @@ fi) &
 pid2=$!
 wait $pid
 kill $pid2
+popd
+
 popd
 
 %install
