@@ -48,14 +48,12 @@ if target == -1 or target == 9:
         with open("testsynch00_"+str(i)+".golden",'wb') as file:
             file.write(s[sink_0])
             file.write(s[i])
-        file.close()
 
     for i in range(0,10):
         sink_1 = i/3;
         with open("testsynch03_"+str(i)+".golden",'wb') as file:
             file.write(s[i])
             file.write(s[sink_1])
-        file.close()
 
     id=[0,1,1,2,3,3,4,5,5,6]
     for i in range(0,10):
@@ -63,7 +61,6 @@ if target == -1 or target == 9:
         with open("testsynch04_"+str(i)+".golden",'wb') as file:
             file.write(s[i])
             file.write(s[sink_1])
-        file.close()
 
     id=[0,2,3,5,6,8,9]
     for i in range(0,7):
@@ -71,7 +68,6 @@ if target == -1 or target == 9:
         with open("testsynch01_"+str(i)+".golden",'wb') as file:
             file.write(s[sink_0])
             file.write(s[i])
-        file.close()
 
     for i in range(0,4):
         sink_0 = i*3
@@ -80,7 +76,6 @@ if target == -1 or target == 9:
             file.write(s[sink_0])
             file.write(s[sink_1])
             file.write(s[i])
-        file.close()
 
     id=[0,1,1,2,3,3,4,5,5,6]
     for i in range(0,10):
@@ -90,7 +85,19 @@ if target == -1 or target == 9:
             file.write(s[i])
             file.write(s[sink_0])
             file.write(s[sink_1])
-        file.close()
+
+    id=[0,4,7,9]
+    for i in range(0,4):
+        sink_0 = id[i]
+        with open("testsynch07_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_0])
+
+    for i in range(0,4):
+        sink_0 = i*3
+        with open("testsynch08_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_0])
 
 if target == -1 or target == 10:
     buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase')[0]
