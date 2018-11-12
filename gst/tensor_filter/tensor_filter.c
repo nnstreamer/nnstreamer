@@ -204,9 +204,14 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
  */
 #define gst_tensor_filter_open_fw(filter) do { \
       if (filter->prop.fw_opened == FALSE) { \
-        if (filter->fw->open != NULL) \
-          filter->fw->open (filter, &filter->privateData); \
-        filter->prop.fw_opened = TRUE; \
+        if (filter->fw->open != NULL) {\
+          if (filter->fw->open (filter, &filter->privateData) == 0) \
+            filter->prop.fw_opened = TRUE; \
+          else \
+            filter->prop.fw_opened = FALSE; \
+        } else {\
+          filter->prop.fw_opened = TRUE; \
+        } \
       } \
     } while (0)
 
@@ -225,6 +230,10 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
  */
 #define gst_tensor_filter_call(filter,ret,funcname,...) do { \
       gst_tensor_filter_open_fw (filter); \
+      if (filter->prop.fw_opened == FALSE) { \
+        ret = -1; \
+        break; \
+      } \
       ret = filter->fw->funcname (filter, &filter->privateData, __VA_ARGS__); \
     } while (0)
 
@@ -396,13 +405,26 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       silent_debug ("Debug mode = %d", self->silent);
       break;
     case PROP_FRAMEWORK:
-      g_assert (prop->nnfw == _T_F_UNDEFINED && value);
-      /* Once configures, it cannot be changed in runtime */
+      if (prop->nnfw != _T_F_UNDEFINED) {
+        /** @todo CRITICAL: CLOSE IT before proceeding */
+        if (prop->fw_opened == TRUE)
+          gst_tensor_filter_close_fw (self);
+      }
       prop->nnfw = find_key_strv (nnfw_names, g_value_get_string (value));
       silent_debug ("Framework = %s\n", g_value_get_string (value));
-      g_assert (prop->nnfw != -1);
-      g_assert (prop->nnfw != _T_F_UNDEFINED);
-      g_assert (tensor_filter_supported[prop->nnfw] != NULL);
+      if (prop->nnfw == -1 || prop->nnfw == _T_F_UNDEFINED) {
+        GST_WARNING ("Cannot identify the given neural network framework, %s\n",
+            g_value_get_string (value));
+        prop->nnfw = _T_F_UNDEFINED;
+        break;
+      }
+      if (tensor_filter_supported[prop->nnfw] == NULL) {
+        GST_WARNING
+            ("The given neural network framework is identified but not supported, %s\n",
+            g_value_get_string (value));
+        prop->nnfw = _T_F_UNDEFINED;
+        break;
+      }
       self->fw = tensor_filter_supported[prop->nnfw];
       g_assert (self->fw != NULL);
 
@@ -412,7 +434,15 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
           || self->fw->setInputDimension);
       break;
     case PROP_MODEL:
-      g_assert (prop->model_file == NULL && value);
+      if (prop->model_file) {
+        /** @todo CRITICAL: CLOSE IT before proceeding */
+        if (prop->fw_opened == TRUE)
+          gst_tensor_filter_close_fw (self);
+        g_free ((char *) prop->model_file);     /* g_free cannot handle const * */
+      }
+      if (!value) {
+        break;
+      }
       /* Once configures, it cannot be changed in runtime */
       tmp = g_value_dup_string (value);
       silent_debug ("Model = %s\n", tmp);
@@ -504,8 +534,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       }
       break;
     case PROP_CUSTOM:
-      g_assert (prop->custom_properties == NULL && value);
-      /* Once configures, it cannot be changed in runtime */
+      /* In case updated custom properties in runtime! */
+      g_free ((char *) prop->custom_properties);        /* g_free cannot handle const char * */
       prop->custom_properties = g_value_dup_string (value);
       silent_debug ("Custom Option = %s\n", prop->custom_properties);
       break;

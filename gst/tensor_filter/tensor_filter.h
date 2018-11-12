@@ -31,6 +31,7 @@
 
 #include <stdint.h>
 #include <gst/gst.h>
+#include <gst/gstinfo.h>
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
 
@@ -165,11 +166,12 @@ struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-  void (*open) (const GstTensorFilter * filter, void **private_data);
+  int (*open) (const GstTensorFilter * filter, void **private_data);
       /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close
        *
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
+       * @return 0 if ok. < 0 if error.
        */
 
   void (*close) (const GstTensorFilter * filter, void **private_data);

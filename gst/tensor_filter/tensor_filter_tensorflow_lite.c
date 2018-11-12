@@ -68,11 +68,12 @@ tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
  * @param filter : tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
  */
-static void
+static int
 tflite_open (const GstTensorFilter * filter, void **private_data)
 {
   int retval = tflite_loadModelFile (filter, private_data);
   g_assert (retval == 0);       /** This must be called only once */
+  return 0;
 }
 
 /**
