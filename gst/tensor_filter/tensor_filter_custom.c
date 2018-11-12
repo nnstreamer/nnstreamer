@@ -60,6 +60,11 @@ custom_loadlib (const GstTensorFilter * filter, void **private_data)
     return 1;
   }
 
+  if (!filter->prop.model_file || filter->prop.model_file[0] == '\0') {
+    /* The .so file path is not given */
+    return -1;
+  }
+
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
   *private_data = ptr;
   g_assert (*private_data == filter->privateData);
@@ -99,19 +104,22 @@ custom_loadlib (const GstTensorFilter * filter, void **private_data)
 /**
  * @brief The open callback for GstTensorFilterFramework. Called before anything else
  */
-static void
+static int
 custom_open (const GstTensorFilter * filter, void **private_data)
 {
   int retval = custom_loadlib (filter, private_data);
   internal_data *ptr;
 
-  g_assert (retval == 0);       /* This must be called only once */
+  /* This must be called only once */
+  if (retval != 0)
+    return -1;
 
   ptr = *private_data;
   g_assert (!ptr->methods->invoke != !ptr->methods->allocate_invoke);   /* XOR! */
 
   if (ptr->methods->allocate_invoke)
     NNS_support_custom.allocate_in_invoke = TRUE;
+  return 0;
 }
 
 /**
