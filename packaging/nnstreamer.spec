@@ -91,35 +91,13 @@ export GST_PLUGIN_PATH=$(pwd)
 export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
 %cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF
 make %{?_smp_mflags}
-./tests/unittest_common
-./tests/unittest_sink --gst-plugin-path=.
-./tests/unittest_plugins --gst-plugin-path=.
-popd
-pushd tests
-# Able to release timeout while gbs build using option '--define "timeout 1"'
-# Default is to apply time limit.
-%if 0%{?timeout}
+%if 0%{?unit_test}
+    ./tests/unittest_common
+    ./tests/unittest_sink --gst-plugin-path=.
+    ./tests/unittest_plugins --gst-plugin-path=.
+    popd
+    pushd tests
     ssat
-%else 
-    # The ssat requires 6~7min to run armv7l binary files in the current CI server.
-    # The timeout value is 10min as a heuristic value from our experience.
-    timeout=600
-    ssat &
-    pid=$!
-    # CAUTION: Note that you have to keep the coding style of the existing statement 
-    # in case that you have to update the below statement in the future. 
-    # a. Do not run repetitive statement(ex. while) to avoid too log messages in the log file. 
-    # b. Declare appropriate heuristic timeout value
-    # c. Do not declare too long sleep time to keep the reasonable waiting time after submitting PR
-    (sleep $timeout 
-    kill $pid 
-    if [[ "$?" -eq 0 ]]; then
-        echo "[DEBUG] GBS is stopped because of 'ssat' timeout(10min)"
-        exit 124 # 124 is ubuntu status code of timeout
-    fi) &
-    pid2=$!
-    wait $pid
-    kill $pid2
 %endif
 popd
 
