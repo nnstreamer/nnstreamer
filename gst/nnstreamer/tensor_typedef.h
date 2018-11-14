@@ -70,7 +70,25 @@ static const unsigned int tensor_element_size[] = {
   [_NNS_FLOAT32] = 4,
   [_NNS_INT64] = 8,
   [_NNS_UINT64] = 8,
+
+  [_NNS_END] = 0,
 };
+
+/**
+ * @brief To make the code simple with all the types. "C++ Template"-like.
+ */
+typedef union {
+  int32_t _int32_t;
+  uint32_t _uint32_t;
+  int16_t _int16_t;
+  uint16_t _uint16_t;
+  int8_t _int8_t;
+  uint8_t _uint8_t;
+  double _double;
+  float _float;
+  int64_t _int64_t;
+  uint64_t _uint64_t;
+} tensor_element;
 
 /**
  * @brief NN Frameworks available for the tensor_filter element.
