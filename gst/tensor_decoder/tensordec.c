@@ -16,12 +16,12 @@
  *
  */
 /**
- * @file	tensordec.c
- * @date	26 Mar 2018
- * @brief	GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
- * @see		https://github.com/nnsuite/nnstreamer
- * @author	Jijoong Moon <jijoong.moon@samsung.com>
- * @bug		gst_tensordec_transform_size () may be incorrect if direction is SINK.
+ * @file        tensordec.c
+ * @date        26 Mar 2018
+ * @brief       GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
+ * @see    	https://github.com/nnsuite/nnstreamer
+ * @author      Jijoong Moon <jijoong.moon@samsung.com>
+ * @bug         gst_tensordec_transform_size () may be incorrect if direction is SINK.
  *
  */
 
@@ -39,6 +39,7 @@
  * </refsect2>
  */
 
+/** @todo getline requires _GNU_SOURCE. remove this later. */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -100,7 +101,7 @@ enum
  * @brief Decoder Mode  string.
  */
 static const gchar *mode_names[] = {
-  [IMAGE_LABELING] = "image_labeling",
+  [IMAGE_LABELING] = "_image_labeling",
   [BOUNDING_BOXES] = "bounding_boxes",
   NULL
 };
@@ -1196,22 +1197,14 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   GstTensorDec *self;
 
   self = GST_TENSORDEC_CAST (trans);
+  self->negotiated = TRUE;
 
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
 
-  /** compare and verify outcaps */
-  if (gst_tensordec_configure (self, incaps)) {
-    GstTensorConfig config;
-    GstStructure *s = gst_caps_get_structure (outcaps, 0);
+  /** @todo Check if outcaps == getOutputDim (incaps) */
 
-    if (gst_tensor_config_from_structure (&config, s) &&
-        gst_tensordec_check_consistency (self, &config)) {
-      self->negotiated = TRUE;
-    }
-  }
-
-  return self->negotiated;
+  return TRUE;
 
 }
 
