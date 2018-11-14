@@ -568,7 +568,7 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
           "Mode option like file path to the image label", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION2,
       g_param_spec_string ("mode-option-2", "Mode option 2",
           "Secondary option for the decoder", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
