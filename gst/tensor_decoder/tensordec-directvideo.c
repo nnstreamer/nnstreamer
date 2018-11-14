@@ -195,14 +195,14 @@ static TensorDecDef directVideo = {
 
 /** @brief Initialize this object for tensordec-plugin */
 __attribute__ ((constructor))
-     void init (void)
+     void init_dv (void)
 {
   tensordec_probe (&directVideo);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 __attribute__ ((destructor))
-     void fini (void)
+     void fini_dv (void)
 {
   tensordec_exit (directVideo.modename);
 }
