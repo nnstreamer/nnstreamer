@@ -332,12 +332,14 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_INPUT_DIMENSION:
-      g_assert (get_tensor_dimension (g_value_get_string (value),
-              self->tensor_info.dimension) > 0);
+      if (get_tensor_dimension (g_value_get_string (value),
+              self->tensor_info.dimension) == 0)
+        GST_WARNING ("input dimension unknown (optinal).");
       break;
     case PROP_INPUT_TYPE:
       self->tensor_info.type = get_tensor_type (g_value_get_string (value));
-      g_assert (self->tensor_info.type != _NNS_END);
+      if (self->tensor_info.type == _NNS_END)
+        GST_WARNING ("input type unknown (optional).");
       break;
     case PROP_FRAMES_PER_TENSOR:
       self->frames_per_tensor = g_value_get_uint (value);
