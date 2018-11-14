@@ -46,8 +46,6 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_TRANSFORM))
 #define GST_TENSOR_TRANSFORM_CAST(obj)  ((GstTensorTransform *)(obj))
 
-#define ARITH_OPRND_NUM_LIMIT  2
-
 typedef struct _GstTensorTransform GstTensorTransform;
 typedef struct _GstTensorTransformClass GstTensorTransformClass;
 
@@ -64,27 +62,19 @@ typedef enum
 
 typedef enum
 {
-  ARITH_ADD = 0,
-  ARITH_MUL = 1,
-  ARITH_ADD_MUL = 2,            /* Fused add-multiply */
-  ARITH_MUL_ADD = 3,            /* Fused multiply-add */
+  GTT_OP_TYPECAST = 0,
+  GTT_OP_ADD = 1,
+  GTT_OP_MUL = 2,
+  GTT_OP_DIV = 3,
 
-  ARITH_END,
-} tensor_transform_arith_mode;
+  GTT_OP_UNKNOWN
+} tensor_transform_operator;
 
 typedef enum
 {
   STAND_DEFAULT = 0,
   STAND_END,
 } tensor_transform_stand_mode;
-
-typedef enum
-{
-  ARITH_OPRND_TYPE_INT64 = 0,
-  ARITH_OPRND_TYPE_DOUBLE = 1,
-
-  ARITH_OPRND_TYPE_END
-} tensor_transform_arith_oprnd_type;
 
 /**
  * @brief Internal data structure for dimchg mode.
@@ -104,20 +94,26 @@ typedef struct _tensor_transform_typecast {
 /**
  * @brief Internal data structure for operand of arithmetic mode.
  */
-typedef struct _tensor_transform_arithmetic_operand {
-  tensor_transform_arith_oprnd_type type;
-  union {
-    int64_t value_int64;
-    double value_double;
-  };
-} tensor_transform_arithmetic_operand;
+typedef struct
+{
+  tensor_type type;
+  tensor_element data;
+} tensor_transform_operand_s;
+
+/**
+ * @brief Internal data structure for operator of arithmetic mode.
+ */
+typedef struct
+{
+  tensor_transform_operator op;
+  tensor_transform_operand_s value;
+} tensor_transform_operator_s;
 
 /**
  * @brief Internal data structure for arithmetic mode.
  */
 typedef struct _tensor_transform_arithmetic {
-  tensor_transform_arith_mode mode;
-  tensor_transform_arithmetic_operand value[ARITH_OPRND_NUM_LIMIT];
+  tensor_type out_type;
 } tensor_transform_arithmetic;
 
 /**
@@ -152,6 +148,8 @@ struct _GstTensorTransform
     tensor_transform_stand data_stand; /**< Parsed option value for "stand" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
+
+  GSList *operators; /**< operators list */
 
   GstTensorConfig in_config; /**< input tensor info */
   GstTensorConfig out_config; /**< output tensor info */
