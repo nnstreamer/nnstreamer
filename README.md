@@ -49,4 +49,4 @@ For more details, please access the following manual.
 ## CI Server
 
 - [CI service status](http://nnsuite.mooo.com/)
-- [TAOS-CI config files for nnstreamer](Documentation/ci-config).
+- [TAOS-CI config files for nnstreamer](.TAOS-CI).
