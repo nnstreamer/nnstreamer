@@ -8,6 +8,6 @@ fi
 
 mkdir -p ${TARGET}
 pushd ${TARGET}
-	ln -s ${DIR}/../tests/test_models/models/mobilenet_v1_1.0_224_quant.tflite .
-	ln -s ${DIR}/../tests/test_models/labels/labels.txt .
+	ln -s ${DIR}/../../tests/test_models/models/mobilenet_v1_1.0_224_quant.tflite .
+	ln -s ${DIR}/../../tests/test_models/labels/labels.txt .
 popd
