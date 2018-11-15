@@ -181,7 +181,7 @@ tflite_load_box_priors (TFLiteModelInfo * tflite_info)
     tflite_info->box_priors[row][column++] = atof (buff);
   }
 
-  g_list_free (box_priors);
+  g_list_free_full (box_priors, g_free);
   return TRUE;
 }
 
@@ -245,7 +245,7 @@ tflite_free_info (TFLiteModelInfo * tflite_info)
   }
 
   if (tflite_info->labels) {
-    g_list_free (tflite_info->labels);
+    g_list_free_full (tflite_info->labels, g_free);
     tflite_info->labels = NULL;
   }
 }
