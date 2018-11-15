@@ -98,15 +98,6 @@ enum
 };
 
 /**
- * @brief Decoder Mode  string.
- */
-static const gchar *mode_names[] = {
-  [IMAGE_LABELING] = "_image_labeling",
-  [BOUNDING_BOXES] = "bounding_boxes",
-  NULL
-};
-
-/**
  * @brief Flag to print minimized log.
  */
 #define DEFAULT_SILENT TRUE
@@ -150,311 +141,6 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize);
 
 /**
- * @brief initialize data in tensor decoder image labeling info structure.
- * @todo Move to "tensordec-imagelabel.c"
- */
-static void
-gst_tensordec_image_labeling_init (Mode_image_labeling * mode_image_label)
-{
-  mode_image_label->label_path = NULL;
-  mode_image_label->labels = NULL;
-  mode_image_label->total_labels = 0;
-}
-
-/**
- * @brief initialize data in tensor decoder image labeling info structure.
- * @todo Move to "tensordec-boundingboxes.c"
- */
-static void
-gst_tensordec_bounding_boxes_init (Mode_boundig_boxes * mode_boundig_boxes)
-{
-  mode_boundig_boxes->label_path = NULL;
-  mode_boundig_boxes->labels = NULL;
-  mode_boundig_boxes->total_labels = 0;
-  mode_boundig_boxes->box_prior_path = NULL;
-  int i, j;
-
-  for (i = 0; i < BOX_SIZE; i++) {
-    for (j = 0; j < DETECTION_MAX; j++) {
-      mode_boundig_boxes->box_priors[i][j] = 0;
-    }
-  }
-}
-
-/**
- * @brief set label info data for Tensor decoder.
- * @todo Move to "tensordec-imagelabel.c"
- */
-static gboolean
-gst_set_mode_image_label_info (GstTensorDec * self)
-{
-  FILE *fp;
-
-  if ((fp = fopen (self->image_labeling.label_path, "r")) != NULL) {
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    gchar *label;
-
-    while ((read = getline (&line, &len, fp)) != -1) {
-      label = g_strdup ((gchar *) line);
-      self->image_labeling.labels =
-          g_list_append (self->image_labeling.labels, label);
-    }
-
-    if (line) {
-      free (line);
-    }
-
-    fclose (fp);
-  } else {
-    err_print ("cannot find label file in tensor decoder");
-    return FALSE;
-  }
-
-  self->image_labeling.total_labels =
-      g_list_length (self->image_labeling.labels);
-  err_print ("finished to load labels");
-  return TRUE;
-}
-
-/**
- * @brief Read strings from file.
- * @todo Move to "tensordec-boundingboxes.c"
- */
-static gboolean
-read_lines (const gchar * file_name, GList ** lines)
-{
-/** 
-*Not imployed yet TBD
-*/
-
-  return TRUE;
-}
-
-/**
- * @brief Load box priors.
- * @todo Move to "tensordec-boundingboxes.c"
- */
-static gboolean
-gst_tensordec_load_box_priors (GstTensorDec * self)
-{
-  GList *box_priors = NULL;
-  gchar *box_row;
-  int row;
-
-  g_return_val_if_fail (self != NULL, FALSE);
-  g_return_val_if_fail (read_lines (self->bounding_boxes.box_prior_path,
-          &box_priors), FALSE);
-
-  for (row = 0; row < BOX_SIZE; row++) {
-    int column = 0;
-    int i = 0, j = 0;
-    char buff[11];
-
-    memset (buff, 0, 11);
-    box_row = (gchar *) g_list_nth_data (box_priors, row);
-
-    while ((box_row[i] != '\n') && (box_row[i] != '\0')) {
-      if (box_row[i] != ' ') {
-        buff[j] = box_row[i];
-        j++;
-      } else {
-        if (j != 0) {
-          self->bounding_boxes.box_priors[row][column++] = atof (buff);
-          memset (buff, 0, 11);
-        }
-        j = 0;
-      }
-      i++;
-    }
-
-    self->bounding_boxes.box_priors[row][column++] = atof (buff);
-  }
-
-  g_list_free (box_priors);
-  return TRUE;
-}
-
-/**
- * @brief set bounding boxes info data for Tensor decoder.
- * @todo Move to "tensordec-boundingboxes.c"
- */
-static gboolean
-gst_set_mode_boundig_boxes_info (GstTensorDec * self)
-{
-  FILE *fp;
-
-  if ((fp = fopen (self->bounding_boxes.label_path, "r")) != NULL) {
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    gchar *label;
-
-    while ((read = getline (&line, &len, fp)) != -1) {
-      label = g_strdup ((gchar *) line);
-      self->bounding_boxes.labels =
-          g_list_append (self->bounding_boxes.labels, label);
-    }
-
-    if (line) {
-      free (line);
-    }
-
-    fclose (fp);
-  } else {
-    err_print ("cannot find label file of boundig boxes in tensor decoder");
-    return FALSE;
-  }
-
-  self->bounding_boxes.total_labels =
-      g_list_length (self->bounding_boxes.labels);
-  err_print ("finished to load labels");
-
-  gst_tensordec_load_box_priors (self);
-  return TRUE;
-}
-
-/**
- * @brief Get video caps from tensor config
- * @param self "this" pointer
- * @param config tensor config info
- * @return caps for given config
- * @todo This will require heavy modification after pluginization.
- *       When, it is fully pluginized, this won't be required anymore
- */
-static GstCaps *
-gst_tensordec_video_caps_from_config (GstTensorDec * self,
-    const GstTensorConfig * config)
-{
-  GstVideoFormat format;
-  gint width, height, fn, fd;
-  GstCaps *caps;
-
-  g_return_val_if_fail (config != NULL, NULL);
-
-  caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
-
-  switch (config->info.dimension[0]) {
-    case 1:
-      format = GST_VIDEO_FORMAT_GRAY8;
-      break;
-    case 3:
-      format = GST_VIDEO_FORMAT_RGB;
-      break;
-    case 4:
-      format = GST_VIDEO_FORMAT_BGRx;
-      break;
-    default:
-      format = GST_VIDEO_FORMAT_UNKNOWN;
-      break;
-  }
-
-  width = config->info.dimension[1];
-  height = config->info.dimension[2];
-  fn = config->rate_n;
-  fd = config->rate_d;
-
-  if (format != GST_VIDEO_FORMAT_UNKNOWN) {
-    const gchar *format_string = gst_video_format_to_string (format);
-    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
-  }
-
-  if (width > 0) {
-    gst_caps_set_simple (caps, "width", G_TYPE_INT, width, NULL);
-  }
-
-  if (height > 0) {
-    gst_caps_set_simple (caps, "height", G_TYPE_INT, height, NULL);
-  }
-
-  if (fn > 0 && fd > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
-  }
-
-  return gst_caps_simplify (caps);
-}
-
-/**
- * @brief Get audio caps from tensor config
- * @param self "this" pointer
- * @param config tensor config info
- * @return caps for given config
- * @todo This will require heavy modification after pluginization.
- *       When, it is fully pluginized, this won't be required anymore
- */
-static GstCaps *
-gst_tensordec_audio_caps_from_config (GstTensorDec * self,
-    const GstTensorConfig * config)
-{
-  GstAudioFormat format;
-  gint ch, rate;
-  GstCaps *caps;
-
-  g_return_val_if_fail (config != NULL, NULL);
-
-  caps = gst_caps_from_string (GST_TENSOR_AUDIO_CAPS_STR);
-
-  switch (config->info.type) {
-    case _NNS_INT8:
-      format = GST_AUDIO_FORMAT_S8;
-      break;
-    case _NNS_UINT8:
-      format = GST_AUDIO_FORMAT_U8;
-      break;
-    case _NNS_INT16:
-      format = GST_AUDIO_FORMAT_S16;
-      break;
-    case _NNS_UINT16:
-      format = GST_AUDIO_FORMAT_U16;
-      break;
-    default:
-      format = GST_AUDIO_FORMAT_UNKNOWN;
-      break;
-  }
-
-  ch = config->info.dimension[0];
-  rate = config->rate_n;
-
-  if (format != GST_AUDIO_FORMAT_UNKNOWN) {
-    const gchar *format_string = gst_audio_format_to_string (format);
-    gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
-  }
-
-  if (ch > 0) {
-    gst_caps_set_simple (caps, "channels", G_TYPE_INT, ch, NULL);
-  }
-
-  if (rate > 0) {
-    gst_caps_set_simple (caps, "rate", G_TYPE_INT, rate, NULL);
-  }
-
-  return gst_caps_simplify (caps);
-}
-
-/**
- * @brief Get text caps from tensor config
- * @param self "this" pointer
- * @param config tensor config info
- * @return caps for given config
- * @todo This will require heavy modification after pluginization.
- *       When, it is fully pluginized, this won't be required anymore
- */
-static GstCaps *
-gst_tensordec_text_caps_from_config (GstTensorDec * self,
-    const GstTensorConfig * config)
-{
-  g_return_val_if_fail (config != NULL, NULL);
-
-  /**
-   * Set text format. Supposed utf8 if type is int8.
-   */
-  g_return_val_if_fail (config->info.type == _NNS_UINT8, NULL);
-
-  return gst_caps_from_string (GST_TENSOR_TEXT_CAPS_STR);
-}
-
-/**
  * @brief Get media caps from tensor config
  * @param self "this" pointer
  * @param config tensor config info
@@ -464,8 +150,6 @@ static GstCaps *
 gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
     const GstTensorConfig * config)
 {
-  GstCaps *caps = NULL;
-
   g_return_val_if_fail (config != NULL, NULL);
 
   if (self->mode == DECODE_MODE_PLUGIN) {
@@ -473,23 +157,8 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
     return self->decoder->getOutputDim (self, config);
   }
 
-  /** @todo No more required from here if we fully pluginize */
-  switch (self->output_type) {
-    case OUTPUT_VIDEO:
-      caps = gst_tensordec_video_caps_from_config (self, config);
-      break;
-    case OUTPUT_AUDIO:
-      caps = gst_tensordec_audio_caps_from_config (self, config);
-      break;
-    case OUTPUT_TEXT:
-      caps = gst_tensordec_text_caps_from_config (self, config);
-      break;
-    default:
-      err_print ("Unsupported type %d\n", self->output_type);
-      break;
-  }
-
-  return caps;
+  GST_ERROR ("Decoder plugin not yet configured.");
+  return NULL;
 }
 
 /**
@@ -526,11 +195,6 @@ gst_tensordec_check_consistency (GstTensorDec * self, GstTensorConfig * config)
 {
   g_return_val_if_fail (self != NULL, FALSE);
   g_return_val_if_fail (config != NULL, FALSE);
-
-  if (self->mode == IMAGE_LABELING) {
-    config->rate_n = self->tensor_config.rate_n;
-    config->info.dimension[0] = self->tensor_config.info.dimension[0];
-  }
 
   if (self->configured) {
     return gst_tensor_config_is_equal (&self->tensor_config, config);
@@ -631,7 +295,6 @@ gst_tensordec_init (GstTensorDec * self)
   self->silent = DEFAULT_SILENT;
   self->configured = FALSE;
   self->negotiated = FALSE;
-  self->add_padding = FALSE;
   self->output_type = OUTPUT_UNKNOWN;
   self->mode = DECODE_MODE_UNKNOWN;
   self->plugin_data = NULL;
@@ -639,27 +302,6 @@ gst_tensordec_init (GstTensorDec * self)
   self->option[1] = NULL;
   self->decoder = NULL;
   gst_tensor_config_init (&self->tensor_config);
-}
-
-/**
- * @brief initialize the new element
- * instantiate pads and add them to element
- * set pad calback functions
- * initialize instance structure
- * @todo Not required with full pluginization.
- */
-static void
-gst_tensordec_mode_init (GstTensorDec * self)
-{
-  if (self->mode == IMAGE_LABELING) {
-
-    gst_tensordec_image_labeling_init (&self->image_labeling);
-
-  } else if (self->mode == BOUNDING_BOXES) {
-
-    gst_tensordec_bounding_boxes_init (&self->bounding_boxes);
-
-  }
 }
 
 /**
@@ -688,72 +330,67 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
 {
   GstTensorDec *self = GST_TENSORDEC (object);
   gchar *temp_string;
-  int key;
 
   switch (prop_id) {
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
-    case PROP_MODE:
+    case PROP_MODE:{
+      int i;
+      gboolean retval = TRUE;
+      TensorDecDef *decoder;
       temp_string = g_value_dup_string (value);
-      key = find_key_strv (mode_names, temp_string);
-      if (key < 0) {
-        int i;
-        gboolean retval = TRUE;
-        TensorDecDef *decoder = tensordec_find (temp_string);
+      decoder = tensordec_find (temp_string);
 
-        /* See if we are using "plugin" */
-        if (NULL != decoder) {
-          if (decoder == self->decoder) {
-            /* Already configured??? */
-            GST_WARNING ("nnstreamer tensor_decoder %s is already confgured.\n",
-                temp_string);
+      /* See if we are using "plugin" */
+      if (NULL != decoder) {
+        if (decoder == self->decoder) {
+          /* Already configured??? */
+          GST_WARNING ("nnstreamer tensor_decoder %s is already confgured.\n",
+              temp_string);
+        } else {
+          /* Changing decoder. Deallocate the previous */
+          if (self->cleanup_plugin_data) {
+            self->cleanup_plugin_data (self);
           } else {
-            /* Changing decoder. Deallocate the previous */
-            if (self->cleanup_plugin_data) {
-              self->cleanup_plugin_data (self);
-            } else {
-              g_free (self->plugin_data);
-              self->plugin_data = NULL;
-            }
-            self->decoder = decoder;
+            g_free (self->plugin_data);
           }
+          self->plugin_data = NULL;
 
-          g_assert (self->decoder->init (self));
-          self->cleanup_plugin_data = self->decoder->exit;
-
-          silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
-          for (i = 0; i < TensorDecMaxOpNum; i++)
-            retval &= _tensordec_process_plugin_options (self, i);
-          g_assert (retval == TRUE);
-          key = DECODE_MODE_PLUGIN;
+          self->decoder = decoder;
         }
-      }
-      if (key < 0) {
+
+        g_assert (self->decoder->init (self));
+        self->cleanup_plugin_data = self->decoder->exit;
+
+        silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
+        for (i = 0; i < TensorDecMaxOpNum; i++)
+          retval &= _tensordec_process_plugin_options (self, i);
+        g_assert (retval == TRUE);
+        self->mode = DECODE_MODE_PLUGIN;
+        self->output_type = self->decoder->type;
+      } else {
         GST_ERROR ("The given mode for tensor_decoder, %s, is unrecognized.\n",
             temp_string);
-        key = DECODE_MODE_UNKNOWN;
+        if (NULL != self->decoder) {
+          if (self->cleanup_plugin_data) {
+            self->cleanup_plugin_data (self);
+          } else {
+            g_free (self->plugin_data);
+          }
+          self->plugin_data = NULL;
+        }
+        self->mode = DECODE_MODE_UNKNOWN;
+        self->decoder = NULL;
+        self->output_type = OUTPUT_UNKNOWN;
       }
-      self->mode = key;
-      if (key == DECODE_MODE_PLUGIN)
-        self->output_type = self->decoder->type;
-      else
-        self->output_type = dec_output_type[key];
       g_free (temp_string);
+    }
       break;
     case PROP_MODE_OPTION1:
       self->option[0] = g_value_dup_string (value);
       if (self->mode == DECODE_MODE_PLUGIN) {
         g_assert (_tensordec_process_plugin_options (self, 0) == TRUE);
-      } else if (self->mode == IMAGE_LABELING) {
-        /** @todo Can you really sure that MODE_OPTION* is called AFTER MODE? */
-        gst_tensordec_mode_init (self);
-        self->image_labeling.label_path = g_value_dup_string (value);
-        gst_set_mode_image_label_info (self);
-      } else if (self->mode == BOUNDING_BOXES) {
-        gst_tensordec_mode_init (self);
-        self->bounding_boxes.label_path = g_value_dup_string (value);
-        gst_set_mode_boundig_boxes_info (self);
       }
       break;
     case PROP_MODE_OPTION2:
@@ -792,7 +429,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       if (self->mode == DECODE_MODE_PLUGIN)
         g_value_set_string (value, self->decoder->modename);
       else
-        g_value_set_string (value, mode_names[self->mode]);
+        g_value_set_string (value, "");
       break;
     case PROP_MODE_OPTION1:
       g_value_set_string (value, self->option[0]);
@@ -846,175 +483,13 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
         g_printerr ("Unsupported type %d\n", self->output_type);
         return FALSE;
     }
-    goto configure;
+    self->tensor_config = config;
+    self->configured = TRUE;
+    return TRUE;
   }
 
-  /** @todo After pluginization, this switch-case statement is useless */
-  switch (self->output_type) {
-    case OUTPUT_VIDEO:
-    {
-      GstVideoFormat format;
-      gint width;
-
-      switch (config.info.dimension[0]) {
-        case 1:
-          format = GST_VIDEO_FORMAT_GRAY8;
-          break;
-        case 3:
-          format = GST_VIDEO_FORMAT_RGB;
-          break;
-        case 4:
-          format = GST_VIDEO_FORMAT_BGRx;
-          break;
-        default:
-          format = GST_VIDEO_FORMAT_UNKNOWN;
-          break;
-      }
-      width = config.info.dimension[1];
-
-      if (gst_tensor_video_stride_padding_per_row (format, width)) {
-        self->add_padding = TRUE;
-      }
-
-      break;
-    }
-    case OUTPUT_AUDIO:
-    case OUTPUT_TEXT:
-      break;
-    default:
-      err_print ("Unsupported type %d\n", self->output_type);
-      return FALSE;
-  }
-
-configure:
-  self->tensor_config = config;
-  self->configured = TRUE;
-  return TRUE;
-}
-
-/**
- * @brief update top label index by given tensor data 
- * @param self "this" pointer
- * @param scores given tensor data
- * @param len length of valid given tensor data
- * @todo Move to plugin after full pluginization.
- */
-static gint
-gst_tensordec_update_top_label_index (GstTensorDec * self,
-    guint8 * scores, guint len)
-{
-  gint i;
-  gint index = -1;
-  guint8 max_score = 0;
-
-  g_return_val_if_fail (scores != NULL, -1);
-  g_return_val_if_fail (len == self->image_labeling.total_labels, -1);
-
-  for (i = 0; i < len; i++) {
-    if (scores[i] > 0 && scores[i] > max_score) {
-      index = i;
-      max_score = scores[i];
-    }
-  }
-
-  return index;
-}
-
-/**
- * @brief get image label text with given index 
- * @param self "this" pointer
- * @todo Move to plugin after full pluginization.
- */
-static gchar *
-gst_get_image_label (GstTensorDec * self, gint label)
-{
-  guint length;
-  gint check_label = label;
-  g_return_val_if_fail (self != NULL, NULL);
-  g_return_val_if_fail (self->image_labeling.labels != NULL, NULL);
-
-  length = g_list_length (self->image_labeling.labels);
-  g_return_val_if_fail (check_label >= 0 && check_label < length, NULL);
-
-  return (gchar *) g_list_nth_data (self->image_labeling.labels, check_label);
-}
-
-
-/**
- * @brief set output of tensor decoder that will send to src pad  
- * @param self "this" pointer
- * @param outbuf src pad buffer
- * @param label image label text that will copy to outbuf
- * @todo Move to plugin after full pluginization.
- */
-static void
-gst_tensordec_label_set_output (GstTensorDec * self, GstBuffer * outbuf,
-    gchar * label)
-{
-  guint len;
-  GstMemory *out_mem;
-  GstMapInfo out_info;
-
-  gst_buffer_set_size (outbuf, 0);
-  g_assert (gst_buffer_get_size (outbuf) == 0);
-
-  len = strlen (label);
-
-  out_mem = gst_allocator_alloc (NULL, len, NULL);
-  g_assert (out_mem != NULL);
-  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
-
-  /**
-   * Security: strncpy protects from buffer overflows. But, if it prevents an
-   * overflow without null termiating, a subsequent string operation cause overflow.
-   *
-   * Gstreamer: Note that gst-plugins-base/gstbasetextoverlay.c:g_utf8_validate()
-   * displays '*' at back of the string if a string includes a NULL character.
-   *
-   * Won't Fix: The warning might be a defect according to the gst-plugins-base (GStreamer),
-   * but it will not make trouble in this code.
-   */
-  strncpy ((char *) out_info.data, label, len);
-
-  gst_memory_unmap (out_mem, &out_info);
-
-  gst_buffer_append_memory (outbuf, out_mem);
-
-}
-
-/**
- * @brief get image label by incomming tensor 
- * @param self "this" pointer
- * @param inbuf sink pad buffer
- * @param outbuf src pad buffer
- * @return GST_FLOW_OK if ok. other values represents error
- * @todo Move to plugin after full pluginization.
- */
-static GstFlowReturn
-gst_tensordec_get_label (GstTensorDec * self,
-    GstBuffer * inbuf, GstBuffer * outbuf)
-{
-  GstMemory *mem;
-  GstMapInfo info;
-  gchar *image_label;
-  guint i;
-  gint max_label = -1;
-  guint num_mems;
-
-  num_mems = gst_buffer_n_memory (inbuf);
-  for (i = 0; i < num_mems; i++) {
-    mem = gst_buffer_peek_memory (inbuf, i);
-    if (gst_memory_map (mem, &info, GST_MAP_READ)) {
-      /** update label index with max score */
-      max_label =
-          gst_tensordec_update_top_label_index (self, info.data,
-          (guint) info.size);
-      gst_memory_unmap (mem, &info);
-    }
-  }
-  image_label = gst_get_image_label (self, max_label);
-  gst_tensordec_label_set_output (self, outbuf, image_label);
-  return GST_FLOW_OK;
+  GST_WARNING ("Decoder plugin is not yet configured.");
+  return FALSE;
 }
 
 /**
@@ -1034,32 +509,25 @@ gst_tensordec_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
 
-  switch (self->mode) {
-    case DECODE_MODE_PLUGIN:{
-        /** @todo Supporting multi-tensor will require significant changes */
-      GstMemory *in_mem;
-      GstMapInfo in_info;
-      GstTensorMemory input;
+  if (self->mode == DECODE_MODE_PLUGIN) {
+    /** @todo Supporting multi-tensor will require significant changes */
+    GstMemory *in_mem;
+    GstMapInfo in_info;
+    GstTensorMemory input;
 
-      in_mem = gst_buffer_peek_memory (inbuf, 0);   /** @todo support multi-tensor! */
-      g_assert (gst_memory_map (in_mem, &in_info, GST_MAP_READ));
+    in_mem = gst_buffer_peek_memory (inbuf, 0);   /** @todo support multi-tensor! */
+    g_assert (gst_memory_map (in_mem, &in_info, GST_MAP_READ));
 
-      input.data = in_info.data;
-      input.size = in_info.size;
-      input.type = self->tensor_config.info.type;
+    input.data = in_info.data;
+    input.size = in_info.size;
+    input.type = self->tensor_config.info.type;
 
-      res = self->decoder->decode (self, &input, outbuf);
+    res = self->decoder->decode (self, &input, outbuf);
 
-      gst_memory_unmap (in_mem, &in_info);
-    }
-      break;
-    case IMAGE_LABELING:
-      res = gst_tensordec_get_label (self, inbuf, outbuf);
-      break;
-    case BOUNDING_BOXES:
-    default:
-      err_print ("Unsupported mode (%d)\n", self->mode);
-      goto unknown_type;
+    gst_memory_unmap (in_mem, &in_info);
+  } else {
+    GST_ERROR ("Decoder plugin not yet configured.");
+    goto unknown_type;
   }
 
   return res;
@@ -1219,7 +687,6 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize)
 {
   GstTensorDec *self;
-  GstTensorConfig *config;
 
   if (direction == GST_PAD_SRC)
     return FALSE;
@@ -1227,8 +694,6 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
   self = GST_TENSORDEC_CAST (trans);
 
   g_assert (self->configured);
-
-  config = &self->tensor_config;
 
   if (self->mode == DECODE_MODE_PLUGIN) {
     if (self->decoder->getTransformSize)
@@ -1238,25 +703,10 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
       *othersize = 0;
 
     return TRUE;
-  }
-
-  if (self->add_padding) {
-    gsize offset;
-
-    /** flag add_padding only for video */
-    g_assert (self->output_type == OUTPUT_VIDEO);
-
-    offset = config->info.dimension[0] * config->info.dimension[1];
-
-    if (offset % 4)
-      offset += 4 - (offset % 4);
-
-    *othersize = offset * config->info.dimension[2] * config->info.dimension[3];
   } else {
-    *othersize = size;
+    GST_ERROR ("Decoder plugin not yet configured.");
+    return FALSE;
   }
-
-  return TRUE;
 }
 
 /**

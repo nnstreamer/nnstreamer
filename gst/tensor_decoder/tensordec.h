@@ -45,33 +45,10 @@ G_BEGIN_DECLS
 #define GST_IS_TENSORDEC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSORDEC))
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
-#define BOX_SIZE        4
-#define DETECTION_MAX   1917
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
 typedef struct _TensorDecDef TensorDecDef;
 
-/**
- * @brief Data structure for image labeling info.
- */
-typedef struct
-{
-  gchar *label_path; /**< label file path */
-  GList *labels; /**< list of loaded labels */
-  guint total_labels; /**< count of labels */
-} Mode_image_labeling;
-
-/**
- * @brief Data structure for boundig box info.
- */
-typedef struct
-{
-  gchar *label_path; /**< label file path */
-  GList *labels; /**< list of loaded labels */
-  gchar *box_prior_path; /**< label file path */
-  gfloat box_priors[BOX_SIZE][DETECTION_MAX];
-  guint total_labels; /**< count of labels */
-} Mode_boundig_boxes;
 
 #define TensorDecMaxOpNum (3)
 /**
@@ -83,7 +60,6 @@ struct _GstTensorDec
 
   /** For transformer */
   gboolean negotiated; /**< TRUE if tensor metadata is set */
-  gboolean add_padding; /**< If TRUE, zero-padding must be added during transform */
   gboolean silent; /**< True if logging is minimized */
   guint output_type; /**< Denotes the output type */
   guint mode; /** Mode for tensor decoder "direct_video" or "image_labeling" or "bounding_boxes */
@@ -94,8 +70,6 @@ struct _GstTensorDec
   void *plugin_data;
   void (*cleanup_plugin_data)(GstTensorDec *self); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
   GstTensorConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
-  Mode_image_labeling image_labeling;/** tensor decoder image labeling mode info */
-  Mode_boundig_boxes bounding_boxes;/** tensor decoder image labeling mode info */
 
   TensorDecDef *decoder; /**< Plugin object */
 };
@@ -128,8 +102,6 @@ typedef enum
  */
 typedef enum
 {
-  IMAGE_LABELING,
-  BOUNDING_BOXES,
   DECODE_MODE_PLUGIN,
   DECODE_MODE_UNKNOWN
 } GstDecMode;
