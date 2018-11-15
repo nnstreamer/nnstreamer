@@ -108,7 +108,7 @@ _tflite_free_info (tflite_info_s * tflite_info)
   }
 
   if (tflite_info->labels) {
-    g_list_free (tflite_info->labels);
+    g_list_free_full (tflite_info->labels, g_free);
     tflite_info->labels = NULL;
   }
 }
