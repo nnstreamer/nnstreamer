@@ -73,7 +73,7 @@ typedef struct
   guint total_labels; /**< count of labels */
 } Mode_boundig_boxes;
 
-#define TensorDecMaxOpNum (2)
+#define TensorDecMaxOpNum (3)
 /**
  * @brief Internal data structure for tensordec instances.
  */
