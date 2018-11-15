@@ -295,6 +295,7 @@ gst_tensor_config_is_equal (const GstTensorConfig * c1,
   g_return_val_if_fail (c1 != NULL, FALSE);
   g_return_val_if_fail (c2 != NULL, FALSE);
 
+  /** @todo 1/2 == 2/4 Don't say they are different! */
   if (c1->rate_n != c2->rate_n || c1->rate_d != c2->rate_d) {
     return FALSE;
   }
