@@ -92,7 +92,8 @@ enum
   PROP_SILENT,
   PROP_MODE,
   PROP_MODE_OPTION1,
-  PROP_MODE_OPTION2
+  PROP_MODE_OPTION2,
+  PROP_MODE_OPTION3
 };
 
 /**
@@ -573,6 +574,11 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
           "Secondary option for the decoder", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION3,
+      g_param_spec_string ("mode-option-3", "Mode option 3",
+          "Secondary option for the decoder", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
       "Converter/Tensor",
@@ -752,7 +758,13 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     case PROP_MODE_OPTION2:
       self->option[1] = g_value_dup_string (value);
       if (self->mode == DECODE_MODE_PLUGIN) {
-        g_assert (_tensordec_process_plugin_options (self, 0) == TRUE);
+        g_assert (_tensordec_process_plugin_options (self, 1) == TRUE);
+      }
+      break;
+    case PROP_MODE_OPTION3:
+      self->option[2] = g_value_dup_string (value);
+      if (self->mode == DECODE_MODE_PLUGIN) {
+        g_assert (_tensordec_process_plugin_options (self, 2) == TRUE);
       }
       break;
     default:
@@ -786,6 +798,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE_OPTION2:
       g_value_set_string (value, self->option[1]);
+      break;
+    case PROP_MODE_OPTION3:
+      g_value_set_string (value, self->option[2]);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
