@@ -103,12 +103,17 @@ enum
 #define DEFAULT_SILENT TRUE
 
 /**
+ * @brief Support multi-tensor along with single-tensor as the input
+ */
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+
+/**
  * @brief The capabilities of the inputs
  */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+    GST_STATIC_CAPS (CAPS_STRING));
 
 /**
  * @brief The capabilities of the outputs
@@ -148,7 +153,7 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
  */
 static GstCaps *
 gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
-    const GstTensorConfig * config)
+    const GstTensorsConfig * config)
 {
   g_return_val_if_fail (config != NULL, NULL);
 
@@ -170,10 +175,10 @@ static GstCaps *
 gst_tensordec_media_caps_from_structure (GstTensorDec * self,
     const GstStructure * structure)
 {
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstCaps *result = NULL;
 
-  if (gst_tensor_config_from_structure (&config, structure)) {
+  if (gst_tensors_config_from_structure (&config, structure)) {
     result = gst_tensordec_media_caps_from_tensor (self, &config);
   }
 
@@ -191,13 +196,13 @@ gst_tensordec_media_caps_from_structure (GstTensorDec * self,
  * @param t_info newly configured tensor metadata
  */
 static gboolean
-gst_tensordec_check_consistency (GstTensorDec * self, GstTensorConfig * config)
+gst_tensordec_check_consistency (GstTensorDec * self, GstTensorsConfig * config)
 {
   g_return_val_if_fail (self != NULL, FALSE);
   g_return_val_if_fail (config != NULL, FALSE);
 
   if (self->configured) {
-    return gst_tensor_config_is_equal (&self->tensor_config, config);
+    return gst_tensors_config_is_equal (&self->tensor_config, config);
   }
 
   /** not configured yet */
@@ -301,7 +306,7 @@ gst_tensordec_init (GstTensorDec * self)
   self->option[0] = NULL;
   self->option[1] = NULL;
   self->decoder = NULL;
-  gst_tensor_config_init (&self->tensor_config);
+  gst_tensors_config_init (&self->tensor_config);
 }
 
 /**
@@ -453,17 +458,17 @@ static gboolean
 gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
 {
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
 
   /** This caps is coming from tensor */
   structure = gst_caps_get_structure (caps, 0);
 
-  if (!gst_tensor_config_from_structure (&config, structure)) {
+  if (!gst_tensors_config_from_structure (&config, structure)) {
     err_print ("Cannot configure tensor from structure");
     return FALSE;
   }
 
-  if (!gst_tensor_config_validate (&config)) {
+  if (!gst_tensors_config_validate (&config)) {
     err_print ("Not configured yet");
     return FALSE;
   }
@@ -510,21 +515,27 @@ gst_tensordec_transform (GstBaseTransform * trans,
     goto unknown_format;
 
   if (self->mode == DECODE_MODE_PLUGIN) {
-    /** @todo Supporting multi-tensor will require significant changes */
-    GstMemory *in_mem;
-    GstMapInfo in_info;
-    GstTensorMemory input;
+    int num_tensors = self->tensor_config.info.num_tensors;
+    int i;
+    GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+    GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+    GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
 
-    in_mem = gst_buffer_peek_memory (inbuf, 0);   /** @todo support multi-tensor! */
-    g_assert (gst_memory_map (in_mem, &in_info, GST_MAP_READ));
+    g_assert (gst_buffer_n_memory (inbuf) == num_tensors);
 
-    input.data = in_info.data;
-    input.size = in_info.size;
-    input.type = self->tensor_config.info.type;
+    for (i = 0; i < num_tensors; i++) {
+      in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+      g_assert (gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ));
 
-    res = self->decoder->decode (self, &input, outbuf);
+      input[i].data = in_info[i].data;
+      input[i].size = in_info[i].size;
+      input[i].type = self->tensor_config.info.info[i].type;
+    }
 
-    gst_memory_unmap (in_mem, &in_info);
+    res = self->decoder->decode (self, input, outbuf);
+
+    for (i = 0; i < num_tensors; i++)
+      gst_memory_unmap (in_mem[i], &in_info[i]);
   } else {
     GST_ERROR ("Decoder plugin not yet configured.");
     goto unknown_type;
@@ -670,10 +681,22 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
 
-  /** @todo Check if outcaps == getOutputDim (incaps) */
+  if (gst_tensordec_configure (self, incaps)) {
+    GstCaps *supposed = gst_tensordec_media_caps_from_tensor (self,
+        &self->tensor_config);
+
+    /** Check if outcaps ==equivalent== supposed */
+    if (!gst_caps_is_always_compatible (outcaps, supposed)) {
+      GST_ERROR ("This is not compatible with the supposed output pad cap");
+      gst_caps_unref (supposed);
+      return FALSE;
+    }
+    gst_caps_unref (supposed);
+  } else {
+    return FALSE;
+  }
 
   return TRUE;
-
 }
 
 /**

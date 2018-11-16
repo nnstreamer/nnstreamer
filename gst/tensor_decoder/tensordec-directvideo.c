@@ -57,7 +57,7 @@ dv_setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-dv_getOutputDim (GstTensorDec * self, const GstTensorConfig * config)
+dv_getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
 {
   /* Old gst_tensordec_video_caps_from_config () had this */
   GstVideoFormat format;
@@ -65,10 +65,13 @@ dv_getOutputDim (GstTensorDec * self, const GstTensorConfig * config)
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
+  GST_ERROR ("Num Tensors = %d", config->info.num_tensors);
+  g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
   caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
 
-  switch (config->info.dimension[0]) {
+  /* Direct video uses the first tensor only even if it's multi-tensor */
+  switch (config->info.info[0].dimension[0]) {
     case 1:
       format = GST_VIDEO_FORMAT_GRAY8;
       break;
@@ -83,9 +86,9 @@ dv_getOutputDim (GstTensorDec * self, const GstTensorConfig * config)
       break;
   }
 
-  width = config->info.dimension[1];
-  height = config->info.dimension[2];
-  fn = config->rate_n;
+  width = config->info.info[0].dimension[1];
+  height = config->info.info[0].dimension[2];
+  fn = config->rate_n; /** @todo Verify if this rate is ok */
   fd = config->rate_d;
 
   if (format != GST_VIDEO_FORMAT_UNKNOWN) {
@@ -121,8 +124,9 @@ static gsize
 dv_getTransformSize (GstTensorDec * self, GstCaps * caps,
     gsize size, GstCaps * othercaps, GstPadDirection direction)
 {
-  GstTensorConfig *config = &self->tensor_config;
-  uint32_t *dim = &(config->info.dimension[0]);
+  GstTensorsConfig *config = &self->tensor_config;
+  /* Direct video uses the first tensor only even if it's multi-tensor */
+  uint32_t *dim = &(config->info.info[0].dimension[0]);
 
   if (direction == GST_PAD_SINK)
     return _get_video_xraw_bufsize (dim);
@@ -137,15 +141,16 @@ dv_decode (GstTensorDec * self, const GstTensorMemory * input,
 {
   GstMapInfo out_info;
   GstMemory *out_mem;
-  GstTensorConfig *config = &self->tensor_config;
-  uint32_t *dim = &(config->info.dimension[0]);
+  GstTensorsConfig *config = &self->tensor_config;
+  /* Direct video uses the first tensor only even if it's multi-tensor */
+  uint32_t *dim = &(config->info.info[0].dimension[0]);
   size_t size = _get_video_xraw_bufsize (dim);
 
   g_assert (outbuf);
   if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
     gst_buffer_set_size (outbuf, size);
   }
-  g_assert (config->info.type == _NNS_UINT8);
+  g_assert (config->info.info[0].type == _NNS_UINT8);
 
   if (gst_buffer_get_size (outbuf) == size) {
     /* Don't reallocate. Reuse what's already given */
