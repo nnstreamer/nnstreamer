@@ -69,7 +69,7 @@ struct _GstTensorDec
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   void *plugin_data;
   void (*cleanup_plugin_data)(GstTensorDec *self); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
-  GstTensorConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
+  GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
 
   TensorDecDef *decoder; /**< Plugin object */
 };
@@ -141,7 +141,7 @@ struct _TensorDecDef
       /**< Object destruction for the decoder */
   gboolean (*setOption) (GstTensorDec *self, int opNum, const gchar *param);
       /**< Process with the given options. It can be called repeatedly */
-  GstCaps *(*getOutputDim) (GstTensorDec *self, const GstTensorConfig *config);
+  GstCaps *(*getOutputDim) (GstTensorDec *self, const GstTensorsConfig *config);
       /**< The caller should unref the returned GstCaps
         * Current implementation supports single-tensor only.
         * @todo WIP: support multi-tensor for input!!!

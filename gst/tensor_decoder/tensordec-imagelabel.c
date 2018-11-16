@@ -169,14 +169,16 @@ _setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-_getOutputDim (GstTensorDec * self, const GstTensorConfig * config)
+_getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
 {
   const uint32_t *dim;
   int i;
 
   g_return_val_if_fail (config != NULL, NULL);
+  g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
-  dim = config->info.dimension;
+  /* Even if it's multi-tensor, we use the first tensor only in image labeling */
+  dim = config->info.info[0].dimension;
   /* This allows N:1:1:1 only! */
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
     if (dim[i] != 1) {
@@ -226,7 +228,7 @@ _decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
   GstMapInfo out_info;
   GstMemory *out_mem;
 
-  gsize bpe = tensor_element_size[self->tensor_config.info.type];
+  gsize bpe = tensor_element_size[self->tensor_config.info.info[0].type];
   tensor_element max_val;
   guint max_index = 0;
   gsize num_data;               /* Size / bpe */
@@ -239,9 +241,9 @@ _decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
   g_assert (outbuf);
 
   input_data = input->data;
-  num_data = gst_tensor_info_get_size (&self->tensor_config.info) / bpe;
+  num_data = gst_tensor_info_get_size (&self->tensor_config.info.info[0]) / bpe;
 
-  switch (self->tensor_config.info.type) {
+  switch (self->tensor_config.info.info[0].type) {
       search_max_case (int32_t, _NNS_INT32);
       search_max_case (uint32_t, _NNS_UINT32);
       search_max_case (int16_t, _NNS_INT16);
