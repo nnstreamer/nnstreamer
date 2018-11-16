@@ -43,7 +43,9 @@ typedef struct _Tflite_data tflite_data;
  * @brief Load tensorflow lite modelfile
  * @param filter : tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
- * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
+ * @return 0 if successfully loaded. 1 if skipped (already loaded).
+ *        -1 if the object construction is failed.
+ *        -2 if the object initialization if failed
  */
 static int
 tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
@@ -57,6 +59,8 @@ tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
   *private_data = tf;
   tf->tflite_private_data = tflite_core_new (filter->prop.model_file);
   if (tf->tflite_private_data) {
+    if (tflite_core_init (tf->tflite_private_data))
+      return -2;
     return 0;
   } else {
     return -1;

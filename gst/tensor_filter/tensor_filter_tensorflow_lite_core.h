@@ -44,6 +44,7 @@ public:
   TFLiteCore (const char *_model_path);
   ~TFLiteCore ();
 
+  int init();
   int loadModel ();
   int setInputTensorProp ();
   int setOutputTensorProp ();
@@ -77,6 +78,7 @@ extern "C"
 
   extern void *tflite_core_new (const char *_model_path);
   extern void tflite_core_delete (void *tflite);
+  extern int tflite_core_init (void *tflite);
   extern const char *tflite_core_getModelPath (void *tflite);
   extern int tflite_core_getInputDim (void *tflite, GstTensorsInfo * info);
   extern int tflite_core_getOutputDim (void *tflite, GstTensorsInfo * info);
