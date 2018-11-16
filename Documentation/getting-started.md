@@ -48,6 +48,26 @@ $ sudo make install
 if installing NNstreamer plugin libraries into ```%{_libdir}```.
 
 
+**Approach 3.** Build with meson
+* https://mesonbuild.com/Getting-meson.html
+
+install the required packages.
+
+```bash
+$ sudo apt install libgtk-3-dev ninja-build
+$ git clone https://github.com/mesonbuild/meson.git
+$ cd meson
+$ git checkout 0.48
+$ cd ..
+```
+
+Build at the git repo root directory.
+```bash
+$ meson/meson.py build
+$ cd build
+$ ninja
+```
+ 
 ### Clean Build based on Platform
 
 ##### Tizen
