@@ -48,9 +48,6 @@
 TFLiteCore::TFLiteCore (const char *_model_path)
 {
   model_path = _model_path;
-  loadModel ();
-  setInputTensorProp ();
-  setOutputTensorProp ();
 }
 
 /**
@@ -59,6 +56,34 @@ TFLiteCore::TFLiteCore (const char *_model_path)
  */
 TFLiteCore::~TFLiteCore ()
 {
+}
+
+/**
+ * @brief	initialize the object with tflite model
+ * @return 0 if OK. non-zero if error.
+ *        -1 if the model is not loaded.
+ *        -2 if the initialization of input tensor is failed.
+ *        -3 if the initialization of output tensor is failed.
+ */
+int
+TFLiteCore::init()
+{
+  if(loadModel ())
+  {
+    _print_log ("Failed to load model\n");
+    return -1;
+  }
+  if(setInputTensorProp ())
+  {
+    _print_log ("Failed to initialize input tensor\n");
+    return -2;
+  }
+  if(setOutputTensorProp ())
+  {
+    _print_log ("Failed to initialize output tensor\n");
+    return -3;
+  }
+  return 0;
 }
 
 /**
@@ -351,7 +376,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
  * @return	TFLiteCore class
  */
-extern void *
+void *
 tflite_core_new (const char *_model_path)
 {
   return new TFLiteCore (_model_path);
@@ -362,11 +387,23 @@ tflite_core_new (const char *_model_path)
  * @param	tflite	: the class object
  * @return	Nothing
  */
-extern void
+void
 tflite_core_delete (void *tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   delete c;
+}
+
+/**
+ * @brief	initialize the object with tflite model
+ * @return 0 if OK. non-zero if error.
+ */
+int
+tflite_core_init (void *tflite)
+{
+  TFLiteCore *c = (TFLiteCore *) tflite;
+  int ret = c->init ();
+  return ret;
 }
 
 /**
