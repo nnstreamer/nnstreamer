@@ -518,7 +518,7 @@ _construct_v4l2src_pipeline (nnstrmr_app_context_t * ctx)
   }
 
   str_caps =
-      g_strdup_printf ("video/x-raw,width=%d,hegith=%d,framerate=%s",
+      g_strdup_printf ("video/x-raw,width=%d,height=%d,framerate=%s",
       ctx->input_src_width, ctx->input_src_height, ctx->input_src_framerates);
   caps = gst_caps_from_string (str_caps);
   g_object_set (G_OBJECT (pipeline_cntnr->input_capsfilter),
