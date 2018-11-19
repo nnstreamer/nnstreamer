@@ -87,6 +87,16 @@ TFLiteCore::init()
 }
 
 /**
+ * @brief	get the model path
+ * @return the model path.
+ */
+const char*
+TFLiteCore::getModelPath()
+{
+  return model_path;
+}
+
+/**
  * @brief	get millisecond for time profiling.
  * @note	it returns the millisecond.
  * @param t	: the time struct.
@@ -396,6 +406,7 @@ tflite_core_delete (void *tflite)
 
 /**
  * @brief	initialize the object with tflite model
+ * @param	tflite	: the class object
  * @return 0 if OK. non-zero if error.
  */
 int
@@ -404,6 +415,18 @@ tflite_core_init (void *tflite)
   TFLiteCore *c = (TFLiteCore *) tflite;
   int ret = c->init ();
   return ret;
+}
+
+/**
+ * @brief	get the model path
+ * @param	tflite	: the class object
+ * @return the model path.
+ */
+const char *
+tflite_core_getModelPath (void *tflite)
+{
+  TFLiteCore *c = (TFLiteCore *) tflite;
+  return c->getModelPath();
 }
 
 /**
