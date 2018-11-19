@@ -38,11 +38,6 @@
 #endif
 
 /**
- * @brief Macro for debug message.
- */
-#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
-
-/**
  * @brief	TFCore creator
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
  * @note	the model of _model_path will be loaded simultaneously
@@ -61,18 +56,6 @@ TFCore::TFCore (const char *_model_path)
  */
 TFCore::~TFCore ()
 {
-}
-
-/**
- * @brief	get millisecond for time profiling.
- * @note	it returns the millisecond.
- * @param t	: the time struct.
- * @return the millisecond of t.
- */
-double
-TFCore::get_ms (struct timeval t)
-{
-  return (t.tv_sec * 1000000 + t.tv_usec);
 }
 
 /**
