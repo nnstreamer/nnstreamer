@@ -634,6 +634,15 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       filter->data_arithmetic.out_type = _NNS_END;
 
+      if (filter->operators) {
+        GST_WARNING_OBJECT (filter,
+            "There exists pre-defined operators (total %d), now reset these.",
+            g_slist_length (filter->operators));
+
+        g_slist_free_full (filter->operators, g_free);
+        filter->operators = NULL;
+      }
+
       str_operators = g_strsplit (filter->option, ",", -1);
       num_operators = g_strv_length (str_operators);
 
@@ -978,22 +987,12 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
               op_s->value.type);
           break;
         case GTT_OP_ADD:
-          gst_tensor_transform_typecast_value (filter, &op_s->value,
-              value.type);
-          gst_tensor_transform_do_operator (filter, &value, &op_s->value,
-              GTT_OP_ADD);
-          break;
         case GTT_OP_MUL:
-          gst_tensor_transform_typecast_value (filter, &op_s->value,
-              value.type);
-          gst_tensor_transform_do_operator (filter, &value, &op_s->value,
-              GTT_OP_MUL);
-          break;
         case GTT_OP_DIV:
           gst_tensor_transform_typecast_value (filter, &op_s->value,
               value.type);
           gst_tensor_transform_do_operator (filter, &value, &op_s->value,
-              GTT_OP_DIV);
+              op_s->op);
           break;
         default:
           g_assert (0);
