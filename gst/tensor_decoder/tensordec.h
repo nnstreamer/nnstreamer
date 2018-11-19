@@ -50,7 +50,7 @@ typedef struct _GstTensorDecClass GstTensorDecClass;
 typedef struct _TensorDecDef TensorDecDef;
 
 
-#define TensorDecMaxOpNum (3)
+#define TensorDecMaxOpNum (9)
 /**
  * @brief Internal data structure for tensordec instances.
  */
