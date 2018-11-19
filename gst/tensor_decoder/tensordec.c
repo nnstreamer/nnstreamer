@@ -94,7 +94,13 @@ enum
   PROP_MODE,
   PROP_MODE_OPTION1,
   PROP_MODE_OPTION2,
-  PROP_MODE_OPTION3
+  PROP_MODE_OPTION3,
+  PROP_MODE_OPTION4,
+  PROP_MODE_OPTION5,
+  PROP_MODE_OPTION6,
+  PROP_MODE_OPTION7,
+  PROP_MODE_OPTION8,
+  PROP_MODE_OPTION9
 };
 
 /**
@@ -235,18 +241,48 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
-      g_param_spec_string ("mode-option-1", "Mode option 1",
-          "Mode option like file path to the image label", "",
+      g_param_spec_string ("option1", "Mode option 1",
+          "option for specific decoder modes, 1st one.", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MODE_OPTION2,
-      g_param_spec_string ("mode-option-2", "Mode option 2",
-          "Secondary option for the decoder", "",
+      g_param_spec_string ("option2", "Mode option 2",
+          "option for specific decoder modes, 2nd one.", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MODE_OPTION3,
-      g_param_spec_string ("mode-option-3", "Mode option 3",
-          "Secondary option for the decoder", "",
+      g_param_spec_string ("option3", "Mode option 3",
+          "option for specific decoder modes, 3rd one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION4,
+      g_param_spec_string ("option4", "Mode option 4",
+          "option for specific decoder modes, 4th one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION5,
+      g_param_spec_string ("option5", "Mode option 5",
+          "option for specific decoder modes, 5th one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION6,
+      g_param_spec_string ("option6", "Mode option 6",
+          "option for specific decoder modes, 6th one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION7,
+      g_param_spec_string ("option7", "Mode option 7",
+          "option for specific decoder modes, 7th one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION8,
+      g_param_spec_string ("option8", "Mode option 8",
+          "option for specific decoder modes, 8th one.", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE_OPTION9,
+      g_param_spec_string ("option9", "Mode option 9",
+          "option for specific decoder modes, 9th one.", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
@@ -297,14 +333,15 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
 static void
 gst_tensordec_init (GstTensorDec * self)
 {
+  int i;
   self->silent = DEFAULT_SILENT;
   self->configured = FALSE;
   self->negotiated = FALSE;
   self->output_type = OUTPUT_UNKNOWN;
   self->mode = DECODE_MODE_UNKNOWN;
   self->plugin_data = NULL;
-  self->option[0] = NULL;
-  self->option[1] = NULL;
+  for (i = 0; i < TensorDecMaxOpNum; i++)
+    self->option[i] = NULL;
   self->decoder = NULL;
   gst_tensors_config_init (&self->tensor_config);
 }
@@ -325,6 +362,18 @@ _tensordec_process_plugin_options (GstTensorDec * self, int opnum)
     return TRUE;                /* No option to process */
   return self->decoder->setOption (self, opnum, self->option[opnum]);
 }
+
+/**
+ * @brief A macro to process incoming per-mode option
+ * @param[in] opnum The option number (1 to TensorDecMaxOpNum)
+ */
+#define PROP_MODE_OPTION(opnum) \
+    case PROP_MODE_OPTION ## opnum: \
+      self->option[opnum - 1] = g_value_dup_string (value); \
+      if (self->mode == DECODE_MODE_PLUGIN) { \
+        g_assert (_tensordec_process_plugin_options (self, opnum - 1) == TRUE); \
+      } \
+      break
 
 /**
  * @brief Set property (GObject vmethod)
@@ -392,30 +441,29 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       g_free (temp_string);
     }
       break;
-    case PROP_MODE_OPTION1:
-      self->option[0] = g_value_dup_string (value);
-      if (self->mode == DECODE_MODE_PLUGIN) {
-        g_assert (_tensordec_process_plugin_options (self, 0) == TRUE);
-      }
-      break;
-    case PROP_MODE_OPTION2:
-      self->option[1] = g_value_dup_string (value);
-      if (self->mode == DECODE_MODE_PLUGIN) {
-        g_assert (_tensordec_process_plugin_options (self, 1) == TRUE);
-      }
-      break;
-    case PROP_MODE_OPTION3:
-      self->option[2] = g_value_dup_string (value);
-      if (self->mode == DECODE_MODE_PLUGIN) {
-        g_assert (_tensordec_process_plugin_options (self, 2) == TRUE);
-      }
-      break;
+      PROP_MODE_OPTION (1);
+      PROP_MODE_OPTION (2);
+      PROP_MODE_OPTION (3);
+      PROP_MODE_OPTION (4);
+      PROP_MODE_OPTION (5);
+      PROP_MODE_OPTION (6);
+      PROP_MODE_OPTION (7);
+      PROP_MODE_OPTION (8);
+      PROP_MODE_OPTION (9);
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
 }
 
+/**
+ * @brief A macro to read per-mode option
+ * @param[in] opnum The option number (1 to TensorDecMaxOpNum)
+ */
+#define PROP_READ_OPTION(opnum) \
+    case PROP_MODE_OPTION ## opnum: \
+      g_value_set_string (value, self->option[opnum - 1]); \
+      break
 
 /**
  * @brief Get property (GObject vmethod)
@@ -436,15 +484,15 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       else
         g_value_set_string (value, "");
       break;
-    case PROP_MODE_OPTION1:
-      g_value_set_string (value, self->option[0]);
-      break;
-    case PROP_MODE_OPTION2:
-      g_value_set_string (value, self->option[1]);
-      break;
-    case PROP_MODE_OPTION3:
-      g_value_set_string (value, self->option[2]);
-      break;
+      PROP_READ_OPTION (1);
+      PROP_READ_OPTION (2);
+      PROP_READ_OPTION (3);
+      PROP_READ_OPTION (4);
+      PROP_READ_OPTION (5);
+      PROP_READ_OPTION (6);
+      PROP_READ_OPTION (7);
+      PROP_READ_OPTION (8);
+      PROP_READ_OPTION (9);
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;

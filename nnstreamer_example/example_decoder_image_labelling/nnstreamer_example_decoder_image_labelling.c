@@ -298,7 +298,7 @@ main (int argc, char **argv)
       "t_raw. ! queue ! overlay.video_sink "
       "t_raw. ! queue ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter !"
       "tensor_filter framework=tensorflow-lite model=%s ! "
-      "tensor_decoder output-type=2 mode=image_labeling mode-option-1=%s ! overlay.text_sink",
+      "tensor_decoder mode=image_labeling option1=%s ! overlay.text_sink",
       width, height, g_app.tflite_info.model_path, tflite_label);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
