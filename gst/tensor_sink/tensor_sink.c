@@ -44,8 +44,11 @@
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
@@ -410,17 +413,22 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
   self = GST_TENSOR_SINK (sink);
   type = GST_EVENT_TYPE (event);
 
-  silent_debug ("received event %s", GST_EVENT_TYPE_NAME (event));
+  GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
+      GST_EVENT_TYPE_NAME (event), event);
 
   switch (type) {
     case GST_EVENT_STREAM_START:
       if (gst_tensor_sink_get_emit_signal (self)) {
+        silent_debug ("Emit signal for stream start");
+
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_STREAM_START], 0);
       }
       break;
 
     case GST_EVENT_EOS:
       if (gst_tensor_sink_get_emit_signal (self)) {
+        silent_debug ("Emit signal for eos");
+
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_EOS], 0);
       }
       break;
@@ -447,7 +455,8 @@ gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query)
   self = GST_TENSOR_SINK (sink);
   type = GST_QUERY_TYPE (query);
 
-  silent_debug ("received query %s", GST_QUERY_TYPE_NAME (query));
+  GST_DEBUG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+      GST_QUERY_TYPE_NAME (query), query);
 
   switch (type) {
     case GST_QUERY_SEEKING:
@@ -523,13 +532,13 @@ gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps)
     guint caps_size, i;
 
     caps_size = gst_caps_get_size (caps);
-    silent_debug ("set caps, size is %d", caps_size);
+    GST_DEBUG_OBJECT (self, "set caps, size is %d", caps_size);
 
     for (i = 0; i < caps_size; i++) {
       GstStructure *structure = gst_caps_get_structure (caps, i);
       gchar *str = gst_structure_to_string (structure);
 
-      silent_debug ("[%d] %s", i, str);
+      GST_DEBUG_OBJECT (self, "[%d] %s", i, str);
       g_free (str);
     }
   }
@@ -613,8 +622,9 @@ gst_tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
     gst_tensor_sink_set_last_render_time (self, now);
 
     if (gst_tensor_sink_get_emit_signal (self)) {
-      silent_debug ("signal for new data [%" GST_TIME_FORMAT "], rate [%d]",
+      silent_debug ("Emit signal for new data [%" GST_TIME_FORMAT "] rate [%d]",
           GST_TIME_ARGS (now), signal_rate);
+
       g_signal_emit (self, _tensor_sink_signals[SIGNAL_NEW_DATA], 0, buffer);
     }
   }
@@ -658,7 +668,7 @@ gst_tensor_sink_set_signal_rate (GstTensorSink * self, guint rate)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  silent_debug ("set signal_rate to %d", rate);
+  GST_INFO_OBJECT (self, "set signal_rate to %d", rate);
   g_mutex_lock (&self->mutex);
   self->signal_rate = rate;
   g_mutex_unlock (&self->mutex);
@@ -689,7 +699,7 @@ gst_tensor_sink_set_emit_signal (GstTensorSink * self, gboolean emit)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  silent_debug ("set emit_signal to %d", emit);
+  GST_INFO_OBJECT (self, "set emit_signal to %d", emit);
   g_mutex_lock (&self->mutex);
   self->emit_signal = emit;
   g_mutex_unlock (&self->mutex);
@@ -720,7 +730,7 @@ gst_tensor_sink_set_silent (GstTensorSink * self, gboolean silent)
 {
   g_return_if_fail (GST_IS_TENSOR_SINK (self));
 
-  silent_debug ("set silent to %d", silent);
+  GST_INFO_OBJECT (self, "set silent to %d", silent);
   self->silent = silent;
 }
 
