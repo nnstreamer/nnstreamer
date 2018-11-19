@@ -866,7 +866,10 @@ _get_temp_filename (void)
   }
 
   g_close (fd, NULL);
-  g_remove (tmp_fn);
+  if (g_remove (tmp_fn) != 0) {
+    _print_log ("failed to remove temp file %s", tmp_fn);
+  }
+
   return tmp_fn;
 }
 
@@ -3450,7 +3453,9 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
@@ -3512,7 +3517,9 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
@@ -3584,7 +3591,9 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
@@ -3655,7 +3664,9 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
@@ -3717,7 +3728,9 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
@@ -3789,7 +3802,9 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
     }
 
     /* remove temp file */
-    g_remove (option.tmpfile);
+    if (g_remove (option.tmpfile) != 0) {
+      _print_log ("failed to remove temp file %s", option.tmpfile);
+    }
     g_free (option.tmpfile);
   }
 
