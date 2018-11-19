@@ -35,11 +35,6 @@
 #endif
 
 /**
- * @brief Macro for debug message.
- */
-#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
-
-/**
  * @brief	TFLiteCore creator
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
  * @note	the model of _model_path will be loaded simultaneously
@@ -73,17 +68,17 @@ TFLiteCore::init()
 {
   if(loadModel ())
   {
-    _print_log ("Failed to load model\n");
+    err_print ("Failed to load model\n");
     return -1;
   }
   if(setInputTensorProp ())
   {
-    _print_log ("Failed to initialize input tensor\n");
+    err_print ("Failed to initialize input tensor\n");
     return -2;
   }
   if(setOutputTensorProp ())
   {
-    _print_log ("Failed to initialize output tensor\n");
+    err_print ("Failed to initialize output tensor\n");
     return -3;
   }
   return 0;
@@ -100,18 +95,6 @@ TFLiteCore::getModelPath()
 }
 
 /**
- * @brief	get millisecond for time profiling.
- * @note	it returns the millisecond.
- * @param t	: the time struct.
- * @return the millisecond of t.
- */
-double
-TFLiteCore::get_ms (struct timeval t)
-{
-  return (t.tv_sec * 1000000 + t.tv_usec);
-}
-
-/**
  * @brief	load the tflite model
  * @note	the model will be loaded
  * @return 0 if OK. non-zero if error.
@@ -120,8 +103,7 @@ int
 TFLiteCore::loadModel ()
 {
 #if (DBG)
-  struct timeval start_time, stop_time;
-  gettimeofday (&start_time, nullptr);
+  gint64 start_time = g_get_real_time ();
 #endif
 
   if (!interpreter) {
@@ -129,7 +111,7 @@ TFLiteCore::loadModel ()
         std::unique_ptr < tflite::FlatBufferModel >
         (tflite::FlatBufferModel::BuildFromFile (model_path));
     if (!model) {
-      _print_log ("Failed to mmap model\n");
+      err_print ("Failed to mmap model\n");
       return -1;
     }
     /* If got any trouble at model, active below code. It'll be help to analyze. */
@@ -138,7 +120,7 @@ TFLiteCore::loadModel ()
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder (*model, resolver) (&interpreter);
     if (!interpreter) {
-      _print_log ("Failed to construct interpreter\n");
+      err_print ("Failed to construct interpreter\n");
       return -2;
     }
 
@@ -158,14 +140,14 @@ TFLiteCore::loadModel ()
     }
 
     if (interpreter->AllocateTensors () != kTfLiteOk) {
-      _print_log ("Failed to allocate tensors\n");
+      err_print ("Failed to allocate tensors\n");
       return -2;
     }
   }
 #if (DBG)
-  gettimeofday (&stop_time, nullptr);
-  _print_log ("Model is Loaded: %lf",
-      (get_ms (stop_time) - get_ms (start_time)) / 1000);
+  gint64 stop_time = g_get_real_time ();
+  debug_print (TRUE, "Model is Loaded: %" G_GINT64_FORMAT,
+      (stop_time - start_time));
 #endif
   return 0;
 }
@@ -216,11 +198,11 @@ TFLiteCore::setInputTensorProp ()
         getTensorType (interpreter->tensor (input_idx_list[i])->type);
 
 #if (DBG)
-    _print_log ("inputTensorMeta[%d] >> type:%d, dim[%d:%d:%d:%d], rank: %d",
-        i, inputTensorMeta.info[i].type, inputTensorMeta.info[i].dimension[0],
-        inputTensorMeta.info[i].dimension[1],
-        inputTensorMeta.info[i].dimension[2],
-        inputTensorMeta.info[i].dimension[3]);
+    gchar *dim_str =
+        get_tensor_dimension_string (inputTensorMeta.info[i].dimension);
+    debug_print (TRUE, "inputTensorMeta[%d] >> type:%d, dim[%s]",
+        i, inputTensorMeta.info[i].type, dim_str);
+    g_free (dim_str);
 #endif
   }
   return 0;
@@ -244,11 +226,11 @@ TFLiteCore::setOutputTensorProp ()
         getTensorType (interpreter->tensor (output_idx_list[i])->type);
 
 #if (DBG)
-    _print_log ("outputTensorMeta[%d] >> type:%d, dim[%d:%d:%d:%d], rank: %d",
-        i, outputTensorMeta.info[i].type, outputTensorMeta.info[i].dimension[0],
-        outputTensorMeta.info[i].dimension[1],
-        outputTensorMeta.info[i].dimension[2],
-        outputTensorMeta.info[i].dimension[3]);
+    gchar *dim_str =
+        get_tensor_dimension_string (outputTensorMeta.info[i].dimension);
+    debug_print (TRUE, "outputTensorMeta[%d] >> type:%d, dim[%s]",
+        i, outputTensorMeta.info[i].type, dim_str);
+    g_free (dim_str);
 #endif
   }
   return 0;
@@ -338,8 +320,7 @@ int
 TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 {
 #if (DBG)
-  struct timeval start_time, stop_time;
-  gettimeofday (&start_time, nullptr);
+  gint64 start_time = g_get_real_time ();
 #endif
 
   std::vector<int> tensors_idx;
@@ -365,7 +346,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   if (interpreter->Invoke () != kTfLiteOk) {
-    _print_log ("Failed to invoke");
+    err_print ("Failed to invoke");
     return -3;
   }
 
@@ -376,9 +357,9 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
 #if (DBG)
-  gettimeofday (&stop_time, nullptr);
-  _print_log ("Invoke() is finished: %lf",
-      (get_ms (stop_time) - get_ms (start_time)) / 1000);
+  gint64 stop_time = g_get_real_time ();
+  debug_print (TRUE, "Invoke() is finished: %" G_GINT64_FORMAT,
+      (stop_time - start_time));
 #endif
 
   return 0;

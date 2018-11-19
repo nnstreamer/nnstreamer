@@ -35,7 +35,7 @@
 #include <tensorflow/core/public/session.h>
 #include <tensorflow/core/framework/tensor_shape.h>
 
-#include "tensor_typedef.h"
+#include <tensor_common.h>
 
 /**
  * @brief	ring cache structure
@@ -61,7 +61,6 @@ public:
   const char *getInputTensorName ();
   const char *getOutputTensorName ();
 
-  double get_ms (struct timeval t);
   int getInputTensorSize ();
   int getOutputTensorSize ();
   int getInputTensorDim (GstTensorsInfo * info);

@@ -65,7 +65,6 @@ private:
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
 
-  double get_ms (struct timeval t);
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
 };
