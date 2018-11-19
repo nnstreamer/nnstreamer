@@ -66,6 +66,7 @@ SET(PROJECTS
 	tensor_split
 	tensor_transform
 	tensor_filter
+	tensor_reposink
 )
 
 ADD_SUBDIRECTORY(nnstreamer_example)
