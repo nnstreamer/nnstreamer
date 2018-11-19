@@ -33,7 +33,7 @@
 #include <tensorflow/contrib/lite/string_util.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
-#include "tensor_typedef.h"
+#include <tensor_common.h>
 
 /**
  * @brief	ring cache structure
