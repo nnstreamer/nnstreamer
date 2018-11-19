@@ -29,6 +29,7 @@
 #include "tensor_filter.h"
 #include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
+#include <string.h>
 
 /**
  * @brief internal data of tensorflow lite
@@ -38,6 +39,21 @@ struct _Tflite_data
   void *tflite_private_data;
 };
 typedef struct _Tflite_data tflite_data;
+
+
+/**
+ * @brief Free privateData and move on.
+ */
+static void
+tflite_close (const GstTensorFilter * filter, void **private_data)
+{
+  tflite_data *tf;
+  tf = *private_data;
+  tflite_core_delete (tf->tflite_private_data);
+  g_free (tf);
+  *private_data = NULL;
+  g_assert (filter->privateData == NULL);
+}
 
 /**
  * @brief Load tensorflow lite modelfile
@@ -53,7 +69,13 @@ tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
   tflite_data *tf;
   if (filter->privateData != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
-    return 1;
+    tf = *private_data;
+    if (strcmp (filter->prop.model_file,
+            tflite_core_getModelPath (tf->tflite_private_data))) {
+      tflite_close (filter, private_data);
+    } else {
+      return 1;
+    }
   }
   tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
@@ -125,20 +147,6 @@ tflite_getOutputDim (const GstTensorFilter * filter, void **private_data,
   g_assert (filter->privateData && *private_data == filter->privateData);
   int ret = tflite_core_getOutputDim (tf->tflite_private_data, info);
   return ret;
-}
-
-/**
- * @brief Free privateData and move on.
- */
-static void
-tflite_close (const GstTensorFilter * filter, void **private_data)
-{
-  tflite_data *tf;
-  tf = *private_data;
-  tflite_core_delete (tf->tflite_private_data);
-  g_free (tf);
-  *private_data = NULL;
-  g_assert (filter->privateData == NULL);
 }
 
 GstTensorFilterFramework NNS_support_tensorflow_lite = {

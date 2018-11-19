@@ -46,6 +46,7 @@ public:
 
   int init();
   int loadModel ();
+  const char* getModelPath();
   int setInputTensorProp ();
   int setOutputTensorProp ();
   int getInputTensorSize ();
