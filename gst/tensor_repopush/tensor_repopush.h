@@ -16,7 +16,7 @@
  */
 
 /**
- * @file	tensor_reposink.h
+ * @file	tensor_repopush.h
  * @date	19 Nov 2018
  * @brief	GStreamer plugin to handle tensor repository
  * @see		https://github.com/nnsuite/nnstreamer
@@ -24,8 +24,8 @@
  * @bug		No known bugs except for NYI items
  */
 
-#ifndef __GST_TENSOR_REPOSINK_H_
-#define __GST_TENSOR_REPOSINK_H__
+#ifndef __GST_TENSOR_REPOPUSH_H_
+#define __GST_TENSOR_REPOPUSH_H__
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
@@ -33,30 +33,29 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_TENSOR_REPOSINK \
-  (gst_tensor_reposink_get_type())
-#define GST_TENSOR_REPOSINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_REPOSINK,GstTensorRepoSink))
-#define GST_TENSOR_REPOSINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_REPOSINK,GstTensorRepoSinkClass))
-#define GST_IS_TENSOR_REPOSINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOSINK))
-#define GST_IS_TENSOR_REPOSINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOSINK))
-typedef struct _GstTensorRepoSink GstTensorRepoSink;
-typedef struct _GstTensorRepoSinkClass GstTensorRepoSinkClass;
+#define GST_TYPE_TENSOR_REPOPUSH \
+  (gst_tensor_repopush_get_type())
+#define GST_TENSOR_REPOPUSH(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_REPOPUSH,GstTensorRepoPush))
+#define GST_TENSOR_REPOPUSH_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_REPOPUSH,GstTensorRepoPushClass))
+#define GST_IS_TENSOR_REPOPUSH(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOPUSH))
+#define GST_IS_TENSOR_REPOPUSH_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOPUSH))
+typedef struct _GstTensorRepoPush GstTensorRepoPush;
+typedef struct _GstTensorRepoPushClass GstTensorRepoPushClass;
 
 /**
- * @brief GstTensorRepoSink data structure.
+ * @brief GstTensorRepoPush data structure.
  *
- * GstTensorRepoSink inherits GstBaseSink.
+ * GstTensorRepoPush inherits GstBaseSink.
  */
-struct _GstTensorRepoSink
+struct _GstTensorRepoPush
 {
   GstBaseSink element;
 
   gboolean silent;
-  gboolean emit_signal;
   guint signal_rate;
   GstClockTime last_render_time;
   GstCaps *in_caps;
@@ -66,23 +65,19 @@ struct _GstTensorRepoSink
 };
 
 /**
- * @brief GstTensorRepoSinkClass data structure.
+ * @brief GstTensorRepoPushClass data structure.
  *
- * GstTensorRepoSink inherits GstBaseSink.
+ * GstTensorRepoPush inherits GstBaseSink.
  */
-struct _GstTensorRepoSinkClass
+struct _GstTensorRepoPushClass
 {
   GstBaseSinkClass parent_class;
-
-  void (*new_data) (GstElement * element, GstBuffer * buffer);
-  void (*stream_start) (GstElement * element);
-  void (*eos) (GstElement * element);
 };
 
 /**
- * @brief Function to get type of tensor_reposink.
+ * @brief Function to get type of tensor_repopush.
  */
-GType gst_tensor_reposink_get_type (void);
+GType gst_tensor_repopush_get_type (void);
 
 G_END_DECLS
-#endif /** __GST_TENSOR_REPOSINK_H__ */
+#endif /** __GST_TENSOR_REPOPUSH_H__ */
