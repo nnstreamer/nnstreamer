@@ -66,7 +66,7 @@ SET(PROJECTS
 	tensor_split
 	tensor_transform
 	tensor_filter
-	tensor_reposink
+	tensor_repopush
 )
 
 ADD_SUBDIRECTORY(nnstreamer_example)
@@ -94,12 +94,12 @@ IF(ENABLE_TENSORFLOW)
 ENDIF(ENABLE_TENSORFLOW)
 LIST(LENGTH FILTER_DEP FILTER_DEP_LEN)
 
-ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c ${OBJECTS})
+ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c ${OBJECTS})
 SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
 TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
 
-ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c ${OBJECTS})
+ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c ${OBJECTS})
 TARGET_INCLUDE_DIRECTORIES(nnstreamer PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamer PUBLIC ${pkgs_CFLAGS_OTHER})
 TARGET_LINK_LIBRARIES(nnstreamer ${pkgs_LIBRARIES} ${FILTER_LIB})

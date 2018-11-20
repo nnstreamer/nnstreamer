@@ -52,27 +52,41 @@ typedef struct
  */
 struct GstTensorRepo_s
 {
-  gint num_buffer;
+  gint num_data;
   GMutex repo_lock;
   GSList *tensorsdata;
   gboolean initialized;
-} GstTensorRepo_default={.num_buffer=0, .tensorsdata=NULL, .initialized=FALSE};
+};
 
 typedef struct GstTensorRepo_s GstTensorRepo;
-
-/**
- * @brief extern variable for GstTensorRepo
- */
-extern GstTensorRepo _repo;
 
 /**
  * @brief getter to get nth GstTensorData
  */
 GstTensorData *
-gst_tensor_repo_get_tensor (guint nth)
-{
-  return g_slist_nth_data (_repo.tensorsdata, nth);
-}
+gst_tensor_repo_get_tensor (guint nth);
+
+guint
+gst_tensor_repo_add_data(GstTensorData *data);
+
+void
+gst_tensor_repo_push_buffer(guint nth, GstBuffer *buffer);
+
+GstTensorData *
+gst_tensor_repopop_buffer(guint nth);
+
+/**
+ * @brief remove nth GstTensorData from GstTensorRepo
+ */
+void
+gst_tensor_repo_remove_data (guint nth);
+
+/**
+ * @brief GstTensorRepo initialization
+ */
+void
+gst_tensor_repo_init();
+
 
 /**
  * @brief Macro for Lock & Cond
@@ -81,32 +95,10 @@ gst_tensor_repo_get_tensor (guint nth)
 #define GST_TENSOR_REPO_GET_COND(id) (&((GstTensorData*)(gst_tensor_repo_get_tensor(id)))->cond)
 #define GST_TENSOR_REPO_LOCK(id) (g_mutex_lock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_UNLOCK(id) (g_mutex_unlock(GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_WAIT(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND(id), GET_TENSOR_REPO_GET_LOCK(id)))
+#define GST_TENSOR_REPO_WAIT(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND(id), GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_BROADCAST(id) (g_cond_broadcast (GST_TENSOR_REPO_GET_COND(id)))
-
-/**
- * @brief remove nth GstTensorData from GstTensorRepo
- */
-void
-gst_tensor_repo_remove_data (guint nth)
-{
-  g_mutex_lock (&_repo.repo_lock);
-  GSList *data = g_slist_nth (_repo.tensorsdata, nth);
-  _repo.tensorsdata = g_slist_delete_link (_repo.tensorsdata, data);
-  g_mutex_unlock (&_repo.repo_lock);
-}
-
-/**
- * @brief GstTensorRepo initialization
- */
-void
-gst_tensor_repo_init()
-{
-  _repo.num_buffer=0;
-  g_mutex_init (&_repo.repo_lock);
-  _repo.tensorsdata=NULL;
-  _repo.initialized=TRUE;
-}
+#define GST_REPO_LOCK()(g_mutex_lock(&_repo.repo_lock))
+#define GST_REPO_UNLOCK()(g_mutex_unlock(&_repo.repo_lock))
 
 G_END_DECLS
 #endif /* __GST_TENSOR_REPO_H__ */
