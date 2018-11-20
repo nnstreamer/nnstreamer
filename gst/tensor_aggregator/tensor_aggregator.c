@@ -43,9 +43,6 @@
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
-
 #define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
     if (caps) { \
@@ -56,9 +53,20 @@
       for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
         caps_s = gst_caps_get_structure (caps, caps_idx); \
         caps_s_string = gst_structure_to_string (caps_s); \
-        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        GST_DEBUG_OBJECT (self, msg " = %s", caps_s_string); \
         g_free (caps_s_string); \
       } \
+    } \
+  } \
+} while (0)
+
+#define silent_debug_config(c,msg) do { \
+  if (DBG) { \
+    if (c) { \
+      gchar *dim_str; \
+      dim_str = get_tensor_dimension_string ((c)->info.dimension); \
+      GST_DEBUG_OBJECT (self, msg " type=%d dim=%s rate=%d/%d", (c)->info.type, dim_str, (c)->rate_n, (c)->rate_d); \
+      g_free (dim_str); \
     } \
   } \
 } while (0)
@@ -388,7 +396,7 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_AGGREGATOR (parent);
 
-  GST_LOG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
 
   switch (GST_EVENT_TYPE (event)) {
@@ -396,8 +404,6 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
     {
       GstCaps *in_caps;
       GstCaps *out_caps;
-
-      silent_debug ("EVENT_CAPS");
 
       gst_event_parse_caps (event, &in_caps);
       silent_debug_caps (in_caps, "in-caps");
@@ -437,7 +443,7 @@ gst_tensor_aggregator_sink_query (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_AGGREGATOR (parent);
 
-  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
       GST_QUERY_TYPE_NAME (query), query);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -490,7 +496,7 @@ gst_tensor_aggregator_src_query (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_AGGREGATOR (parent);
 
-  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
       GST_QUERY_TYPE_NAME (query), query);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -1005,13 +1011,13 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   structure = gst_caps_get_structure (caps, 0);
   if (!gst_structure_has_name (structure, "other/tensor")) {
-    silent_debug ("invalid caps");
+    GST_ERROR_OBJECT (self, "Invalid caps");
     return FALSE;
   }
 
   if (!gst_tensor_config_from_structure (&config, structure) ||
       !gst_tensor_config_validate (&config)) {
-    silent_debug ("cannot configure tensor info");
+    GST_ERROR_OBJECT (self, "Cannot configure tensor info");
     return FALSE;
   }
 
@@ -1039,6 +1045,9 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   self->out_config = config;
   self->tensor_configured = TRUE;
+
+  silent_debug_config (&self->in_config, "in-tensor");
+  silent_debug_config (&self->out_config, "out-tensor");
   return TRUE;
 }
 
