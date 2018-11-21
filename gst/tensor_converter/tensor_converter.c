@@ -74,8 +74,11 @@
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
 
 #define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
@@ -87,7 +90,7 @@
       for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
         caps_s = gst_caps_get_structure (caps, caps_idx); \
         caps_s_string = gst_structure_to_string (caps_s); \
-        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
         g_free (caps_s_string); \
       } \
     } \
@@ -96,9 +99,9 @@
 
 #define silent_debug_timestamp(buf) do { \
   if (DBG) { \
-    debug_print (TRUE, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
-    debug_print (TRUE, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
-    debug_print (TRUE, "duration = %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (GST_BUFFER_DURATION (buf))); \
+    GST_DEBUG_OBJECT (self, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
+    GST_DEBUG_OBJECT (self, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
+    GST_DEBUG_OBJECT (self, "duration = %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (GST_BUFFER_DURATION (buf))); \
   } \
 } while (0)
 
@@ -410,7 +413,7 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_CONVERTER (parent);
 
-  GST_LOG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
 
   switch (GST_EVENT_TYPE (event)) {
@@ -460,7 +463,8 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
         return TRUE;
       }
 
-      err_print ("Unsupported format = %s\n", gst_format_get_name (seg.format));
+      GST_ERROR_OBJECT (self, "Unsupported format = %s\n",
+          gst_format_get_name (seg.format));
       gst_event_unref (event);
       return FALSE;
     }
@@ -482,7 +486,7 @@ gst_tensor_converter_sink_query (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_CONVERTER (parent);
 
-  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
       GST_QUERY_TYPE_NAME (query), query);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -535,7 +539,7 @@ gst_tensor_converter_src_query (GstPad * pad, GstObject * parent,
 
   self = GST_TENSOR_CONVERTER (parent);
 
-  GST_LOG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (self, "Received %s query: %" GST_PTR_FORMAT,
       GST_QUERY_TYPE_NAME (query), query);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -684,7 +688,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
 
     default:
-      err_print ("Unsupported type %d\n", self->in_media_type);
+      GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
       g_assert (0);
       return GST_FLOW_ERROR;
   }
@@ -935,7 +939,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
       gst_video_info_init (&info);
       if (!gst_video_info_from_caps (&info, caps)) {
-        err_print ("Failed to get video info from caps.\n");
+        GST_ERROR_OBJECT (self, "Failed to get video info from caps.\n");
         return FALSE;
       }
 
@@ -963,7 +967,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
       gst_audio_info_init (&info);
       if (!gst_audio_info_from_caps (&info, caps)) {
-        err_print ("Failed to get audio info from caps.\n");
+        GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
         return FALSE;
       }
 
@@ -979,14 +983,15 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
        * update tensor info from properties
        */
       if (!gst_tensor_info_validate (&self->tensor_info)) {
-        err_print ("Failed to get tensor info, update dimension and type.\n");
+        GST_ERROR_OBJECT (self,
+            "Failed to get tensor info, update dimension and type.\n");
         return FALSE;
       }
 
       config.info = self->tensor_info;
       break;
     default:
-      err_print ("Unsupported type %d\n", in_type);
+      GST_ERROR_OBJECT (self, "Unsupported type %d\n", in_type);
       return FALSE;
   }
 
@@ -997,14 +1002,14 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
   if (!gst_tensor_config_validate (&config)) {
     /** not fully configured */
-    err_print ("Failed to configure tensor info.\n");
+    GST_ERROR_OBJECT (self, "Failed to configure tensor info.\n");
     return FALSE;
   }
 
   if (gst_tensor_info_validate (&self->tensor_info)) {
     /** compare tensor info */
     if (!gst_tensor_info_is_equal (&self->tensor_info, &config.info)) {
-      err_print ("Failed, mismatched tensor info.\n");
+      GST_ERROR_OBJECT (self, "Failed, mismatched tensor info.\n");
       return FALSE;
     }
   }

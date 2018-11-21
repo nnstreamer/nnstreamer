@@ -61,8 +61,11 @@
 #define DBG (!self->silent)
 #endif
 
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
 
 #define silent_debug_caps(caps,msg) do {\
   if (DBG) { \
@@ -74,7 +77,7 @@
       for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
         caps_s = gst_caps_get_structure (caps, caps_idx); \
         caps_s_string = gst_structure_to_string (caps_s); \
-        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
         g_free (caps_s_string); \
       } \
     } \
@@ -168,7 +171,7 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
     return self->decoder->getOutputDim (self, config);
   }
 
-  GST_ERROR ("Decoder plugin not yet configured.");
+  GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
   return NULL;
 }
 
@@ -400,7 +403,8 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       if (NULL != decoder) {
         if (decoder == self->decoder) {
           /* Already configured??? */
-          GST_WARNING ("nnstreamer tensor_decoder %s is already confgured.\n",
+          GST_WARNING_OBJECT (self,
+              "nnstreamer tensor_decoder %s is already confgured.\n",
               temp_string);
         } else {
           /* Changing decoder. Deallocate the previous */
@@ -424,7 +428,8 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         self->mode = DECODE_MODE_PLUGIN;
         self->output_type = self->decoder->type;
       } else {
-        GST_ERROR ("The given mode for tensor_decoder, %s, is unrecognized.\n",
+        GST_ERROR_OBJECT (self,
+            "The given mode for tensor_decoder, %s, is unrecognized.\n",
             temp_string);
         if (NULL != self->decoder) {
           if (self->cleanup_plugin_data) {
@@ -512,17 +517,17 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
   structure = gst_caps_get_structure (caps, 0);
 
   if (!gst_tensors_config_from_structure (&config, structure)) {
-    err_print ("Cannot configure tensor from structure");
+    GST_ERROR_OBJECT (self, "Cannot configure tensor from structure");
     return FALSE;
   }
 
   if (!gst_tensors_config_validate (&config)) {
-    err_print ("Not configured yet");
+    GST_ERROR_OBJECT (self, "Not configured yet");
     return FALSE;
   }
 
   if (self->configured && !gst_tensordec_check_consistency (self, &config)) {
-    err_print ("Mismatched to old metadata");
+    GST_ERROR_OBJECT (self, "Mismatched to old metadata");
     return FALSE;
   }
 
@@ -541,7 +546,7 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
     return TRUE;
   }
 
-  GST_WARNING ("Decoder plugin is not yet configured.");
+  GST_WARNING_OBJECT (self, "Decoder plugin is not yet configured.");
   return FALSE;
 }
 
@@ -585,18 +590,18 @@ gst_tensordec_transform (GstBaseTransform * trans,
     for (i = 0; i < num_tensors; i++)
       gst_memory_unmap (in_mem[i], &in_info[i]);
   } else {
-    GST_ERROR ("Decoder plugin not yet configured.");
+    GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
     goto unknown_type;
   }
 
   return res;
 
 unknown_format:
-  err_print ("Hit unknown_format");
+  GST_ERROR_OBJECT (self, "Hit unknown_format");
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
   return GST_FLOW_NOT_NEGOTIATED;
 unknown_tensor:
-  err_print ("Hit unknown_tensor");
+  GST_ERROR_OBJECT (self, "Hit unknown_tensor");
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("unknown format for tensor"));
   return GST_FLOW_NOT_NEGOTIATED;
@@ -657,7 +662,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
   silent_debug_caps (result, "to");
 
-  GST_DEBUG_OBJECT (trans, "Direction[%d] transformed %" GST_PTR_FORMAT
+  GST_DEBUG_OBJECT (self, "Direction[%d] transformed %" GST_PTR_FORMAT
       " into %" GST_PTR_FORMAT, direction, caps, result);
   return result;
 }
@@ -678,7 +683,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
   silent_debug_caps (caps, "from caps");
   silent_debug_caps (othercaps, "from othercaps");
 
-  GST_DEBUG_OBJECT (trans, "trying to fixate othercaps %" GST_PTR_FORMAT
+  GST_DEBUG_OBJECT (self, "trying to fixate othercaps %" GST_PTR_FORMAT
       " based on caps %" GST_PTR_FORMAT, othercaps, caps);
 
   /** @todo The code below assumes that direction is GST_PAD_SINK */
@@ -702,7 +707,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
     gst_caps_unref (othercaps);
   }
 
-  GST_DEBUG_OBJECT (trans, "now fixating %" GST_PTR_FORMAT, result);
+  GST_DEBUG_OBJECT (self, "now fixating %" GST_PTR_FORMAT, result);
 
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
@@ -736,7 +741,8 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
 
     /** Check if outcaps ==equivalent== supposed */
     if (!gst_caps_is_always_compatible (outcaps, supposed)) {
-      GST_ERROR ("This is not compatible with the supposed output pad cap");
+      GST_ERROR_OBJECT (self,
+          "This is not compatible with the supposed output pad cap");
       gst_caps_unref (supposed);
       return FALSE;
     }
@@ -775,10 +781,10 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
       *othersize = 0;
 
     return TRUE;
-  } else {
-    GST_ERROR ("Decoder plugin not yet configured.");
-    return FALSE;
   }
+
+  GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
+  return FALSE;
 }
 
 /**

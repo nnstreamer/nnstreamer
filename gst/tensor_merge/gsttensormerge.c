@@ -75,8 +75,11 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_merge_debug);
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (filter, __VA_ARGS__); \
+    } \
+  } while (0)
 
 enum
 {
@@ -292,7 +295,8 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
   tensor_merge = GST_TENSOR_MERGE (element);
 
   if (tensor_merge->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
-    err_print ("supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
+    GST_ERROR_OBJECT (tensor_merge,
+        "supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
     g_assert (0);
     return NULL;
   }
@@ -759,8 +763,9 @@ gst_tensor_merge_set_option_data (GstTensorMerge * filter)
     }
       break;
     default:
-      g_printerr ("Cannot identify mode\n");
+      GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       g_assert (0);
+      break;
   }
 }
 
