@@ -391,30 +391,6 @@ extern gchar *get_tensor_dimension_string (const tensor_dim dim);
 extern size_t get_tensor_element_count (const tensor_dim dim);
 
 /**
- * @brief Make str(xyz) ==> "xyz" with macro expansion
- */
-#define str(s) xstr(s)
-#define xstr(s) #s
-
-/**
- * @brief Debug message print.
- */
-#define debug_print(cond,...) \
-  do { \
-    if ((cond) == TRUE) { \
-      g_message (__FILE__ ":" str(__LINE__) " "  __VA_ARGS__); \
-    } \
-  } while (0)
-
-/**
- * @brief Error message print.
- */
-#define err_print(...) \
-  do { \
-    g_warning (__FILE__ ":" str(__LINE__) " " __VA_ARGS__); \
-  } while (0)
-
-/**
  * @brief A callback for typefind, trying to find whether a file is other/tensors or not.
  * For the concrete definition of headers, please look at the wiki page of nnstreamer:
  * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
