@@ -1251,28 +1251,3 @@ NNSTREAMER_PLUGIN_INIT (tensor_filter)
   return gst_element_register (plugin, "tensor_filter", GST_RANK_NONE,
       GST_TYPE_TENSOR_FILTER);
 }
-
-#ifndef SINGLE_BINARY
-/**
- * @brief Definition for identifying tensor_filter plugin.
- *
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer"
-#endif
-
-/**
- * @brief Macro to define the entry point of the plugin.
- * gstreamer looks for this structure to register tensor_filter.
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_filter,
-    "GStreamer plugin to use general neural network frameworks as filters",
-    gst_tensor_filter_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer/");
-#endif

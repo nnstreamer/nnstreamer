@@ -322,27 +322,3 @@ NNSTREAMER_PLUGIN_INIT (tensor_load)
   return gst_element_register (plugin, "tensor_load",
       GST_RANK_NONE, GST_TYPE_TENSOR_LOAD);
 }
-
-#ifndef SINGLE_BINARY
-/**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer"
-#endif
-
-/**
- * gstreamer looks for this structure to register tensor_loads
- *
- * exchange the string 'Template tensor_load' with your tensor_load description
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_load,
-    "Load other/tensor_save and as other/tensor or other/tensors",
-    gst_tensor_load_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer/");
-#endif

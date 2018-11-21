@@ -680,25 +680,3 @@ NNSTREAMER_PLUGIN_INIT (tensor_split)
   return gst_element_register (plugin, "tensor_split",
       GST_RANK_NONE, GST_TYPE_TENSOR_SPLIT);
 }
-
-#ifndef SINGLE_BINARY
-/**
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer"
-#endif
-
-/**
- * @brief gstreamer looks for this structure to register tensorsplit
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_split,
-    "tensor split plugin",
-    gst_tensor_split_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer/");
-#endif

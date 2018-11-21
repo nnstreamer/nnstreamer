@@ -69,10 +69,6 @@ gst_nnstreamer_init (GstPlugin * plugin)
   return TRUE;
 }
 
-#ifndef SINGLE_BINARY
-#error SINGLE_BINARY must be defined
-#endif
-
 #ifndef PACKAGE
 #define PACKAGE "nnstreamer"
 #endif

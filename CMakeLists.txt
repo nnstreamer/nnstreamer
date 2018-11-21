@@ -6,17 +6,7 @@ OPTION(ENABLE_TENSORFLOW_LITE "Enable tensorflow-lite support" ON)
 OPTION(ENABLE_TENSORFLOW "Enable tensorflow support" OFF)
 OPTION(ENABLE_MODEL_DOWNLOAD "Enable download the model files" ON)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
-OPTION(SINGLE_BINARY "Generate a single binary for all nnstreamer elements" ON)
 OPTION(ENABLE_TEST "Enable tests" ON)
-
-IF(SINGLE_BINARY)
-	ADD_DEFINITIONS(-DSINGLE_BINARY)
-	MESSAGE(STATUS "The nnstreamer elements will be created as a single plugin binary.")
-	SET(CUSTOMFILTERDEP	nnstreamer)
-ELSE(SINGLE_BINARY)
-	MESSAGE(STATUS "The nnstreamer elements will be created as multple plugin binaries, one binary for one element. This is no more the standard method to release since nnstreamer 0.0.3.")
-	SET(CUSTOMFILTERDEP	tensor_filter)
-ENDIF(SINGLE_BINARY)
 
 SET(VERSION "0.0.3")
 ADD_DEFINITIONS(-DVERSION="${VERSION}")
@@ -63,12 +53,6 @@ ENDFOREACH(flag)
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -Wall -Werror -fPIC -g -std=c89")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CXXFLAGS} -Wall -Werror -fPIC -g -std=c++11")
 
-# Provide common data
-ADD_LIBRARY(common STATIC gst/nnstreamer/tensor_common.c)
-TARGET_LINK_LIBRARIES(common ${pkgs_LIBRARIES})
-TARGET_INCLUDE_DIRECTORIES(common PUBLIC ${pkgs_INCLUDE_DIRS})
-SET(pkgs_LIBRARIES ${pkgs_LIBRARIES} common)
-
 # Supported projects for the single binary
 SET(PROJECTS
 	tensor_aggregator
@@ -109,53 +93,26 @@ IF(ENABLE_TENSORFLOW)
 ENDIF(ENABLE_TENSORFLOW)
 LIST(LENGTH FILTER_DEP FILTER_DEP_LEN)
 
-IF (SINGLE_BINARY)
-	ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c ${OBJECTS} gst/nnstreamer/tensor_common.c)
-	SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
-	TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
-	TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
+ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c ${OBJECTS})
+SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
+TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
 
-	ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c ${OBJECTS})
-	TARGET_INCLUDE_DIRECTORIES(nnstreamer PUBLIC ${pkgs_INCLUDE_DIRS})
-	TARGET_COMPILE_OPTIONS(nnstreamer PUBLIC ${pkgs_CFLAGS_OTHER})
-	TARGET_LINK_LIBRARIES(nnstreamer ${pkgs_LIBRARIES} ${FILTER_LIB})
+ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c ${OBJECTS})
+TARGET_INCLUDE_DIRECTORIES(nnstreamer PUBLIC ${pkgs_INCLUDE_DIRS})
+TARGET_COMPILE_OPTIONS(nnstreamer PUBLIC ${pkgs_CFLAGS_OTHER})
+TARGET_LINK_LIBRARIES(nnstreamer ${pkgs_LIBRARIES} ${FILTER_LIB})
 
-	IF (FILTER_DEP_LEN GREATER 0)
-		ADD_DEPENDENCIES(nnstreamer ${FILTER_DEP})
-		ADD_DEPENDENCIES(nnstreamerStatic ${FILTER_DEP})
-	ENDIF (FILTER_DEP_LEN GREATER 0)
+IF (FILTER_DEP_LEN GREATER 0)
+	ADD_DEPENDENCIES(nnstreamer ${FILTER_DEP})
+	ADD_DEPENDENCIES(nnstreamerStatic ${FILTER_DEP})
+ENDIF (FILTER_DEP_LEN GREATER 0)
 
-	INSTALL(TARGETS nnstreamerStatic nnstreamer
-		RUNTIME DESTINATION ${EXEC_PREFIX}
-		LIBRARY DESTINATION ${GST_INSTALL_DIR}
-		ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-	)
-ELSE (SINGLE_BINARY)
-	FOREACH(PRJ IN LISTS PROJECTS)
-		ADD_LIBRARY(${PRJ}Static STATIC $<TARGET_OBJECTS:${PRJ}OBJ>)
-		SET_TARGET_PROPERTIES(${PRJ}Static PROPERTIES OUTPUT_NAME ${PRJ})
-		TARGET_INCLUDE_DIRECTORIES(${PRJ}Static PUBLIC ${pkgs_INCLUDE_DIRS})
-		TARGET_COMPILE_OPTIONS(${PRJ}Static PUBLIC ${pkgs_CFLAGS_OTHER})
-
-		ADD_LIBRARY(${PRJ} SHARED $<TARGET_OBJECTS:${PRJ}OBJ>)
-		TARGET_INCLUDE_DIRECTORIES(${PRJ} PUBLIC ${pkgs_INCLUDE_DIRS} ${NNSTREAMER_ADDITIONAL_INCDIR})
-		TARGET_COMPILE_OPTIONS(${PRJ} PUBLIC ${pkgs_CFLAGS_OTHER} ${NNSTREAMER_ADDITIONAL_FLAGS})
-		IF(PRJ STREQUAL "tensor_filter")
-			TARGET_LINK_LIBRARIES(${PRJ} ${pkgs_LIBRARIES} ${FILTER_LIB})
-			IF (FILTER_DEP_LEN GREATER 0)
-				ADD_DEPENDENCIES(${PRJ} ${FILTER_DEP})
-			ENDIF (FILTER_DEP_LEN GREATER 0)
-		ELSE(PRJ STREQUAL "tensor_filter")
-			TARGET_LINK_LIBRARIES(${PRJ} ${pkgs_LIBRARIES})
-		ENDIF(PRJ STREQUAL "tensor_filter")
-
-		INSTALL(TARGETS ${PRJ}Static ${PRJ}
-			RUNTIME DESTINATION ${EXEC_PREFIX}
-			LIBRARY DESTINATION ${GST_INSTALL_DIR}
-			ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-		)
-	ENDFOREACH(PRJ)
-ENDIF (SINGLE_BINARY)
+INSTALL(TARGETS nnstreamerStatic nnstreamer
+	RUNTIME DESTINATION ${EXEC_PREFIX}
+	LIBRARY DESTINATION ${GST_INSTALL_DIR}
+	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+)
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 
@@ -171,11 +128,4 @@ INSTALL(FILES gst/nnstreamer/tensor_common.h gst/nnstreamer/tensor_filter_custom
 
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/nnstreamer.pc
 	DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
-	)
-
-# Custom plugins need to use common archive (static lib)
-INSTALL(TARGETS common
-	RUNTIME DESTINATION ${EXEC_PREFIX}
-	LIBRARY DESTINATION ${GST_INSTALL_DIR}
-	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 	)
