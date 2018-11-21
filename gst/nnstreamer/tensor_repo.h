@@ -1,5 +1,5 @@
 /**
- * NNStreamer Common Header
+ * NNStreamer Tensor Repo Header
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -39,6 +39,7 @@ G_BEGIN_DECLS
  * GstTensorRepo has GSlist of GstTensorData.
  *
  */
+
 typedef struct
 {
   GstTensorConfig *config;
@@ -50,15 +51,13 @@ typedef struct
 /**
  * @brief GstTensorRepo data structure.
  */
-struct GstTensorRepo_s
+typedef struct
 {
   gint num_data;
   GMutex repo_lock;
-  GSList *tensorsdata;
+  GHashTable* hash;
   gboolean initialized;
-};
-
-typedef struct GstTensorRepo_s GstTensorRepo;
+} GstTensorRepo;
 
 /**
  * @brief getter to get nth GstTensorData
@@ -66,26 +65,36 @@ typedef struct GstTensorRepo_s GstTensorRepo;
 GstTensorData *
 gst_tensor_repo_get_tensor (guint nth);
 
-guint
-gst_tensor_repo_add_data(GstTensorData *data);
+/**
+ * @brief add GstTensorData into repo
+ */
+/* guint */
+gboolean
+gst_tensor_repo_add_data (GstTensorData * data, guint myid);
 
-void
-gst_tensor_repo_push_buffer(guint nth, GstBuffer *buffer);
+/**
+ * @brief push GstBuffer into repo
+ */
+gboolean
+gst_tensor_repo_push_buffer (guint nth, GstBuffer * buffer);
 
+/**
+ * @brief pop GstTensorData from repo
+ */
 GstTensorData *
-gst_tensor_repopop_buffer(guint nth);
+gst_tensor_repopop_buffer (guint nth);
 
 /**
  * @brief remove nth GstTensorData from GstTensorRepo
  */
-void
+gboolean
 gst_tensor_repo_remove_data (guint nth);
 
 /**
  * @brief GstTensorRepo initialization
  */
 void
-gst_tensor_repo_init();
+gst_tensor_repo_init ();
 
 
 /**
