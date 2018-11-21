@@ -84,6 +84,8 @@ gst_tensor_repo_push_buffer (guint nth, GstBuffer * buffer)
   g_return_val_if_fail (data != NULL, FALSE);
 
   data->buffer = buffer;
+  _print_log ("Buffer Updated : Buffer Size[%lu]\n",
+      gst_buffer_get_size (data->buffer));
   GST_TENSOR_REPO_BROADCAST (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
   return TRUE;

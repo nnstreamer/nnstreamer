@@ -158,6 +158,10 @@ gst_tensor_repopush_init (GstTensorRepoPush * self)
   ret = gst_tensor_repo_add_data (&self->data, self->myid);
   g_assert (ret);
 
+<<<<<<< HEAD
+=======
+  silent_debug ("GstTensorData is sucessfully added : key[%d]", self->myid);
+>>>>>>> [Repo/Push] Use Has Table to handle repo & add slot_id property
 
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
