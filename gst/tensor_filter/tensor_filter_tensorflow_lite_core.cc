@@ -64,21 +64,18 @@ TFLiteCore::~TFLiteCore ()
  *        -3 if the initialization of output tensor is failed.
  */
 int
-TFLiteCore::init()
+TFLiteCore::init ()
 {
-  if(loadModel ())
-  {
-    err_print ("Failed to load model\n");
+  if (loadModel ()) {
+    GST_ERROR ("Failed to load model\n");
     return -1;
   }
-  if(setInputTensorProp ())
-  {
-    err_print ("Failed to initialize input tensor\n");
+  if (setInputTensorProp ()) {
+    GST_ERROR ("Failed to initialize input tensor\n");
     return -2;
   }
-  if(setOutputTensorProp ())
-  {
-    err_print ("Failed to initialize output tensor\n");
+  if (setOutputTensorProp ()) {
+    GST_ERROR ("Failed to initialize output tensor\n");
     return -3;
   }
   return 0;
@@ -88,8 +85,8 @@ TFLiteCore::init()
  * @brief	get the model path
  * @return the model path.
  */
-const char*
-TFLiteCore::getModelPath()
+const char *
+TFLiteCore::getModelPath ()
 {
   return model_path;
 }
@@ -111,7 +108,7 @@ TFLiteCore::loadModel ()
         std::unique_ptr < tflite::FlatBufferModel >
         (tflite::FlatBufferModel::BuildFromFile (model_path));
     if (!model) {
-      err_print ("Failed to mmap model\n");
+      GST_ERROR ("Failed to mmap model\n");
       return -1;
     }
     /* If got any trouble at model, active below code. It'll be help to analyze. */
@@ -120,7 +117,7 @@ TFLiteCore::loadModel ()
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder (*model, resolver) (&interpreter);
     if (!interpreter) {
-      err_print ("Failed to construct interpreter\n");
+      GST_ERROR ("Failed to construct interpreter\n");
       return -2;
     }
 
@@ -140,14 +137,13 @@ TFLiteCore::loadModel ()
     }
 
     if (interpreter->AllocateTensors () != kTfLiteOk) {
-      err_print ("Failed to allocate tensors\n");
+      GST_ERROR ("Failed to allocate tensors\n");
       return -2;
     }
   }
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
-  debug_print (TRUE, "Model is Loaded: %" G_GINT64_FORMAT,
-      (stop_time - start_time));
+  g_message ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
   return 0;
 }
@@ -200,7 +196,7 @@ TFLiteCore::setInputTensorProp ()
 #if (DBG)
     gchar *dim_str =
         get_tensor_dimension_string (inputTensorMeta.info[i].dimension);
-    debug_print (TRUE, "inputTensorMeta[%d] >> type:%d, dim[%s]",
+    g_message ("inputTensorMeta[%d] >> type:%d, dim[%s]",
         i, inputTensorMeta.info[i].type, dim_str);
     g_free (dim_str);
 #endif
@@ -228,7 +224,7 @@ TFLiteCore::setOutputTensorProp ()
 #if (DBG)
     gchar *dim_str =
         get_tensor_dimension_string (outputTensorMeta.info[i].dimension);
-    debug_print (TRUE, "outputTensorMeta[%d] >> type:%d, dim[%s]",
+    g_message ("outputTensorMeta[%d] >> type:%d, dim[%s]",
         i, outputTensorMeta.info[i].type, dim_str);
     g_free (dim_str);
 #endif
@@ -346,7 +342,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   if (interpreter->Invoke () != kTfLiteOk) {
-    err_print ("Failed to invoke");
+    GST_ERROR ("Failed to invoke");
     return -3;
   }
 
@@ -358,7 +354,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
-  debug_print (TRUE, "Invoke() is finished: %" G_GINT64_FORMAT,
+  g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
       (stop_time - start_time));
 #endif
 
@@ -410,7 +406,7 @@ const char *
 tflite_core_getModelPath (void *tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getModelPath();
+  return c->getModelPath ();
 }
 
 /**
