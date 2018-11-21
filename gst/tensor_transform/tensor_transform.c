@@ -61,8 +61,11 @@
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (filter, __VA_ARGS__); \
+    } \
+  } while (0)
 
 #define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
@@ -74,7 +77,7 @@
       for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
         caps_s = gst_caps_get_structure (caps, caps_idx); \
         caps_s_string = gst_structure_to_string (caps_s); \
-        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        GST_DEBUG_OBJECT (filter, msg " = %s\n", caps_s_string); \
         g_free (caps_s_string); \
       } \
     } \
@@ -747,7 +750,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       break;
     }
     default:
-      g_printerr ("Cannot identify mode\n");
+      GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       g_assert (0);
       break;
   }
@@ -859,8 +862,8 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
   if (from == to) {
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
     memcpy (outptr, inptr, gst_tensor_info_get_size (&filter->in_config.info));
-    g_printerr
-        ("Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream wheter you really need tensor_transform.\n");
+    GST_WARNING_OBJECT (filter,
+        "Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream wheter you really need tensor_transform.\n");
     return GST_FLOW_OK;
   }
 
@@ -1058,8 +1061,8 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
 
   if (!checkdim) {
     memcpy (outptr, inptr, gst_tensor_info_get_size (&filter->in_config.info));
-    g_printerr
-        ("Calling tensor_transform with high memcpy overhead WITHOUT any effects!");
+    GST_WARNING_OBJECT (filter,
+        "Calling tensor_transform with high memcpy overhead WITHOUT any effects!");
     return GST_FLOW_OK;
   }
 
@@ -1140,7 +1143,7 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
       break;
     }
     default:
-      g_printerr ("Cannot identify mode\n");
+      GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       g_assert (0);
       return GST_FLOW_ERROR;
   }
@@ -1201,12 +1204,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 
 /**
  * @brief Read cap, parse tensor configuration (dim/type) from the cap.
+ * @param[in] filter "this" pointer
  * @param[in] caps The input caps to be read
  * @param[out] config configured tensor info
  * @return TRUE if successful (both dim/type read). FALSE if not.
  */
 static gboolean
-gst_tensor_transform_read_caps (const GstCaps * caps, GstTensorConfig * config)
+gst_tensor_transform_read_caps (GstTensorTransform * filter,
+    const GstCaps * caps, GstTensorConfig * config)
 {
   GstStructure *structure;
 
@@ -1215,7 +1220,8 @@ gst_tensor_transform_read_caps (const GstCaps * caps, GstTensorConfig * config)
   structure = gst_caps_get_structure (caps, 0);
 
   if (!gst_structure_has_name (structure, "other/tensor")) {
-    err_print ("caps is not tensor %s\n", gst_structure_get_name (structure));
+    GST_WARNING_OBJECT (filter, "caps is not tensor %s\n",
+        gst_structure_get_name (structure));
     return FALSE;
   }
 
@@ -1389,7 +1395,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   gst_tensor_config_init (&in_config);
   gst_tensor_config_init (&out_config);
 
-  if (gst_tensor_transform_read_caps (caps, &in_config)) {
+  if (gst_tensor_transform_read_caps (filter, caps, &in_config)) {
     gst_tensor_transform_convert_dimension (filter, direction,
         &in_config.info, &out_config.info);
   }
@@ -1460,22 +1466,22 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "incaps");
   silent_debug_caps (outcaps, "outcaps");
 
-  if (!gst_tensor_transform_read_caps (incaps, &in_config) ||
+  if (!gst_tensor_transform_read_caps (filter, incaps, &in_config) ||
       !gst_tensor_config_validate (&in_config)) {
-    silent_debug ("Cannot read cap of incaps\n");
+    GST_ERROR_OBJECT (filter, "Cannot read cap of incaps\n");
     goto error;
   }
 
-  if (!gst_tensor_transform_read_caps (outcaps, &out_config) ||
+  if (!gst_tensor_transform_read_caps (filter, outcaps, &out_config) ||
       !gst_tensor_config_validate (&out_config)) {
-    silent_debug ("Cannot read cap of outcaps\n");
+    GST_ERROR_OBJECT (filter, "Cannot read cap of outcaps\n");
     goto error;
   }
 
   /* check framerate */
   if (in_config.rate_n != out_config.rate_n
       || in_config.rate_d != out_config.rate_d) {
-    silent_debug ("Framerate is not matched\n");
+    GST_ERROR_OBJECT (filter, "Framerate is not matched\n");
     goto error;
   }
 
@@ -1483,7 +1489,8 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
           &in_config.info, &config.info) ||
       !gst_tensor_info_is_equal (&out_config.info, &config.info)) {
-    silent_debug ("Tensor info is not matched with given properties.\n");
+    GST_ERROR_OBJECT (filter,
+        "Tensor info is not matched with given properties.\n");
     goto error;
   }
 
@@ -1493,7 +1500,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   return TRUE;
 error:
-  silent_debug ("Set Caps Failed!\n");
+  GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
   return FALSE;
 }
 

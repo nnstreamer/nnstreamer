@@ -323,7 +323,7 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
   g_return_val_if_fail (structure != NULL, FALSE);
 
   if (!gst_structure_has_name (structure, "other/tensor")) {
-    err_print ("caps is not tensor %s\n", gst_structure_get_name (structure));
+    GST_WARNING ("caps is not tensor %s\n", gst_structure_get_name (structure));
     return FALSE;
   }
 
@@ -401,7 +401,8 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
       break;
     default:
       /** unsupported format */
-      err_print ("Unsupported format = %d\n", format);
+      GST_WARNING ("Unsupported format = %s\n",
+          format_string ? format_string : "Unknown");
       break;
   }
 
@@ -484,7 +485,8 @@ gst_tensor_config_from_audio_info (GstTensorConfig * config,
       break;
     default:
       /** unsupported format */
-      err_print ("Unsupported format = %d\n", format);
+      GST_WARNING ("Unsupported format = %s\n",
+          format_string ? format_string : "Unknown");
       break;
   }
 
@@ -532,7 +534,7 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
       config->info.type = _NNS_UINT8;
     } else {
       /** unsupported format */
-      err_print ("Unsupported format\n");
+      GST_WARNING ("Unsupported format = %s\n", format_string);
     }
   }
 
@@ -631,7 +633,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
       gst_tensor_config_from_octet_stream_info (config, structure);
       break;
     default:
-      err_print ("Unsupported type %d\n", m_type);
+      GST_WARNING ("Unsupported type %d\n", m_type);
       return FALSE;
   }
 
@@ -777,7 +779,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
         &config->rate_d);
 
     if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-      err_print ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
+      GST_WARNING ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
       config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
     }
 
@@ -791,7 +793,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       num_dims = g_strv_length (str_dims);
 
       if (config->info.num_tensors != num_dims) {
-        err_print ("Invalid param, dimensions (%d) tensors (%d)\n",
+        GST_WARNING ("Invalid param, dimensions (%d) tensors (%d)\n",
             num_dims, config->info.num_tensors);
 
         if (num_dims > config->info.num_tensors) {
@@ -816,7 +818,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       num_types = g_strv_length (str_types);
 
       if (config->info.num_tensors != num_types) {
-        err_print ("Invalid param, types (%d) tensors (%d)\n",
+        GST_WARNING ("Invalid param, types (%d) tensors (%d)\n",
             num_types, config->info.num_tensors);
 
         if (num_types > config->info.num_tensors) {
@@ -831,7 +833,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       g_strfreev (str_types);
     }
   } else {
-    err_print ("Unsupported type = %s\n", name);
+    GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
     return FALSE;
   }
 

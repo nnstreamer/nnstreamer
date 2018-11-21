@@ -254,7 +254,7 @@ gst_tensors_check (Gsttensorscheck * filter, GstBuffer * inbuf)
 
   /** Get number of tensors */
   num_tensors = filter->in_config.info.num_tensors;
-  debug_print (!filter->silent, "Number of Tensors : %d\n", num_tensors);
+  GST_DEBUG_OBJECT (filter, "Number of Tensors : %d\n", num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
     GstMemory *mem;
@@ -291,7 +291,7 @@ gst_tensorscheck_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
   filter = GST_TENSORSCHECK (parent);
 
-  GST_LOG_OBJECT (filter, "Received %s event: %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (filter, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
 
   switch (GST_EVENT_TYPE (event)) {

@@ -69,8 +69,11 @@
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
 
 #define silent_debug_caps(caps,msg) do { \
   if (DBG) { \
@@ -82,7 +85,7 @@
       for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
         caps_s = gst_caps_get_structure (caps, caps_idx); \
         caps_s_string = gst_structure_to_string (caps_s); \
-        debug_print (TRUE, msg " = %s\n", caps_s_string); \
+        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
         g_free (caps_s_string); \
       } \
     } \
@@ -93,10 +96,10 @@
   if (DBG) { \
     guint info_idx; \
     gchar *dim_str; \
-    debug_print (TRUE, msg " total %d", (i)->num_tensors); \
+    GST_DEBUG_OBJECT (self, msg " total %d", (i)->num_tensors); \
     for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
       dim_str = get_tensor_dimension_string ((i)->info[info_idx].dimension); \
-      debug_print (TRUE, "[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
+      GST_DEBUG_OBJECT (self, "[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
       g_free (dim_str); \
     } \
   } \
@@ -925,7 +928,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       }
 
       if (!prop->output_configured) {
-        err_print ("Failed to get output tensor info.\n");
+        GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
         g_assert (0);
         return FALSE;
       }
@@ -1048,7 +1051,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
         if (res == 0) {
           result = gst_tensor_filter_caps_from_config (self, &config);
         } else {
-          err_print ("Cannot get the output tensor info.");
+          GST_ERROR_OBJECT (self, "Cannot get the output tensor info.");
           g_assert (0);
           result = gst_caps_from_string (CAPS_STRING);
         }
@@ -1135,17 +1138,17 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   silent_debug_caps (outcaps, "outcaps");
 
   if (!gst_tensor_filter_configure_tensor (self, incaps)) {
-    silent_debug ("Failed to configure tensor.");
+    GST_ERROR_OBJECT (self, "Failed to configure tensor.");
     return FALSE;
   }
 
   if (!gst_tensors_config_validate (&self->in_config)) {
-    silent_debug ("Failed to validate input tensor.");
+    GST_ERROR_OBJECT (self, "Failed to validate input tensor.");
     return FALSE;
   }
 
   if (!gst_tensors_config_validate (&self->out_config)) {
-    silent_debug ("Failed to validate output tensor.");
+    GST_ERROR_OBJECT (self, "Failed to validate output tensor.");
     return FALSE;
   }
 
@@ -1154,7 +1157,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   gst_tensors_config_from_structure (&config, structure);
 
   if (!gst_tensors_config_is_equal (&self->out_config, &config)) {
-    silent_debug ("Invalid outcaps.");
+    GST_ERROR_OBJECT (self, "Invalid outcaps.");
     return FALSE;
   }
 

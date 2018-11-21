@@ -82,8 +82,11 @@ static const gchar *gst_tensor_time_sync_mode_string[] = {
 /**
  * @brief Macro for debug message.
  */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
+#define silent_debug(...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (filter, __VA_ARGS__); \
+    } \
+  } while (0)
 
 enum
 {
@@ -247,7 +250,8 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
   tensor_mux = GST_TENSOR_MUX (element);
 
   if (tensor_mux->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
-    err_print ("supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
+    GST_ERROR_OBJECT (tensor_mux,
+        "supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
     g_assert (0);
     return NULL;
   }
