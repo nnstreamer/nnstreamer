@@ -1,29 +1,97 @@
 
 ## Profiling
 
-### Using $GST_DEBUG_DUMP_TRACE_DIR
-The gst-instruments tool is an easy-to-use profiler for GStreamer.
-* https://github.com/kirushyk/gst-instruments.git
-* gst-instruments displays the trace file.
-* gst-top is inspired by top and perf-top, this utility displays performance report for the particular command, analyzing GStreamer ABI calls.
+### gst-instruments
+The [gst-instruments](https://github.com/kirushyk/gst-instruments) tool is an easy-to-use profiler for GStreamer.
+This guide is experimented on Ubuntu 16.04 x86_64 distribution.
+* gst-top displays performance report in real time such as top and perf-top utility.
+* gst-report-1.0 generates the trace file the below two goals as following:
+   * It display CPU usage, time usage, and execution time amon the elements. We can easily profile who spends CPU resource mostly. 
+   * It generate a performance graph from a GStreamer pipeline. The graph shows a transfer size as well as CPU usage, time usage, and execution time.
 
 #### Prerequisite
+```bash
+$ sudo apt install autoreconf pkg-config automake libtool
+```
 
-- autoreconf
-- pkg-config
-- automake
-- libtool
-- gst-instruments
-
+#### How to build source code
 ```bash
 $ git clone https://github.com/kirushyk/gst-instruments.git
 $ cd gst-instruments
-$ ./autogen.sh
-$ make
-$ sudo make install
+$ git checkout -v 0.2.3 0.2.3
+$ vi ./autogen.sh
+--------------- patch: start ----------------------------------
+@@ -19,7 +19,7 @@ which "aclocal" 2>/dev/null || {
+ }
+
+ echo "Checking for libtool..."
+-which "libtool" 2>/dev/null || {
++which "libtoolize" 2>/dev/null || {
+   echo "Please install libtool."
+   exit 1
+ }
+--------------- patch: end   ----------------------------------
+$ ./autodgen.sh
+$ ./configure
+$ make -j`nproc`
+$ sudo make install 
+$ ls /usr/local/lib/libgstintercept.* -al
+-rw-r--r-- 1 root root 232492 Nov 21 11:49 /usr/local/lib/libgstintercept.a
+-rwxr-xr-x 1 root root   1039 Nov 21 11:49 /usr/local/lib/libgstintercept.la
+lrwxrwxrwx 1 root root     24 Nov 21 11:49 /usr/local/lib/libgstintercept.so -> libgstintercept.so.0.0.0
+lrwxrwxrwx 1 root root     24 Nov 21 11:49 /usr/local/lib/libgstintercept.so.0 -> libgstintercept.so.0.0.0
+-rwxr-xr-x 1 root root 121312 Nov 21 11:49 /usr/local/lib/libgstintercept.so.0.0.0
 ```
 
-#### How to run
+#### gst-top
+```bash
+$ gst-top-1.0 gst-launch-1.0 audiotestsrc num-buffers=1000 ! vorbisenc ! vorbisdec ! fakesink
+Setting pipeline to PAUSED ...
+Pipeline is PREROLLING ...
+Redistribute latency...
+Pipeline is PREROLLED ...
+Setting pipeline to PLAYING ...
+New clock: GstSystemClock
+Got EOS from element "pipeline0".
+Execution ended after 0:00:00.301137359
+Setting pipeline to PAUSED ...
+Setting pipeline to READY ...
+Setting pipeline to NULL ...
+Freeing pipeline ...
+ELEMENT        %CPU   %TIME   TIME
+vorbisenc0      60.1   86.9    204 ms
+vorbisdec0       8.0   11.6   27.3 ms
+fakesink0        1.0    1.5   3.48 ms
+audiotestsrc0    0.0    0.0      0 ns
+pipeline0        0.0    0.0      0 ns
+```
+
+#### gst-report
+
+##### How to display a performanc report with a trace file
+```bash
+$ LD_PRELOAD=/usr/local/lib/libgstintercept.so \
+    GST_DEBUG_DUMP_TRACE_DIR=. \
+    gst-launch-1.0 audiotestsrc num-buffers=1000 ! vorbisenc ! vorbisdec ! fakesink
+$ ls -al *.gsttrace
+$ gst-report-1.0  pipeline0.gsttrace
+ELEMENT        %CPU   %TIME   TIME
+vorbisenc0      59.8   86.6    200 ms
+vorbisdec0       8.2   11.9   27.5 ms
+fakesink0        1.1    1.5   3.58 ms
+pipeline0        0.0    0.0      0 ns
+audiotestsrc0    0.0    0.0      0 ns
+```
+
+##### How to generate an instrumentation graph
+```bash
+$ gst-report-1.0  --dot pipeline0.gsttrace | dot -Tpng > perf.png
+$ eog ./perf.png 
+```
+<img src=gst-instruments-perf.png border=0></img>
+
+
+#### Case study: Unit test in NNStreamer
 
 ```bash
 nnstreamer/test$ ./testAll.sh 1
