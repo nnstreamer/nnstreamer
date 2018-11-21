@@ -97,7 +97,7 @@ make %{?_smp_mflags}
     ./tests/unittest_plugins --gst-plugin-path=.
     popd
     pushd tests
-    ssat
+    ssat -n
 %endif
 popd
 
