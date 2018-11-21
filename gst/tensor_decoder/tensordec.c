@@ -638,7 +638,8 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     result = gst_tensordec_media_caps_from_structure (self, s);
   } else if (direction == GST_PAD_SRC) {
     /** caps = srcpad (media) return = sinkpad (other/tensor) */
-    result = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+    /** @todo We may do more specific actions here */
+    result = gst_caps_from_string (CAPS_STRING);
   } else {
     g_assert (0);
     return NULL;
