@@ -427,13 +427,8 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
         gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL)); \
     } while (0)
 
-#ifdef SINGLE_BINARY
 #define NNSTREAMER_PLUGIN_INIT(name)	\
   gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin * plugin)
-#else
-#define NNSTREAMER_PLUGIN_INIT(name)	\
-  static gboolean G_PASTE(G_PASTE(gst_, name), _plugin_init) (GstPlugin * plugin)
-#endif
 
 
 /**

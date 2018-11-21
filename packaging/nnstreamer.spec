@@ -141,7 +141,6 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
-install build/libcommon.a %{buildroot}%{_libdir}/
 install build/libnnstreamer.a %{buildroot}%{_libdir}/
 install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 
