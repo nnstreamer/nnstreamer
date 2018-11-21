@@ -1,5 +1,5 @@
 /**
- * NNStreamer Common Header
+ * NNStreamer Tensor Repo Header's Contents
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -16,7 +16,7 @@
 /**
  * @file	tensor_repo.c
  * @date	17 Nov 2018
- * @brief	tensor repo header file for NNStreamer, the GStreamer plugin for neural networks
+ * @brief	tensor repo file for NNStreamer, the GStreamer plugin for neural networks
  * @see		https://github.com/nnsuite/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
@@ -24,11 +24,18 @@
  */
 
 #include<tensor_repo.h>
+#include <stdio.h>
+
+#ifndef DBG
+#define DBG TRUE
+#endif
+
+#define _print_log(...) if (DBG) g_message(__VA_ARGS__)
 
 /**
  * @brief tensor repo global variable with init.
  */
-GstTensorRepo _repo = {.num_data = 0,.tensorsdata = NULL,.initialized = FALSE };
+GstTensorRepo _repo = {.num_data = 0,.initialized = FALSE };
 
 /**
  * @brief getter to get nth GstTensorData
@@ -36,35 +43,50 @@ GstTensorRepo _repo = {.num_data = 0,.tensorsdata = NULL,.initialized = FALSE };
 GstTensorData *
 gst_tensor_repo_get_tensor (guint nth)
 {
-  return g_slist_nth_data (_repo.tensorsdata, nth);
+  GstTensorData *data;
+  gpointer *p = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
+  data = (GstTensorData *) p;
+  g_return_val_if_fail (data != NULL, NULL);
+  return data;
 }
 
 /**
  * @brief add GstTensorData into repo
  */
-guint
-gst_tensor_repo_add_data (GstTensorData * data)
+gboolean
+gst_tensor_repo_add_data (GstTensorData * data, guint myid)
 {
-  guint id = _repo.num_data;
+  gboolean ret = FALSE;
+
+  if (!_repo.initialized)
+    gst_tensor_repo_init ();
+
   GST_REPO_LOCK ();
-  _repo.tensorsdata = g_slist_append (_repo.tensorsdata, data);
+  ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (myid), data);
+  g_assert (ret);
+
+  _print_log ("Successfully added in hash table with key[%d]", myid);
+
   _repo.num_data++;
   GST_REPO_UNLOCK ();
-  return id;
+  return ret;
 }
 
 /**
  * @brief push GstBuffer into repo
  */
-void
+gboolean
 gst_tensor_repo_push_buffer (guint nth, GstBuffer * buffer)
 {
   GST_TENSOR_REPO_LOCK (nth);
 
   GstTensorData *data = gst_tensor_repo_get_tensor (nth);
+  g_return_val_if_fail (data != NULL, FALSE);
+
   data->buffer = buffer;
   GST_TENSOR_REPO_BROADCAST (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
+  return TRUE;
 }
 
 /**
@@ -76,7 +98,7 @@ gst_tensor_repopop_buffer (guint nth)
   GST_TENSOR_REPO_LOCK (nth);
   GstTensorData *current_data, *data;
 
-  current_data = g_slist_nth_data (_repo.tensorsdata, nth);
+  current_data = gst_tensor_repo_get_tensor (nth);
 
   while (!current_data)
     GST_TENSOR_REPO_WAIT (nth);
@@ -90,16 +112,23 @@ gst_tensor_repopop_buffer (guint nth)
 /**
  * @brief remove nth GstTensorData from GstTensorRepo
  */
-void
+gboolean
 gst_tensor_repo_remove_data (guint nth)
 {
+  gboolean ret;
   GST_REPO_LOCK ();
-  GSList *data = g_slist_nth (_repo.tensorsdata, nth);
   g_mutex_clear (GST_TENSOR_REPO_GET_LOCK (nth));
   g_cond_clear (GST_TENSOR_REPO_GET_COND (nth));
-  _repo.tensorsdata = g_slist_delete_link (_repo.tensorsdata, data);
-  _repo.num_data--;
+
+  ret = g_hash_table_remove (_repo.hash, GINT_TO_POINTER (nth));
+
+  if (ret) {
+    _repo.num_data--;
+    _print_log ("key[%d] is removed\n", nth);
+  }
+
   GST_REPO_UNLOCK ();
+  return ret;
 }
 
 /**
@@ -110,6 +139,6 @@ gst_tensor_repo_init ()
 {
   _repo.num_data = 0;
   g_mutex_init (&_repo.repo_lock);
-  _repo.tensorsdata = NULL;
+  _repo.hash = g_hash_table_new (g_direct_hash, g_direct_equal);
   _repo.initialized = TRUE;
 }

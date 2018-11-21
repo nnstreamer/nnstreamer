@@ -35,22 +35,10 @@
 #include "tensor_repopush.h"
 
 /**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG (!self->silent)
-#endif
-
-/**
  * @brief tensor repository
  */
 extern GstTensorRepo _repo;
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_repopush_debug);
 #define GST_CAT_DEFAULT gst_tensor_repopush_debug
@@ -62,12 +50,14 @@ enum
 {
   PROP_0,
   PROP_SIGNAL_RATE,
+  PROP_SLOT,
   PROP_SILENT
 };
 
 #define DEFAULT_SIGNAL_RATE 0
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_QOS TRUE
+#define DEFAULT_INDEX 0
 
 /**
  * @brief tensor_repopush sink template
@@ -122,6 +112,11 @@ gst_tensor_repopush_class_init (GstTensorRepoPushClass * klass)
           "New data signals per second (0 for unlimited, max 500)", 0, 500,
           DEFAULT_SIGNAL_RATE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_SLOT,
+      g_param_spec_uint ("slot-index", "Slot Index", "repository slot index",
+          0, UINT_MAX, DEFAULT_INDEX,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -150,11 +145,9 @@ gst_tensor_repopush_class_init (GstTensorRepoPushClass * klass)
 static void
 gst_tensor_repopush_init (GstTensorRepoPush * self)
 {
+  gboolean ret = FALSE;
   GstBaseSink *basesink;
   basesink = GST_BASE_SINK (self);
-
-  if (!_repo.initialized)
-    gst_tensor_repo_init ();
 
   self->data.config = NULL;
   self->data.buffer = NULL;
@@ -162,7 +155,9 @@ gst_tensor_repopush_init (GstTensorRepoPush * self)
   g_mutex_init (&self->data.lock);
   g_cond_init (&self->data.cond);
 
-  self->myid = gst_tensor_repo_add_data (&self->data);
+  ret = gst_tensor_repo_add_data (&self->data, self->myid);
+  g_assert (ret);
+
 
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
@@ -189,6 +184,9 @@ gst_tensor_repopush_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
+    case PROP_SLOT:
+      self->myid = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -211,6 +209,9 @@ gst_tensor_repopush_get_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
+    case PROP_SLOT:
+      g_value_set_uint (value, self->myid);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -223,9 +224,13 @@ gst_tensor_repopush_get_property (GObject * object, guint prop_id,
 static void
 gst_tensor_repopush_dispose (GObject * object)
 {
+  gboolean ret;
   GstTensorRepoPush *self;
   self = GST_TENSOR_REPOPUSH (object);
-  gst_tensor_repo_remove_data (self->myid);
+  ret = gst_tensor_repo_remove_data (self->myid);
+  if (!ret)
+    GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
+        ("Cannot remove [key: %d] in repo", self->myid), NULL);
 }
 
 /**
@@ -252,14 +257,11 @@ gst_tensor_repopush_stop (GstBaseSink * sink)
 static gboolean
 gst_tensor_repopush_query (GstBaseSink * sink, GstQuery * query)
 {
-  GstTensorRepoPush *self;
   GstQueryType type;
   GstFormat format;
 
-  self = GST_TENSOR_REPOPUSH (sink);
   type = GST_QUERY_TYPE (query);
 
-  silent_debug ("received query %s", GST_QUERY_TYPE_NAME (query));
   switch (type) {
     case GST_QUERY_SEEKING:
       /** tensor sink does not support seeking */
@@ -306,8 +308,12 @@ gst_tensor_repopush_render_buffer (GstTensorRepoPush * self, GstBuffer * buffer)
   }
 
   if (notify) {
+    gboolean ret = FALSE;
     self->last_render_time = now;
-    gst_tensor_repo_push_buffer (self->myid, buffer);
+    ret = gst_tensor_repo_push_buffer (self->myid, buffer);
+    if (!ret)
+      GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
+          ("Cannot push buffer into repo [key: %d]", self->myid), NULL);
   }
 }
 
@@ -361,21 +367,6 @@ gst_tensor_repopush_set_caps (GstBaseSink * sink, GstCaps * caps)
   gst_caps_replace (&self->in_caps, caps);
   GST_TENSOR_REPO_UNLOCK (self->myid);
 
-  if (DBG) {
-    guint caps_size, i;
-
-    caps_size = gst_caps_get_size (caps);
-    silent_debug ("set caps, size is %d", caps_size);
-
-    for (i = 0; i < caps_size; i++) {
-      GstStructure *structure = gst_caps_get_structure (caps, i);
-      gchar *str = gst_structure_to_string (structure);
-
-      silent_debug ("[%d] %s", i, str);
-      g_free (str);
-    }
-  }
-
   return TRUE;
 }
 
@@ -419,27 +410,3 @@ NNSTREAMER_PLUGIN_INIT (tensor_repopush)
   return gst_element_register (plugin, "tensor_repopush",
       GST_RANK_NONE, GST_TYPE_TENSOR_REPOPUSH);
 }
-
-#ifndef SINGLE_BINARY
-/**
- * @brief Definition for identifying tensor_sink plugin.
- *
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer"
-#endif
-
-/**
- * @brief Macro to define the entry point of the plugin.
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_repopush,
-    "Push element to handle tensor repository",
-    gst_tensor_repopush_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer");
-#endif

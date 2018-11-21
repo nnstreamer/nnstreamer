@@ -61,6 +61,7 @@ struct _GstTensorRepoPush
   GstCaps *in_caps;
   GstTensorData data;
   guint myid;
+  guint slot_index;
 
 };
 
