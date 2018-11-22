@@ -57,11 +57,16 @@ enum
 {
   PROP_0,
   PROP_CAPS,
+  PROP_SLOT_ID,
   PROP_SILENT
 };
 
 #define DEFAULT_SILENT TRUE
+#define DEFAULT_INDEX 0
 
+/**
+ * @brief external repo
+ */
 extern GstTensorRepo _repo;
 
 /**
@@ -77,19 +82,23 @@ static void gst_tensor_repopop_set_property (GObject * object, guint prop_id,
 static void gst_tensor_repopop_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_tensor_repopop_dispose (GObject * object);
-static gboolean gst_tensor_repopop_query (GstBaseSrc * src, GstQuery * query);
 static GstCaps *gst_tensor_repopop_getcaps (GstBaseSrc * src, GstCaps * filter);
+static GstFlowReturn gst_tensor_repopop_create (GstPushSrc * src,
+    GstBuffer ** buffer);
 
 #define gst_tensor_repopop_parent_class parent_class
 G_DEFINE_TYPE (GstTensorRepoPop, gst_tensor_repopop, GST_TYPE_PUSH_SRC);
 
+/**
+ * @brief class initialization of tensor_repopop
+ */
 static void
 gst_tensor_repopop_class_init (GstTensorRepoPopClass * klass)
 {
-  GObjectClass *gobject_class = G_OBJECT_CLASS (kalss);
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
   GstPushSrcClass *pushsrc_class = GST_PUSH_SRC_CLASS (klass);
-  GstBaseSrcClass *basesrc_class = GST_BASE_SRC_CLASS (kalss);
+  GstBaseSrcClass *basesrc_class = GST_BASE_SRC_CLASS (klass);
 
   gobject_class->set_property = gst_tensor_repopop_set_property;
   gobject_class->get_property = gst_tensor_repopop_get_property;
@@ -103,12 +112,14 @@ gst_tensor_repopop_class_init (GstTensorRepoPopClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_SLOT_ID,
+      g_param_spec_uint ("slot-index", "Slot Index", "repository slot index",
+          0, UINT_MAX, DEFAULT_INDEX,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gobject_class->dispose = gst_tensor_repopop_dispose;
 
   basesrc_class->get_caps = gst_tensor_repopop_getcaps;
-  basesrc_class->query = gst_tensor_repopop_query;
-
   pushsrc_class->create = gst_tensor_repopop_create;
 
   gst_element_class_set_static_metadata (element_class,
@@ -120,37 +131,175 @@ gst_tensor_repopop_class_init (GstTensorRepoPopClass * klass)
   gst_element_class_add_static_pad_template (element_class, &src_template);
 }
 
+/**
+ * @brief object initialization of tensor_repopop
+ */
 static void
 gst_tensor_repopop_init (GstTensorRepoPop * self)
 {
   self->silent = TRUE;
-
+  self->ini = FALSE;
+  gst_tensors_config_init (&self->config);
+  self->caps = NULL;
 }
 
+/**
+ * @brief object dispose of tensor_repopop
+ */
+static void
+gst_tensor_repopop_dispose (GObject * object)
+{
+  gboolean ret;
+  GstTensorRepoPop *self = GST_TENSOR_REPOPOP (object);
 
+  ret = gst_tensor_repo_remove_data (self->myid);
+  if (!ret)
+    GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
+        ("Cannot remove [key: %d] in repo", self->myid), NULL);
 
+  if (self->caps)
+    gst_caps_unref (self->caps);
 
+  G_OBJECT_CLASS (parent_class)->dispose (object);
+}
 
+/**
+ * @brief get cap of tensor_repopop
+ */
+static GstCaps *
+gst_tensor_repopop_getcaps (GstBaseSrc * src, GstCaps * filter)
+{
+  GstCaps *cap;
+  GstTensorRepoPop *self = GST_TENSOR_REPOPOP (src);
 
+  GST_DEBUG_OBJECT (self, "returning %" GST_PTR_FORMAT, self->caps);
 
+  if (self->caps) {
+    if (filter) {
+      cap =
+          gst_caps_intersect_full (filter, self->caps,
+          GST_CAPS_INTERSECT_FIRST);
+    } else
+      cap = gst_caps_ref (self->caps);
+  } else {
+    if (filter) {
+      cap = gst_caps_ref (filter);
+    } else
+      cap = gst_caps_new_any ();
+  }
 
+  return cap;
+}
 
+/**
+ * @brief set property of tensor_repopop
+ */
+static void
+gst_tensor_repopop_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
 
+  GstTensorRepoPop *self = GST_TENSOR_REPOPOP (object);
 
+  switch (prop_id) {
+    case PROP_SILENT:
+      self->silent = g_value_get_boolean (value);
+      break;
+    case PROP_SLOT_ID:
+      self->myid = g_value_get_uint (value);
+      break;
+    case PROP_CAPS:
+    {
+      GstStructure *st = NULL;
+      const GstCaps *caps = gst_value_get_caps (value);
+      GstCaps *new_caps;
 
+      if (caps == NULL) {
+        new_caps = gst_caps_new_any ();
+      } else {
+        new_caps = gst_caps_copy (caps);
+      }
+      gst_caps_replace (&self->caps, new_caps);
+      gst_pad_set_caps (GST_BASE_SRC_PAD (self), new_caps);
+      st = gst_caps_get_structure (new_caps, 0);
 
+      gst_tensors_config_from_structure (&self->config, st);
 
+      if (new_caps && gst_caps_get_size (new_caps) == 1 && st
+          && gst_structure_get_fraction (st, "framerate", &self->fps_n,
+              &self->fps_d)) {
+        GST_INFO_OBJECT (self, "Seting framerate to %d/%d", self->fps_n,
+            self->fps_d);
+      } else {
+        self->fps_n = -1;
+        self->fps_d = -1;
+      }
+    }
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
 
+/**
+ * @brief get property of tensor_repopop
+ */
+static void
+gst_tensor_repopop_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec)
+{
+  GstTensorRepoPop *self = GST_TENSOR_REPOPOP (object);
 
+  switch (prop_id) {
+    case PROP_SILENT:
+      g_value_set_boolean (value, self->silent);
+      break;
+    case PROP_SLOT_ID:
+      g_value_set_uint (value, self->myid);
+      break;
+    case PROP_CAPS:
+      gst_value_set_caps (value, self->caps);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
 
+/**
+ * @brief create func of tensor_repopop
+ */
+static GstFlowReturn
+gst_tensor_repopop_create (GstPushSrc * src, GstBuffer ** buffer)
+{
+  GstTensorRepoPop *self;
+  GstBuffer *buf;
 
+  self = GST_TENSOR_REPOPOP (src);
 
+  gst_tensor_repo_wait ();
 
+  if (gst_tensor_repo_check_eos (self->myid))
+    return GST_FLOW_EOS;
 
+  if (!self->ini) {
+    int i;
+    guint num_tensors = self->config.info.num_tensors;
+    gsize size = 0;
+    for (i = 0; i < num_tensors; i++)
+      size += gst_tensor_info_get_size (&self->config.info.info[i]);
+    buf = gst_buffer_new_and_alloc (size);
+    gst_buffer_memset (buf, 0, 0, size);
+    self->ini = TRUE;
+  } else {
+    buf = gst_tensor_repopop_buffer (self->myid);
+  }
 
+  *buffer = buf;
 
-
-
+  return GST_FLOW_OK;
+}
 
 /**
  * @brief Function to initialize the plugin.
@@ -165,27 +314,3 @@ NNSTREAMER_PLUGIN_INIT (tensor_repopop)
   return gst_element_register (plugin, "tensor_repopop",
       GST_RANK_NONE, GST_TYPE_TENSOR_REPOPOP);
 }
-
-#ifndef SINGLE_BINARY
-/**
- * @brief Definition for identifying tensor_repopop plugin.
- *
- * PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer"
-#endif
-
-/**
- * @brief Macro to define the entry point of the plugin.
- */
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    tensor_repopop,
-    "Pop element to handle tensor repository",
-    gst_tensor_repopop_plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer");
-#endif

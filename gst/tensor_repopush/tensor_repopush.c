@@ -75,6 +75,8 @@ static void gst_tensor_repopush_dispose (GObject * object);
 
 static gboolean gst_tensor_repopush_start (GstBaseSink * sink);
 static gboolean gst_tensor_repopush_stop (GstBaseSink * sink);
+static gboolean gst_tensor_repopush_event (GstBaseSink * sink,
+    GstEvent * event);
 static gboolean gst_tensor_repopush_query (GstBaseSink * sink,
     GstQuery * query);
 static GstFlowReturn gst_tensor_repopush_render (GstBaseSink * sink,
@@ -131,6 +133,7 @@ gst_tensor_repopush_class_init (GstTensorRepoPushClass * klass)
 
   basesink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_repopush_start);
   basesink_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_repopush_stop);
+  basesink_class->event = GST_DEBUG_FUNCPTR (gst_tensor_repopush_event);
   basesink_class->query = GST_DEBUG_FUNCPTR (gst_tensor_repopush_query);
   basesink_class->render = GST_DEBUG_FUNCPTR (gst_tensor_repopush_render);
   basesink_class->render_list =
@@ -145,23 +148,12 @@ gst_tensor_repopush_class_init (GstTensorRepoPushClass * klass)
 static void
 gst_tensor_repopush_init (GstTensorRepoPush * self)
 {
-  gboolean ret = FALSE;
   GstBaseSink *basesink;
   basesink = GST_BASE_SINK (self);
 
-  self->data.config = NULL;
-  self->data.buffer = NULL;
+  gst_tensor_repo_init ();
 
-  g_mutex_init (&self->data.lock);
-  g_cond_init (&self->data.cond);
-
-  ret = gst_tensor_repo_add_data (&self->data, self->myid);
-  g_assert (ret);
-
-<<<<<<< HEAD
-=======
-  silent_debug ("GstTensorData is sucessfully added : key[%d]", self->myid);
->>>>>>> [Repo/Push] Use Has Table to handle repo & add slot_id property
+  silent_debug ("GstTensorRepo is sucessfully initailzed");
 
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
@@ -190,6 +182,7 @@ gst_tensor_repopush_set_property (GObject * object, guint prop_id,
       break;
     case PROP_SLOT:
       self->myid = g_value_get_uint (value);
+      gst_tensor_repo_add_data (self->myid);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -228,13 +221,12 @@ gst_tensor_repopush_get_property (GObject * object, guint prop_id,
 static void
 gst_tensor_repopush_dispose (GObject * object)
 {
-  gboolean ret;
   GstTensorRepoPush *self;
   self = GST_TENSOR_REPOPUSH (object);
-  ret = gst_tensor_repo_remove_data (self->myid);
-  if (!ret)
-    GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
-        ("Cannot remove [key: %d] in repo", self->myid), NULL);
+  if (self->in_caps)
+    gst_caps_unref (self->in_caps);
+
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 /**
@@ -253,6 +245,34 @@ static gboolean
 gst_tensor_repopush_stop (GstBaseSink * sink)
 {
   return TRUE;
+}
+
+/**
+ * @brief Handle events.
+ *
+ * GstBaseSink method implementation.
+ */
+static gboolean
+gst_tensor_repopush_event (GstBaseSink * sink, GstEvent * event)
+{
+  GstTensorRepoPush *self;
+  GstEventType type;
+
+  self = GST_TENSOR_REPOPUSH (sink);
+  type = GST_EVENT_TYPE (event);
+
+  silent_debug ("received event %s", GST_EVENT_TYPE_NAME (event));
+
+  switch (type) {
+    case GST_EVENT_EOS:
+      gst_tensor_repo_set_eos (self->myid);
+      break;
+
+    default:
+      break;
+  }
+
+  return GST_BASE_SINK_CLASS (parent_class)->event (sink, event);
 }
 
 /**
@@ -330,6 +350,7 @@ gst_tensor_repopush_render (GstBaseSink * sink, GstBuffer * buffer)
   GstTensorRepoPush *self;
   self = GST_TENSOR_REPOPUSH (sink);
 
+
   gst_tensor_repopush_render_buffer (self, buffer);
   return GST_FLOW_OK;
 }
@@ -366,10 +387,7 @@ gst_tensor_repopush_set_caps (GstBaseSink * sink, GstCaps * caps)
   GstTensorRepoPush *self;
 
   self = GST_TENSOR_REPOPUSH (sink);
-
-  GST_TENSOR_REPO_LOCK (self->myid);
   gst_caps_replace (&self->in_caps, caps);
-  GST_TENSOR_REPO_UNLOCK (self->myid);
 
   return TRUE;
 }
@@ -385,7 +403,6 @@ gst_tensor_repopush_get_caps (GstBaseSink * sink, GstCaps * filter)
 
   self = GST_TENSOR_REPOPUSH (sink);
 
-  GST_TENSOR_REPO_LOCK (self->myid);
   caps = self->in_caps;
 
   if (caps) {
@@ -395,7 +412,6 @@ gst_tensor_repopush_get_caps (GstBaseSink * sink, GstCaps * filter)
       gst_caps_ref (caps);
     }
   }
-  GST_TENSOR_REPO_UNLOCK (self->myid);
 
   return caps;
 }

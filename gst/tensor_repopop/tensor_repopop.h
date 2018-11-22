@@ -52,12 +52,14 @@ typedef struct _GstTensorRepoPopClass GstTensorRepoPopClass;
  */
 struct _GstTensorRepoPop
 {
+  GstPushSrc parent;
   GstBaseSink element;
-
+  GstTensorsConfig config;
   gboolean silent;
-  GstCaps *caps;
-  GstTensorData data;
   guint myid;
+  GstCaps *caps;
+  gboolean ini;
+  gint fps_n, fps_d;
 };
 
 /**
@@ -67,7 +69,7 @@ struct _GstTensorRepoPop
  */
 struct _GstTensorRepoPopClass
 {
-  GstBaseSinkClass parent_class;
+  GstPushSrcClass parent_class;
 };
 
 /**
