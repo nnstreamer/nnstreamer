@@ -526,7 +526,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
 
   /* do nothing when transform to same type */
   if (value->type != type) {
-    is_float = (type == _NNS_FLOAT32 || type == _NNS_FLOAT64);
+    is_float = (value->type == _NNS_FLOAT32 || value->type == _NNS_FLOAT64);
 
     switch (type) {
       case _NNS_INT32:
@@ -536,6 +536,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
         if (is_float) {
           /* int32 -> uint32 */
           typecast_value (value, int32_t);
+          value->type = _NNS_INT32;
         }
         typecast_value (value, uint32_t);
         break;
@@ -546,6 +547,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
         if (is_float) {
           /* int16 -> uint16 */
           typecast_value (value, int16_t);
+          value->type = _NNS_INT16;
         }
         typecast_value (value, uint16_t);
         break;
@@ -556,6 +558,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
         if (is_float) {
           /* int8 -> uint8 */
           typecast_value (value, int8_t);
+          value->type = _NNS_INT8;
         }
         typecast_value (value, uint8_t);
         break;
@@ -572,6 +575,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
         if (is_float) {
           /* int64 -> uint64 */
           typecast_value (value, int64_t);
+          value->type = _NNS_INT64;
         }
         typecast_value (value, uint64_t);
         break;
