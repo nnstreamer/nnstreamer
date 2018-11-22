@@ -59,10 +59,7 @@ struct _GstTensorRepoPush
   guint signal_rate;
   GstClockTime last_render_time;
   GstCaps *in_caps;
-  GstTensorData data;
   guint myid;
-  guint slot_index;
-
 };
 
 /**

@@ -75,6 +75,7 @@ SET(PROJECTS
 	tensor_transform
 	tensor_filter
 	tensor_repopush
+	tensor_repopop
 )
 
 ADD_SUBDIRECTORY(nnstreamer_example)

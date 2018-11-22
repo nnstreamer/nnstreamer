@@ -42,10 +42,10 @@ G_BEGIN_DECLS
 
 typedef struct
 {
-  GstTensorConfig *config;
   GstBuffer *buffer;
   GCond cond;
   GMutex lock;
+  gboolean eos;
 } GstTensorData;
 
 /**
@@ -55,6 +55,7 @@ typedef struct
 {
   gint num_data;
   GMutex repo_lock;
+  GCond repo_cond;
   GHashTable* hash;
   gboolean initialized;
 } GstTensorRepo;
@@ -70,7 +71,7 @@ gst_tensor_repo_get_tensor (guint nth);
  */
 /* guint */
 gboolean
-gst_tensor_repo_add_data (GstTensorData * data, guint myid);
+gst_tensor_repo_add_data (guint myid);
 
 /**
  * @brief push GstBuffer into repo
@@ -79,9 +80,21 @@ gboolean
 gst_tensor_repo_push_buffer (guint nth, GstBuffer * buffer);
 
 /**
+ * @brief get EOS
+ */
+gboolean
+gst_tensor_repo_check_eos(guint nth);
+
+/**
+ * @brief set EOS
+ */
+gboolean
+gst_tensor_repo_set_eos(guint nth);
+
+/**
  * @brief pop GstTensorData from repo
  */
-GstTensorData *
+GstBuffer *
 gst_tensor_repopop_buffer (guint nth);
 
 /**
@@ -96,6 +109,12 @@ gst_tensor_repo_remove_data (guint nth);
 void
 gst_tensor_repo_init ();
 
+/**
+ * @brief Wait for the repo initialization
+ */
+gboolean
+gst_tensor_repo_wait();
+
 
 /**
  * @brief Macro for Lock & Cond
@@ -105,9 +124,11 @@ gst_tensor_repo_init ();
 #define GST_TENSOR_REPO_LOCK(id) (g_mutex_lock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_UNLOCK(id) (g_mutex_unlock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_WAIT(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND(id), GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_BROADCAST(id) (g_cond_broadcast (GST_TENSOR_REPO_GET_COND(id)))
+#define GST_TENSOR_REPO_SIGNAL(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND(id)))
 #define GST_REPO_LOCK()(g_mutex_lock(&_repo.repo_lock))
 #define GST_REPO_UNLOCK()(g_mutex_unlock(&_repo.repo_lock))
+#define GST_REPO_WAIT() (g_cond_wait(&_repo.repo_cond, &_repo.repo_lock))
+#define GST_REPO_BROADCAST() (g_cond_broadcast (&_repo.repo_cond))
 
 G_END_DECLS
 #endif /* __GST_TENSOR_REPO_H__ */
