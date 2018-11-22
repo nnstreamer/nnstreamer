@@ -9,6 +9,7 @@
 /tests/*/*.golden
 /tests/*/*.png
 /tests/*/*.bmp
+/tests/*/*.xraw
 /tests/performance
 *.dat
 /tests/bmp2png
