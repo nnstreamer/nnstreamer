@@ -400,7 +400,7 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
 #define GST_TENSOR_TYPEFIND_REGISTER(plugin)  do { \
     gst_type_find_register (plugin, "other/tensorsave", \
         GST_RANK_PRIMARY, gst_tensors_typefind_function, "tnsr", \
-        gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL)); \
+        gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL); \
     } while (0)
 
 #define NNSTREAMER_PLUGIN_INIT(name)	\
