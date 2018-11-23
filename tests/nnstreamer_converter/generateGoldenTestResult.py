@@ -151,3 +151,9 @@ if target == -1 or target == 11:
                 for x in range(0,16):
                     s += string[i][j*16*16+ y*16+x]
         bmp.write('testcase_stream_2_'+str(j)+'.golden',s)
+
+if target == -1 or target == 12:
+    string=bmp.gen_BMP_stream('testsequence','testsequence.golden',1)
+    for i in range(1,11):
+        with open('testsequence_'+str(i)+'.golden', 'wb') as file:
+            file.write(string[i-1]);
