@@ -77,7 +77,7 @@ gst_tensor_repo_add_data (guint myid);
  * @brief push GstBuffer into repo
  */
 gboolean
-gst_tensor_repo_push_buffer (guint nth, GstBuffer * buffer);
+gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer);
 
 /**
  * @brief get EOS
@@ -92,10 +92,10 @@ gboolean
 gst_tensor_repo_set_eos(guint nth);
 
 /**
- * @brief pop GstTensorData from repo
+ * @brief Get GstTensorData from repo
  */
 GstBuffer *
-gst_tensor_repopop_buffer (guint nth);
+gst_tensor_repo_get_buffer (guint nth);
 
 /**
  * @brief remove nth GstTensorData from GstTensorRepo
