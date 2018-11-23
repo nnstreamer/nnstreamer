@@ -36,7 +36,7 @@ G_BEGIN_DECLS
 /**
  * @brief GstTensorRepo internal data structure.
  *
- * GstTensorRepo has GSlist of GstTensorData.
+ * GstTensorRepo has GSlist of GstTensorRepoData.
  *
  */
 
@@ -46,7 +46,7 @@ typedef struct
   GCond cond;
   GMutex lock;
   gboolean eos;
-} GstTensorData;
+} GstTensorRepoData;
 
 /**
  * @brief GstTensorRepo data structure.
@@ -61,17 +61,17 @@ typedef struct
 } GstTensorRepo;
 
 /**
- * @brief getter to get nth GstTensorData
+ * @brief getter to get nth GstTensorRepoData
  */
-GstTensorData *
-gst_tensor_repo_get_tensor (guint nth);
+GstTensorRepoData *
+gst_tensor_repo_get_repodata (guint nth);
 
 /**
- * @brief add GstTensorData into repo
+ * @brief add GstTensorRepoData into repo
  */
 /* guint */
 gboolean
-gst_tensor_repo_add_data (guint myid);
+gst_tensor_repo_add_repodata (guint myid);
 
 /**
  * @brief push GstBuffer into repo
@@ -92,16 +92,16 @@ gboolean
 gst_tensor_repo_set_eos(guint nth);
 
 /**
- * @brief Get GstTensorData from repo
+ * @brief Get GstTensorRepoData from repo
  */
 GstBuffer *
 gst_tensor_repo_get_buffer (guint nth);
 
 /**
- * @brief remove nth GstTensorData from GstTensorRepo
+ * @brief remove nth GstTensorRepoData from GstTensorRepo
  */
 gboolean
-gst_tensor_repo_remove_data (guint nth);
+gst_tensor_repo_remove_repodata (guint nth);
 
 /**
  * @brief GstTensorRepo initialization
@@ -119,8 +119,8 @@ gst_tensor_repo_wait();
 /**
  * @brief Macro for Lock & Cond
  */
-#define GST_TENSOR_REPO_GET_LOCK(id) (&((GstTensorData*)(gst_tensor_repo_get_tensor(id)))->lock)
-#define GST_TENSOR_REPO_GET_COND(id) (&((GstTensorData*)(gst_tensor_repo_get_tensor(id)))->cond)
+#define GST_TENSOR_REPO_GET_LOCK(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->lock)
+#define GST_TENSOR_REPO_GET_COND(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond)
 #define GST_TENSOR_REPO_LOCK(id) (g_mutex_lock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_UNLOCK(id) (g_mutex_unlock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_WAIT(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND(id), GST_TENSOR_REPO_GET_LOCK(id)))

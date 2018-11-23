@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #ifndef DBG
-#define DBG TRUE
+#define DBG FALSE
 #endif
 
 #define _print_log(...) if (DBG) g_message(__VA_ARGS__)
@@ -38,26 +38,26 @@
 GstTensorRepo _repo = {.num_data = 0,.initialized = FALSE };
 
 /**
- * @brief getter to get nth GstTensorData
+ * @brief getter to get nth GstTensorRepoData
  */
-GstTensorData *
-gst_tensor_repo_get_tensor (guint nth)
+GstTensorRepoData *
+gst_tensor_repo_get_repodata (guint nth)
 {
-  GstTensorData *data;
+  GstTensorRepoData *data;
   gpointer *p = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
-  data = (GstTensorData *) p;
+  data = (GstTensorRepoData *) p;
   g_return_val_if_fail (data != NULL, NULL);
   return data;
 }
 
 /**
- * @brief add GstTensorData into repo
+ * @brief add GstTensorRepoData into repo
  */
 gboolean
-gst_tensor_repo_add_data (guint nth)
+gst_tensor_repo_add_repodata (guint nth)
 {
   gboolean ret = FALSE;
-  GstTensorData *new;
+  GstTensorRepoData *new;
 
   GST_REPO_LOCK ();
   gpointer *check = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
@@ -66,7 +66,7 @@ gst_tensor_repo_add_data (guint nth)
     return TRUE;
   }
 
-  new = g_new (GstTensorData, 1);
+  new = g_new (GstTensorRepoData, 1);
   new->eos = FALSE;
   new->buffer = NULL;
   g_cond_init (&new->cond);
@@ -90,7 +90,7 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer)
 {
   GST_TENSOR_REPO_LOCK (nth);
 
-  GstTensorData *data = gst_tensor_repo_get_tensor (nth);
+  GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
   g_return_val_if_fail (data != NULL, FALSE);
 
   data->buffer = buffer;
@@ -108,7 +108,7 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer)
 gboolean
 gst_tensor_repo_check_eos (guint nth)
 {
-  GstTensorData *data = gst_tensor_repo_get_tensor (nth);
+  GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
   if (data == NULL || data->eos) {
     _print_log ("check eos done [%s]\n", data->eos ? "TRUE" : "FALSE");
   }
@@ -122,7 +122,7 @@ gboolean
 gst_tensor_repo_set_eos (guint nth)
 {
   GST_TENSOR_REPO_LOCK (nth);
-  GstTensorData *data = gst_tensor_repo_get_tensor (nth);
+  GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
   data->eos = TRUE;
   if (data->buffer)
     gst_buffer_unref (data->buffer);
@@ -134,16 +134,16 @@ gst_tensor_repo_set_eos (guint nth)
 
 
 /**
- * @brief get GstTensorData from repo
+ * @brief get GstTensorRepoData from repo
  */
 GstBuffer *
 gst_tensor_repo_get_buffer (guint nth)
 {
-  GstTensorData *current_data;
+  GstTensorRepoData *current_data;
   GstBuffer *buf;
   gboolean eos = FALSE;
 
-  current_data = gst_tensor_repo_get_tensor (nth);
+  current_data = gst_tensor_repo_get_repodata (nth);
   GST_TENSOR_REPO_LOCK (nth);
   while (!current_data->buffer) {
     if (gst_tensor_repo_check_eos (nth)) {
@@ -165,10 +165,10 @@ gst_tensor_repo_get_buffer (guint nth)
 }
 
 /**
- * @brief remove nth GstTensorData from GstTensorRepo
+ * @brief remove nth GstTensorRepoData from GstTensorRepo
  */
 gboolean
-gst_tensor_repo_remove_data (guint nth)
+gst_tensor_repo_remove_repodata (guint nth)
 {
   gboolean ret;
   printf ("removeing .... \n");

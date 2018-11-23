@@ -152,7 +152,7 @@ gst_tensor_reposrc_dispose (GObject * object)
   gboolean ret;
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (object);
 
-  ret = gst_tensor_repo_remove_data (self->myid);
+  ret = gst_tensor_repo_remove_repodata (self->myid);
   if (!ret)
     GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
         ("Cannot remove [key: %d] in repo", self->myid), NULL);

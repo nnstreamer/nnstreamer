@@ -182,7 +182,7 @@ gst_tensor_reposink_set_property (GObject * object, guint prop_id,
       break;
     case PROP_SLOT:
       self->myid = g_value_get_uint (value);
-      gst_tensor_repo_add_data (self->myid);
+      gst_tensor_repo_add_repodata (self->myid);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
