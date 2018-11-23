@@ -623,7 +623,7 @@ typedef struct
     _type * detinput_ = (_type *) detinput; \
     gsize detbpi = config->info.info[1].dimension[0]; \
     int num = (DETECTION_MAX > bb->max_detection) ? bb->max_detection : DETECTION_MAX; \
-    detectedObject object; \
+    detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = 0 }; \
     for (d = 0; d < num; d++) { \
       _get_object_i (bb, d, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
       if (object.valid == TRUE) { \
@@ -730,11 +730,11 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
     /* 1. Draw Boxes */
-    x1 = MAX (0, (bdata->width * a->x) / bdata->i_width);
+    x1 = (bdata->width * a->x) / bdata->i_width;
     x2 = MIN (bdata->width - 1,
         (bdata->width * (a->x + a->width)) / bdata->i_width);
 
-    y1 = MAX (0, (bdata->height * a->y) / bdata->i_height);
+    y1 = (bdata->height * a->y) / bdata->i_height;
     y2 = MIN (bdata->height - 1,
         (bdata->height * (a->y + a->height)) / bdata->i_height);
 
