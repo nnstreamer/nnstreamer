@@ -40,8 +40,8 @@ NNSTREAMER_PLUGIN (tensor_sink);
 NNSTREAMER_PLUGIN (tensor_split);
 NNSTREAMER_PLUGIN (tensor_transform);
 NNSTREAMER_PLUGIN (tensor_filter);
-NNSTREAMER_PLUGIN (tensor_repopush);
-NNSTREAMER_PLUGIN (tensor_repopop);
+NNSTREAMER_PLUGIN (tensor_reposink);
+NNSTREAMER_PLUGIN (tensor_reposrc);
 
 #define NNSTREAMER_INIT(name, plugin) \
   do { \
@@ -67,8 +67,8 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (tensor_split, plugin);
   NNSTREAMER_INIT (tensor_transform, plugin);
   NNSTREAMER_INIT (tensor_filter, plugin);
-  NNSTREAMER_INIT (tensor_repopush, plugin);
-  NNSTREAMER_INIT (tensor_repopop, plugin);
+  NNSTREAMER_INIT (tensor_reposink, plugin);
+  NNSTREAMER_INIT (tensor_reposrc, plugin);
 
   return TRUE;
 }

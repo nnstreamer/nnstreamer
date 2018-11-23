@@ -16,7 +16,7 @@
  */
 
 /**
- * @file	tensor_repopop.h
+ * @file	tensor_reposrc.h
  * @date	19 Nov 2018
  * @brief	GStreamer plugin to handle tensor repository
  * @see		https://github.com/nnsuite/nnstreamer
@@ -24,33 +24,33 @@
  * @bug		No known bugs except for NYI items
  */
 
-#ifndef __GST_TENSOR_REPOPOP_H_
-#define __GST_TENSOR_REPOPOP_H__
+#ifndef __GST_TENSOR_REPOSRC_H_
+#define __GST_TENSOR_REPOSRC_H__
 
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
 #include <tensor_repo.h>
 
 G_BEGIN_DECLS
-#define GST_TYPE_TENSOR_REPOPOP \
-  (gst_tensor_repopop_get_type())
-#define GST_TENSOR_REPOPOP(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_REPOPOP,GstTensorRepoPop))
-#define GST_TENSOR_REPOPOP_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_REPOPOP,GstTensorRepoPopClass))
-#define GST_IS_TENSOR_REPOPOP(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOPOP))
-#define GST_IS_TENSOR_REPOPOP_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOPOP))
-typedef struct _GstTensorRepoPop GstTensorRepoPop;
-typedef struct _GstTensorRepoPopClass GstTensorRepoPopClass;
+#define GST_TYPE_TENSOR_REPOSRC \
+  (gst_tensor_reposrc_get_type())
+#define GST_TENSOR_REPOSRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_REPOSRC,GstTensorRepoSrc))
+#define GST_TENSOR_REPOSRC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_REPOSRC,GstTensorRepoSrcClass))
+#define GST_IS_TENSOR_REPOSRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOSRC))
+#define GST_IS_TENSOR_REPOSRC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOSRC))
+typedef struct _GstTensorRepoSrc GstTensorRepoSrc;
+typedef struct _GstTensorRepoSrcClass GstTensorRepoSrcClass;
 
 /**
- * @brief GstTensorRepoPop data structure.
+ * @brief GstTensorRepoSrc data structure.
  *
- * GstTensorRepoPop inherits GstBaseSink.
+ * GstTensorRepoSrc inherits GstBaseSink.
  */
-struct _GstTensorRepoPop
+struct _GstTensorRepoSrc
 {
   GstPushSrc parent;
   GstBaseSink element;
@@ -63,19 +63,19 @@ struct _GstTensorRepoPop
 };
 
 /**
- * @brief GstTensorRepoPopClass data structure.
+ * @brief GstTensorRepoSrcClass data structure.
  *
- * GstTensorRepoPop inherits GstBaseSink.
+ * GstTensorRepoSrc inherits GstBaseSink.
  */
-struct _GstTensorRepoPopClass
+struct _GstTensorRepoSrcClass
 {
   GstPushSrcClass parent_class;
 };
 
 /**
- * @brief Function to get type of tensor_repopop.
+ * @brief Function to get type of tensor_reposrc.
  */
-GType gst_tensor_repopop_get_type (void);
+GType gst_tensor_reposrc_get_type (void);
 
 G_END_DECLS
-#endif /** __GST_TENSOR_REPOPOP_H__ */
+#endif /** __GST_TENSOR_REPOSRC_H__ */
