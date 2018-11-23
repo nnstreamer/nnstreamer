@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Do not append a license statement in the configuration file for a differnet license-based repository.
+
 ##
 # @file config-server-administrator.sh
 # @brief configuration file to declare contents that a server administrator installed.

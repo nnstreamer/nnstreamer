@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Do not append a license statement in the configuration file for a differnet license-based repository.
+
 ##
 # @file     config-plugins-audit.sh
 # @brief    Configuraiton file to maintain audit modules (after completing a build procedure)
