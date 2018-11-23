@@ -39,7 +39,6 @@
  */
 extern GstTensorRepo _repo;
 
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_reposink_debug);
 #define GST_CAT_DEFAULT gst_tensor_reposink_debug
 
@@ -153,7 +152,7 @@ gst_tensor_reposink_init (GstTensorRepoSink * self)
 
   gst_tensor_repo_init ();
 
-  silent_debug ("GstTensorRepo is sucessfully initailzed");
+  GST_DEBUG_OBJECT (self, "GstTensorRepo is sucessfully initailzed");
 
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
@@ -261,7 +260,7 @@ gst_tensor_reposink_event (GstBaseSink * sink, GstEvent * event)
   self = GST_TENSOR_REPOSINK (sink);
   type = GST_EVENT_TYPE (event);
 
-  silent_debug ("received event %s", GST_EVENT_TYPE_NAME (event));
+  GST_DEBUG_OBJECT (self, "received event %s", GST_EVENT_TYPE_NAME (event));
 
   switch (type) {
     case GST_EVENT_EOS:
@@ -287,6 +286,7 @@ gst_tensor_reposink_query (GstBaseSink * sink, GstQuery * query)
   self = GST_TENSOR_REPOSINK (sink);
   type = GST_QUERY_TYPE (query);
 
+  GST_DEBUG_OBJECT (self, "received query %s", GST_QUERY_TYPE_NAME (query));
   switch (type) {
     case GST_QUERY_SEEKING:
       gst_query_parse_seeking (query, &format, NULL, NULL, NULL);
@@ -388,6 +388,21 @@ gst_tensor_reposink_set_caps (GstBaseSink * sink, GstCaps * caps)
 
   self = GST_TENSOR_REPOSINK (sink);
   gst_caps_replace (&self->in_caps, caps);
+
+  if (!self->silent) {
+    guint caps_size, i;
+
+    caps_size = gst_caps_get_size (caps);
+    GST_DEBUG_OBJECT (self, "set caps, size is %d", caps_size);
+
+    for (i = 0; i < caps_size; i++) {
+      GstStructure *structure = gst_caps_get_structure (caps, i);
+      gchar *str = gst_structure_to_string (structure);
+
+      GST_DEBUG_OBJECT (self, "[%d] %s", i, str);
+      g_free (str);
+    }
+  }
 
   return TRUE;
 }

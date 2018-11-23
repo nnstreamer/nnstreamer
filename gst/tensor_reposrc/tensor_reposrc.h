@@ -48,12 +48,11 @@ typedef struct _GstTensorRepoSrcClass GstTensorRepoSrcClass;
 /**
  * @brief GstTensorRepoSrc data structure.
  *
- * GstTensorRepoSrc inherits GstBaseSink.
+ * GstTensorRepoSrc inherits GstPushSrc
  */
 struct _GstTensorRepoSrc
 {
   GstPushSrc parent;
-  GstBaseSink element;
   GstTensorsConfig config;
   gboolean silent;
   guint myid;
@@ -65,7 +64,7 @@ struct _GstTensorRepoSrc
 /**
  * @brief GstTensorRepoSrcClass data structure.
  *
- * GstTensorRepoSrc inherits GstBaseSink.
+ * GstTensorRepoSrc inherits GstPushSrc
  */
 struct _GstTensorRepoSrcClass
 {

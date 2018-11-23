@@ -32,20 +32,8 @@
 #include <config.h>
 #endif
 
+#include <string.h>
 #include "tensor_reposrc.h"
-
-/**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG (!self->silent)
-#endif
-
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) \
-    debug_print (DBG, __VA_ARGS__)
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_reposrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_reposrc_debug
@@ -286,10 +274,17 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
     int i;
     guint num_tensors = self->config.info.num_tensors;
     gsize size = 0;
-    for (i = 0; i < num_tensors; i++)
-      size += gst_tensor_info_get_size (&self->config.info.info[i]);
-    buf = gst_buffer_new_and_alloc (size);
-    gst_buffer_memset (buf, 0, 0, size);
+    buf = gst_buffer_new ();
+    for (i = 0; i < num_tensors; i++) {
+      GstMemory *mem;
+      GstMapInfo info;
+      size = gst_tensor_info_get_size (&self->config.info.info[i]);
+      mem = gst_allocator_alloc (NULL, size, NULL);
+      gst_memory_map (mem, &info, GST_MAP_WRITE);
+      memset (info.data, 0, size);
+      gst_memory_unmap (mem, &info);
+      gst_buffer_append_memory (buf, mem);
+    }
     self->ini = TRUE;
   } else {
     buf = gst_tensor_repo_get_buffer (self->myid);
