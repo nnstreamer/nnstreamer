@@ -1,27 +1,29 @@
 #!/usr/bin/env bash
 
+# Do not append a license statement in the configuration file for a differnet license-based repository.
+
 ##
-# @file config-environment.sh
-# @brief Environment file to control all scripts commonly for CI bot
+# @file     config-environment.sh
+# @brief    The configuration file to maintain all scripts
 # @see      https://github.com/nnsuite/TAOS-CI
 # @author   Geunsik Lim <geunsik.lim@samsung.com>
 #
-# This script to maintain consistently all scripts files via this file. 
-# In the near future, all configuration variables will be integrated into this file. 
+# This script is to maintain consistently all scripts files.
 #
-# In case that you have to run this CI script at the below environment, Please change
+# If you have to run this CI script at the below environment, Please change
 # the contents appropriately.
 # a. In case that you want to apply this CI script to another repository
 # b. In case that you have to install CI in a new CI server for more high-performance
 # c. In case that you need to create new project
 #
 
-################# Default: Modify the below statements for your server  #######################
+################# Modify the below statements for your server  #######################
 
 
 #### Repository setting
-# Connecting to a repository using token id instead of your-gitbot-id@github.io id
-# because of two-authentification. Refer to https://github.com/settings/tokens
+
+# Token ID: Connecting to a repository using token id instead of id-name@github.io
+# in case of two-authentification situation. Refer to https://github.com/settings/tokens
 TOKEN="xxxxxxxxxxxx558807ed7a0cdd02bfd6d431d7ca"
 
 # Name of account (or orgranzation)
@@ -73,7 +75,7 @@ pr_comment_many_commit=0
 pr_comment_pr_monitor=0
 
 #### Build test: Write build type to test ex) "x86_64 armv7l" 
-pr_build_arch_type="x86_64 armv7l aarch64"
+pr_build_arch_type="x86_64 i586 armv7l aarch64"
 
 ### Check level of doxygen tag:
 # Basic = 0 (@file + @brief)
@@ -104,8 +106,11 @@ BUILD_MODE_TIZEN=0
 BUILD_MODE_UBUNTU=0
 BUILD_MODE_YOCTO=99
 
+# Pull Request Scheduler: The number of jobs on Run-Queue to process PRs
+RUN_QUEUE_PR_JOBS=8
+
 # Version format: Major.Minor
-VERSION="1.20180820"
+VERSION="1.20181123"
 
 #### Location
 
