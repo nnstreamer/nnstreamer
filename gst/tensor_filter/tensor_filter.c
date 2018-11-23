@@ -854,6 +854,62 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 }
 
 /**
+ * @brief Printout the comparison results of two tensors.
+ * @param[in] info1 The tensors to be shown on the left hand side
+ * @param[in] info2 The tensors to be shown on the right hand side
+ * @return The newly allocated string for the printout. The caller must deallocate it.
+ * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
+ */
+static gchar *
+_compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
+{
+  gchar null[] = "";
+  gchar *result = null;
+  int i;
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    gchar *line, *tmp;
+    gchar *left = NULL, *right = NULL;
+
+    if (info1->num_tensors <= i && info2->num_tensors <= i)
+      break;
+
+    if (info1->num_tensors > i) {
+      gchar *dimstr = get_tensor_dimension_string (info1->info[i].dimension);
+      left = g_strdup_printf ("%s [%s]",
+          tensor_element_typename[info1->info[i].type], dimstr);
+      g_free (dimstr);
+    } else {
+      left = null;
+    }
+
+    if (info2->num_tensors > i) {
+      gchar *dimstr = get_tensor_dimension_string (info2->info[i].dimension);
+      right = g_strdup_printf ("%s [%s",
+          tensor_element_typename[info2->info[i].type], dimstr);
+      g_free (dimstr);
+    } else {
+      right = null;
+    }
+
+    line = g_strdup_printf ("%2d : %s  | %s\n", i, left, right);
+    if (left[0] != '\0')
+      g_free (left);
+    if (right[0] != '\0')
+      g_free (right);
+
+    tmp = g_strdup_printf ("%s%s", result, line);
+
+    if (result[0] != '\0')
+      g_free (result);
+    result = tmp;
+    g_free (line);
+  }
+
+  return result;
+}
+
+/**
  * @brief Configure input and output tensor info from incaps.
  * @param self "this" pointer
  * @param incaps received caps for sink pad
@@ -890,7 +946,10 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     /** if set-property called and already has info, verify it! */
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
-        g_assert (0);
+        gchar *str = _compare_tensors (&in_config.info, &prop->input_meta);
+        GST_ERROR_OBJECT (self, "The input tensor is not compatible.\n%s", str);
+        g_free (str);
+
         return FALSE;
       }
     }
@@ -912,7 +971,11 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
           /** if set-property called and already has info, verify it! */
           if (prop->output_meta.num_tensors > 0) {
             if (!gst_tensors_info_is_equal (&prop->output_meta, &out_info)) {
-              g_assert (0);
+              gchar *str =
+                  _compare_tensors (&in_config.info, &prop->input_meta);
+              GST_ERROR_OBJECT (self,
+                  "The output tensor is not compatible.\n%s", str);
+              g_free (str);
               return FALSE;
             }
           }
