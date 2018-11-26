@@ -29,6 +29,7 @@
 #define __GST_TENSOR_TYPEDEF_H__
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define NNS_TENSOR_RANK_LIMIT	(4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
