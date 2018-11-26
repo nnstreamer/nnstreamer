@@ -5,7 +5,6 @@ TARGET_LINK_LIBRARIES(nnstreamer_customfilter_passthrough nnstreamer)
 TARGET_LINK_LIBRARIES(nnstreamer_customfilter_passthrough_variable nnstreamer)
 
 INSTALL(TARGETS nnstreamer_customfilter_passthrough nnstreamer_customfilter_passthrough_variable
-	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 	)
