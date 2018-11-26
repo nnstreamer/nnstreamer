@@ -151,6 +151,7 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
+%{_libdir}/libtensor_filter_tflitecore.so
 %{gstlibdir}/*.so
 
 %files devel
@@ -168,7 +169,7 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_libdir}/*.so
-
+%exclude %{_libdir}/libtensor_filter_tflitecore.so
 
 %changelog
 * Mon Oct 15 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
