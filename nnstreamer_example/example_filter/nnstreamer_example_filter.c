@@ -16,7 +16,7 @@
  *
  * 'tensor_filter' for image recognition.
  * Download tflite moel 'Mobilenet_1.0_224_quant' from below link,
- * https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/lite/g3doc/models.md#image-classification-quantized-models
+ * https://github.com/nnsuite/testcases/tree/master/DeepLearningModels/tensorflow-lite/Mobilenet_v1_1.0_224_quant
  *
  * 'tensor_sink' updates recognition result to display in textoverlay.
  *
@@ -410,9 +410,6 @@ int
 main (int argc, char **argv)
 {
   const gchar tflite_model_path[] = "./tflite_model";
-  /** 224x224 for tflite model */
-  const guint width = 224;
-  const guint height = 224;
 
   gchar *str_pipeline;
   gulong handle_id;
@@ -443,10 +440,10 @@ main (int argc, char **argv)
       "video/x-raw,width=640,height=480,format=RGB ! tee name=t_raw "
       "t_raw. ! queue ! textoverlay name=tensor_res font-desc=Sans,24 ! "
       "videoconvert ! ximagesink name=img_tensor "
-      "t_raw. ! queue leaky=2 max-size-buffers=2 ! videoscale ! video/x-raw,width=%d,height=%d ! tensor_converter ! "
+      "t_raw. ! queue leaky=2 max-size-buffers=2 ! videoscale ! tensor_converter ! "
       "tensor_filter framework=tensorflow-lite model=%s ! "
       "tensor_sink name=tensor_sink",
-      width, height, g_app.tflite_info.model_path);
+      g_app.tflite_info.model_path);
   g_app.pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   _check_cond_err (g_app.pipeline != NULL);
