@@ -1,12 +1,12 @@
 /**
- * NNStreamer Custom Filter LSTM Example, "dummyLSTM"
+ * NNStreamer Custom Filter RNN Example, "dummyRNN"
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  * LICENSE: LGPL-2.1
  *
- * @file	dummy_LSTM.c
+ * @file	dummy_RNN.c
  * @date	02 Nov 2018
- * @brief	Custom NNStreamer LSTM Model. "Dummy LSTM"
+ * @brief	Custom NNStreamer RNN Model. "Dummy RNN"
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *
@@ -35,7 +35,7 @@ typedef struct _pt_data
 } pt_data;
 
 /**
- * @brief Initialize dummy-LSTM
+ * @brief Initialize dummy-RNN
  */
 static void *
 pt_init (const GstTensorFilterProperties * prop)
@@ -57,7 +57,7 @@ pt_init (const GstTensorFilterProperties * prop)
 }
 
 /**
- * @brief Exit dummy-LSTM
+ * @brief Exit dummy-RNN
  */
 static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
@@ -68,7 +68,7 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 }
 
 /**
- * @brief get the input tensor dimensions of dummy-LSTM (4:4:4 uint8, 4:4:4 uint8)
+ * @brief get the input tensor dimensions of dummy-RNN (4:4:4 uint8, 4:4:4 uint8)
  */
 static int
 get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
@@ -86,7 +86,7 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 }
 
 /**
- * @brief get the output tensor dimensions of dummy-LSTM (4:4:4 uint8)
+ * @brief get the output tensor dimensions of dummy-RNN (4:4:4 uint8)
  */
 static int
 get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
