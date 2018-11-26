@@ -89,7 +89,7 @@ mkdir -p build
 pushd build
 export GST_PLUGIN_PATH=$(pwd)
 export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
-%cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DENABLE_MODEL_DOWNLOAD=OFF -DINSTALL_EXAMPLE_APP=ON
+%cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON
 make %{?_smp_mflags}
 %if 0%{?unit_test}
     ./tests/unittest_common
