@@ -4,7 +4,6 @@ PROJECT(nnstreamer C CXX)
 
 OPTION(ENABLE_TENSORFLOW_LITE "Enable tensorflow-lite support" ON)
 OPTION(ENABLE_TENSORFLOW "Enable tensorflow support" OFF)
-OPTION(ENABLE_MODEL_DOWNLOAD "Enable download the model files" ON)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
 OPTION(ENABLE_TEST "Enable tests" ON)
 
