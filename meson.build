@@ -1,7 +1,10 @@
+# If you are using Ubuntu/Xenial, Do "force-version" on meson to get 0.40
+# If you are using Tizen 5.0+ or Ubuntu/Bionix+, you don't need to mind meson version.
+
 project('nnstreamer', 'c', 'cpp',
     version: '0.0.3',
     license: ['LGPL'],
-    meson_version: '>=0.47.0',
+    meson_version: '>=0.40.0',
     default_options: [
         'warning_level=1',
         'c_std=c89',
@@ -49,7 +52,8 @@ projects = [
 	'tensor_sink',
 	'tensor_split',
 	'tensor_transform',
-	'tensor_filter'
+	'tensor_filter',
+	'tensor_repopush'
 ]
 
 objects = []
@@ -61,7 +65,8 @@ nnstreamer_sources = [
     'gst/nnstreamer/nnstreamer.c'
 ]
 
-nnstreamer = both_libraries('nnstreamer',
+# "both_libraries" are supported from 0.46.
+nnstreamer = shared_library('nnstreamer',
     nnstreamer_sources,
     dependencies: [
         dependencies
@@ -69,4 +74,11 @@ nnstreamer = both_libraries('nnstreamer',
     include_directories: inc,
     objects: objects
 )
-
+nnstreamer = static_library('nnstreamer',
+    nnstreamer_sources,
+    dependencies: [
+        dependencies
+    ],
+    include_directories: inc,
+    objects: objects
+)
