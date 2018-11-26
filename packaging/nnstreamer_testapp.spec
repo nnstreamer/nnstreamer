@@ -48,7 +48,7 @@ popd
 %files
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
-%{_bindir}/*
+/usr/lib/nnstreamer/bin/*
 
 %changelog
 * Wed Jul 18 2018 MyungJoo Ham <myungjoo.ham@samsung.com>

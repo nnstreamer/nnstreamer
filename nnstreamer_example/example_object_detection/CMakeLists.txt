@@ -42,5 +42,6 @@ TARGET_INCLUDE_DIRECTORIES(nnstreamer_example_object_detection PUBLIC ${apppkgs_
 TARGET_COMPILE_OPTIONS(nnstreamer_example_object_detection PUBLIC ${apppkgs_CFLAGS_OTHER})
 
 IF (INSTALL_EXAMPLE_APP)
-	INSTALL(TARGETS nnstreamer_example_object_detection RUNTIME DESTINATION ${EXEC_PREFIX})
+	INSTALL(TARGETS nnstreamer_example_object_detection RUNTIME DESTINATION ${EXAMPLE_EXEC_PREFIX})
+	INSTALL(FILES get_model.sh gst-launch-object-detection.sh DESTINATION ${EXAMPLE_EXEC_PREFIX})
 ENDIF (INSTALL_EXAMPLE_APP)

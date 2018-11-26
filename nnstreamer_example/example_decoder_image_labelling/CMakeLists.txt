@@ -6,5 +6,5 @@ TARGET_INCLUDE_DIRECTORIES(nnstreamer_example_decoder_image_labelling PUBLIC ${a
 TARGET_COMPILE_OPTIONS(nnstreamer_example_decoder_image_labelling PUBLIC ${apppkgs_CFLAGS_OTHER})
 
 IF (INSTALL_EXAMPLE_APP)
-	INSTALL(TARGETS nnstreamer_example_decoder_image_labelling RUNTIME DESTINATION ${EXEC_PREFIX})
+	INSTALL(TARGETS nnstreamer_example_decoder_image_labelling RUNTIME DESTINATION ${EXAMPLE_EXEC_PREFIX})
 ENDIF (INSTALL_EXAMPLE_APP)

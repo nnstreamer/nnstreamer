@@ -13,5 +13,5 @@ TARGET_INCLUDE_DIRECTORIES(nnstreamer_sink_example_play PUBLIC ${apppkgs_INCLUDE
 TARGET_COMPILE_OPTIONS(nnstreamer_sink_example_play PUBLIC ${apppkgs_CFLAGS_OTHER})
 
 IF (INSTALL_EXAMPLE_APP)
-	INSTALL(TARGETS nnstreamer_sink_example nnstreamer_sink_example_play RUNTIME DESTINATION ${EXEC_PREFIX})
+	INSTALL(TARGETS nnstreamer_sink_example nnstreamer_sink_example_play RUNTIME DESTINATION ${EXAMPLE_EXEC_PREFIX})
 ENDIF (INSTALL_EXAMPLE_APP)

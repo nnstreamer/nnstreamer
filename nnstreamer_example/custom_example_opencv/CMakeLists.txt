@@ -9,13 +9,11 @@ TARGET_LINK_LIBRARIES(nnstreamer_customfilter_opencv_average ${opencv_pkg_LIBRAR
 TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_opencv_average PUBLIC ${opencv_pkg_INCLUDE_DIRS})
 
 INSTALL(TARGETS nnstreamer_customfilter_opencv_scaler
-	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 )
 
 INSTALL(TARGETS nnstreamer_customfilter_opencv_average
-	RUNTIME DESTINATION ${EXEC_PREFIX}
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 )
