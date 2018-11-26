@@ -8,6 +8,7 @@
 # @brief Generate a sequence of video/x-raw frames
 # @todo Generate corresponding golden results
 # @author MyungJoo Ham <myungjoo.ham@samsung.com>
+# @author Jijoong Moon <jijoong.moon@samsung.com>
 # @url https://github.com/nnsuite/nnstreamer/issues/738
 
 
@@ -17,10 +18,13 @@ import sys
 import os
 import array as arr
 
+def location(c, w, h):
+    return c+4*(w+4*h)
+
 ##
 # @brief Generate a video/x-raw single frame
 # @return The frame buffer contents
-def genFrame(seq):
+def genFrame(seq, out):
     frame = arr.array('B', [0] * 64)
     width = 4
     height = 4
@@ -39,13 +43,34 @@ def genFrame(seq):
     # (RED, 1, 1), 0 to 255
     frame[bpp * ( 1 + width * 1 ) + 2] = seq # R
 
-    return frame.tostring()
+    for h in range(0,4):
+        w=0
+        for i in range(0,4):
+            out[location(i,w,h)]=frame[location(i,w,h)]
+        for w in range(1,3):
+            for c in range(0,4):
+                sum = frame[location(0,w,h)]
+                sum += out[location(0,w,h)]
+                out[location(0,w,h)] = sum/2
+        w=3
+        for i in range(0,4):
+            out[location(i,w,h)] = out[location(i,w,h)]
+
+    return frame.tostring(), out
 
 filename = "video_4x4xBGRx.xraw"
 f = open(filename, "w")
 
-for seq in range(0, 256):
-    f.write(genFrame(seq))
+out = arr.array('B',[0]*64)
+
+for seq in range(0, 10):
+    outfilename = "rnn.golden"
+    string, out=genFrame(seq,out)
+    if(seq == 9):
+        with open(outfilename,'wb') as file:
+            file.write(out.tostring())
+
+    f.write(string)
 
 f.close()
 
