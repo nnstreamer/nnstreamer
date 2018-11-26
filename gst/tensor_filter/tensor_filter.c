@@ -909,6 +909,8 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
     g_free (line);
   }
 
+  if (result == null)
+    return NULL;
   return result;
 }
 
