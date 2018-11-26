@@ -438,30 +438,6 @@ tflite_core_getOutputDim (void *tflite, GstTensorsInfo * info)
 }
 
 /**
- * @brief	get the size of Input Tensor of model
- * @param	tflite	: the class object
- * @return	the number of Input Tensors.
- */
-int
-tflite_core_getInputSize (void *tflite)
-{
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getInputTensorSize ();
-}
-
-/**
- * @brief	get the size of Output Tensor of model
- * @param	tflite	: the class object
- * @return	the number of Output Tensors.
- */
-int
-tflite_core_getOutputSize (void *tflite)
-{
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getOutputTensorSize ();
-}
-
-/**
  * @brief	invoke the model
  * @param	tflite	: the class object
  * @param[in] input : The array of input tensors

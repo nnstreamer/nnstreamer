@@ -49,8 +49,6 @@ public:
   const char* getModelPath();
   int setInputTensorProp ();
   int setOutputTensorProp ();
-  int getInputTensorSize ();
-  int getOutputTensorSize ();
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
   int invoke (const GstTensorMemory * input, GstTensorMemory * output);
@@ -65,6 +63,8 @@ private:
   std::unique_ptr < tflite::Interpreter > interpreter;
   std::unique_ptr < tflite::FlatBufferModel > model;
 
+  int getInputTensorSize ();
+  int getOutputTensorSize ();
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
 };
@@ -82,8 +82,6 @@ extern "C"
   extern const char *tflite_core_getModelPath (void *tflite);
   extern int tflite_core_getInputDim (void *tflite, GstTensorsInfo * info);
   extern int tflite_core_getOutputDim (void *tflite, GstTensorsInfo * info);
-  extern int tflite_core_getOutputSize (void *tflite);
-  extern int tflite_core_getInputSize (void *tflite);
   extern int tflite_core_invoke (void *tflite, const GstTensorMemory * input,
       GstTensorMemory * output);
 
