@@ -13,12 +13,14 @@ Homepage: https://github.com/nnsuite/nnstreamer
 
 Package: nnstreamer
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams
 
 Package: nnstreamer-dev
 Architecture: any
+Multi-Arch: same
 Depends: nnstreamer
 Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams

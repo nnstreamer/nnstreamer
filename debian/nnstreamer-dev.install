@@ -1,4 +1,4 @@
 /usr/include/nnstreamer/*.h
-/usr/lib/pkgconfig/*.pc
-/usr/lib/libnnstreamer.a
-/usr/lib/libtensor_filter*.a
+/usr/lib/*/pkgconfig/*.pc
+/usr/lib/*/libnnstreamer.a
+/usr/lib/*/libtensor_filter*.a
