@@ -865,7 +865,8 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
 
   if (from == to) {
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
-    memcpy (outptr, inptr, gst_tensor_info_get_size (&filter->in_config.info));
+    nns_memcpy (outptr, inptr,
+        gst_tensor_info_get_size (&filter->in_config.info));
     GST_WARNING_OBJECT (filter,
         "Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream wheter you really need tensor_transform.\n");
     return GST_FLOW_OK;
@@ -900,7 +901,7 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
       for (j = 0; j < toDim[to]; j++) {
         uint8_t *j_destptr = destptr + loopBlockSize * j;
         for (k = 0; k < copyblocklimit; k++) {
-          memcpy (j_destptr + copyblocksize * k,
+          nns_memcpy (j_destptr + copyblocksize * k,
               srcptr + k * copyblocksize * toDim[to] + j * copyblocksize,
               copyblocksize);
         }
@@ -1033,7 +1034,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 	    inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
 	    const uint8_t *_in = inptr+inidx*typesize; \
 	    uint8_t *_out = outptr + outidx *typesize; \
-	    memcpy(_out, _in, typesize); \
+	    nns_memcpy(_out, _in, typesize); \
 	  }                                                      \
   } while(0);
 
@@ -1064,7 +1065,8 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   }
 
   if (!checkdim) {
-    memcpy (outptr, inptr, gst_tensor_info_get_size (&filter->in_config.info));
+    nns_memcpy (outptr, inptr,
+        gst_tensor_info_get_size (&filter->in_config.info));
     GST_WARNING_OBJECT (filter,
         "Calling tensor_transform with high memcpy overhead WITHOUT any effects!");
     return GST_FLOW_OK;

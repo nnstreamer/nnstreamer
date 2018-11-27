@@ -757,7 +757,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
 
   do {
     for (f = 0; f < self->frames_out; f++) {
-      memcpy (dest_info.data + dest_idx,
+      nns_memcpy (dest_info.data + dest_idx,
           src_info.data + src_idx + (frame_size * f), block_size);
       dest_idx += block_size;
     }

@@ -49,6 +49,9 @@ BuildRequires: lcov
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 BuildRequires: ssat
 
+# For ORC (Oil Runtime Compiler)
+BuildRequires: orc-devel
+
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
 %description unittest-coverage

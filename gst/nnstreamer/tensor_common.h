@@ -34,6 +34,20 @@
 #include <gst/base/gstcollectpads.h>
 #include <gst/gstplugin.h>
 
+#ifdef HAVE_ORC
+#include <orc/orc.h>
+
+#define nns_memcpy(d,s,n) do { \
+    if ((n) > 100) orc_memcpy ((d), (s), (n)); \
+    else memcpy ((d), (s), (n)); \
+  } while (0)
+
+#define nns_memset orc_memset
+#else
+#define nns_memcpy memcpy
+#define nns_memset memset
+#endif
+
 G_BEGIN_DECLS
 
 /**
