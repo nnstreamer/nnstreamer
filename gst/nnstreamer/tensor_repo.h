@@ -43,7 +43,8 @@ G_BEGIN_DECLS
 typedef struct
 {
   GstBuffer *buffer;
-  GCond cond;
+  GCond cond_push;
+  GCond cond_pull;
   GMutex lock;
   gboolean eos;
 } GstTensorRepoData;
@@ -120,11 +121,14 @@ gst_tensor_repo_wait();
  * @brief Macro for Lock & Cond
  */
 #define GST_TENSOR_REPO_GET_LOCK(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->lock)
-#define GST_TENSOR_REPO_GET_COND(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond)
+#define GST_TENSOR_REPO_GET_COND_PUSH(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond_push)
+#define GST_TENSOR_REPO_GET_COND_PULL(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond_pull)
 #define GST_TENSOR_REPO_LOCK(id) (g_mutex_lock(GST_TENSOR_REPO_GET_LOCK(id)))
 #define GST_TENSOR_REPO_UNLOCK(id) (g_mutex_unlock(GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_WAIT(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND(id), GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_SIGNAL(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND(id)))
+#define GST_TENSOR_REPO_WAIT_PULL(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND_PULL(id), GST_TENSOR_REPO_GET_LOCK(id)))
+#define GST_TENSOR_REPO_WAIT_PUSH(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND_PUSH(id), GST_TENSOR_REPO_GET_LOCK(id)))
+#define GST_TENSOR_REPO_SIGNAL_PULL(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND_PULL(id)))
+#define GST_TENSOR_REPO_SIGNAL_PUSH(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND_PUSH(id)))
 #define GST_REPO_LOCK()(g_mutex_lock(&_repo.repo_lock))
 #define GST_REPO_UNLOCK()(g_mutex_unlock(&_repo.repo_lock))
 #define GST_REPO_WAIT() (g_cond_wait(&_repo.repo_cond, &_repo.repo_lock))

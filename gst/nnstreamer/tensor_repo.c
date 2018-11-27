@@ -67,7 +67,8 @@ gst_tensor_repo_add_repodata (guint nth)
   new = g_new (GstTensorRepoData, 1);
   new->eos = FALSE;
   new->buffer = NULL;
-  g_cond_init (&new->cond);
+  g_cond_init (&new->cond_push);
+  g_cond_init (&new->cond_pull);
   g_mutex_init (&new->lock);
 
   ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), new);
@@ -91,9 +92,8 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer)
 
   GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
 
-  if (data == NULL) {
-    GST_TENSOR_REPO_UNLOCK (nth);
-    return FALSE;
+  while (data->buffer != NULL) {
+    GST_TENSOR_REPO_WAIT_PULL (nth);
   }
 
   data->buffer = buffer;
@@ -102,7 +102,7 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer)
     GST_DEBUG ("Pushed [%d] (size : %lu)\n", nth, size);
   }
 
-  GST_TENSOR_REPO_SIGNAL (nth);
+  GST_TENSOR_REPO_SIGNAL_PUSH (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
   return TRUE;
 }
@@ -130,7 +130,7 @@ gst_tensor_repo_set_eos (guint nth)
   GST_TENSOR_REPO_LOCK (nth);
   GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
   data->eos = TRUE;
-  GST_TENSOR_REPO_SIGNAL (nth);
+  GST_TENSOR_REPO_SIGNAL_PUSH (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
   return data->eos;
 }
@@ -154,7 +154,7 @@ gst_tensor_repo_get_buffer (guint nth)
       eos = TRUE;
       break;
     }
-    GST_TENSOR_REPO_WAIT (nth);
+    GST_TENSOR_REPO_WAIT_PUSH (nth);
   }
   if (eos) {
     if (DBG)
@@ -168,6 +168,7 @@ gst_tensor_repo_get_buffer (guint nth)
     }
   }
   current_data->buffer = NULL;
+  GST_TENSOR_REPO_SIGNAL_PULL (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
   return buf;
 }
@@ -181,7 +182,8 @@ gst_tensor_repo_remove_repodata (guint nth)
   gboolean ret;
   GST_REPO_LOCK ();
   g_mutex_clear (GST_TENSOR_REPO_GET_LOCK (nth));
-  g_cond_clear (GST_TENSOR_REPO_GET_COND (nth));
+  g_cond_clear (GST_TENSOR_REPO_GET_COND_PULL (nth));
+  g_cond_clear (GST_TENSOR_REPO_GET_COND_PUSH (nth));
 
   ret = g_hash_table_remove (_repo.hash, GINT_TO_POINTER (nth));
 
