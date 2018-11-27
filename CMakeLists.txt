@@ -120,7 +120,7 @@ IF(ENABLE_TENSORFLOW)
 ENDIF(ENABLE_TENSORFLOW)
 LIST(LENGTH FILTER_DEP FILTER_DEP_LEN)
 
-ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c gst/nnstreamer/nnstreamer_conf.c ${OBJECTS})
+ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c gst/nnstreamer/nnstreamer_conf.c gst/nnstreamer/nnstreamer_subplugin.c ${OBJECTS})
 SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
 TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
