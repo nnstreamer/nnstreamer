@@ -6,6 +6,7 @@ OPTION(ENABLE_TENSORFLOW_LITE "Enable tensorflow-lite support" ON)
 OPTION(ENABLE_TENSORFLOW "Enable tensorflow support" OFF)
 OPTION(INSTALL_EXAMPLE_APP "Install example applications" OFF)
 OPTION(ENABLE_TEST "Enable tests" ON)
+OPTION(ENABLE_ORC "Enable ORC" ON)
 
 IF(INSTALL_EXAMPLE_APP)
 	IF(EXAMPLE_EXEC_PREFIX)
@@ -41,6 +42,16 @@ SET(PKG_MODULES
 	gstreamer-audio-1.0
 	glib-2.0
 )
+
+IF(ENABLE_ORC)
+	FIND_LIBRARY(ORC_LIB orc-0.4)
+	IF(ORC_LIB)
+		SET(PKG_MODULES ${PKG_MODULES} orc-0.4)
+		ADD_DEFINITIONS(-DHAVE_ORC)
+	ELSE(ORC_LIB)
+		MESSAGE("Cannot find orc library")
+	ENDIF(ORC_LIB)
+ENDIF(ENABLE_ORC)
 
 pkg_check_modules(pkgs REQUIRED ${PKG_MODULES})
 
