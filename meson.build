@@ -53,7 +53,8 @@ projects = [
 	'tensor_split',
 	'tensor_transform',
 	'tensor_filter',
-	'tensor_repopush'
+	'tensor_reposrc',
+	'tensor_reposink'
 ]
 
 objects = []
