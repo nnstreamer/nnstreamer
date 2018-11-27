@@ -37,6 +37,7 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_reposrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_reposrc_debug
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
 
 /**
  * @brief tensor_reposrc properties
@@ -157,8 +158,9 @@ gst_tensor_reposrc_dispose (GObject * object)
 static GstCaps *
 gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
 {
-  GstCaps *cap;
+  GstCaps *cap, *check, *result;
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
+  GstStructure *st = NULL;
 
   GST_DEBUG_OBJECT (self, "returning %" GST_PTR_FORMAT, self->caps);
 
@@ -176,7 +178,20 @@ gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
       cap = gst_caps_new_any ();
   }
 
-  return cap;
+  check = gst_caps_from_string (CAPS_STRING);
+  result = gst_caps_intersect_full (cap, check, GST_CAPS_INTERSECT_FIRST);
+
+  if (!result) {
+    GST_ELEMENT_ERROR (GST_ELEMENT (self), STREAM, WRONG_TYPE,
+        ("Only Tensor/Tensors MIME are supported for now"), (NULL));
+  }
+  gst_caps_unref (check);
+  gst_caps_unref (cap);
+
+  st = gst_caps_get_structure (result, 0);
+  gst_tensors_config_from_structure (&self->config, st);
+
+  return result;
 }
 
 /**
@@ -210,8 +225,6 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       gst_caps_replace (&self->caps, new_caps);
       gst_pad_set_caps (GST_BASE_SRC_PAD (self), new_caps);
       st = gst_caps_get_structure (new_caps, 0);
-
-      gst_tensors_config_from_structure (&self->config, st);
 
       if (new_caps && gst_caps_get_size (new_caps) == 1 && st
           && gst_structure_get_fraction (st, "framerate", &self->fps_n,
