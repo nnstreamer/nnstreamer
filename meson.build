@@ -41,19 +41,21 @@ dependencies = [
 inc = include_directories('gst/nnstreamer')
 
 projects = [
-	'nnstreamer',
-	'tensor_aggregator',
-	'tensor_converter',
-	'tensor_decoder',
-	'tensor_demux',
-	'tensor_merge',
-	'tensor_mux',
-	'tensor_saveload',
-	'tensor_sink',
-	'tensor_split',
-	'tensor_transform',
-	'tensor_filter',
-	'tensor_repopush'
+    'nnstreamer',
+    'tensor_aggregator',
+    'tensor_converter',
+    'tensor_decoder',
+    'tensor_demux',
+    'tensor_merge',
+    'tensor_mux',
+    'tensor_saveload',
+    'tensor_sink',
+    'tensor_split',
+    'tensor_transform',
+    'tensor_filter',
+    'tensor_repopush',
+    'tensor_reposink',
+    'tensor_reposrc'
 ]
 
 objects = []
