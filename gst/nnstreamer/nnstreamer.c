@@ -25,6 +25,10 @@
 #include <gst/gst.h>
 #include <gst/gstplugin.h>
 
+#ifdef HAVE_ORC
+#include <orc/orc.h>
+#endif
+
 #define NNSTREAMER_PLUGIN(name) \
   extern gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin *plugin)
 
@@ -55,6 +59,11 @@ NNSTREAMER_PLUGIN (tensor_reposrc);
 static gboolean
 gst_nnstreamer_init (GstPlugin * plugin)
 {
+#ifdef HAVE_ORC
+  GST_INFO ("[NNStreamer] Initialize the Orc library");
+  orc_init ();
+#endif
+
   NNSTREAMER_INIT (tensor_converter, plugin);
   NNSTREAMER_INIT (tensor_aggregator, plugin);
   NNSTREAMER_INIT (tensor_decoder, plugin);
