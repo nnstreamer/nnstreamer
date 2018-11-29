@@ -60,6 +60,7 @@ gst_tensor_repo_add_repodata (guint nth)
   gpointer check = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
 
   if (check != NULL) {
+    GST_REPO_UNLOCK ();
     return TRUE;
   }
 
@@ -89,7 +90,11 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer)
   GST_TENSOR_REPO_LOCK (nth);
 
   GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
-  g_return_val_if_fail (data != NULL, FALSE);
+
+  if (data == NULL) {
+    GST_TENSOR_REPO_UNLOCK (nth);
+    return FALSE;
+  }
 
   data->buffer = buffer;
   if (DBG) {
@@ -141,8 +146,9 @@ gst_tensor_repo_get_buffer (guint nth)
   GstBuffer *buf;
   gboolean eos = FALSE;
 
-  current_data = gst_tensor_repo_get_repodata (nth);
   GST_TENSOR_REPO_LOCK (nth);
+  current_data = gst_tensor_repo_get_repodata (nth);
+
   while (!current_data->buffer) {
     if (gst_tensor_repo_check_eos (nth)) {
       eos = TRUE;
