@@ -160,7 +160,6 @@ _setOption (GstTensorDec * self, int opNum, const gchar * param)
       return TRUE;
     else
       return FALSE;
-      /** @todo Do not die for this */
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
