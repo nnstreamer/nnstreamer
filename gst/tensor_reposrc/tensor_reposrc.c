@@ -266,9 +266,6 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
 
   self = GST_TENSOR_REPOSRC (src);
   gst_tensor_repo_wait ();
-  if (gst_tensor_repo_check_eos (self->myid)) {
-    return GST_FLOW_EOS;
-  }
 
   if (!self->ini) {
     int i;
