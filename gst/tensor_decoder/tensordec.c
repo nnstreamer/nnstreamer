@@ -372,9 +372,12 @@ _tensordec_process_plugin_options (GstTensorDec * self, int opnum)
  */
 #define PROP_MODE_OPTION(opnum) \
     case PROP_MODE_OPTION ## opnum: \
-      self->option[opnum - 1] = g_value_dup_string (value); \
+      g_free (self->option[(opnum) - 1]); \
+      self->option[(opnum) - 1] = g_value_dup_string (value); \
       if (self->mode == DECODE_MODE_PLUGIN) { \
-        g_assert (_tensordec_process_plugin_options (self, opnum - 1) == TRUE); \
+        if (_tensordec_process_plugin_options (self, (opnum) - 1) != TRUE) \
+          GST_ERROR_OBJECT (self, "Configuring option for tensor-decoder failed (option %d = %s)", \
+            (opnum), self->option[(opnum) - 1]); \
       } \
       break
 
@@ -394,7 +397,6 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:{
       int i;
-      gboolean retval = TRUE;
       TensorDecDef *decoder;
       temp_string = g_value_dup_string (value);
       decoder = tensordec_find (temp_string);
@@ -423,8 +425,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
 
         silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
         for (i = 0; i < TensorDecMaxOpNum; i++)
-          retval &= _tensordec_process_plugin_options (self, i);
-        g_assert (retval == TRUE);
+          _tensordec_process_plugin_options (self, i);
         self->mode = DECODE_MODE_PLUGIN;
         self->output_type = self->decoder->type;
       } else {
