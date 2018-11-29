@@ -105,6 +105,7 @@ _get_fullpath_filenames (const gchar * dir, GSList * list, uint32_t * counter)
     *counter = *counter + 1;
   }
   g_free (dirfullpath);
+  g_dir_close (gdir);
   return list;
 }
 
@@ -129,6 +130,7 @@ _get_basenames (const gchar * dir, GSList * list, uint32_t * counter)
     list = g_slist_prepend (list, g_path_get_basename (name));
     *counter = *counter + 1;
   }
+  g_dir_close (gdir);
   return list;
 }
 
