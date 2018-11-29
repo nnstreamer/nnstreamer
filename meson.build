@@ -13,7 +13,6 @@ project('nnstreamer', 'c', 'cpp',
 )
 
 add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: 'c')
-add_project_arguments('-DSINGLE_BINARY', language: 'c')
 
 gst_api_verision = '1.0'
 
@@ -25,6 +24,7 @@ gstreamer_video = dependency('gstreamer-video-' + gst_api_verision)
 gstreamer_audio = dependency('gstreamer-audio-' + gst_api_verision)
 
 cc = meson.get_compiler('c')
+cxx = meson.get_compiler('cpp')
 
 dependencies = [
     glib,
@@ -35,7 +35,8 @@ dependencies = [
     gstreamer_audio,
     # required 'false' mean is used only when needed.
     cc.find_library('m', required: false), # cmath library
-    cc.find_library('dl', required: false) # DL library
+    cc.find_library('dl', required: false), # DL library
+    cxx.find_library('pthread', required: false) # pthread for tensor_filter_tensorflow_lite
 ]
 
 inc = include_directories('gst/nnstreamer')
@@ -61,6 +62,12 @@ objects = []
 foreach p : projects
     subdir('gst/'+ p)
 endforeach
+
+subdir('nnstreamer_example')
+
+if get_option('ENABLE_TEST')
+    subdir('tests')
+endif
 
 nnstreamer_sources = [
     'gst/nnstreamer/nnstreamer.c'
