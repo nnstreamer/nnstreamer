@@ -204,7 +204,7 @@ gboolean
 nnstreamer_loadconf (gboolean force_reload)
 {
   g_autoptr (GError) error = NULL;
-  g_autoptr (GKeyFile) key_file;
+  g_autoptr (GKeyFile) key_file = NULL;
   GStatBuf gsbuf;
   int stt, i;
 
