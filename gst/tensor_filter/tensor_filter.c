@@ -1281,25 +1281,12 @@ static gboolean
 gst_tensor_filter_stop (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
-  GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER_CAST (trans);
-  g_assert (self->fw != NULL);
-
-  prop = &self->prop;
+  if (self->fw == NULL)
+    return FALSE;
 
   gst_tensor_filter_close_fw (self);
-
-  if (prop->model_file) {
-    g_free ((void *) prop->model_file);
-    prop->model_file = NULL;
-  }
-
-  if (prop->custom_properties) {
-    g_free ((void *) prop->custom_properties);
-    prop->custom_properties = NULL;
-  }
-
   return TRUE;
 }
 

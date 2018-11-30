@@ -97,9 +97,7 @@ tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
 static int
 tflite_open (const GstTensorFilter * filter, void **private_data)
 {
-  int retval = tflite_loadModelFile (filter, private_data);
-  g_assert (retval == 0);       /** This must be called only once */
-  return 0;
+  return tflite_loadModelFile (filter, private_data);
 }
 
 /**
