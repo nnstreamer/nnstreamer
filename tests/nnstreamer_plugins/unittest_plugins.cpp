@@ -383,7 +383,7 @@ TEST (test_tensor_transform, arithmetic_3)
 }
 
 /**
- * @brief Test for tensor_transform arithmetic (typecast uint8 > float64, add .2, add .1, typecast uint16)
+ * @brief Test for tensor_transform arithmetic (typecast uint8 > float64, add .2, add .1, final typecast uint16 will be ignored)
  */
 TEST (test_tensor_transform, arithmetic_4)
 {
@@ -412,7 +412,7 @@ TEST (test_tensor_transform, arithmetic_4)
   gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
   data_in_size = gst_tensor_info_get_size (&config.info);
 
-  config.info.type = _NNS_UINT16;
+  config.info.type = _NNS_FLOAT64;
   data_out_size = gst_tensor_info_get_size (&config.info);
 
   /* push buffers */
@@ -443,8 +443,8 @@ TEST (test_tensor_transform, arithmetic_4)
     ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
 
     for (i = 0; i < array_size; i++) {
-      uint16_t expected = (i + 1) * (b + 1);
-      EXPECT_EQ (((uint16_t *) info.data)[i], expected);
+      double expected = (i + 1) * (b + 1) + .3;
+      EXPECT_DOUBLE_EQ (((double *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
