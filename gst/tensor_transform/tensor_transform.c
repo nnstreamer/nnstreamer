@@ -666,6 +666,14 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
           switch (op_s->op) {
             case GTT_OP_TYPECAST:
               if (num_op > 1 && str_op[1]) {
+                if (i > 0) {
+                  GST_WARNING_OBJECT (filter,
+                      "To prevent memory re-allocation, tensor-transform limits the typecast during the sequence. "
+                      "Please set the typecast in the first.");
+                  op_s->op = GTT_OP_UNKNOWN;
+                  break;
+                }
+
                 op_s->value.type = get_tensor_type (str_op[1]);
 
                 if (op_s->value.type == _NNS_END) {
