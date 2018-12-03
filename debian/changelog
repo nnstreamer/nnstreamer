@@ -1,3 +1,9 @@
+nnstreamer (0.1.0-1rc1) stable; urgency=medium
+
+  * Start of 0.1.0 development
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 03 Dec 2018 15:32:01 +0900
+
 nnstreamer (0.0.3-2) stable; urgency=medium
 
   * 0.0.3 release
