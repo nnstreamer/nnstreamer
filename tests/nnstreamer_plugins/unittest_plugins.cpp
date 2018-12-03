@@ -528,6 +528,336 @@ TEST (test_tensor_transform, arithmetic_5)
   gst_harness_teardown (h);
 }
 
+#ifdef HAVE_ORC
+#include "../../gst/tensor_transform/transform-orc.h"
+
+/**
+ * @brief Test for tensor_transform orc functions (add constant value)
+ */
+TEST (test_tensor_transform, orc_add)
+{
+  const guint array_size = 10;
+  guint i;
+
+  /* add constant s8 */
+  int8_t data_s8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s8[i] = i - 1;
+  }
+
+  nns_orc_add_c_s8 (data_s8, -20, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s8[i], i - 1 - 20);
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s8[i] = i + 1;
+  }
+
+  nns_orc_add_c_s8 (data_s8, 20, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s8[i], i + 1 + 20);
+  }
+
+  /* add constant u8 */
+  uint8_t data_u8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u8[i] = i + 1;
+  }
+
+  nns_orc_add_c_u8 (data_u8, 3, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u8[i], i + 1 + 3);
+  }
+
+  /* add constant s16 */
+  int16_t data_s16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s16[i] = i - 1;
+  }
+
+  nns_orc_add_c_s16 (data_s16, -16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s16[i], i - 1 - 16);
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s16[i] = i + 1;
+  }
+
+  nns_orc_add_c_s16 (data_s16, 16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s16[i], i + 1 + 16);
+  }
+
+  /* add constant u16 */
+  uint16_t data_u16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u16[i] = i + 1;
+  }
+
+  nns_orc_add_c_u16 (data_u16, 17, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u16[i], i + 1 + 17);
+  }
+
+  /* add constant s32 */
+  int32_t data_s32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s32[i] = i + 1;
+  }
+
+  nns_orc_add_c_s32 (data_s32, -32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s32[i], i + 1 - 32);
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s32[i] = i + 1;
+  }
+
+  nns_orc_add_c_s32 (data_s32, 32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s32[i], i + 1 + 32);
+  }
+
+  /* add constant u32 */
+  uint32_t data_u32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u32[i] = i + 1;
+  }
+
+  nns_orc_add_c_u32 (data_u32, 33, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u32[i], i + 1 + 33);
+  }
+
+  /* add constant f32 */
+  float data_f32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f32[i] = i - .1;
+  }
+
+  nns_orc_add_c_f32 (data_f32, -10.2, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (data_f32[i], i - .1 - 10.2);
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_f32[i] = i + .1;
+  }
+
+  nns_orc_add_c_f32 (data_f32, 10.2, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (data_f32[i], i + .1 + 10.2);
+  }
+
+  /* add constant f64 */
+  double data_f64[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f64[i] = i - .1;
+  }
+
+  nns_orc_add_c_f64 (data_f64, -20.5, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (data_f64[i], i - .1 - 20.5);
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_f64[i] = i + .2;
+  }
+
+  nns_orc_add_c_f64 (data_f64, 20.5, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (data_f64[i], i + .2 + 20.5);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (mul constant value)
+ */
+TEST (test_tensor_transform, orc_mul)
+{
+  const guint array_size = 10;
+  guint i;
+
+  /* mul constant s8 */
+  int8_t data_s8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s8[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s8 (data_s8, -3, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s8[i], (i + 1) * (-3));
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s8[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s8 (data_s8, 5, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s8[i], (i + 1) * 5);
+  }
+
+  /* mul constant u8 */
+  uint8_t data_u8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u8[i] = i + 1;
+  }
+
+  nns_orc_mul_c_u8 (data_u8, 3, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u8[i], (i + 1) * 3);
+  }
+
+  /* mul constant s16 */
+  int16_t data_s16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s16[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s16 (data_s16, -16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s16[i], (i + 1) * (-16));
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s16[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s16 (data_s16, 16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s16[i], (i + 1) * 16);
+  }
+
+  /* mul constant u16 */
+  uint16_t data_u16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u16[i] = i + 1;
+  }
+
+  nns_orc_mul_c_u16 (data_u16, 17, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u16[i], (i + 1) * 17);
+  }
+
+  /* mul constant s32 */
+  int32_t data_s32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s32[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s32 (data_s32, -32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s32[i], (i + 1) * (-32));
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_s32[i] = i + 1;
+  }
+
+  nns_orc_mul_c_s32 (data_s32, 32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_s32[i], (i + 1) * 32);
+  }
+
+  /* mul constant u32 */
+  uint32_t data_u32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u32[i] = i + 1;
+  }
+
+  nns_orc_mul_c_u32 (data_u32, 33, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (data_u32[i], (i + 1) * 33);
+  }
+
+  /* mul constant f32 */
+  float data_f32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f32[i] = i + 1 - .1;
+  }
+
+  nns_orc_mul_c_f32 (data_f32, -10.2, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (data_f32[i], (i + 1 - .1) * (-10.2));
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_f32[i] = i + .1;
+  }
+
+  nns_orc_mul_c_f32 (data_f32, 10.2, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (data_f32[i], (i + .1) * 10.2);
+  }
+
+  /* mul constant f64 */
+  double data_f64[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f64[i] = i + 1 - .1;
+  }
+
+  nns_orc_mul_c_f64 (data_f64, -20.5, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (data_f64[i], (i + 1 - .1) * (-20.5));
+  }
+
+  for (i = 0; i < array_size; i++) {
+    data_f64[i] = i + .2;
+  }
+
+  nns_orc_mul_c_f64 (data_f64, 20.5, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (data_f64[i], (i + .2) * 20.5);
+  }
+}
+#endif /* HAVE_ORC */
+
 /**
  * @brief Main function for unit test.
  */
