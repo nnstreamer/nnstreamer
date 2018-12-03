@@ -398,6 +398,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     case PROP_MODE:{
       int i;
       TensorDecDef *decoder;
+      gboolean retval = TRUE;
       temp_string = g_value_dup_string (value);
       decoder = tensordec_find (temp_string);
 
@@ -425,7 +426,10 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
 
         silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
         for (i = 0; i < TensorDecMaxOpNum; i++)
-          _tensordec_process_plugin_options (self, i);
+          retval &= _tensordec_process_plugin_options (self, i);
+        if (FALSE == retval)
+          GST_WARNING_OBJECT (self,
+              "One or more option has failed to configure while setting the mode.");
         self->mode = DECODE_MODE_PLUGIN;
         self->output_type = self->decoder->type;
       } else {
