@@ -1,3 +1,20 @@
+0.0.2 -> 0.0.3:
+	- Support external recurrencies with tensor_repo (more test cases are to be released later)
+	- Support multi-operators with a single instance of tensor_transform (with a few limitations on the supported orders of operators)
+	- Support split
+	- Support bounding-box decoding (tensor_decoder)
+	- Support subplugins for tensor_decoder
+	- Internal APIs for dynamic configurations and subplugins. tensor_filter and tensor_decoder will be updated to use such configurations in the later releases.
+	- Tensorflow support is in-progress, it's postponed to later releases. (Still, tensorflow-lite is the only framework officially supported)
+	- Pipeviz support. (tensor_converter/filter/decoder)
+	- Tested with MTCNN (each "part" is separated as an instance of tensor_filter).
+	- Meson build introduced.
+	- Released via build.tizen.org (Tizen Devel. x64/x86/arm32/arm64) and launchpad.net (Ubuntu/PPA. x64/x86/arm32/arm64)
+	- Static build for Android (Not tested. No example. An example Android application is to be released later)
+	- Timestamp handling / Synchronization support
+	- AWS App Testing Enabled (testing nnstreamer application with virtual camera devices in AWS)
+	- arm64 support added
+
 0.0.1 -> 0.0.2:
 	- Support multi-tensors (other/tensors) along with mux, demux.
 	- Support audio, test, binary-octet streams (tensor converter)

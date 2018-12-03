@@ -5,7 +5,7 @@
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
 Version:	0.0.3
-Release:	1rc1
+Release:	2
 # From 0.0.3, don't put letters as the first character of release. Use "1.rc1" instead of "rc1".
 # We are using "stable-1" because we've been using "rc#" for 0.0.2
 Group:		Applications/Multimedia
@@ -176,6 +176,9 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %exclude %{_libdir}/libtensor_filter_tflitecore.so
 
 %changelog
+* Mon Dec 03 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 0.0.3
+
 * Mon Oct 15 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Started single-binary packaging for 0.0.3
 
