@@ -22,6 +22,8 @@
  * @see		http://github.com/nnsuite/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
+ * @todo  set priority among properties
+ * @todo  logic for dynamic properties(like model change)
  *
  * This is the main plugin for per-NN-framework plugins.
  * Specific implementations for each NN framework must be written
@@ -150,8 +152,10 @@ enum
   PROP_MODEL,
   PROP_INPUT,
   PROP_INPUTTYPE,
+  PROP_INPUTNAME,
   PROP_OUTPUT,
   PROP_OUTPUTTYPE,
+  PROP_OUTPUTNAME,
   PROP_CUSTOM,
 };
 
@@ -270,9 +274,17 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
       g_param_spec_string ("input", "Input dimension",
           "Input tensor dimension from inner array, upto 4 dimensions ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INPUTNAME,
+      g_param_spec_string ("inputname", "Name of Input Tensor",
+          "The Name of Input Tensor", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUTTYPE,
       g_param_spec_string ("inputtype", "Input tensor element type",
           "Type of each element of the input tensor ?", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTNAME,
+      g_param_spec_string ("outputname", "Name of Output Tensor",
+          "The Name of Output Tensor", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_string ("output", "Output dimension",
@@ -444,7 +456,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       tmp = g_value_dup_string (value);
       silent_debug ("Model = %s\n", tmp);
       if (!g_file_test (tmp, G_FILE_TEST_IS_REGULAR)) {
-        GST_ERROR ("Cannot find the model file: %s\n", tmp);
+        GST_ERROR_OBJECT (self, "Cannot find the model file: %s\n", tmp);
         g_free (tmp);
       } else {
         prop->model_file = tmp;
@@ -528,6 +540,48 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         }
 
         g_strfreev (str_types);
+      }
+      break;
+    case PROP_INPUTNAME:
+      /* INPUTNAME is required by tensorflow to designate the order of tensors */
+      g_assert (!prop->input_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        int i;
+        gchar **str_names;
+
+        str_names = g_strsplit (g_value_get_string (value), ",", -1);
+        prop->input_meta.num_tensors = g_strv_length (str_names);
+
+        for (i = 0; i < prop->input_meta.num_tensors; i++) {
+          if (strlen (prop->input_meta.info[i].name))
+            g_free ((char *) prop->input_meta.info[i].name);
+          prop->input_meta.info[i].name = g_strdup (str_names[i]);
+          g_assert (prop->input_meta.info[i].name != '\0');
+        }
+
+        g_strfreev (str_names);
+      }
+      break;
+    case PROP_OUTPUTNAME:
+      /* OUTPUTNAME is required by tensorflow to designate the order of tensors */
+      g_assert (!prop->output_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        int i;
+        gchar **str_names;
+
+        str_names = g_strsplit (g_value_get_string (value), ",", -1);
+        prop->output_meta.num_tensors = g_strv_length (str_names);
+
+        for (i = 0; i < prop->output_meta.num_tensors; i++) {
+          if (strlen (prop->output_meta.info[i].name))
+            g_free ((char *) prop->output_meta.info[i].name);
+          prop->output_meta.info[i].name = g_strdup (str_names[i]);
+          g_assert (prop->output_meta.info[i].name != '\0');
+        }
+
+        g_strfreev (str_names);
       }
       break;
     case PROP_CUSTOM:
@@ -651,6 +705,44 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
 
         g_value_set_string (value, types->str);
         g_string_free (types, TRUE);
+      } else {
+        g_value_set_string (value, "");
+      }
+      break;
+    case PROP_INPUTNAME:
+      if (prop->input_meta.num_tensors > 0) {
+        GString *names = g_string_new (NULL);
+        int i;
+
+        for (i = 0; i < prop->input_meta.num_tensors; i++) {
+          g_string_append (names, prop->input_meta.info[i].name);
+
+          if (i < prop->input_meta.num_tensors - 1) {
+            g_string_append (names, ",");
+          }
+        }
+
+        g_value_set_string (value, names->str);
+        g_string_free (names, TRUE);
+      } else {
+        g_value_set_string (value, "");
+      }
+      break;
+    case PROP_OUTPUTNAME:
+      if (prop->output_meta.num_tensors > 0) {
+        GString *names = g_string_new (NULL);
+        int i;
+
+        for (i = 0; i < prop->output_meta.num_tensors; i++) {
+          g_string_append (names, prop->output_meta.info[i].name);
+
+          if (i < prop->output_meta.num_tensors - 1) {
+            g_string_append (names, ",");
+          }
+        }
+
+        g_value_set_string (value, names->str);
+        g_string_free (names, TRUE);
       } else {
         g_value_set_string (value, "");
       }

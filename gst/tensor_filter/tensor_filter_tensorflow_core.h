@@ -27,15 +27,30 @@
 #define TENSOR_FILTER_TENSORFLOW_H
 
 #ifdef __cplusplus
-#include <iostream>
 #include <stdint.h>
 #include <glib.h>
+#include <setjmp.h>
+#include <stdio.h>
+#include <string.h>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+#include <vector>	 
 
+#include <tensorflow/cc/ops/const_op.h>
+#include <tensorflow/cc/ops/image_ops.h>
+#include <tensorflow/cc/ops/standard_ops.h>
+#include <tensorflow/core/lib/io/path.h>
 #include <tensorflow/core/platform/init_main.h>
 #include <tensorflow/core/public/session.h>
-#include <tensorflow/core/framework/tensor_shape.h>
+#include <tensorflow/cc/client/client_session.h>
+#include <tensorflow/core/util/command_line_flags.h>
+#include <tensorflow/core/lib/strings/str_util.h>
+#include <tensorflow/tools/graph_transforms/transform_utils.h>
 
 #include <tensor_common.h>
+
+using namespace tensorflow;
 
 /**
  * @brief	ring cache structure
@@ -49,37 +64,33 @@ public:
   TFCore (const char *_model_path);
    ~TFCore ();
 
-  /**
-   * @brief	get the model path.
-   * @return	saved model path.
-   */
-  const char *getModelPath ()
-  {
-    return model_path;
-  }
+  int init(const GstTensorFilterProperties * prop);
   int loadModel ();
-  const char *getInputTensorName ();
-  const char *getOutputTensorName ();
-
+  const char* getModelPath();
+  int setInputTensorProp ();
+  int setOutputTensorProp ();
+  
   int getInputTensorSize ();
   int getOutputTensorSize ();
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
-  int getInputTensorDimSize ();
-  int getOutputTensorDimSize ();
-  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  int run (const GstTensorMemory * input, GstTensorMemory * output);
 
 private:
-  /**
-   * member variables.
-   */
+
   const char *model_path;
-  int tensor_size;
-  int node_size;
-  int input_size;
-  int output_size;
-  int getTensorType (int tensor_idx, tensor_type * type);
-  int getTensorDim (tensor_dim dim, tensor_type * type);
+
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+
+  Session * session;
+
+  tensor_type getTensorTypeFromTF (DataType tfType);
+  DataType getTensorTypeToTF (tensor_type tType);
+  int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
+  int inputTensorValidation (std::vector<const NodeDef*> placeholders);
+  /*TODO*/
+  // int outputTensorValidation ();
 };
 
 /**
@@ -91,12 +102,12 @@ extern "C"
 
   extern void *tf_core_new (const char *_model_path);
   extern void tf_core_delete (void *tf);
+  extern int tf_core_init (void *tf, const GstTensorFilterProperties * prop);
   extern const char *tf_core_getModelPath (void *tf);
   extern int tf_core_getInputDim (void *tf, GstTensorsInfo * info);
   extern int tf_core_getOutputDim (void *tf, GstTensorsInfo * info);
-  extern int tf_core_getInputSize (void *tf);
-  extern int tf_core_getOutputSize (void *tf);
-  extern int tf_core_invoke (void *tf, const GstTensorMemory * input, GstTensorMemory * output);
+  extern int tf_core_run (void *tf, const GstTensorMemory * input,
+      GstTensorMemory * output);
 
 #ifdef __cplusplus
 }

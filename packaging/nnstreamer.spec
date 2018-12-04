@@ -40,6 +40,12 @@ BuildRequires: cairo-devel
 BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
 BuildRequires: procps
+# for tensorflow
+%ifarch x86_64 aarch64
+BuildRequires: protobuf-devel >= 3.4.0
+BuildRequires: tensorflow
+BuildRequires: tensorflow-devel
+%endif
 
 %if 0%{?testcoverage}
 BuildRequires: lcov
@@ -92,7 +98,13 @@ mkdir -p build
 pushd build
 export GST_PLUGIN_PATH=$(pwd)
 export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
-%cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON
+
+%ifarch x86_64 aarch64
+    %cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON -DENABLE_TENSORFLOW=ON
+%else
+    %cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON
+%endif
+
 make %{?_smp_mflags}
 %if 0%{?unit_test}
     ./tests/unittest_common
@@ -155,6 +167,9 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_libdir}/libtensor_filter_tflitecore.so
+%ifarch x86_64 aarch64
+%{_libdir}/libtensor_filter_tfcore.so
+%endif
 %{gstlibdir}/*.so
 
 %files devel
@@ -174,6 +189,9 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %{_libdir}/*.so
 /usr/lib/nnstreamer/bin/*
 %exclude %{_libdir}/libtensor_filter_tflitecore.so
+%ifarch x86_64 aarch64
+%exclude %{_libdir}/libtensor_filter_tfcore.so
+%endif
 
 %changelog
 * Mon Dec 03 2018 MyungJoo Ham <myungjoo.ham@samsung.com>

@@ -25,6 +25,7 @@ endif
 if get_option('ENABLE_TENSORFLOW')
     tensor_filter_sources += 'tensor_filter_tensorflow.c'
     dependencies += dependency('tensorflow')
+    dependencies += dependency('protobuf')
     tensor_filter_args += ['-DENABLE_TENSORFLOW']
 
     tensor_filter_tfcoreOBJ = static_library('tensor_filter_tfcore',

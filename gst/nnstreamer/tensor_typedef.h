@@ -123,6 +123,7 @@ typedef struct
  */
 typedef struct
 {
+  char * name; /**< Name of each element in the tensor. User must designate this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
 } GstTensorInfo;
