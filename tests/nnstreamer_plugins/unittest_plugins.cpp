@@ -856,6 +856,750 @@ TEST (test_tensor_transform, orc_mul)
     EXPECT_DOUBLE_EQ (data_f64[i], (i + .2) * 20.5);
   }
 }
+
+/**
+ * @brief Test for tensor_transform orc functions (convert s8 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_s8)
+{
+  const guint array_size = 10;
+  guint i;
+
+  int8_t data_s8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s8[i] = (i + 1) * -1;
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_u8 (res_u8, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s8[i]);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_s16 (res_s16, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_s8[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_u16 (res_u16, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s8[i]);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_s32 (res_s32, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_s8[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_u32 (res_u32, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s8[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_f32 (res_f32, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s8[i]);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_s8_to_f64 (res_f64, data_s8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s8[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert u8 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_u8)
+{
+  const guint array_size = 10;
+  guint i;
+
+  uint8_t data_u8[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u8[i] = G_MAXUINT8 - i;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_s8 (res_s8, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_u8[i]);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_s16 (res_s16, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_u8[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_u16 (res_u16, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u16[i], (uint16_t) data_u8[i]);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_s32 (res_s32, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_u8[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_u32 (res_u32, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u32[i], (uint32_t) data_u8[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_f32 (res_f32, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_u8[i]);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_u8_to_f64 (res_f64, data_u8, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_u8[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert s16 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_s16)
+{
+  const guint array_size = 10;
+  guint i;
+
+  int16_t data_s16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s16[i] = (i + 1) * -1;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_s8 (res_s8, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_s16[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_u8 (res_u8, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s16[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_u16 (res_u16, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s16[i]);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_s32 (res_s32, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_s16[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_u32 (res_u32, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s16[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_f32 (res_f32, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s16[i]);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_s16_to_f64 (res_f64, data_s16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s16[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert u16 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_u16)
+{
+  const guint array_size = 10;
+  guint i;
+
+  uint16_t data_u16[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u16[i] = G_MAXUINT16 - i;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_s8 (res_s8, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_u16[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_u8 (res_u8, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u8[i], (uint8_t) data_u16[i]);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_s16 (res_s16, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_u16[i]);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_s32 (res_s32, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_u16[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_u32 (res_u32, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u32[i], (uint32_t) data_u16[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_f32 (res_f32, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_u16[i]);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_u16_to_f64 (res_f64, data_u16, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_u16[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert s32 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_s32)
+{
+  const guint array_size = 10;
+  guint i;
+
+  int32_t data_s32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_s32[i] = (i + 1) * -1;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_s8 (res_s8, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_s32[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_u8 (res_u8, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s32[i]);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_s16 (res_s16, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_s32[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_u16 (res_u16, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s32[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_u32 (res_u32, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s32[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_f32 (res_f32, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s32[i]);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_s32_to_f64 (res_f64, data_s32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s32[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert u32 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_u32)
+{
+  const guint array_size = 10;
+  guint i;
+
+  uint32_t data_u32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_u32[i] = G_MAXUINT32 - i;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_s8 (res_s8, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_u32[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_u8 (res_u8, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u8[i], (uint8_t) data_u32[i]);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_s16 (res_s16, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_u32[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_u16 (res_u16, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_u16[i], (uint16_t) data_u32[i]);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_s32 (res_s32, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_u32[i]);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_f32 (res_f32, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) ((int32_t) data_u32[i]));
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_u32_to_f64 (res_f64, data_u32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) ((int32_t) data_u32[i]));
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert f32 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_f32)
+{
+  const guint array_size = 10;
+  guint i;
+
+  float data_f32[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f32[i] = (i + 1.) * -1.;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_s8 (res_s8, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_f32[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_u8 (res_u8, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int8_t val = (int8_t) data_f32[i];
+    EXPECT_EQ (res_u8[i], (uint8_t) val);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_s16 (res_s16, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_f32[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_u16 (res_u16, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int16_t val = (int16_t) data_f32[i];
+    EXPECT_EQ (res_u16[i], (uint16_t) val);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_s32 (res_s32, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_f32[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_u32 (res_u32, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int32_t val = (int32_t) data_f32[i];
+    EXPECT_EQ (res_u32[i], (uint32_t) val);
+  }
+
+  /* convert f64 */
+  double res_f64[array_size] = { 0, };
+
+  nns_orc_conv_f32_to_f64 (res_f64, data_f32, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_f32[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (convert f64 to other type)
+ */
+TEST (test_tensor_transform, orc_conv_f64)
+{
+  const guint array_size = 10;
+  guint i;
+
+  double data_f64[array_size] = { 0, };
+
+  for (i = 0; i < array_size; i++) {
+    data_f64[i] = (i + 1.) * -1.;
+  }
+
+  /* convert s8 */
+  int8_t res_s8[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_s8 (res_s8, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s8[i], (int8_t) data_f64[i]);
+  }
+
+  /* convert u8 */
+  uint8_t res_u8[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_u8 (res_u8, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int8_t val = (int8_t) data_f64[i];
+    EXPECT_EQ (res_u8[i], (uint8_t) val);
+  }
+
+  /* convert s16 */
+  int16_t res_s16[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_s16 (res_s16, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s16[i], (int16_t) data_f64[i]);
+  }
+
+  /* convert u16 */
+  uint16_t res_u16[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_u16 (res_u16, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int16_t val = (int16_t) data_f64[i];
+    EXPECT_EQ (res_u16[i], (uint16_t) val);
+  }
+
+  /* convert s32 */
+  int32_t res_s32[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_s32 (res_s32, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_EQ (res_s32[i], (int32_t) data_f64[i]);
+  }
+
+  /* convert u32 */
+  uint32_t res_u32[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_u32 (res_u32, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    int32_t val = (int32_t) data_f64[i];
+    EXPECT_EQ (res_u32[i], (uint32_t) val);
+  }
+
+  /* convert f32 */
+  float res_f32[array_size] = { 0, };
+
+  nns_orc_conv_f64_to_f32 (res_f32, data_f64, array_size);
+
+  for (i = 0; i < array_size; i++) {
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_f64[i]);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform orc functions (performance)
+ */
+TEST (test_tensor_transform, orc_performance_u8)
+{
+  const guint array_size = 80000;
+  guint i;
+
+  gint64 start_ts, stop_ts, diff_loop, diff_orc;
+
+  uint8_t *data_u8 = (uint8_t *) g_malloc0 (sizeof (uint8_t) * array_size);
+  float *data_float = (float *) g_malloc0 (sizeof (float) * array_size);
+
+  /* orc add */
+  start_ts = g_get_real_time ();
+  nns_orc_add_c_u8 (data_u8, 2, array_size);
+  stop_ts = g_get_real_time ();
+
+  diff_orc = stop_ts - start_ts;
+  _print_log ("add u8 orc: %" G_GINT64_FORMAT, diff_orc);
+
+  for (i = 0; i < array_size; ++i) {
+    EXPECT_EQ (data_u8[i], 2);
+  }
+
+  /* loop */
+  start_ts = g_get_real_time ();
+  for (i = 0; i < array_size; ++i) {
+    data_u8[i] += 2;
+  }
+  stop_ts = g_get_real_time ();
+
+  diff_loop = stop_ts - start_ts;
+  _print_log ("add u8 loop: %" G_GINT64_FORMAT, diff_loop);
+
+  /* orc mul */
+  start_ts = g_get_real_time ();
+  nns_orc_mul_c_u8 (data_u8, 2, array_size);
+  stop_ts = g_get_real_time ();
+
+  diff_orc = stop_ts - start_ts;
+  _print_log ("mul u8 orc: %" G_GINT64_FORMAT, diff_orc);
+
+  for (i = 0; i < array_size; ++i) {
+    EXPECT_EQ (data_u8[i], 8);
+  }
+
+  /* loop */
+  start_ts = g_get_real_time ();
+  for (i = 0; i < array_size; ++i) {
+    data_u8[i] *= 2;
+  }
+  stop_ts = g_get_real_time ();
+
+  diff_loop = stop_ts - start_ts;
+  _print_log ("mul u8 loop: %" G_GINT64_FORMAT, diff_loop);
+
+  /* orc typecast to float */
+  start_ts = g_get_real_time ();
+  nns_orc_conv_u8_to_f32 (data_float, data_u8, array_size);
+  stop_ts = g_get_real_time ();
+
+  diff_orc = stop_ts - start_ts;
+  _print_log ("conv u8 orc: %" G_GINT64_FORMAT, diff_orc);
+
+  for (i = 0; i < array_size; ++i) {
+    EXPECT_FLOAT_EQ (data_float[i], 16.);
+  }
+
+  /* loop */
+  start_ts = g_get_real_time ();
+  for (i = 0; i < array_size; ++i) {
+    data_float[i] = (float) data_u8[i];
+  }
+  stop_ts = g_get_real_time ();
+
+  diff_loop = stop_ts - start_ts;
+  _print_log ("conv u8 loop: %" G_GINT64_FORMAT, diff_loop);
+
+  /* init data */
+  for (i = 0; i < array_size; ++i) {
+    data_u8[i] = 1;
+  }
+
+  /* orc typecast - add - mul */
+  start_ts = g_get_real_time ();
+  nns_orc_conv_u8_to_f32 (data_float, data_u8, array_size);
+  nns_orc_add_c_f32 (data_float, .2, array_size);
+  nns_orc_mul_c_f32 (data_float, 1.2, array_size);
+  stop_ts = g_get_real_time ();
+
+  diff_orc = stop_ts - start_ts;
+  _print_log ("combined u8 orc: %" G_GINT64_FORMAT, diff_orc);
+
+  for (i = 0; i < array_size; ++i) {
+    EXPECT_FLOAT_EQ (data_float[i], (1 + .2) * 1.2);
+  }
+
+  /* loop */
+  start_ts = g_get_real_time ();
+  for (i = 0; i < array_size; ++i) {
+    data_float[i] = (float) data_u8[i];
+    data_float[i] += .2;
+    data_float[i] *= 1.2;
+  }
+  stop_ts = g_get_real_time ();
+
+  diff_loop = stop_ts - start_ts;
+  _print_log ("combined u8 loop: %" G_GINT64_FORMAT, diff_loop);
+
+  g_free (data_u8);
+  g_free (data_float);
+}
 #endif /* HAVE_ORC */
 
 /**
