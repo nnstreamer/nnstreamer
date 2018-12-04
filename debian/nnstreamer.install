@@ -1,2 +1,2 @@
-/usr/lib/*/libtensor_filter_tflitecore.so
+/usr/lib/*/libtensor_filter_tf*core.so
 /usr/lib/*/gstreamer-1.0/*.so

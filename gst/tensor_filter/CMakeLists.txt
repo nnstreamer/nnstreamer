@@ -38,11 +38,12 @@ IF(ENABLE_TENSORFLOW)
   list(APPEND FILTER_SOURCE tensor_filter_tensorflow.c)
   list(APPEND FILTER_TARGET tensor_filter_tfcore)
   list(APPEND FILTER_TARGET tensor_filter_tfcoreStatic)
+  PKG_CHECK_MODULES(protobuf_pkg REQUIRED protobuf)
   PKG_CHECK_MODULES(TENSORFLOW REQUIRED tensorflow)
   LINK_DIRECTORIES(${TENSORFLOW_LIBRARY_DIRS})
 
   ADD_LIBRARY(tensor_filter_tfcore SHARED tensor_filter_tensorflow_core.cc)
-  TARGET_LINK_LIBRARIES(tensor_filter_tfcore ${pkgs_LIBRARIES} ${TENSORFLOW_LIBRARIES})
+  TARGET_LINK_LIBRARIES(tensor_filter_tfcore ${pkgs_LIBRARIES} ${TENSORFLOW_LIBRARIES} ${protobuf_pkg_LIBRARIES})
   TARGET_INCLUDE_DIRECTORIES(tensor_filter_tfcore PUBLIC ${pkgs_INCLUDE_DIRS} ${TENSORFLOW_INCLUDE_DIRS})
   TARGET_COMPILE_OPTIONS(tensor_filter_tfcore PUBLIC ${pkgs_CFLAGS_OTHER})
 

@@ -14,6 +14,7 @@ Requires:       gst-plugins-good
 Requires:       gst-plugins-good-extra
 Requires:       gst-plugins-base
 BuildRequires:  pkg-config
+BuildRequires:  coregl-devel
 BuildRequires:  pkgconfig(nnstreamer)
 BuildRequires:  pkgconfig(gstreamer-1.0)
 BuildRequires:  pkgconfig(gstreamer-video-1.0)

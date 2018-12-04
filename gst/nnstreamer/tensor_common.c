@@ -104,6 +104,7 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   g_return_if_fail (info != NULL);
 
+  info->name = NULL;
   info->type = _NNS_END;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
