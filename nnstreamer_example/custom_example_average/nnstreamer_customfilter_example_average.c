@@ -58,9 +58,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int i;
-  pt_data *data = private_data;
 
-  assert (data);
+  assert (private_data);
   assert (in_info);
   assert (out_info);
 
@@ -109,7 +108,6 @@ static int
 pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
-  pt_data *data = private_data;
   uint32_t c, x, y, z;
 
   uint32_t ix = prop->input_meta.info[0].dimension[0];
@@ -124,7 +122,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
       prop->input_meta.info[0].dimension[1] *
       prop->input_meta.info[0].dimension[2];
 
-  assert (data);
+  assert (private_data);
   assert (input);
   assert (output);
 
