@@ -47,7 +47,7 @@ IF(ENABLE_TENSORFLOW)
   TARGET_COMPILE_OPTIONS(tensor_filter_tfcore PUBLIC ${pkgs_CFLAGS_OTHER})
 
   ADD_LIBRARY(tensor_filter_tfcoreStatic STATIC tensor_filter_tensorflow_core.cc) 
-  SET_TARGET_PROPERTIES(tensor_filter_tfliteStatic PROPERTIES OUTPUT_NAME tensor_filter_tflite)
+  SET_TARGET_PROPERTIES(tensor_filter_tfcoreStatic PROPERTIES OUTPUT_NAME tensor_filter_tfcore)
   TARGET_LINK_LIBRARIES(tensor_filter_tfcoreStatic ${pkgs_LIBRARIES} ${TENSORFLOW_LIBRARIES})
   TARGET_INCLUDE_DIRECTORIES(tensor_filter_tfcoreStatic PUBLIC ${pkgs_INCLUDE_DIRS} ${TENSORFLOW_INCLUDE_DIRS})
   TARGET_COMPILE_OPTIONS(tensor_filter_tfcoreStatic PUBLIC ${pkgs_CFLAGS_OTHER})
