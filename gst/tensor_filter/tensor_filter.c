@@ -180,6 +180,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 G_DEFINE_TYPE (GstTensorFilter, gst_tensor_filter, GST_TYPE_BASE_TRANSFORM);
 
 /* GObject vmethod implementations */
+static void gst_tensor_filter_finalize (GObject * object);
 static void gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_filter_get_property (GObject * object, guint prop_id,
@@ -254,6 +255,7 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 
   gobject_class->set_property = gst_tensor_filter_set_property;
   gobject_class->get_property = gst_tensor_filter_get_property;
+  gobject_class->finalize = gst_tensor_filter_finalize;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
@@ -351,6 +353,27 @@ gst_tensor_filter_init (GstTensorFilter * self)
   self->configured = FALSE;
   gst_tensors_config_init (&self->in_config);
   gst_tensors_config_init (&self->out_config);
+}
+
+/**
+ * @brief Function to finalize instance.
+ */
+static void
+gst_tensor_filter_finalize (GObject * object)
+{
+  GstTensorFilter *self;
+  GstTensorFilterProperties *prop;
+
+  self = GST_TENSOR_FILTER (object);
+  prop = &self->prop;
+
+  self->configured = FALSE;
+  gst_tensors_config_init (&self->in_config);
+  gst_tensors_config_init (&self->out_config);
+
+  g_free ((char *) prop->model_file);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
