@@ -148,7 +148,10 @@ struct _GstTensorTransform
     tensor_transform_stand data_stand; /**< Parsed option value for "stand" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
-
+  gboolean acceleration; /**< TRUE to set orc acceleration */
+#ifdef HAVE_ORC
+  gboolean orc_supported; /**< TRUE if orc supported */
+#endif
   GSList *operators; /**< operators list */
 
   GstTensorConfig in_config; /**< input tensor info */
