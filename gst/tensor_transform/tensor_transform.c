@@ -51,6 +51,10 @@
 #include <math.h>
 #include "tensor_transform.h"
 
+#ifdef HAVE_ORC
+#include "transform-orc.h"
+#endif
+
 /**
  * @brief Macro for debug mode.
  */
@@ -96,6 +100,7 @@ enum
   PROP_SILENT,
   PROP_MODE,
   PROP_OPTION,
+  PROP_ACCELERATION
 };
 
 static const gchar *gst_tensor_transform_mode_string[] = {
@@ -187,6 +192,9 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
           "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ACCELERATION,
+      g_param_spec_boolean ("acceleration", "Acceleration", "Orc acceleration",
+          TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorTransform",
@@ -230,6 +238,12 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->option = NULL;
   filter->loaded = FALSE;
   filter->operators = NULL;
+#ifdef HAVE_ORC
+  filter->acceleration = TRUE;
+  filter->orc_supported = FALSE;
+#else
+  filter->acceleration = FALSE;
+#endif
 
   gst_tensor_config_init (&filter->in_config);
   gst_tensor_config_init (&filter->out_config);
@@ -279,6 +293,87 @@ gst_tensor_transform_get_mode (const gchar * str)
 
   return (index < 0) ? GTT_END : index;
 }
+
+#ifdef HAVE_ORC
+/* define macros for orc */
+#define orc_supported(filter) (filter->acceleration && filter->orc_supported)
+
+#define orc_func_conv(intype,outtype) nns_orc_conv_ ## intype ## _to_ ## outtype
+#define orc_func_add(intype) nns_orc_add_c_ ## intype
+#define orc_func_mul(intype) nns_orc_mul_c_ ## intype
+#define orc_func_div(intype) nns_orc_div_c_ ## intype
+
+#define orc_typecast_to(i,o,n,intype,otype) do { \
+    switch (otype) { \
+      case _NNS_INT32: orc_func_conv (intype, s32) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_UINT32: orc_func_conv (intype, u32) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_INT16: orc_func_conv (intype, s16) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_UINT16: orc_func_conv (intype, u16) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_INT8: orc_func_conv (intype, s8) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_UINT8: orc_func_conv (intype, u8) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_FLOAT64: orc_func_conv (intype, f64) ((gpointer) o, (gpointer) i, n); break; \
+      case _NNS_FLOAT32: orc_func_conv (intype, f32) ((gpointer) o, (gpointer) i, n); break; \
+      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", otype); g_assert (0); break; \
+    } \
+  } while (0)
+
+#define orc_typecast(i,o,n,itype,otype) do { \
+    switch (itype) { \
+      case _NNS_INT32: orc_typecast_to (i, o, n, s32, otype); break; \
+      case _NNS_UINT32: orc_typecast_to (i, o, n, u32, otype); break; \
+      case _NNS_INT16: orc_typecast_to (i, o, n, s16, otype); break; \
+      case _NNS_UINT16: orc_typecast_to (i, o, n, u16, otype); break; \
+      case _NNS_INT8: orc_typecast_to (i, o, n, s8, otype); break; \
+      case _NNS_UINT8: orc_typecast_to (i, o, n, u8, otype); break; \
+      case _NNS_FLOAT64: orc_typecast_to (i, o, n, f64, otype); break; \
+      case _NNS_FLOAT32: orc_typecast_to (i, o, n, f32, otype); break; \
+      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", itype); g_assert (0); break; \
+    } \
+  } while (0)
+
+#define orc_operator_func(i,n,v,opfunc) do { \
+    switch ((v)->type) { \
+      case _NNS_INT32: opfunc (s32) ((gpointer) i, (v)->data._int32_t, n); break; \
+      case _NNS_UINT32: opfunc (u32) ((gpointer) i, (v)->data._uint32_t, n); break; \
+      case _NNS_INT16: opfunc (s16) ((gpointer) i, (v)->data._int16_t, n); break; \
+      case _NNS_UINT16: opfunc (u16) ((gpointer) i, (v)->data._uint16_t, n); break; \
+      case _NNS_INT8: opfunc (s8) ((gpointer) i, (v)->data._int8_t, n); break; \
+      case _NNS_UINT8: opfunc (u8) ((gpointer) i, (v)->data._uint8_t, n); break; \
+      case _NNS_FLOAT64: opfunc (f64) ((gpointer) i, (v)->data._double, n); break; \
+      case _NNS_FLOAT32: opfunc (f32) ((gpointer) i, (v)->data._float, n); break; \
+      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", (v)->type); g_assert (0); break; \
+    } \
+  } while (0)
+
+#define orc_operator_div_loop(i,n,val,typename) do { \
+    gsize idx; \
+    typename *data_array = (typename *) (i); \
+    for (idx = 0; idx < (n); ++idx) { \
+      data_array[idx] /= (val); \
+    } \
+  } while (0)
+
+#define orc_operator(i,n,v,op) do { \
+    switch (op) { \
+      case GTT_OP_ADD: orc_operator_func (i, n, v, orc_func_add); break; \
+      case GTT_OP_MUL: orc_operator_func (i, n, v, orc_func_mul); break; \
+      case GTT_OP_DIV: \
+        switch ((v)->type) { \
+          case _NNS_INT32: orc_operator_div_loop (i, n, (v)->data._int32_t, int32_t); break; \
+          case _NNS_UINT32: orc_operator_div_loop (i, n, (v)->data._uint32_t, uint32_t); break; \
+          case _NNS_INT16: orc_operator_div_loop (i, n, (v)->data._int16_t, int16_t); break; \
+          case _NNS_UINT16: orc_operator_div_loop (i, n, (v)->data._uint16_t, uint16_t); break; \
+          case _NNS_INT8: orc_operator_div_loop (i, n, (v)->data._int8_t, int8_t); break; \
+          case _NNS_UINT8: orc_operator_div_loop (i, n, (v)->data._uint8_t, uint8_t); break; \
+          case _NNS_FLOAT64: orc_func_div (f64) ((gpointer) i, (v)->data._double, n); break; \
+          case _NNS_FLOAT32: orc_func_div (f32) ((gpointer) i, (v)->data._float, n); break; \
+          default: GST_ERROR_OBJECT (filter, "Unsupported type %d", (v)->type); g_assert (0); break; \
+        } \
+        break; \
+      default: GST_ERROR_OBJECT (filter, "Unknown operator %d", op); break; \
+    } \
+  } while (0)
+#endif /* HAVE_ORC */
 
 /**
  * @brief Macro to set operand
@@ -793,6 +888,15 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       silent_debug ("Option = %s\n", filter->option);
       gst_tensor_transform_set_option_data (filter);
       break;
+    case PROP_ACCELERATION:
+#ifdef HAVE_ORC
+      filter->acceleration = g_value_get_boolean (value);
+      silent_debug ("acceleration = %d\n", filter->acceleration);
+#else
+      GST_WARNING_OBJECT (filter, "Orc acceleration is not supported");
+      filter->acceleration = FALSE;
+#endif
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -818,6 +922,9 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
       break;
     case PROP_OPTION:
       g_value_set_string (value, filter->option);
+      break;
+    case PROP_ACCELERATION:
+      g_value_set_boolean (value, filter->acceleration);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -945,6 +1052,13 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
   tensor_transform_operand_s value;
   size_t i, data_idx;
 
+#ifdef HAVE_ORC
+  if (orc_supported (filter)) {
+    orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+    return GST_FLOW_OK;
+  }
+#endif
+
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
     data_idx = tensor_element_size[in_tensor_type] * i;
@@ -983,6 +1097,32 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   tensor_transform_operator_s *op_s;
   tensor_transform_operand_s value;
   size_t i, data_idx;
+
+#ifdef HAVE_ORC
+  if (orc_supported (filter)) {
+    walk = filter->operators;
+
+    /**
+     * Typecast should be called at the first.
+     * Do the typecast. If in/out type is same, this will copy the input array to output.
+     */
+    orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+
+    while (walk) {
+      op_s = (tensor_transform_operator_s *) walk->data;
+
+      if (op_s->op != GTT_OP_TYPECAST) {
+        gst_tensor_transform_typecast_value (filter, &op_s->value,
+            out_tensor_type);
+        orc_operator (outptr, num, &op_s->value, op_s->op);
+      }
+
+      walk = g_slist_next (walk);
+    }
+
+    return GST_FLOW_OK;
+  }
+#endif
 
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
@@ -1512,6 +1652,17 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   filter->in_config = in_config;
   filter->out_config = out_config;
 
+#ifdef HAVE_ORC
+  /**
+   * @todo support 64bit integer and remove the flag orc_supported
+   */
+  if (in_config.info.type != _NNS_INT64 &&
+      in_config.info.type != _NNS_UINT64 &&
+      out_config.info.type != _NNS_INT64 &&
+      out_config.info.type != _NNS_UINT64) {
+    filter->orc_supported = TRUE;
+  }
+#endif
   return TRUE;
 error:
   GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
