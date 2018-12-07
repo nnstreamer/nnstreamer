@@ -16,23 +16,25 @@ add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: 'c')
 
 gst_api_verision = '1.0'
 
-glib = dependency('glib-2.0')
-gstreamer = dependency('gstreamer-' + gst_api_verision)
-gstreamer_base = dependency('gstreamer-base-' + gst_api_verision)
-gstreamer_controller = dependency('gstreamer-controller-' + gst_api_verision)
-gstreamer_video = dependency('gstreamer-video-' + gst_api_verision)
-gstreamer_audio = dependency('gstreamer-audio-' + gst_api_verision)
+glib_dep = dependency('glib-2.0')
+gst_dep = dependency('gstreamer-' + gst_api_verision)
+gst_base_dep = dependency('gstreamer-base-' + gst_api_verision)
+gst_controller_dep = dependency('gstreamer-controller-' + gst_api_verision)
+gst_video_dep = dependency('gstreamer-video-' + gst_api_verision)
+gst_audio_dep = dependency('gstreamer-audio-' + gst_api_verision)
+gst_app_dep = dependency('gstreamer-app-' + gst_api_verision)
+gst_check_dep = dependency('gstreamer-check-' + gst_api_verision)
 
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 
 dependencies = [
-    glib,
-    gstreamer,
-    gstreamer_base,
-    gstreamer_controller,
-    gstreamer_video,
-    gstreamer_audio,
+    glib_dep,
+    gst_dep,
+    gst_base_dep,
+    gst_controller_dep,
+    gst_video_dep,
+    gst_audio_dep,
     # required 'false' mean is used only when needed.
     cc.find_library('m', required: false), # cmath library
     cc.find_library('dl', required: false), # DL library
