@@ -1,7 +1,3 @@
-gstreamer_app = dependency('gstreamer-app-' + gst_api_verision)
-
-dependencies += gstreamer_app
-
 subdir('custom_example_passthrough')
 subdir('custom_example_scaler')
 subdir('custom_example_average')

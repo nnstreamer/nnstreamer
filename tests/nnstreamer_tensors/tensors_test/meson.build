@@ -1,14 +1,12 @@
 testtensors_sources = [
-    'gsttesttensors.c'
+  'gsttesttensors.c'
 ]
 
-testtensors = shared_library('testtensors', 
-    testtensors_sources,
-    dependencies: [
-        dependencies
-    ],
-    include_directories: inc,
-    objects: tensor_commonOBJ
+testtensorsOBJ = shared_library('testtensors',
+  testtensors_sources,
+  dependencies: [nnstreamer_deps],
+  include_directories: nnstreamer_inc,
+  objects: tensor_commonOBJ
 )
 
 tensorscheck_sources = [
@@ -16,10 +14,8 @@ tensorscheck_sources = [
 ]
 
 tensorscheckOBJ = shared_library('tensorscheck',
-    tensorscheck_sources,
-    dependencies: [
-        dependencies
-    ],
-    include_directories: inc,
-    objects: tensor_commonOBJ
+  tensorscheck_sources,
+  dependencies: [nnstreamer_deps],
+  include_directories: nnstreamer_inc,
+  objects: tensor_commonOBJ
 )

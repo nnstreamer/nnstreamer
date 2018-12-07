@@ -1,5 +1,5 @@
 tensor_transform_sources = [
-    'tensor_transform.c'
+  'tensor_transform.c'
 ]
 
 orcsrc = 'transform-orc'
@@ -17,12 +17,10 @@ if have_orcc
 endif
 
 tensor_transformOBJ = static_library('tensor_transform',
-    tensor_transform_sources,
-    c_args: nnstreamer_base_args,
-    dependencies: [
-        dependencies
-    ],
-    include_directories: inc
+  tensor_transform_sources,
+  c_args: nnstreamer_base_args,
+  dependencies: [nnstreamer_deps],
+  include_directories: nnstreamer_inc
 ).extract_all_objects()
 
 objects += tensor_transformOBJ
