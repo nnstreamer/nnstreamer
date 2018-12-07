@@ -4,6 +4,7 @@ tensor_sink_sources = [
 
 tensor_sinkOBJ = static_library('tensor_sink',
     tensor_sink_sources,
+    c_args: nnstreamer_base_args,
     dependencies: [
         dependencies
     ],
