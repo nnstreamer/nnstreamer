@@ -39,7 +39,25 @@ dependencies = [
     cxx.find_library('pthread', required: false) # pthread for tensor_filter_tensorflow_lite
 ]
 
+nnstreamer_base_args = []
+
 inc = include_directories('gst/nnstreamer')
+
+# Orc
+have_orcc = false
+orcc_args = []
+
+orc_dep = dependency('orc-0.4', version : '>= 0.4.24', required : true)
+orcc = find_program('orcc', required : true)
+if orc_dep.found() and orcc.found()
+  have_orcc = true
+  orcc_args = [orcc, '--include', 'glib.h']
+  dependencies += [orc_dep]
+  nnstreamer_base_args += ['-DHAVE_ORC=1']
+else
+  message('Cannot find orc library')
+  nnstreamer_base_args += ['-DDISABLE_ORC=1']
+endif
 
 projects = [
 	'nnstreamer',
@@ -76,6 +94,7 @@ nnstreamer_sources = [
 # "both_libraries" are supported from 0.46.
 nnstreamer = shared_library('nnstreamer',
     nnstreamer_sources,
+    c_args: nnstreamer_base_args,
     dependencies: [
         dependencies
     ],
@@ -84,6 +103,7 @@ nnstreamer = shared_library('nnstreamer',
 )
 nnstreamer = static_library('nnstreamer',
     nnstreamer_sources,
+    c_args: nnstreamer_base_args,
     dependencies: [
         dependencies
     ],

@@ -8,6 +8,7 @@ tensor_decoder_sources = [
 
 tensor_decoderOBJ = static_library('tensor_decoder',
     tensor_decoder_sources,
+    c_args: nnstreamer_base_args,
     dependencies: [
         dependencies
     ],

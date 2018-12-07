@@ -4,6 +4,7 @@ tensor_split_sources = [
 
 tensor_splitOBJ = static_library('tensor_split',
     tensor_split_sources,
+    c_args: nnstreamer_base_args,
     dependencies: [
         dependencies
     ],
