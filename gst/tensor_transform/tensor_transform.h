@@ -28,6 +28,10 @@
 #ifndef __GST_TENSOR_TRANSFORM_H__
 #define __GST_TENSOR_TRANSFORM_H__
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>

@@ -103,6 +103,15 @@ enum
   PROP_ACCELERATION
 };
 
+/**
+ * @brief Flag to set orc acceleration.
+ */
+#ifdef HAVE_ORC
+#define DEFAULT_ACCELERATION TRUE
+#else
+#define DEFAULT_ACCELERATION FALSE
+#endif
+
 static const gchar *gst_tensor_transform_mode_string[] = {
   [GTT_DIMCHG] = "dimchg",
   [GTT_TYPECAST] = "typecast",
@@ -194,7 +203,7 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
           "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_ACCELERATION,
       g_param_spec_boolean ("acceleration", "Acceleration", "Orc acceleration",
-          TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          DEFAULT_ACCELERATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorTransform",
@@ -238,11 +247,9 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->option = NULL;
   filter->loaded = FALSE;
   filter->operators = NULL;
+  filter->acceleration = DEFAULT_ACCELERATION;
 #ifdef HAVE_ORC
-  filter->acceleration = TRUE;
   filter->orc_supported = FALSE;
-#else
-  filter->acceleration = FALSE;
 #endif
 
   gst_tensor_config_init (&filter->in_config);
@@ -1661,6 +1668,10 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
       out_config.info.type != _NNS_INT64 &&
       out_config.info.type != _NNS_UINT64) {
     filter->orc_supported = TRUE;
+  }
+
+  if (orc_supported (filter)) {
+    GST_INFO_OBJECT (filter, "Orc acceleration enabled.");
   }
 #endif
   return TRUE;

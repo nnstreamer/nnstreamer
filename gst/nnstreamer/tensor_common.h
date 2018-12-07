@@ -25,6 +25,10 @@
 #ifndef __GST_TENSOR_COMMON_H__
 #define __GST_TENSOR_COMMON_H__
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <glib.h>
 #include <stdint.h>
 #include "tensor_typedef.h"
