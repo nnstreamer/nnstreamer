@@ -25,25 +25,6 @@
  */
 
 /**
- *  @mainpage nnstreamer
- *  @section  intro         Introduction
- *  - Introduction      :   Neural Network Streamer for AI Projects
- *  @section   Program      Program Name
- *  - Program Name      :   nnstreamer
- *  - Program Details   :   It provides a neural network framework connectivities (e.g., tensorflow, caffe) for gstreamer streams.
- *    Efficient Streaming for AI Projects: Neural network models wanted to use efficient and flexible streaming management as well.
- *    Intelligent Media Filters!: Use a neural network model as a media filter / converter.
- *    Composite Models!: Allow to use multiple neural network models in a single stream instance.
- *    Multi Model Intelligence!: Allow to use multiple sources for neural network models.
- *  @section  INOUTPUT      Input/output data
- *  - INPUT             :   None
- *  - OUTPUT            :   None
- *  @section  CREATEINFO    Code information
- *  - Initial date      :   2018/06/14
- *  - Version           :   0.1
- */
-
-/**
  * SECTION:element-tensor_converter
  *
  * A filter that converts media stream to tensor stream for NN frameworks.
@@ -879,6 +860,33 @@ gst_tensor_converter_reset (GstTensorConverter * self)
 }
 
 /**
+ * @brief Determine if we need zero-padding
+ * @return TRUE if we need to add (or remove) stride per row from the stream data.
+ */
+static gboolean
+gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
+{
+  /**
+   * @todo The actual list is much longer, fill them.
+   * (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html)
+   */
+  switch (format) {
+    case GST_VIDEO_FORMAT_GRAY8:
+    case GST_VIDEO_FORMAT_RGB:
+    case GST_VIDEO_FORMAT_BGR:
+    case GST_VIDEO_FORMAT_I420:
+      if (width % 4) {
+        return TRUE;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return FALSE;
+}
+
+/**
  * @brief Get supported format list.
  */
 static void
@@ -1117,14 +1125,15 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
        * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
        * @todo Add more conditions!
        */
-      if (gst_tensor_video_stride_padding_per_row (GST_VIDEO_INFO_FORMAT
-              (&info), GST_VIDEO_INFO_WIDTH (&info))) {
+      if (gst_tensor_converter_video_stride (GST_VIDEO_INFO_FORMAT (&info),
+              GST_VIDEO_INFO_WIDTH (&info))) {
         self->remove_padding = TRUE;
         silent_debug ("Set flag to remove padding, width = %d",
             GST_VIDEO_INFO_WIDTH (&info));
 
         GST_WARNING_OBJECT (self,
-            "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\nPlease use 4 x n as image width for inputs.\n");
+            "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
+            "Please use 4 x n as image width for inputs.\n");
       }
 
       frames_dim = 3;

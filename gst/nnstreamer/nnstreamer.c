@@ -14,6 +14,25 @@
  */
 
 /**
+ *  @mainpage nnstreamer
+ *  @section  intro         Introduction
+ *  - Introduction      :   Neural Network Streamer for AI Projects
+ *  @section   Program      Program Name
+ *  - Program Name      :   nnstreamer
+ *  - Program Details   :   It provides a neural network framework connectivities (e.g., tensorflow, caffe) for gstreamer streams.
+ *    Efficient Streaming for AI Projects: Neural network models wanted to use efficient and flexible streaming management as well.
+ *    Intelligent Media Filters!: Use a neural network model as a media filter / converter.
+ *    Composite Models!: Allow to use multiple neural network models in a single stream instance.
+ *    Multi Model Intelligence!: Allow to use multiple sources for neural network models.
+ *  @section  INOUTPUT      Input/output data
+ *  - INPUT             :   None
+ *  - OUTPUT            :   None
+ *  @section  CREATEINFO    Code information
+ *  - Initial date      :   2018/06/14
+ *  - Version           :   0.1
+ */
+
+/**
  * @file	nnstreamer.c
  * @date	11 Oct 2018
  * @brief	Registers all nnstreamer plugins for gstreamer so that we can have a single big binary
@@ -21,6 +40,10 @@
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  */
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <gst/gst.h>
 #include <gst/gstplugin.h>
