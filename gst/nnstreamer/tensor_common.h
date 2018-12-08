@@ -364,13 +364,6 @@ extern GstCaps *
 gst_tensors_caps_from_config (const GstTensorsConfig * config);
 
 /**
- * @brief Determine if we need zero-padding
- * @return 1 if we need to add (or remove) stride per row from the stream data. 0 otherwise.
- */
-extern gint
-gst_tensor_video_stride_padding_per_row (GstVideoFormat format, gint width);
-
-/**
  * @brief Get tensor_type from string tensor_type input
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]

@@ -895,30 +895,6 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
 }
 
 /**
- * @brief Determine if we need zero-padding
- * @return 1 if we need to add (or remove) stride per row from the stream data. 0 otherwise.
- */
-gint
-gst_tensor_video_stride_padding_per_row (GstVideoFormat format, gint width)
-{
-  /** @todo The actual list is much longer. fill them (read https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html ) */
-  switch (format) {
-    case GST_VIDEO_FORMAT_GRAY8:
-    case GST_VIDEO_FORMAT_RGB:
-    case GST_VIDEO_FORMAT_BGR:
-    case GST_VIDEO_FORMAT_I420:
-      if (width % 4) {
-        return 1;
-      }
-      break;
-    default:
-      break;
-  }
-
-  return 0;
-}
-
-/**
  * @brief Get tensor_type from string tensor_type input
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
