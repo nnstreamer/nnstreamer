@@ -557,7 +557,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
           if (strlen (prop->input_meta.info[i].name))
             g_free ((char *) prop->input_meta.info[i].name);
           prop->input_meta.info[i].name = g_strdup (str_names[i]);
-          g_assert (prop->input_meta.info[i].name != '\0');
+          g_assert (prop->input_meta.info[i].name &&
+              prop->input_meta.info[i].name[0] != '\0');
         }
 
         g_strfreev (str_names);
@@ -578,7 +579,8 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
           if (strlen (prop->output_meta.info[i].name))
             g_free ((char *) prop->output_meta.info[i].name);
           prop->output_meta.info[i].name = g_strdup (str_names[i]);
-          g_assert (prop->output_meta.info[i].name != '\0');
+          g_assert (prop->output_meta.info[i].name &&
+              prop->output_meta.info[i].name[0] != '\0');
         }
 
         g_strfreev (str_names);
