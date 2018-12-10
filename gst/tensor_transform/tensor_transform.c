@@ -338,42 +338,43 @@ gst_tensor_transform_get_mode (const gchar * str)
     } \
   } while (0)
 
-#define orc_operator_func(i,n,v,opfunc) do { \
+#define orc_operator_func(i,o,n,v,opfunc) do { \
     switch ((v)->type) { \
-      case _NNS_INT32: opfunc (s32) ((gpointer) i, (v)->data._int32_t, n); break; \
-      case _NNS_UINT32: opfunc (u32) ((gpointer) i, (v)->data._uint32_t, n); break; \
-      case _NNS_INT16: opfunc (s16) ((gpointer) i, (v)->data._int16_t, n); break; \
-      case _NNS_UINT16: opfunc (u16) ((gpointer) i, (v)->data._uint16_t, n); break; \
-      case _NNS_INT8: opfunc (s8) ((gpointer) i, (v)->data._int8_t, n); break; \
-      case _NNS_UINT8: opfunc (u8) ((gpointer) i, (v)->data._uint8_t, n); break; \
-      case _NNS_FLOAT64: opfunc (f64) ((gpointer) i, (v)->data._double, n); break; \
-      case _NNS_FLOAT32: opfunc (f32) ((gpointer) i, (v)->data._float, n); break; \
+      case _NNS_INT32: opfunc (s32) ((gpointer) o, (gpointer) i, (v)->data._int32_t, n); break; \
+      case _NNS_UINT32: opfunc (u32) ((gpointer) o, (gpointer) i, (v)->data._uint32_t, n); break; \
+      case _NNS_INT16: opfunc (s16) ((gpointer) o, (gpointer) i, (v)->data._int16_t, n); break; \
+      case _NNS_UINT16: opfunc (u16) ((gpointer) o, (gpointer) i, (v)->data._uint16_t, n); break; \
+      case _NNS_INT8: opfunc (s8) ((gpointer) o, (gpointer) i, (v)->data._int8_t, n); break; \
+      case _NNS_UINT8: opfunc (u8) ((gpointer) o, (gpointer) i, (v)->data._uint8_t, n); break; \
+      case _NNS_FLOAT64: opfunc (f64) ((gpointer) o, (gpointer) i, (v)->data._double, n); break; \
+      case _NNS_FLOAT32: opfunc (f32) ((gpointer) o, (gpointer) i, (v)->data._float, n); break; \
       default: GST_ERROR_OBJECT (filter, "Unsupported type %d", (v)->type); g_assert (0); break; \
     } \
   } while (0)
 
-#define orc_operator_div_loop(i,n,val,typename) do { \
+#define orc_operator_div_loop(i,o,n,val,typename) do { \
     gsize idx; \
-    typename *data_array = (typename *) (i); \
+    typename *data_in = (typename *) (i); \
+    typename *data_out = (typename *) (o); \
     for (idx = 0; idx < (n); ++idx) { \
-      data_array[idx] /= (val); \
+      data_out[idx] = data_in[idx] / (val); \
     } \
   } while (0)
 
-#define orc_operator(i,n,v,op) do { \
+#define orc_operator(i,o,n,v,op) do { \
     switch (op) { \
-      case GTT_OP_ADD: orc_operator_func (i, n, v, orc_func_add); break; \
-      case GTT_OP_MUL: orc_operator_func (i, n, v, orc_func_mul); break; \
+      case GTT_OP_ADD: orc_operator_func (i, o, n, v, orc_func_add); break; \
+      case GTT_OP_MUL: orc_operator_func (i, o, n, v, orc_func_mul); break; \
       case GTT_OP_DIV: \
         switch ((v)->type) { \
-          case _NNS_INT32: orc_operator_div_loop (i, n, (v)->data._int32_t, int32_t); break; \
-          case _NNS_UINT32: orc_operator_div_loop (i, n, (v)->data._uint32_t, uint32_t); break; \
-          case _NNS_INT16: orc_operator_div_loop (i, n, (v)->data._int16_t, int16_t); break; \
-          case _NNS_UINT16: orc_operator_div_loop (i, n, (v)->data._uint16_t, uint16_t); break; \
-          case _NNS_INT8: orc_operator_div_loop (i, n, (v)->data._int8_t, int8_t); break; \
-          case _NNS_UINT8: orc_operator_div_loop (i, n, (v)->data._uint8_t, uint8_t); break; \
-          case _NNS_FLOAT64: orc_func_div (f64) ((gpointer) i, (v)->data._double, n); break; \
-          case _NNS_FLOAT32: orc_func_div (f32) ((gpointer) i, (v)->data._float, n); break; \
+          case _NNS_INT32: orc_operator_div_loop (i, o, n, (v)->data._int32_t, int32_t); break; \
+          case _NNS_UINT32: orc_operator_div_loop (i, o, n, (v)->data._uint32_t, uint32_t); break; \
+          case _NNS_INT16: orc_operator_div_loop (i, o, n, (v)->data._int16_t, int16_t); break; \
+          case _NNS_UINT16: orc_operator_div_loop (i, o, n, (v)->data._uint16_t, uint16_t); break; \
+          case _NNS_INT8: orc_operator_div_loop (i, o, n, (v)->data._int8_t, int8_t); break; \
+          case _NNS_UINT8: orc_operator_div_loop (i, o, n, (v)->data._uint8_t, uint8_t); break; \
+          case _NNS_FLOAT64: orc_func_div (f64) ((gpointer) o, (gpointer) i, (v)->data._double, n); break; \
+          case _NNS_FLOAT32: orc_func_div (f32) ((gpointer) o, (gpointer) i, (v)->data._float, n); break; \
           default: GST_ERROR_OBJECT (filter, "Unsupported type %d", (v)->type); g_assert (0); break; \
         } \
         break; \
@@ -1107,13 +1108,21 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 
 #ifdef HAVE_ORC
   if (orc_supported (filter)) {
-    walk = filter->operators;
+    uint8_t *srcptr = (uint8_t *) inptr;
 
-    /**
-     * Typecast should be called at the first.
-     * Do the typecast. If in/out type is same, this will copy the input array to output.
-     */
-    orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+    walk = filter->operators;
+    op_s = (tensor_transform_operator_s *) walk->data;
+
+    if (op_s->op == GTT_OP_TYPECAST) {
+      /**
+       * Typecast should be called at the first.
+       * Do the typecast. If in/out type is same, this will copy the input array to output.
+       */
+      orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+      srcptr = outptr;
+
+      walk = g_slist_next (walk);
+    }
 
     while (walk) {
       op_s = (tensor_transform_operator_s *) walk->data;
@@ -1121,7 +1130,8 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
       if (op_s->op != GTT_OP_TYPECAST) {
         gst_tensor_transform_typecast_value (filter, &op_s->value,
             out_tensor_type);
-        orc_operator (outptr, num, &op_s->value, op_s->op);
+        orc_operator (srcptr, outptr, num, &op_s->value, op_s->op);
+        srcptr = outptr;
       }
 
       walk = g_slist_next (walk);
