@@ -18,6 +18,8 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
+PATH_TO_PLUGIN="../../build"
+
 if [ "$SKIPGEN" == "YES" ]
 then
   echo "Test Case Generation Skipped"
