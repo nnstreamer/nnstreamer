@@ -22,16 +22,6 @@ ELSE(LIB_INSTALL_DIR)
 ENDIF(LIB_INSTALL_DIR)
 
 FIND_PACKAGE(PkgConfig REQUIRED)
-SET(PKGAPP_MODULES
-	nnstreamer
-	gstreamer-1.0
-	gstreamer-base-1.0
-	gstreamer-controller-1.0
-	gstreamer-video-1.0
-	gstreamer-audio-1.0
-	gstreamer-app-1.0
-)
-pkg_check_modules(apppkgs REQUIRED ${PKGAPP_MODULES})
 
 ADD_SUBDIRECTORY(../example_sink ${CMAKE_CURRENT_BINARY_DIR}/example_sink)
 ADD_SUBDIRECTORY(../example_cam ${CMAKE_CURRENT_BINARY_DIR}/example_cam)
