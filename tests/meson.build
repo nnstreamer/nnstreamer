@@ -1,7 +1,14 @@
 subdir('nnstreamer_tensors/tensors_test')
 
-gtest_dep = dependency('gtest', main: false, required: true)
+libpng_dep = dependency('libpng', required: false)
+if libpng_dep.found()
+  executable('bmp2png',
+    'bmp2png.c',
+    dependencies: [libpng_dep]
+  )
+endif
 
+gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
   # This custom filter is used in unittest_sink.
   nnscustom_framecounter_lib = library('nnscustom_framecounter',
