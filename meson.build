@@ -19,9 +19,37 @@ cxx = meson.get_compiler('cpp')
 
 gst_api_verision = '1.0'
 
+# Set configuration
+nnstreamer_conf = configuration_data()
+nnstreamer_conf.set('VERSION', meson.project_version())
+
 nnstreamer_inc = include_directories('gst/nnstreamer')
 nnstreamer_sources = []
 nnstreamer_base_args = []
+
+# Common headers to be installed
+nnstreamer_headers = [
+  'gst/nnstreamer/tensor_common.h',
+  'gst/nnstreamer/tensor_typedef.h',
+  'gst/nnstreamer/tensor_filter_custom.h'
+]
+
+# Set install path
+nnstreamer_prefix = get_option('prefix')
+nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
+nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
+nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
+
+libs_install_dir = nnstreamer_libdir
+plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
+subplugins_install_dir = nnstreamer_libdir
+examples_install_dir = nnstreamer_bindir
+
+nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
+nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
+nnstreamer_conf.set('LIB_INSTALL_DIR', libs_install_dir)
+nnstreamer_conf.set('GST_INSTALL_DIR', plugins_install_dir)
+nnstreamer_conf.set('INCLUDE_INSTALL_DIR', nnstreamer_includedir)
 
 # Dependencies
 glib_dep = dependency('glib-2.0')
@@ -123,14 +151,18 @@ nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,
   c_args: nnstreamer_base_args,
   dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
-  include_directories: nnstreamer_inc
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: plugins_install_dir
 )
 
 nnstreamer_static = static_library('nnstreamer',
   nnstreamer_sources,
   c_args: nnstreamer_base_args,
   dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
-  include_directories: nnstreamer_inc
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: libs_install_dir
 )
 
 nnstreamer_lib = nnstreamer_shared
@@ -139,6 +171,17 @@ if get_option('default_library') == 'static'
 endif
 
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib)
+
+# Install headers into /{includedir}/nnstreamer
+install_headers(nnstreamer_headers,
+  subdir: 'nnstreamer'
+)
+
+configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
+  install: true,
+  install_dir: join_paths(libs_install_dir, 'pkgconfig'),
+  configuration: nnstreamer_conf
+)
 
 # Build nnstreamer examples
 subdir('nnstreamer_example')

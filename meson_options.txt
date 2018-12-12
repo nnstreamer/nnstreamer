@@ -1,3 +1,4 @@
 option('ENABLE_TEST', type: 'boolean', value: true)
 option('ENABLE_TENSORFLOW_LITE', type: 'boolean', value: true)
 option('ENABLE_TENSORFLOW', type: 'boolean', value: true)
+option('INSTALL_EXAMPLES', type: 'boolean', value: false)
