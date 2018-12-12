@@ -24,7 +24,6 @@
 #include <assert.h>
 #include <glib.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 /**
  * @brief Private data structure
@@ -48,6 +47,26 @@ _strdup (const char *src)
   strncpy (dest, src, len - 1);
   dest[len - 1] = '\0';
   return dest;
+}
+
+/**
+ * @brief get data size of single tensor
+ */
+static size_t
+get_tensor_data_size (const GstTensorInfo * info)
+{
+  size_t data_size = 0;
+  int i;
+
+  if (info != NULL) {
+    data_size = tensor_element_size[info->type];
+
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      data_size *= info->dimension[i];
+    }
+  }
+
+  return data_size;
 }
 
 /**
@@ -148,7 +167,7 @@ pt_allocate_invoke (void *private_data,
 
   /* allocate output data */
   elementsize = tensor_element_size[prop->output_meta.info[0].type];
-  size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
+  size = get_tensor_data_size (&prop->output_meta.info[0]);
 
   output[0].data = malloc (size);
 

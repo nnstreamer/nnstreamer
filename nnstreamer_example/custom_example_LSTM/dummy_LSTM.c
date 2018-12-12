@@ -20,7 +20,6 @@
 #include <errno.h>
 #include <math.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 #define TSIZE   (4)
 
