@@ -6,11 +6,6 @@ tensor_decoder_sources = [
   'tensordec-boundingbox.c'
 ]
 
-tensor_decoderOBJ = static_library('tensor_decoder',
-  tensor_decoder_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_deps],
-  include_directories: nnstreamer_inc
-).extract_all_objects()
-
-objects += tensor_decoderOBJ
+foreach s : tensor_decoder_sources
+  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
+endforeach
