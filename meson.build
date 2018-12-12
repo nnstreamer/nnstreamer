@@ -14,8 +14,16 @@ project('nnstreamer', 'c', 'cpp',
 
 add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: 'c')
 
+cc = meson.get_compiler('c')
+cxx = meson.get_compiler('cpp')
+
 gst_api_verision = '1.0'
 
+nnstreamer_inc = include_directories('gst/nnstreamer')
+nnstreamer_sources = []
+nnstreamer_base_args = []
+
+# Dependencies
 glib_dep = dependency('glib-2.0')
 gst_dep = dependency('gstreamer-' + gst_api_verision)
 gst_base_dep = dependency('gstreamer-base-' + gst_api_verision)
@@ -25,41 +33,70 @@ gst_audio_dep = dependency('gstreamer-audio-' + gst_api_verision)
 gst_app_dep = dependency('gstreamer-app-' + gst_api_verision)
 gst_check_dep = dependency('gstreamer-check-' + gst_api_verision)
 
-cc = meson.get_compiler('c')
-cxx = meson.get_compiler('cpp')
+libm_dep = cc.find_library('m') # cmath library
+libdl_dep = cc.find_library('dl') # DL library
+libpthread_dep = cxx.find_library('pthread') # pthread for tensorflow-lite
 
-nnstreamer_deps = [
+nnstreamer_base_deps = [
   glib_dep,
   gst_dep,
   gst_base_dep,
   gst_controller_dep,
   gst_video_dep,
   gst_audio_dep,
-  # required 'false' mean is used only when needed.
-  cc.find_library('m', required: false), # cmath library
-  cc.find_library('dl', required: false), # DL library
-  cxx.find_library('pthread', required: false) # pthread for tensor_filter_tensorflow_lite
+  libm_dep,
+  libdl_dep,
+  libpthread_dep
 ]
 
-nnstreamer_inc = include_directories('gst/nnstreamer')
-nnstreamer_base_args = []
+# For extra dependencies (subplugins, filters)
+nnstreamer_extra_deps = []
 
 # Orc
 have_orcc = false
-orcc_args = []
 
-orc_dep = dependency('orc-0.4', version: '>= 0.4.24', required: true)
-orcc = find_program('orcc', required: true)
+orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: false)
+orcc = find_program('orcc', required: false)
 if orc_dep.found() and orcc.found()
   have_orcc = true
   orcc_args = [orcc, '--include', 'glib.h']
-  nnstreamer_deps += [orc_dep]
+  nnstreamer_base_deps += [orc_dep]
   nnstreamer_base_args += ['-DHAVE_ORC=1']
 else
   message('Cannot find orc library')
   nnstreamer_base_args += ['-DDISABLE_ORC=1']
 endif
 
+# Tensorflow
+have_tensorflow = false
+
+if get_option('ENABLE_TENSORFLOW')
+  tf_dep = dependency('tensorflow', required: true)
+  protobuf_dep = dependency('protobuf', version: '>= 3.4.0', required: true)
+
+  if tf_dep.found() and protobuf_dep.found()
+    have_tensorflow = true
+    nnstreamer_base_args += ['-DENABLE_TENSORFLOW=1']
+  else
+    message('Cannot find tensorflow')
+  endif
+endif
+
+# Tensorflow-lite
+have_tensorflow_lite = false
+
+if get_option('ENABLE_TENSORFLOW_LITE')
+  tflite_dep = dependency('tensorflow-lite', required: true)
+
+  if tflite_dep.found()
+    have_tensorflow_lite = true
+    nnstreamer_base_args += ['-DENABLE_TENSORFLOW_LITE=1']
+  else
+    message('Cannot find tensorflow-lite')
+  endif
+endif
+
+# Build nnstreamer (common, plugins)
 projects = [
   'nnstreamer',
   'tensor_aggregator',
@@ -77,33 +114,36 @@ projects = [
   'tensor_reposink'
 ]
 
-objects = []
 foreach p : projects
   subdir('gst/'+ p)
 endforeach
 
+# "both_libraries" are supported from 0.46.
+nnstreamer_shared = shared_library('nnstreamer',
+  nnstreamer_sources,
+  c_args: nnstreamer_base_args,
+  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
+  include_directories: nnstreamer_inc
+)
+
+nnstreamer_static = static_library('nnstreamer',
+  nnstreamer_sources,
+  c_args: nnstreamer_base_args,
+  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
+  include_directories: nnstreamer_inc
+)
+
+nnstreamer_lib = nnstreamer_shared
+if get_option('default_library') == 'static'
+  nnstreamer_lib = nnstreamer_static
+endif
+
+nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib)
+
+# Build nnstreamer examples
 subdir('nnstreamer_example')
 
+# Build unittests
 if get_option('ENABLE_TEST')
   subdir('tests')
 endif
-
-nnstreamer_sources = [
-  'gst/nnstreamer/nnstreamer.c'
-]
-
-# "both_libraries" are supported from 0.46.
-nnstreamer = shared_library('nnstreamer',
-  nnstreamer_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_deps],
-  include_directories: nnstreamer_inc,
-  objects: objects
-)
-nnstreamer = static_library('nnstreamer',
-  nnstreamer_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_deps],
-  include_directories: nnstreamer_inc,
-  objects: objects
-)

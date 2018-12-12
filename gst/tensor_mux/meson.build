@@ -2,11 +2,6 @@ tensor_mux_sources = [
   'gsttensormux.c'
 ]
 
-tensor_muxOBJ = static_library('tensor_mux',
-  tensor_mux_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_deps],
-  include_directories: nnstreamer_inc
-).extract_all_objects()
-
-objects += tensor_muxOBJ
+foreach s : tensor_mux_sources
+  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
+endforeach
