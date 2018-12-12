@@ -10,17 +10,16 @@
  * @author  Sangjung Woo <sangjung.woo@samsung.com>
  * @bug  No known bugs
  * @see  nnstreamer_customfilter_example_average.c
- * 
- * This example calculates the average value of input tensor for 
+ *
+ * This example calculates the average value of input tensor for
  * each channel (i.e. R, G & B). The shape of the input tensor is
- * [N][y][x][M] and that of the output tensor is [N][1][1][M]. 
+ * [N][y][x][M] and that of the output tensor is [N][1][1][M].
  */
 
 #include <opencv2/opencv.hpp>
 
 #include <glib.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 /**
  * @brief _pt_data Internal data structure
@@ -31,6 +30,26 @@ typedef struct _pt_data
   uint32_t in_width;   /***< width of input tensor */
   uint32_t in_channel; /***< channel of input tensor */
 } pt_data;
+
+/**
+ * @brief get data size of single tensor
+ */
+static size_t
+get_tensor_data_size (const GstTensorInfo * info)
+{
+  size_t data_size = 0;
+  int i;
+
+  if (info != NULL) {
+    data_size = tensor_element_size[info->type];
+
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      data_size *= info->dimension[i];
+    }
+  }
+
+  return data_size;
+}
 
 /**
  * @brief pt_init
@@ -100,12 +119,12 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   std::vector<cv::Mat> channels;
   cv::Scalar mean_result;
   void *buffer;
-  
+
   g_assert (pdata);
   g_assert (input);
   g_assert (output);
 
-  in_size = gst_tensor_info_get_size (&prop->input_meta.info[0]);
+  in_size = get_tensor_data_size (&prop->input_meta.info[0]);
   buffer = g_malloc (in_size);
 
   /* Get Mat object from input tensor */

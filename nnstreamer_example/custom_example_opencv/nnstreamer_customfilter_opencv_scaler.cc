@@ -1,6 +1,6 @@
 /**
  * NNStreamer OpenCV Custom Filter Example: Scaler
- * 
+ *
  * Copyright (C) 2018 Sangjung Woo <sangjung.woo@samsung.com>
  *
  * LICENSE: LGPL-2.1
@@ -11,8 +11,8 @@
  * @author  Sangjung Woo <sangjung.woo@samsung.com>
  * @bug  No known bugs
  * @see  nnstreamer_customfilter_example_scaler_allocator.c
- * 
- * This example scales an input tensor of [N][input_h][input_w][M] 
+ *
+ * This example scales an input tensor of [N][input_h][input_w][M]
  * to an ouput tensor of [N][output_h][output_w][M].
  *
  * The custom property is to be given as, "custom=[new-x]x[new-y]", where new-x and new-y are unsigned integers.
@@ -23,10 +23,8 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
-#include <cassert>
 #include <glib.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 /**
  * @brief Private data structure
@@ -38,6 +36,26 @@ typedef struct _pt_data
   uint32_t out_height;
   uint32_t out_width;
 } pt_data;
+
+/**
+ * @brief get data size of single tensor
+ */
+static size_t
+get_tensor_data_size (const GstTensorInfo * info)
+{
+  size_t data_size = 0;
+  int i;
+
+  if (info != NULL) {
+    data_size = tensor_element_size[info->type];
+
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      data_size *= info->dimension[i];
+    }
+  }
+
+  return data_size;
+}
 
 /**
  * @brief init callback of tensor_filter custom
@@ -76,7 +94,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
-  assert (pdata);
+  g_assert (pdata);
   g_free (pdata);
 }
 
@@ -89,9 +107,9 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
 
-  assert (pdata);
-  assert (in_info);
-  assert (out_info);
+  g_assert (pdata);
+  g_assert (in_info);
+  g_assert (out_info);
 
   out_info->num_tensors = 1;
 
@@ -125,12 +143,12 @@ pt_allocate_invoke (void *private_data,
   void* buffer;
   cv::Mat img_src, img_dst;
 
-  assert (pdata);
-  assert (input);
-  assert (output);
+  g_assert (pdata);
+  g_assert (input);
+  g_assert (output);
 
-  in_size = gst_tensor_info_get_size (&prop->input_meta.info[0]);
-  out_size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
+  in_size = get_tensor_data_size (&prop->input_meta.info[0]);
+  out_size = get_tensor_data_size (&prop->output_meta.info[0]);
   buffer = g_malloc (in_size);
   output[0].data = g_malloc (out_size);
 
@@ -141,7 +159,7 @@ pt_allocate_invoke (void *private_data,
 
   /* Scale from the shape of input tensor to that of output tensor
    * which is given as custom property */
-  cv::resize (img_src, img_dst, cv::Size(pdata->out_width, pdata->out_height), 
+  cv::resize (img_src, img_dst, cv::Size(pdata->out_width, pdata->out_height),
             0, 0, CV_INTER_NN);
 
   /* Convert Mat object to output tensor */

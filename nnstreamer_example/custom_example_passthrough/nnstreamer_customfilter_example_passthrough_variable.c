@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 /**
  * @brief _pt_data
@@ -26,13 +26,33 @@ typedef struct _pt_data
 } pt_data;
 
 /**
+ * @brief get data size of single tensor
+ */
+static size_t
+get_tensor_data_size (const GstTensorInfo * info)
+{
+  size_t data_size = 0;
+  int i;
+
+  if (info != NULL) {
+    data_size = tensor_element_size[info->type];
+
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      data_size *= info->dimension[i];
+    }
+  }
+
+  return data_size;
+}
+
+/**
  * @brief pt_init
  */
 static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
-  g_assert (data);
+  assert (data);
 
   data->id = 0;
   return data;
@@ -45,7 +65,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
-  g_assert (data);
+  assert (data);
   free (data);
 }
 
@@ -58,8 +78,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   int i, t;
 
-  g_assert (in_info);
-  g_assert (out_info);
+  assert (in_info);
+  assert (out_info);
 
   out_info->num_tensors = in_info->num_tensors;
 
@@ -85,14 +105,14 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   size_t size;
   int t;
 
-  g_assert (data);
-  g_assert (input);
-  g_assert (output);
+  assert (data);
+  assert (input);
+  assert (output);
 
   for (t = 0; t < prop->output_meta.num_tensors; t++) {
-    size = gst_tensor_info_get_size (&prop->output_meta.info[t]);
+    size = get_tensor_data_size (&prop->output_meta.info[t]);
 
-    g_assert (input[t].data != output[t].data);
+    assert (input[t].data != output[t].data);
     memcpy (output[t].data, input[t].data, size);
   }
 

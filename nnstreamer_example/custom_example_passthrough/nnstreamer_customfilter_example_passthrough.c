@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <tensor_filter_custom.h>
-#include <tensor_common.h>
 
 #define D1	(3)
 #define D2	(280)
@@ -31,6 +31,26 @@ typedef struct _pt_data
   uint32_t id; /***< Just for testing */
   GstTensorInfo info; /**< tensor info */
 } pt_data;
+
+/**
+ * @brief get data size of single tensor
+ */
+static size_t
+get_tensor_data_size (const GstTensorInfo * info)
+{
+  size_t data_size = 0;
+  int i;
+
+  if (info != NULL) {
+    data_size = tensor_element_size[info->type];
+
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      data_size *= info->dimension[i];
+    }
+  }
+
+  return data_size;
+}
 
 /**
  * @brief _pt_data
@@ -59,7 +79,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
-  g_assert (data);
+  assert (data);
   free (data);
 }
 
@@ -72,8 +92,8 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   pt_data *data = private_data;
 
-  g_assert (data);
-  g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
+  assert (data);
+  assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
   info->info[0] = data->info;
@@ -89,8 +109,8 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   pt_data *data = private_data;
 
-  g_assert (data);
-  g_assert (NNS_TENSOR_RANK_LIMIT >= 3);
+  assert (data);
+  assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
   info->info[0] = data->info;
@@ -107,13 +127,13 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   pt_data *data = private_data;
   size_t size;
 
-  g_assert (data);
-  g_assert (input);
-  g_assert (output);
+  assert (data);
+  assert (input);
+  assert (output);
 
-  size = gst_tensor_info_get_size (&data->info);
+  size = get_tensor_data_size (&data->info);
 
-  g_assert (input[0].data != output[0].data);
+  assert (input[0].data != output[0].data);
   memcpy (output[0].data, input[0].data, size);
 
   return 0;

@@ -19,8 +19,6 @@
 #include <string.h>
 #include <errno.h>
 #include <tensor_filter_custom.h>
-/* To use nnstreamer utilities (not mandatory for custom filters */
-#include <tensor_common.h>
 
 #define TSIZE   (4)
 
