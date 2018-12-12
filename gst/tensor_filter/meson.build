@@ -10,7 +10,9 @@ if have_tensorflow
     ['tensor_filter_tensorflow_core.cc'],
     cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
     dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep],
-    include_directories: nnstreamer_inc
+    include_directories: nnstreamer_inc,
+    install: true,
+    install_dir: subplugins_install_dir
   )
 
   tensor_filter_tfcore_dep = declare_dependency(link_with: tensor_filter_tfcore_lib)
@@ -24,7 +26,9 @@ if have_tensorflow_lite
     ['tensor_filter_tensorflow_lite_core.cc'],
     cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
     dependencies: [tflite_dep, libpthread_dep, libdl_dep, glib_dep, gst_dep],
-    include_directories: nnstreamer_inc
+    include_directories: nnstreamer_inc,
+    install: true,
+    install_dir: subplugins_install_dir
   )
 
   tensor_filter_tflitecore_dep = declare_dependency(link_with: tensor_filter_tflitecore_lib)
