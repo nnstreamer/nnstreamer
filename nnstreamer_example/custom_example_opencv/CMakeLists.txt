@@ -1,19 +1,14 @@
-pkg_check_modules(opencv_pkg REQUIRED opencv)
+pkg_check_modules(custfilter_ex_opencv_pkgs glib-2.0 opencv REQUIRED)
 
 ADD_LIBRARY(nnstreamer_customfilter_opencv_scaler SHARED nnstreamer_customfilter_opencv_scaler.cc)
-TARGET_LINK_LIBRARIES(nnstreamer_customfilter_opencv_scaler ${opencv_pkg_LIBRARIES} nnstreamer)
-TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_opencv_scaler PUBLIC ${opencv_pkg_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_opencv_scaler ${custfilter_ex_opencv_pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_opencv_scaler PUBLIC ${custfilter_ex_opencv_pkgs_INCLUDE_DIRS})
 
 ADD_LIBRARY(nnstreamer_customfilter_opencv_average SHARED nnstreamer_customfilter_opencv_average.cc)
-TARGET_LINK_LIBRARIES(nnstreamer_customfilter_opencv_average ${opencv_pkg_LIBRARIES} nnstreamer)
-TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_opencv_average PUBLIC ${opencv_pkg_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(nnstreamer_customfilter_opencv_average ${custfilter_ex_opencv_pkgs_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(nnstreamer_customfilter_opencv_average PUBLIC ${custfilter_ex_opencv_pkgs_INCLUDE_DIRS})
 
-INSTALL(TARGETS nnstreamer_customfilter_opencv_scaler
-	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-)
-
-INSTALL(TARGETS nnstreamer_customfilter_opencv_average
+INSTALL(TARGETS nnstreamer_customfilter_opencv_scaler nnstreamer_customfilter_opencv_average
 	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
 	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 )
