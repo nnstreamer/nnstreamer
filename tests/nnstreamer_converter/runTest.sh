@@ -31,11 +31,11 @@ convertBMP2PNG
 
 PATH_TO_PLUGIN="../../build"
 
-gst-launch-1.0 -m -v videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location="test.bgrx.log" sync=true t. ! queue ! filesink location="test.rgb.log" sync=true
+gst-launch-1.0 -m -v --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location="test.bgrx.log" sync=true t. ! queue ! filesink location="test.rgb.log" sync=true
 
-gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location=\"test.bgrx.log\" sync=true t. ! queue ! filesink location=\"test.rgb.log\" sync=true" 1R 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! tee name=t ! queue ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter silent=TRUE ! filesink location=\"test.bgrx.log\" sync=true t. ! queue ! filesink location=\"test.rgb.log\" sync=true" 1R 0 0 $PERFORMANCE
 
-gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=0/1 ! queue ! tensor_converter silent=TRUE ! filesink location=\"test.gray8.log\" sync=true" 1G 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=280,height=40,framerate=0/1 ! queue ! tensor_converter silent=TRUE ! filesink location=\"test.gray8.log\" sync=true" 1G 0 0 $PERFORMANCE
 
 callCompareTest testcase01.bgrx.golden test.bgrx.log 1-1 "BGRX Golden Test" 1 0
 callCompareTest testcase01.rgb.golden test.rgb.log 1-2 "RGB Golden Test" 1 0
