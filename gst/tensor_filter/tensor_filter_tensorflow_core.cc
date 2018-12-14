@@ -225,6 +225,7 @@ TFCore::getTensorTypeToTF (tensor_type tType)
  *        -2 if the name of input tensors is not matched.
  *        -3 if the type of input tensors is not matched.
  *        -4 if the dimension of input tensors is not matched.
+ *        -5 if the rank of input tensors exceeds our capacity NNS_TENSOR_RANK_LIMIT.
  */
 int
 TFCore::inputTensorValidation (std::vector<const NodeDef*> placeholders)
@@ -275,11 +276,16 @@ TFCore::inputTensorValidation (std::vector<const NodeDef*> placeholders)
 
     gchar **str_dims;
     str_dims = g_strsplit (shape_description.c_str(), ",", -1);
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+    uint len = g_strv_length (str_dims);
+    if (len > NNS_TENSOR_RANK_LIMIT){
+      GST_ERROR ("The Rank of Input Tensor is not affordable. It's over our capacity.\n");
+      return -5;
+    }
+    for (int j = 0; j < len; j++) {
       if (!strcmp (str_dims[j], "?"))
         continue;
 
-      if (inputTensorMeta.info[i].dimension[NNS_TENSOR_RANK_LIMIT - j - 1] != atoi (str_dims[j])){
+      if (inputTensorMeta.info[i].dimension[len - j - 1] != atoi (str_dims[j])){
         GST_ERROR ("Input Tensor is not valid: the dim of input tensor is different\n");
         return -4;
       }
