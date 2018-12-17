@@ -83,6 +83,9 @@ private:
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
 
+  int inputTensorRank[NNS_TENSOR_SIZE_LIMIT];
+  int outputTensorRank[NNS_TENSOR_SIZE_LIMIT];
+
   Session * session;
 
   tensor_type getTensorTypeFromTF (DataType tfType);
