@@ -39,6 +39,7 @@ if target == -1 or target == 9:
     bmp.write('testcase01_RGB_100x100.golden', buf)
     bmp.write('testcase02_RGB_100x100.golden', buf+buf)
     bmp.write('testcase03_RGB_100x100.golden', buf+buf+buf)
+    bmp.write('testcase04_RGB_100x100.golden', buf+buf+buf+buf)
     bmp.gen_BMP_stream('testsequence01', 'testcase01.golden', 1)
     bmp.gen_BMP_stream('testsequence02', 'testcase02.golden', 2)
     s=bmp.gen_BMP_stream('testsequence03', 'testcase03.golden', 3)
@@ -98,6 +99,38 @@ if target == -1 or target == 9:
         with open("testsynch08_"+str(i)+".golden",'wb') as file:
             file.write(s[i])
             file.write(s[sink_0])
+
+    for i in range(0,4):
+        sink_0 = i*2
+        sink_1 = i*3
+        with open("testsynch17_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_0])
+            file.write(s[sink_1])
+
+    for i in range(0,4):
+        sink_0 = i*2
+        sink_1 = i*3
+        with open("testsynch18_"+str(i)+".golden",'wb') as file:
+            file.write(s[i])
+            file.write(s[sink_0])
+            file.write(s[sink_1])
+            file.write(s[sink_0])
+
+    id0_0=[0,0,1,1,2]
+    id0_1=[0,0,2,2,4]
+    id1_0=[0,2,3,5,6]
+    id1_1=[0,1,2,3,4]
+    for i in range(0,5):
+        sink0_0 = id0_0[i]
+        sink0_1 = id0_1[i]
+        sink1_0 = id1_0[i]
+        sink1_1 = id1_1[i]
+        with open("testsynch19_"+str(i)+".golden",'wb') as file:
+            file.write(s[sink0_0])
+            file.write(s[sink0_1])
+            file.write(s[sink1_0])
+            file.write(s[sink1_1])
 
 if target == -1 or target == 10:
     buf = bmp.gen_BMP_random('RGB', 100, 100, 'testcase')[0]
