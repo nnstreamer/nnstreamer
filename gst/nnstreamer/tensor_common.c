@@ -1147,8 +1147,9 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
   gint old_numerator = G_MAXINT;
   gint old_denominator = G_MAXINT;
   gint counting = 0;
-  GstTensorConfig config;
+  GstTensorsConfig in_configs;
   GstClockTime base = 0;
+  guint i = 0;
 
   walk = collect->data;
 
@@ -1176,13 +1177,13 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     GstCaps *caps = gst_pad_get_current_caps (pad->pad);
     GstStructure *s = gst_caps_get_structure (caps, 0);
 
-    gst_tensor_config_from_structure (&config, s);
-    g_assert (gst_tensor_config_validate (&config));
+    gst_tensors_config_from_structure (&in_configs, s);
+    g_assert (gst_tensors_config_validate (&in_configs));
 
-    if (config.rate_d < old_denominator)
-      old_denominator = config.rate_d;
-    if (config.rate_n < old_numerator)
-      old_numerator = config.rate_n;
+    if (in_configs.rate_d < old_denominator)
+      old_denominator = in_configs.rate_d;
+    if (in_configs.rate_n < old_numerator)
+      old_numerator = in_configs.rate_n;
 
     gst_caps_unref (caps);
 
@@ -1259,8 +1260,17 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     }
 
     if (GST_IS_BUFFER (buf)) {
-      mem = gst_buffer_get_memory (buf, 0);
-      gst_buffer_append_memory (tensors_buf, mem);
+      guint n_mem = gst_buffer_n_memory (buf);
+
+      g_assert (n_mem == in_configs.info.num_tensors);
+      g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
+
+      for (i = 0; i < n_mem; ++i) {
+        mem = gst_buffer_get_memory (buf, i);
+        gst_buffer_append_memory (tensors_buf, mem);
+        configs->info.info[counting] = in_configs.info.info[i];
+        counting++;
+      }
       if (sync.mode == SYNC_NOSYNC) {
         gst_buffer_unref (buf);
       }
@@ -1269,9 +1279,6 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
       isEOS = TRUE;
       return isEOS;
     }
-
-    configs->info.info[counting] = config.info;
-    counting++;
   }
 
   configs->rate_d = old_denominator;

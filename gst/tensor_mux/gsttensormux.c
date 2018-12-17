@@ -97,6 +97,11 @@ enum
 };
 
 /**
+ * @brief Default caps string for sink pad.
+ */
+#define CAPS_STRING_SINK GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+
+/**
  * @brief the capabilities of the inputs and outputs.
  * describe the real formats here.
  */
@@ -109,7 +114,7 @@ static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
 static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_PAD_SINK,
     GST_PAD_REQUEST,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
+    GST_STATIC_CAPS (CAPS_STRING_SINK)
     );
 
 static gboolean gst_tensor_mux_handle_src_event (GstPad * pad,
@@ -241,6 +246,7 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
     const gchar * req_name, const GstCaps * caps)
 {
   GstPad *newpad;
+  GSList *walk = NULL;
   GstTensorMux *tensor_mux;
   gchar *name;
 
@@ -248,16 +254,9 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
   g_return_val_if_fail (GST_IS_TENSOR_MUX (element), NULL);
 
   tensor_mux = GST_TENSOR_MUX (element);
+  walk = tensor_mux->collect->data;
 
-  if (tensor_mux->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
-    GST_ERROR_OBJECT (tensor_mux,
-        "supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
-    g_assert (0);
-    return NULL;
-  }
-
-  name =
-      g_strdup_printf ("sink_%u", tensor_mux->tensors_config.info.num_tensors);
+  name = g_strdup_printf ("sink_%u", g_slist_length (walk));
   newpad = gst_pad_new_from_template (templ, name);
   g_free (name);
 
@@ -268,7 +267,6 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
         sizeof (GstTensorCollectPadData), NULL, TRUE);
     tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
-    tensor_mux->tensors_config.info.num_tensors++;
     gst_element_add_pad (element, newpad);
   } else {
     GST_WARNING_OBJECT (tensor_mux, "failed to create request pad");
@@ -399,6 +397,11 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 
   if (!tensor_mux->negotiated) {
     GstCaps *newcaps;
+
+    if (GST_IS_BUFFER (tensors_buf)) {
+      tensor_mux->tensors_config.info.num_tensors =
+          gst_buffer_n_memory (tensors_buf);
+    }
 
     g_assert (gst_tensors_config_validate (&tensor_mux->tensors_config));
     newcaps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
