@@ -119,4 +119,88 @@ callCompareTest testsynch05_7.golden testsynch05_7.log 13-8 "Compare 13-8" 1 0
 callCompareTest testsynch05_8.golden testsynch05_8.log 13-9 "Compare 13-9" 1 0
 callCompareTest testsynch05_9.golden testsynch05_9.log 13-10 "Compare 13-10" 1 0
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux ! filesink location=testcase14_RGB_100x100.log \
+    tensor_mux name=tensor_mux ! tensors_mux.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1 ! \
+        tensor_converter ! tensor_mux.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1 ! \
+        tensor_converter ! tensor_mux.sink_1" 14 0 0 $PERFORMANCE
+
+callCompareTest testcase02_RGB_100x100.golden testcase14_RGB_100x100.log 14 "Compare 14" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux ! filesink location=testcase15_RGB_100x100.log \
+    tensor_mux name=tensor_mux ! tensors_mux.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux.sink_1 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensors_mux.sink_1" 15 0 0 $PERFORMANCE
+
+callCompareTest testcase03_RGB_100x100.golden testcase15_RGB_100x100.log 15 "Compare 15" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux ! filesink location=testcase16_RGB_100x100.log \
+    tensor_mux name=tensor_mux0 ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1 ! tensors_mux.sink_1 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux0.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux0.sink_1 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux1.sink_0 \
+    filesrc location=testcase02_RGB_100x100.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=100,height=100,framerate=0/1  ! \
+        tensor_converter ! tensor_mux1.sink_1" 16 0 0 $PERFORMANCE
+
+callCompareTest testcase04_RGB_100x100.golden testcase16_RGB_100x100.log 16 "Compare 16" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=slowest ! multifilesink location=testsynch17_%1d.log \
+    tensor_mux name=tensor_mux  sync_mode=slowest ! tensors_mux.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux.sink_1
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! \
+        tensor_converter ! tensors_mux.sink_1" 17 0 0 $PERFORMANCE
+
+callCompareTest testsynch17_0.golden testsynch17_0.log 17-1 "Compare 17-1" 1 0
+callCompareTest testsynch17_1.golden testsynch17_1.log 17-2 "Compare 17-2" 1 0
+callCompareTest testsynch17_2.golden testsynch17_2.log 17-3 "Compare 17-3" 1 0
+callCompareTest testsynch17_3.golden testsynch17_3.log 17-4 "Compare 17-4" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=slowest ! multifilesink location=testsynch18_%1d.log \
+    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensors_mux.sink_1 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux0.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux0.sink_1 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux1.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux1.sink_1" 18 0 0 $PERFORMANCE
+
+
+callCompareTest testsynch18_0.golden testsynch18_0.log 18-1 "Compare 18-1" 1 0
+callCompareTest testsynch18_1.golden testsynch18_1.log 18-2 "Compare 18-2" 1 0
+callCompareTest testsynch18_2.golden testsynch18_2.log 18-3 "Compare 18-3" 1 0
+callCompareTest testsynch18_3.golden testsynch18_3.log 18-4 "Compare 18-4" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=basepad sync_option=1:50000000 ! multifilesink location=testsynch19_%1d.log \
+    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensors_mux.sink_1 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux0.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux0.sink_1 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux1.sink_0 \
+    multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
+        tensor_converter ! tensor_mux1.sink_1" 19 0 0 $PERFORMANCE
+
+callCompareTest testsynch19_0.golden testsynch19_0.log 19-1 "Compare 19-1" 1 0
+callCompareTest testsynch19_1.golden testsynch19_1.log 19-2 "Compare 19-2" 1 0
+callCompareTest testsynch19_2.golden testsynch19_2.log 19-3 "Compare 19-3" 1 0
+callCompareTest testsynch19_3.golden testsynch19_3.log 19-4 "Compare 19-4" 1 0
+callCompareTest testsynch19_4.golden testsynch19_4.log 19-5 "Compare 19-5" 1 0
+
 report
