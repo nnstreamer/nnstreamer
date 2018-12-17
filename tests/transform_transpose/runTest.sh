@@ -19,6 +19,8 @@ fi
 testInit $1
 
 PATH_TO_PLUGIN="../../build"
+LIBS_TO_PRELOAD="${PATH_TO_PLUGIN}/libnnstreamer.so"
+export LD_PRELOAD=${LIBS_TO_PRELOAD}
 
 if [ "$SKIPGEN" == "YES" ]
 then
