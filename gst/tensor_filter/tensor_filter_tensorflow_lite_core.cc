@@ -21,7 +21,6 @@
  * @bug     No known bugs.
  */
 
-#include <sys/time.h>
 #include <unistd.h>
 #include <algorithm>
 
@@ -43,9 +42,6 @@
 TFLiteCore::TFLiteCore (const char *_model_path)
 {
   model_path = _model_path;
-
-  gst_tensors_info_init (&inputTensorMeta);
-  gst_tensors_info_init (&outputTensorMeta);
 }
 
 /**

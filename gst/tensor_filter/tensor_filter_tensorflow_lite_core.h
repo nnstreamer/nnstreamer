@@ -25,15 +25,15 @@
 
 #ifdef __cplusplus
 #include <iostream>
-#include <stdint.h>
 #include <glib.h>
+#include <gst/gst.h>
 
 #include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/optional_debug_tools.h>
 #include <tensorflow/contrib/lite/string_util.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
-#include <tensor_common.h>
+#include <tensor_typedef.h>
 
 /**
  * @brief	ring cache structure
