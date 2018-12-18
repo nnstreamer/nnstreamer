@@ -42,9 +42,6 @@
 TFCore::TFCore (const char *_model_path)
 {
   model_path = _model_path;
-
-  gst_tensors_info_init (&inputTensorMeta);
-  gst_tensors_info_init (&outputTensorMeta);
 }
 
 /**

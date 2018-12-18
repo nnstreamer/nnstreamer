@@ -27,15 +27,15 @@
 #define TENSOR_FILTER_TENSORFLOW_H
 
 #ifdef __cplusplus
-#include <stdint.h>
 #include <glib.h>
+#include <gst/gst.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-#include <vector>	 
+#include <vector>
 
 #include <tensorflow/cc/ops/const_op.h>
 #include <tensorflow/cc/ops/image_ops.h>
@@ -48,7 +48,7 @@
 #include <tensorflow/core/lib/strings/str_util.h>
 #include <tensorflow/tools/graph_transforms/transform_utils.h>
 
-#include <tensor_common.h>
+#include <tensor_typedef.h>
 
 using namespace tensorflow;
 
@@ -69,7 +69,7 @@ public:
   const char* getModelPath();
   int setInputTensorProp ();
   int setOutputTensorProp ();
-  
+
   int getInputTensorSize ();
   int getOutputTensorSize ();
   int getInputTensorDim (GstTensorsInfo * info);
