@@ -140,7 +140,7 @@ _init_modes (bounding_boxes * bdata)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gboolean
-_init (GstTensorDec * self)
+bb_init (GstTensorDec * self)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
   bounding_boxes *bdata;
@@ -192,7 +192,7 @@ _exit_modes (bounding_boxes * bdata)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static void
-_exit (GstTensorDec * self)
+bb_exit (GstTensorDec * self)
 {
   bounding_boxes *bdata = self->plugin_data;
 
@@ -303,7 +303,7 @@ _setOption_mode (bounding_boxes * bdata, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gboolean
-_setOption (GstTensorDec * self, int opNum, const gchar * param)
+bb_setOption (GstTensorDec * self, int opNum, const gchar * param)
 {
   bounding_boxes *bdata = self->plugin_data;
 
@@ -403,7 +403,7 @@ _setOption (GstTensorDec * self, int opNum, const gchar * param)
  * If there are third or more tensors, such tensors will be ignored.
  */
 static GstCaps *
-_getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
+bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
 {
   /** @todo this is compatible with "SSD" only. expand the capability! */
   bounding_boxes *data = self->plugin_data;
@@ -536,7 +536,7 @@ _ssd_loadBoxPrior (bounding_boxes * bdata)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gsize
-_getTransformSize (GstTensorDec * self, GstCaps * caps,
+bb_getTransformSize (GstTensorDec * self, GstCaps * caps,
     gsize size, GstCaps * othercaps, GstPadDirection direction)
 {
   return 0;
@@ -786,7 +786,8 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstFlowReturn
-_decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
+bb_decode (GstTensorDec * self, const GstTensorMemory * input,
+    GstBuffer * outbuf)
 {
   bounding_boxes *bdata = self->plugin_data;
   const gsize size = bdata->width * bdata->height * 4;  /* RGBA */
@@ -856,12 +857,12 @@ _decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
 static TensorDecDef boundingBox = {
   .modename = "bounding_boxes",
   .type = OUTPUT_VIDEO,
-  .init = _init,
-  .exit = _exit,
-  .setOption = _setOption,
-  .getOutputDim = _getOutputDim,
-  .getTransformSize = _getTransformSize,
-  .decode = _decode,
+  .init = bb_init,
+  .exit = bb_exit,
+  .setOption = bb_setOption,
+  .getOutCaps = bb_getOutCaps,
+  .getTransformSize = bb_getTransformSize,
+  .decode = bb_decode,
 };
 
 /** @brief Initialize this object for tensordec-plugin */

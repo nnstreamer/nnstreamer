@@ -49,7 +49,7 @@ typedef struct
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gboolean
-_init (GstTensorDec * self)
+il_init (GstTensorDec * self)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
   self->plugin_data = g_new0 (ImageLabelData, 1);
@@ -58,7 +58,7 @@ _init (GstTensorDec * self)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static void
-_exit (GstTensorDec * self)
+il_exit (GstTensorDec * self)
 {
   ImageLabelData *data = self->plugin_data;
   if (data->labels) {
@@ -143,7 +143,7 @@ loadImageLabels (ImageLabelData * data)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gboolean
-_setOption (GstTensorDec * self, int opNum, const gchar * param)
+il_setOption (GstTensorDec * self, int opNum, const gchar * param)
 {
   ImageLabelData *data = self->plugin_data;
 
@@ -168,7 +168,7 @@ _setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-_getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
+il_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
 {
   const uint32_t *dim;
   int i;
@@ -190,7 +190,7 @@ _getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static gsize
-_getTransformSize (GstTensorDec * self, GstCaps * caps,
+il_getTransformSize (GstTensorDec * self, GstCaps * caps,
     gsize size, GstCaps * othercaps, GstPadDirection direction)
 {
   return 0;
@@ -221,7 +221,8 @@ case typename:\
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstFlowReturn
-_decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
+il_decode (GstTensorDec * self, const GstTensorMemory * input,
+    GstBuffer * outbuf)
 {
   ImageLabelData *data = self->plugin_data;
   GstMapInfo out_info;
@@ -290,12 +291,12 @@ _decode (GstTensorDec * self, const GstTensorMemory * input, GstBuffer * outbuf)
 static TensorDecDef imageLabeling = {
   .modename = "image_labeling",
   .type = OUTPUT_TEXT,
-  .init = _init,
-  .exit = _exit,
-  .setOption = _setOption,
-  .getOutputDim = _getOutputDim,
-  .getTransformSize = _getTransformSize,
-  .decode = _decode,
+  .init = il_init,
+  .exit = il_exit,
+  .setOption = il_setOption,
+  .getOutCaps = il_getOutCaps,
+  .getTransformSize = il_getTransformSize,
+  .decode = il_decode,
 };
 
 /** @brief Initialize this object for tensordec-plugin */

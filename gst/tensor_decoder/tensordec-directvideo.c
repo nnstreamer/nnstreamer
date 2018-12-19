@@ -57,7 +57,7 @@ dv_setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-dv_getOutputDim (GstTensorDec * self, const GstTensorsConfig * config)
+dv_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
 {
   /* Old gst_tensordec_video_caps_from_config () had this */
   GstVideoFormat format;
@@ -193,7 +193,7 @@ static TensorDecDef directVideo = {
   .init = dv_init,
   .exit = dv_exit,
   .setOption = dv_setOption,
-  .getOutputDim = dv_getOutputDim,
+  .getOutCaps = dv_getOutCaps,
   .getTransformSize = dv_getTransformSize,
   .decode = dv_decode,
 };
