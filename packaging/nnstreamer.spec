@@ -1,6 +1,7 @@
 # Execute gbs with --define "testcoverage 1" in case that you must get unittest coverage statictics
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
+%define		nnstexampledir	/usr/lib/nnstreamer/bin
 
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
@@ -18,7 +19,7 @@ Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
 BuildRequires:	glib2-devel
-BuildRequires:	cmake
+BuildRequires:	meson
 
 # To run test cases, we need gst plugins
 BuildRequires:	gst-plugins-good
@@ -95,31 +96,31 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 %endif
 
 mkdir -p build
-pushd build
-export GST_PLUGIN_PATH=$(pwd)
-export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
 
 %ifarch x86_64 aarch64
-    %cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON -DENABLE_TENSORFLOW=ON
+    meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true build
 %else
-    %cmake .. -DGST_INSTALL_DIR=%{gstlibdir} -DINSTALL_EXAMPLE_APP=ON
+    meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true -DENABLE_TENSORFLOW=false build
 %endif
 
-make %{?_smp_mflags}
+ninja -C build %{?_smp_mflags}
+
 %if 0%{?unit_test}
+    pushd build
+    # Copy bmp2png for ssat
+    cp ./tests/bmp2png ../tests
+    export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
     ./tests/unittest_common
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
     popd
     pushd tests
     ssat -n
+    popd
 %endif
-popd
 
 %install
-pushd build
-%make_install
-popd
+DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
 
 %if 0%{?testcoverage}
 ##
@@ -187,7 +188,7 @@ install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_libdir}/*.so
-/usr/lib/nnstreamer/bin/*
+%{nnstexampledir}/*
 %exclude %{_libdir}/libtensor_filter_tflitecore.so
 %ifarch x86_64 aarch64
 %exclude %{_libdir}/libtensor_filter_tfcore.so
