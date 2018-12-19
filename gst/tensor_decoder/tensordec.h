@@ -141,7 +141,7 @@ struct _TensorDecDef
       /**< Object destruction for the decoder */
   gboolean (*setOption) (GstTensorDec *self, int opNum, const gchar *param);
       /**< Process with the given options. It can be called repeatedly */
-  GstCaps *(*getOutputDim) (GstTensorDec *self, const GstTensorsConfig *config);
+  GstCaps *(*getOutCaps) (GstTensorDec *self, const GstTensorsConfig *config);
       /**< The caller should unref the returned GstCaps
         * Current implementation supports single-tensor only.
         * @todo WIP: support multi-tensor for input!!!

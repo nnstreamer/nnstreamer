@@ -168,7 +168,7 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
 
   if (self->mode == DECODE_MODE_PLUGIN) {
     g_assert (self->decoder);
-    return self->decoder->getOutputDim (self, config);
+    return self->decoder->getOutCaps (self, config);
   }
 
   GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
