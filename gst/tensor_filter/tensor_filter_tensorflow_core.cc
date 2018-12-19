@@ -371,6 +371,7 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
+ *         -1 if the model is not works properly.
  */
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
@@ -437,6 +438,10 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   Status run_status =
       session->Run(input_feeds, output_tensor_names, {}, &outputs);
 
+  if (run_status != Status::OK()){
+    GST_ERROR ("Failed to run model: %s\n", run_status.ToString ());
+    return -1;
+  }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
     output[i].type = getTensorTypeFromTF(outputs[i].dtype());
