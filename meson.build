@@ -7,7 +7,7 @@ project('nnstreamer', 'c', 'cpp',
   meson_version: '>=0.40.0',
   default_options: [
     'warning_level=1',
-    'c_std=c89',
+    'c_std=gnu89',
     'cpp_std=c++11'
   ]
 )
