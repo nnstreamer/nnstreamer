@@ -29,8 +29,7 @@ if gtest_dep.found()
   unittest_common = executable('unittest_common',
     'common/unittest_common.cpp',
     cpp_args: nnstreamer_base_args,
-    dependencies: [nnstreamer_unittest_deps],
-    include_directories: nnstreamer_inc)
+    dependencies: [nnstreamer_unittest_deps])
 
   test('unittest_common', unittest_common)
 
@@ -38,8 +37,7 @@ if gtest_dep.found()
   unittest_sink = executable('unittest_sink',
     'nnstreamer_sink/unittest_sink.cpp',
     cpp_args: nnstreamer_base_args,
-    dependencies: [nnstreamer_unittest_deps],
-    include_directories: nnstreamer_inc)
+    dependencies: [nnstreamer_unittest_deps])
 
   test('unittest_sink', unittest_sink, args: ['--gst-plugin-path=../'])
 
@@ -47,8 +45,7 @@ if gtest_dep.found()
   unittest_plugins = executable('unittest_plugins',
     'nnstreamer_plugins/unittest_plugins.cpp',
     cpp_args: nnstreamer_base_args,
-    dependencies: [nnstreamer_unittest_deps],
-    include_directories: nnstreamer_inc)
+    dependencies: [nnstreamer_unittest_deps])
 
   test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=../'])
 endif
