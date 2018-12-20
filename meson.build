@@ -170,7 +170,7 @@ if get_option('default_library') == 'static'
   nnstreamer_lib = nnstreamer_static
 endif
 
-nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib)
+nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib, include_directories: nnstreamer_inc)
 
 # Install headers into /{includedir}/nnstreamer
 install_headers(nnstreamer_headers,
