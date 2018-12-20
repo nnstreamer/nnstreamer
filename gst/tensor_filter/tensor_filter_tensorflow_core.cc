@@ -42,6 +42,14 @@
 TFCore::TFCore (const char *_model_path)
 {
   model_path = _model_path;
+
+  memset (&inputTensorMeta, 0, sizeof (GstTensorsInfo));
+  memset (&outputTensorMeta, 0, sizeof (GstTensorsInfo));
+
+  for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
+    inputTensorRank[i] = 0;
+    outputTensorRank[i] = 0;
+  }
 }
 
 /**
@@ -225,13 +233,15 @@ TFCore::getTensorTypeToTF (tensor_type tType)
  *        -5 if the rank of input tensors exceeds our capacity NNS_TENSOR_RANK_LIMIT.
  */
 int
-TFCore::inputTensorValidation (std::vector<const NodeDef*> placeholders)
+TFCore::inputTensorValidation (const std::vector<const NodeDef*> &placeholders)
 {
-  if (inputTensorMeta.num_tensors != placeholders.size()){
+  int length = placeholders.size();
+
+  if (inputTensorMeta.num_tensors != length){
     GST_ERROR ("Input Tensor is not valid: the number of input tensor is different\n");
     return -1;
   }
-  int length = placeholders.size();
+
   for (int i = 0; i < length; i++) {
     const NodeDef* node = placeholders[i];
     string shape_description = "None";
@@ -299,13 +309,7 @@ int
 TFCore::setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src)
 {
   dest->num_tensors = src->num_tensors;
-  for (int i = 0; i < src->num_tensors; i++) {
-    dest->info[i].name = src->info[i].name;
-    dest->info[i].type = src->info[i].type;
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      dest->info[i].dimension[j] = src->info[i].dimension[j];
-    }
-  }
+  memcpy (dest->info, src->info, sizeof (GstTensorInfo) * src->num_tensors);
   return 0;
 }
 
