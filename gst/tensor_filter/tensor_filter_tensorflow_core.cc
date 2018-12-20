@@ -363,12 +363,15 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
   return 0;
 }
 
-#define copyInputWithType(type) \
-  inputTensor.flat<type>()(j) = ((type*)input->data)[j];
+#define copyInputWithType(type) do { \
+    for (int idx = 0; idx < array_len; ++idx) \
+      inputTensor.flat<type>()(idx) = ((type*)input->data)[idx]; \
+  } while (0)
 
-#define copyOutputWithType(type) \
-  for(int j = 0; j < n; j++) \
-    ((type *)output[i].data)[j] = outputs[i].flat<type>()(j); \
+#define copyOutputWithType(type) do { \
+    for (int idx = 0; idx < array_len; ++idx) \
+      ((type *)output[i].data)[idx] = outputs[i].flat<type>()(idx); \
+  } while (0)
 
 /**
  * @brief	run the model with the input.
@@ -383,6 +386,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   std::vector<std::pair<string, Tensor>> input_feeds;
   std::vector<string> output_tensor_names;
   std::vector<Tensor> outputs;
+  int array_len;
 
   for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
     TensorShape ts = TensorShape({});
@@ -393,45 +397,45 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
       getTensorTypeToTF(input->type),
       ts
     );
-    int len = input->size / tensor_element_size[input->type];
 
-    for (int j = 0; j < len; j++) {
-      switch (input->type) {
-        case _NNS_INT32:
-          copyInputWithType (int32);
-          break;
-        case _NNS_UINT32:
-          copyInputWithType (uint32);
-          break;
-        case _NNS_INT16:
-          copyInputWithType (int16);
-          break;
-        case _NNS_UINT16:
-          copyInputWithType (uint16);
-          break;
-        case _NNS_INT8:
-          copyInputWithType (int8);
-          break;
-        case _NNS_UINT8:
-          copyInputWithType (uint8);
-          break;
-        case _NNS_INT64:
-          copyInputWithType (int64);
-          break;
-        case _NNS_UINT64:
-          copyInputWithType (uint64);
-          break;
-        case _NNS_FLOAT32:
-          copyInputWithType (float);
-          break;
-        case _NNS_FLOAT64:
-          copyInputWithType (double);
-          break;
-        default:
-          /** @todo Support other types */
-          break;
-      }
+    array_len = input->size / tensor_element_size[input->type];
+
+    switch (input->type) {
+      case _NNS_INT32:
+        copyInputWithType (int32);
+        break;
+      case _NNS_UINT32:
+        copyInputWithType (uint32);
+        break;
+      case _NNS_INT16:
+        copyInputWithType (int16);
+        break;
+      case _NNS_UINT16:
+        copyInputWithType (uint16);
+        break;
+      case _NNS_INT8:
+        copyInputWithType (int8);
+        break;
+      case _NNS_UINT8:
+        copyInputWithType (uint8);
+        break;
+      case _NNS_INT64:
+        copyInputWithType (int64);
+        break;
+      case _NNS_UINT64:
+        copyInputWithType (uint64);
+        break;
+      case _NNS_FLOAT32:
+        copyInputWithType (float);
+        break;
+      case _NNS_FLOAT64:
+        copyInputWithType (double);
+        break;
+      default:
+        /** @todo Support other types */
+        break;
     }
+
     input_feeds.push_back({inputTensorMeta.info[i].name, inputTensor});
   }
 
@@ -443,7 +447,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
       session->Run(input_feeds, output_tensor_names, {}, &outputs);
 
   if (run_status != Status::OK()){
-    GST_ERROR ("Failed to run model: %s\n", run_status.ToString ());
+    GST_ERROR ("Failed to run model: %s\n", (run_status.ToString ()).c_str ());
     return -1;
   }
 
@@ -453,49 +457,39 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
       output[i].size *= outputTensorMeta.info[i].dimension[j];
 
-    int n = output[i].size / tensor_element_size[output[i].type];
+    array_len = output[i].size / tensor_element_size[output[i].type];
 
     switch (output[i].type) {
-      case _NNS_INT32:{
+      case _NNS_INT32:
         copyOutputWithType (int32);
         break;
-      }
-      case _NNS_UINT32:{
+      case _NNS_UINT32:
         copyOutputWithType (uint32);
         break;
-      }
-      case _NNS_INT16:{
+      case _NNS_INT16:
         copyOutputWithType (int16);
         break;
-      }
-      case _NNS_UINT16:{
+      case _NNS_UINT16:
         copyOutputWithType (uint16);
         break;
-      }
-      case _NNS_INT8:{
+      case _NNS_INT8:
         copyOutputWithType (int8);
         break;
-      }
-      case _NNS_UINT8:{
+      case _NNS_UINT8:
         copyOutputWithType (uint8);
         break;
-      }
-      case _NNS_INT64:{
+      case _NNS_INT64:
         copyOutputWithType (int64);
         break;
-      }
-      case _NNS_UINT64:{
+      case _NNS_UINT64:
         copyOutputWithType (uint64);
         break;
-      }
-      case _NNS_FLOAT32:{
+      case _NNS_FLOAT32:
         copyOutputWithType (float);
         break;
-      }
-      case _NNS_FLOAT64:{
+      case _NNS_FLOAT64:
         copyOutputWithType (double);
         break;
-      }
       default:
         /** @todo Support other types */
         break;
