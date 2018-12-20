@@ -371,7 +371,7 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
- *         -1 if the model is not works properly.
+ *         -1 if the model does not work properly.
  */
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
