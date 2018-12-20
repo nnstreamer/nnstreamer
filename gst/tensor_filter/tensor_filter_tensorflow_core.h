@@ -91,7 +91,7 @@ private:
   tensor_type getTensorTypeFromTF (DataType tfType);
   DataType getTensorTypeToTF (tensor_type tType);
   int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
-  int inputTensorValidation (std::vector<const NodeDef*> placeholders);
+  int inputTensorValidation (const std::vector<const NodeDef*> &placeholders);
   /*TODO*/
   // int outputTensorValidation ();
 };

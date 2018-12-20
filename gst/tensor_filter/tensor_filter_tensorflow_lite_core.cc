@@ -42,6 +42,9 @@
 TFLiteCore::TFLiteCore (const char *_model_path)
 {
   model_path = _model_path;
+
+  memset (&inputTensorMeta, 0, sizeof (GstTensorsInfo));
+  memset (&outputTensorMeta, 0, sizeof (GstTensorsInfo));
 }
 
 /**
