@@ -413,35 +413,26 @@ gst_get_splited_tensor (GstTensorSplit * split, GstBuffer * buffer, gint nth)
 {
   GstMemory *mem;
   tensor_dim *dim;
-  int i, j;
-  size_t size, offset, temp;
+  int i;
+  size_t size, offset;
   GstMapInfo src_info, dest_info;
-  unsigned char *srcptr, *destptr;
 
   size = 0;
   offset = 0;
-  temp = 1;
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    temp *= (*dim)[i];
-  size += temp * tensor_element_size[split->sink_tensor_conf.info.type];
+
+  size += get_tensor_element_count (*dim) *
+      tensor_element_size[split->sink_tensor_conf.info.type];
   mem = gst_allocator_alloc (NULL, size, NULL);
   gst_memory_map (mem, &dest_info, GST_MAP_WRITE);
   gst_buffer_map (buffer, &src_info, GST_MAP_READ);
 
-  srcptr = src_info.data;
-  destptr = dest_info.data;
-
   for (i = 0; i < nth; i++) {
     dim = g_array_index (split->tensorseg, tensor_dim *, i);
-    size_t t = 1;
-    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      t *= (*dim)[j];
-    }
-    offset += t;
+    offset += get_tensor_element_count (*dim);
   }
 
-  memcpy (destptr, srcptr + offset, size);
+  nns_memcpy (dest_info.data, src_info.data + offset, size);
   gst_buffer_unmap (buffer, &src_info);
   gst_memory_unmap (mem, &dest_info);
 
