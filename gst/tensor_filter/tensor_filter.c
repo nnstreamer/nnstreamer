@@ -228,6 +228,8 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
         if (filter->fw && filter->fw->close) \
           filter->fw->close (filter, &filter->privateData); \
         filter->prop.fw_opened = FALSE; \
+        filter->prop.nnfw = _T_F_UNDEFINED; \
+        filter->fw = NULL; \
       } \
     } while (0)
 
@@ -405,7 +407,6 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 {
   GstTensorFilter *self;
   GstTensorFilterProperties *prop;
-  gchar *tmp;
 
   self = GST_TENSOR_FILTER (object);
   prop = &self->prop;
@@ -418,50 +419,59 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       silent_debug ("Debug mode = %d", self->silent);
       break;
     case PROP_FRAMEWORK:
+    {
+      const gchar *fw_name = g_value_get_string (value);
+
       if (prop->nnfw != _T_F_UNDEFINED) {
         gst_tensor_filter_close_fw (self);
       }
-      prop->nnfw = find_key_strv (nnfw_names, g_value_get_string (value));
-      silent_debug ("Framework = %s\n", g_value_get_string (value));
+      prop->nnfw = find_key_strv (nnfw_names, fw_name);
+      silent_debug ("Framework = %s\n", fw_name);
       if (prop->nnfw == -1 || prop->nnfw == _T_F_UNDEFINED) {
-        GST_WARNING ("Cannot identify the given neural network framework, %s\n",
-            g_value_get_string (value));
+        GST_WARNING_OBJECT (self,
+            "Cannot identify the given neural network framework, %s\n",
+            fw_name);
         prop->nnfw = _T_F_UNDEFINED;
         break;
       }
-      if (tensor_filter_supported[prop->nnfw] == NULL) {
-        GST_WARNING
-            ("The given neural network framework is identified but not supported, %s\n",
-            g_value_get_string (value));
-        prop->nnfw = _T_F_UNDEFINED;
-        break;
-      }
+
       self->fw = tensor_filter_supported[prop->nnfw];
-      g_assert (self->fw != NULL);
+      if (self->fw == NULL) {
+        GST_WARNING_OBJECT (self,
+            "The given neural network framework is identified but not supported, %s\n",
+            fw_name);
+        prop->nnfw = _T_F_UNDEFINED;
+        break;
+      }
 
       /* See if mandatory methods are filled in */
       g_assert (self->fw->invoke_NN);
       g_assert ((self->fw->getInputDimension && self->fw->getOutputDimension)
           || self->fw->setInputDimension);
       break;
+    }
     case PROP_MODEL:
+    {
+      gchar *model_file;
+
       if (prop->model_file) {
         gst_tensor_filter_close_fw (self);
         g_free ((char *) prop->model_file);     /* g_free cannot handle const * */
       }
-      if (!value) {
-        break;
-      }
+
       /* Once configures, it cannot be changed in runtime */
-      tmp = g_value_dup_string (value);
-      silent_debug ("Model = %s\n", tmp);
-      if (!g_file_test (tmp, G_FILE_TEST_IS_REGULAR)) {
-        GST_ERROR_OBJECT (self, "Cannot find the model file: %s\n", tmp);
-        g_free (tmp);
+      model_file = g_value_dup_string (value);
+      g_assert (model_file);
+
+      silent_debug ("Model = %s\n", model_file);
+      if (!g_file_test (model_file, G_FILE_TEST_IS_REGULAR)) {
+        GST_ERROR_OBJECT (self, "Cannot find the model file: %s\n", model_file);
+        g_free (model_file);
       } else {
-        prop->model_file = tmp;
+        prop->model_file = model_file;
       }
       break;
+    }
     case PROP_INPUT:
       g_assert (!prop->input_configured && value);
       /* Once configures, it cannot be changed in runtime */
