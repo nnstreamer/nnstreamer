@@ -99,6 +99,7 @@ mkdir -p build
 
 %ifarch x86_64 aarch64
     meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true build
+    export TEST_TENSORFLOW=1
 %else
     meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true -DENABLE_TENSORFLOW=false build
 %endif
