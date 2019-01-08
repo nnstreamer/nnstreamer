@@ -2096,7 +2096,7 @@ TEST (test_tensor_aggregator, aggregate_4)
 }
 
 #ifdef HAVE_ORC
-#include "../../gst/tensor_transform/transform-orc.h"
+#include "../../gst/nnstreamer/tensor_transform/transform-orc.h"
 
 /**
  * @brief Test for tensor_transform orc functions (add constant value)

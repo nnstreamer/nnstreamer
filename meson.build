@@ -12,7 +12,7 @@ project('nnstreamer', 'c', 'cpp',
   ]
 )
 
-add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: 'c')
+add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: ['c', 'cpp'])
 
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
@@ -22,17 +22,6 @@ gst_api_verision = '1.0'
 # Set configuration
 nnstreamer_conf = configuration_data()
 nnstreamer_conf.set('VERSION', meson.project_version())
-
-nnstreamer_inc = include_directories('gst/nnstreamer')
-nnstreamer_sources = []
-nnstreamer_base_args = []
-
-# Common headers to be installed
-nnstreamer_headers = [
-  'gst/nnstreamer/tensor_common.h',
-  'gst/nnstreamer/tensor_typedef.h',
-  'gst/nnstreamer/tensor_filter_custom.h'
-]
 
 # Set install path
 nnstreamer_prefix = get_option('prefix')
@@ -65,21 +54,6 @@ libm_dep = cc.find_library('m') # cmath library
 libdl_dep = cc.find_library('dl') # DL library
 libpthread_dep = cxx.find_library('pthread') # pthread for tensorflow-lite
 
-nnstreamer_base_deps = [
-  glib_dep,
-  gst_dep,
-  gst_base_dep,
-  gst_controller_dep,
-  gst_video_dep,
-  gst_audio_dep,
-  libm_dep,
-  libdl_dep,
-  libpthread_dep
-]
-
-# For extra dependencies (subplugins, filters)
-nnstreamer_extra_deps = []
-
 # Orc
 have_orcc = false
 
@@ -88,11 +62,10 @@ orcc = find_program('orcc', required: false)
 if orc_dep.found() and orcc.found()
   have_orcc = true
   orcc_args = [orcc, '--include', 'glib.h']
-  nnstreamer_base_deps += [orc_dep]
-  nnstreamer_base_args += ['-DHAVE_ORC=1']
+  add_project_arguments('-DHAVE_ORC=1', language: ['c', 'cpp'])
 else
   message('Cannot find orc library')
-  nnstreamer_base_args += ['-DDISABLE_ORC=1']
+  add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
 # Tensorflow
@@ -104,7 +77,7 @@ if get_option('ENABLE_TENSORFLOW')
 
   if tf_dep.found() and protobuf_dep.found()
     have_tensorflow = true
-    nnstreamer_base_args += ['-DENABLE_TENSORFLOW=1']
+    add_project_arguments('-DENABLE_TENSORFLOW=1', language: ['c', 'cpp'])
   else
     message('Cannot find tensorflow')
   endif
@@ -118,70 +91,14 @@ if get_option('ENABLE_TENSORFLOW_LITE')
 
   if tflite_dep.found()
     have_tensorflow_lite = true
-    nnstreamer_base_args += ['-DENABLE_TENSORFLOW_LITE=1']
+    add_project_arguments('-DENABLE_TENSORFLOW_LITE=1', language: ['c', 'cpp'])
   else
     message('Cannot find tensorflow-lite')
   endif
 endif
 
 # Build nnstreamer (common, plugins)
-projects = [
-  'nnstreamer',
-  'tensor_aggregator',
-  'tensor_converter',
-  'tensor_decoder',
-  'tensor_demux',
-  'tensor_merge',
-  'tensor_mux',
-  'tensor_saveload',
-  'tensor_sink',
-  'tensor_split',
-  'tensor_transform',
-  'tensor_filter',
-  'tensor_reposrc',
-  'tensor_reposink'
-]
-
-foreach p : projects
-  subdir('gst/'+ p)
-endforeach
-
-# "both_libraries" are supported from 0.46.
-nnstreamer_shared = shared_library('nnstreamer',
-  nnstreamer_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: plugins_install_dir
-)
-
-nnstreamer_static = static_library('nnstreamer',
-  nnstreamer_sources,
-  c_args: nnstreamer_base_args,
-  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: libs_install_dir
-)
-
-nnstreamer_lib = nnstreamer_shared
-if get_option('default_library') == 'static'
-  nnstreamer_lib = nnstreamer_static
-endif
-
-nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib, include_directories: nnstreamer_inc)
-
-# Install headers into /{includedir}/nnstreamer
-install_headers(nnstreamer_headers,
-  subdir: 'nnstreamer'
-)
-
-configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
-  install: true,
-  install_dir: join_paths(libs_install_dir, 'pkgconfig'),
-  configuration: nnstreamer_conf
-)
+subdir('gst')
 
 # Build nnstreamer examples
 subdir('nnstreamer_example')
@@ -190,3 +107,9 @@ subdir('nnstreamer_example')
 if get_option('ENABLE_TEST')
   subdir('tests')
 endif
+
+configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
+  install: true,
+  install_dir: join_paths(libs_install_dir, 'pkgconfig'),
+  configuration: nnstreamer_conf
+)
