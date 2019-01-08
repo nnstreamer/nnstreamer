@@ -104,7 +104,7 @@ ENDIF(ENABLE_TEST)
 
 SET(OBJECTS)
 FOREACH(PRJ IN LISTS PROJECTS)
-	ADD_SUBDIRECTORY(gst/${PRJ})
+	ADD_SUBDIRECTORY(gst/nnstreamer/${PRJ})
 	LIST(APPEND OBJECTS $<TARGET_OBJECTS:${PRJ}OBJ>)
 ENDFOREACH(PRJ)
 
@@ -120,12 +120,20 @@ IF(ENABLE_TENSORFLOW)
 ENDIF(ENABLE_TENSORFLOW)
 LIST(LENGTH FILTER_DEP FILTER_DEP_LEN)
 
-ADD_LIBRARY(nnstreamerStatic STATIC gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c gst/nnstreamer/nnstreamer_conf.c gst/nnstreamer/nnstreamer_subplugin.c ${OBJECTS})
+SET(NNST_COMMON_SRCS
+	gst/nnstreamer/nnstreamer.c
+	gst/nnstreamer/nnstreamer_conf.c
+	gst/nnstreamer/nnstreamer_subplugin.c
+	gst/nnstreamer/tensor_common.c
+	gst/nnstreamer/tensor_repo.c
+)
+
+ADD_LIBRARY(nnstreamerStatic STATIC ${NNST_COMMON_SRCS} ${OBJECTS})
 SET_TARGET_PROPERTIES(nnstreamerStatic PROPERTIES OUTPUT_NAME nnstreamer)
 TARGET_INCLUDE_DIRECTORIES(nnstreamerStatic PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamerStatic PUBLIC ${pkgs_CFLAGS_OTHER})
 
-ADD_LIBRARY(nnstreamer SHARED gst/nnstreamer/nnstreamer.c gst/nnstreamer/tensor_common.c gst/nnstreamer/tensor_repo.c ${OBJECTS})
+ADD_LIBRARY(nnstreamer SHARED ${NNST_COMMON_SRCS} ${OBJECTS})
 TARGET_INCLUDE_DIRECTORIES(nnstreamer PUBLIC ${pkgs_INCLUDE_DIRS})
 TARGET_COMPILE_OPTIONS(nnstreamer PUBLIC ${pkgs_CFLAGS_OTHER})
 TARGET_LINK_LIBRARIES(nnstreamer ${pkgs_LIBRARIES} ${FILTER_LIB})
@@ -143,16 +151,12 @@ INSTALL(TARGETS nnstreamerStatic nnstreamer
 
 CONFIGURE_FILE(nnstreamer.pc.in nnstreamer.pc @ONLY)
 
-# For nnstreamer users (gst app developers using via gstreamer API)
-INSTALL(FILES gst/nnstreamer/tensor_typedef.h
+# tensor_typedef.h for nnstreamer users (gst app developers using via gstreamer API)
+# tensor_filter_custom.h for nnstreamer custom filter developers
+INSTALL(FILES gst/nnstreamer/tensor_typedef.h gst/nnstreamer/tensor_filter_custom.h
 	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
-	)
-
-# For nnstreamer custom filter developers
-INSTALL(FILES gst/nnstreamer/tensor_common.h gst/nnstreamer/tensor_filter_custom.h
-	DESTINATION ${INCLUDE_INSTALL_DIR}/nnstreamer
-	)
+)
 
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/nnstreamer.pc
 	DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
-	)
+)

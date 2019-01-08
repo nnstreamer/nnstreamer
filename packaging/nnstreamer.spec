@@ -99,7 +99,6 @@ mkdir -p build
 
 %ifarch x86_64 aarch64
     meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true build
-    export TEST_TENSORFLOW=1
 %else
     meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -DINSTALL_EXAMPLES=true -DENABLE_TENSORFLOW=false build
 %endif
@@ -110,7 +109,10 @@ ninja -C build %{?_smp_mflags}
     pushd build
     # Copy bmp2png for ssat
     cp ./tests/bmp2png ../tests
-    export LD_LIBRARY_PATH=$(pwd):$(pwd)/gst/tensor_filter
+    export LD_LIBRARY_PATH=$(pwd)/gst/nnstreamer:$(pwd)/gst/nnstreamer/tensor_filter
+    %ifarch x86_64 aarch64
+    export TEST_TENSORFLOW=1
+    %endif
     ./tests/unittest_common
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
@@ -158,8 +160,8 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
-install build/libnnstreamer.a %{buildroot}%{_libdir}/
-install build/gst/tensor_filter/*.a %{buildroot}%{_libdir}/
+install build/gst/nnstreamer/libnnstreamer.a %{buildroot}%{_libdir}/
+install build/gst/nnstreamer/tensor_filter/*.a %{buildroot}%{_libdir}/
 
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig

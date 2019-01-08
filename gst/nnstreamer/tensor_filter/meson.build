@@ -8,7 +8,7 @@ if have_tensorflow
 
   tensor_filter_tfcore_lib_shared = shared_library('tensor_filter_tfcore',
     ['tensor_filter_tensorflow_core.cc'],
-    cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
+    cpp_args: ['-Wno-sign-compare'],
     dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
@@ -17,7 +17,7 @@ if have_tensorflow
 
   tensor_filter_tfcore_lib_static = static_library('tensor_filter_tfcore',
     ['tensor_filter_tensorflow_core.cc'],
-    cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
+    cpp_args: ['-Wno-sign-compare'],
     dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
@@ -38,7 +38,7 @@ if have_tensorflow_lite
 
   tensor_filter_tflitecore_lib_shared = shared_library('tensor_filter_tflitecore',
     ['tensor_filter_tensorflow_lite_core.cc'],
-    cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
+    cpp_args: ['-Wno-sign-compare'],
     dependencies: [tflite_dep, libpthread_dep, libdl_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
@@ -47,7 +47,7 @@ if have_tensorflow_lite
 
   tensor_filter_tflitecore_lib_static = static_library('tensor_filter_tflitecore',
     ['tensor_filter_tensorflow_lite_core.cc'],
-    cpp_args: nnstreamer_base_args + ['-Wno-sign-compare'],
+    cpp_args: ['-Wno-sign-compare'],
     dependencies: [tflite_dep, libpthread_dep, libdl_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
