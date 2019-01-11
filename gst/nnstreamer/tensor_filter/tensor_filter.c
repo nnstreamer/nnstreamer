@@ -59,6 +59,7 @@
 #include <glib.h>
 #include <string.h>
 
+#include <nnstreamer_subplugin.h>
 #include "tensor_filter.h"
 
 /**
@@ -107,6 +108,117 @@
   } \
 } while (0)
 
+
+typedef struct _TensorFilterSPList TensorFilterSPList;
+/**
+ * @brief Linked list having all registered filter subplugins
+ */
+struct _TensorFilterSPList
+{
+  TensorFilterSPList *next; /**< "Next" in the list */
+  GstTensorFilterFramework *body; /**< "Data" in the list element */
+};
+static GstTensorFilterFramework unknown = {
+  .name = "unknown",
+};
+static TensorFilterSPList listhead = {.next = NULL,.body = &unknown };
+
+/**
+ * @brief Filter subplugin should call this to register itself
+ * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered
+ * @return TRUE if registered. FALSE is failed or duplicated.
+ */
+gboolean
+tensor_filter_probe (GstTensorFilterFramework * tfsp)
+{
+  TensorFilterSPList *list;
+
+  if (!tfsp || !tfsp->name || !tfsp->name[0]) {
+    GST_ERROR ("Cannot register invalid filter subplugin.\n");
+    return FALSE;
+  }
+
+  list = &listhead;
+  do {
+    if (0 == g_strcmp0 (list->body->name, tfsp->name)) {
+      /* Duplicated! */
+      GST_ERROR ("DUplicated filter sub-plugin name found: %s\n", tfsp->name);
+      return FALSE;
+    }
+    if (list->next == NULL) {
+      TensorFilterSPList *next = g_malloc (sizeof (TensorFilterSPList));
+      next->next = NULL;
+      next->body = tfsp;
+      list->next = next;
+      break;
+    }
+    list = list->next;
+  } while (list != NULL);
+
+  GST_INFO ("A new sub-plugin, \"%s\" is registered for tensor_filter.\n",
+      tfsp->name);
+  return TRUE;
+}
+
+/**
+ * @brief filter sub-plugin may call this to unregister itself
+ * @param[in] name the name of filter sub-plugin
+ */
+void
+tensor_filter_exit (const gchar * name)
+{
+  TensorFilterSPList *list = &listhead;
+
+  if (!name || !name[0]) {
+    GST_ERROR ("Cannot unregister without a proper name.");
+    return;
+  }
+
+  list = &listhead;
+  do {
+    if (list->next != NULL && 0 == g_strcmp0 (list->next->body->name, name)) {
+      TensorFilterSPList *found = list->next;
+      list->next = found->next;
+      g_free (found);
+      GST_INFO ("A tensor_filter sub-plugin \"%s\" is removed.", name);
+      return;
+    }
+    list = list->next;
+  } while (list != NULL);
+
+  GST_ERROR ("Cannot find a tensor_filter sub-plugin \"%s\".", name);
+  return;
+}
+
+/**
+ * @brief Find filter sub-plugin with the name
+ * @param[in] name The name of tensor_filter sub-plugin
+ * @return NULL if not found or the sub-plugin object.
+ */
+static const GstTensorFilterFramework *
+tensor_filter_find (const gchar * name)
+{
+  TensorFilterSPList *list = &listhead;
+
+  if (!name || !name[0]) {
+    GST_ERROR ("The name of tensor_filter sub-plugin is not given.");
+    return NULL;
+  }
+
+  do {
+    g_assert (list->body);
+
+    if (0 == g_strcmp0 (list->body->name, name)) {
+      return list->body;
+    }
+    list = list->next;
+  } while (list != NULL);
+
+  /* If not found, try to search with nnstremer_subplugin APIs */
+  return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
+}
+
+/** @todo Obsolete. To be removed soon. */
 GstTensorFilterFramework *tensor_filter_supported[] = {
   [_T_F_UNDEFINED] = NULL,
 
@@ -123,17 +235,6 @@ GstTensorFilterFramework *tensor_filter_supported[] = {
   [_T_F_TENSORFLOW] = NULL,
 #endif
   [_T_F_CAFFE2] = NULL,
-
-  0,
-};
-
-const char *nnfw_names[] = {
-  [_T_F_UNDEFINED] = "Not supported",
-
-  [_T_F_CUSTOM] = "custom",
-  [_T_F_TENSORFLOW_LITE] = "tensorflow-lite",
-  [_T_F_TENSORFLOW] = "tensorflow",
-  [_T_F_CAFFE2] = "caffe2",
 
   0,
 };
@@ -228,7 +329,7 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
         if (filter->fw && filter->fw->close) \
           filter->fw->close (filter, &filter->privateData); \
         filter->prop.fw_opened = FALSE; \
-        filter->prop.nnfw = _T_F_UNDEFINED; \
+        g_free ((char *) filter->prop.fwname); \
         filter->fw = NULL; \
       } \
     } while (0)
@@ -349,7 +450,7 @@ gst_tensor_filter_init (GstTensorFilter * self)
   prop = &self->prop;
 
   /* init NNFW properties */
-  prop->nnfw = _T_F_UNDEFINED;
+  prop->fwname = NULL;
   prop->fw_opened = FALSE;
   prop->input_configured = FALSE;
   prop->output_configured = FALSE;
@@ -422,27 +523,21 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     {
       const gchar *fw_name = g_value_get_string (value);
 
-      if (prop->nnfw != _T_F_UNDEFINED) {
+      if (self->fw != NULL) {
         gst_tensor_filter_close_fw (self);
       }
-      prop->nnfw = find_key_strv (nnfw_names, fw_name);
+      self->fw = tensor_filter_find (fw_name);
+
       silent_debug ("Framework = %s\n", fw_name);
-      if (prop->nnfw == -1 || prop->nnfw == _T_F_UNDEFINED) {
+      if (self->fw == NULL) {
         GST_WARNING_OBJECT (self,
             "Cannot identify the given neural network framework, %s\n",
             fw_name);
-        prop->nnfw = _T_F_UNDEFINED;
         break;
       }
 
-      self->fw = tensor_filter_supported[prop->nnfw];
-      if (self->fw == NULL) {
-        GST_WARNING_OBJECT (self,
-            "The given neural network framework is identified but not supported, %s\n",
-            fw_name);
-        prop->nnfw = _T_F_UNDEFINED;
-        break;
-      }
+      g_free ((char *) prop->fwname);
+      prop->fwname = g_strdup (fw_name);
 
       /* See if mandatory methods are filled in */
       g_assert (self->fw->invoke_NN);
@@ -626,7 +721,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_FRAMEWORK:
-      g_value_set_string (value, nnfw_names[prop->nnfw]);
+      g_value_set_string (value, prop->fwname);
       break;
     case PROP_MODEL:
       g_value_set_string (value, prop->model_file);

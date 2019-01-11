@@ -71,7 +71,7 @@ struct _GstTensorDec
   void (*cleanup_plugin_data)(GstTensorDec *self); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
   GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
 
-  TensorDecDef *decoder; /**< Plugin object */
+  const TensorDecDef *decoder; /**< Plugin object */
 };
 
 /**
@@ -158,7 +158,7 @@ struct _TensorDecDef
 
 extern gboolean tensordec_probe (TensorDecDef *decoder);
 extern void tensordec_exit (const gchar *name);
-extern TensorDecDef *tensordec_find (const gchar *name);
+extern const TensorDecDef *tensordec_find (const gchar *name);
 
 
 G_END_DECLS

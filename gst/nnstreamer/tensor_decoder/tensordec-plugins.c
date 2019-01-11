@@ -24,6 +24,7 @@
  */
 
 #include "tensordec.h"
+#include <nnstreamer_subplugin.h>
 #include <gst/gstinfo.h>
 
 typedef struct _TensorDecDefList TensorDecDefList;
@@ -123,7 +124,7 @@ tensordec_exit (const gchar * name)
  * @brief Find decoders subplugin with the name
  * @param[in] name the name of decoder (modename)
  */
-TensorDecDef *
+const TensorDecDef *
 tensordec_find (const gchar * name)
 {
   TensorDecDefList *list = &listhead;
@@ -142,6 +143,6 @@ tensordec_find (const gchar * name)
     list = list->next;
   } while (list != NULL);
 
-  GST_ERROR ("Cannot find decoder subplugin, \"%s\"\n", name);
-  return NULL;
+  /* If not found, try to search with nnstreamer_subplugin APIs */
+  return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }

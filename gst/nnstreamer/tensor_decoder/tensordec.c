@@ -397,7 +397,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:{
       int i;
-      TensorDecDef *decoder;
+      const TensorDecDef *decoder;
       gboolean retval = TRUE;
       temp_string = g_value_dup_string (value);
       decoder = tensordec_find (temp_string);

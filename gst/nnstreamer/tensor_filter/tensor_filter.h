@@ -53,8 +53,6 @@ typedef struct _GstTensorFilter GstTensorFilter;
 typedef struct _GstTensorFilterClass GstTensorFilterClass;
 typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
-extern const char *nnfw_names[];
-
 /**
  * @brief Internal data structure for tensor_filter instances.
  */
@@ -64,7 +62,7 @@ struct _GstTensorFilter
 
   void *privateData; /**< NNFW plugin's private data is stored here */
   GstTensorFilterProperties prop; /**< NNFW plugin's properties */
-  GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+  const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
   /** internal properties for tensor-filter */
   int silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
@@ -187,6 +185,10 @@ extern GstTensorFilterFramework NNS_support_tensorflow;
 extern GstTensorFilterFramework NNS_support_custom;
 
 extern GstTensorFilterFramework *tensor_filter_supported[];
+
+/* extern functions for subplugin management */
+extern gboolean tensor_filter_probe (GstTensorFilterFramework *tfsp);
+extern void tensor_filter_exit (const gchar *name);
 
 G_END_DECLS
 

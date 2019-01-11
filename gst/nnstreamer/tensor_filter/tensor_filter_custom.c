@@ -244,3 +244,17 @@ GstTensorFilterFramework NNS_support_custom = {
   .open = custom_open,
   .close = custom_close,
 };
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+__attribute__ ((constructor))
+     void init_filter_custom (void)
+{
+  tensor_filter_probe (&NNS_support_custom);
+}
+
+/** @brief Destruct the subplugin */
+__attribute__ ((destructor))
+     void fini_filter_custom (void)
+{
+  tensor_filter_exit (NNS_support_custom.name);
+}
