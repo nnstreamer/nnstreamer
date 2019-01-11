@@ -36,12 +36,14 @@
 /**
  * @brief	TFLiteCore creator
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
+ * @param	_use_nnapi	: enable NNAPI path for inference
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char *_model_path)
+TFLiteCore::TFLiteCore (const char *_model_path, int _use_nnapi)
 {
   model_path = _model_path;
+  use_nnapi = _use_nnapi;
 
   memset (&inputTensorMeta, 0, sizeof (GstTensorsInfo));
   memset (&outputTensorMeta, 0, sizeof (GstTensorsInfo));
@@ -119,6 +121,9 @@ TFLiteCore::loadModel ()
       GST_ERROR ("Failed to construct interpreter\n");
       return -2;
     }
+
+    /* Set inference path of tensorflow-lite. */
+    interpreter->UseNNAPI (use_nnapi);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
@@ -366,9 +371,9 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
  * @return	TFLiteCore class
  */
 void *
-tflite_core_new (const char *_model_path)
+tflite_core_new (const char *_model_path, int _use_nnapi)
 {
-  return new TFLiteCore (_model_path);
+  return new TFLiteCore (_model_path, _use_nnapi);
 }
 
 /**

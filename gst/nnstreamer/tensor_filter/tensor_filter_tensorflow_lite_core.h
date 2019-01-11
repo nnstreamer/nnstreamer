@@ -41,7 +41,7 @@
 class TFLiteCore
 {
 public:
-  TFLiteCore (const char *_model_path);
+  TFLiteCore (const char *_model_path, int _use_nnapi);
   ~TFLiteCore ();
 
   int init();
@@ -56,6 +56,7 @@ public:
 private:
 
   const char *model_path;
+  int use_nnapi;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
@@ -76,7 +77,7 @@ extern "C"
 {
 #endif
 
-  extern void *tflite_core_new (const char *_model_path);
+  extern void *tflite_core_new (const char *_model_path, int _use_nnapi);
   extern void tflite_core_delete (void *tflite);
   extern int tflite_core_init (void *tflite);
   extern const char *tflite_core_getModelPath (void *tflite);
