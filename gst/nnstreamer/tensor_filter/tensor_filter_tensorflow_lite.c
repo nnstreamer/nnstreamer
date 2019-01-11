@@ -157,3 +157,17 @@ GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .open = tflite_open,
   .close = tflite_close,
 };
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+__attribute__ ((constructor))
+     void init_filter_tflite (void)
+{
+  tensor_filter_probe (&NNS_support_tensorflow_lite);
+}
+
+/** @brief Destruct the subplugin */
+__attribute__ ((destructor))
+     void fini_filter_tflite (void)
+{
+  tensor_filter_exit (NNS_support_tensorflow_lite.name);
+}

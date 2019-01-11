@@ -145,7 +145,7 @@ typedef struct
  */
 typedef struct _GstTensorFilterProperties
 {
-  nnfw_type nnfw; /**< The enum value of corresponding NNFW. _T_F_UNDEFINED if not configured */
+  const char *fwname; /**< The name of NN Framework */
   int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *model_file; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
 
