@@ -4,7 +4,7 @@ nnstreamer_customfilter_opencv_scaler = shared_library('nnstreamer_customfilter_
   'nnstreamer_customfilter_opencv_scaler.cc',
   dependencies: [glib_dep, opencv_dep],
   include_directories: nnstreamer_inc,
-  install: get_option('INSTALL_EXAMPLES'),
+  install: get_option('install-example'),
   install_dir: subplugins_install_dir
 )
 
@@ -12,6 +12,6 @@ nnstreamer_customfilter_opencv_average = shared_library('nnstreamer_customfilter
   'nnstreamer_customfilter_opencv_average.cc',
   dependencies: [glib_dep, opencv_dep],
   include_directories: nnstreamer_inc,
-  install: get_option('INSTALL_EXAMPLES'),
+  install: get_option('install-example'),
   install_dir: subplugins_install_dir
 )

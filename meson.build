@@ -71,7 +71,7 @@ endif
 # Tensorflow
 have_tensorflow = false
 
-if get_option('ENABLE_TENSORFLOW')
+if get_option('enable-tensorflow')
   tf_dep = dependency('tensorflow', required: true)
   protobuf_dep = dependency('protobuf', version: '>= 3.4.0', required: true)
 
@@ -86,7 +86,7 @@ endif
 # Tensorflow-lite
 have_tensorflow_lite = false
 
-if get_option('ENABLE_TENSORFLOW_LITE')
+if get_option('enable-tensorflow-lite')
   tflite_dep = dependency('tensorflow-lite', required: true)
 
   if tflite_dep.found()
@@ -104,7 +104,7 @@ subdir('gst')
 subdir('nnstreamer_example')
 
 # Build unittests
-if get_option('ENABLE_TEST')
+if get_option('enable-test')
   subdir('tests')
 endif
 
