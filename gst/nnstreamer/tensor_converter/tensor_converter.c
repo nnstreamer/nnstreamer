@@ -1196,7 +1196,6 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   self->in_media_type = in_type;
   self->tensor_configured = TRUE;
   self->tensor_config = config;
-  self->tensor_info = config.info;
   return TRUE;
 }
 
