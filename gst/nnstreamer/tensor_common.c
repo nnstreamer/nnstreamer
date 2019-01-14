@@ -251,6 +251,222 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 }
 
 /**
+ * @brief Parse the string of dimensions
+ * @param info tensors info structure
+ * @param dim_string string of dimensions
+ * @return number of parsed dimensions
+ */
+guint
+gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
+    const gchar * dim_string)
+{
+  guint num_dims = 0;
+
+  g_return_val_if_fail (info != NULL, 0);
+
+  if (dim_string) {
+    guint i;
+    gchar **str_dims;
+
+    str_dims = g_strsplit (dim_string, ",", -1);
+    num_dims = g_strv_length (str_dims);
+
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
+          num_dims, NNS_TENSOR_SIZE_LIMIT);
+
+      num_dims = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_dims; i++) {
+      get_tensor_dimension (str_dims[i], info->info[i].dimension);
+    }
+
+    g_strfreev (str_dims);
+  }
+
+  return num_dims;
+}
+
+/**
+ * @brief Parse the string of types
+ * @param info tensors info structure
+ * @param type_string string of types
+ * @return number of parsed types
+ */
+guint
+gst_tensors_info_parse_types_string (GstTensorsInfo * info,
+    const gchar * type_string)
+{
+  gint num_types = 0;
+
+  g_return_val_if_fail (info != NULL, 0);
+
+  if (type_string) {
+    guint i;
+    gchar **str_types;
+
+    str_types = g_strsplit (type_string, ",", -1);
+    num_types = g_strv_length (str_types);
+
+    if (num_types > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, types (%d) max (%d)\n",
+          num_types, NNS_TENSOR_SIZE_LIMIT);
+
+      num_types = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_types; i++) {
+      info->info[i].type = get_tensor_type (str_types[i]);
+    }
+
+    g_strfreev (str_types);
+  }
+
+  return num_types;
+}
+
+/**
+ * @brief Parse the string of names
+ * @param info tensors info structure
+ * @param name_string string of names
+ * @return number of parsed names
+ */
+guint
+gst_tensors_info_parse_names_string (GstTensorsInfo * info,
+    const gchar * name_string)
+{
+  gint num_names = 0;
+
+  g_return_val_if_fail (info != NULL, 0);
+
+  if (name_string) {
+    guint i;
+    gchar *str_name;
+    gchar **str_names;
+
+    str_names = g_strsplit (name_string, ",", -1);
+    num_names = g_strv_length (str_names);
+
+    if (num_names > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, names (%d) max (%d)\n",
+          num_names, NNS_TENSOR_SIZE_LIMIT);
+
+      num_names = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_names; i++) {
+      str_name = g_strdup (str_names[i]);
+      g_strstrip (str_name);
+
+      g_free (info->info[i].name);
+      info->info[i].name = str_name;
+    }
+
+    g_strfreev (str_names);
+  }
+
+  return num_names;
+}
+
+/**
+ * @brief Get the string of dimensions in tensors info
+ * @param info tensors info structure
+ * @return string of dimensions in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+gchar *
+gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
+{
+  gchar *dim_str = NULL;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  if (info->num_tensors > 0) {
+    guint i;
+    GString *dimensions = g_string_new (NULL);
+
+    for (i = 0; i < info->num_tensors; i++) {
+      dim_str = get_tensor_dimension_string (info->info[i].dimension);
+
+      g_string_append (dimensions, dim_str);
+
+      if (i < info->num_tensors - 1) {
+        g_string_append (dimensions, ",");
+      }
+
+      g_free (dim_str);
+    }
+
+    dim_str = g_string_free (dimensions, FALSE);
+  }
+
+  return dim_str;
+}
+
+/**
+ * @brief Get the string of types in tensors info
+ * @param info tensors info structure
+ * @return string of types in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+gchar *
+gst_tensors_info_get_types_string (const GstTensorsInfo * info)
+{
+  gchar *type_str = NULL;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  if (info->num_tensors > 0) {
+    guint i;
+    GString *types = g_string_new (NULL);
+
+    for (i = 0; i < info->num_tensors; i++) {
+      g_string_append (types, tensor_element_typename[info->info[i].type]);
+
+      if (i < info->num_tensors - 1) {
+        g_string_append (types, ",");
+      }
+    }
+
+    type_str = g_string_free (types, FALSE);
+  }
+
+  return type_str;
+}
+
+/**
+ * @brief Get the string of tensor names in tensors info
+ * @param info tensors info structure
+ * @return string of names in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+gchar *
+gst_tensors_info_get_names_string (const GstTensorsInfo * info)
+{
+  gchar *name_str = NULL;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  if (info->num_tensors > 0) {
+    guint i;
+    GString *names = g_string_new (NULL);
+
+    for (i = 0; i < info->num_tensors; i++) {
+      g_string_append (names, info->info[i].name);
+
+      if (i < info->num_tensors - 1) {
+        g_string_append (names, ",");
+      }
+    }
+
+    name_str = g_string_free (names, FALSE);
+  }
+
+  return name_str;
+}
+
+/**
  * @brief Initialize the tensor config info structure
  * @param config tensor config structure to be initialized
  */
@@ -752,7 +968,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const GstStructure * structure)
 {
   const gchar *name;
-  guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensors_config_init (config);
@@ -787,51 +1002,29 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     /* parse dimensions */
     dims_string = gst_structure_get_string (structure, "dimensions");
     if (dims_string) {
-      gchar **str_dims;
-      gint num_dims;
+      guint num_dims;
 
-      str_dims = g_strsplit (dims_string, ",", -1);
-      num_dims = g_strv_length (str_dims);
+      num_dims =
+          gst_tensors_info_parse_dimensions_string (&config->info, dims_string);
 
       if (config->info.num_tensors != num_dims) {
         GST_WARNING ("Invalid param, dimensions (%d) tensors (%d)\n",
             num_dims, config->info.num_tensors);
-
-        if (num_dims > config->info.num_tensors) {
-          num_dims = config->info.num_tensors;
-        }
       }
-
-      for (i = 0; i < num_dims; i++) {
-        get_tensor_dimension (str_dims[i], config->info.info[i].dimension);
-      }
-
-      g_strfreev (str_dims);
     }
 
-    /** parse types */
+    /* parse types */
     types_string = gst_structure_get_string (structure, "types");
     if (types_string) {
-      gchar **str_types;
-      gint num_types;
+      guint num_types;
 
-      str_types = g_strsplit (types_string, ",", -1);
-      num_types = g_strv_length (str_types);
+      num_types =
+          gst_tensors_info_parse_types_string (&config->info, types_string);
 
       if (config->info.num_tensors != num_types) {
         GST_WARNING ("Invalid param, types (%d) tensors (%d)\n",
             num_types, config->info.num_tensors);
-
-        if (num_types > config->info.num_tensors) {
-          num_types = config->info.num_tensors;
-        }
       }
-
-      for (i = 0; i < num_types; i++) {
-        config->info.info[i].type = get_tensor_type (str_types[i]);
-      }
-
-      g_strfreev (str_types);
     }
   } else {
     GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
@@ -850,41 +1043,24 @@ GstCaps *
 gst_tensors_caps_from_config (const GstTensorsConfig * config)
 {
   GstCaps *caps;
-  guint i;
 
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
   if (config->info.num_tensors > 0) {
-    GString *dimensions = g_string_new (NULL);
-    GString *types = g_string_new (NULL);
-    gchar *dim_str;
+    gchar *dim_str, *type_str;
 
-    /** dimensions and types */
-    for (i = 0; i < config->info.num_tensors; i++) {
-      dim_str = get_tensor_dimension_string (config->info.info[i].dimension);
-
-      g_string_append (dimensions, dim_str);
-      g_string_append (types,
-          tensor_element_typename[config->info.info[i].type]);
-
-      if (i < config->info.num_tensors - 1) {
-        g_string_append (dimensions, ",");
-        g_string_append (types, ",");
-      }
-
-      g_free (dim_str);
-    }
+    dim_str = gst_tensors_info_get_dimensions_string (&config->info);
+    type_str = gst_tensors_info_get_types_string (&config->info);
 
     gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
         config->info.num_tensors, NULL);
-    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dimensions->str,
-        NULL);
-    gst_caps_set_simple (caps, "types", G_TYPE_STRING, types->str, NULL);
+    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
 
-    g_string_free (dimensions, TRUE);
-    g_string_free (types, TRUE);
+    g_free (dim_str);
+    g_free (type_str);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {

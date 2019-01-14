@@ -253,6 +253,121 @@ TEST (common_get_tensor_dimension, case4)
 }
 
 /**
+ * @brief Test for dimensions string in tensors info.
+ */
+TEST (common_tensors_info_string, dimensions)
+{
+  GstTensorsInfo info;
+  guint num_dims;
+  gchar *str_dims;
+
+  gst_tensors_info_init (&info);
+
+  /* 1 tensor info */
+  num_dims = gst_tensors_info_parse_dimensions_string (&info, "1:2:3:4");
+  EXPECT_EQ (num_dims, 1);
+
+  info.num_tensors = num_dims;
+
+  str_dims = gst_tensors_info_get_dimensions_string (&info);
+  EXPECT_TRUE (g_str_equal (str_dims, "1:2:3:4"));
+  g_free (str_dims);
+
+  /* 4 tensors info */
+  num_dims = gst_tensors_info_parse_dimensions_string (&info, "1, 2, 3, 4");
+  EXPECT_EQ (num_dims, 4);
+
+  info.num_tensors = num_dims;
+
+  str_dims = gst_tensors_info_get_dimensions_string (&info);
+  EXPECT_TRUE (g_str_equal (str_dims, "1:1:1:1,2:1:1:1,3:1:1:1,4:1:1:1"));
+  g_free (str_dims);
+
+  /* max */
+  num_dims = gst_tensors_info_parse_dimensions_string (&info,
+      "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20");
+  EXPECT_EQ (num_dims, NNS_TENSOR_SIZE_LIMIT);
+}
+
+/**
+ * @brief Test for types string in tensors info.
+ */
+TEST (common_tensors_info_string, types)
+{
+  GstTensorsInfo info;
+  guint num_types;
+  gchar *str_types;
+
+  gst_tensors_info_init (&info);
+
+  /* 1 tensor info */
+  num_types = gst_tensors_info_parse_types_string (&info, "uint16");
+  EXPECT_EQ (num_types, 1);
+
+  info.num_tensors = num_types;
+
+  str_types = gst_tensors_info_get_types_string (&info);
+  EXPECT_TRUE (g_str_equal (str_types, "uint16"));
+  g_free (str_types);
+
+  /* 4 tensors info */
+  num_types = gst_tensors_info_parse_types_string (&info,
+      "int8, int16, int32, int64");
+  EXPECT_EQ (num_types, 4);
+
+  info.num_tensors = num_types;
+
+  str_types = gst_tensors_info_get_types_string (&info);
+  EXPECT_TRUE (g_str_equal (str_types, "int8,int16,int32,int64"));
+  g_free (str_types);
+
+  /* max */
+  num_types = gst_tensors_info_parse_types_string (&info,
+      "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, "
+      "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8");
+  EXPECT_EQ (num_types, NNS_TENSOR_SIZE_LIMIT);
+}
+
+/**
+ * @brief Test for names string in tensors info.
+ */
+TEST (common_tensors_info_string, names)
+{
+  GstTensorsInfo info;
+  guint num_names;
+  gchar *str_names;
+
+  gst_tensors_info_init (&info);
+
+  /* 1 tensor info */
+  num_names = gst_tensors_info_parse_names_string (&info, "t1");
+  EXPECT_EQ (num_names, 1);
+
+  info.num_tensors = num_names;
+
+  str_names = gst_tensors_info_get_names_string (&info);
+  EXPECT_TRUE (g_str_equal (str_names, "t1"));
+  g_free (str_names);
+
+  /* 4 tensors info */
+  num_names = gst_tensors_info_parse_names_string (&info,
+      "tensor1, tensor2, tensor3, tensor4");
+  EXPECT_EQ (num_names, 4);
+
+  info.num_tensors = num_names;
+
+  str_names = gst_tensors_info_get_names_string (&info);
+  EXPECT_TRUE (g_str_equal (str_names, "tensor1,tensor2,tensor3,tensor4"));
+  g_free (str_names);
+
+  /* max */
+  num_names = gst_tensors_info_parse_names_string (&info,
+      "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
+      "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
+  EXPECT_EQ (num_names, NNS_TENSOR_SIZE_LIMIT);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
