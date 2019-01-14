@@ -160,9 +160,6 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
-install build/gst/nnstreamer/libnnstreamer.a %{buildroot}%{_libdir}/
-install build/gst/nnstreamer/tensor_filter/*.a %{buildroot}%{_libdir}/
-
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
 
