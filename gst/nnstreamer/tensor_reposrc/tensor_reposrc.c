@@ -128,6 +128,7 @@ gst_tensor_reposrc_init (GstTensorRepoSrc * self)
 {
   self->silent = TRUE;
   self->ini = FALSE;
+  self->negotiation = FALSE;
   gst_tensors_config_init (&self->config);
   self->caps = NULL;
 }
@@ -210,6 +211,7 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_SLOT_ID:
       self->myid = g_value_get_uint (value);
+      self->negotiation = FALSE;
       break;
     case PROP_CAPS:
     {
@@ -235,6 +237,7 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
         self->fps_n = -1;
         self->fps_d = -1;
       }
+      self->negotiation = FALSE;
     }
       break;
     default:
@@ -298,8 +301,26 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
     self->ini = TRUE;
   } else {
     buf = gst_tensor_repo_get_buffer (self->myid);
+
     if (buf == NULL)
       return GST_FLOW_EOS;
+
+    GstMetaRepo *meta = GST_META_REPO_GET (buf);
+
+    if (!self->negotiation) {
+      if (!gst_caps_can_intersect (self->caps, meta->caps)) {
+        GST_ELEMENT_ERROR (GST_ELEMENT (self), CORE, NEGOTIATION,
+            ("Negotiation Failed! : repo_sink & repos_src"), (NULL));
+        gst_buffer_remove_meta (buf, (GstMeta *) meta);
+        gst_buffer_unref (buf);
+        gst_tensor_repo_set_eos (self->myid);
+        return GST_FLOW_EOS;
+      }
+
+      self->negotiation = TRUE;
+    }
+
+    gst_buffer_remove_meta (buf, (GstMeta *) meta);
   }
 
   *buffer = buf;
