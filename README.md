@@ -29,9 +29,7 @@ neural network developers to manage stream pipelines and their filters easily an
 * [Sangjung Woo](https://github.com/again4you)
 * [Wook Song](https://github.com/wooksong)
 * [Jaeyun Jung](https://github.com/jaeyun-jung)
-* [Jinhyuck Park](https://github.com/jinhyuck-park)
 * [Hyoungjoo Ahn](https://github.com/helloahn)
-* [Sewon Oh](https://github.com/ohsewon)
 
 ## Components
 
