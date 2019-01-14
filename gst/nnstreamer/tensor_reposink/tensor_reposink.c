@@ -334,7 +334,7 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
   if (notify) {
     gboolean ret = FALSE;
     self->last_render_time = now;
-    ret = gst_tensor_repo_set_buffer (self->myid, buffer);
+    ret = gst_tensor_repo_set_buffer (self->myid, buffer, self->in_caps);
     if (!ret)
       GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
           ("Cannot Set buffer into repo [key: %d]", self->myid), NULL);

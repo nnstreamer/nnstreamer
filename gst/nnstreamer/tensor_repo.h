@@ -32,6 +32,44 @@
 #include <gst/gst.h>
 
 G_BEGIN_DECLS
+/**
+ * @brief GstTensorRepo meta structure.
+ */
+typedef struct
+{
+  GstMeta meta;
+  GstCaps *caps;
+} GstMetaRepo;
+
+/**
+ * @brief Define tensor_repo meta data type to register & macro
+ */
+GType gst_meta_repo_api_get_type (void);
+#define GST_META_REPO_API_TYPE (gst_meta_repo_api_get_type())
+
+/**
+ * @brief get tensor_repo meta data info & macro
+ */
+const GstMetaInfo *gst_meta_repo_get_info (void);
+#define GST_META_REPO_INFO ((GstMetaInfo*) gst_meta_repo_get_info())
+
+/**
+ * @brief macro of get_tensor_repo meta data
+ */
+#define gst_buffer_get_meta_repo(b) \
+  ((GstMetaRepo*) gst_buffer_get_meta((b), GST_META_REPO_API_TYPE))
+
+/**
+ * @brief add get_tensor_repo meta data in buffer
+ */
+GstMetaRepo *gst_buffer_add_meta_repo (GstBuffer * buffer);
+
+/**
+ * @brief Macro of get & add meta
+ */
+#define GST_META_REPO_GET(buf) ((GstMetaRepo*) gst_buffer_get_meta_repo(buf))
+#define GST_META_REPO_ADD(buf) ((GstMetaRepo*) gst_buffer_add_meta_repo(buf))
+
 
 /**
  * @brief GstTensorRepo internal data structure.
@@ -78,7 +116,7 @@ gst_tensor_repo_add_repodata (guint myid);
  * @brief push GstBuffer into repo
  */
 gboolean
-gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer);
+gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps);
 
 /**
  * @brief get EOS

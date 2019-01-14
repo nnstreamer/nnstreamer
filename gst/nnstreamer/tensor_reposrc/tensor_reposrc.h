@@ -59,6 +59,7 @@ struct _GstTensorRepoSrc
   GstCaps *caps;
   gboolean ini;
   gint fps_n, fps_d;
+  gboolean negotiation;
 };
 
 /**
