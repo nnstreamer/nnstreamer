@@ -552,6 +552,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       if (prop->model_file) {
         gst_tensor_filter_close_fw (self);
         g_free ((char *) prop->model_file);     /* g_free cannot handle const * */
+        prop->model_file = NULL;
       }
 
       /* Once configures, it cannot be changed in runtime */
@@ -571,80 +572,72 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (!prop->input_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i, rank;
-        gchar **str_dims;
+        guint num_dims;
 
-        str_dims = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->input_meta.num_tensors = g_strv_length (str_dims);
+        num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          rank =
-              get_tensor_dimension (str_dims[i],
-              prop->input_meta.info[i].dimension);
-          g_assert (rank > 0);
-
-          silent_debug_info (&prop->input_meta, "input prop");
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_dims) {
+          GST_WARNING_OBJECT (self,
+              "Invalid input-dim, given param does not match with old value.");
         }
 
-        g_strfreev (str_dims);
+        prop->input_meta.num_tensors = num_dims;
       }
       break;
     case PROP_OUTPUT:
       g_assert (!prop->output_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i, rank;
-        gchar **str_dims;
+        guint num_dims;
 
-        str_dims = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->output_meta.num_tensors = g_strv_length (str_dims);
+        num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          rank =
-              get_tensor_dimension (str_dims[i],
-              prop->output_meta.info[i].dimension);
-          g_assert (rank > 0);
-
-          silent_debug_info (&prop->output_meta, "output prop");
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_dims) {
+          GST_WARNING_OBJECT (self,
+              "Invalid output-dim, given param does not match with old value.");
         }
 
-        g_strfreev (str_dims);
+        prop->output_meta.num_tensors = num_dims;
       }
       break;
     case PROP_INPUTTYPE:
       g_assert (!prop->input_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i;
-        gchar **str_types;
+        guint num_types;
 
-        str_types = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->input_meta.num_tensors = g_strv_length (str_types);
+        num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          prop->input_meta.info[i].type = get_tensor_type (str_types[i]);
-          g_assert (prop->input_meta.info[i].type != _NNS_END);
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_types) {
+          GST_WARNING_OBJECT (self,
+              "Invalid input-type, given param does not match with old value.");
         }
 
-        g_strfreev (str_types);
+        prop->input_meta.num_tensors = num_types;
       }
       break;
     case PROP_OUTPUTTYPE:
       g_assert (!prop->output_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i;
-        gchar **str_types;
+        guint num_types;
 
-        str_types = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->output_meta.num_tensors = g_strv_length (str_types);
+        num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          prop->output_meta.info[i].type = get_tensor_type (str_types[i]);
-          g_assert (prop->output_meta.info[i].type != _NNS_END);
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_types) {
+          GST_WARNING_OBJECT (self,
+              "Invalid output-type, given param does not match with old value.");
         }
 
-        g_strfreev (str_types);
+        prop->output_meta.num_tensors = num_types;
       }
       break;
     case PROP_INPUTNAME:
@@ -652,20 +645,18 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (!prop->input_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i;
-        gchar **str_names;
+        guint num_names;
 
-        str_names = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->input_meta.num_tensors = g_strv_length (str_names);
+        num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          g_free ((char *) prop->input_meta.info[i].name);
-          prop->input_meta.info[i].name = g_strdup (str_names[i]);
-          g_assert (prop->input_meta.info[i].name &&
-              prop->input_meta.info[i].name[0] != '\0');
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_names) {
+          GST_WARNING_OBJECT (self,
+              "Invalid input-name, given param does not match with old value.");
         }
 
-        g_strfreev (str_names);
+        prop->input_meta.num_tensors = num_names;
       }
       break;
     case PROP_OUTPUTNAME:
@@ -673,20 +664,18 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       g_assert (!prop->output_configured && value);
       /* Once configures, it cannot be changed in runtime */
       {
-        int i;
-        gchar **str_names;
+        guint num_names;
 
-        str_names = g_strsplit (g_value_get_string (value), ",", -1);
-        prop->output_meta.num_tensors = g_strv_length (str_names);
+        num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
+            g_value_get_string (value));
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          g_free ((char *) prop->output_meta.info[i].name);
-          prop->output_meta.info[i].name = g_strdup (str_names[i]);
-          g_assert (prop->output_meta.info[i].name &&
-              prop->output_meta.info[i].name[0] != '\0');
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_names) {
+          GST_WARNING_OBJECT (self,
+              "Invalid input-name, given param does not match with old value.");
         }
 
-        g_strfreev (str_names);
+        prop->output_meta.num_tensors = num_names;
       }
       break;
     case PROP_CUSTOM:
@@ -728,126 +717,72 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       break;
     case PROP_INPUT:
       if (prop->input_meta.num_tensors > 0) {
-        GString *dimensions = g_string_new (NULL);
         gchar *dim_str;
-        int i;
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          dim_str =
-              get_tensor_dimension_string (prop->input_meta.info[i].dimension);
-          g_string_append (dimensions, dim_str);
+        dim_str = gst_tensors_info_get_dimensions_string (&prop->input_meta);
 
-          if (i < prop->input_meta.num_tensors - 1) {
-            g_string_append (dimensions, ",");
-          }
-
-          g_free (dim_str);
-        }
-
-        g_value_set_string (value, dimensions->str);
-        g_string_free (dimensions, TRUE);
+        g_value_set_string (value, dim_str);
+        g_free (dim_str);
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_OUTPUT:
       if (prop->output_meta.num_tensors > 0) {
-        GString *dimensions = g_string_new (NULL);
         gchar *dim_str;
-        int i;
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          dim_str =
-              get_tensor_dimension_string (prop->output_meta.info[i].dimension);
-          g_string_append (dimensions, dim_str);
+        dim_str = gst_tensors_info_get_dimensions_string (&prop->output_meta);
 
-          if (i < prop->output_meta.num_tensors - 1) {
-            g_string_append (dimensions, ",");
-          }
-
-          g_free (dim_str);
-        }
-
-        g_value_set_string (value, dimensions->str);
-        g_string_free (dimensions, TRUE);
+        g_value_set_string (value, dim_str);
+        g_free (dim_str);
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_INPUTTYPE:
       if (prop->input_meta.num_tensors > 0) {
-        GString *types = g_string_new (NULL);
-        int i;
+        gchar *type_str;
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          g_string_append (types,
-              tensor_element_typename[prop->input_meta.info[i].type]);
+        type_str = gst_tensors_info_get_types_string (&prop->input_meta);
 
-          if (i < prop->input_meta.num_tensors - 1) {
-            g_string_append (types, ",");
-          }
-        }
-
-        g_value_set_string (value, types->str);
-        g_string_free (types, TRUE);
+        g_value_set_string (value, type_str);
+        g_free (type_str);
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_OUTPUTTYPE:
       if (prop->output_meta.num_tensors > 0) {
-        GString *types = g_string_new (NULL);
-        int i;
+        gchar *type_str;
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          g_string_append (types,
-              tensor_element_typename[prop->output_meta.info[i].type]);
+        type_str = gst_tensors_info_get_types_string (&prop->output_meta);
 
-          if (i < prop->output_meta.num_tensors - 1) {
-            g_string_append (types, ",");
-          }
-        }
-
-        g_value_set_string (value, types->str);
-        g_string_free (types, TRUE);
+        g_value_set_string (value, type_str);
+        g_free (type_str);
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_INPUTNAME:
       if (prop->input_meta.num_tensors > 0) {
-        GString *names = g_string_new (NULL);
-        int i;
+        gchar *name_str;
 
-        for (i = 0; i < prop->input_meta.num_tensors; i++) {
-          g_string_append (names, prop->input_meta.info[i].name);
+        name_str = gst_tensors_info_get_names_string (&prop->input_meta);
 
-          if (i < prop->input_meta.num_tensors - 1) {
-            g_string_append (names, ",");
-          }
-        }
-
-        g_value_set_string (value, names->str);
-        g_string_free (names, TRUE);
+        g_value_set_string (value, name_str);
+        g_free (name_str);
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_OUTPUTNAME:
       if (prop->output_meta.num_tensors > 0) {
-        GString *names = g_string_new (NULL);
-        int i;
+        gchar *name_str;
 
-        for (i = 0; i < prop->output_meta.num_tensors; i++) {
-          g_string_append (names, prop->output_meta.info[i].name);
+        name_str = gst_tensors_info_get_names_string (&prop->output_meta);
 
-          if (i < prop->output_meta.num_tensors - 1) {
-            g_string_append (names, ",");
-          }
-        }
-
-        g_value_set_string (value, names->str);
-        g_string_free (names, TRUE);
+        g_value_set_string (value, name_str);
+        g_free (name_str);
       } else {
         g_value_set_string (value, "");
       }

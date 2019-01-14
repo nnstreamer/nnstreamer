@@ -281,6 +281,60 @@ extern gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
 
 /**
+ * @brief Parse the string of dimensions
+ * @param info tensors info structure
+ * @param dim_string string of dimensions
+ * @return number of parsed dimensions
+ */
+extern guint
+gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info, const gchar * dim_string);
+
+/**
+ * @brief Parse the string of types
+ * @param info tensors info structure
+ * @param type_string string of types
+ * @return number of parsed types
+ */
+extern guint
+gst_tensors_info_parse_types_string (GstTensorsInfo * info, const gchar * type_string);
+
+/**
+ * @brief Parse the string of names
+ * @param info tensors info structure
+ * @param name_string string of names
+ * @return number of parsed names
+ */
+extern guint
+gst_tensors_info_parse_names_string (GstTensorsInfo * info, const gchar * name_string);
+
+/**
+ * @brief Get the string of dimensions in tensors info
+ * @param info tensors info structure
+ * @return string of dimensions in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
+
+/**
+ * @brief Get the string of types in tensors info
+ * @param info tensors info structure
+ * @return string of types in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_types_string (const GstTensorsInfo * info);
+
+/**
+ * @brief Get the string of tensor names in tensors info
+ * @param info tensors info structure
+ * @return string of names in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_names_string (const GstTensorsInfo * info);
+
+/**
  * @brief Initialize the tensor config info structure
  * @param config tensor config structure to be initialized
  */
