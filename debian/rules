@@ -13,12 +13,35 @@
 # package maintainers to append LDFLAGS
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
+ROOT_DIR:=$(shell pwd)
 export DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 %:
-	dh $@ --buildsystem=cmake --builddirectory=build --parallel
+	dh $@ --parallel
 
-NNS_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH)
+override_dh_auto_clean:
+	rm -rf build
 
 override_dh_auto_configure:
-	dh_auto_configure -- -DCMAKE_INSTALL_LIBDIR=$(NNS_INSTALL_LIBDIR)
+	mkdir -p build
+	meson --buildtype=plain --werror --prefix=/usr --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include -Dinstall-example=true -Denable-tensorflow=false build
+# @todo @hello-ahn Enablet tensorflow after the update of protobuf packaging
+
+override_dh_auto_build:
+	ninja -C build
+
+override_dh_auto_test:
+	export LD_LIBRARY_PATH=${ROOT_DIR}/build/gst/nnstreamer:${ROOT_DIR}/build/gst/nnstreamer/tensor_filter
+	export GST_PLUGIN_PATH=${ROOT_DIR}/build
+	ls -l
+	cd build && ./tests/unittest_common && cd ..
+	cd build && ./tests/unittest_sink --gst-plugin-path=. && cd ..
+	cd build && ./tests/unittest_plugins --gst-plugin-path=. && cd ..
+	cd tests && ssat -n && cd ..
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/tmp ninja -C build install
+
+override_dh_install:
+	dh_install --sourcedir=debian/tmp --list-missing
+# Add --fail-missing option after adding *.install files for all subpackages.
