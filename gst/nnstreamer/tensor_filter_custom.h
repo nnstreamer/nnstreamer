@@ -109,6 +109,12 @@ typedef int (*NNS_custom_allocate_invoke) (void *private_data,
     const GstTensorFilterProperties * prop, const GstTensorMemory * input, GstTensorMemory * output);
 
 /**
+ * @brief It's a post-processing method about the used data pointer if it has been allocated at custom filter.
+ * @param[in] data the data element.
+ */
+typedef void (*NNS_custom_destroy_notify) (void * data);
+
+/**
  * @brief Custom Filter Class
  *
  * Note that exery function pointer is MANDATORY!
@@ -122,6 +128,7 @@ struct _NNStreamer_custom_class
   NNS_custom_set_input_dimension setInputDim; /**< without getI/O-Dim, this allows framework to set input dimension and get output dimension from the custom filter according to the input dimension */
   NNS_custom_invoke invoke; /**< the main function, "invoke", that transforms input to output. invoke is supposed to fill in the given output buffer. (invoke) XOR (allocate_invoke) MUST hold. */
   NNS_custom_allocate_invoke allocate_invoke; /**< the main function, "allocate & invoke", that transforms input to output. allocate_invoke is supposed to allocate output buffer by itself. (invoke) XOR (allocate_invoke) MUST hold. */
+  NNS_custom_destroy_notify destroy_notify; /**< it handles the data pointer allocated in the custom framework. when the data pointer has been destroyed at the pipeline, this method will be called. the data pointer or an object including data pointer could be deleted safely with this function. this method is only used when allocate_invoke is TRUE */
 };
 typedef struct _NNStreamer_custom_class NNStreamer_custom_class;
 

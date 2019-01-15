@@ -117,8 +117,10 @@ custom_open (const GstTensorFilter * filter, void **private_data)
   ptr = *private_data;
   g_assert (!ptr->methods->invoke != !ptr->methods->allocate_invoke);   /* XOR! */
 
-  if (ptr->methods->allocate_invoke)
+  if (ptr->methods->allocate_invoke) {
     NNS_support_custom.allocate_in_invoke = TRUE;
+    NNS_support_custom.destroyNotify = ptr->methods->destroy_notify;
+  }
   return 0;
 }
 
@@ -243,6 +245,7 @@ GstTensorFilterFramework NNS_support_custom = {
   .setInputDimension = custom_setInputDim,
   .open = custom_open,
   .close = custom_close,
+  .destroyNotify = NULL,        /* default null. if allocate_in_invoke is true, this will be set from custom filter. */
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
