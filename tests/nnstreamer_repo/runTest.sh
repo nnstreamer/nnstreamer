@@ -31,8 +31,16 @@ else
 fi
 convertBMP2PNG
 
-# The first gst buffer at tensor_reposrc is dummy.
+# Fail Test : Negotiation Error (dimension)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png, framerate=30/1\" ! pngdec ! tensor_converter ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor, dim1=3, dim2=100, dim3=100, dim4=1, type=uint8, framerate=30/1\" ! multifilesink location=testsequence01_%1d.log" F0 0 1 $PERFORMANCE
 
+# Fail Test : Negotiation Error (type)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png, framerate=30/1\" ! pngdec ! tensor_converter ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor, dim1=3, dim2=16, dim3=16, dim4=1, type=float32, framerate=30/1\" ! multifilesink location=testsequence01_%1d.log" F1 0 1 $PERFORMANCE
+
+# Fail Test : Negotiation Error (MimeType)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png, framerate=30/1\" ! pngdec ! tensor_converter ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensors, num_tensors=1, framerate=30/1, types=uint8, dimensions=3:16:16:1\" ! multifilesink location=testsequence01_%1d.log" F2 0 1 $PERFORMANCE
+
+# The first gst buffer at tensor_reposrc is dummy.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png, framerate=30/1\" ! pngdec ! tensor_converter ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor, dim1=3, dim2=16, dim3=16, dim4=1, type=uint8, framerate=30/1\" ! multifilesink location=testsequence01_%1d.log" 1 0 0 $PERFORMANCE
 
 callCompareTest testsequence_1.golden testsequence01_1.log 1-1 "Compare 1-1" 1 0
