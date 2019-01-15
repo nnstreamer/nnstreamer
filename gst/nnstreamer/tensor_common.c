@@ -120,21 +120,14 @@ gst_tensor_info_init (GstTensorInfo * info)
 gboolean
 gst_tensor_info_validate (const GstTensorInfo * info)
 {
-  guint i;
-
   g_return_val_if_fail (info != NULL, FALSE);
 
   if (info->type == _NNS_END) {
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (info->dimension[i] == 0) {
-      return FALSE;
-    }
-  }
-
-  return TRUE;
+  /* validate tensor dimension */
+  return gst_tensor_dimension_is_valid (info->dimension);
 }
 
 /**
@@ -531,7 +524,6 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
     const GstStructure * structure)
 {
   GstTensorInfo *info;
-  const gchar *type_string;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -544,13 +536,15 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
     return FALSE;
   }
 
-  gst_structure_get_int (structure, "dim1", (gint *) (&info->dimension[0]));
-  gst_structure_get_int (structure, "dim2", (gint *) (&info->dimension[1]));
-  gst_structure_get_int (structure, "dim3", (gint *) (&info->dimension[2]));
-  gst_structure_get_int (structure, "dim4", (gint *) (&info->dimension[3]));
+  if (gst_structure_has_field (structure, "dimension")) {
+    const gchar *dim_str = gst_structure_get_string (structure, "dimension");
+    get_tensor_dimension (dim_str, info->dimension);
+  }
 
-  type_string = gst_structure_get_string (structure, "type");
-  info->type = get_tensor_type (type_string);
+  if (gst_structure_has_field (structure, "type")) {
+    const gchar *type_str = gst_structure_get_string (structure, "type");
+    info->type = get_tensor_type (type_str);
+  }
 
   gst_structure_get_fraction (structure, "framerate", &config->rate_n,
       &config->rate_d);
@@ -871,24 +865,11 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
 
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
-  if (config->info.dimension[0] > 0) {
-    gst_caps_set_simple (caps, "dim1", G_TYPE_INT, config->info.dimension[0],
-        NULL);
-  }
+  if (gst_tensor_dimension_is_valid (config->info.dimension)) {
+    gchar *dim_str = get_tensor_dimension_string (config->info.dimension);
 
-  if (config->info.dimension[1] > 0) {
-    gst_caps_set_simple (caps, "dim2", G_TYPE_INT, config->info.dimension[1],
-        NULL);
-  }
-
-  if (config->info.dimension[2] > 0) {
-    gst_caps_set_simple (caps, "dim3", G_TYPE_INT, config->info.dimension[2],
-        NULL);
-  }
-
-  if (config->info.dimension[3] > 0) {
-    gst_caps_set_simple (caps, "dim4", G_TYPE_INT, config->info.dimension[3],
-        NULL);
+    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+    g_free (dim_str);
   }
 
   if (config->info.type != _NNS_END) {
@@ -986,9 +967,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     config->rate_d = c.rate_d;
     config->rate_n = c.rate_n;
   } else if (g_str_equal (name, "other/tensors")) {
-    const gchar *dims_string;
-    const gchar *types_string;
-
     gst_structure_get_int (structure, "num_tensors",
         (gint *) (&config->info.num_tensors));
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1000,12 +978,13 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     }
 
     /* parse dimensions */
-    dims_string = gst_structure_get_string (structure, "dimensions");
-    if (dims_string) {
+    if (gst_structure_has_field (structure, "dimensions")) {
+      const gchar *dims_str;
       guint num_dims;
 
+      dims_str = gst_structure_get_string (structure, "dimensions");
       num_dims =
-          gst_tensors_info_parse_dimensions_string (&config->info, dims_string);
+          gst_tensors_info_parse_dimensions_string (&config->info, dims_str);
 
       if (config->info.num_tensors != num_dims) {
         GST_WARNING ("Invalid param, dimensions (%d) tensors (%d)\n",
@@ -1014,12 +993,13 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     }
 
     /* parse types */
-    types_string = gst_structure_get_string (structure, "types");
-    if (types_string) {
+    if (gst_structure_has_field (structure, "types")) {
+      const gchar *types_str;
       guint num_types;
 
+      types_str = gst_structure_get_string (structure, "types");
       num_types =
-          gst_tensors_info_parse_types_string (&config->info, types_string);
+          gst_tensors_info_parse_types_string (&config->info, types_str);
 
       if (config->info.num_tensors != num_types) {
         GST_WARNING ("Invalid param, types (%d) tensors (%d)\n",
@@ -1157,6 +1137,25 @@ find_key_strv (const gchar ** strv, const gchar * key)
   }
 
   return -1;                    /* Not Found */
+}
+
+/**
+ * @brief Check the tensor dimension is valid
+ * @param dim tensor dimension
+ * @return TRUE if dimension is valid
+ */
+gboolean
+gst_tensor_dimension_is_valid (const tensor_dim dim)
+{
+  guint i;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+    if (dim[i] == 0) {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
 
 /**

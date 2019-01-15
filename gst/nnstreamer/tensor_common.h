@@ -85,20 +85,18 @@ G_BEGIN_DECLS
     GST_TENSOR_TEXT_CAPS_STR "; " \
     GST_TENSOR_OCTET_CAPS_STR
 
-/** @todo I'm not sure if the range is to be 1, 65535 or larger */
-#define GST_TENSOR_DIM_RANGE "(int) [ 1, 65535 ]"
-#define GST_TENSOR_RATE_RANGE "(fraction) [ 0/1, 2147483647/1 ]"
+#define GST_TENSOR_RATE_RANGE "(fraction) [ 0, max ]"
 #define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 #define GST_TENSOR_CAP_DEFAULT \
     "other/tensor, " \
-    "dim1 = " GST_TENSOR_DIM_RANGE ", " \
-    "dim2 = " GST_TENSOR_DIM_RANGE ", " \
-    "dim3 = " GST_TENSOR_DIM_RANGE ", " \
-    "dim4 = " GST_TENSOR_DIM_RANGE ", " \
-    "type = (string) " GST_TENSOR_TYPE_ALL ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
-
+    /**
+     * type should be one of types in GST_TENSOR_TYPE_ALL
+     * "type = (string) uint8"
+     * dimension shoule be a formatted string with rank NNS_TENSOR_RANK_LIMIT
+     * "dimension = (string) dim1:dim2:dim3:dim4"
+     */
 
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
@@ -431,6 +429,14 @@ extern tensor_type get_tensor_type (const gchar * typestr);
  * @param key The key string value
  */
 extern int find_key_strv (const gchar ** strv, const gchar * key);
+
+/**
+ * @brief Check the tensor dimension is valid
+ * @param dim tensor dimension
+ * @return TRUE if dimension is valid
+ */
+extern gboolean
+gst_tensor_dimension_is_valid (const tensor_dim dim);
 
 /**
  * @brief Parse tensor dimension parameter string
