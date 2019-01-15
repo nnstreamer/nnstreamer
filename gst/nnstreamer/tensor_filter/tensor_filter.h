@@ -178,6 +178,12 @@ struct _GstTensorFilterFramework
        * @param[in] filter "this" pointer. Use this to read property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
        */
+
+  void (*destroyNotify) (void * data);
+      /**< Optional. tensor_filter.c will call it when 'allocate_in_invoke' flag of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
+       * 
+       * @param[in] data the data element.
+       */
 };
 
 extern GstTensorFilterFramework NNS_support_tensorflow_lite;
