@@ -72,3 +72,10 @@ if gtest_dep.found()
 
   test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
 endif
+
+# unittest_repo_dynamic
+unittest_repo = executable('unittest_repo',
+join_paths('nnstreamer_repo_dynamicity', 'tensor_repo_dynamic_test.c'),
+dependencies: [nnstreamer_dep, gst_dep, glib_dep],
+install: false
+)
