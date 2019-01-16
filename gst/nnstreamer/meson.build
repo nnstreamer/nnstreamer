@@ -1,6 +1,7 @@
 nnstreamer_inc = include_directories('.')
 nnstreamer_sources = []
 nnstreamer_headers = []
+nnstreamer_generated = []
 
 # Dependencies
 nnstreamer_base_deps = [
@@ -66,6 +67,9 @@ foreach p : nnst_plugins
   subdir(p)
 endforeach
 
+# Add generated
+nnstreamer_sources += nnstreamer_generated
+
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,
@@ -89,6 +93,7 @@ if get_option('default_library') == 'static'
 endif
 
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
+  sources: nnstreamer_generated,
   dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc)
 
