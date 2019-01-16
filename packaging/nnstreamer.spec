@@ -34,9 +34,6 @@ BuildRequires:	python-numpy
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
 BuildRequires: tensorflow-lite-devel
-# for cairo (nnstreamer_example_object_detection)
-BuildRequires: coregl-devel
-BuildRequires: cairo-devel
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
 # For './testAll.sh' time limit.

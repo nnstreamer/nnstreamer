@@ -6,7 +6,7 @@ Build-Depends: gcc, cmake, libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev
  libgtest-dev,
  debhelper (>=9),
  gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good,
- libpng-dev, tensorflow-lite-dev, tensorflow-dev [amd64 arm64], libcairo2-dev, libopencv-dev,
+ libpng-dev, tensorflow-lite-dev, tensorflow-dev [amd64 arm64], libopencv-dev,
  liborc-0.4-dev, ssat, python, python-numpy, libprotobuf-dev [amd64 arm64]
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnsuite/nnstreamer
