@@ -101,7 +101,9 @@ endif
 subdir('gst')
 
 # Build nnstreamer examples
-subdir('nnstreamer_example')
+if get_option('enable-test') or get_option('install-example')
+  subdir('nnstreamer_example')
+endif
 
 # Build unittests
 if get_option('enable-test')
