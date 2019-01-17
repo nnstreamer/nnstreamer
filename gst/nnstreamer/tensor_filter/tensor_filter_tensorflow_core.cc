@@ -365,7 +365,7 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 
 #define copyInputWithType(type) do { \
     for (int idx = 0; idx < array_len; ++idx) \
-      inputTensor.flat<type>()(idx) = ((type*)input->data)[idx]; \
+      inputTensor.flat<type>()(idx) = ((type*)input[i].data)[idx]; \
   } while (0)
 
 #define copyOutputWithType(type) do { \
@@ -394,13 +394,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
       ts.AddDim(inputTensorMeta.info[i].dimension[j]);
     }
     Tensor inputTensor(
-      getTensorTypeToTF(input->type),
+      getTensorTypeToTF(input[i].type),
       ts
     );
 
-    array_len = input->size / tensor_element_size[input->type];
+    array_len = input[i].size / tensor_element_size[input[i].type];
 
-    switch (input->type) {
+    switch (input[i].type) {
       case _NNS_INT32:
         copyInputWithType (int32);
         break;
