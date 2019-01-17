@@ -39,7 +39,7 @@ if have_tensorflow_lite
   tensor_filter_tflitecore_lib_shared = shared_library('tensor_filter_tflitecore',
     ['tensor_filter_tensorflow_lite_core.cc'],
     cpp_args: ['-Wno-sign-compare'],
-    dependencies: [tflite_dep, libpthread_dep, libdl_dep, glib_dep, gst_dep],
+    dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
     install_dir: subplugins_install_dir
@@ -48,7 +48,7 @@ if have_tensorflow_lite
   tensor_filter_tflitecore_lib_static = static_library('tensor_filter_tflitecore',
     ['tensor_filter_tensorflow_lite_core.cc'],
     cpp_args: ['-Wno-sign-compare'],
-    dependencies: [tflite_dep, libpthread_dep, libdl_dep, glib_dep, gst_dep],
+    dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep],
     include_directories: nnstreamer_inc,
     install: true,
     install_dir: subplugins_install_dir
