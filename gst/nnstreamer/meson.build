@@ -13,7 +13,7 @@ nnstreamer_base_deps = [
   gst_audio_dep,
   libm_dep,
   libdl_dep,
-  libpthread_dep
+  thread_dep
 ]
 
 if have_orcc
