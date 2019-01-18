@@ -76,6 +76,8 @@ public:
   int getOutputTensorDim (GstTensorsInfo * info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
 
+  static std::map<void*, Tensor> outputTensorMap;
+
 private:
 
   const char *model_path;
@@ -92,8 +94,6 @@ private:
   DataType getTensorTypeToTF (tensor_type tType);
   int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
   int inputTensorValidation (const std::vector<const NodeDef*> &placeholders);
-  /*TODO*/
-  // int outputTensorValidation ();
 };
 
 /**
@@ -111,6 +111,7 @@ extern "C"
   extern int tf_core_getOutputDim (void *tf, GstTensorsInfo * info);
   extern int tf_core_run (void *tf, const GstTensorMemory * input,
       GstTensorMemory * output);
+  extern void tf_core_destroyNotify (void * data);
 
 #ifdef __cplusplus
 }

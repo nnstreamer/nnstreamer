@@ -148,10 +148,21 @@ tf_getOutputDim (const GstTensorFilter * filter, void **private_data,
   return ret;
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] data The data element.
+ */
+static void
+tf_destroyNotify (void *data)
+{
+  tf_core_destroyNotify (data);
+}
+
 GstTensorFilterFramework NNS_support_tensorflow = {
   .name = "tensorflow",
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = FALSE,
+  .allocate_in_invoke = TRUE,
+  .destroyNotify = tf_destroyNotify,
   .invoke_NN = tf_run,
   .getInputDimension = tf_getInputDim,
   .getOutputDimension = tf_getOutputDim,
