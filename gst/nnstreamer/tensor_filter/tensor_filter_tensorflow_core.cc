@@ -33,6 +33,8 @@
 #define DBG FALSE
 #endif
 
+std::map<void*, Tensor> TFCore::outputTensorMap;
+
 /**
  * @brief	TFCore creator
  * @param	_model_path	: the logical path to '{model_name}.pb' file
@@ -284,8 +286,9 @@ TFCore::inputTensorValidation (const std::vector<const NodeDef*> &placeholders)
     gchar **str_dims;
     str_dims = g_strsplit (shape_description.c_str(), ",", -1);
     inputTensorRank[i] = g_strv_length (str_dims);
-    if (inputTensorRank[i] > NNS_TENSOR_RANK_LIMIT){
+    if (inputTensorRank[i] > NNS_TENSOR_RANK_LIMIT) {
       GST_ERROR ("The Rank of Input Tensor is not affordable. It's over our capacity.\n");
+      g_strfreev (str_dims);
       return -5;
     }
     for (int j = 0; j < inputTensorRank[i]; j++) {
@@ -294,9 +297,11 @@ TFCore::inputTensorValidation (const std::vector<const NodeDef*> &placeholders)
 
       if (inputTensorMeta.info[i].dimension[inputTensorRank[i] - j - 1] != atoi (str_dims[j])){
         GST_ERROR ("Input Tensor is not valid: the dim of input tensor is different\n");
+        g_strfreev (str_dims);
         return -4;
       }
     }
+    g_strfreev (str_dims);
   }
   return 0;
 }
@@ -369,8 +374,8 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
   } while (0)
 
 #define copyOutputWithType(type) do { \
-    for (int idx = 0; idx < array_len; ++idx) \
-      ((type *)output[i].data)[idx] = outputs[i].flat<type>()(idx); \
+    output[i].data = outputs[i].flat<type>().data(); \
+    outputTensorMap.insert (std::make_pair (output[i].data, outputs[i])); \
   } while (0)
 
 /**
@@ -446,13 +451,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   Status run_status =
       session->Run(input_feeds, output_tensor_names, {}, &outputs);
 
-  if (run_status != Status::OK()){
+  if (run_status != Status::OK ()){
     GST_ERROR ("Failed to run model: %s\n", (run_status.ToString ()).c_str ());
     return -1;
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
-    output[i].type = getTensorTypeFromTF(outputs[i].dtype());
+    output[i].type = getTensorTypeFromTF (outputs[i].dtype());
     output[i].size = tensor_element_size[output[i].type];
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
       output[i].size *= outputTensorMeta.info[i].dimension[j];
@@ -580,4 +585,13 @@ tf_core_run (void *tf, const GstTensorMemory * input, GstTensorMemory * output)
 {
   TFCore *c = (TFCore *) tf;
   return c->run (input, output);
+}
+
+/**
+ * @brief	the destroy notify method for tensorflow. it will free the output tensor
+ * @param[in] data : the data element destroyed at the pipeline
+ */
+void
+tf_core_destroyNotify (void * data){
+  TFCore::outputTensorMap.erase (data);
 }
