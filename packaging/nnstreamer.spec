@@ -104,8 +104,6 @@ ninja -C build %{?_smp_mflags}
 
 %if 0%{?unit_test}
     pushd build
-    # Copy bmp2png for ssat
-    cp ./tests/bmp2png ../tests
     export LD_LIBRARY_PATH=$(pwd)/gst/nnstreamer:$(pwd)/gst/nnstreamer/tensor_filter
     %ifarch x86_64 aarch64
     export TEST_TENSORFLOW=1
