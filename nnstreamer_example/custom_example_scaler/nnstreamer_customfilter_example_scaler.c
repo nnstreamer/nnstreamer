@@ -37,19 +37,6 @@ typedef struct _pt_data
 } pt_data;
 
 /**
- * @brief strdup() is not C89 compatible. Define it here.
- */
-static char *
-_strdup (const char *src)
-{
-  size_t len = strlen (src) + 1;
-  char *dest = (char *) malloc (sizeof (char) * len);
-  strncpy (dest, src, len - 1);
-  dest[len - 1] = '\0';
-  return dest;
-}
-
-/**
  * @brief tensor_filter_custom::NNS_custom_init_func
  */
 static void *
@@ -58,7 +45,7 @@ pt_init (const GstTensorFilterProperties * prop)
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
 
   if (prop->custom_properties && strlen (prop->custom_properties) > 0)
-    data->property = _strdup (prop->custom_properties);
+    data->property = g_strdup (prop->custom_properties);
   else
     data->property = NULL;
   data->new_x = 0;
