@@ -41,7 +41,7 @@ For more details, please access the following manual.
 * Press [Here](Documentation/getting-started.md)
 
 ## Usage Examples
-- [Example app with camera](nnstreamer_example/example_cam) (stable)
+- [Example apps](https://github.com/nnsuite/nnstreamer-example) (stable)
 - Wiki page [usage example screenshots](https://github.com/nnsuite/nnstreamer/wiki/usage-examples-screenshots) (stable)
 
 ## CI Server
