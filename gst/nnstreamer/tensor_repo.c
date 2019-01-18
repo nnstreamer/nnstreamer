@@ -137,10 +137,42 @@ gst_tensor_repo_get_repodata (guint nth)
 }
 
 /**
+ * @brief Set the changing status of repo.
+ */
+gboolean
+gst_tensor_repo_set_changed (guint o_nth, guint nth, gboolean is_sink)
+{
+  gboolean ret = FALSE;
+  GstTensorRepoData *data;
+  GST_TENSOR_REPO_LOCK (o_nth);
+  data = gst_tensor_repo_get_repodata (o_nth);
+
+  if (data) {
+    if (is_sink) {
+      data->sink_changed = TRUE;
+      data->sink_id = nth;
+      if (DBG)
+        GST_DEBUG ("SET sink_changed! @id %d \n", o_nth);
+      GST_TENSOR_REPO_SIGNAL_PULL (o_nth);
+    } else {
+      data->src_changed = TRUE;
+      data->src_id = nth;
+      if (DBG)
+        GST_DEBUG ("SET src_changed! @id %d\n", o_nth);
+      GST_TENSOR_REPO_SIGNAL_PUSH (o_nth);
+    }
+    ret = TRUE;
+  }
+
+  GST_TENSOR_REPO_UNLOCK (o_nth);
+  return ret;
+}
+
+/**
  * @brief add GstTensorRepoData into repo
  */
 gboolean
-gst_tensor_repo_add_repodata (guint nth)
+gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
 {
   gboolean ret = FALSE;
   GstTensorRepoData *new;
@@ -149,6 +181,14 @@ gst_tensor_repo_add_repodata (guint nth)
   gpointer check = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
 
   if (check != NULL) {
+    new = (GstTensorRepoData *) check;
+    if (is_sink)
+      new->sink_changed = FALSE;
+    else
+      new->src_changed = FALSE;
+    new->pushed = FALSE;
+    if (DBG)
+      GST_DEBUG ("SET SINK & SRC Changed FALSE!! @%d\n", nth);
     GST_REPO_UNLOCK ();
     return TRUE;
   }
@@ -159,6 +199,9 @@ gst_tensor_repo_add_repodata (guint nth)
   g_cond_init (&new->cond_push);
   g_cond_init (&new->cond_pull);
   g_mutex_init (&new->lock);
+  new->sink_changed = FALSE;
+  new->src_changed = FALSE;
+  new->pushed = FALSE;
 
   ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), new);
   g_assert (ret);
@@ -175,7 +218,8 @@ gst_tensor_repo_add_repodata (guint nth)
  * @brief push GstBuffer into repo
  */
 gboolean
-gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps)
+gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer,
+    GstCaps * caps)
 {
   GST_TENSOR_REPO_LOCK (nth);
 
@@ -221,6 +265,33 @@ gst_tensor_repo_check_eos (guint nth)
 }
 
 /**
+ * @brief check eos of slot
+ */
+gboolean
+gst_tensor_repo_check_changed (guint nth, guint * newid, gboolean is_sink)
+{
+  gboolean ret = FALSE;
+  GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
+  if (DBG)
+    GST_DEBUG ("%dth RepoData : sink_chaned %d, src_changed %d\n", nth,
+        data->sink_changed, data->src_changed);
+
+  if (is_sink) {
+    if (data->sink_changed) {
+      *newid = data->sink_id;
+      ret = data->sink_changed;
+    }
+  } else {
+    if (data->src_changed) {
+      *newid = data->src_id;
+      ret = data->src_changed;
+    }
+  }
+  return ret;
+}
+
+
+/**
  * @brief set eos of slot
  */
 gboolean
@@ -239,33 +310,37 @@ gst_tensor_repo_set_eos (guint nth)
  * @brief get GstTensorRepoData from repo
  */
 GstBuffer *
-gst_tensor_repo_get_buffer (guint nth)
+gst_tensor_repo_get_buffer (guint nth, guint o_nth, gboolean * eos,
+    guint * newid)
 {
   GstTensorRepoData *current_data;
   GstBuffer *buf;
-  gboolean eos = FALSE;
 
   GST_TENSOR_REPO_LOCK (nth);
   current_data = gst_tensor_repo_get_repodata (nth);
 
   while (!current_data->buffer) {
+    if (gst_tensor_repo_check_changed (nth, newid, FALSE)) {
+      buf = NULL;
+      goto done;
+    }
+
     if (gst_tensor_repo_check_eos (nth)) {
-      eos = TRUE;
-      break;
+      *eos = TRUE;
+      buf = NULL;
+      goto done;
     }
     GST_TENSOR_REPO_WAIT_PUSH (nth);
   }
-  if (eos) {
-    if (DBG)
-      GST_DEBUG ("Get EOS Signal while waiting\n");
-    buf = NULL;
-  } else {
-    buf = gst_buffer_copy_deep (current_data->buffer);
-    if (DBG) {
-      unsigned long size = gst_buffer_get_size (buf);
-      GST_DEBUG ("Popped [ %d ] (size: %lu)\n", nth, size);
-    }
+
+  buf = gst_buffer_copy_deep (current_data->buffer);
+  gst_buffer_unref (current_data->buffer);
+  if (DBG) {
+    unsigned long size = gst_buffer_get_size (buf);
+    GST_DEBUG ("Popped [ %d ] (size: %lu)\n", nth, size);
   }
+
+done:
   current_data->buffer = NULL;
   GST_TENSOR_REPO_SIGNAL_PULL (nth);
   GST_TENSOR_REPO_UNLOCK (nth);

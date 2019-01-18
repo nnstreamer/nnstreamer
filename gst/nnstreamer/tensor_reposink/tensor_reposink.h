@@ -59,7 +59,9 @@ struct _GstTensorRepoSink
   guint signal_rate;
   GstClockTime last_render_time;
   GstCaps *in_caps;
+  gboolean set_startid;
   guint myid;
+  guint o_myid;
 };
 
 /**
