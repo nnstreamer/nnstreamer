@@ -186,12 +186,6 @@ struct _GstTensorFilterFramework
        */
 };
 
-extern GstTensorFilterFramework NNS_support_tensorflow_lite;
-extern GstTensorFilterFramework NNS_support_tensorflow;
-extern GstTensorFilterFramework NNS_support_custom;
-
-extern GstTensorFilterFramework *tensor_filter_supported[];
-
 /* extern functions for subplugin management */
 extern gboolean tensor_filter_probe (GstTensorFilterFramework *tfsp);
 extern void tensor_filter_exit (const gchar *name);

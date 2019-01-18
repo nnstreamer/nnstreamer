@@ -218,27 +218,6 @@ tensor_filter_find (const gchar * name)
   return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
 
-/** @todo Obsolete. To be removed soon. */
-GstTensorFilterFramework *tensor_filter_supported[] = {
-  [_T_F_UNDEFINED] = NULL,
-
-  [_T_F_CUSTOM] = &NNS_support_custom,
-
-#ifdef ENABLE_TENSORFLOW_LITE
-  [_T_F_TENSORFLOW_LITE] = &NNS_support_tensorflow_lite,
-#else
-  [_T_F_TENSORFLOW_LITE] = NULL,
-#endif
-#ifdef ENABLE_TENSORFLOW
-  [_T_F_TENSORFLOW] = &NNS_support_tensorflow,
-#else
-  [_T_F_TENSORFLOW] = NULL,
-#endif
-  [_T_F_CAFFE2] = NULL,
-
-  0,
-};
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 #define GST_CAT_DEFAULT gst_tensor_filter_debug
 
