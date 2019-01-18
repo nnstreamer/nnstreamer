@@ -1,21 +1,43 @@
-subdir('nnstreamer_tensors/tensors_test')
+# These plugins are used for multi-tensors test in nnstreamer_tensors.
+library('testtensors',
+  join_paths('nnstreamer_tensors', 'tensors_test', 'gsttesttensors.c'),
+  dependencies: [gst_dep, nnstreamer_dep],
+  install: false
+)
 
+library('tensorscheck',
+  join_paths('nnstreamer_tensors', 'tensors_test', 'gsttensorscheck.c'),
+  dependencies: [gst_dep, nnstreamer_dep],
+  install: false
+)
+
+# This custom filter is used in unittest_sink.
+library('nnscustom_framecounter',
+  join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
+  dependencies: [glib_dep, nnstreamer_dep],
+  install: false
+)
+
+# Build and copy exe for ssat
 libpng_dep = dependency('libpng', required: false)
 if libpng_dep.found()
-  executable('bmp2png',
+  b2p = executable('bmp2png',
     'bmp2png.c',
-    dependencies: [libpng_dep]
+    dependencies: [libpng_dep],
+    install: false
+  )
+
+  copy = find_program('cp')
+  custom_target('copy-bmp2png',
+    input: b2p,
+    output: 'b2p',
+    command: [copy, '@INPUT@', meson.current_source_dir()],
+    build_by_default: true
   )
 endif
 
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
-  # This custom filter is used in unittest_sink.
-  nnscustom_framecounter_lib = library('nnscustom_framecounter',
-    'nnstreamer_sink/nnscustom_framecounter.c',
-    dependencies: [glib_dep],
-    include_directories: nnstreamer_inc)
-
   nnstreamer_unittest_deps = [
     nnstreamer_dep,
     gst_app_dep,
@@ -25,22 +47,28 @@ if gtest_dep.found()
 
   # Run unittest_common
   unittest_common = executable('unittest_common',
-    'common/unittest_common.cpp',
-    dependencies: [nnstreamer_unittest_deps])
+    join_paths('common', 'unittest_common.cpp'),
+    dependencies: [nnstreamer_unittest_deps],
+    install: false
+  )
 
   test('unittest_common', unittest_common)
 
   # Run unittest_sink
   unittest_sink = executable('unittest_sink',
-    'nnstreamer_sink/unittest_sink.cpp',
-    dependencies: [nnstreamer_unittest_deps])
+    join_paths('nnstreamer_sink', 'unittest_sink.cpp'),
+    dependencies: [nnstreamer_unittest_deps],
+    install: false
+  )
 
-  test('unittest_sink', unittest_sink, args: ['--gst-plugin-path=../'])
+  test('unittest_sink', unittest_sink, args: ['--gst-plugin-path=..'])
 
   # Run unittest_plugins
   unittest_plugins = executable('unittest_plugins',
-    'nnstreamer_plugins/unittest_plugins.cpp',
-    dependencies: [nnstreamer_unittest_deps])
+    join_paths('nnstreamer_plugins', 'unittest_plugins.cpp'),
+    dependencies: [nnstreamer_unittest_deps],
+    install: false
+  )
 
-  test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=../'])
+  test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
 endif
