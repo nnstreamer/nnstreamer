@@ -54,18 +54,19 @@ if installing NNstreamer plugin libraries into ```%{_libdir}```.
 install the required packages.
 
 ```bash
-$ sudo apt install libgtk-3-dev ninja-build
-$ git clone https://github.com/mesonbuild/meson.git
-$ cd meson
-$ git checkout 0.48
-$ cd ..
+$ sudo apt install meson ninja-build
 ```
 
 Build at the git repo root directory.
 ```bash
-$ meson/meson.py build
-$ cd build
-$ ninja
+nnstreamer$ meson --werror build
+nnstreamer$ cd build
+build$ sudo ninja install
+```
+
+How to run test
+```bash
+build$ ninja test
 ```
  
 ### Clean Build based on Platform
@@ -97,8 +98,7 @@ Then, create tarball that will contain your chroot environment to build package.
 $ vi ~/.pbuilderrc
 # man 5 pbuilderrc
 DISTRIBUTION=xenial
-# OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial universe multiverse"
-OTHERMIRROR="deb http://where.you.can.get.tensorflow.lite.deb.files/ /"
+OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial universe multiverse |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
 $ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
 $ sudo pbuilder create
 ```
