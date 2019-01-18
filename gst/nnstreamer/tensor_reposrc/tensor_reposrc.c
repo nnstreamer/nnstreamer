@@ -131,6 +131,7 @@ gst_tensor_reposrc_init (GstTensorRepoSrc * self)
   self->negotiation = FALSE;
   gst_tensors_config_init (&self->config);
   self->caps = NULL;
+  self->set_startid = FALSE;
 }
 
 /**
@@ -210,8 +211,19 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       self->silent = g_value_get_boolean (value);
       break;
     case PROP_SLOT_ID:
+      self->o_myid = self->myid;
       self->myid = g_value_get_uint (value);
       self->negotiation = FALSE;
+
+      gst_tensor_repo_add_repodata (self->myid, FALSE);
+
+      if (!self->set_startid) {
+        self->o_myid = self->myid;
+        self->set_startid = TRUE;
+      }
+      if (self->o_myid != self->myid)
+        gst_tensor_repo_set_changed (self->o_myid, self->myid, FALSE);
+
       break;
     case PROP_CAPS:
     {
@@ -272,6 +284,30 @@ gst_tensor_reposrc_get_property (GObject * object, guint prop_id,
 }
 
 /**
+ * @brief create dummy buffer for initialization
+ */
+static GstBuffer *
+gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
+{
+  GstBuffer *buf = NULL;
+  int i;
+  guint num_tensors = self->config.info.num_tensors;
+  gsize size = 0;
+  buf = gst_buffer_new ();
+  for (i = 0; i < num_tensors; i++) {
+    GstMemory *mem;
+    GstMapInfo info;
+    size = gst_tensor_info_get_size (&self->config.info.info[i]);
+    mem = gst_allocator_alloc (NULL, size, NULL);
+    gst_memory_map (mem, &info, GST_MAP_WRITE);
+    memset (info.data, 0, size);
+    gst_memory_unmap (mem, &info);
+    gst_buffer_append_memory (buf, mem);
+  }
+  return buf;
+}
+
+/**
  * @brief create func of tensor_reposrc
  */
 static GstFlowReturn
@@ -279,35 +315,26 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
 {
   GstTensorRepoSrc *self;
   GstBuffer *buf = NULL;
+  gboolean eos = FALSE;
+  GstMetaRepo *meta;
+  guint newid;
 
   self = GST_TENSOR_REPOSRC (src);
   gst_tensor_repo_wait ();
 
   if (!self->ini) {
-    int i;
-    guint num_tensors = self->config.info.num_tensors;
-    gsize size = 0;
-    buf = gst_buffer_new ();
-    for (i = 0; i < num_tensors; i++) {
-      GstMemory *mem;
-      GstMapInfo info;
-      size = gst_tensor_info_get_size (&self->config.info.info[i]);
-      mem = gst_allocator_alloc (NULL, size, NULL);
-      gst_memory_map (mem, &info, GST_MAP_WRITE);
-      memset (info.data, 0, size);
-      gst_memory_unmap (mem, &info);
-      gst_buffer_append_memory (buf, mem);
-    }
+    buf = gst_tensor_reposrc_gen_dummy_buffer (self);
     self->ini = TRUE;
   } else {
-    buf = gst_tensor_repo_get_buffer (self->myid);
-
-    if (buf == NULL)
+    while (!buf && !eos) {
+      buf = gst_tensor_repo_get_buffer (self->myid, self->o_myid, &eos, &newid);
+    }
+    if (eos)
       return GST_FLOW_EOS;
 
-    GstMetaRepo *meta = GST_META_REPO_GET (buf);
+    meta = GST_META_REPO_GET (buf);
 
-    if (!self->negotiation) {
+    if (!self->negotiation && buf != NULL) {
       if (!gst_caps_can_intersect (self->caps, meta->caps)) {
         GST_ELEMENT_ERROR (GST_ELEMENT (self), CORE, NEGOTIATION,
             ("Negotiation Failed! : repo_sink & repos_src"), (NULL));
@@ -318,8 +345,8 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
       }
 
       self->negotiation = TRUE;
-    }
 
+    }
     gst_buffer_remove_meta (buf, (GstMeta *) meta);
   }
 
