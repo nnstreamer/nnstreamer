@@ -172,6 +172,16 @@ pt_allocate_invoke (void *private_data,
 }
 
 /**
+ * @brief destroy notify callback of tensor_filter custom
+ */
+static void
+pt_destroy_notify (void * data)
+{
+  g_assert (data);
+  g_free (data);
+}
+
+/**
  * @brief tensor_filter custom subplugin definition
  */
 static NNStreamer_custom_class NNStreamer_custom_body = {
@@ -182,6 +192,7 @@ static NNStreamer_custom_class NNStreamer_custom_body = {
   .setInputDim = set_inputDim,
   .invoke = NULL,
   .allocate_invoke = pt_allocate_invoke,
+  .destroy_notify = pt_destroy_notify,
 };
 
 /* The dyn-loaded object */
