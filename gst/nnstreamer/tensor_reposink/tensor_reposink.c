@@ -157,6 +157,7 @@ gst_tensor_reposink_init (GstTensorRepoSink * self)
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
   self->last_render_time = GST_CLOCK_TIME_NONE;
+  self->set_startid = FALSE;
   self->in_caps = NULL;
 
   gst_base_sink_set_qos_enabled (basesink, DEFAULT_QOS);
@@ -180,8 +181,16 @@ gst_tensor_reposink_set_property (GObject * object, guint prop_id,
       self->silent = g_value_get_boolean (value);
       break;
     case PROP_SLOT:
+      self->o_myid = self->myid;
       self->myid = g_value_get_uint (value);
-      gst_tensor_repo_add_repodata (self->myid);
+      gst_tensor_repo_add_repodata (self->myid, TRUE);
+      if (!self->set_startid) {
+        self->o_myid = self->myid;
+        self->set_startid = TRUE;
+      }
+      if (self->o_myid != self->myid)
+        gst_tensor_repo_set_changed (self->o_myid, self->myid, TRUE);
+
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -334,7 +343,9 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
   if (notify) {
     gboolean ret = FALSE;
     self->last_render_time = now;
-    ret = gst_tensor_repo_set_buffer (self->myid, buffer, self->in_caps);
+    ret =
+        gst_tensor_repo_set_buffer (self->myid, self->o_myid, buffer,
+        self->in_caps);
     if (!ret)
       GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
           ("Cannot Set buffer into repo [key: %d]", self->myid), NULL);
