@@ -35,11 +35,9 @@
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
+
 /**
  * @brief Possible data element types of other/tensor.
- *
- * The current version supports NNS_UINT8 only as video-input.
- * There is no restrictions for inter-NN or sink-to-app.
  */
 typedef enum _nns_tensor_type
 {
@@ -90,21 +88,6 @@ typedef union {
   int64_t _int64_t;
   uint64_t _uint64_t;
 } tensor_element;
-
-/**
- * @brief NN Frameworks available for the tensor_filter element.
- */
-typedef enum _nnfw_type
-{
-  _T_F_UNDEFINED = 0, /**< Not defined or supported. Cannot proceed in this status */
-
-  _T_F_CUSTOM, /**< Custom filter provided as a shared object (dysym) */
-  _T_F_TENSORFLOW_LITE, /**< In Progress */
-  _T_F_TENSORFLOW, /**< NYI */
-  _T_F_CAFFE2, /**< NYI */
-
-  _T_F_NNFW_END,
-} nnfw_type;
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 

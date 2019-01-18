@@ -90,8 +90,9 @@ typedef int (*NNS_custom_set_input_dimension) (void *private_data,
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
- * @param[in] input The array of input tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
- * @param[out] output The array of output tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
+ * @param[in] input The array of input tensors, each tensor size = dim_1 x dim_2 x .. x dim_n x typesize, allocated by caller
+ * @param[out] output The array of output tensors, each tensor size = dim_1 x dim_2 x .. x dim_n x typesize, allocated by caller
+ * @note rank limit (NNS_TENSOR_RANK_LIMIT) and typesize (tensor_element_size) defined in tensor_typedef.h
  * @return 0 if success
  */
 typedef int (*NNS_custom_invoke) (void *private_data,
@@ -101,8 +102,9 @@ typedef int (*NNS_custom_invoke) (void *private_data,
  * @brief Invoke the "main function". Without allocating output buffer. (fill in the given output buffer)
  * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
- * @param[in] input The array of input tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, allocated by caller
- * @param[out] output The array of output tensors, each tensor size = dim1 x dim2 x dim3 x dim4 x typesize, the memory block for output tensor should be allocated. (data in GstTensorMemory)
+ * @param[in] input The array of input tensors, each tensor size = dim_1 x dim_2 x .. x dim_n x typesize, allocated by caller
+ * @param[out] output The array of output tensors, each tensor size = dim_1 x dim_2 x .. x dim_n x typesize, the memory block for output tensor should be allocated. (data in GstTensorMemory)
+ * @note rank limit (NNS_TENSOR_RANK_LIMIT) and typesize (tensor_element_size) defined in tensor_typedef.h
  * @return 0 if success
  */
 typedef int (*NNS_custom_allocate_invoke) (void *private_data,

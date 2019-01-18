@@ -31,6 +31,8 @@
 #include <glib.h>
 #include <dlfcn.h>
 
+static GstTensorFilterFramework NNS_support_custom;
+
 /**
  * @brief internal_data
  */
@@ -233,7 +235,7 @@ custom_close (const GstTensorFilter * filter, void **private_data)
   g_assert (filter->privateData == NULL);
 }
 
-GstTensorFilterFramework NNS_support_custom = {
+static GstTensorFilterFramework NNS_support_custom = {
   .name = "custom",
   .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
   .allocate_in_invoke = FALSE,  /* GstTensorFilter allocates output buffers */
