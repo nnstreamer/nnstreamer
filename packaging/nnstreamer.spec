@@ -74,10 +74,10 @@ Requires:	gstreamer-devel
 Development package for custom tensor operator developers (tensor_filter/custom).
 This contains corresponding header files and .pc pkgconfig file.
 
-%package example
+%package custom-filter-example
 Summary:	NNStreamer example custom plugins and test plugins
 Requires:	nnstreamer = %{version}-%{release}
-%description example
+%description custom-filter-example
 Example custom tensor_filter subplugins and
 plugins created for test purpose.
 
@@ -180,12 +180,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_datadir}/nnstreamer/unittest/*
 %endif
 
-%files example
+%files custom-filter-example
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
 %{_libdir}/*.so
-%{nnstexampledir}/*
 %exclude %{_libdir}/libtensor_filter_tflitecore.so
 %ifarch x86_64 aarch64
 %exclude %{_libdir}/libtensor_filter_tfcore.so
