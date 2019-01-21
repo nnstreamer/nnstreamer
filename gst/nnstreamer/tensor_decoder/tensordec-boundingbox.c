@@ -27,8 +27,7 @@
  * @bug         No known bugs except for NYI items
  *
  * option1: Decoder mode of bounding box.
- *          Available: ssd (single shot multibox detector with priors.)
- *          Default (unsupplied): ssd
+ *          Available: tflite-ssd (single shot multibox detector with priors.)
  * option2: Location of label file
  *          This is independent from option1
  * option3: Location of box prior file (ssd) or any option1-dependent values
@@ -59,9 +58,9 @@
 #include "tensordec.h"
 #include "font.h"
 
-#define BOX_SIZE        4
-#define DETECTION_MAX   1917
-#define PIXEL_VALUE (0xFF0000FF)        /* RED 100% in RGBA */
+#define BOX_SIZE                  4
+#define TFLITE_SSD_DETECTION_MAX  1917
+#define PIXEL_VALUE               (0xFF0000FF)  /* RED 100% in RGBA */
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -75,8 +74,8 @@ static uint32_t singleLineSprite[256][13][8];
  */
 typedef enum
 {
-  BOUNDING_BOX_DEFAULT = 0,     /* SSD is the Default */
-  BOUNDING_BOX_SSD = 0,
+  TFLITE_SSD_BOUNDING_BOX = 0,
+  TF_SSD_BOUNDING_BOX = 1,
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -84,7 +83,8 @@ typedef enum
  * @brief List of bounding-box decoding schemes in string
  */
 static const gchar *bb_modes[] = {
-  [BOUNDING_BOX_SSD] = "ssd",
+  [TFLITE_SSD_BOUNDING_BOX] = "tflite-ssd",
+  [TF_SSD_BOUNDING_BOX] = "tf-ssd",
   NULL,
 };
 
@@ -95,8 +95,8 @@ typedef struct
 {
   /* From option3, box prior data */
   gchar *box_prior_path; /**< Box Prior file path */
-  gfloat box_priors[BOX_SIZE][DETECTION_MAX + 1]; /** loaded box prior */
-} properties_SSD;
+  gfloat box_priors[BOX_SIZE][TFLITE_SSD_DETECTION_MAX + 1]; /** loaded box prior */
+} properties_TFLite_SSD;
 
 /**
  * @brief Data structure for boundig box info.
@@ -107,7 +107,7 @@ typedef struct
 
   union
   {
-    properties_SSD ssd; /**< Properties for ssd configured by option 1 + 3 */
+    properties_TFLite_SSD tflite_ssd; /**< Properties for tflite_ssd configured by option 1 + 3 */
   };
 
   /* From option2 */
@@ -131,8 +131,8 @@ typedef struct
 static gboolean
 _init_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == BOUNDING_BOX_SSD) {
-    /* properties_SSD *data = &bdata->ssd; */
+  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
+    /* properties_TFLite_SSD *data = &bdata->tflite-ssd; */
     return TRUE;
   }
   return TRUE;
@@ -148,7 +148,7 @@ bb_init (GstTensorDec * self)
   self->plugin_data = g_new0 (bounding_boxes, 1);
 
   bdata = self->plugin_data;
-  bdata->mode = BOUNDING_BOX_DEFAULT;
+  bdata->mode = BOUNDING_BOX_UNKNOWN;
   bdata->width = 640;
   bdata->height = 480;
   bdata->i_width = 300;
@@ -185,8 +185,8 @@ bb_init (GstTensorDec * self)
 static void
 _exit_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == BOUNDING_BOX_SSD) {
-    /* properties_SSD *data = &bdata->ssd; */
+  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
+    /* properties_TFLite_SSD *data = &bdata->tflite_ssd; */
   }
 }
 
@@ -280,22 +280,22 @@ loadImageLabels (bounding_boxes * data)
   return;
 }
 
-static gboolean _ssd_loadBoxPrior (bounding_boxes * bdata);
+static gboolean _tflite_ssd_loadBoxPrior (bounding_boxes * bdata);
 
 /** @brief configure per-mode option (option3) */
 static gboolean
 _setOption_mode (bounding_boxes * bdata, const gchar * param)
 {
-  if (bdata->mode == BOUNDING_BOX_SSD) {
+  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* Load prior boxes with the path from option3 */
-    properties_SSD *ssd = &bdata->ssd;
+    properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
 
-    if (ssd->box_prior_path)
-      g_free (ssd->box_prior_path);
-    ssd->box_prior_path = g_strdup (param);
+    if (tflite_ssd->box_prior_path)
+      g_free (tflite_ssd->box_prior_path);
+    tflite_ssd->box_prior_path = g_strdup (param);
 
-    if (NULL != ssd->box_prior_path)
-      return _ssd_loadBoxPrior (bdata);
+    if (NULL != tflite_ssd->box_prior_path)
+      return _tflite_ssd_loadBoxPrior (bdata);
 
   }
   return TRUE;
@@ -312,8 +312,10 @@ bb_setOption (GstTensorDec * self, int opNum, const gchar * param)
     bounding_box_modes previous = bdata->mode;
     bdata->mode = find_key_strv (bb_modes, param);
 
-    if (NULL == param || *param == '\0' || bdata->mode < 0)
-      bdata->mode = BOUNDING_BOX_DEFAULT;
+    if (NULL == param || *param == '\0' || bdata->mode < 0) {
+      GST_ERROR ("Please set the valid mode at option1");
+      return FALSE;
+    }
 
     if (bdata->mode != previous && bdata->mode != BOUNDING_BOX_UNKNOWN) {
       return _init_modes (bdata);
@@ -451,7 +453,7 @@ bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
     data->max_detection = max_detection;
   else
     g_return_val_if_fail (max_detection == data->max_detection, NULL);
-  if (data->max_detection > DETECTION_MAX) {
+  if (data->max_detection > TFLITE_SSD_DETECTION_MAX) {
     GST_ERROR
         ("Incoming tensor has too large detection-max (3rd rank in tensor_0 and 2nd rank in tensor_1) : %u",
         max_detection);
@@ -474,12 +476,12 @@ bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
  * @return TRUE if loaded and configured. FALSE if failed to do so.
  */
 static gboolean
-_ssd_loadBoxPrior (bounding_boxes * bdata)
+_tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
 {
   FILE *fp;
-  properties_SSD *ssd = &bdata->ssd;
+  properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
 
-  if ((fp = fopen (ssd->box_prior_path, "r")) != NULL) {
+  if ((fp = fopen (tflite_ssd->box_prior_path, "r")) != NULL) {
     int row;
     int prev_reg = -1;
 
@@ -504,13 +506,13 @@ _ssd_loadBoxPrior (bounding_boxes * bdata)
           column++;
 
           if (word && *word) {
-            if (registered > DETECTION_MAX) {
+            if (registered > TFLITE_SSD_DETECTION_MAX) {
               GST_WARNING
                   ("Decoder/Bound-Box/SSD's box prior data file has too many priors. %d >= %d",
-                  registered, DETECTION_MAX);
+                  registered, TFLITE_SSD_DETECTION_MAX);
               break;
             }
-            ssd->box_priors[row][registered] = atof (word);
+            tflite_ssd->box_priors[row][registered] = atof (word);
             registered++;
           }
         }
@@ -528,7 +530,7 @@ _ssd_loadBoxPrior (bounding_boxes * bdata)
     fclose (fp);
   } else {
     GST_ERROR ("Decoder/Bound-Box/SSD's box prior file cannot be read: %s",
-        ssd->box_prior_path);
+        tflite_ssd->box_prior_path);
     return FALSE;
   }
   return TRUE;
@@ -568,7 +570,7 @@ typedef struct
  * @brief C++-Template-like box location calculation for box-priors
  * @bug This is not macro-argument safe. Use paranthesis!
  * @param[in] bb The configuration, "bounding_boxes"
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:DETECTION_MAX:1)
+ * @param[in] index The index (3rd dimension of BOX_SIZE:1:TFLITE_SSD_DETECTION_MAX:1)
  * @param[in] boxprior The box prior data from the box file of SSD.
  * @param[in] boxinputptr Cursor pointer of input + byte-per-index * index (box)
  * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
@@ -607,8 +609,8 @@ typedef struct
  * @param[in] bb The configuration, "bounding_boxes"
  * @param[in] type The tensor type of inputptr
  * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:DETECTION_MAX:1)
- * @param[in] boxprior The box prior data from the box file of SSD.
+ * @param[in] index The index (3rd dimension of BOX_SIZE:1:TFLITE_SSD_DETECTION_MAX:1)
+ * @param[in] boxprior The box prior data from the box file of TFLITE_SSD.
  * @param[in] boxinput Input Tensor Data (Boxes)
  * @param[in] detinput Input Tensor Data (Detection). Null if not available. (numtensor ==1)
  * @param[in] config Tensor configs of the input tensors
@@ -622,7 +624,7 @@ typedef struct
     gsize boxbpi = config->info.info[0].dimension[0]; \
     _type * detinput_ = (_type *) detinput; \
     gsize detbpi = config->info.info[1].dimension[0]; \
-    int num = (DETECTION_MAX > bb->max_detection) ? bb->max_detection : DETECTION_MAX; \
+    int num = (TFLITE_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : TFLITE_SSD_DETECTION_MAX; \
     detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = 0 }; \
     for (d = 0; d < num; d++) { \
       _get_object_i (bb, d, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
@@ -635,7 +637,7 @@ typedef struct
 
 /** @brief Macro to simplify calling _get_objects */
 #define _get_objects_(type, typename) \
-  _get_objects (bdata, type, typename, (bdata->ssd.box_priors), (boxes->data), (detections->data), config, results)
+  _get_objects (bdata, type, typename, (bdata->tflite_ssd.box_priors), (boxes->data), (detections->data), config, results)
 
 
 /**
@@ -672,7 +674,7 @@ iou (detectedObject * a, detectedObject * b)
 
 #define THRESHOLD_IOU (.5f)
 /**
- * @brief Apply NMS to the given results (obejcts[DETECTION_MAX])
+ * @brief Apply NMS to the given results (obejcts[TFLITE_SSD_DETECTION_MAX])
  * @param[in/out] results The results to be filtered with nms
  */
 static void
@@ -710,7 +712,7 @@ nms (GArray * results)
 }
 
 /**
- * @brief Draw with the given results (obejcts[DETECTION_MAX]) to the output buffer
+ * @brief Draw with the given results (obejcts[TFLITE_SSD_DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
  * @param[in] bdata The bouding-box internal data.
  * @param[in] results The final results to be drawn.
