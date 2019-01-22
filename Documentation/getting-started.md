@@ -5,7 +5,7 @@ The following dependencies are needed to compile/build/run.
 * gcc/g++
 * gstreamer 1.0 and its relatives
 * glib 2.0
-* cmake >= 2.8
+* meson >= 0.40
 
 ### Linux Self-Hosted Build
 
@@ -28,47 +28,27 @@ If there is a missing package, debuild will tell you which package is missing.
 If you haven't configured debuild properly, yet, you will need to add ```-uc -us``` options to ```debuild```.
 
 
-**Approach 2.** Build with Cmake
-
-At the git repo root directory,
-```bash
-$ mkdir -p build  # We recommend to build in a "build" directory
-$ cd build
-$ rm -rf *        # Ensure the build directory is empty
-$ cmake ..
-$ make
-$ cd ..
-```
-
-You may copy the resulting plugin (.so file) to gstreamer plugin repository. Or do
-```bash
-$ cd build
-$ sudo make install
-```
-if installing NNstreamer plugin libraries into ```%{_libdir}```.
-
-
-**Approach 3.** Build with meson
+**Approach 2.** Build with meson
 * https://mesonbuild.com/Getting-meson.html
 
-install the required packages.
+Install the required packages. (meson >= 0.40)
 
 ```bash
 $ sudo apt install meson ninja-build
 ```
 
-Build at the git repo root directory.
+Build at the git repo root directory, this will install nnstreamer plugins and related files.
+
 ```bash
-nnstreamer$ meson --werror build
-nnstreamer$ cd build
-build$ sudo ninja install
+$ meson --werror build
+$ ninja -C build install
 ```
 
-How to run test
-```bash
-build$ ninja test
-```
- 
+- Installed nnstreamer plugins to ```{prefix}/{libdir}/gstreamer-1.0```
+- Installed subplugins and libraires to ```{prefix}/{libdir}```
+- Installed common header files to ```{prefix}/{includedir}```
+
+
 ### Clean Build based on Platform
 
 ##### Tizen
