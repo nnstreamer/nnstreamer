@@ -11,6 +11,6 @@ If there is a change due to code style issues, make two separate commits: (Pleas
 - commit with style change only (i.e., commit gst-indent-formatted original code - not your code change)
 - commit with your code change only (i.e., contents only).
 
-```bash
-$ ./common/gst-indent <file-name>
+```
+$ ./tools/development/gst-indent <file-name>
 ```

@@ -4,16 +4,16 @@
 
 - Unit Test 
 
-For common library unit test
-```bash
+For gtest based test cases (common library and nnstreamer plugins)
+```
 $ cd build
-$ ./unittest_common
+$ ninja test
 ```
 
-For all gst-launch-based test cases (mostly golden testing)
-```bash
+For all gst-launch-based test cases ([SSAT](https://github.com/nnsuite/SSAT), mostly golden testing)
+```
 $ cd tests
-$ ./testAll.sh
+$ ssat
 ```
 
 ## How to write Test Cases
