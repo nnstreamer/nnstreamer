@@ -651,7 +651,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         if (prop->output_meta.num_tensors > 0 &&
             prop->output_meta.num_tensors != num_names) {
           GST_WARNING_OBJECT (self,
-              "Invalid input-name, given param does not match with old value.");
+              "Invalid output-name, given param does not match with old value.");
         }
 
         prop->output_meta.num_tensors = num_names;
@@ -1077,7 +1077,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
         /** if set-property called and already has info, verify it! */
         if (prop->output_meta.num_tensors > 0) {
           if (!gst_tensors_info_is_equal (&prop->output_meta, &out_info)) {
-            gchar *str = _compare_tensors (&in_config.info, &prop->input_meta);
+            gchar *str = _compare_tensors (&out_info, &prop->output_meta);
             GST_ERROR_OBJECT (self,
                 "The output tensor is not compatible.\n%s", str);
             g_free (str);
