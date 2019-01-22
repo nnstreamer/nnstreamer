@@ -1,1 +1,0 @@
-ADD_LIBRARY(tensor_converterOBJ OBJECT tensor_converter.c)

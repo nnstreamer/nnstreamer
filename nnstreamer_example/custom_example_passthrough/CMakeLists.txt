@@ -1,7 +1,0 @@
-ADD_LIBRARY(nnstreamer_customfilter_passthrough SHARED nnstreamer_customfilter_example_passthrough.c)
-ADD_LIBRARY(nnstreamer_customfilter_passthrough_variable SHARED nnstreamer_customfilter_example_passthrough_variable.c)
-
-INSTALL(TARGETS nnstreamer_customfilter_passthrough nnstreamer_customfilter_passthrough_variable
-	LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-	ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-	)

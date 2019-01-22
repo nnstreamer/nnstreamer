@@ -1,1 +1,0 @@
-ADD_LIBRARY(tensor_aggregatorOBJ OBJECT tensor_aggregator.c)
