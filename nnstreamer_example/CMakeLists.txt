@@ -1,6 +1,0 @@
-ADD_SUBDIRECTORY(custom_example_passthrough)
-ADD_SUBDIRECTORY(custom_example_scaler)
-ADD_SUBDIRECTORY(custom_example_average)
-ADD_SUBDIRECTORY(custom_example_opencv)
-ADD_SUBDIRECTORY(custom_example_RNN)
-ADD_SUBDIRECTORY(custom_example_LSTM)
