@@ -108,6 +108,7 @@
   } \
 } while (0)
 
+#define g_free_const(x) g_free((void*)(long)(x))
 
 typedef struct _TensorFilterSPList TensorFilterSPList;
 /**
@@ -268,6 +269,7 @@ static void gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_filter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void gst_tensor_filter_finalize (GObject * object);
 
 /* GstBaseTransform vmethod implementations */
 static GstFlowReturn gst_tensor_filter_transform (GstBaseTransform * trans,
@@ -308,7 +310,8 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
         if (filter->fw && filter->fw->close) \
           filter->fw->close (filter, &filter->privateData); \
         filter->prop.fw_opened = FALSE; \
-        g_free ((char *) filter->prop.fwname); \
+        g_free_const (filter->prop.fwname); \
+        filter->prop.fwname = NULL; \
         filter->fw = NULL; \
       } \
     } while (0)
@@ -340,6 +343,7 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 
   gobject_class->set_property = gst_tensor_filter_set_property;
   gobject_class->get_property = gst_tensor_filter_get_property;
+  gobject_class->finalize = gst_tensor_filter_finalize;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
@@ -448,6 +452,66 @@ gst_tensor_filter_init (GstTensorFilter * self)
 }
 
 /**
+ * @brief deallocate the name of each GstTensorInfo.
+ * @param The GstTensorsInfo object
+ */
+inline void
+gst_tensor_filter_deallocate_tensor_name (GstTensorsInfo * info)
+{
+  guint i;
+  for (i = 0; i < info->num_tensors; ++i)
+    g_free (info->info[i].name);
+  gst_tensors_info_init (info);
+}
+
+/**
+ * @brief Clear and reset data.
+ */
+static void
+gst_tensor_filter_reset (GstTensorFilter * self)
+{
+  GstTensorFilterProperties *prop;
+
+  prop = &self->prop;
+
+  gst_tensor_filter_close_fw (self);
+
+  g_free_const (prop->fwname);
+  prop->fwname = NULL;
+
+  g_free_const (prop->model_file);
+  prop->model_file = NULL;
+
+  g_free_const (prop->custom_properties);
+  prop->custom_properties = NULL;
+
+  prop->input_configured = FALSE;
+  gst_tensor_filter_deallocate_tensor_name (&prop->input_meta);
+
+  prop->output_configured = FALSE;
+  gst_tensor_filter_deallocate_tensor_name (&prop->output_meta);
+
+  self->configured = FALSE;
+  gst_tensors_config_init (&self->in_config);
+  gst_tensors_config_init (&self->out_config);
+}
+
+/**
+ * @brief Function to finalize instance.
+ */
+static void
+gst_tensor_filter_finalize (GObject * object)
+{
+  GstTensorFilter *self;
+
+  self = GST_TENSOR_FILTER (object);
+
+  gst_tensor_filter_reset (self);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/**
  * @brief Calculate output buffer size.
  * @param self "this" pointer
  * @param index index of output tensors (if index < 0, the size of all output tensors will be returned.)
@@ -515,7 +579,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
         break;
       }
 
-      g_free ((char *) prop->fwname);
+      g_free_const (prop->fwname);
       prop->fwname = g_strdup (fw_name);
 
       /* See if mandatory methods are filled in */
@@ -530,7 +594,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 
       if (prop->model_file) {
         gst_tensor_filter_close_fw (self);
-        g_free ((char *) prop->model_file);     /* g_free cannot handle const * */
+        g_free_const (prop->model_file);
         prop->model_file = NULL;
       }
 
@@ -659,7 +723,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       break;
     case PROP_CUSTOM:
       /* In case updated custom properties in runtime! */
-      g_free ((char *) prop->custom_properties);        /* g_free cannot handle const char * */
+      g_free_const (prop->custom_properties);
       prop->custom_properties = g_value_dup_string (value);
       silent_debug ("Custom Option = %s\n", prop->custom_properties);
       break;
@@ -1017,6 +1081,26 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
 }
 
 /**
+ * @brief Copy GstTensorsInfo without the name of tensors.
+ * @param[out] the destination object
+ * @param[in] the source object
+ */
+static void
+gst_tensor_filter_copy_info (GstTensorsInfo * dest, const GstTensorsInfo * src)
+{
+  guint i;
+
+  g_return_if_fail (dest != NULL && src != NULL);
+
+  dest->num_tensors = src->num_tensors;
+  for (i = 0; i < src->num_tensors; ++i) {
+    memcpy (dest->info[i].dimension, src->info[i].dimension,
+        sizeof (tensor_dim));
+    dest->info[i].type = src->info[i].type;
+  }
+}
+
+/**
  * @brief Configure input and output tensor info from incaps.
  * @param self "this" pointer
  * @param incaps received caps for sink pad
@@ -1062,7 +1146,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     }
 
     prop->input_configured = TRUE;
-    prop->input_meta = in_config.info;
+    gst_tensor_filter_copy_info (&prop->input_meta, &in_config.info);
 
     /** call setInputDimension if output tensor is not configured */
     if (!prop->output_configured) {
@@ -1086,7 +1170,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
         }
 
         prop->output_configured = TRUE;
-        prop->output_meta = out_info;
+        gst_tensor_filter_copy_info (&prop->output_meta, &out_info);
 
         silent_debug_info (&out_info, "output tensor");
       }
