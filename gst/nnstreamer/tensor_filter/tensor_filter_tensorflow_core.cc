@@ -52,6 +52,8 @@ TFCore::TFCore (const char *_model_path)
     inputTensorRank[i] = 0;
     outputTensorRank[i] = 0;
   }
+  /* @todo below g_message will be removed */
+  g_message ("gst_memory_alignment: %lu", gst_memory_alignment);
 }
 
 /**
@@ -226,6 +228,43 @@ TFCore::getTensorTypeToTF (tensor_type tType)
 }
 
 /**
+ * @brief	return the data type of the tensor for Tensorflow
+ * @param tType	: the defined type of NNStreamer
+ * @return the enum of defined tensorflow::DataType
+ */
+TF_DataType
+TFCore::getTensorTypeToTF_Capi (tensor_type tType)
+{
+  switch (tType) {
+    case _NNS_INT32:
+      return TF_INT32;
+    case _NNS_UINT32:
+      return TF_UINT32;
+    case _NNS_INT16:
+      return TF_INT16;
+    case _NNS_UINT16:
+      return TF_UINT16;
+    case _NNS_INT8:
+      return TF_INT8;
+    case _NNS_UINT8:
+      return TF_UINT8;
+    case _NNS_INT64:
+      return TF_INT64;
+    case _NNS_UINT64:
+      return TF_UINT64;
+    case _NNS_FLOAT32:
+      return TF_FLOAT;
+    case _NNS_FLOAT64:
+      return TF_DOUBLE;
+    default:
+      /** @todo Support other types */
+      break;
+  }
+  /* Since there is no INVALID, TF_RESOURCE is used to detect invalid datatype temporally */
+  return TF_RESOURCE;
+}
+
+/**
  * @brief	check the inserted information about input tensor with model
  * @return 0 if OK. non-zero if error.
  *        -1 if the number of input tensors is not matched.
@@ -368,22 +407,40 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
   return 0;
 }
 
-#define copyInputWithType(type) do { \
-    for (int idx = 0; idx < array_len; ++idx) \
-      inputTensor.flat<type>()(idx) = ((type*)input[i].data)[idx]; \
-  } while (0)
-
 #define copyOutputWithType(type) do { \
     output[i].data = outputs[i].flat<type>().data(); \
     outputTensorMap.insert (std::make_pair (output[i].data, outputs[i])); \
   } while (0)
 
 /**
+ * @brief	ring cache structure
+ */
+class TFBuffer : public TensorBuffer {
+ public:
+  void* data_;
+  size_t len_;
+
+  void* data() const override { return data_; }
+  size_t size() const override { return len_; }
+  TensorBuffer* root_buffer() override { return this; }
+  void FillAllocationDescription(AllocationDescription* proto) const override {
+    int64 rb = size();
+    proto->set_requested_bytes(rb);
+    proto->set_allocator_name(cpu_allocator()->Name());
+  }
+
+  // Prevents input forwarding from mutating this buffer.
+  bool OwnsMemory() const override { return false; }
+};
+
+/**
  * @brief	run the model with the input.
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
- *         -1 if the model does not work properly.
+ *         -1 if the data type is not affordable.
+ *         -2 if the tensor is not created properly.
+ *         -3 if the model does not work properly.
  */
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
@@ -391,60 +448,39 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   std::vector<std::pair<string, Tensor>> input_feeds;
   std::vector<string> output_tensor_names;
   std::vector<Tensor> outputs;
-  int array_len;
 
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
-    TensorShape ts = TensorShape({});
-    for (int j = inputTensorRank[i] - 1; j >= 0; j--){
-      ts.AddDim(inputTensorMeta.info[i].dimension[j]);
+  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    TensorShape tensorShape = TensorShape({});
+    for (int j = inputTensorRank[i] - 1; j >= 0; --j){
+      tensorShape.AddDim(inputTensorMeta.info[i].dimension[j]);
     }
-    Tensor inputTensor(
-      getTensorTypeToTF(input[i].type),
-      ts
+
+    TFBuffer *buf = new TFBuffer;
+    buf->len_ = input[i].size;
+    buf->data_ = input[i].data;
+
+    TF_DataType dataType = getTensorTypeToTF_Capi(input[i].type);
+
+    if (dataType == TF_RESOURCE){
+      GST_ERROR ("This data type is not valid: %d", input[i].type);
+      return -1;
+    }
+
+    Tensor inputTensor = TensorCApi::MakeTensor(
+      dataType,
+      tensorShape,
+      buf
     );
 
-    array_len = input[i].size / tensor_element_size[input[i].type];
-
-    switch (input[i].type) {
-      case _NNS_INT32:
-        copyInputWithType (int32);
-        break;
-      case _NNS_UINT32:
-        copyInputWithType (uint32);
-        break;
-      case _NNS_INT16:
-        copyInputWithType (int16);
-        break;
-      case _NNS_UINT16:
-        copyInputWithType (uint16);
-        break;
-      case _NNS_INT8:
-        copyInputWithType (int8);
-        break;
-      case _NNS_UINT8:
-        copyInputWithType (uint8);
-        break;
-      case _NNS_INT64:
-        copyInputWithType (int64);
-        break;
-      case _NNS_UINT64:
-        copyInputWithType (uint64);
-        break;
-      case _NNS_FLOAT32:
-        copyInputWithType (float);
-        break;
-      case _NNS_FLOAT64:
-        copyInputWithType (double);
-        break;
-      default:
-        /** @todo Support other types */
-        break;
+    if (!inputTensor.IsAligned ()) {
+      GST_ERROR ("the input tensor %s is not aligned", inputTensorMeta.info[i].name);
+      return -2;
     }
 
     input_feeds.push_back({inputTensorMeta.info[i].name, inputTensor});
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     output_tensor_names.push_back(outputTensorMeta.info[i].name);
   }
 
@@ -453,7 +489,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   if (run_status != Status::OK ()){
     GST_ERROR ("Failed to run model: %s\n", (run_status.ToString ()).c_str ());
-    return -1;
+    return -3;
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
@@ -461,8 +497,6 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     output[i].size = tensor_element_size[output[i].type];
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
       output[i].size *= outputTensorMeta.info[i].dimension[j];
-
-    array_len = output[i].size / tensor_element_size[output[i].type];
 
     switch (output[i].type) {
       case _NNS_INT32:

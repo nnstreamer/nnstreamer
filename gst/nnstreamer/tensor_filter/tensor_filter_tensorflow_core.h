@@ -37,6 +37,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <tensorflow/c/c_api.h>
+#include <tensorflow/c/c_api_internal.h>
 #include <tensorflow/cc/ops/const_op.h>
 #include <tensorflow/cc/ops/image_ops.h>
 #include <tensorflow/cc/ops/standard_ops.h>
@@ -92,6 +94,7 @@ private:
 
   tensor_type getTensorTypeFromTF (DataType tfType);
   DataType getTensorTypeToTF (tensor_type tType);
+  TF_DataType getTensorTypeToTF_Capi (tensor_type tType);
   int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
   int inputTensorValidation (const std::vector<const NodeDef*> &placeholders);
 };
