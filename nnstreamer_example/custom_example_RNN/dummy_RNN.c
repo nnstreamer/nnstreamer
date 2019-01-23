@@ -73,13 +73,17 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
+  int i;
 
   assert (data);
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 2;
-  info->info[0] = data->info[0];
-  info->info[1] = data->info[1];
+  for (i = 0; i < info->num_tensors; ++i) {
+    memcpy (info->info[i].dimension, data->info[i].dimension,
+        sizeof (tensor_dim));
+    info->info[i].type = data->info[i].type;
+  }
   return 0;
 }
 
@@ -91,12 +95,17 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
+  int i;
 
   assert (data);
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
-  info->info[0] = data->info[0];
+  for (i = 0; i < info->num_tensors; ++i) {
+    memcpy (info->info[i].dimension, data->info[i].dimension,
+        sizeof (tensor_dim));
+    info->info[i].type = data->info[i].type;
+  }
   return 0;
 }
 
