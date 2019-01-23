@@ -569,6 +569,8 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   g_assert (frame_size > 0);
 
   srcbuf = gst_buffer_copy (outbuf);
+  outbuf = gst_buffer_make_writable (outbuf);
+
   g_assert (gst_buffer_map (srcbuf, &src_info, GST_MAP_READ));
   g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE));
 
@@ -824,7 +826,6 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   if (frames_in == frames_out) {
     /** push the incoming buffer (do concat if needed) */
-    buf = gst_buffer_make_writable (buf);
     return gst_tensor_aggregator_push (self, buf, frame_size);
   }
 
