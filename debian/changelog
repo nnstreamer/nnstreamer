@@ -1,16 +1,22 @@
-nnstreamer (0.1.0-1rc1) stable; urgency=medium
+nnstreamer (0.1.0-2) unstable xenial bionic; urgency=medium
+
+  * 0.1.0 release
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Thu, 24 Jan 2019 15:33:33 +0900
+
+nnstreamer (0.1.0-1rc1) unstable; urgency=medium
 
   * Start of 0.1.0 development
 
  -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 03 Dec 2018 15:32:01 +0900
 
-nnstreamer (0.0.3-2) stable; urgency=medium
+nnstreamer (0.0.3-2) unstable; urgency=medium
 
   * 0.0.3 release
 
  -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 03 Dec 2018 14:45:10 +0900
 
-nnstreamer (0.0.3-1rc1) stable; urgency=medium
+nnstreamer (0.0.3-1rc1) unstable; urgency=medium
 
   * Start of 0.0.3 development
 
