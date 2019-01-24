@@ -61,6 +61,9 @@ pt_init (const GstTensorFilterProperties * prop)
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   int i;
 
+  assert (data);
+  memset (data, 0, sizeof (pt_data));
+
   data->id = 0;
   data->info.dimension[0] = D1;
   data->info.dimension[1] = D2;
@@ -96,8 +99,8 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
-  memcpy (info->info[0].dimension, data->info.dimension, sizeof (tensor_dim));
-  info->info[0].type = data->info.type;
+  /** @todo use common function to copy tensor info */
+  info->info[0] = data->info;
   return 0;
 }
 
@@ -114,8 +117,8 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
-  memcpy (info->info[0].dimension, data->info.dimension, sizeof (tensor_dim));
-  info->info[0].type = data->info.type;
+  /** @todo use common function to copy tensor info */
+  info->info[0] = data->info;
   return 0;
 }
 
