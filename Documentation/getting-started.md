@@ -16,6 +16,35 @@ $ sudo apt-add-repository ppa:nnstreamer
 $ sudo apt install nnstreamer
 ```
 
+### Clean build with pdebuild (Ubuntu 16.04/18.04)
+
+Use the nnstreamer PPA to resolve additional build-dependnecies (tensorflow/tensorflow-lite).
+
+Install build tools if needed:
+```bash
+$ sudo apt install pbuilder debootstrap devscripts
+```
+
+The following example configuration is for Ubuntu 16.04:
+```bash
+$ cat ~/.pbuilderrc
+DISTRIBUTION=xenial
+COMPONENTS="main restricted universe multiverse"
+OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial-backports universe | deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
+$ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
+$ sudo pbuilder create
+```
+
+Run pdebuild to build and get the package
+```bash
+$ pdebuild
+$ ls -al /var/cache/pbuilder/result/*.deb
+```
+
+Refer to [PbuilderHowto](https://wiki.ubuntu.com/PbuilderHowto) for more about pdebuild
+
+
+
 ### Linux Self-Hosted Build
 
 **Approach 1.** Build with Debian/Ubuntu tools
@@ -28,7 +57,16 @@ $ git clone https://git.tizen.org/cgit/platform/upstream/tensorflow
 $ git clone https://github.com/nnsuite/nnstreamer
 ```
 
+Alternatively, you may simply download binary packages from PPA (ssat and tensorflow):
+```bash
+$ sudo apt-add-repository ppa:nnstreamer
+$ sudo apt install ssat tensorflow-dev tensorflow-lite-dev libprotobuf-dev
+```
+
+
 ***Fix tensorflow for it to build properly***
+
+You may skip this if you have downloaded binary packages from PPA.
 
 There is a shell script call at tensorflow/contrib/lite/Makefile that may
 fail, depending on the shell you're using. The best is to replace
@@ -96,7 +134,7 @@ $ sudo apt install meson ninja-build
 Build at the git repo root directory, this will install nnstreamer plugins and related files.
 
 ```bash
-$ meson --werror build
+$ meson build
 $ ninja -C build install
 ```
 
@@ -105,9 +143,7 @@ $ ninja -C build install
 - Installed common header files to ```{prefix}/{includedir}```
 
 
-### Clean Build based on Platform
-
-##### Tizen
+### Tizen
 * https://source.tizen.org/documentation/reference/git-build-system/usage/gbs-build
 
 First install the required packages.
@@ -120,30 +156,3 @@ Generates .rpm packages:
 $ gbs build
 ```
 ```gbs build``` will execute unit testing as well unlike cmake build.
-
-##### Ubuntu
-* https://wiki.ubuntu.com/PbuilderHowto
-
-First install the required packages.
-```bash
-$ sudo apt install pbuilder debootstrap devscripts
-```
-
-Then, create tarball that will contain your chroot environment to build package. (for Ubuntu 16.04)
-```bash
-$ vi ~/.pbuilderrc
-# man 5 pbuilderrc
-DISTRIBUTION=xenial
-OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial universe multiverse |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
-$ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
-$ sudo pbuilder create
-```
-Because Ubuntu 16.04 does not have tensorflow-lite-dev in its repository, you need to add
-a PPA repository or SPIN/OBS repository of TAOS:UbuntuTools.
-
-Generates .deb packages:
-```bash
-$ pdebuild
-$ ls -al /var/cache/pbuilder/result/*.deb
-```
-Note that ```pdebuild``` does not execute unit testing.
