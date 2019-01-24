@@ -157,6 +157,26 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 }
 
 /**
+ * @brief Copy tensor info
+ * @note GstTensorInfo::name should be freed with g_free()
+ */
+void
+gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
+{
+  guint i;
+
+  g_return_if_fail (dest != NULL);
+  g_return_if_fail (src != NULL);
+
+  dest->name = (src->name) ? g_strdup (src->name) : NULL;
+  dest->type = src->type;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dest->dimension[i] = src->dimension[i];
+  }
+}
+
+/**
  * @brief Get data size of single tensor
  * @param info tensor info structure
  * @return data size
@@ -241,6 +261,25 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 
   /** matched all */
   return TRUE;
+}
+
+/**
+ * @brief Copy tensor info
+ * @note GstTensorInfo::name should be freed with g_free()
+ */
+void
+gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
+{
+  guint i;
+
+  g_return_if_fail (dest != NULL);
+  g_return_if_fail (src != NULL);
+
+  dest->num_tensors = src->num_tensors;
+
+  for (i = 0; i < src->num_tensors; i++) {
+    gst_tensor_info_copy (&dest->info[i], &src->info[i]);
+  }
 }
 
 /**

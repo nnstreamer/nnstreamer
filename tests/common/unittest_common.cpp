@@ -253,6 +253,73 @@ TEST (common_get_tensor_dimension, case4)
 }
 
 /**
+ * @brief Test to copy tensor info.
+ */
+TEST (common_tensor_info, copy_tensor)
+{
+  GstTensorInfo src, dest;
+  gchar *test_name = g_strdup ("test-tensor");
+
+  gst_tensor_info_init (&src);
+  gst_tensor_info_init (&dest);
+
+  src = { test_name, _NNS_FLOAT32, { 1, 2, 3, 4 } };
+  gst_tensor_info_copy (&dest, &src);
+
+  EXPECT_TRUE (dest.name != src.name);
+  EXPECT_TRUE (g_str_equal (dest.name, test_name));
+  EXPECT_EQ (dest.type, src.type);
+  EXPECT_EQ (dest.dimension[0], src.dimension[0]);
+  EXPECT_EQ (dest.dimension[1], src.dimension[1]);
+  EXPECT_EQ (dest.dimension[2], src.dimension[2]);
+  EXPECT_EQ (dest.dimension[3], src.dimension[3]);
+
+  src = { NULL, _NNS_INT32, { 5, 6, 7, 8 } };
+  gst_tensor_info_copy (&dest, &src);
+
+  EXPECT_TRUE (dest.name == NULL);
+  EXPECT_EQ (dest.type, src.type);
+  EXPECT_EQ (dest.dimension[0], src.dimension[0]);
+  EXPECT_EQ (dest.dimension[1], src.dimension[1]);
+  EXPECT_EQ (dest.dimension[2], src.dimension[2]);
+  EXPECT_EQ (dest.dimension[3], src.dimension[3]);
+
+  g_free (test_name);
+}
+
+/**
+ * @brief Test to copy tensor info.
+ */
+TEST (common_tensor_info, copy_tensors)
+{
+  GstTensorsInfo src, dest;
+  gchar *test_name = g_strdup ("test-tensors");
+  guint i;
+
+  gst_tensors_info_init (&src);
+  gst_tensors_info_init (&dest);
+
+  src.num_tensors = 2;
+  src.info[0] = { test_name, _NNS_INT32, { 1, 2, 3, 4 } };
+  src.info[1] = { test_name, _NNS_FLOAT32, { 5, 6, 7, 8 } };
+  gst_tensors_info_copy (&dest, &src);
+
+  EXPECT_EQ (dest.num_tensors, src.num_tensors);
+
+  for (i = 0; i < src.num_tensors; i++) {
+    EXPECT_TRUE (dest.info[i].name != src.info[i].name);
+    EXPECT_TRUE (g_str_equal (dest.info[i].name, test_name));
+    EXPECT_EQ (dest.info[i].type, src.info[i].type);
+    EXPECT_EQ (dest.info[i].dimension[0], src.info[i].dimension[0]);
+    EXPECT_EQ (dest.info[i].dimension[1], src.info[i].dimension[1]);
+    EXPECT_EQ (dest.info[i].dimension[2], src.info[i].dimension[2]);
+    EXPECT_EQ (dest.info[i].dimension[3], src.info[i].dimension[3]);
+  }
+
+  g_free (test_name);
+}
+
+/**
  * @brief Test for dimensions string in tensors info.
  */
 TEST (common_tensors_info_string, dimensions)
