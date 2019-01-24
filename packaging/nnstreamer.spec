@@ -6,9 +6,7 @@
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
 Version:	0.1.0
-Release:	1rc1
-# From 0.0.3, don't put letters as the first character of release. Use "1.rc1" instead of "rc1".
-# We are using "stable-1" because we've been using "rc#" for 0.0.2
+Release:	2
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
@@ -189,6 +187,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %changelog
+* Thu Jan 24 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 0.1.0
+
 * Mon Dec 03 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 0.0.3
 
