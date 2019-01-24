@@ -61,7 +61,7 @@ public:
   /**
    * member functions.
    */
-  TFCore (const char *_model_path);
+  TFCore (const char * _model_path);
    ~TFCore ();
 
   int init(const GstTensorFilterProperties * prop);
@@ -76,7 +76,7 @@ public:
   int getOutputTensorDim (GstTensorsInfo * info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
 
-  static std::map<void*, Tensor> outputTensorMap;
+  static std::map <void*, Tensor> outputTensorMap;
 
 private:
 
@@ -88,12 +88,12 @@ private:
   int inputTensorRank[NNS_TENSOR_SIZE_LIMIT];
   int outputTensorRank[NNS_TENSOR_SIZE_LIMIT];
 
-  Session * session;
+  Session *session;
 
   tensor_type getTensorTypeFromTF (DataType tfType);
   DataType getTensorTypeToTF (tensor_type tType);
   int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
-  int inputTensorValidation (const std::vector<const NodeDef*> &placeholders);
+  int inputTensorValidation (const std::vector <const NodeDef*> &placeholders);
 };
 
 /**
@@ -103,15 +103,15 @@ extern "C"
 {
 #endif
 
-  extern void *tf_core_new (const char *_model_path);
-  extern void tf_core_delete (void *tf);
-  extern int tf_core_init (void *tf, const GstTensorFilterProperties * prop);
-  extern const char *tf_core_getModelPath (void *tf);
-  extern int tf_core_getInputDim (void *tf, GstTensorsInfo * info);
-  extern int tf_core_getOutputDim (void *tf, GstTensorsInfo * info);
-  extern int tf_core_run (void *tf, const GstTensorMemory * input,
+  void *tf_core_new (const char *_model_path);
+  void tf_core_delete (void * tf);
+  int tf_core_init (void * tf, const GstTensorFilterProperties * prop);
+  const char *tf_core_getModelPath (void * tf);
+  int tf_core_getInputDim (void * tf, GstTensorsInfo * info);
+  int tf_core_getOutputDim (void * tf, GstTensorsInfo * info);
+  int tf_core_run (void * tf, const GstTensorMemory * input,
       GstTensorMemory * output);
-  extern void tf_core_destroyNotify (void * data);
+  void tf_core_destroyNotify (void * data);
 
 #ifdef __cplusplus
 }
