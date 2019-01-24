@@ -1,5 +1,7 @@
 # NNStreamer
 
+[![Gitter][gitter-image]][gitter-url]
+
 Neural Network Support as Gstreamer Plugins.
 
 NNStreamer is a set of Gstreamer plugins, which allows
@@ -67,3 +69,7 @@ For more details, please access the following manual.
 
 - [CI service status](http://nnsuite.mooo.com/)
 - [TAOS-CI config files for nnstreamer](.TAOS-CI).
+
+
+[gitter-url]: https://gitter.im/nnstreamer/Lobby
+[gitter-image]: http://img.shields.io/badge/+%20GITTER-JOIN%20CHAT%20%E2%86%92-1DCE73.svg?style=flat-square
