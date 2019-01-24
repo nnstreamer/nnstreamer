@@ -6,7 +6,26 @@ NNStreamer is a set of Gstreamer plugins, which allows
 Gstreamer developers to adopt neural network models easily and efficiently and
 neural network developers to manage stream pipelines and their filters easily and efficiently.
 
-[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)
+[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)<br />
+[NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf](https://arxiv.org/pdf/1901.04985)]<br />
+[GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnsuite/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf](https://github.com/nnsuite/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]
+
+
+## Official Releases
+
+Daily Releases
+
+| Arch   | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | Yocto |
+| :-- | -- | -- | -- | -- |
+|     | 5.5 | 16.04/18.04 | TBD  | TBD |
+| arm | Available  | Available  | Planned  | Planned  |
+| arm64 | Available  | Available  | N/A  | Planned  |
+| x64 | Available  | Available  | N/A  | N/A  |
+| x86 | Available  | N/A  | N/A  | N/A  |
+
+[(WIP)](https://github.com/nnsuite/TAOS-CI/issues/452)
+
+
 
 ## Objectives
 
