@@ -33,7 +33,7 @@
 #define DBG FALSE
 #endif
 
-std::map<void*, Tensor> TFCore::outputTensorMap;
+std::map <void*, Tensor> TFCore::outputTensorMap;
 
 /**
  * @brief	TFCore creator
@@ -41,7 +41,7 @@ std::map<void*, Tensor> TFCore::outputTensorMap;
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFCore::TFCore (const char *_model_path)
+TFCore::TFCore (const char * _model_path)
 {
   model_path = _model_path;
 
@@ -113,34 +113,34 @@ TFCore::loadModel ()
 #endif
   GraphDef graph_def;
   Status load_graph_status =
-      ReadBinaryProto(Env::Default(), model_path, &graph_def);
+      ReadBinaryProto (Env::Default (), model_path, &graph_def);
   if (!load_graph_status.ok()) {
     GST_ERROR ("Failed to load compute graph at '%s'", model_path);
     return -1;
   }
 
   /* get input tensor */
-  std::vector<const NodeDef*> placeholders;
-  for (const NodeDef& node : graph_def.node()) {
-    if (node.op() == "Placeholder") {
-      placeholders.push_back(&node);
+  std::vector <const NodeDef*> placeholders;
+  for (const NodeDef& node : graph_def.node ()) {
+    if (node.op () == "Placeholder") {
+      placeholders.push_back (&node);
     }
   }
 
-  if (placeholders.empty()) {
+  if (placeholders.empty ()) {
     GST_WARNING ("No inputs spotted.");
   } else {
-    GST_INFO ("Found possible inputs: %ld", placeholders.size());
-    if (inputTensorValidation(placeholders)) {
+    GST_INFO ("Found possible inputs: %ld", placeholders.size ());
+    if (inputTensorValidation (placeholders)) {
       GST_ERROR ("Input Tensor Information is not valid");
       return -2;
     }
   }
 
   /* get session */
-  Status new_session_status = NewSession(SessionOptions(), &session);
-  Status session_create_status = session->Create(graph_def);
-  if (!new_session_status.ok() || !session_create_status.ok()) {
+  Status new_session_status = NewSession (SessionOptions (), &session);
+  Status session_create_status = session->Create (graph_def);
+  if (!new_session_status.ok () || !session_create_status.ok ()) {
     GST_ERROR ("Create Tensorflow Session was Failed");
     return -3;
   }
@@ -235,67 +235,67 @@ TFCore::getTensorTypeToTF (tensor_type tType)
  *        -5 if the rank of input tensors exceeds our capacity NNS_TENSOR_RANK_LIMIT.
  */
 int
-TFCore::inputTensorValidation (const std::vector<const NodeDef*> &placeholders)
+TFCore::inputTensorValidation (const std::vector <const NodeDef*> &placeholders)
 {
-  int length = placeholders.size();
+  int length = placeholders.size ();
 
-  if (inputTensorMeta.num_tensors != length){
+  if (inputTensorMeta.num_tensors != length) {
     GST_ERROR ("Input Tensor is not valid: the number of input tensor is different\n");
     return -1;
   }
 
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length; ++i) {
     const NodeDef* node = placeholders[i];
     string shape_description = "None";
-    if (node->attr().count("shape")) {
-      TensorShapeProto shape_proto = node->attr().at("shape").shape();
-      Status shape_status = PartialTensorShape::IsValidShape(shape_proto);
-      if (shape_status.ok()) {
-        shape_description = PartialTensorShape(shape_proto).DebugString();
+    if (node->attr ().count ("shape")) {
+      TensorShapeProto shape_proto = node->attr ().at ("shape").shape ();
+      Status shape_status = PartialTensorShape::IsValidShape (shape_proto);
+      if (shape_status.ok ()) {
+        shape_description = PartialTensorShape (shape_proto).DebugString ();
       } else {
-        shape_description = shape_status.error_message();
+        shape_description = shape_status.error_message ();
       }
     }
     char chars[] = "[]";
-    for (unsigned int i = 0; i < strlen(chars); ++i)
+    for (unsigned int i = 0; i < strlen (chars); ++i)
     {
       shape_description.erase (
-        std::remove(
-          shape_description.begin(),
-          shape_description.end(),
+        std::remove (
+          shape_description.begin (),
+          shape_description.end (),
           chars[i]
         ),
-        shape_description.end()
+        shape_description.end ()
       );
     }
 
     DataType dtype = DT_INVALID;
-    if (node->attr().count("dtype")) {
-      dtype = node->attr().at("dtype").type();
+    if (node->attr ().count ("dtype")) {
+      dtype = node->attr ().at ("dtype").type ();
     }
 
-    if (strcmp (inputTensorMeta.info[i].name, node->name().c_str())){
+    if (strcmp (inputTensorMeta.info[i].name, node->name ().c_str ())) {
       GST_ERROR ("Input Tensor is not valid: the name of input tensor is different\n");
       return -2;
     }
-    if (inputTensorMeta.info[i].type != getTensorTypeFromTF(dtype)){
+    if (inputTensorMeta.info[i].type != getTensorTypeFromTF (dtype)) {
       GST_ERROR ("Input Tensor is not valid: the type of input tensor is different\n");
       return -3;
     }
 
     gchar **str_dims;
-    str_dims = g_strsplit (shape_description.c_str(), ",", -1);
+    str_dims = g_strsplit (shape_description.c_str (), ",", -1);
     inputTensorRank[i] = g_strv_length (str_dims);
     if (inputTensorRank[i] > NNS_TENSOR_RANK_LIMIT) {
       GST_ERROR ("The Rank of Input Tensor is not affordable. It's over our capacity.\n");
       g_strfreev (str_dims);
       return -5;
     }
-    for (int j = 0; j < inputTensorRank[i]; j++) {
+    for (int j = 0; j < inputTensorRank[i]; ++j) {
       if (!strcmp (str_dims[j], "?"))
         continue;
 
-      if (inputTensorMeta.info[i].dimension[inputTensorRank[i] - j - 1] != atoi (str_dims[j])){
+      if (inputTensorMeta.info[i].dimension[inputTensorRank[i] - j - 1] != atoi (str_dims[j])) {
         GST_ERROR ("Input Tensor is not valid: the dim of input tensor is different\n");
         g_strfreev (str_dims);
         return -4;
@@ -370,11 +370,11 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 
 #define copyInputWithType(type) do { \
     for (int idx = 0; idx < array_len; ++idx) \
-      inputTensor.flat<type>()(idx) = ((type*)input[i].data)[idx]; \
+      inputTensor.flat<type> ()(idx) = ((type*) input[i].data)[idx]; \
   } while (0)
 
 #define copyOutputWithType(type) do { \
-    output[i].data = outputs[i].flat<type>().data(); \
+    output[i].data = outputs[i].flat<type> ().data (); \
     outputTensorMap.insert (std::make_pair (output[i].data, outputs[i])); \
   } while (0)
 
@@ -388,18 +388,18 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 {
-  std::vector<std::pair<string, Tensor>> input_feeds;
-  std::vector<string> output_tensor_names;
-  std::vector<Tensor> outputs;
+  std::vector <std::pair <string, Tensor>> input_feeds;
+  std::vector <string> output_tensor_names;
+  std::vector <Tensor> outputs;
   int array_len;
 
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
-    TensorShape ts = TensorShape({});
-    for (int j = inputTensorRank[i] - 1; j >= 0; j--){
-      ts.AddDim(inputTensorMeta.info[i].dimension[j]);
+  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    TensorShape ts = TensorShape ({});
+    for (int j = inputTensorRank[i] - 1; j >= 0; j--) {
+      ts.AddDim (inputTensorMeta.info[i].dimension[j]);
     }
-    Tensor inputTensor(
-      getTensorTypeToTF(input[i].type),
+    Tensor inputTensor (
+      getTensorTypeToTF (input[i].type),
       ts
     );
 
@@ -441,25 +441,25 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         break;
     }
 
-    input_feeds.push_back({inputTensorMeta.info[i].name, inputTensor});
+    input_feeds.push_back ({inputTensorMeta.info[i].name, inputTensor});
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
-    output_tensor_names.push_back(outputTensorMeta.info[i].name);
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    output_tensor_names.push_back (outputTensorMeta.info[i].name);
   }
 
   Status run_status =
-      session->Run(input_feeds, output_tensor_names, {}, &outputs);
+      session->Run (input_feeds, output_tensor_names, {}, &outputs);
 
-  if (run_status != Status::OK ()){
+  if (run_status != Status::OK ()) {
     GST_ERROR ("Failed to run model: %s\n", (run_status.ToString ()).c_str ());
     return -1;
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     output[i].type = getTensorTypeFromTF (outputs[i].dtype());
     output[i].size = tensor_element_size[output[i].type];
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
       output[i].size *= outputTensorMeta.info[i].dimension[j];
 
     array_len = output[i].size / tensor_element_size[output[i].type];
@@ -504,8 +504,8 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   return 0;
 }
 
-extern void *
-tf_core_new (const char *_model_path)
+void *
+tf_core_new (const char * _model_path)
 {
   return new TFCore (_model_path);
 }
@@ -515,8 +515,8 @@ tf_core_new (const char *_model_path)
  * @param	tf	: the class object
  * @return	Nothing
  */
-extern void
-tf_core_delete (void *tf)
+void
+tf_core_delete (void * tf)
 {
   TFCore *c = (TFCore *) tf;
   delete c;
@@ -528,7 +528,7 @@ tf_core_delete (void *tf)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_init (void *tf, const GstTensorFilterProperties * prop)
+tf_core_init (void * tf, const GstTensorFilterProperties * prop)
 {
   TFCore *c = (TFCore *) tf;
   int ret = c->init (prop);
@@ -540,8 +540,8 @@ tf_core_init (void *tf, const GstTensorFilterProperties * prop)
  * @param	tf	: the class object
  * @return	model path
  */
-extern const char *
-tf_core_getModelPath (void *tf)
+const char *
+tf_core_getModelPath (void * tf)
 {
   TFCore *c = (TFCore *) tf;
   return c->getModelPath ();
@@ -554,7 +554,7 @@ tf_core_getModelPath (void *tf)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getInputDim (void *tf, GstTensorsInfo * info)
+tf_core_getInputDim (void * tf, GstTensorsInfo * info)
 {
   TFCore *c = (TFCore *) tf;
   return c->getInputTensorDim (info);
@@ -567,7 +567,7 @@ tf_core_getInputDim (void *tf, GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_getOutputDim (void *tf, GstTensorsInfo * info)
+tf_core_getOutputDim (void * tf, GstTensorsInfo * info)
 {
   TFCore *c = (TFCore *) tf;
   return c->getOutputTensorDim (info);
@@ -581,7 +581,7 @@ tf_core_getOutputDim (void *tf, GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_run (void *tf, const GstTensorMemory * input, GstTensorMemory * output)
+tf_core_run (void * tf, const GstTensorMemory * input, GstTensorMemory * output)
 {
   TFCore *c = (TFCore *) tf;
   return c->run (input, output);
@@ -592,6 +592,7 @@ tf_core_run (void *tf, const GstTensorMemory * input, GstTensorMemory * output)
  * @param[in] data : the data element destroyed at the pipeline
  */
 void
-tf_core_destroyNotify (void * data){
+tf_core_destroyNotify (void * data)
+{
   TFCore::outputTensorMap.erase (data);
 }

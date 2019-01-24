@@ -39,7 +39,7 @@
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char *_model_path)
+TFLiteCore::TFLiteCore (const char * _model_path)
 {
   model_path = _model_path;
 
@@ -104,7 +104,7 @@ TFLiteCore::loadModel ()
 
   if (!interpreter) {
     model =
-        std::unique_ptr < tflite::FlatBufferModel >
+        std::unique_ptr <tflite::FlatBufferModel>
         (tflite::FlatBufferModel::BuildFromFile (model_path));
     if (!model) {
       GST_ERROR ("Failed to mmap model\n");
@@ -318,7 +318,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   gint64 start_time = g_get_real_time ();
 #endif
 
-  std::vector<int> tensors_idx;
+  std::vector <int> tensors_idx;
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
 
@@ -366,7 +366,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
  * @return	TFLiteCore class
  */
 void *
-tflite_core_new (const char *_model_path)
+tflite_core_new (const char * _model_path)
 {
   return new TFLiteCore (_model_path);
 }
@@ -377,7 +377,7 @@ tflite_core_new (const char *_model_path)
  * @return	Nothing
  */
 void
-tflite_core_delete (void *tflite)
+tflite_core_delete (void * tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   delete c;
@@ -389,7 +389,7 @@ tflite_core_delete (void *tflite)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_init (void *tflite)
+tflite_core_init (void * tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   int ret = c->init ();
@@ -402,7 +402,7 @@ tflite_core_init (void *tflite)
  * @return the model path.
  */
 const char *
-tflite_core_getModelPath (void *tflite)
+tflite_core_getModelPath (void * tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   return c->getModelPath ();
@@ -415,7 +415,7 @@ tflite_core_getModelPath (void *tflite)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getInputDim (void *tflite, GstTensorsInfo * info)
+tflite_core_getInputDim (void * tflite, GstTensorsInfo * info)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   int ret = c->getInputTensorDim (info);
@@ -429,7 +429,7 @@ tflite_core_getInputDim (void *tflite, GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_getOutputDim (void *tflite, GstTensorsInfo * info)
+tflite_core_getOutputDim (void * tflite, GstTensorsInfo * info)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   int ret = c->getOutputTensorDim (info);
@@ -444,7 +444,7 @@ tflite_core_getOutputDim (void *tflite, GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-tflite_core_invoke (void *tflite, const GstTensorMemory * input,
+tflite_core_invoke (void * tflite, const GstTensorMemory * input,
     GstTensorMemory * output)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
