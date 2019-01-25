@@ -187,6 +187,7 @@ TFLiteCore::setInputTensorProp ()
 
   for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (input_idx_list[i], inputTensorMeta.info[i].dimension)) {
+      GST_ERROR ("failed to get the dimension of input tensors");
       return -1;
     }
     inputTensorMeta.info[i].type =
@@ -215,6 +216,7 @@ TFLiteCore::setOutputTensorProp ()
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (output_idx_list[i], outputTensorMeta.info[i].dimension)) {
+      GST_ERROR ("failed to get the dimension of output tensors");
       return -1;
     }
     outputTensorMeta.info[i].type =

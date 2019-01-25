@@ -81,10 +81,13 @@ tf_loadModelFile (const GstTensorFilter * filter, void **private_data)
   *private_data = tf;
   tf->tf_private_data = tf_core_new (filter->prop.model_file);
   if (tf->tf_private_data) {
-    if (tf_core_init (tf->tf_private_data, &filter->prop))
+    if (tf_core_init (tf->tf_private_data, &filter->prop)) {
+      GST_ERROR ("failed to initailize the object: tensorflow");
       return -2;
+    }
     return 0;
   } else {
+    GST_ERROR ("failed to create the object: tensorflow");
     return -1;
   }
 }
