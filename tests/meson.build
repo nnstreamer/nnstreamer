@@ -11,10 +11,16 @@ library('tensorscheck',
   install: false
 )
 
-# This custom filter is used in unittest_sink.
+# These custom filters are used in unittest_sink.
 library('nnscustom_framecounter',
   join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
   dependencies: [glib_dep, nnstreamer_dep],
+  install: false
+)
+
+library('nnscustom_drop_buffer',
+  join_paths('nnstreamer_sink', 'nnscustom_drop_buffer.c'),
+  dependencies: [nnstreamer_dep],
   install: false
 )
 

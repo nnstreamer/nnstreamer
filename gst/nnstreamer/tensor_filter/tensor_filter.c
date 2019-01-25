@@ -904,7 +904,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 3. Call the filter-subplugin callback, "invoke" */
   gst_tensor_filter_call (self, ret, invoke_NN, in_tensors, out_tensors);
-  g_assert (ret == 0);
+  /** @todo define enum to indicate status code */
+  g_assert (ret >= 0);
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
@@ -927,6 +928,12 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 5. Return result! */
+  if (ret > 0) {
+    /** @todo define enum to indicate status code */
+    /* drop this buffer */
+    return GST_BASE_TRANSFORM_FLOW_DROPPED;
+  }
+
   return GST_FLOW_OK;
 unknown_format:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
