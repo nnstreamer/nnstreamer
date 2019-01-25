@@ -31,10 +31,52 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
+ * which is GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c.
+ * We redefined the value because GST_BUFFER_MEM_MAX is not exported and
+ * we need static value. To modify (increase) this value, you need to update
+ * gstreamer/gstbuffer.c as well.
+ */
+#define GST_TENSOR_NUM_TENSORS_RANGE "(int) [ 1, " NNS_TENSOR_SIZE_LIMIT_STR " ]"
+#define GST_TENSOR_RATE_RANGE "(fraction) [ 0, max ]"
+/**
+ * @brief Fixed size of string type
+ */
+#define GST_TENSOR_STRING_SIZE (1024)
 #define NNS_TENSOR_RANK_LIMIT	(4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
+
+
+/**
+ * @brief Default static capibility for other/tensor
+ */
+#define GST_TENSOR_CAP_DEFAULT \
+    "other/tensor, " \
+    "framerate = " GST_TENSOR_RATE_RANGE
+    /**
+     * type should be one of types in GST_TENSOR_TYPE_ALL
+     * "type = (string) uint8"
+     * dimension shoule be a formatted string with rank NNS_TENSOR_RANK_LIMIT
+     * "dimension = (string) dim1:dim2:dim3:dim4"
+     */
+
+/**
+ * @brief Default static capibility for other/tensors
+ */
+#define GST_TENSORS_CAP_DEFAULT \
+    "other/tensors, " \
+    "num_tensors = " GST_TENSOR_NUM_TENSORS_RANGE ", "\
+    "framerate = " GST_TENSOR_RATE_RANGE
+    /**
+     * type should be one of types in GST_TENSOR_TYPE_ALL
+     * "types = (string) uint8, uint8, uint8"
+     * Dimensions of Tensors for negotiation. It's comment out here,
+       but when we call gst_structure_get_string, it actually is working well
+     * "dimensions = (string) dim1:dim2:dim3:dim4, dim1:dim2:dim3:dim4"
+     */
 
 /**
  * @brief Possible data element types of other/tensor.
@@ -54,6 +96,22 @@ typedef enum _nns_tensor_type
 
   _NNS_END,
 } tensor_type;
+
+/**
+ * @brief Possible input stream types for other/tensor.
+ *
+ * This is realted with media input stream to other/tensor.
+ * There is no restrictions for the outputs.
+ */
+typedef enum _nns_media_type
+{
+  _NNS_VIDEO = 0, /**< supposedly video/x-raw */
+  _NNS_AUDIO, /**< supposedly audio/x-raw */
+  _NNS_STRING, /**< supposedly text/x-raw */
+  _NNS_OCTET, /**< supposedly application/octet-stream */
+
+  _NNS_MEDIA_END, /**< End Marker */
+} media_type;
 
 /**
  * @brief Byte-per-element of each tensor element type.
@@ -119,6 +177,26 @@ typedef struct
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
 } GstTensorsInfo;
+
+/**
+ * @brief Internal data structure for configured tensor info (for other/tensor).
+ */
+typedef struct
+{
+  GstTensorInfo info; /**< tensor info*/
+  int32_t rate_n; /**< framerate is in fraction, which is numerator/denominator */
+  int32_t rate_d; /**< framerate is in fraction, which is numerator/denominator */
+} GstTensorConfig;
+
+/**
+ * @brief Internal data structure for configured tensors info (for other/tensors).
+ */
+typedef struct
+{
+  GstTensorsInfo info; /**< tensor info*/
+  int32_t rate_n; /**< framerate is in fraction, which is numerator/denominator */
+  int32_t rate_d; /**< framerate is in fraction, which is numerator/denominator */
+} GstTensorsConfig;
 
 /**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)

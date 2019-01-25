@@ -36,6 +36,15 @@ foreach s : nnst_common_sources
   nnstreamer_sources += join_paths(meson.current_source_dir(), s)
 endforeach
 
+# Add nnstreamer API plugin sources
+nnst_plugin_api_sources = [
+  'nnstreamer_plugin_api.c'
+]
+
+foreach s : nnst_plugin_api_sources
+  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
 # Common headers to be installed
 nnst_common_headers = [
   'tensor_typedef.h',
