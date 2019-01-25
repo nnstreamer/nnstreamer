@@ -165,6 +165,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_libdir}/libtensor_filter_tfcore.so
 %endif
 %{gstlibdir}/*.so
+%{_libdir}/libnnstreamer_plugin_api.so
 
 %files devel
 %{_includedir}/nnstreamer/*
