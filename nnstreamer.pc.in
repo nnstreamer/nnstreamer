@@ -3,12 +3,11 @@
 prefix=@PREFIX@
 exec_prefix=@EXEC_PREFIX@
 libdir=@LIB_INSTALL_DIR@
-gstdir=@GST_INSTALL_DIR@
 includedir=@INCLUDE_INSTALL_DIR@
 
 Name: nnstreamer
 Description: Custom Plugin Dev Kit of Neural Network Suite for GStreamer
 Version: @VERSION@
 Requires:
-Libs: -L${libdir} -L${gstdir} -lnnstreamer
+Libs: -L${libdir} -lnnstreamer_plugin_api
 Cflags: -I${includedir}/nnstreamer
