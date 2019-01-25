@@ -1,3 +1,17 @@
+0.0.3 -> 0.1.0:
+	- Build system migration cmake --> meson
+	- Support Tensorflow without input/output tensor memcpy
+	- other/tensor stream format updated
+		- From 0.1.0, a single property, "dimension", describes the whole dimension instead of "dim1", "dim2", ...
+		- Objective 1: in the future, we may support tensors with more than 4 dimensions without updating the protocol.
+		- Objective 2: it was just too ugly.
+	- Example applications migrated to other git repo to make this repo ready for upstreaming in the future and to ensure buildability for third party developers.
+	- Support run-time attaching subplugins (filter and decoder)
+	- Support "ini" and envvar configurations for subplugin locations
+	- Dynamic external recurrences
+	- Subplugin API sets (draft. do not expect backward compatibility)
+	- Bug fixes (memory leaks, incorrect logs, type checks, ...)
+
 0.0.2 -> 0.0.3:
 	- Support external recurrencies with tensor_repo (more test cases are to be released later)
 	- Support multi-operators with a single instance of tensor_transform (with a few limitations on the supported orders of operators)
