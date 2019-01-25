@@ -81,10 +81,13 @@ tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
   *private_data = tf;
   tf->tflite_private_data = tflite_core_new (filter->prop.model_file);
   if (tf->tflite_private_data) {
-    if (tflite_core_init (tf->tflite_private_data))
+    if (tflite_core_init (tf->tflite_private_data)) {
+      GST_ERROR ("failed to initialize the object: Tensorflow-lite");
       return -2;
+    }
     return 0;
   } else {
+    GST_ERROR ("failed to create the object: Tensorflow-lite");
     return -1;
   }
 }
