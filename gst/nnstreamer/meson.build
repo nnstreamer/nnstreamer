@@ -16,6 +16,14 @@ nnstreamer_base_deps = [
   thread_dep
 ]
 
+# Dependencies
+nnstreamer_plugin_api_base_deps = [
+  glib_dep,
+  gst_dep,
+  gst_video_dep,
+  gst_audio_dep,
+]
+
 if have_orcc
   nnstreamer_base_deps += [orc_dep]
 endif
@@ -48,7 +56,8 @@ endforeach
 # Common headers to be installed
 nnst_common_headers = [
   'tensor_typedef.h',
-  'tensor_filter_custom.h'
+  'tensor_filter_custom.h',
+  'nnstreamer_plugin_api.h'
 ]
 
 foreach h : nnst_common_headers
@@ -100,6 +109,22 @@ nnstreamer_lib = nnstreamer_shared
 if get_option('default_library') == 'static'
   nnstreamer_lib = nnstreamer_static
 endif
+
+nnstreamer_plugin_api_shared = shared_library('nnstreamer_plugin_api',
+  nnst_plugin_api_sources,
+  dependencies: [nnstreamer_plugin_api_base_deps],
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: libs_install_dir
+)
+
+nnstreamer_plugin_api_static = static_library('nnstreamer_plugin_api',
+  nnst_plugin_api_sources,
+  dependencies: [nnstreamer_plugin_api_base_deps],
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: libs_install_dir
+)
 
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
   sources: nnstreamer_generated,
