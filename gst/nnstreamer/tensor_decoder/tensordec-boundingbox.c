@@ -60,6 +60,9 @@
 
 #define BOX_SIZE                  4
 #define TFLITE_SSD_DETECTION_MAX  1917
+#define TFLITE_SSD_MAX_TENSORS    2
+#define TF_SSD_DETECTION_MAX      100
+#define TF_SSD_MAX_TENSORS        4
 #define PIXEL_VALUE               (0xFF0000FF)  /* RED 100% in RGBA */
 
 /**
@@ -89,7 +92,7 @@ static const gchar *bb_modes[] = {
 };
 
 /**
- * @brief Data structure for SSD boundig box info.
+ * @brief Data structure for SSD boundig box info for tf-lite ssd model.
  */
 typedef struct
 {
@@ -134,6 +137,8 @@ _init_modes (bounding_boxes * bdata)
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* properties_TFLite_SSD *data = &bdata->tflite-ssd; */
     return TRUE;
+  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+    return TRUE;
   }
   return TRUE;
 }
@@ -149,10 +154,10 @@ bb_init (GstTensorDec * self)
 
   bdata = self->plugin_data;
   bdata->mode = BOUNDING_BOX_UNKNOWN;
-  bdata->width = 640;
-  bdata->height = 480;
-  bdata->i_width = 300;
-  bdata->i_height = 300;
+  bdata->width = 0;
+  bdata->height = 0;
+  bdata->i_width = 0;
+  bdata->i_height = 0;
 
   /** @todo Constify singleLineSprite and remove this loop */
   for (i = 0; i < 256; i++) {
@@ -187,6 +192,7 @@ _exit_modes (bounding_boxes * bdata)
 {
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* properties_TFLite_SSD *data = &bdata->tflite_ssd; */
+  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
   }
 }
 
@@ -396,11 +402,63 @@ bb_setOption (GstTensorDec * self, int opNum, const gchar * param)
 }
 
 /**
+ * @brief check the num_tensors is valid
+*/
+static gboolean
+_check_tensors (const GstTensorsConfig * config, const int limit)
+{
+  int i;
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (config->info.num_tensors >= limit, FALSE);
+  if (config->info.num_tensors > limit) {
+    GST_WARNING ("tensor-decoder:boundingbox accepts %d or less tensors. "
+        "You are wasting the bandwidth by supplying %d tensors.",
+        limit, config->info.num_tensors);
+  }
+
+  /* tensor-type of the tensors shoule be the same */
+  for (i = 1; i < config->info.num_tensors; ++i) {
+    g_return_val_if_fail (config->info.info[i - 1].type ==
+        config->info.info[i].type, FALSE);
+  }
+  return TRUE;
+}
+
+/**
+ * @brief set the max_detection
+*/
+static gboolean
+_set_max_detection (bounding_boxes * data, const guint max_detection,
+    const int limit)
+{
+  /* Check consistency with max_detection */
+  if (data->max_detection == 0)
+    data->max_detection = max_detection;
+  else
+    g_return_val_if_fail (max_detection == data->max_detection, FALSE);
+
+  if (data->max_detection > limit) {
+    GST_ERROR
+        ("Incoming tensor has too large detection-max : %u", max_detection);
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
  * @brief tensordec-plugin's TensorDecDef callback
  *
+ * [TF-Lite SSD Model]
  * The first tensor is boxes. BOX_SIZE : 1 : #MaxDetection, ANY-TYPE
  * The second tensor is labels. #MaxLabel : #MaxDetection, ANY-TYPE
  * Both tensors are MANDATORY!
+ *
+ * [Tensorflow SSD Model]
+ * The first tensor is num_detection. 1, ANY-TYPE
+ * The second tensor is detection_classes. #MaxDetection, ANY-TYPE
+ * The third tensor is detection_scores. #MaxDetection, ANY-TYPE
+ * The fourth tensor is detection_boxes. BOX_SIZE : #MaxDetection, ANY-TYPE
+ * all of tensors are MANDATORY!
  *
  * If there are third or more tensors, such tensors will be ignored.
  */
@@ -410,54 +468,72 @@ bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
   /** @todo this is compatible with "SSD" only. expand the capability! */
   bounding_boxes *data = self->plugin_data;
   GstCaps *caps;
-  const uint32_t *dim1, *dim2;
   int i;
   gchar *str;
   guint max_detection, max_label;
 
-  g_return_val_if_fail (config != NULL, NULL);
-  g_return_val_if_fail (config->info.num_tensors >= 2, NULL);
-  if (config->info.num_tensors > 2) {
-    GST_WARNING ("tensor-decoder:boundingbox accepts 1 or 2 tensors. "
-        "You are wasting the bandwidth by supplying %d tensors.",
-        config->info.num_tensors);
-  }
+  if (data->mode == TFLITE_SSD_BOUNDING_BOX) {
+    const uint32_t *dim1, *dim2;
+    if (!_check_tensors (config, TFLITE_SSD_MAX_TENSORS))
+      return NULL;
 
-  /* Check if the first tensor is compatible */
-  dim1 = config->info.info[0].dimension;
-  g_return_val_if_fail (dim1[0] == BOX_SIZE, NULL);
-  g_return_val_if_fail (dim1[1] == 1, NULL);
-  max_detection = dim1[2];
-  g_return_val_if_fail (max_detection > 0, NULL);
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim1[i] == 1, NULL);
+    /* Check if the first tensor is compatible */
+    dim1 = config->info.info[0].dimension;
+    g_return_val_if_fail (dim1[0] == BOX_SIZE, NULL);
+    g_return_val_if_fail (dim1[1] == 1, NULL);
+    max_detection = dim1[2];
+    g_return_val_if_fail (max_detection > 0, NULL);
+    for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+      g_return_val_if_fail (dim1[i] == 1, NULL);
 
-  /* Check if the second tensor is compatible */
-  dim2 = config->info.info[1].dimension;
-  max_label = dim2[0];
-  g_return_val_if_fail (max_label <= data->total_labels, NULL);
-  if (max_label < data->total_labels)
-    GST_WARNING
-        ("The given tensor (2nd) has max_label (first dimension: %u) smaller than the number of labels in labels file (%s: %u).",
-        max_label, data->label_path, data->total_labels);
-  g_return_val_if_fail (max_detection == dim2[1], NULL);
-  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim2[i] == 1, NULL);
+    /* Check if the second tensor is compatible */
+    dim2 = config->info.info[1].dimension;
+    max_label = dim2[0];
+    g_return_val_if_fail (max_label <= data->total_labels, NULL);
+    if (max_label < data->total_labels)
+      GST_WARNING
+          ("The given tensor (2nd) has max_label (first dimension: %u) smaller than the number of labels in labels file (%s: %u).",
+          max_label, data->label_path, data->total_labels);
+    g_return_val_if_fail (max_detection == dim2[1], NULL);
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
+      g_return_val_if_fail (dim2[i] == 1, NULL);
 
-  /* tensor-type of the two tensors shoule be the same */
-  g_return_val_if_fail (config->info.info[0].type == config->info.info[1].type,
-      NULL);
+    /* Check consistency with max_detection */
+    if (!_set_max_detection (data, max_detection, TFLITE_SSD_DETECTION_MAX)) {
+      return NULL;
+    }
+  } else if (data->mode == TF_SSD_BOUNDING_BOX) {
+    const uint32_t *dim1, *dim2, *dim3, *dim4;
+    if (!_check_tensors (config, TF_SSD_MAX_TENSORS))
+      return NULL;
 
-  /* Check consistency with max_detection */
-  if (data->max_detection == 0)
-    data->max_detection = max_detection;
-  else
-    g_return_val_if_fail (max_detection == data->max_detection, NULL);
-  if (data->max_detection > TFLITE_SSD_DETECTION_MAX) {
-    GST_ERROR
-        ("Incoming tensor has too large detection-max (3rd rank in tensor_0 and 2nd rank in tensor_1) : %u",
-        max_detection);
-    return NULL;
+    /* Check if the first tensor is compatible */
+    dim1 = config->info.info[0].dimension;
+    g_return_val_if_fail (dim1[0] == 1, NULL);
+    for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+      g_return_val_if_fail (dim1[i] == 1, NULL);
+
+    /* Check if the second & third tensor is compatible */
+    dim2 = config->info.info[1].dimension;
+    dim3 = config->info.info[2].dimension;
+    g_return_val_if_fail (dim3[0] == dim2[0], NULL);
+    max_detection = dim2[0];
+    for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+      g_return_val_if_fail (dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim3[i] == 1, NULL);
+    }
+
+    /* Check if the fourth tensor is compatible */
+    dim4 = config->info.info[3].dimension;
+    g_return_val_if_fail (BOX_SIZE == dim4[0], NULL);
+    g_return_val_if_fail (max_detection == dim4[1], NULL);
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
+      g_return_val_if_fail (dim4[i] == 1, NULL);
+
+    /* Check consistency with max_detection */
+    if (!_set_max_detection (data, max_detection, TF_SSD_DETECTION_MAX)) {
+      return NULL;
+    }
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
@@ -576,7 +652,7 @@ typedef struct
  * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
  * @param[in] result The object returned. (pointer to object)
  */
-#define _get_object_i(bb, index, boxprior, boxinputptr, detinputptr, result) \
+#define _get_object_i_tflite(bb, index, boxprior, boxinputptr, detinputptr, result) \
   do { \
     int c; \
     for (c = 1; c < bb->total_labels; c++) { \
@@ -602,21 +678,20 @@ typedef struct
         break; \
       } \
     } \
-   } while (0);
+  } while (0);
 
 /**
- * @brief C++-Template-like box location calculation for box-priors
+ * @brief C++-Template-like box location calculation for box-priors for TF-Lite SSD Model
  * @param[in] bb The configuration, "bounding_boxes"
  * @param[in] type The tensor type of inputptr
  * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:TFLITE_SSD_DETECTION_MAX:1)
  * @param[in] boxprior The box prior data from the box file of TFLITE_SSD.
  * @param[in] boxinput Input Tensor Data (Boxes)
  * @param[in] detinput Input Tensor Data (Detection). Null if not available. (numtensor ==1)
  * @param[in] config Tensor configs of the input tensors
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_objects(bb, _type, typename, boxprior, boxinput, detinput, config, results) \
+#define _get_objects_tflite(bb, _type, typename, boxprior, boxinput, detinput, config, results) \
   case typename: \
   { \
     int d; \
@@ -625,9 +700,9 @@ typedef struct
     _type * detinput_ = (_type *) detinput; \
     gsize detbpi = config->info.info[1].dimension[0]; \
     int num = (TFLITE_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : TFLITE_SSD_DETECTION_MAX; \
-    detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = 0 }; \
+    detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0 }; \
     for (d = 0; d < num; d++) { \
-      _get_object_i (bb, d, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
+      _get_object_i_tflite (bb, d, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
       if (object.valid == TRUE) { \
         g_array_append_val (results, object); \
       } \
@@ -635,10 +710,9 @@ typedef struct
   } \
   break
 
-/** @brief Macro to simplify calling _get_objects */
-#define _get_objects_(type, typename) \
-  _get_objects (bdata, type, typename, (bdata->tflite_ssd.box_priors), (boxes->data), (detections->data), config, results)
-
+/** @brief Macro to simplify calling _get_objects_tflite */
+#define _get_objects_tflite_(type, typename) \
+  _get_objects_tflite (bdata, type, typename, (bdata->tflite_ssd.box_priors), (boxes->data), (detections->data), config, results)
 
 /**
  * @brief Compare Function for g_array_sort with detectedObject.
@@ -710,6 +784,48 @@ nms (GArray * results)
   } while (i < results->len);
 
 }
+
+/**
+ * @brief C++-Template-like box location calculation for Tensorflow SSD model
+ * @param[in] bb The configuration, "bounding_boxes"
+ * @param[in] type The tensor type of inputptr
+ * @param[in] typename nnstreamer enum corresponding to the type
+ * @param[in] numinput Input Tensor Data (The number of detections)
+ * @param[in] classinput Input Tensor Data (Detected classes)
+ * @param[in] scoreinput Input Tensor Data (Detection scores)
+ * @param[in] boxesinput Input Tensor Data (Boxes)
+ * @param[in] config Tensor configs of the input tensors
+ * @param[out] results The object returned. (GArray with detectedObject)
+ */
+#define _get_objects_tf(bb, _type, typename, numinput, classinput, scoreinput, boxesinput, config, results) \
+  case typename: \
+  { \
+    int d; \
+    _type * num_detection_ = (_type *) numinput; \
+    _type * classes_ = (_type *) classinput; \
+    _type * scores_ = (_type *) scoreinput; \
+    _type * boxes_ = (_type *) boxesinput; \
+    int num = (int) num_detection_[0]; \
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
+    gsize boxbpi = config->info.info[3].dimension[0]; \
+    for (d = 0; d < num; d++) { \
+      detectedObject object; \
+      object.valid = TRUE; \
+      object.class_id = (int) classes_[d]; \
+      object.x = (int) (boxes_[d * boxbpi + 1] * bb->width); \
+      object.y = (int) (boxes_[d * boxbpi] * bb->height); \
+      object.width = (int) ((boxes_[d * boxbpi + 3] - boxes_[d * boxbpi + 1]) * bb->width); \
+      object.height = (int) ((boxes_[d * boxbpi + 2] - boxes_[d * boxbpi]) * bb->height); \
+      object.prob = scores_[d]; \
+      g_array_append_val (results, object); \
+    } \
+  } \
+  break
+
+/** @brief Macro to simplify calling _get_objects_tf */
+#define _get_objects_tf_(type, typename) \
+  _get_objects_tf (bdata, type, typename, (mem_num->data), (mem_classes->data), (mem_scores->data), (mem_boxes->data), config, results)
+
 
 /**
  * @brief Draw with the given results (obejcts[TFLITE_SSD_DETECTION_MAX]) to the output buffer
@@ -795,25 +911,11 @@ bb_decode (GstTensorDec * self, const GstTensorMemory * input,
   const gsize size = bdata->width * bdata->height * 4;  /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
+  GArray *results = NULL;
   const GstTensorsConfig *config = &self->tensor_config;
-
   const int num_tensors = config->info.num_tensors;
-  const GstTensorMemory *boxes, *detections = NULL;
-  GArray *results =
-      g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
-  /**
-   * @todo 100 is a heuristic number of objects in a picture frame
-   *       We may have better "heuristics" than this.
-   *       For the sake of performance, don't make it too small.
-   */
 
   g_assert (outbuf);
-  g_assert (num_tensors >= 2);
-
-  boxes = &input[0];
-  if (num_tensors >= 2)
-    detections = &input[1];
-
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
@@ -828,22 +930,65 @@ bb_decode (GstTensorDec * self, const GstTensorMemory * input,
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
-  switch (config->info.info[0].type) {
-      _get_objects_ (uint8_t, _NNS_UINT8);
-      _get_objects_ (int8_t, _NNS_INT8);
-      _get_objects_ (uint16_t, _NNS_UINT16);
-      _get_objects_ (int16_t, _NNS_INT16);
-      _get_objects_ (uint32_t, _NNS_UINT32);
-      _get_objects_ (int32_t, _NNS_INT32);
-      _get_objects_ (uint64_t, _NNS_UINT64);
-      _get_objects_ (int64_t, _NNS_INT64);
-      _get_objects_ (float, _NNS_FLOAT32);
-      _get_objects_ (double, _NNS_FLOAT64);
-    default:
-      g_assert (0);
+  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
+    const GstTensorMemory *boxes, *detections = NULL;
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
+    /**
+     * @todo 100 is a heuristic number of objects in a picture frame
+     *       We may have better "heuristics" than this.
+     *       For the sake of performance, don't make it too small.
+     */
+
+    g_assert (num_tensors >= TFLITE_SSD_MAX_TENSORS);
+
+    boxes = &input[0];
+    if (num_tensors >= TFLITE_SSD_MAX_TENSORS)
+      detections = &input[1];
+
+    switch (config->info.info[0].type) {
+        _get_objects_tflite_ (uint8_t, _NNS_UINT8);
+        _get_objects_tflite_ (int8_t, _NNS_INT8);
+        _get_objects_tflite_ (uint16_t, _NNS_UINT16);
+        _get_objects_tflite_ (int16_t, _NNS_INT16);
+        _get_objects_tflite_ (uint32_t, _NNS_UINT32);
+        _get_objects_tflite_ (int32_t, _NNS_INT32);
+        _get_objects_tflite_ (uint64_t, _NNS_UINT64);
+        _get_objects_tflite_ (int64_t, _NNS_INT64);
+        _get_objects_tflite_ (float, _NNS_FLOAT32);
+        _get_objects_tflite_ (double, _NNS_FLOAT64);
+      default:
+        g_assert (0);
+    }
+    nms (results);
+  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+    const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
+    results =
+        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
+        TF_SSD_DETECTION_MAX);
+
+    g_assert (num_tensors >= TF_SSD_MAX_TENSORS);
+
+    mem_num = &input[0];
+    mem_classes = &input[1];
+    mem_scores = &input[2];
+    mem_boxes = &input[3];
+
+    switch (config->info.info[0].type) {
+        _get_objects_tf_ (uint8_t, _NNS_UINT8);
+        _get_objects_tf_ (int8_t, _NNS_INT8);
+        _get_objects_tf_ (uint16_t, _NNS_UINT16);
+        _get_objects_tf_ (int16_t, _NNS_INT16);
+        _get_objects_tf_ (uint32_t, _NNS_UINT32);
+        _get_objects_tf_ (int32_t, _NNS_INT32);
+        _get_objects_tf_ (uint64_t, _NNS_UINT64);
+        _get_objects_tf_ (int64_t, _NNS_INT64);
+        _get_objects_tf_ (float, _NNS_FLOAT32);
+        _get_objects_tf_ (double, _NNS_FLOAT64);
+      default:
+        g_assert (0);
+    }
   }
 
-  nms (results);
   draw (&out_info, bdata, results);
   g_array_free (results, TRUE);
 

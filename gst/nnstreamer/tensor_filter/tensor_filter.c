@@ -455,7 +455,7 @@ gst_tensor_filter_init (GstTensorFilter * self)
  * @brief deallocate the name of each GstTensorInfo.
  * @param The GstTensorsInfo object
  */
-inline void
+static void
 gst_tensor_filter_deallocate_tensor_name (GstTensorsInfo * info)
 {
   guint i;
