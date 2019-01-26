@@ -2,12 +2,14 @@ Source: nnstreamer
 Section: libs
 Priority: optional
 Maintainer: MyungJoo Ham <myungjoo.ham@samsung.com>
-Build-Depends: gcc (>=5), ninja-build, meson (>=0.40), libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libglib2.0-dev,
- libgtest-dev,
+Build-Depends: gcc (>=5), ninja-build, meson (>=0.40),
  debhelper (>=9),
+ libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libglib2.0-dev,
  gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good,
- libpng-dev, tensorflow-lite-dev, tensorflow-dev [amd64 arm64], libopencv-dev,
- liborc-0.4-dev, ssat, python, python-numpy, libprotobuf-dev [amd64 arm64]
+ libgtest-dev, ssat, libpng-dev, libopencv-dev, liborc-0.4-dev,
+ python, python-numpy,
+ tensorflow-lite-dev,
+ tensorflow-dev [amd64 arm64], python2.7-dev, libprotobuf-dev [amd64 arm64]
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnsuite/nnstreamer
 
