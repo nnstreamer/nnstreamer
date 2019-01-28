@@ -26,7 +26,7 @@
  *
  */
 
-#include "tensor_filter.h"
+#include <tensor_typedef.h>
 #include "tensor_filter_tensorflow_core.h"
 #include <glib.h>
 #include <string.h>
