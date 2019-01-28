@@ -126,14 +126,6 @@ typedef struct
 } GstTensorCollectPadData;
 
 /**
- * @brief Get media type from caps
- * @param caps caps to be interpreted
- * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
- */
-extern media_type
-gst_tensor_media_type_from_caps (const GstCaps * caps);
-
-/**
  * @brief Compare tensor info
  * @param TRUE if equal
  */

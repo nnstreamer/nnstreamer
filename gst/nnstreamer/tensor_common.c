@@ -28,21 +28,6 @@
 #include <glib.h>
 
 /**
- * @brief Get media type from caps
- * @param caps caps to be interpreted
- * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
- */
-media_type
-gst_tensor_media_type_from_caps (const GstCaps * caps)
-{
-  GstStructure *structure;
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  return gst_tensor_media_type_from_structure (structure);
-}
-
-/**
  * @brief Compare tensor info
  * @param TRUE if equal
  */
