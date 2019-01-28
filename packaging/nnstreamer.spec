@@ -160,10 +160,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_libdir}/libtensor_filter_tflitecore.so
-%ifarch x86_64 aarch64
-%{_libdir}/libtensor_filter_tfcore.so
-%endif
+%{_libdir}/libtensor_filter_*.so
 %{gstlibdir}/*.so
 %{_libdir}/libnnstreamer_plugin_api.so
 
@@ -182,10 +179,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_libdir}/*.so
-%exclude %{_libdir}/libtensor_filter_tflitecore.so
-%ifarch x86_64 aarch64
-%exclude %{_libdir}/libtensor_filter_tfcore.so
-%endif
+%exclude %{_libdir}/libtensor_filter_*.so
 
 %changelog
 * Thu Jan 24 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
