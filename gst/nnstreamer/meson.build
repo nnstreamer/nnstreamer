@@ -64,6 +64,31 @@ foreach h : nnst_common_headers
   nnstreamer_headers += join_paths(meson.current_source_dir(), h)
 endforeach
 
+nnstreamer_plugin_api_shared = shared_library('nnstreamer_plugin_api',
+  nnst_plugin_api_sources,
+  dependencies: [nnstreamer_plugin_api_base_deps],
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: libs_install_dir
+)
+
+nnstreamer_plugin_api_static = static_library('nnstreamer_plugin_api',
+  nnst_plugin_api_sources,
+  dependencies: [nnstreamer_plugin_api_base_deps],
+  include_directories: nnstreamer_inc,
+  install: true,
+  install_dir: libs_install_dir
+)
+
+nnstreamer_plugin_api_lib = nnstreamer_plugin_api_shared
+if get_option('default_library') == 'static'
+  nnstreamer_plugin_api_lib = nnstreamer_plugin_api_static
+endif
+
+nnstreamer_plugin_api_dep = declare_dependency(link_with: nnstreamer_plugin_api_lib,
+  dependencies: nnstreamer_plugin_api_base_deps,
+  include_directories: nnstreamer_inc)
+
 # Add plugins
 nnst_plugins = [
   'tensor_aggregator',
@@ -109,22 +134,6 @@ nnstreamer_lib = nnstreamer_shared
 if get_option('default_library') == 'static'
   nnstreamer_lib = nnstreamer_static
 endif
-
-nnstreamer_plugin_api_shared = shared_library('nnstreamer_plugin_api',
-  nnst_plugin_api_sources,
-  dependencies: [nnstreamer_plugin_api_base_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: libs_install_dir
-)
-
-nnstreamer_plugin_api_static = static_library('nnstreamer_plugin_api',
-  nnst_plugin_api_sources,
-  dependencies: [nnstreamer_plugin_api_base_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: libs_install_dir
-)
 
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
   sources: nnstreamer_generated,
