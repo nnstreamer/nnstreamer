@@ -110,6 +110,7 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
     popd
+    export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
     pushd tests
     ssat -n
     popd
@@ -160,7 +161,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_libdir}/libtensor_filter_*.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_*.so
 %{gstlibdir}/*.so
 %{_libdir}/libnnstreamer_plugin_api.so
 %{_sysconfdir}/nnstreamer.ini

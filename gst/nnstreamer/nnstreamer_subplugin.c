@@ -65,13 +65,19 @@ _heldsp_destroy (gpointer _data)
  * @brief API to notify subplugin-manager that this subplugin is handled already.
  */
 void
-hold_register_subplugin (subpluginType type, const char *name, void *data)
+hold_register_subplugin (subpluginType type, const char *name, const void *data)
 {
+  holdplugins *ptr;
+
   if (held_subplugins[type] == NULL)
     held_subplugins[type] =
         g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
         _heldsp_destroy);
-  g_hash_table_insert (held_subplugins[type], g_strdup (name), data);
+
+  ptr = g_new (holdplugins, 1);
+  ptr->name = g_strdup (name);
+  ptr->data = data;
+  g_hash_table_insert (held_subplugins[type], g_strdup (name), ptr);
 }
 
 /**
@@ -80,9 +86,15 @@ hold_register_subplugin (subpluginType type, const char *name, void *data)
 static const void *
 check_held_subplugin (subpluginType type, const char *name)
 {
+  holdplugins *ptr;
+
   if (held_subplugins[type] == NULL)
     return NULL;
-  return g_hash_table_lookup (held_subplugins[type], name);
+  ptr = g_hash_table_lookup (held_subplugins[type], name);
+
+  if (ptr)
+    return ptr->data;
+  return NULL;
 }
 
 /** @brief Private function for g_hash_table data destructor, GDestroyNotify */

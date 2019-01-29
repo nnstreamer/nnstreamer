@@ -106,6 +106,9 @@ endif
 # Build nnstreamer (common, plugins)
 subdir('gst')
 
+# Build ext subplugins (filter-subplugins)
+subdir('ext/nnstreamer/tensor_filter')
+
 # Build nnstreamer examples
 if get_option('enable-test') or get_option('install-example')
   subdir('nnstreamer_example')
