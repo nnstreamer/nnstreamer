@@ -298,7 +298,7 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 #define gst_tensor_filter_open_fw(filter) do { \
       if (filter->prop.fw_opened == FALSE && filter->fw) { \
         if (filter->fw->open != NULL) {\
-          if (filter->fw->open (filter, &filter->privateData) == 0) \
+          if (filter->fw->open (&filter->prop, &filter->privateData) == 0) \
             filter->prop.fw_opened = TRUE; \
         } else {\
           filter->prop.fw_opened = TRUE; \
@@ -312,7 +312,7 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 #define gst_tensor_filter_close_fw(filter) do { \
       if (filter->prop.fw_opened) { \
         if (filter->fw && filter->fw->close) \
-          filter->fw->close (filter, &filter->privateData); \
+          filter->fw->close (&filter->prop, &filter->privateData); \
         filter->prop.fw_opened = FALSE; \
         g_free_const (filter->prop.fwname); \
         filter->prop.fwname = NULL; \
@@ -327,7 +327,7 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
       gst_tensor_filter_open_fw (filter); \
       ret = -1; \
       if (filter->prop.fw_opened && filter->fw && filter->fw->funcname) { \
-        ret = filter->fw->funcname (filter, &filter->privateData, __VA_ARGS__); \
+        ret = filter->fw->funcname (&filter->prop, &filter->privateData, __VA_ARGS__); \
       } \
     } while (0)
 

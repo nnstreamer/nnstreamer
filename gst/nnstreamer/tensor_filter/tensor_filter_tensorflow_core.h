@@ -26,6 +26,8 @@
 #ifndef TENSOR_FILTER_TENSORFLOW_H
 #define TENSOR_FILTER_TENSORFLOW_H
 
+#include <tensor_typedef.h>
+
 #ifdef __cplusplus
 #include <glib.h>
 #include <gst/gst.h>
@@ -48,7 +50,6 @@
 #include <tensorflow/core/lib/strings/str_util.h>
 #include <tensorflow/tools/graph_transforms/transform_utils.h>
 
-#include <tensor_typedef.h>
 
 using namespace tensorflow;
 
