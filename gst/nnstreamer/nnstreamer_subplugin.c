@@ -51,6 +51,9 @@ typedef struct
 } holdplugins;
 static GHashTable *held_subplugins[NNS_SUBPLUGIN_END] = { 0 };
 
+/**
+ * @brief Private function for g_hash_table data destructor, GDestroyNotify
+ */
 static void
 _heldsp_destroy (gpointer _data)
 {
@@ -60,6 +63,9 @@ _heldsp_destroy (gpointer _data)
   g_free (data);
 }
 
+/**
+ * @brief API to notify subplugin-manager that this subplugin is handled already.
+ */
 void
 hold_register_subplugin (subpluginType type, const char *name, void *data)
 {
@@ -70,6 +76,9 @@ hold_register_subplugin (subpluginType type, const char *name, void *data)
   g_hash_table_insert (held_subplugins[type], g_strdup (name), data);
 }
 
+/**
+ * @brief Check if this subplugin is held by hold_register_subplugin()
+ */
 static const void *
 check_held_subplugin (subpluginType type, const char *name)
 {
