@@ -4,10 +4,5 @@
 # The lists of people and groups are for github.com
 
 # All members of nnstreamer-team are supposed to review each other
-*                                             @nnsuite/nnstreamer @myungjoo @jijoongmoon @again4you @jaeyun-jung @leemgs @wooksong @helloahn
+*                                             @nnsuite/nnstreamer @myungjoo @jijoongmoon @again4you @jaeyun-jung @leemgs @wooksong @helloahn @kparichay
 
-# For /packaging/, reviewers are limited to those who have some RPM packaging experiences
-/packaging/                                   @leemgs @again4you @wooksong @myungjoo
-
-# For /debian/, reviewers are limited to those who have some DEB packaging experiences
-/debian/                                      @leemgs @myungjoo
