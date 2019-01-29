@@ -201,7 +201,7 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
 
 /** @brief Public function defined in the header */
 gboolean
-nnstreamer_loadconf (gboolean force_reload)
+nnsconf_loadconf (gboolean force_reload)
 {
   g_autoptr (GError) error = NULL;
   g_autoptr (GKeyFile) key_file = NULL;
@@ -247,6 +247,8 @@ nnstreamer_loadconf (gboolean force_reload)
   }
 
   conf.pathFILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_FILTERS);
+
+  fprintf (stderr, "ENV FILTERS = %s\n", conf.pathFILTERS[0]);
   conf.pathDECODERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_DECODERS);
   conf.pathCUSTOM_FILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
 
@@ -311,6 +313,7 @@ nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type type)
   i = 0;
   while (vstr[i] != NULL) {
     /** @todo To support Windows, use case insensitive if it's Windows */
+    fprintf (stderr, "Comparing %s vs %s\n", file2find, vstr[i]);
     if (!g_strcmp0 (file2find, vstr[i]))
       return vstrFull[i];
     i++;
@@ -320,8 +323,8 @@ nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type type)
 }
 
 const gchar *subplugin_prefixes[NNSCONF_END] = {
-  [NNSCONF_FILTERS] = NNSTREAMER_PREFIX_DECODER,
-  [NNSCONF_DECODERS] = NNSTREAMER_PREFIX_FILTER,
+  [NNSCONF_FILTERS] = NNSTREAMER_PREFIX_FILTER,
+  [NNSCONF_DECODERS] = NNSTREAMER_PREFIX_DECODER,
   [NNSCONF_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
   NULL,
 };

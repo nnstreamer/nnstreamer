@@ -158,6 +158,9 @@ tensor_filter_probe (GstTensorFilterFramework * tfsp)
 
   GST_INFO ("A new sub-plugin, \"%s\" is registered for tensor_filter.\n",
       tfsp->name);
+
+  /** @todo @bug unregister at exit */
+  hold_register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
   return TRUE;
 }
 

@@ -1,6 +1,6 @@
 
 if have_tensorflow
-  tensor_filter_tfcore_lib_shared = shared_library('tensor_filter_tensorflow',
+  tensor_filter_tfcore_lib_shared = shared_library('nnstreamer_filter_tensorflow',
       [
         'tensor_filter_tensorflow_core.cc',
         'tensor_filter_tensorflow.c'
@@ -12,7 +12,7 @@ if have_tensorflow
     install_dir: subplugins_install_dir
   )
 
-  tensor_filter_tfcore_lib_static = static_library('tensor_filter_tensorflow',
+  tensor_filter_tfcore_lib_static = static_library('nnstreamer_filter_tensorflow',
       [
         'tensor_filter_tensorflow_core.cc',
         'tensor_filter_tensorflow.c'
@@ -34,7 +34,7 @@ if have_tensorflow
 endif
 
 if have_tensorflow_lite
-  tensor_filter_tflitecore_lib_shared = shared_library('tensor_filter_tensorflow-lite',
+  tensor_filter_tflitecore_lib_shared = shared_library('nnstreamer_filter_tensorflow-lite',
       [
         'tensor_filter_tensorflow_lite_core.cc',
         'tensor_filter_tensorflow_lite.c'
@@ -46,7 +46,7 @@ if have_tensorflow_lite
     install_dir: subplugins_install_dir
   )
 
-  tensor_filter_tflitecore_lib_static = static_library('tensor_filter_tensorflow-lite',
+  tensor_filter_tflitecore_lib_static = static_library('nnstreamer_filter_tensorflow-lite',
       [
         'tensor_filter_tensorflow_lite_core.cc',
         'tensor_filter_tensorflow_lite.c'

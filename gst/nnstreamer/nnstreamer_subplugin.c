@@ -43,6 +43,41 @@ static GHashTable *subplugins[NNS_SUBPLUGIN_END] = { 0 };
 
 G_LOCK_DEFINE_STATIC (splock);
 
+
+typedef struct
+{
+  char *name;
+  const void *data;
+} holdplugins;
+static GHashTable *held_subplugins[NNS_SUBPLUGIN_END] = { 0 };
+
+static void
+_heldsp_destroy (gpointer _data)
+{
+  holdplugins *data = _data;
+  g_free (data->name);
+  /* do not free data here */
+  g_free (data);
+}
+
+void
+hold_register_subplugin (subpluginType type, const char *name, void *data)
+{
+  if (held_subplugins[type] == NULL)
+    held_subplugins[type] =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+        _heldsp_destroy);
+  g_hash_table_insert (held_subplugins[type], g_strdup (name), data);
+}
+
+static const void *
+check_held_subplugin (subpluginType type, const char *name)
+{
+  if (held_subplugins[type] == NULL)
+    return NULL;
+  return g_hash_table_lookup (held_subplugins[type], name);
+}
+
 /** @brief Private function for g_hash_table data destructor, GDestroyNotify */
 static void
 _spdata_destroy (gpointer _data)
@@ -62,6 +97,8 @@ get_subplugin (subpluginType type, const char *name)
   subpluginData *data;
   void *handle;
 
+  nnsconf_loadconf (FALSE);
+
   G_LOCK (splock);
 
   if (subplugins[type] == NULL)
@@ -76,15 +113,33 @@ get_subplugin (subpluginType type, const char *name)
     /* Search and register if found with the conf */
     const gchar *fullpath = nnsconf_get_fullpath (name, type);
     char *dlsym_error;
+    const void *held;
     nnstreamer_subplugin_data *nsdata;
 
-    if (fullpath == NULL)
+    fprintf (stderr, "Trying to dlopen %s\n", name);
+
+    if (fullpath == NULL) {
+      fprintf (stderr, "Cannot get full path from %s / type %d\n", name, type);
       goto error;               /* No Such Thing !!! */
+    }
 
     handle = dlopen (fullpath, RTLD_NOW);
     if (NULL == handle) {
       GST_ERROR ("Cannot dlopen %s (%s).", name, fullpath);
       goto error;
+    }
+
+    /**
+     * @todo
+     * If a plugin calls "probe()" at this step, stop here and return "OK"
+     */
+    held = check_held_subplugin (type, name);
+    if (held) {
+      fprintf (stderr,
+          "[%s] is already registered by probe(). Skipping registering process.\n",
+          name);
+      G_UNLOCK (splock);
+      return held;
     }
 
     nsdata = (nnstreamer_subplugin_data *)
@@ -128,6 +183,8 @@ get_subplugin (subpluginType type, const char *name)
         fullpath);
   }
   G_UNLOCK (splock);
+
+  fprintf (stderr, "dlopening completed or skipped.\n");
   return data->data;
 
 error_handle:

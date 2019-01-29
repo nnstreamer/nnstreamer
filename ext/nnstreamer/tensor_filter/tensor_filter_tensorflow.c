@@ -30,6 +30,7 @@
 #include "tensor_filter_tensorflow_core.h"
 #include <glib.h>
 #include <string.h>
+#include <stdio.h>
 
 /**
  * @brief internal data of tensorflow
@@ -182,6 +183,7 @@ GstTensorFilterFramework NNS_support_tensorflow = {
 __attribute__ ((constructor))
      void init_filter_tf (void)
 {
+  fprintf (stderr, "\n\n DON'T WORRY. I'm LOADING\n\n");
   tensor_filter_probe (&NNS_support_tensorflow);
 }
 
