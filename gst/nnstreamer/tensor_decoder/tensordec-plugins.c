@@ -82,6 +82,8 @@ tensordec_probe (TensorDecDef * decoder)
   GST_INFO ("A new subplugin, \"%s\" is registered for tensor_decoder.\n",
       decoder->modename);
 
+  /** @todo @buf unregister at exit */
+  hold_register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
   return TRUE;
 }
 
