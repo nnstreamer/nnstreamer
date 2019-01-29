@@ -51,7 +51,6 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorFilter GstTensorFilter;
 typedef struct _GstTensorFilterClass GstTensorFilterClass;
-typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
 
 /**
  * @brief Internal data structure for tensor_filter instances.
@@ -96,99 +95,6 @@ struct _GstTensorFilterClass
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_filter_get_type (void);
-
-/**
- * @brief Subplugin definition
- *
- * Common callback parameters:
- * filter Filter properties. Read Only
- * private_data Subplugin's private data. Set this (*private_data = XXX) if you want to change filter->private_data
- */
-struct _GstTensorFilterFramework
-{
-  gchar *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
-  gboolean allow_in_place; /**< TRUE if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
-  gboolean allocate_in_invoke; /**< TRUE if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-
-  int (*invoke_NN) (const GstTensorFilter * filter, void **private_data,
-      const GstTensorMemory * input, GstTensorMemory * output);
-      /**< Mandatory callback. Invoke the given network model.
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
-       * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
-       * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke_NN. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
-       * @return 0 if OK. non-zero if error.
-       */
-
-  int (*getInputDimension) (const GstTensorFilter * filter,
-      void **private_data, GstTensorsInfo * info);
-      /**< Optional. Set NULL if not supported. Get dimension of input tensor
-       * If getInputDimension is NULL, setInputDimension must be defined.
-       * If getInputDimension is defined, it is recommended to define getOutputDimension
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
-       * @param[out] info structure of tensor info (return value)
-       * @return the size of input tensors
-       */
-
-  int (*getOutputDimension) (const GstTensorFilter * filter,
-      void **private_data, GstTensorsInfo * info);
-      /**< Optional. Set NULL if not supported. Get dimension of output tensor
-       * If getInputDimension is NULL, setInputDimension must be defined.
-       * If getInputDimension is defined, it is recommended to define getOutputDimension
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
-       * @param[out] info structure of tensor info (return value)
-       * @return the size of output tensors
-       */
-
-  int (*setInputDimension) (const GstTensorFilter * filter,
-      void **private_data, const GstTensorsInfo * in_info,
-      GstTensorsInfo * out_info);
-      /**< Optional. Set Null if not supported. Tensor_filter::main will
-       * configure input dimension from pad-cap in run-time for the sub-plugin.
-       * Then, the sub-plugin is required to return corresponding output dimension
-       * If this is NULL, both getInput/OutputDimension must be non-NULL.
-       *
-       * When you use this, do NOT allocate or fix internal data structure based on it
-       * until invoke is called. Gstreamer may try different dimensions before
-       * settling down.
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
-       * @param[in] in_info structure of input tensor info
-       * @param[out] out_info structure of output tensor info (return value)
-       * @return 0 if OK. non-zero if error.
-       */
-
-  int (*open) (const GstTensorFilter * filter, void **private_data);
-      /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
-       * @return 0 if ok. < 0 if error.
-       */
-
-  void (*close) (const GstTensorFilter * filter, void **private_data);
-      /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
-       *
-       * @param[in] filter "this" pointer. Use this to read property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
-       */
-
-  void (*destroyNotify) (void * data);
-      /**< Optional. tensor_filter.c will call it when 'allocate_in_invoke' flag of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
-       * 
-       * @param[in] data the data element.
-       */
-};
-
-/* extern functions for subplugin management */
-extern gboolean tensor_filter_probe (GstTensorFilterFramework *tfsp);
-extern void tensor_filter_exit (const gchar *name);
 
 G_END_DECLS
 
