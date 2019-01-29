@@ -153,14 +153,22 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
-%post -p /sbin/ldconfig
+%post
+pushd %{_libdir}
+ln -s %{gstlibdir}/libnnstreamer.so libnnstreamer.so
+popd
+/sbin/ldconfig
+
 %postun -p /sbin/ldconfig
+pushd %{_libdir}
+rm libnnstreamer.so
+popd
 
 %files
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_libdir}/libnnstreamer_filter_*.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_*.so
 %{gstlibdir}/*.so
 %{_libdir}/libnnstreamer_plugin_api.so
 

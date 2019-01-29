@@ -39,6 +39,8 @@ override_dh_auto_build:
 override_dh_auto_test:
 	export LD_LIBRARY_PATH=${ROOT_DIR}/build/gst/nnstreamer:${ROOT_DIR}/build/gst/nnstreamer/tensor_filter
 	export GST_PLUGIN_PATH=${ROOT_DIR}/build
+	export NNSTREAMER_FILTERS=${ROOT_DIR}/build/gst/nnstreamer:${ROOT_DIR}/build/ext/nnstreamer/tensor_filter
+	export NNSTREAMER_DECODERS=${ROOT_DIR}/build/gst/nnstreamer:${ROOT_DIR}/build/gst/nnstreamer/tensor_decoder
 	ls -l
 	cd build && ./tests/unittest_common && cd ..
 	cd build && ./tests/unittest_sink --gst-plugin-path=. && cd ..
@@ -50,4 +52,5 @@ override_dh_auto_install:
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so $(CURDIR)/debian/build/usr/lib/$(DEB_HOST_MULTIARCH)/
 # Add --fail-missing option after adding *.install files for all subpackages.

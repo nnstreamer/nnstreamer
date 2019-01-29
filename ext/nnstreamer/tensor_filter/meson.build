@@ -9,7 +9,7 @@ if have_tensorflow
     dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
-    install_dir: subplugins_install_dir
+    install_dir: filter_subplugin_install_dir
   )
 
   tensor_filter_tfcore_lib_static = static_library('nnstreamer_filter_tensorflow',
@@ -21,7 +21,7 @@ if have_tensorflow
     dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
-    install_dir: subplugins_install_dir
+    install_dir: nnstreamer_libdir
   )
 
   tensor_filter_tfcore_lib = tensor_filter_tfcore_lib_shared
@@ -43,7 +43,7 @@ if have_tensorflow_lite
     dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
-    install_dir: subplugins_install_dir
+    install_dir: filter_subplugin_install_dir
   )
 
   tensor_filter_tflitecore_lib_static = static_library('nnstreamer_filter_tensorflow-lite',
@@ -55,7 +55,7 @@ if have_tensorflow_lite
     dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
-    install_dir: subplugins_install_dir
+    install_dir: nnstreamer_libdir
   )
 
   tensor_filter_tflitecore_lib = tensor_filter_tflitecore_lib_shared

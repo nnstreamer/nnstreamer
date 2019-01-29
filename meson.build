@@ -34,6 +34,8 @@ plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_veris
 subplugins_install_dir = nnstreamer_libdir
 examples_install_dir = nnstreamer_bindir
 
+filter_subplugin_install_dir = join_paths(nnstreamer_prefix, 'lib/nnstreamer/filters')
+
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
 nnstreamer_conf.set('LIB_INSTALL_DIR', libs_install_dir)
