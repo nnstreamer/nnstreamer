@@ -30,6 +30,8 @@
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
+#include <stdio.h>
+
 typedef struct
 {
   char *name; /**< The name of subplugin */
@@ -121,6 +123,9 @@ get_subplugin (subpluginType type, const char *name)
     g_assert (TRUE == register_subplugin (type, name, nsdata->data));
     g_assert ((data = g_hash_table_lookup (table, name)) != NULL);
     data->handle = handle;
+
+    fprintf (stderr, "\n\nDLOPEN \"%s\", found at %s. Successful.\n\n", name,
+        fullpath);
   }
   G_UNLOCK (splock);
   return data->data;
@@ -129,6 +134,7 @@ error_handle:
   dlclose (handle);
 error:
   G_UNLOCK (splock);
+  fprintf (stderr, "\n\nDLOPEN FAILED on \"%s\".\n\n", name);
   return NULL;
 }
 

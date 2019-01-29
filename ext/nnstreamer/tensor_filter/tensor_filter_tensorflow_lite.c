@@ -45,78 +45,80 @@ typedef struct _Tflite_data tflite_data;
  * @brief Free privateData and move on.
  */
 static void
-tflite_close (const GstTensorFilter * filter, void **private_data)
+tflite_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   tflite_data *tf;
   tf = *private_data;
   tflite_core_delete (tf->tflite_private_data);
   g_free (tf);
   *private_data = NULL;
-  g_assert (filter->privateData == NULL);
 }
 
 /**
  * @brief Load tensorflow lite modelfile
- * @param filter : tensor_filter instance
+ * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
  * @return 0 if successfully loaded. 1 if skipped (already loaded).
  *        -1 if the object construction is failed.
  *        -2 if the object initialization if failed
  */
 static int
-tflite_loadModelFile (const GstTensorFilter * filter, void **private_data)
+tflite_loadModelFile (const GstTensorFilterProperties * prop,
+    void **private_data)
 {
   tflite_data *tf;
-  if (filter->privateData != NULL) {
+  if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     tf = *private_data;
-    if (strcmp (filter->prop.model_file,
+    if (strcmp (prop->model_file,
             tflite_core_getModelPath (tf->tflite_private_data))) {
-      tflite_close (filter, private_data);
+      tflite_close (prop, private_data);
     } else {
       return 1;
     }
   }
   tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
-  tf->tflite_private_data = tflite_core_new (filter->prop.model_file);
+  tf->tflite_private_data = tflite_core_new (prop->model_file);
   if (tf->tflite_private_data) {
     if (tflite_core_init (tf->tflite_private_data)) {
-      GST_ERROR ("failed to initialize the object: Tensorflow-lite");
+      g_printerr ("failed to initialize the object: Tensorflow-lite");
       return -2;
     }
     return 0;
   } else {
-    GST_ERROR ("failed to create the object: Tensorflow-lite");
+    g_printerr ("failed to create the object: Tensorflow-lite");
     return -1;
   }
 }
 
 /**
  * @brief The open callback for GstTensorFilterFramework. Called before anything else
- * @param filter : tensor_filter instance
+ * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
  */
 static int
-tflite_open (const GstTensorFilter * filter, void **private_data)
+tflite_open (const GstTensorFilterProperties * prop, void **private_data)
 {
-  return tflite_loadModelFile (filter, private_data);
+  return tflite_loadModelFile (prop, private_data);
 }
 
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
  * @param[in] input The array of input tensors
  * @param[out] output The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
 static int
-tflite_invoke (const GstTensorFilter * filter, void **private_data,
+tflite_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   int retval;
   tflite_data *tf;
   tf = *private_data;
-  g_assert (filter->privateData && *private_data == filter->privateData);
+  g_assert (*private_data);
   retval = tflite_core_invoke (tf->tflite_private_data, input, output);
   g_assert (retval == 0);
   return retval;
@@ -124,28 +126,34 @@ tflite_invoke (const GstTensorFilter * filter, void **private_data,
 
 /**
  * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param[out] info The dimesions and types of input tensors
  */
 static int
-tflite_getInputDim (const GstTensorFilter * filter, void **private_data,
+tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   tflite_data *tf;
   tf = *private_data;
-  g_assert (filter->privateData && *private_data == filter->privateData);
+  g_assert (*private_data);
   int ret = tflite_core_getInputDim (tf->tflite_private_data, info);
   return ret;
 }
 
 /**
  * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param[out] info The dimesions and types of output tensors
  */
 static int
-tflite_getOutputDim (const GstTensorFilter * filter, void **private_data,
-    GstTensorsInfo * info)
+tflite_getOutputDim (const GstTensorFilterProperties * prop,
+    void **private_data, GstTensorsInfo * info)
 {
   tflite_data *tf;
   tf = *private_data;
-  g_assert (filter->privateData && *private_data == filter->privateData);
+  g_assert (*private_data);
   int ret = tflite_core_getOutputDim (tf->tflite_private_data, info);
   return ret;
 }

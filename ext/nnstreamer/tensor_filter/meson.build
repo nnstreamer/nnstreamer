@@ -6,7 +6,7 @@ if have_tensorflow
         'tensor_filter_tensorflow.c'
       ],
     cpp_args: ['-Wno-sign-compare'],
-    dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep],
+    dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
     install_dir: subplugins_install_dir
@@ -18,7 +18,7 @@ if have_tensorflow
         'tensor_filter_tensorflow.c'
       ],
     cpp_args: ['-Wno-sign-compare'],
-    dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep],
+    dependencies: [tf_dep, protobuf_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
     install_dir: subplugins_install_dir
@@ -52,7 +52,7 @@ if have_tensorflow_lite
         'tensor_filter_tensorflow_lite.c'
       ],
     cpp_args: ['-Wno-sign-compare'],
-    dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, orc_dep],
+    dependencies: [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, orc_dep, nnstreamer_dep],
     include_directories: nnstreamer_inc,
     install: true,
     install_dir: subplugins_install_dir
