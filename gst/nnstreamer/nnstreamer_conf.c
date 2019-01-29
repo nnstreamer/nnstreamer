@@ -201,7 +201,7 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
 
 /** @brief Public function defined in the header */
 gboolean
-nnstreamer_loadconf (gboolean force_reload)
+nnsconf_loadconf (gboolean force_reload)
 {
   g_autoptr (GError) error = NULL;
   g_autoptr (GKeyFile) key_file = NULL;
@@ -320,8 +320,8 @@ nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type type)
 }
 
 const gchar *subplugin_prefixes[NNSCONF_END] = {
-  [NNSCONF_FILTERS] = NNSTREAMER_PREFIX_DECODER,
-  [NNSCONF_DECODERS] = NNSTREAMER_PREFIX_FILTER,
+  [NNSCONF_FILTERS] = NNSTREAMER_PREFIX_FILTER,
+  [NNSCONF_DECODERS] = NNSTREAMER_PREFIX_DECODER,
   [NNSCONF_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
   NULL,
 };
