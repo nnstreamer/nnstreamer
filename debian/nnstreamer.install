@@ -1,4 +1,3 @@
 /usr/lib/nnstreamer/filters/libnnstreamer_filter_*.so
 /usr/lib/*/gstreamer-1.0/*.so
 /usr/lib/*/libnnstreamer.so
-/usr/lib/*/libnnstreamer_plugin_api.so

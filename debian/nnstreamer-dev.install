@@ -2,4 +2,3 @@
 /usr/lib/*/pkgconfig/*.pc
 /usr/lib/*/libnnstreamer.a
 /usr/lib/*/libtensor_filter*.a
-/usr/lib/*/libnnstreamer_plugin_api.a

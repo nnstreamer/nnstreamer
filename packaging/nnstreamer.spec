@@ -170,7 +170,6 @@ popd
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_*.so
 %{gstlibdir}/*.so
-%{_libdir}/libnnstreamer_plugin_api.so
 
 %files devel
 %{_includedir}/nnstreamer/*
