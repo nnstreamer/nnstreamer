@@ -41,6 +41,50 @@ static GHashTable *subplugins[NNS_SUBPLUGIN_END] = { 0 };
 
 G_LOCK_DEFINE_STATIC (splock);
 
+
+typedef struct
+{
+  char *name;
+  const void *data;
+} holdplugins;
+static GHashTable *held_subplugins[NNS_SUBPLUGIN_END] = { 0 };
+
+/**
+ * @brief Private function for g_hash_table data destructor, GDestroyNotify
+ */
+static void
+_heldsp_destroy (gpointer _data)
+{
+  holdplugins *data = _data;
+  g_free (data->name);
+  /* do not free data here */
+  g_free (data);
+}
+
+/**
+ * @brief API to notify subplugin-manager that this subplugin is handled already.
+ */
+void
+hold_register_subplugin (subpluginType type, const char *name, void *data)
+{
+  if (held_subplugins[type] == NULL)
+    held_subplugins[type] =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+        _heldsp_destroy);
+  g_hash_table_insert (held_subplugins[type], g_strdup (name), data);
+}
+
+/**
+ * @brief Check if this subplugin is held by hold_register_subplugin()
+ */
+static const void *
+check_held_subplugin (subpluginType type, const char *name)
+{
+  if (held_subplugins[type] == NULL)
+    return NULL;
+  return g_hash_table_lookup (held_subplugins[type], name);
+}
+
 /** @brief Private function for g_hash_table data destructor, GDestroyNotify */
 static void
 _spdata_destroy (gpointer _data)
@@ -60,6 +104,8 @@ get_subplugin (subpluginType type, const char *name)
   subpluginData *data;
   void *handle;
 
+  nnsconf_loadconf (FALSE);
+
   G_LOCK (splock);
 
   if (subplugins[type] == NULL)
@@ -74,6 +120,7 @@ get_subplugin (subpluginType type, const char *name)
     /* Search and register if found with the conf */
     const gchar *fullpath = nnsconf_get_fullpath (name, type);
     char *dlsym_error;
+    const void *held;
     nnstreamer_subplugin_data *nsdata;
 
     if (fullpath == NULL)
@@ -83,6 +130,13 @@ get_subplugin (subpluginType type, const char *name)
     if (NULL == handle) {
       GST_ERROR ("Cannot dlopen %s (%s).", name, fullpath);
       goto error;
+    }
+
+    /* If a plugin calls "probe()" at this step, stop here and return "OK" */
+    held = check_held_subplugin (type, name);
+    if (held) {
+      G_UNLOCK (splock);
+      return held;
     }
 
     nsdata = (nnstreamer_subplugin_data *)
