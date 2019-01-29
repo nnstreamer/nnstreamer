@@ -110,22 +110,6 @@ if get_option('default_library') == 'static'
   nnstreamer_lib = nnstreamer_static
 endif
 
-nnstreamer_plugin_api_shared = shared_library('nnstreamer_plugin_api',
-  nnst_plugin_api_sources,
-  dependencies: [nnstreamer_plugin_api_base_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: libs_install_dir
-)
-
-nnstreamer_plugin_api_static = static_library('nnstreamer_plugin_api',
-  nnst_plugin_api_sources,
-  dependencies: [nnstreamer_plugin_api_base_deps],
-  include_directories: nnstreamer_inc,
-  install: true,
-  install_dir: libs_install_dir
-)
-
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
   sources: nnstreamer_generated,
   dependencies: nnstreamer_base_deps,
