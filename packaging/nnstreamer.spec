@@ -104,7 +104,10 @@ ninja -C build %{?_smp_mflags}
 
 %if 0%{?unit_test}
     pushd build
-    export LD_LIBRARY_PATH=$(pwd)/gst/nnstreamer:$(pwd)/gst/nnstreamer/tensor_filter
+    export LD_LIBRARY_PATH=$(pwd)/gst/nnstreamer
+    export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
+    export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
+    export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     %ifarch x86_64 aarch64
     export TEST_TENSORFLOW=1
     %endif
@@ -112,7 +115,6 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
     popd
-    export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
     pushd tests
     ssat -n
     popd
@@ -172,6 +174,7 @@ popd
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_*.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
 %{gstlibdir}/*.so
 %{_sysconfdir}/nnstreamer.ini
 

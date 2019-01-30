@@ -35,8 +35,8 @@
 #include <string.h>
 #include <glib.h>
 #include <gst/gstinfo.h>
-#include <tensor_common.h>
-#include "tensordec.h"
+#include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_plugin_api.h>
 
 /** @brief Internal data structure for image labeling */
 typedef struct

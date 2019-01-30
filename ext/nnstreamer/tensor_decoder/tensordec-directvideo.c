@@ -28,8 +28,8 @@
 
 #include <string.h>
 #include <glib.h>
-#include "tensordec.h"
-#include <tensor_common.h>
+#include <gst/video/video-format.h>
+#include <nnstreamer_plugin_api_decoder.h>
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static int

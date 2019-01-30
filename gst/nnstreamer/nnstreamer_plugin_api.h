@@ -240,5 +240,13 @@ get_tensor_element_count (const tensor_dim dim);
 extern tensor_type
 get_tensor_type (const gchar * typestr);
 
+/**
+ * @brief Find the index value of the given key string array
+ * @return Corresponding index
+ * @param strv Null terminated array of gchar *
+ * @param key The key string value
+ */
+extern int find_key_strv (const gchar ** strv, const gchar * key);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
