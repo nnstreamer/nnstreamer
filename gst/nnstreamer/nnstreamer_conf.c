@@ -173,8 +173,13 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
   counterF = 0;
   counterB = 0;
   for (i = 0; i < CONF_SOURCES; i++) {
-    lstF = _get_fullpath_filenames (searchpath[i], lstF, &counterF);
-    lstB = _get_basenames (searchpath[i], lstB, &counterB);
+    if (searchpath[i]) {
+      lstF = _get_fullpath_filenames (searchpath[i], lstF, &counterF);
+      lstB = _get_basenames (searchpath[i], lstB, &counterB);
+    } else {
+      lstF = _get_fullpath_filenames ("./", lstF, &counterF);
+      lstB = _get_basenames ("./", lstB, &counterB);
+    }
   }
   g_assert (counterF == counterB);
 
