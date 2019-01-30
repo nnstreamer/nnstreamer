@@ -185,6 +185,9 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
   *fullpath_vstr = g_malloc_n (counterF + 1, sizeof (gchar *));
   *basename_vstr = g_malloc_n (counterB + 1, sizeof (gchar *));
 
+  (*fullpath_vstr)[counterF] = NULL;
+  (*basename_vstr)[counterB] = NULL;
+
   vstrF.vstr = *fullpath_vstr;
   vstrB.vstr = *basename_vstr;
   vstrF.size = counterF;
