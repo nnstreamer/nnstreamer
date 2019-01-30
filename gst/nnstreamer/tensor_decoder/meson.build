@@ -1,6 +1,5 @@
 tensor_decoder_sources = [
   'tensordec.c',
-  'tensordec-plugins.c',
   'tensordec-directvideo.c',
   'tensordec-imagelabel.c',
   'tensordec-boundingbox.c'

@@ -310,8 +310,4 @@ typedef struct _GstTensorFilterFramework
        */
 } GstTensorFilterFramework;
 
-/* extern functions for subplugin management, exist in tensor_filter.c */
-extern int tensor_filter_probe (GstTensorFilterFramework *tfsp);
-extern void tensor_filter_exit (const char *name);
-
 #endif /*__GST_TENSOR_TYPEDEF_H__*/

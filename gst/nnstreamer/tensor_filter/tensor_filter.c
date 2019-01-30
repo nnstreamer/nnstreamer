@@ -110,59 +110,15 @@
 
 #define g_free_const(x) g_free((void*)(long)(x))
 
-typedef struct _TensorFilterSPList TensorFilterSPList;
-/**
- * @brief Linked list having all registered filter subplugins
- */
-struct _TensorFilterSPList
-{
-  TensorFilterSPList *next; /**< "Next" in the list */
-  GstTensorFilterFramework *body; /**< "Data" in the list element */
-};
-static GstTensorFilterFramework unknown = {
-  .name = "unknown",
-};
-static TensorFilterSPList listhead = {.next = NULL,.body = &unknown };
-
 /**
  * @brief Filter subplugin should call this to register itself
  * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
-gboolean
+int
 tensor_filter_probe (GstTensorFilterFramework * tfsp)
 {
-  TensorFilterSPList *list;
-
-  if (!tfsp || !tfsp->name || !tfsp->name[0]) {
-    GST_ERROR ("Cannot register invalid filter subplugin.\n");
-    return FALSE;
-  }
-
-  list = &listhead;
-  do {
-    if (0 == g_strcmp0 (list->body->name, tfsp->name)) {
-      /* Duplicated! */
-      GST_ERROR ("DUplicated filter sub-plugin name found: %s\n", tfsp->name);
-      return FALSE;
-    }
-    if (list->next == NULL) {
-      TensorFilterSPList *next = g_malloc (sizeof (TensorFilterSPList));
-      next->next = NULL;
-      next->body = tfsp;
-      list->next = next;
-      break;
-    }
-    list = list->next;
-  } while (list != NULL);
-
-  GST_INFO ("A new sub-plugin, \"%s\" is registered for tensor_filter.\n",
-      tfsp->name);
-
-  /** @todo @bug unregister at exit */
-  hold_register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
-
-  return TRUE;
+  return register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
 }
 
 /**
@@ -170,29 +126,9 @@ tensor_filter_probe (GstTensorFilterFramework * tfsp)
  * @param[in] name the name of filter sub-plugin
  */
 void
-tensor_filter_exit (const gchar * name)
+tensor_filter_exit (const char *name)
 {
-  TensorFilterSPList *list = &listhead;
-
-  if (!name || !name[0]) {
-    GST_ERROR ("Cannot unregister without a proper name.");
-    return;
-  }
-
-  list = &listhead;
-  do {
-    if (list->next != NULL && 0 == g_strcmp0 (list->next->body->name, name)) {
-      TensorFilterSPList *found = list->next;
-      list->next = found->next;
-      g_free (found);
-      GST_INFO ("A tensor_filter sub-plugin \"%s\" is removed.", name);
-      return;
-    }
-    list = list->next;
-  } while (list != NULL);
-
-  GST_ERROR ("Cannot find a tensor_filter sub-plugin \"%s\".", name);
-  return;
+  unregister_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
 
 /**
@@ -203,23 +139,6 @@ tensor_filter_exit (const gchar * name)
 static const GstTensorFilterFramework *
 tensor_filter_find (const gchar * name)
 {
-  TensorFilterSPList *list = &listhead;
-
-  if (!name || !name[0]) {
-    GST_ERROR ("The name of tensor_filter sub-plugin is not given.");
-    return NULL;
-  }
-
-  do {
-    g_assert (list->body);
-
-    if (0 == g_strcmp0 (list->body->name, name)) {
-      return list->body;
-    }
-    list = list->next;
-  } while (list != NULL);
-
-  /* If not found, try to search with nnstremer_subplugin APIs */
   return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
 

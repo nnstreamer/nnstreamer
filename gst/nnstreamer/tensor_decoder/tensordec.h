@@ -32,6 +32,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
+#include <nnstreamer_subplugin.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSORDEC \
@@ -156,10 +157,16 @@ struct _TensorDecDef
       /**< EXPERIMENTAL! @todo We are not ready to use this. This should be NULL or return 0 */
 };
 
-extern gboolean tensordec_probe (TensorDecDef *decoder);
-extern void tensordec_exit (const gchar *name);
-extern const TensorDecDef *tensordec_find (const gchar *name);
-
-
+/* extern functions for subplugin management, exist in tensor_decoder.c */
+/**
+ * @brief decoder's subplugins should call this function to register
+ * @param[in] decoder The decoder subplugin instance
+ */
+extern gboolean tensordec_probe (TensorDecDef * decoder);
+/**
+ * @brief decoder's subplugin may call this to unregister
+ * @param[in] name the name of decoder (modename)
+ */
+extern void tensordec_exit (const gchar * name);
 G_END_DECLS
 #endif /* __GST_TENSORDEC_H__ */

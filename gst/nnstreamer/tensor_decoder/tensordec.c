@@ -154,6 +154,40 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
 
+
+/**
+ * @brief decoder's subplugins should call this function to register
+ * @param[in] decoder The decoder subplugin instance
+ */
+gboolean
+tensordec_probe (TensorDecDef * decoder)
+{
+  register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
+  return TRUE;
+}
+
+/**
+ * @brief decoder's subplugin may call this to unregister
+ * @param[in] name the name of decoder (modename)
+ */
+void
+tensordec_exit (const gchar * name)
+{
+  unregister_subplugin (NNS_SUBPLUGIN_DECODER, name);
+}
+
+/**
+ * @brief Find decoders subplugin with the name
+ * @param[in] name the name of decoder (modename)
+ */
+static const TensorDecDef *
+tensordec_find (const gchar * name)
+{
+  return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
+}
+
+
+
 /**
  * @brief Get media caps from tensor config
  * @param self "this" pointer
