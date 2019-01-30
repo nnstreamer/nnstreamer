@@ -69,7 +69,7 @@ struct _GstTensorDec
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   void *plugin_data;
-  void (*cleanup_plugin_data)(GstTensorDec *self); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
+  void (*cleanup_plugin_data)(void **pdata); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
   GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
 
   const TensorDecDef *decoder; /**< Plugin object */
@@ -88,7 +88,16 @@ struct _GstTensorDecClass
 };
 
 /**
- * @brief Output type.
+ * @brief Decoder Mode.
+ */
+typedef enum
+{
+  DECODE_MODE_PLUGIN,
+  DECODE_MODE_UNKNOWN
+} GstDecMode;
+
+/**
+ * @brief Tensor Decoder Output type.
  */
 typedef enum
 {
@@ -97,15 +106,6 @@ typedef enum
   OUTPUT_TEXT,
   OUTPUT_UNKNOWN
 } GstDecMediaType;
-
-/**
- * @brief Decoder Mode.
- */
-typedef enum
-{
-  DECODE_MODE_PLUGIN,
-  DECODE_MODE_UNKNOWN
-} GstDecMode;
 
 /**
  * @brief Output type for each mode
@@ -132,28 +132,30 @@ GType gst_tensordec_get_type (void);
  */
 struct _TensorDecDef
 {
-  gchar *modename;
+  char *modename;
       /**< Unique decoder name. GST users choose decoders with mode="modename". */
   GstDecMediaType type;
       /**< Output media type. VIDEO/AUDIO/TEXT are supported */
-  gboolean (*init) (GstTensorDec *self);
+  int (*init) (void **private_data);
       /**< Object initialization for the decoder */
-  void (*exit) (GstTensorDec *self);
+  void (*exit) (void **private_data);
       /**< Object destruction for the decoder */
-  gboolean (*setOption) (GstTensorDec *self, int opNum, const gchar *param);
+  int (*setOption) (void **private_data, int opNum, const char *param);
       /**< Process with the given options. It can be called repeatedly */
-  GstCaps *(*getOutCaps) (GstTensorDec *self, const GstTensorsConfig *config);
+  GstCaps *(*getOutCaps) (void **private_data, const GstTensorsConfig *config);
       /**< The caller should unref the returned GstCaps
         * Current implementation supports single-tensor only.
         * @todo WIP: support multi-tensor for input!!!
         */
-  GstFlowReturn (*decode) (GstTensorDec *self, const GstTensorMemory *input,
-      GstBuffer *outbuf);
+  GstFlowReturn (*decode) (void **private_data, const GstTensorsConfig *config,
+      const GstTensorMemory *input, GstBuffer *outbuf);
       /**< outbuf must be allocated but empty (gst_buffer_get_size (outbuf) == 0).
         * Note that we support single-tensor (other/tensor) only!
         * @todo WIP: support multi-tensor for input!!!
         */
-  gsize (*getTransformSize) (GstTensorDec *self, GstCaps *caps, gsize size, GstCaps *othercaps, GstPadDirection direction);
+  size_t (*getTransformSize) (void **private_data, const GstTensorsConfig *config,
+      GstCaps *caps, size_t size, GstCaps *othercaps,
+      GstPadDirection direction);
       /**< EXPERIMENTAL! @todo We are not ready to use this. This should be NULL or return 0 */
 };
 
