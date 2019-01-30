@@ -17,7 +17,7 @@
 /**
  * @file  nnstreamer_plugin_api.h
  * @date  24 Jan 2019
- * @brief Header file that contains typedefed data types and APIs for NNStreamer plug-ins
+ * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (Need Glib)
  * @see https://github.com/nnsuite/nnstreamer
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com> and Wook Song <wook16.song@samsung.com>
  * @bug No known bugs except for NYI items
@@ -239,21 +239,6 @@ get_tensor_element_count (const tensor_dim dim);
  */
 extern tensor_type
 get_tensor_type (const gchar * typestr);
-
-
-
-/* extern functions for subplugin management, exist in tensor_filter.c */
-/**
- * @brief Filter subplugin should call this to register itself
- * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered
- * @return TRUE if registered. FALSE is failed or duplicated.
- */
-extern int tensor_filter_probe (GstTensorFilterFramework *tfsp);
-/**
- * @brief filter sub-plugin may call this to unregister itself
- * @param[in] name the name of filter sub-plugin
- */
-extern void tensor_filter_exit (const char *name);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

@@ -26,8 +26,9 @@
  *
  */
 
-#include "tensor_filter.h"
+#include <gst/gst.h>
 #include "tensor_filter_custom.h"
+#include <nnstreamer_plugin_api_filter.h>
 #include <glib.h>
 #include <dlfcn.h>
 
