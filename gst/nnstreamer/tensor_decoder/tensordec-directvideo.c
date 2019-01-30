@@ -32,24 +32,24 @@
 #include <tensor_common.h>
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-dv_init (GstTensorDec * self)
+static int
+dv_init (void **pdata)
 {
-  self->plugin_data = NULL;     /* We have no internal data */
+  *pdata = NULL;                /* We have no internal data */
   return TRUE;
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static void
-dv_exit (GstTensorDec * self)
+dv_exit (void **pdata)
 {
   /* Nothing to do */
   return;
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-dv_setOption (GstTensorDec * self, int opNum, const gchar * param)
+static int
+dv_setOption (void **pdata, int opNum, const char *param)
 {
   /* We do not accept anything. */
   return TRUE;
@@ -57,7 +57,7 @@ dv_setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-dv_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
+dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   /* Old gst_tensordec_video_caps_from_config () had this */
   GstVideoFormat format;
@@ -92,7 +92,7 @@ dv_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
   fd = config->rate_d;
 
   if (format != GST_VIDEO_FORMAT_UNKNOWN) {
-    const gchar *format_string = gst_video_format_to_string (format);
+    const char *format_string = gst_video_format_to_string (format);
     gst_caps_set_simple (caps, "format", G_TYPE_STRING, format_string, NULL);
   }
 
@@ -112,21 +112,20 @@ dv_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
 }
 
 /** @brief get video output buffer size */
-static gsize
-_get_video_xraw_bufsize (tensor_dim dim)
+static size_t
+_get_video_xraw_bufsize (const tensor_dim dim)
 {
   /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
   return ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gsize
-dv_getTransformSize (GstTensorDec * self, GstCaps * caps,
-    gsize size, GstCaps * othercaps, GstPadDirection direction)
+static size_t
+dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
+    GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
-  GstTensorsConfig *config = &self->tensor_config;
   /* Direct video uses the first tensor only even if it's multi-tensor */
-  uint32_t *dim = &(config->info.info[0].dimension[0]);
+  const uint32_t *dim = &(config->info.info[0].dimension[0]);
 
   if (direction == GST_PAD_SINK)
     return _get_video_xraw_bufsize (dim);
@@ -136,14 +135,13 @@ dv_getTransformSize (GstTensorDec * self, GstCaps * caps,
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstFlowReturn
-dv_decode (GstTensorDec * self, const GstTensorMemory * input,
-    GstBuffer * outbuf)
+dv_decode (void **pdata, const GstTensorsConfig * config,
+    const GstTensorMemory * input, GstBuffer * outbuf)
 {
   GstMapInfo out_info;
   GstMemory *out_mem;
-  GstTensorsConfig *config = &self->tensor_config;
   /* Direct video uses the first tensor only even if it's multi-tensor */
-  uint32_t *dim = &(config->info.info[0].dimension[0]);
+  const uint32_t *dim = &(config->info.info[0].dimension[0]);
   size_t size = _get_video_xraw_bufsize (dim);
 
   g_assert (outbuf);

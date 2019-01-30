@@ -41,26 +41,26 @@
 /** @brief Internal data structure for image labeling */
 typedef struct
 {
-  gchar *label_path; /**< Label file path. */
-  gchar **labels; /**< The list of loaded labels. Null if not loaded */
+  char *label_path; /**< Label file path. */
+  char **labels; /**< The list of loaded labels. Null if not loaded */
   guint total_labels; /**< The number of loaded labels */
   guint max_word_length; /**< The max size of labels */
 } ImageLabelData;
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-il_init (GstTensorDec * self)
+static int
+il_init (void **pdata)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
-  self->plugin_data = g_new0 (ImageLabelData, 1);
+  *pdata = g_new0 (ImageLabelData, 1);
   return TRUE;
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static void
-il_exit (GstTensorDec * self)
+il_exit (void **pdata)
 {
-  ImageLabelData *data = self->plugin_data;
+  ImageLabelData *data = *pdata;
   if (data->labels) {
     int i;
     for (i = 0; i < data->total_labels; i++)
@@ -70,8 +70,8 @@ il_exit (GstTensorDec * self)
   if (data->label_path)
     g_free (data->label_path);
 
-  g_free (self->plugin_data);
-  self->plugin_data = NULL;
+  g_free (*pdata);
+  *pdata = NULL;
 }
 
 /**
@@ -98,13 +98,13 @@ loadImageLabels (ImageLabelData * data)
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    gchar *label;
+    char *label;
 
     GList *labels = NULL, *cursor;
 
     while ((read = getline (&line, &len, fp)) != -1) {
       if (line) {
-        label = g_strdup ((gchar *) line);
+        label = g_strdup ((char *) line);
         labels = g_list_append (labels, label);
         free (line);
         if (strlen (label) > data->max_word_length)
@@ -118,9 +118,9 @@ loadImageLabels (ImageLabelData * data)
       free (line);
     }
 
-    /* Flatten labels (GList) into data->labels (array gchar **) */
+    /* Flatten labels (GList) into data->labels (array char **) */
     data->total_labels = g_list_length (labels);
-    data->labels = g_new (gchar *, data->total_labels);
+    data->labels = g_new (char *, data->total_labels);
     i = 0;
     cursor = g_list_first (labels);
     for (cursor = labels; cursor != NULL; cursor = cursor->next) {
@@ -142,10 +142,10 @@ loadImageLabels (ImageLabelData * data)
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-il_setOption (GstTensorDec * self, int opNum, const gchar * param)
+static int
+il_setOption (void **pdata, int opNum, const char *param)
 {
-  ImageLabelData *data = self->plugin_data;
+  ImageLabelData *data = *pdata;
 
   /* opNum 1 = label file path */
   if (opNum == 0) {
@@ -168,7 +168,7 @@ il_setOption (GstTensorDec * self, int opNum, const gchar * param)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstCaps *
-il_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
+il_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   const uint32_t *dim;
   int i;
@@ -189,9 +189,9 @@ il_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gsize
-il_getTransformSize (GstTensorDec * self, GstCaps * caps,
-    gsize size, GstCaps * othercaps, GstPadDirection direction)
+static size_t
+il_getTransformSize (void **pdata, const GstTensorsConfig * config,
+    GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
   return 0;
   /** @todo Use max_word_length if that's appropriate */
@@ -221,29 +221,29 @@ case typename:\
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstFlowReturn
-il_decode (GstTensorDec * self, const GstTensorMemory * input,
-    GstBuffer * outbuf)
+il_decode (void **pdata, const GstTensorsConfig * config,
+    const GstTensorMemory * input, GstBuffer * outbuf)
 {
-  ImageLabelData *data = self->plugin_data;
+  ImageLabelData *data = *pdata;
   GstMapInfo out_info;
   GstMemory *out_mem;
 
-  gsize bpe = tensor_element_size[self->tensor_config.info.info[0].type];
+  size_t bpe = tensor_element_size[config->info.info[0].type];
   tensor_element max_val;
   guint max_index = 0;
-  gsize num_data;               /* Size / bpe */
+  size_t num_data;              /* Size / bpe */
   void *input_data;
 
-  gsize size;
-  gchar *str;
+  size_t size;
+  char *str;
 
   g_assert (bpe > 0);
   g_assert (outbuf);
 
   input_data = input->data;
-  num_data = gst_tensor_info_get_size (&self->tensor_config.info.info[0]) / bpe;
+  num_data = gst_tensor_info_get_size (&config->info.info[0]) / bpe;
 
-  switch (self->tensor_config.info.info[0].type) {
+  switch (config->info.info[0].type) {
       search_max_case (int32_t, _NNS_INT32);
       search_max_case (uint32_t, _NNS_UINT32);
       search_max_case (int16_t, _NNS_INT16);

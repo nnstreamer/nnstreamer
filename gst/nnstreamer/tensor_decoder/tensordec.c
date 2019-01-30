@@ -202,7 +202,7 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
 
   if (self->mode == DECODE_MODE_PLUGIN) {
     g_assert (self->decoder);
-    return self->decoder->getOutCaps (self, config);
+    return self->decoder->getOutCaps (&self->plugin_data, config);
   }
 
   GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
@@ -397,7 +397,8 @@ _tensordec_process_plugin_options (GstTensorDec * self, int opnum)
     return TRUE;                /* This decoder cannot process options */
   if (self->option[opnum] == NULL)
     return TRUE;                /* No option to process */
-  return self->decoder->setOption (self, opnum, self->option[opnum]);
+  return self->decoder->setOption (&self->plugin_data, opnum,
+      self->option[opnum]);
 }
 
 /**
@@ -446,7 +447,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         } else {
           /* Changing decoder. Deallocate the previous */
           if (self->cleanup_plugin_data) {
-            self->cleanup_plugin_data (self);
+            self->cleanup_plugin_data (&self->plugin_data);
           } else {
             g_free (self->plugin_data);
           }
@@ -455,7 +456,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
           self->decoder = decoder;
         }
 
-        g_assert (self->decoder->init (self));
+        g_assert (self->decoder->init (&self->plugin_data));
         self->cleanup_plugin_data = self->decoder->exit;
 
         silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
@@ -472,7 +473,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
             temp_string);
         if (NULL != self->decoder) {
           if (self->cleanup_plugin_data) {
-            self->cleanup_plugin_data (self);
+            self->cleanup_plugin_data (&self->plugin_data);
           } else {
             g_free (self->plugin_data);
           }
@@ -624,7 +625,8 @@ gst_tensordec_transform (GstBaseTransform * trans,
       input[i].type = self->tensor_config.info.info[i].type;
     }
 
-    res = self->decoder->decode (self, input, outbuf);
+    res = self->decoder->decode (&self->plugin_data, &self->tensor_config,
+        input, outbuf);
 
     for (i = 0; i < num_tensors; i++)
       gst_memory_unmap (in_mem[i], &in_info[i]);
@@ -814,8 +816,8 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
 
   if (self->mode == DECODE_MODE_PLUGIN) {
     if (self->decoder->getTransformSize)
-      *othersize = self->decoder->getTransformSize (self, caps, size,
-          othercaps, direction);
+      *othersize = self->decoder->getTransformSize (&self->plugin_data,
+          &self->tensor_config, caps, size, othercaps, direction);
     else
       *othersize = 0;
 

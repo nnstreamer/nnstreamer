@@ -85,7 +85,7 @@ typedef enum
 /**
  * @brief List of bounding-box decoding schemes in string
  */
-static const gchar *bb_modes[] = {
+static const char *bb_modes[] = {
   [TFLITE_SSD_BOUNDING_BOX] = "tflite-ssd",
   [TF_SSD_BOUNDING_BOX] = "tf-ssd",
   NULL,
@@ -97,7 +97,7 @@ static const gchar *bb_modes[] = {
 typedef struct
 {
   /* From option3, box prior data */
-  gchar *box_prior_path; /**< Box Prior file path */
+  char *box_prior_path; /**< Box Prior file path */
   gfloat box_priors[BOX_SIZE][TFLITE_SSD_DETECTION_MAX + 1]; /** loaded box prior */
 } properties_TFLite_SSD;
 
@@ -114,8 +114,8 @@ typedef struct
   };
 
   /* From option2 */
-  gchar *label_path; /**< Label file path. */
-  gchar **labels; /**< The list of loaded labels. Null if not loaded */
+  char *label_path; /**< Label file path. */
+  char **labels; /**< The list of loaded labels. Null if not loaded */
   guint total_labels; /**< The number of loaded labels */
   guint max_word_length; /**< The max size of labels */
 
@@ -131,7 +131,7 @@ typedef struct
 } bounding_boxes;
 
 /** @brief Initialize bounding_boxes per mode */
-static gboolean
+static int
 _init_modes (bounding_boxes * bdata)
 {
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
@@ -144,15 +144,15 @@ _init_modes (bounding_boxes * bdata)
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-bb_init (GstTensorDec * self)
+static int
+bb_init (void **pdata)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
   bounding_boxes *bdata;
   int i, j, k;
-  self->plugin_data = g_new0 (bounding_boxes, 1);
+  *pdata = g_new0 (bounding_boxes, 1);
 
-  bdata = self->plugin_data;
+  bdata = *pdata;
   bdata->mode = BOUNDING_BOX_UNKNOWN;
   bdata->width = 0;
   bdata->height = 0;
@@ -198,9 +198,9 @@ _exit_modes (bounding_boxes * bdata)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static void
-bb_exit (GstTensorDec * self)
+bb_exit (void **pdata)
 {
-  bounding_boxes *bdata = self->plugin_data;
+  bounding_boxes *bdata = *pdata;
 
   if (bdata->labels) {
     int i;
@@ -212,8 +212,8 @@ bb_exit (GstTensorDec * self)
     g_free (bdata->label_path);
   _exit_modes (bdata);
 
-  g_free (self->plugin_data);
-  self->plugin_data = NULL;
+  g_free (*pdata);
+  *pdata = NULL;
 }
 
 /**
@@ -240,7 +240,7 @@ loadImageLabels (bounding_boxes * data)
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    gchar *label;
+    char *label;
 
     GList *labels = NULL, *cursor;
 
@@ -249,7 +249,7 @@ loadImageLabels (bounding_boxes * data)
         if (line[strlen (line) - 1] == '\n') {
           line[strlen (line) - 1] = '\0';
         }
-        label = g_strdup ((gchar *) line);
+        label = g_strdup ((char *) line);
         labels = g_list_append (labels, label);
         free (line);
         if (strlen (label) > data->max_word_length)
@@ -263,9 +263,9 @@ loadImageLabels (bounding_boxes * data)
       free (line);
     }
 
-    /* Flatten labels (GList) into data->labels (array gchar **) */
+    /* Flatten labels (GList) into data->labels (array char **) */
     data->total_labels = g_list_length (labels);
-    data->labels = g_new (gchar *, data->total_labels);
+    data->labels = g_new (char *, data->total_labels);
     i = 0;
     cursor = g_list_first (labels);
     for (cursor = labels; cursor != NULL; cursor = cursor->next) {
@@ -286,11 +286,11 @@ loadImageLabels (bounding_boxes * data)
   return;
 }
 
-static gboolean _tflite_ssd_loadBoxPrior (bounding_boxes * bdata);
+static int _tflite_ssd_loadBoxPrior (bounding_boxes * bdata);
 
 /** @brief configure per-mode option (option3) */
-static gboolean
-_setOption_mode (bounding_boxes * bdata, const gchar * param)
+static int
+_setOption_mode (bounding_boxes * bdata, const char *param)
 {
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* Load prior boxes with the path from option3 */
@@ -308,10 +308,10 @@ _setOption_mode (bounding_boxes * bdata, const gchar * param)
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gboolean
-bb_setOption (GstTensorDec * self, int opNum, const gchar * param)
+static int
+bb_setOption (void **pdata, int opNum, const char *param)
 {
-  bounding_boxes *bdata = self->plugin_data;
+  bounding_boxes *bdata = *pdata;
 
   if (opNum == 0) {
     /* option1 = Bounding Box Decoding mode */
@@ -404,7 +404,7 @@ bb_setOption (GstTensorDec * self, int opNum, const gchar * param)
 /**
  * @brief check the num_tensors is valid
 */
-static gboolean
+static int
 _check_tensors (const GstTensorsConfig * config, const int limit)
 {
   int i;
@@ -427,7 +427,7 @@ _check_tensors (const GstTensorsConfig * config, const int limit)
 /**
  * @brief set the max_detection
 */
-static gboolean
+static int
 _set_max_detection (bounding_boxes * data, const guint max_detection,
     const int limit)
 {
@@ -463,13 +463,13 @@ _set_max_detection (bounding_boxes * data, const guint max_detection,
  * If there are third or more tensors, such tensors will be ignored.
  */
 static GstCaps *
-bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
+bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   /** @todo this is compatible with "SSD" only. expand the capability! */
-  bounding_boxes *data = self->plugin_data;
+  bounding_boxes *data = *pdata;
   GstCaps *caps;
   int i;
-  gchar *str;
+  char *str;
   guint max_detection, max_label;
 
   if (data->mode == TFLITE_SSD_BOUNDING_BOX) {
@@ -551,7 +551,7 @@ bb_getOutCaps (GstTensorDec * self, const GstTensorsConfig * config)
  * @param[in/out] bdata The internal data.
  * @return TRUE if loaded and configured. FALSE if failed to do so.
  */
-static gboolean
+static int
 _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
 {
   FILE *fp;
@@ -575,8 +575,8 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
         return FALSE;
       }
       if (line) {
-        gchar **list = g_strsplit_set (line, " \t,", -1);
-        gchar *word;
+        char **list = g_strsplit_set (line, " \t,", -1);
+        char *word;
 
         while ((word = list[column]) != NULL) {
           column++;
@@ -613,9 +613,9 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
-static gsize
-bb_getTransformSize (GstTensorDec * self, GstCaps * caps,
-    gsize size, GstCaps * othercaps, GstPadDirection direction)
+static size_t
+bb_getTransformSize (void **pdata, const GstTensorsConfig * config,
+    GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
   return 0;
   /** @todo Use appropriate values */
@@ -624,7 +624,7 @@ bb_getTransformSize (GstTensorDec * self, GstCaps * caps,
 /** @brief Represents a detect object */
 typedef struct
 {
-  gboolean valid;
+  int valid;
   int class_id;
   int x;
   int y;
@@ -696,9 +696,9 @@ typedef struct
   { \
     int d; \
     _type * boxinput_ = (_type *) boxinput; \
-    gsize boxbpi = config->info.info[0].dimension[0]; \
+    size_t boxbpi = config->info.info[0].dimension[0]; \
     _type * detinput_ = (_type *) detinput; \
-    gsize detbpi = config->info.info[1].dimension[0]; \
+    size_t detbpi = config->info.info[1].dimension[0]; \
     int num = (TFLITE_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : TFLITE_SSD_DETECTION_MAX; \
     detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0 }; \
     for (d = 0; d < num; d++) { \
@@ -807,7 +807,7 @@ nms (GArray * results)
     _type * boxes_ = (_type *) boxesinput; \
     int num = (int) num_detection_[0]; \
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
-    gsize boxbpi = config->info.info[3].dimension[0]; \
+    size_t boxbpi = config->info.info[3].dimension[0]; \
     for (d = 0; d < num; d++) { \
       detectedObject object; \
       object.valid = TRUE; \
@@ -843,7 +843,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     int x1, x2, y1, y2;         /* Box positions on the output surface */
     int j;
     uint32_t *pos1, *pos2;
-    const gchar *label;
+    const char *label;
     int label_len;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
@@ -904,15 +904,14 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static GstFlowReturn
-bb_decode (GstTensorDec * self, const GstTensorMemory * input,
-    GstBuffer * outbuf)
+bb_decode (void **pdata, const GstTensorsConfig * config,
+    const GstTensorMemory * input, GstBuffer * outbuf)
 {
-  bounding_boxes *bdata = self->plugin_data;
-  const gsize size = bdata->width * bdata->height * 4;  /* RGBA */
+  bounding_boxes *bdata = *pdata;
+  const size_t size = bdata->width * bdata->height * 4; /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
-  const GstTensorsConfig *config = &self->tensor_config;
   const int num_tensors = config->info.num_tensors;
 
   g_assert (outbuf);
