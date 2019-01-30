@@ -28,6 +28,7 @@ nnstreamer_prefix = get_option('prefix')
 nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
 nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
 nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
+nnstreamer_inidir = get_option('sysconfdir')
 
 libs_install_dir = nnstreamer_libdir
 plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
@@ -104,6 +105,9 @@ subdir('gst')
 if get_option('enable-test') or get_option('install-example')
   subdir('nnstreamer_example')
 endif
+
+# Install .ini
+install_data('nnstreamer.ini', install_dir : nnstreamer_inidir)
 
 # Build unittests
 if get_option('enable-test')

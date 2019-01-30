@@ -1,3 +1,4 @@
 /usr/lib/*/libtensor_filter_*.so
 /usr/lib/*/gstreamer-1.0/*.so
 /usr/lib/*/libnnstreamer_plugin_api.so
+/etc/nnstreamer.ini
