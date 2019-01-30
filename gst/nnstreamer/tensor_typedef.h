@@ -78,6 +78,32 @@
      * "dimensions = (string) dim1:dim2:dim3:dim4, dim1:dim2:dim3:dim4"
      */
 
+#define GST_TENSOR_VIDEO_CAPS_STR \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
+    ", views = (int) 1, interlace-mode = (string) progressive"
+
+#define GST_TENSOR_AUDIO_CAPS_STR \
+    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE, S32LE, S32BE, U32LE, U32BE, F32LE, F32BE, F64LE, F64BE }") \
+    ", layout = (string) interleaved"
+
+#define GST_TENSOR_TEXT_CAPS_STR \
+    "text/x-raw, format = (string) utf8"
+
+#define GST_TENSOR_OCTET_CAPS_STR \
+    "application/octet-stream"
+
+/**
+ * @brief Caps string for supported types
+ * @todo Support other types
+ */
+#define GST_TENSOR_MEDIA_CAPS_STR \
+    GST_TENSOR_VIDEO_CAPS_STR "; " \
+    GST_TENSOR_AUDIO_CAPS_STR "; " \
+    GST_TENSOR_TEXT_CAPS_STR "; " \
+    GST_TENSOR_OCTET_CAPS_STR
+
+#define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
+
 /**
  * @brief Possible data element types of other/tensor.
  */

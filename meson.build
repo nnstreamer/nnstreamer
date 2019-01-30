@@ -108,6 +108,7 @@ subdir('gst')
 
 # Build ext subplugins (filter-subplugins)
 subdir('ext/nnstreamer/tensor_filter')
+subdir('ext/nnstreamer/tensor_decoder')
 
 # Build nnstreamer examples
 if get_option('enable-test') or get_option('install-example')

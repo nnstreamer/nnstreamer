@@ -54,9 +54,9 @@
 #include <glib.h>
 #include <gst/gst.h>
 #include <math.h>               /* expf */
-#include <tensor_common.h>
-#include "tensordec.h"
 #include "font.h"
+#include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_plugin_api.h>
 
 #define BOX_SIZE                  4
 #define TFLITE_SSD_DETECTION_MAX  1917
