@@ -93,9 +93,9 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 mkdir -p build
 
 %ifarch x86_64 aarch64
-    meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true build
+    meson --buildtype=plain --werror --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true build
 %else
-    meson --buildtype=plain --werror --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=false build
+    meson --buildtype=plain --werror --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=false build
 %endif
 
 ninja -C build %{?_smp_mflags}
@@ -163,6 +163,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_libdir}/libtensor_filter_*.so
 %{gstlibdir}/*.so
 %{_libdir}/libnnstreamer_plugin_api.so
+%{_sysconfdir}/nnstreamer.ini
 
 %files devel
 %{_includedir}/nnstreamer/*
