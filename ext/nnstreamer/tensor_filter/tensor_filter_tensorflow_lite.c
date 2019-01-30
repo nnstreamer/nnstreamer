@@ -26,7 +26,7 @@
  *
  */
 
-#include <tensor_typedef.h>
+#include <nnstreamer_plugin_api.h>
 #include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
 #include <string.h>

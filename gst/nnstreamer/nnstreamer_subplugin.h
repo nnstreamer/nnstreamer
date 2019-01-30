@@ -87,10 +87,4 @@ register_subplugin (subpluginType type, const char *name, const void *data);
 extern gboolean
 unregister_subplugin (subpluginType type, const char *name);
 
-/**
- * @brief Call this at subplugin probe to avoid duplicated registration
- */
-extern void
-hold_register_subplugin (subpluginType type, const char *name, const void *data);
-
 #endif /* __GST_NNSTREAMER_SUBPLUGIN_H__ */

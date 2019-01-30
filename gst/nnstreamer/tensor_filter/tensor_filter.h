@@ -34,6 +34,7 @@
 #include <gst/gstinfo.h>
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
+#include <nnstreamer_subplugin.h>
 
 G_BEGIN_DECLS
 
