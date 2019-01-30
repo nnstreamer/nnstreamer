@@ -33,6 +33,7 @@
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
 #include <nnstreamer_subplugin.h>
+#include <nnstreamer_plugin_api_decoder.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSORDEC \
@@ -48,7 +49,6 @@ G_BEGIN_DECLS
 #define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
-typedef struct _TensorDecDef TensorDecDef;
 
 
 #define TensorDecMaxOpNum (9)
@@ -97,17 +97,6 @@ typedef enum
 } GstDecMode;
 
 /**
- * @brief Tensor Decoder Output type.
- */
-typedef enum
-{
-  OUTPUT_VIDEO,
-  OUTPUT_AUDIO,
-  OUTPUT_TEXT,
-  OUTPUT_UNKNOWN
-} GstDecMediaType;
-
-/**
  * @brief Output type for each mode
  */
 static const GstDecMediaType dec_output_type[] = {
@@ -122,53 +111,5 @@ static const GstDecMediaType dec_output_type[] = {
  */
 GType gst_tensordec_get_type (void);
 
-
-/*********************************************************
- * The followings are decoder-subplugin APIs             *
- *********************************************************/
-/**
- * @brief Decoder definitions for different semantics of tensors
- *        This allows developers to create their own decoders.
- */
-struct _TensorDecDef
-{
-  char *modename;
-      /**< Unique decoder name. GST users choose decoders with mode="modename". */
-  GstDecMediaType type;
-      /**< Output media type. VIDEO/AUDIO/TEXT are supported */
-  int (*init) (void **private_data);
-      /**< Object initialization for the decoder */
-  void (*exit) (void **private_data);
-      /**< Object destruction for the decoder */
-  int (*setOption) (void **private_data, int opNum, const char *param);
-      /**< Process with the given options. It can be called repeatedly */
-  GstCaps *(*getOutCaps) (void **private_data, const GstTensorsConfig *config);
-      /**< The caller should unref the returned GstCaps
-        * Current implementation supports single-tensor only.
-        * @todo WIP: support multi-tensor for input!!!
-        */
-  GstFlowReturn (*decode) (void **private_data, const GstTensorsConfig *config,
-      const GstTensorMemory *input, GstBuffer *outbuf);
-      /**< outbuf must be allocated but empty (gst_buffer_get_size (outbuf) == 0).
-        * Note that we support single-tensor (other/tensor) only!
-        * @todo WIP: support multi-tensor for input!!!
-        */
-  size_t (*getTransformSize) (void **private_data, const GstTensorsConfig *config,
-      GstCaps *caps, size_t size, GstCaps *othercaps,
-      GstPadDirection direction);
-      /**< EXPERIMENTAL! @todo We are not ready to use this. This should be NULL or return 0 */
-};
-
-/* extern functions for subplugin management, exist in tensor_decoder.c */
-/**
- * @brief decoder's subplugins should call this function to register
- * @param[in] decoder The decoder subplugin instance
- */
-extern gboolean tensordec_probe (TensorDecDef * decoder);
-/**
- * @brief decoder's subplugin may call this to unregister
- * @param[in] name the name of decoder (modename)
- */
-extern void tensordec_exit (const gchar * name);
 G_END_DECLS
 #endif /* __GST_TENSORDEC_H__ */
