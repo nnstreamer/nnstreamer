@@ -28,7 +28,7 @@ PATH_TO_FILE="tensordecoder.log"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow-lite\" model=\"${PATH_TO_MODEL}\" ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"${PATH_TO_FILE}\"" D1 0 0 $PERFORMANCE
 
 label=$(cat "${PATH_TO_FILE}")
-if [ $label = "orange" ]
+if [ "$label" == "orange" ]
 then
 	testResult 1 D1A "Decoding Orange"
 else
