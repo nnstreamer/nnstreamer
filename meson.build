@@ -37,6 +37,7 @@ examples_install_dir = nnstreamer_bindir
 
 # nnstreamer sub-plugins path
 subplugin_install_prefix = join_paths(nnstreamer_prefix, 'lib', 'nnstreamer')
+customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)

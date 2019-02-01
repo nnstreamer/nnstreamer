@@ -179,8 +179,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_libdir}/*.so
-%exclude %{_libdir}/libtensor_filter_*.so
+%{_prefix}/lib/nnstreamer/customfilters/*.so
 
 %changelog
 * Thu Jan 24 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
