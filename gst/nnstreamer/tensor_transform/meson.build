@@ -15,7 +15,8 @@ if have_orcc
     output: orcsrc + '.c',
     command: orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
 
-  nnstreamer_generated += [orc_c, orc_h]
+  nnstreamer_sources += [orc_c, orc_h]
+  nnstreamer_internal_deps += declare_dependency(sources: orc_h)
 endif
 
 foreach s : tensor_transform_sources

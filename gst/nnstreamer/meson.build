@@ -1,7 +1,6 @@
 nnstreamer_inc = include_directories('.')
 nnstreamer_sources = []
 nnstreamer_headers = []
-nnstreamer_generated = []
 
 # Dependencies
 nnstreamer_base_deps = [
@@ -29,7 +28,11 @@ if have_orcc
 endif
 
 # For extra dependencies (subplugins, filters)
+# Remove this after ext subplugins migration
 nnstreamer_extra_deps = []
+
+# Internal dependencies
+nnstreamer_internal_deps = []
 
 # Add nnstreamer registerer and common sources
 nnst_common_sources = [
@@ -85,9 +88,6 @@ foreach p : nnst_plugins
   subdir(p)
 endforeach
 
-# Add generated
-nnstreamer_sources += nnstreamer_generated
-
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,
@@ -102,7 +102,7 @@ nnstreamer_static = static_library('nnstreamer',
   dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
   include_directories: nnstreamer_inc,
   install: true,
-  install_dir: libs_install_dir
+  install_dir: nnstreamer_libdir
 )
 
 nnstreamer_lib = nnstreamer_shared
@@ -127,7 +127,6 @@ nnstreamer_plugin_api_static = static_library('nnstreamer_plugin_api',
 )
 
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
-  sources: nnstreamer_generated,
   dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc)
 
