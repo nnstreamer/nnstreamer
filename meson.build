@@ -35,11 +35,15 @@ plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_veris
 subplugins_install_dir = nnstreamer_libdir
 examples_install_dir = nnstreamer_bindir
 
+# nnstreamer sub-plugins path
+subplugin_install_prefix = join_paths(nnstreamer_prefix, 'lib', 'nnstreamer')
+
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
 nnstreamer_conf.set('LIB_INSTALL_DIR', libs_install_dir)
 nnstreamer_conf.set('GST_INSTALL_DIR', plugins_install_dir)
 nnstreamer_conf.set('INCLUDE_INSTALL_DIR', nnstreamer_includedir)
+nnstreamer_conf.set('SUBPLUGIN_INSTALL_PREFIX', subplugin_install_prefix)
 
 # Dependencies
 glib_dep = dependency('glib-2.0')
@@ -106,14 +110,19 @@ if get_option('enable-test') or get_option('install-example')
   subdir('nnstreamer_example')
 endif
 
-# Install .ini
-install_data('nnstreamer.ini', install_dir : nnstreamer_inidir)
-
 # Build unittests
 if get_option('enable-test')
   subdir('tests')
 endif
 
+# Install .ini
+configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
+  install: true,
+  install_dir: nnstreamer_inidir,
+  configuration: nnstreamer_conf
+)
+
+# Install .pc
 configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
   install: true,
   install_dir: join_paths(libs_install_dir, 'pkgconfig'),

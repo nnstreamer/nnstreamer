@@ -1,0 +1,6 @@
+[filter]
+filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
+customfilters=@SUBPLUGIN_INSTALL_PREFIX@/customfilters/
+
+[decoder]
+decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
