@@ -16,7 +16,6 @@
 ROOT_DIR:=$(shell pwd)
 export DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 export DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
-export LD_LIBRARY_PATH=${ROOT_DIR}/build/gst/nnstreamer
 export GST_PLUGIN_PATH=${ROOT_DIR}/build/gst/nnstreamer
 export NNSTREAMER_FILTERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_decoder

@@ -104,7 +104,6 @@ ninja -C build %{?_smp_mflags}
 
 %if 0%{?unit_test}
     pushd build
-    export LD_LIBRARY_PATH=$(pwd)/gst/nnstreamer
     export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
     export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
     export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
