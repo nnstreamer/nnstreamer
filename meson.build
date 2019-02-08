@@ -30,18 +30,18 @@ nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
 nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
 nnstreamer_inidir = get_option('sysconfdir')
 
-libs_install_dir = nnstreamer_libdir
+# nnstreamer plugins path
 plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
-subplugins_install_dir = nnstreamer_libdir
-examples_install_dir = nnstreamer_bindir
 
 # nnstreamer sub-plugins path
 subplugin_install_prefix = join_paths(nnstreamer_prefix, 'lib', 'nnstreamer')
+filter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'filters')
+decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
-nnstreamer_conf.set('LIB_INSTALL_DIR', libs_install_dir)
+nnstreamer_conf.set('LIB_INSTALL_DIR', nnstreamer_libdir)
 nnstreamer_conf.set('GST_INSTALL_DIR', plugins_install_dir)
 nnstreamer_conf.set('INCLUDE_INSTALL_DIR', nnstreamer_includedir)
 nnstreamer_conf.set('SUBPLUGIN_INSTALL_PREFIX', subplugin_install_prefix)
@@ -129,6 +129,6 @@ configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
 # Install .pc
 configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
   install: true,
-  install_dir: join_paths(libs_install_dir, 'pkgconfig'),
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_conf
 )

@@ -19,10 +19,6 @@ if have_orcc
   nnstreamer_base_deps += [orc_dep]
 endif
 
-# For extra dependencies (subplugins, filters)
-# Remove this after ext subplugins migration
-nnstreamer_extra_deps = []
-
 # Internal dependencies
 nnstreamer_internal_deps = []
 
@@ -31,20 +27,12 @@ nnst_common_sources = [
   'nnstreamer.c',
   'nnstreamer_conf.c',
   'nnstreamer_subplugin.c',
+  'nnstreamer_plugin_api.c',
   'tensor_common.c',
   'tensor_repo.c'
 ]
 
 foreach s : nnst_common_sources
-  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
-endforeach
-
-# Add nnstreamer API plugin sources
-nnst_plugin_api_sources = [
-  'nnstreamer_plugin_api.c'
-]
-
-foreach s : nnst_plugin_api_sources
   nnstreamer_sources += join_paths(meson.current_source_dir(), s)
 endforeach
 
@@ -83,7 +71,7 @@ endforeach
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,
-  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
+  dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc,
   install: true,
   install_dir: plugins_install_dir
@@ -91,7 +79,7 @@ nnstreamer_shared = shared_library('nnstreamer',
 
 nnstreamer_static = static_library('nnstreamer',
   nnstreamer_sources,
-  dependencies: [nnstreamer_base_deps, nnstreamer_extra_deps],
+  dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc,
   install: true,
   install_dir: nnstreamer_libdir

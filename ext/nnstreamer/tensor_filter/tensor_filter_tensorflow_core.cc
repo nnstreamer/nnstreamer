@@ -24,6 +24,7 @@
  * @bug     No known bugs.
  */
 
+#include <nnstreamer_plugin_api.h>
 #include "tensor_filter_tensorflow_core.h"
 
 /**
@@ -45,8 +46,8 @@ TFCore::TFCore (const char * _model_path)
 {
   model_path = _model_path;
 
-  memset (&inputTensorMeta, 0, sizeof (GstTensorsInfo));
-  memset (&outputTensorMeta, 0, sizeof (GstTensorsInfo));
+  gst_tensors_info_init (&inputTensorMeta);
+  gst_tensors_info_init (&outputTensorMeta);
 
   for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
     inputTensorRank[i] = 0;

@@ -137,8 +137,7 @@ tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
   tflite_data *tf;
   tf = *private_data;
   g_assert (*private_data);
-  int ret = tflite_core_getInputDim (tf->tflite_private_data, info);
-  return ret;
+  return tflite_core_getInputDim (tf->tflite_private_data, info);
 }
 
 /**
@@ -154,8 +153,7 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
   tflite_data *tf;
   tf = *private_data;
   g_assert (*private_data);
-  int ret = tflite_core_getOutputDim (tf->tflite_private_data, info);
-  return ret;
+  return tflite_core_getOutputDim (tf->tflite_private_data, info);
 }
 
 GstTensorFilterFramework NNS_support_tensorflow_lite = {
