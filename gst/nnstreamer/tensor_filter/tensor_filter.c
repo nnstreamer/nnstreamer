@@ -317,6 +317,7 @@ static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
         g_free_const (filter->prop.fwname); \
         filter->prop.fwname = NULL; \
         filter->fw = NULL; \
+        filter->privateData = NULL; \
       } \
     } while (0)
 

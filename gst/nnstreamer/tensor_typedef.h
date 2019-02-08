@@ -225,8 +225,8 @@ typedef struct _GstTensorFilterProperties
  * @brief Tensor_Filter Subplugin definition
  *
  * Common callback parameters:
- * filter Filter properties. Read Only
- * private_data Subplugin's private data. Set this (*private_data = XXX) if you want to change filter->private_data
+ * prop Filter properties. Read Only.
+ * private_data Subplugin's private data. Set this (*private_data = XXX) if you want to change filter->private_data.
  */
 typedef struct _GstTensorFilterFramework
 {
@@ -272,7 +272,7 @@ typedef struct _GstTensorFilterFramework
   int (*setInputDimension) (const GstTensorFilterProperties * prop,
       void **private_data, const GstTensorsInfo * in_info,
       GstTensorsInfo * out_info);
-      /**< Optional. Set Null if not supported. Tensor_filter::main will
+      /**< Optional. Set Null if not supported. Tensor_Filter::main will
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension
        * If this is NULL, both getInput/OutputDimension must be non-NULL.

@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <algorithm>
 
+#include <nnstreamer_plugin_api.h>
 #include "tensor_filter_tensorflow_lite_core.h"
 
 /**
@@ -43,8 +44,8 @@ TFLiteCore::TFLiteCore (const char * _model_path)
 {
   model_path = _model_path;
 
-  memset (&inputTensorMeta, 0, sizeof (GstTensorsInfo));
-  memset (&outputTensorMeta, 0, sizeof (GstTensorsInfo));
+  gst_tensors_info_init (&inputTensorMeta);
+  gst_tensors_info_init (&outputTensorMeta);
 }
 
 /**

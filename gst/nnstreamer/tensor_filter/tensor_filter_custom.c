@@ -1,5 +1,5 @@
 /**
- * GStreamer Tensor_Filter, Tensorflow-Lite Module
+ * GStreamer Tensor_Filter Module
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -38,8 +38,6 @@ static GstTensorFilterFramework NNS_support_custom;
  */
 struct _internal_data
 {
-  GstTensorFilter *parent;
-
   void *handle;
   NNStreamer_custom_class *methods;
 
@@ -69,7 +67,6 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
   *private_data = ptr;
-  ptr->parent = GstTensorFilter_of_privateData (private_data);
 
   /* Load .so if this is the first time for this instance. */
   ptr->handle = dlopen (prop->model_file, RTLD_NOW);
@@ -139,7 +136,7 @@ custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
   int retval = custom_loadlib (prop, private_data);
   internal_data *ptr;
 
-  /* Actually, tensor_filter must have called getInput/OotputDim first. */
+  /* Actually, tensor_filter must have called getInput/OutputDim first. */
   g_assert (retval == 1);
   g_assert (*private_data);
   ptr = *private_data;

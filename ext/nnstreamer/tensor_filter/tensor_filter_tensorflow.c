@@ -135,8 +135,7 @@ tf_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
   tf_data *tf;
   tf = *private_data;
   g_assert (*private_data);
-  int ret = tf_core_getInputDim (tf->tf_private_data, info);
-  return ret;
+  return tf_core_getInputDim (tf->tf_private_data, info);
 }
 
 /**
@@ -152,8 +151,7 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
   tf_data *tf;
   tf = *private_data;
   g_assert (*private_data);
-  int ret = tf_core_getOutputDim (tf->tf_private_data, info);
-  return ret;
+  return tf_core_getOutputDim (tf->tf_private_data, info);
 }
 
 /**

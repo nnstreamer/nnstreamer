@@ -20,8 +20,10 @@
  *
  * @bug     No known bugs.
  */
-#ifndef TENSOR_FILTER_TENSORFLOW_LITE_H
-#define TENSOR_FILTER_TENSORFLOW_LITE_H
+#ifndef TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
+#define TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
+
+#include <tensor_typedef.h>
 
 #ifdef __cplusplus
 #include <iostream>
@@ -32,8 +34,6 @@
 #include <tensorflow/contrib/lite/optional_debug_tools.h>
 #include <tensorflow/contrib/lite/string_util.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
-
-#include <tensor_typedef.h>
 
 /**
  * @brief	ring cache structure
@@ -89,4 +89,4 @@ extern "C"
 }
 #endif
 
-#endif
+#endif /* TENSOR_FILTER_TENSORFLOW_LITE_CORE_H */

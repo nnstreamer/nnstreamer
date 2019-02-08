@@ -23,8 +23,8 @@
  *
  * @bug     No known bugs.
  */
-#ifndef TENSOR_FILTER_TENSORFLOW_H
-#define TENSOR_FILTER_TENSORFLOW_H
+#ifndef TENSOR_FILTER_TENSORFLOW_CORE_H
+#define TENSOR_FILTER_TENSORFLOW_CORE_H
 
 #include <tensor_typedef.h>
 
@@ -118,4 +118,4 @@ extern "C"
 }
 #endif
 
-#endif
+#endif /* TENSOR_FILTER_TENSORFLOW_CORE_H */
