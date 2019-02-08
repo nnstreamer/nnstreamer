@@ -175,7 +175,7 @@ TEST (common_get_tensor_dimension, case1)
 {
   tensor_dim dim;
   gchar *dim_str;
-  int rank;
+  guint rank;
 
   rank = get_tensor_dimension ("345:123:433:177", dim);
   EXPECT_EQ (rank, 4);
@@ -196,7 +196,7 @@ TEST (common_get_tensor_dimension, case2)
 {
   tensor_dim dim;
   gchar *dim_str;
-  int rank;
+  guint rank;
 
   rank = get_tensor_dimension ("345:123:433", dim);
   EXPECT_EQ (rank, 3);
@@ -217,7 +217,7 @@ TEST (common_get_tensor_dimension, case3)
 {
   tensor_dim dim;
   gchar *dim_str;
-  int rank;
+  guint rank;
 
   rank = get_tensor_dimension ("345:123", dim);
   EXPECT_EQ (rank, 2);
@@ -238,7 +238,7 @@ TEST (common_get_tensor_dimension, case4)
 {
   tensor_dim dim;
   gchar *dim_str;
-  int rank;
+  guint rank;
 
   rank = get_tensor_dimension ("345", dim);
   EXPECT_EQ (rank, 1);

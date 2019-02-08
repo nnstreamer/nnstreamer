@@ -167,7 +167,7 @@ guint
 gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     const gchar * type_string)
 {
-  gint num_types = 0;
+  guint num_types = 0;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -245,9 +245,7 @@ gst_tensor_config_validate (const GstTensorConfig * config)
 {
   g_return_val_if_fail (config != NULL, FALSE);
 
-  /**
-   * check framerate (numerator >= 0 and denominator > 0)
-   */
+  /* framerate (numerator >= 0 and denominator > 0) */
   if (config->rate_n < 0 || config->rate_d <= 0) {
     return FALSE;
   }
@@ -262,7 +260,7 @@ gst_tensor_config_validate (const GstTensorConfig * config)
  * @return TRUE if ok
  */
 static gboolean
-gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
+gst_tensor_config_from_tensor_info (GstTensorConfig * config,
     const GstStructure * structure)
 {
   GstTensorInfo *info;
@@ -274,7 +272,8 @@ gst_tensor_config_from_tensor_structure (GstTensorConfig * config,
   g_return_val_if_fail (structure != NULL, FALSE);
 
   if (!gst_structure_has_name (structure, "other/tensor")) {
-    GST_WARNING ("caps is not tensor %s\n", gst_structure_get_name (structure));
+    const gchar *name = gst_structure_get_name (structure);
+    GST_WARNING ("caps is not tensor [%s]\n", name ? name : "Unknown");
     return FALSE;
   }
 
@@ -600,7 +599,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
 
   /** update config from tensor stream */
   if (gst_structure_has_name (structure, "other/tensor")) {
-    return gst_tensor_config_from_tensor_structure (config, structure);
+    return gst_tensor_config_from_tensor_info (config, structure);
   }
 
   /** update config from media stream */
@@ -664,7 +663,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
   if (g_str_equal (name, "other/tensor")) {
     GstTensorConfig c;
 
-    gst_tensor_config_from_tensor_structure (&c, structure);
+    gst_tensor_config_from_tensor_info (&c, structure);
 
     config->info.num_tensors = 1;
     config->info.info[0] = c.info;
@@ -728,16 +727,13 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
 {
   g_return_val_if_fail (config != NULL, FALSE);
 
-  /**
-   * check framerate (numerator >= 0 and denominator > 0)
-   */
+  /* framerate (numerator >= 0 and denominator > 0) */
   if (config->rate_n < 0 || config->rate_d <= 0) {
     return FALSE;
   }
 
   return gst_tensors_info_validate (&config->info);
 }
-
 
 /**
  * @brief Check the tensor dimension is valid
@@ -764,14 +760,14 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
  * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  * @param dim dimension to be filled.
  */
-int
+guint
 get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
 {
-  int rank = 0;
+  guint rank = 0;
   guint64 val;
   gchar **strv;
   gchar *dim_string;
-  gint i, num_dims;
+  guint i, num_dims;
 
   if (dimstr == NULL)
     return 0;
@@ -810,7 +806,7 @@ get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
 gchar *
 get_tensor_dimension_string (const tensor_dim dim)
 {
-  gint i;
+  guint i;
   GString *dim_str;
 
   dim_str = g_string_new (NULL);
@@ -831,11 +827,11 @@ get_tensor_dimension_string (const tensor_dim dim)
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-size_t
+gsize
 get_tensor_element_count (const tensor_dim dim)
 {
-  size_t count = 1;
-  int i;
+  gsize count = 1;
+  guint i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     count *= dim[i];
@@ -852,7 +848,7 @@ get_tensor_element_count (const tensor_dim dim)
 tensor_type
 get_tensor_type (const gchar * typestr)
 {
-  int len;
+  guint len;
   gchar *type_string;
   tensor_type type = _NNS_END;
 
