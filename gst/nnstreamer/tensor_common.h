@@ -31,13 +31,13 @@
 
 #include <glib.h>
 #include <stdint.h>
-#include "tensor_typedef.h"
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
 #include <gst/audio/audio-format.h>
 #include <gst/base/gstcollectpads.h>
 #include <gst/gstplugin.h>
 
+#include "tensor_typedef.h"
 #include "nnstreamer_plugin_api.h"
 
 #ifdef HAVE_ORC
@@ -85,7 +85,6 @@ G_BEGIN_DECLS
 /**
  * @brief time synchronization options
  */
-
 typedef enum
 {
   SYNC_NOSYNC = 0,
@@ -160,7 +159,8 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
  * @return number of parsed names
  */
 extern guint
-gst_tensors_info_parse_names_string (GstTensorsInfo * info, const gchar * name_string);
+gst_tensors_info_parse_names_string (GstTensorsInfo * info,
+    const gchar * name_string);
 
 /**
  * @brief Get the string of dimensions in tensors info

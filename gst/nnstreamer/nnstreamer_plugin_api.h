@@ -170,7 +170,8 @@ gst_tensor_dimension_is_valid (const tensor_dim dim);
  * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
  * @param dim dimension to be filled.
  */
-extern int get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
+extern guint
+get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
 
 /**
  * @brief Get dimension string from given tensor dimension.
@@ -178,21 +179,24 @@ extern int get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
  * @return Formatted string of given dimension (d1:d2:d3:d4).
  * @note The returned value should be freed with g_free()
  */
-extern gchar *get_tensor_dimension_string (const tensor_dim dim);
+extern gchar *
+get_tensor_dimension_string (const tensor_dim dim);
 
 /**
  * @brief Count the number of elemnts of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-extern size_t get_tensor_element_count (const tensor_dim dim);
+extern gsize
+get_tensor_element_count (const tensor_dim dim);
 
 /**
  * @brief Get tensor_type from string tensor_type input
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
-extern tensor_type get_tensor_type (const gchar * typestr);
+extern tensor_type
+get_tensor_type (const gchar * typestr);
 
 
 

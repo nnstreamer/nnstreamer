@@ -25,7 +25,6 @@
 
 #include <tensor_common.h>
 #include <string.h>
-#include <glib.h>
 
 /**
  * @brief Compare tensor info
@@ -49,7 +48,7 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     }
   }
 
-  /** matched all */
+  /* matched all */
   return TRUE;
 }
 
@@ -95,7 +94,7 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
     }
   }
 
-  /** matched all */
+  /* matched all */
   return TRUE;
 }
 
@@ -128,7 +127,7 @@ guint
 gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     const gchar * name_string)
 {
-  gint num_names = 0;
+  guint num_names = 0;
 
   g_return_val_if_fail (info != NULL, 0);
 
