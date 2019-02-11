@@ -53,15 +53,15 @@ G_BEGIN_DECLS
 typedef struct _GstTensorTransform GstTensorTransform;
 typedef struct _GstTensorTransformClass GstTensorTransformClass;
 
-typedef enum
+typedef enum _tensor_transform_mode
 {
-  GTT_DIMCHG = 0,               /* Dimension Change. "dimchg" */
-  GTT_TYPECAST = 1,             /* Type change. "typecast" */
-  GTT_ARITHMETIC = 2,           /* Arithmetic. "arithmetic" */
-  GTT_TRANSPOSE = 3,            /* Transpose. "transpose" */
-  GTT_STAND = 4,                /* Standardization. "stand" */
+  GTT_DIMCHG = 0,     /* Dimension Change. "dimchg" */
+  GTT_TYPECAST,       /* Type change. "typecast" */
+  GTT_ARITHMETIC,     /* Arithmetic. "arithmetic" */
+  GTT_TRANSPOSE,      /* Transpose. "transpose" */
+  GTT_STAND,          /* Standardization. "stand" */
 
-  GTT_END,
+  GTT_UNKNOWN = -1,   /* Unknown/Not-implemented-yet Mode. "unknown" */
 } tensor_transform_mode;
 
 typedef enum
