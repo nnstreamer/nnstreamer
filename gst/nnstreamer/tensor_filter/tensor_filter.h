@@ -64,8 +64,8 @@ struct _GstTensorFilter
   GstTensorFilterProperties prop; /**< NNFW plugin's properties */
   const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
-  /** internal properties for tensor-filter */
-  int silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
+  /* internal properties for tensor-filter */
+  gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
   gboolean configured; /**< True if already successfully configured tensor metadata */
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config; /**< output tensor info */

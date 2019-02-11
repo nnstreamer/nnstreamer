@@ -68,11 +68,6 @@ public:
   int init(const GstTensorFilterProperties * prop);
   int loadModel ();
   const char* getModelPath();
-  int setInputTensorProp ();
-  int setOutputTensorProp ();
-
-  int getInputTensorSize ();
-  int getOutputTensorSize ();
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
@@ -93,7 +88,6 @@ private:
 
   tensor_type getTensorTypeFromTF (DataType tfType);
   DataType getTensorTypeToTF (tensor_type tType);
-  int setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src);
   int inputTensorValidation (const std::vector <const NodeDef*> &placeholders);
 };
 

@@ -54,6 +54,8 @@ TFLiteCore::TFLiteCore (const char * _model_path)
  */
 TFLiteCore::~TFLiteCore ()
 {
+  gst_tensors_info_free (&inputTensorMeta);
+  gst_tensors_info_free (&outputTensorMeta);
 }
 
 /**
@@ -259,26 +261,6 @@ TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim)
 }
 
 /**
- * @brief	return the number of Input Tensors.
- * @return	the number of Input Tensors.
- */
-int
-TFLiteCore::getInputTensorSize ()
-{
-  return inputTensorMeta.num_tensors;
-}
-
-/**
- * @brief	return the number of Output Tensors.
- * @return	the number of Output Tensors
- */
-int
-TFLiteCore::getOutputTensorSize ()
-{
-  return outputTensorMeta.num_tensors;
-}
-
-/**
  * @brief	return the Dimension of Input Tensor.
  * @param[out] info Structure for tensor info.
  * @todo return whole array rather than index 0
@@ -287,9 +269,7 @@ TFLiteCore::getOutputTensorSize ()
 int
 TFLiteCore::getInputTensorDim (GstTensorsInfo * info)
 {
-  info->num_tensors = inputTensorMeta.num_tensors;
-  memcpy (info->info, inputTensorMeta.info,
-      sizeof (GstTensorInfo) * inputTensorMeta.num_tensors);
+  gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
 }
 
@@ -302,9 +282,7 @@ TFLiteCore::getInputTensorDim (GstTensorsInfo * info)
 int
 TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
 {
-  info->num_tensors = outputTensorMeta.num_tensors;
-  memcpy (info->info, outputTensorMeta.info,
-      sizeof (GstTensorInfo) * outputTensorMeta.num_tensors);
+  gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
 }
 
@@ -325,7 +303,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
 
-  for (int i = 0; i < getOutputTensorSize (); ++i) {
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -334,7 +312,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     tensors_idx.push_back (tensor_idx);
   }
 
-  for (int i = 0; i < getInputTensorSize (); ++i) {
+  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -395,8 +373,7 @@ int
 tflite_core_init (void * tflite)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  int ret = c->init ();
-  return ret;
+  return c->init ();
 }
 
 /**
@@ -421,8 +398,7 @@ int
 tflite_core_getInputDim (void * tflite, GstTensorsInfo * info)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  int ret = c->getInputTensorDim (info);
-  return ret;
+  return c->getInputTensorDim (info);
 }
 
 /**
@@ -435,8 +411,7 @@ int
 tflite_core_getOutputDim (void * tflite, GstTensorsInfo * info)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
-  int ret = c->getOutputTensorDim (info);
-  return ret;
+  return c->getOutputTensorDim (info);
 }
 
 /**

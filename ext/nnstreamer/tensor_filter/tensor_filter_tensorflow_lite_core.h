@@ -63,8 +63,6 @@ private:
   std::unique_ptr <tflite::Interpreter> interpreter;
   std::unique_ptr <tflite::FlatBufferModel> model;
 
-  int getInputTensorSize ();
-  int getOutputTensorSize ();
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
 };

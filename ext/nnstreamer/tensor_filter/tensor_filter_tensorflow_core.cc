@@ -61,31 +61,21 @@ TFCore::TFCore (const char * _model_path)
  */
 TFCore::~TFCore ()
 {
+  gst_tensors_info_free (&inputTensorMeta);
+  gst_tensors_info_free (&outputTensorMeta);
 }
 
 /**
  * @brief	initialize the object with tensorflow model
  * @return 0 if OK. non-zero if error.
- *        -1 if the model is not loaded.
- *        -2 if the initialization of input tensor is failed.
- *        -3 if the initialization of output tensor is failed.
  */
 int
 TFCore::init (const GstTensorFilterProperties * prop)
 {
-  if (setTensorProp (&inputTensorMeta, &prop->input_meta)) {
-    GST_ERROR ("Failed to initialize input tensor\n");
-    return -2;
-  }
-  if (setTensorProp (&outputTensorMeta, &prop->output_meta)) {
-    GST_ERROR ("Failed to initialize output tensor\n");
-    return -3;
-  }
-  if (loadModel ()) {
-    GST_ERROR ("Failed to load model\n");
-    return -1;
-  }
-  return 0;
+  gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
+  gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
+
+  return loadModel ();
 }
 
 /**
@@ -258,24 +248,26 @@ TFCore::inputTensorValidation (const std::vector <const NodeDef*> &placeholders)
       }
     }
     char chars[] = "[]";
-    for (unsigned int i = 0; i < strlen (chars); ++i)
+    for (unsigned int j = 0; j < strlen (chars); ++j)
     {
       shape_description.erase (
         std::remove (
           shape_description.begin (),
           shape_description.end (),
-          chars[i]
+          chars[j]
         ),
         shape_description.end ()
       );
     }
 
     DataType dtype = DT_INVALID;
+    char *tensor_name = inputTensorMeta.info[i].name;
+
     if (node->attr ().count ("dtype")) {
       dtype = node->attr ().at ("dtype").type ();
     }
 
-    if (strcmp (inputTensorMeta.info[i].name, node->name ().c_str ())) {
+    if (!tensor_name || strcmp (tensor_name, node->name ().c_str ())) {
       GST_ERROR ("Input Tensor is not valid: the name of input tensor is different\n");
       return -2;
     }
@@ -308,38 +300,6 @@ TFCore::inputTensorValidation (const std::vector <const NodeDef*> &placeholders)
 }
 
 /**
- * @brief extract and store the information of src tensors
- * @return 0 if OK. non-zero if error.
- */
-int
-TFCore::setTensorProp (GstTensorsInfo * dest, const GstTensorsInfo * src)
-{
-  dest->num_tensors = src->num_tensors;
-  memcpy (dest->info, src->info, sizeof (GstTensorInfo) * src->num_tensors);
-  return 0;
-}
-
-/**
- * @brief	return the number of Input Tensors.
- * @return	the number of Input Tensors.
- */
-int
-TFCore::getInputTensorSize ()
-{
-  return inputTensorMeta.num_tensors;
-}
-
-/**
- * @brief	return the number of Output Tensors.
- * @return	the number of Output Tensors
- */
-int
-TFCore::getOutputTensorSize ()
-{
-  return outputTensorMeta.num_tensors;
-}
-
-/**
  * @brief	return the Dimension of Input Tensor.
  * @param[out] info Structure for tensor info.
  * @todo return whole array rather than index 0
@@ -348,9 +308,7 @@ TFCore::getOutputTensorSize ()
 int
 TFCore::getInputTensorDim (GstTensorsInfo * info)
 {
-  info->num_tensors = inputTensorMeta.num_tensors;
-  memcpy (info->info, inputTensorMeta.info,
-      sizeof (GstTensorInfo) * inputTensorMeta.num_tensors);
+  gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
 }
 
@@ -363,9 +321,7 @@ TFCore::getInputTensorDim (GstTensorsInfo * info)
 int
 TFCore::getOutputTensorDim (GstTensorsInfo * info)
 {
-  info->num_tensors = outputTensorMeta.num_tensors;
-  memcpy (info->info, outputTensorMeta.info,
-      sizeof (GstTensorInfo) * outputTensorMeta.num_tensors);
+  gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
 }
 
@@ -389,6 +345,10 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 {
+#if (DBG)
+  gint64 start_time = g_get_real_time ();
+#endif
+
   std::vector <std::pair <string, Tensor>> input_feeds;
   std::vector <string> output_tensor_names;
   std::vector <Tensor> outputs;
@@ -458,11 +418,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    output[i].type = getTensorTypeFromTF (outputs[i].dtype());
-    output[i].size = tensor_element_size[output[i].type];
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
-      output[i].size *= outputTensorMeta.info[i].dimension[j];
-
+    g_assert (output[i].type == getTensorTypeFromTF (outputs[i].dtype()));
     array_len = output[i].size / tensor_element_size[output[i].type];
 
     switch (output[i].type) {
@@ -502,6 +458,12 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     }
   }
 
+#if (DBG)
+  gint64 stop_time = g_get_real_time ();
+  g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
+      (stop_time - start_time));
+#endif
+
   return 0;
 }
 
@@ -532,8 +494,7 @@ int
 tf_core_init (void * tf, const GstTensorFilterProperties * prop)
 {
   TFCore *c = (TFCore *) tf;
-  int ret = c->init (prop);
-  return ret;
+  return c->init (prop);
 }
 
 /**
