@@ -112,15 +112,6 @@ enum
 #define DEFAULT_ACCELERATION FALSE
 #endif
 
-static const gchar *gst_tensor_transform_mode_string[] = {
-  [GTT_DIMCHG] = "dimchg",
-  [GTT_TYPECAST] = "typecast",
-  [GTT_ARITHMETIC] = "arithmetic",
-  [GTT_TRANSPOSE] = "transpose",
-  [GTT_STAND] = "stand",
-  [GTT_END] = "error"
-};
-
 static const gchar *gst_tensor_transform_stand_string[] = {
   [STAND_DEFAULT] = "default",
   [STAND_END] = "error"
@@ -174,6 +165,39 @@ static gboolean gst_tensor_transform_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
 
+#define GST_TYPE_TENSOR_TRANSFORM_MODE (gst_tensor_transform_mode_get_type ())
+/**
+ * @brief A private function to register GEnumValue array for the 'mode' property
+ *        to a GType and return it
+ */
+static GType
+gst_tensor_transform_mode_get_type (void)
+{
+  static GType mode_type = GTT_UNKNOWN;
+
+  if (mode_type == GTT_UNKNOWN) {
+    static GEnumValue mode_types[] = {
+      {GTT_DIMCHG, "Mode for changing tensor dimensions",
+          "dimchg"},
+      {GTT_TYPECAST, "Mode for casting type of tensor",
+          "typecast"},
+      {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor",
+          "arithmetic"},
+      {GTT_TRANSPOSE, "Mode for transposing shape of tensor",
+          "transpose"},
+      {GTT_STAND, "Mode for statistical standardization of tensor",
+          "stand"},
+      {GTT_UNKNOWN, "Unknown or not-implemented-yet mode",
+          "unknown"},
+      {0, NULL, NULL},
+    };
+
+    mode_type = g_enum_register_static ("gtt_mode_type", mode_types);
+  }
+
+  return mode_type;
+}
+
 /**
  * @brief initialize the tensor_transform's class
  */
@@ -196,8 +220,9 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
           FALSE, G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_string ("mode", "Mode", "Tensor transform mode ?",
-          "", G_PARAM_READWRITE));
+      g_param_spec_enum ("mode", "Mode", "Mode used for transforming tensor",
+          GST_TYPE_TENSOR_TRANSFORM_MODE, GTT_UNKNOWN,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
           "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
@@ -243,7 +268,7 @@ static void
 gst_tensor_transform_init (GstTensorTransform * filter)
 {
   filter->silent = TRUE;
-  filter->mode = GTT_END;
+  filter->mode = GTT_UNKNOWN;
   filter->option = NULL;
   filter->loaded = FALSE;
   filter->operators = NULL;
@@ -284,21 +309,6 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
   index = find_key_strv (gst_tensor_transform_stand_string, str);
 
   return (index < 0) ? STAND_END : index;
-}
-
-/**
- * @brief Get the corresponding mode from the string value
- * @param[in] str The string value for the mode
- * @return corresponding mode for the string. GTT_END for errors
- */
-static tensor_transform_mode
-gst_tensor_transform_get_mode (const gchar * str)
-{
-  int index;
-
-  index = find_key_strv (gst_tensor_transform_mode_string, str);
-
-  return (index < 0) ? GTT_END : index;
 }
 
 #ifdef HAVE_ORC
@@ -703,7 +713,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
 static void
 gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 {
-  if (filter->mode == GTT_END || filter->option == NULL)
+  if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
     return;
 
   switch (filter->mode) {
@@ -885,11 +895,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       filter->silent = g_value_get_boolean (value);
       break;
     case PROP_MODE:
-      filter->mode = gst_tensor_transform_get_mode (g_value_get_string (value));
-      g_assert (filter->mode != GTT_END);
-      silent_debug ("Mode = %d(%s)\n", filter->mode,
-          gst_tensor_transform_mode_string[filter->mode]);
-      gst_tensor_transform_set_option_data (filter);
+      filter->mode = g_value_get_enum (value);
       break;
     case PROP_OPTION:
       filter->option = g_value_dup_string (value);
@@ -925,8 +931,7 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, filter->silent);
       break;
     case PROP_MODE:
-      g_value_set_string (value,
-          gst_tensor_transform_mode_string[filter->mode]);
+      g_value_set_enum (value, filter->mode);
       break;
     case PROP_OPTION:
       g_value_set_string (value, filter->option);
