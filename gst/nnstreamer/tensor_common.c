@@ -27,6 +27,21 @@
 #include <string.h>
 
 /**
+ * @brief Free allocated data in tensor info structure
+ * @param info tensor info structure
+ */
+void
+gst_tensor_info_free (GstTensorInfo * info)
+{
+  g_return_if_fail (info != NULL);
+
+  if (info->name) {
+    g_free (info->name);
+    info->name = NULL;
+  }
+}
+
+/**
  * @brief Compare tensor info
  * @param TRUE if equal
  */
@@ -54,7 +69,7 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 
 /**
  * @brief Copy tensor info
- * @note GstTensorInfo::name should be freed with g_free()
+ * @note Copied info should be freed with gst_tensor_info_free()
  */
 void
 gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
@@ -69,6 +84,22 @@ gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     dest->dimension[i] = src->dimension[i];
+  }
+}
+
+/**
+ * @brief Free allocated data in tensors info structure
+ * @param info tensors info structure
+ */
+void
+gst_tensors_info_free (GstTensorsInfo * info)
+{
+  guint i;
+
+  g_return_if_fail (info != NULL);
+
+  for (i = 0; i < info->num_tensors; i++) {
+    gst_tensor_info_free (&info->info[i]);
   }
 }
 
@@ -100,7 +131,7 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 
 /**
  * @brief Copy tensor info
- * @note GstTensorInfo::name should be freed with g_free()
+ * @note Copied info should be freed with gst_tensors_info_free()
  */
 void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
