@@ -59,7 +59,6 @@
 #include <glib.h>
 #include <string.h>
 
-#include <nnstreamer_subplugin.h>
 #include "tensor_filter.h"
 
 /**
@@ -210,6 +209,9 @@ static gboolean gst_tensor_filter_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize);
 static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
+
+static void gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
+    GstTensorsInfo * info2);
 
 /**
  * @brief Open nn framework.
@@ -376,61 +378,28 @@ gst_tensor_filter_init (GstTensorFilter * self)
 }
 
 /**
- * @brief deallocate the name of each GstTensorInfo.
- * @param The GstTensorsInfo object
- */
-static void
-gst_tensor_filter_deallocate_tensor_name (GstTensorsInfo * info)
-{
-  guint i;
-  for (i = 0; i < info->num_tensors; ++i)
-    g_free (info->info[i].name);
-  gst_tensors_info_init (info);
-}
-
-/**
- * @brief Clear and reset data.
- */
-static void
-gst_tensor_filter_reset (GstTensorFilter * self)
-{
-  GstTensorFilterProperties *prop;
-
-  prop = &self->prop;
-
-  gst_tensor_filter_close_fw (self);
-
-  g_free_const (prop->fwname);
-  prop->fwname = NULL;
-
-  g_free_const (prop->model_file);
-  prop->model_file = NULL;
-
-  g_free_const (prop->custom_properties);
-  prop->custom_properties = NULL;
-
-  prop->input_configured = FALSE;
-  gst_tensor_filter_deallocate_tensor_name (&prop->input_meta);
-
-  prop->output_configured = FALSE;
-  gst_tensor_filter_deallocate_tensor_name (&prop->output_meta);
-
-  self->configured = FALSE;
-  gst_tensors_config_init (&self->in_config);
-  gst_tensors_config_init (&self->out_config);
-}
-
-/**
  * @brief Function to finalize instance.
  */
 static void
 gst_tensor_filter_finalize (GObject * object)
 {
   GstTensorFilter *self;
+  GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER (object);
+  prop = &self->prop;
 
-  gst_tensor_filter_reset (self);
+  gst_tensor_filter_close_fw (self);
+
+  g_free_const (prop->fwname);
+  g_free_const (prop->model_file);
+  g_free_const (prop->custom_properties);
+
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+
+  gst_tensors_info_free (&self->in_config.info);
+  gst_tensors_info_free (&self->out_config.info);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -900,17 +869,16 @@ static void
 gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 {
   GstTensorFilterProperties *prop;
+  GstTensorsInfo in_info, out_info;
   int res;
 
   prop = &self->prop;
 
-  /**
-   * supposed fixed in-tensor info if getInputDimension is defined.
-   */
-  if (!prop->input_configured) {
-    GstTensorsInfo in_info;
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
 
-    gst_tensors_info_init (&in_info);
+  /* supposed fixed in-tensor info if getInputDimension is defined. */
+  if (!prop->input_configured) {
     gst_tensor_filter_call (self, res, getInputDimension, &in_info);
 
     if (res == 0) {
@@ -918,23 +886,23 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 
       /** if set-property called and already has info, verify it! */
       if (prop->input_meta.num_tensors > 0) {
-        g_assert (gst_tensors_info_is_equal (&prop->input_meta, &in_info));
+        if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
+          GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
+          gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+          g_assert (0);
+          goto done;
+        }
+      } else {
+        gst_tensors_info_copy (&prop->input_meta, &in_info);
       }
 
       prop->input_configured = TRUE;
-      prop->input_meta = in_info;
-
       silent_debug_info (&in_info, "input tensor");
     }
   }
 
-  /**
-   * supposed fixed out-tensor info if getOutputDimension is defined.
-   */
+  /* supposed fixed out-tensor info if getOutputDimension is defined. */
   if (!prop->output_configured) {
-    GstTensorsInfo out_info;
-
-    gst_tensors_info_init (&out_info);
     gst_tensor_filter_call (self, res, getOutputDimension, &out_info);
 
     if (res == 0) {
@@ -942,26 +910,35 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 
       /** if set-property called and already has info, verify it! */
       if (prop->output_meta.num_tensors > 0) {
-        g_assert (gst_tensors_info_is_equal (&prop->output_meta, &out_info));
+        if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
+          GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
+          gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+          g_assert (0);
+          goto done;
+        }
+      } else {
+        gst_tensors_info_copy (&prop->output_meta, &out_info);
       }
 
       prop->output_configured = TRUE;
-      prop->output_meta = out_info;
-
       silent_debug_info (&out_info, "output tensor");
     }
   }
+
+done:
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 }
 
 /**
  * @brief Printout the comparison results of two tensors.
  * @param[in] info1 The tensors to be shown on the left hand side
  * @param[in] info2 The tensors to be shown on the right hand side
- * @return The newly allocated string for the printout. The caller must deallocate it.
  * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
  */
-static gchar *
-_compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
+static void
+gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
+    GstTensorsInfo * info2)
 {
   gchar null[] = "";
   gchar *result = null;
@@ -1009,28 +986,10 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
     g_free (line);
   }
 
-  if (result == null)
-    return NULL;
-  return result;
-}
-
-/**
- * @brief Copy GstTensorsInfo without the name of tensors.
- * @param[out] the destination object
- * @param[in] the source object
- */
-static void
-gst_tensor_filter_copy_info (GstTensorsInfo * dest, const GstTensorsInfo * src)
-{
-  guint i;
-
-  g_return_if_fail (dest != NULL && src != NULL);
-
-  dest->num_tensors = src->num_tensors;
-  for (i = 0; i < src->num_tensors; ++i) {
-    memcpy (dest->info[i].dimension, src->info[i].dimension,
-        sizeof (tensor_dim));
-    dest->info[i].type = src->info[i].type;
+  if (result != null) {
+    /* print warning message */
+    g_warning ("Tensor info :\n%s", result);
+    g_free (result);
   }
 }
 
@@ -1051,6 +1010,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   g_return_val_if_fail (incaps != NULL, FALSE);
 
   prop = &self->prop;
+  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&out_config);
 
   /**
    * GstTensorFilter has to parse the tensor dimension and type from NN model.
@@ -1071,17 +1032,15 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     /** if set-property called and already has info, verify it! */
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
-        gchar *str = _compare_tensors (&in_config.info, &prop->input_meta);
-        /* print warning message */
-        g_warning ("The input tensor is not compatible.\n%s", str);
-        GST_ERROR_OBJECT (self, "The input tensor is not compatible.\n%s", str);
-        g_free (str);
-        return FALSE;
+        GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
+        gst_tensor_filter_compare_tensors (&in_config.info, &prop->input_meta);
+        goto done;
       }
+    } else {
+      gst_tensors_info_copy (&prop->input_meta, &in_config.info);
     }
 
     prop->input_configured = TRUE;
-    gst_tensor_filter_copy_info (&prop->input_meta, &in_config.info);
 
     /** call setInputDimension if output tensor is not configured */
     if (!prop->output_configured) {
@@ -1095,27 +1054,26 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       if (res == 0) {
         /** if set-property called and already has info, verify it! */
         if (prop->output_meta.num_tensors > 0) {
-          if (!gst_tensors_info_is_equal (&prop->output_meta, &out_info)) {
-            gchar *str = _compare_tensors (&out_info, &prop->output_meta);
-            /* print warning message */
-            g_warning ("The output tensor is not compatible.\n%s", str);
-            GST_ERROR_OBJECT (self,
-                "The output tensor is not compatible.\n%s", str);
-            g_free (str);
-            return FALSE;
+          if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
+            GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
+            gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+            gst_tensors_info_free (&out_info);
+            goto done;
           }
+        } else {
+          gst_tensors_info_copy (&prop->output_meta, &out_info);
         }
 
         prop->output_configured = TRUE;
-        gst_tensor_filter_copy_info (&prop->output_meta, &out_info);
-
         silent_debug_info (&out_info, "output tensor");
       }
+
+      gst_tensors_info_free (&out_info);
 
       if (!prop->output_configured) {
         GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
         g_assert (0);
-        return FALSE;
+        goto done;
       }
     }
 
@@ -1125,7 +1083,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
      * GstTensorFilter cannot assure the framerate.
      * Simply set the framerate of out-tensor from incaps.
      */
-    out_config.info = prop->output_meta;
+    gst_tensors_info_copy (&out_config.info, &prop->output_meta);
     out_config.rate_n = in_config.rate_n;
     out_config.rate_d = in_config.rate_d;
 
@@ -1134,12 +1092,21 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       g_assert (gst_tensors_config_is_equal (&self->in_config, &in_config));
       g_assert (gst_tensors_config_is_equal (&self->out_config, &out_config));
     } else {
-      self->in_config = in_config;
-      self->out_config = out_config;
+      gst_tensors_info_copy (&self->in_config.info, &in_config.info);
+      self->in_config.rate_n = in_config.rate_n;
+      self->in_config.rate_d = in_config.rate_d;
+
+      gst_tensors_info_copy (&self->out_config.info, &out_config.info);
+      self->out_config.rate_n = out_config.rate_n;
+      self->out_config.rate_d = out_config.rate_d;
+
       self->configured = TRUE;
     }
   }
 
+done:
+  gst_tensors_info_free (&in_config.info);
+  gst_tensors_info_free (&out_config.info);
   return self->configured;
 }
 
@@ -1220,24 +1187,26 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
       config.info = self->prop.output_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
-      GstTensorsInfo in_info;
-
       /* check in-tensor info to call setInputDimension */
-      in_info = config.info;
-      if (gst_tensors_info_validate (&in_info)) {
+      if (gst_tensors_info_validate (&config.info)) {
+        GstTensorsInfo out_info;
         int res = -1;
 
         /* call setInputDimension with given input tensor */
-        gst_tensor_filter_call (self, res, setInputDimension, &in_info,
-            &config.info);
+        gst_tensors_info_init (&out_info);
+        gst_tensor_filter_call (self, res, setInputDimension, &config.info,
+            &out_info);
 
         if (res == 0) {
+          config.info = out_info;
           result = gst_tensor_filter_caps_from_config (self, &config);
         } else {
           GST_ERROR_OBJECT (self, "Cannot get the output tensor info.");
           g_assert (0);
           result = gst_caps_from_string (CAPS_STRING);
         }
+
+        gst_tensors_info_free (&out_info);
       } else {
         /* we don't know the exact tensor info yet */
         result = gst_caps_from_string (CAPS_STRING);
