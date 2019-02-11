@@ -965,6 +965,7 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
 {
   gchar null[] = "";
   gchar *result = null;
+  gchar *dimstr = NULL;
   int i;
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
@@ -975,7 +976,7 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
       break;
 
     if (info1->num_tensors > i) {
-      gchar *dimstr = get_tensor_dimension_string (info1->info[i].dimension);
+      dimstr = get_tensor_dimension_string (info1->info[i].dimension);
       left = g_strdup_printf ("%s [%s]",
           tensor_element_typename[info1->info[i].type], dimstr);
       g_free (dimstr);
@@ -984,15 +985,17 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
     }
 
     if (info2->num_tensors > i) {
-      gchar *dimstr = get_tensor_dimension_string (info2->info[i].dimension);
-      right = g_strdup_printf ("%s [%s",
+      dimstr = get_tensor_dimension_string (info2->info[i].dimension);
+      right = g_strdup_printf ("%s [%s]",
           tensor_element_typename[info2->info[i].type], dimstr);
       g_free (dimstr);
     } else {
       right = null;
     }
 
-    line = g_strdup_printf ("%2d : %s  | %s\n", i, left, right);
+    line =
+        g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
+        g_str_equal (left, right) ? "" : "FAILED");
     if (left[0] != '\0')
       g_free (left);
     if (right[0] != '\0')
@@ -1069,9 +1072,10 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
         gchar *str = _compare_tensors (&in_config.info, &prop->input_meta);
+        /* print warning message */
+        g_warning ("The input tensor is not compatible.\n%s", str);
         GST_ERROR_OBJECT (self, "The input tensor is not compatible.\n%s", str);
         g_free (str);
-
         return FALSE;
       }
     }
@@ -1093,6 +1097,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
         if (prop->output_meta.num_tensors > 0) {
           if (!gst_tensors_info_is_equal (&prop->output_meta, &out_info)) {
             gchar *str = _compare_tensors (&out_info, &prop->output_meta);
+            /* print warning message */
+            g_warning ("The output tensor is not compatible.\n%s", str);
             GST_ERROR_OBJECT (self,
                 "The output tensor is not compatible.\n%s", str);
             g_free (str);
