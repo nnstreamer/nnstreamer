@@ -47,6 +47,13 @@ extern void
 gst_tensor_info_init (GstTensorInfo * info);
 
 /**
+ * @brief Free allocated data in tensor info structure
+ * @param info tensor info structure
+ */
+extern void
+gst_tensor_info_free (GstTensorInfo * info);
+
+/**
  * @brief Get data size of single tensor
  * @param info tensor info structure
  * @return data size
@@ -63,11 +70,32 @@ extern gboolean
 gst_tensor_info_validate (const GstTensorInfo *info);
 
 /**
+ * @brief Compare tensor info
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
+
+/**
+ * @brief Copy tensor info
+ * @note Copied info should be freed with gst_tensor_info_free()
+ */
+extern void
+gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src);
+
+/**
  * @brief Initialize the tensors info structure
  * @param info tensors info structure to be initialized
  */
 extern void
 gst_tensors_info_init (GstTensorsInfo *info);
+
+/**
+ * @brief Free allocated data in tensors info structure
+ * @param info tensors info structure
+ */
+extern void
+gst_tensors_info_free (GstTensorsInfo * info);
 
 /**
  * @brief Parse the string of dimensions
@@ -96,6 +124,20 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
  */
 extern gboolean
 gst_tensors_info_validate (const GstTensorsInfo *info);
+
+/**
+ * @brief Compare tensors info
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
+
+/**
+ * @brief Copy tensor info
+ * @note Copied info should be freed with gst_tensors_info_free()
+ */
+extern void
+gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
 
 /**
  * @brief Initialize the tensor config info structure

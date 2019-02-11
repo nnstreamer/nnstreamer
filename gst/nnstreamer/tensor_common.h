@@ -125,34 +125,6 @@ typedef struct
 } GstTensorCollectPadData;
 
 /**
- * @brief Compare tensor info
- * @param TRUE if equal
- */
-extern gboolean
-gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
-
-/**
- * @brief Copy tensor info
- * @note GstTensorInfo::name should be freed with g_free()
- */
-extern void
-gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src);
-
-/**
- * @brief Compare tensors info
- * @param TRUE if equal
- */
-extern gboolean
-gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
-
-/**
- * @brief Copy tensor info
- * @note GstTensorInfo::name should be freed with g_free()
- */
-extern void
-gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
-
-/**
  * @brief Parse the string of names
  * @param info tensors info structure
  * @param name_string string of names
