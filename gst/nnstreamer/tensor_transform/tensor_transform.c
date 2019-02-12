@@ -726,7 +726,6 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
   switch (filter->mode) {
     case GTT_DIMCHG:
     {
-      int a, b;
       gchar **strv = NULL;
 
       if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option, 0, 0)) {
@@ -740,18 +739,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       strv = g_strsplit (filter->option, ":", 2);
 
-      if (strv[0] != NULL)
-        a = g_ascii_strtoull (strv[0], NULL, 10);
-      else
-        a = 0;
-
-      if (strv[1] != NULL)
-        b = g_ascii_strtoull (strv[1], NULL, 10);
-      else
-        b = 0;
-
-      filter->data_dimchg.from = a;
-      filter->data_dimchg.to = b;
+      filter->data_dimchg.from = g_ascii_strtoull (strv[0], NULL, 10);
+      filter->data_dimchg.to = g_ascii_strtoull (strv[1], NULL, 10);
       filter->loaded = TRUE;
       g_strfreev (strv);
       break;
