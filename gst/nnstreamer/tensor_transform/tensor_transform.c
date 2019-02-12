@@ -192,7 +192,8 @@ gst_tensor_transform_mode_get_type (void)
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
           "transpose"},
-      {GTT_STAND, "Mode for statistical standardization of tensor",
+      {GTT_STAND, "Mode for statistical standardization of tensor, "
+            "option=default",
           "stand"},
       {GTT_UNKNOWN, "Unknown or not-implemented-yet mode",
           "unknown"},
@@ -891,7 +892,13 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       filter->data_stand.mode =
           gst_tensor_transform_get_stand_mode (filter->option);
-      g_assert (filter->data_stand.mode != STAND_END);
+      if (filter->data_stand.mode == STAND_END) {
+        g_critical ("%s: stand: "
+            "\'%s\' is not valid option string: "
+            "it should be \'default\', currently the only supported mode.\n",
+            gst_object_get_name ((GstObject *) filter), filter->option);
+        break;
+      }
       filter->loaded = TRUE;
       break;
     }
