@@ -209,7 +209,7 @@ gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
     GString *dimensions = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      dim_str = get_tensor_dimension_string (info->info[i].dimension);
+      dim_str = gst_tensor_get_dimension_string (info->info[i].dimension);
 
       g_string_append (dimensions, dim_str);
 
@@ -322,7 +322,7 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
   if (gst_tensor_dimension_is_valid (config->info.dimension)) {
-    gchar *dim_str = get_tensor_dimension_string (config->info.dimension);
+    gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
 
     gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
     g_free (dim_str);

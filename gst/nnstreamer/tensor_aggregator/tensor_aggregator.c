@@ -64,7 +64,7 @@
   if (DBG) { \
     if (c) { \
       gchar *dim_str; \
-      dim_str = get_tensor_dimension_string ((c)->info.dimension); \
+      dim_str = gst_tensor_get_dimension_string ((c)->info.dimension); \
       GST_DEBUG_OBJECT (self, msg " type=%d dim=%s rate=%d/%d", (c)->info.type, dim_str, (c)->rate_n, (c)->rate_d); \
       g_free (dim_str); \
     } \

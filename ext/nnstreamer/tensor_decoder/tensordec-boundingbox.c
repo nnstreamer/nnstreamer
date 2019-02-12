@@ -348,7 +348,7 @@ bb_setOption (void **pdata, int opNum, const char *param)
   } else if (opNum == 3) {
     /* option4 = output video size (width:height) */
     tensor_dim dim;
-    int rank = get_tensor_dimension (param, dim);
+    int rank = gst_tensor_parse_dimension (param, dim);
 
     bdata->width = 0;
     bdata->height = 0;
@@ -372,7 +372,7 @@ bb_setOption (void **pdata, int opNum, const char *param)
   } else if (opNum == 4) {
     /* option5 = input model size (width:height) */
     tensor_dim dim;
-    int rank = get_tensor_dimension (param, dim);
+    int rank = gst_tensor_parse_dimension (param, dim);
 
     bdata->i_width = 0;
     bdata->i_height = 0;

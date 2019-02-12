@@ -421,7 +421,7 @@ gst_get_splited_tensor (GstTensorSplit * split, GstBuffer * buffer, gint nth)
   offset = 0;
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
 
-  size += get_tensor_element_count (*dim) *
+  size += gst_tensor_get_element_count (*dim) *
       tensor_element_size[split->sink_tensor_conf.info.type];
   mem = gst_allocator_alloc (NULL, size, NULL);
   gst_memory_map (mem, &dest_info, GST_MAP_WRITE);
@@ -429,7 +429,7 @@ gst_get_splited_tensor (GstTensorSplit * split, GstBuffer * buffer, gint nth)
 
   for (i = 0; i < nth; i++) {
     dim = g_array_index (split->tensorseg, tensor_dim *, i);
-    offset += get_tensor_element_count (*dim);
+    offset += gst_tensor_get_element_count (*dim);
   }
 
   nns_memcpy (dest_info.data, src_info.data + offset, size);

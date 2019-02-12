@@ -196,7 +196,7 @@ TFLiteCore::setInputTensorProp ()
 
 #if (DBG)
     gchar *dim_str =
-        get_tensor_dimension_string (inputTensorMeta.info[i].dimension);
+        gst_tensor_get_dimension_string (inputTensorMeta.info[i].dimension);
     g_message ("inputTensorMeta[%d] >> type:%d, dim[%s]",
         i, inputTensorMeta.info[i].type, dim_str);
     g_free (dim_str);
@@ -225,7 +225,7 @@ TFLiteCore::setOutputTensorProp ()
 
 #if (DBG)
     gchar *dim_str =
-        get_tensor_dimension_string (outputTensorMeta.info[i].dimension);
+        gst_tensor_get_dimension_string (outputTensorMeta.info[i].dimension);
     g_message ("outputTensorMeta[%d] >> type:%d, dim[%s]",
         i, outputTensorMeta.info[i].type, dim_str);
     g_free (dim_str);

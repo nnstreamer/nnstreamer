@@ -77,7 +77,7 @@ gst_tensor_info_get_size (const GstTensorInfo * info)
 
   g_return_val_if_fail (info != NULL, 0);
 
-  data_size = get_tensor_element_count (info->dimension) *
+  data_size = gst_tensor_get_element_count (info->dimension) *
       tensor_element_size[info->type];
 
   return data_size;
@@ -148,7 +148,7 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     }
 
     for (i = 0; i < num_dims; i++) {
-      get_tensor_dimension (str_dims[i], info->info[i].dimension);
+      gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
     }
 
     g_strfreev (str_dims);
@@ -186,7 +186,7 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     }
 
     for (i = 0; i < num_types; i++) {
-      info->info[i].type = get_tensor_type (str_types[i]);
+      info->info[i].type = gst_tensor_get_type (str_types[i]);
     }
 
     g_strfreev (str_types);
@@ -279,12 +279,12 @@ gst_tensor_config_from_tensor_info (GstTensorConfig * config,
 
   if (gst_structure_has_field (structure, "dimension")) {
     const gchar *dim_str = gst_structure_get_string (structure, "dimension");
-    get_tensor_dimension (dim_str, info->dimension);
+    gst_tensor_parse_dimension (dim_str, info->dimension);
   }
 
   if (gst_structure_has_field (structure, "type")) {
     const gchar *type_str = gst_structure_get_string (structure, "type");
-    info->type = get_tensor_type (type_str);
+    info->type = gst_tensor_get_type (type_str);
   }
 
   gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -761,7 +761,7 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
  * @param dim dimension to be filled.
  */
 guint
-get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
+gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 {
   guint rank = 0;
   guint64 val;
@@ -804,7 +804,7 @@ get_tensor_dimension (const gchar * dimstr, tensor_dim dim)
  * @note The returned value should be freed with g_free()
  */
 gchar *
-get_tensor_dimension_string (const tensor_dim dim)
+gst_tensor_get_dimension_string (const tensor_dim dim)
 {
   guint i;
   GString *dim_str;
@@ -828,7 +828,7 @@ get_tensor_dimension_string (const tensor_dim dim)
  * @param dim The tensor dimension
  */
 gsize
-get_tensor_element_count (const tensor_dim dim)
+gst_tensor_get_element_count (const tensor_dim dim)
 {
   gsize count = 1;
   guint i;
@@ -846,7 +846,7 @@ get_tensor_element_count (const tensor_dim dim)
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
 tensor_type
-get_tensor_type (const gchar * typestr)
+gst_tensor_get_type (const gchar * typestr)
 {
   guint len;
   gchar *type_string;
