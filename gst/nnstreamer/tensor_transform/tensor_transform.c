@@ -91,6 +91,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 
+#define REGEX_DIMCHG_OPTION "^([0-3]):([0-3])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
 
@@ -180,7 +181,9 @@ gst_tensor_transform_mode_get_type (void)
 
   if (mode_type == GTT_UNKNOWN) {
     static GEnumValue mode_types[] = {
-      {GTT_DIMCHG, "Mode for changing tensor dimensions",
+      {GTT_DIMCHG, "Mode for changing tensor dimensions, "
+            "option=FROM_DIM:TO_DIM (with a regex, " REGEX_DIMCHG_OPTION
+            ", where NNS_TENSOR_RANK_LIMIT is 4)",
           "dimchg"},
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
@@ -724,7 +727,18 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     case GTT_DIMCHG:
     {
       int a, b;
-      gchar **strv = g_strsplit (filter->option, ":", 2);
+      gchar **strv = NULL;
+
+      if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option, 0, 0)) {
+        g_critical ("%s: dimchg: "
+            "\'%s\' is not valid option string: "
+            "it should be in the form of IDX_DIM_FROM:IDX_DIM_TO: "
+            "with a regex, " REGEX_DIMCHG_OPTION "\n",
+            gst_object_get_name ((GstObject *) filter), filter->option);
+        break;
+      }
+
+      strv = g_strsplit (filter->option, ":", 2);
 
       if (strv[0] != NULL)
         a = g_ascii_strtoull (strv[0], NULL, 10);
