@@ -92,6 +92,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
+#define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
 
 /**
  * @brief tensor_transform properties
@@ -185,7 +186,8 @@ gst_tensor_transform_mode_get_type (void)
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
       {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor",
           "arithmetic"},
-      {GTT_TRANSPOSE, "Mode for transposing shape of tensor",
+      {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
+            "option=D1\':D2\':D3\':D4 (fixed to 3)",
           "transpose"},
       {GTT_STAND, "Mode for statistical standardization of tensor",
           "stand"},
@@ -861,8 +863,18 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     case GTT_TRANSPOSE:
     {
       int a, i;
-      gchar **strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
+      gchar **strv = NULL;
 
+      if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
+        g_critical ("%s: transpose: "
+            "\'%s\' is not valid option string: "
+            "it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 "
+            "(note that the index of the last dim is alwayes fixed to 3)\n",
+            gst_object_get_name ((GstObject *) filter), filter->option);
+        break;
+      }
+
+      strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
         if (strv[i] != NULL)
           a = g_ascii_strtoull (strv[i], NULL, 10);
