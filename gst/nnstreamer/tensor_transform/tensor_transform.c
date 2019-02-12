@@ -94,6 +94,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_DIMCHG_OPTION "^([0-3]):([0-3])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
+#define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(32|64)),)?"\
+    "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+)(,|))+$"
+#define REGEX_ARITH_OPTION_TYPECAST "(typecast:([u]?int(8|16|32|64)|float(32|64)))"
 
 /**
  * @brief tensor_transform properties
@@ -187,7 +190,8 @@ gst_tensor_transform_mode_get_type (void)
           "dimchg"},
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
-      {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor",
+      {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor"
+            "option=[typecast:TYPE,]add|mul|div:NUMBER..., ...",
           "arithmetic"},
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
@@ -762,10 +766,12 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_ARITHMETIC:
     {
+      gchar *str_option;
       gchar **str_operators;
       gchar **str_op;
       tensor_transform_operator_s *op_s;
       guint i, num_operators, num_op;
+      GRegex *regex_option_tc;
 
       filter->data_arithmetic.out_type = _NNS_END;
 
@@ -778,7 +784,37 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         filter->operators = NULL;
       }
 
-      str_operators = g_strsplit (filter->option, ",", -1);
+      regex_option_tc = g_regex_new (REGEX_ARITH_OPTION_TYPECAST, 0, 0, 0);
+
+      if (!regex_option_tc) {
+        GST_ERROR_OBJECT (filter,
+            "arithmetic: failed to create a GRegex structure for %s\n",
+            REGEX_ARITH_OPTION_TYPECAST);
+        break;
+      }
+
+      if (g_regex_match_full (regex_option_tc, filter->option, -1,
+              1, 0, NULL, NULL)) {
+        str_option = g_regex_replace (regex_option_tc, filter->option, -1, 1,
+            "", 0, 0);
+        g_critical ("%s: arithmetic: [typecast:TYPE,] should be located "
+            "at the first to prevent memory re-allocation: "
+            "typecast(s) in the middle of \'%s\' will be ignored\n",
+            gst_object_get_name ((GstObject *) filter), filter->option);
+      } else {
+        str_option = g_strdup (filter->option);
+      }
+      g_regex_unref (regex_option_tc);
+
+      if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option, 0, 0)) {
+        g_critical ("%s: arithmetic: "
+            "\'%s\' is not valid option string: "
+            "it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
+            gst_object_get_name ((GstObject *) filter), str_option);
+        g_free (str_option);
+        break;
+      }
+      str_operators = g_strsplit (str_option, ",", -1);
       num_operators = g_strv_length (str_operators);
 
       for (i = 0; i < num_operators; ++i) {
@@ -862,6 +898,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       filter->loaded = (filter->operators != NULL);
       g_strfreev (str_operators);
+      g_free (str_option);
       break;
     }
     case GTT_TRANSPOSE:
