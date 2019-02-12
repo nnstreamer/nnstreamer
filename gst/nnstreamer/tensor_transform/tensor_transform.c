@@ -862,7 +862,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_TRANSPOSE:
     {
-      int a, i;
+      int i;
       gchar **strv = NULL;
 
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
@@ -876,11 +876,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        if (strv[i] != NULL)
-          a = g_ascii_strtoull (strv[i], NULL, 10);
-        else
-          a = 0;
-        filter->data_transpose.trans_order[i] = a;
+        filter->data_transpose.trans_order[i] =
+            g_ascii_strtoull (strv[i], NULL, 10);
       }
 
       filter->loaded = TRUE;
@@ -1266,8 +1263,6 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   indexI = filter->data_transpose.trans_order[0];
   indexJ = filter->data_transpose.trans_order[1];
   SL = fromDim[3], SI = fromDim[0], SJ = fromDim[1], SK = fromDim[2];
-
-  g_assert (filter->data_transpose.trans_order[3] == 3);
 
   switch (indexI) {
     case 0:
