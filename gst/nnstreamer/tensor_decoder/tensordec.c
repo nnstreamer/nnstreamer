@@ -162,8 +162,7 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
 gboolean
 tensordec_probe (TensorDecDef * decoder)
 {
-  register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
-  return TRUE;
+  return register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
 }
 
 /**
@@ -578,7 +577,7 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
       case OUTPUT_TEXT:
         break;
       default:
-        g_printerr ("Unsupported type %d\n", self->output_type);
+        GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->output_type);
         return FALSE;
     }
     self->tensor_config = config;
