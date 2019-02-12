@@ -118,6 +118,43 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     const gchar * type_string);
 
 /**
+ * @brief Parse the string of names
+ * @param info tensors info structure
+ * @param name_string string of names
+ * @return number of parsed names
+ */
+extern guint
+gst_tensors_info_parse_names_string (GstTensorsInfo * info,
+    const gchar * name_string);
+
+/**
+ * @brief Get the string of dimensions in tensors info
+ * @param info tensors info structure
+ * @return string of dimensions in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
+
+/**
+ * @brief Get the string of types in tensors info
+ * @param info tensors info structure
+ * @return string of types in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_types_string (const GstTensorsInfo * info);
+
+/**
+ * @brief Get the string of tensor names in tensors info
+ * @param info tensors info structure
+ * @return string of names in tensors info (NULL if the number of tensors is 0)
+ * @note The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_names_string (const GstTensorsInfo * info);
+
+/**
  * @brief Check the tensors info is valid
  * @param info tensors info structure
  * @return TRUE if info is valid
@@ -153,6 +190,14 @@ gst_tensor_config_init (GstTensorConfig * config);
  */
 extern gboolean
 gst_tensor_config_validate (const GstTensorConfig * config);
+
+/**
+ * @brief Compare tensor config info
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensor_config_is_equal (const GstTensorConfig * c1,
+    const GstTensorConfig * c2);
 
 /**
  * @brief Get media type from structure
@@ -197,6 +242,30 @@ gst_tensors_config_init (GstTensorsConfig * config);
  */
 extern gboolean
 gst_tensors_config_validate (const GstTensorsConfig * config);
+
+/**
+ * @brief Compare tensor config info (for other/tensors)
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensors_config_is_equal (const GstTensorsConfig * c1,
+    const GstTensorsConfig * c2);
+
+/**
+ * @brief Get tensor caps from tensor config (for other/tensor)
+ * @param config tensor config info
+ * @return caps for given config
+ */
+extern GstCaps *
+gst_tensor_caps_from_config (const GstTensorConfig * config);
+
+/**
+ * @brief Get caps from tensors config (for other/tensors)
+ * @param config tensors config info
+ * @return caps for given config
+ */
+extern GstCaps *
+gst_tensors_caps_from_config (const GstTensorsConfig * config);
 
 /**
  * @brief Check the tensor dimension is valid
