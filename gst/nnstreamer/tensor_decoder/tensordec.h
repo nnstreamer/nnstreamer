@@ -97,16 +97,6 @@ typedef enum
 } GstDecMode;
 
 /**
- * @brief Output type for each mode
- */
-static const GstDecMediaType dec_output_type[] = {
-  OUTPUT_VIDEO,
-  OUTPUT_TEXT,
-  OUTPUT_VIDEO,
-  OUTPUT_UNKNOWN,
-};
-
-/**
  * @brief Get Type function required for gst elements
  */
 GType gst_tensordec_get_type (void);
