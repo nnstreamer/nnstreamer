@@ -91,6 +91,8 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 
+#define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
+
 /**
  * @brief tensor_transform properties
  */
@@ -179,8 +181,8 @@ gst_tensor_transform_mode_get_type (void)
     static GEnumValue mode_types[] = {
       {GTT_DIMCHG, "Mode for changing tensor dimensions",
           "dimchg"},
-      {GTT_TYPECAST, "Mode for casting type of tensor",
-          "typecast"},
+      {GTT_TYPECAST, "Mode for casting type of tensor, "
+            "option=" REGEX_TYPECAST_OPTION, "typecast"},
       {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor",
           "arithmetic"},
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor",
@@ -740,9 +742,16 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_TYPECAST:
     {
-      filter->data_typecast.to = gst_tensor_get_type (filter->option);
-      if (filter->data_typecast.to != _NNS_END)
+      if (g_regex_match_simple (REGEX_TYPECAST_OPTION, filter->option, 0, 0)) {
+        filter->data_typecast.to = gst_tensor_get_type (filter->option);
         filter->loaded = TRUE;
+      } else {
+        g_critical ("%s: typecast: "
+            "\'%s\' is not valid data type for tensor: "
+            "data type of tensor should be one of %s\n",
+            gst_object_get_name ((GstObject *) filter),
+            filter->option, GST_TENSOR_TYPE_ALL);
+      }
       break;
     }
     case GTT_ARITHMETIC:
