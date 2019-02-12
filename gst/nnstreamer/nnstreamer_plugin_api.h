@@ -213,7 +213,7 @@ gst_tensor_dimension_is_valid (const tensor_dim dim);
  * @param dim dimension to be filled.
  */
 extern guint
-get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
+gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim);
 
 /**
  * @brief Get dimension string from given tensor dimension.
@@ -222,7 +222,7 @@ get_tensor_dimension (const gchar * dimstr, tensor_dim dim);
  * @note The returned value should be freed with g_free()
  */
 extern gchar *
-get_tensor_dimension_string (const tensor_dim dim);
+gst_tensor_get_dimension_string (const tensor_dim dim);
 
 /**
  * @brief Count the number of elemnts of a tensor
@@ -230,7 +230,7 @@ get_tensor_dimension_string (const tensor_dim dim);
  * @param dim The tensor dimension
  */
 extern gsize
-get_tensor_element_count (const tensor_dim dim);
+gst_tensor_get_element_count (const tensor_dim dim);
 
 /**
  * @brief Get tensor_type from string tensor_type input
@@ -238,7 +238,7 @@ get_tensor_element_count (const tensor_dim dim);
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
 extern tensor_type
-get_tensor_type (const gchar * typestr);
+gst_tensor_get_type (const gchar * typestr);
 
 /**
  * @brief Find the index value of the given key string array

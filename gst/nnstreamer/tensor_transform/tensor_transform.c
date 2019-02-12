@@ -730,7 +730,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_TYPECAST:
     {
-      filter->data_typecast.to = get_tensor_type (filter->option);
+      filter->data_typecast.to = gst_tensor_get_type (filter->option);
       if (filter->data_typecast.to != _NNS_END)
         filter->loaded = TRUE;
       break;
@@ -777,7 +777,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
                   break;
                 }
 
-                op_s->value.type = get_tensor_type (str_op[1]);
+                op_s->value.type = gst_tensor_get_type (str_op[1]);
 
                 if (op_s->value.type == _NNS_END) {
                   GST_WARNING_OBJECT (filter, "Unknown tensor type %s",
@@ -1053,7 +1053,7 @@ static GstFlowReturn
 gst_tensor_transform_typecast (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  size_t num = get_tensor_element_count (filter->in_config.info.dimension);
+  gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
 
@@ -1097,7 +1097,7 @@ static GstFlowReturn
 gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  size_t num = get_tensor_element_count (filter->in_config.info.dimension);
+  gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
 

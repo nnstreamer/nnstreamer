@@ -101,7 +101,7 @@
     gchar *dim_str; \
     GST_DEBUG_OBJECT (self, msg " total %d", (i)->num_tensors); \
     for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
-      dim_str = get_tensor_dimension_string ((i)->info[info_idx].dimension); \
+      dim_str = gst_tensor_get_dimension_string ((i)->info[info_idx].dimension); \
       GST_DEBUG_OBJECT (self, "[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
       g_free (dim_str); \
     } \
@@ -976,7 +976,7 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
       break;
 
     if (info1->num_tensors > i) {
-      dimstr = get_tensor_dimension_string (info1->info[i].dimension);
+      dimstr = gst_tensor_get_dimension_string (info1->info[i].dimension);
       left = g_strdup_printf ("%s [%s]",
           tensor_element_typename[info1->info[i].type], dimstr);
       g_free (dimstr);
@@ -985,7 +985,7 @@ _compare_tensors (GstTensorsInfo * info1, GstTensorsInfo * info2)
     }
 
     if (info2->num_tensors > i) {
-      dimstr = get_tensor_dimension_string (info2->info[i].dimension);
+      dimstr = gst_tensor_get_dimension_string (info2->info[i].dimension);
       right = g_strdup_printf ("%s [%s]",
           tensor_element_typename[info2->info[i].type], dimstr);
       g_free (dimstr);

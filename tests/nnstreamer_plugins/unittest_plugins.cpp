@@ -50,7 +50,7 @@ TEST (test_tensor_transform, typecast_1)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -123,7 +123,7 @@ TEST (test_tensor_transform, typecast_1_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -196,7 +196,7 @@ TEST (test_tensor_transform, typecast_2)
 
   /* input tensor info */
   config.info.type = _NNS_UINT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -269,7 +269,7 @@ TEST (test_tensor_transform, typecast_2_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -342,7 +342,7 @@ TEST (test_tensor_transform, typecast_3)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -415,7 +415,7 @@ TEST (test_tensor_transform, typecast_3_accel)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -488,7 +488,7 @@ TEST (test_tensor_transform, typecast_4)
 
   /* input tensor info */
   config.info.type = _NNS_INT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -561,7 +561,7 @@ TEST (test_tensor_transform, typecast_4_accel)
 
   /* input tensor info */
   config.info.type = _NNS_INT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -634,7 +634,7 @@ TEST (test_tensor_transform, typecast_5)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -707,7 +707,7 @@ TEST (test_tensor_transform, typecast_5_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -780,7 +780,7 @@ TEST (test_tensor_transform, typecast_6)
 
   /* input tensor info */
   config.info.type = _NNS_INT16;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -853,7 +853,7 @@ TEST (test_tensor_transform, typecast_6_accel)
 
   /* input tensor info */
   config.info.type = _NNS_INT16;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -926,7 +926,7 @@ TEST (test_tensor_transform, typecast_7)
 
   /* input tensor info */
   config.info.type = _NNS_UINT16;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -999,7 +999,7 @@ TEST (test_tensor_transform, typecast_7_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT16;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1072,7 +1072,7 @@ TEST (test_tensor_transform, arithmetic_1)
 
   /* input tensor info */
   config.info.type = _NNS_FLOAT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1142,7 +1142,7 @@ TEST (test_tensor_transform, arithmetic_1_accel)
 
   /* input tensor info */
   config.info.type = _NNS_FLOAT32;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1212,7 +1212,7 @@ TEST (test_tensor_transform, arithmetic_2)
 
   /* input tensor info */
   config.info.type = _NNS_FLOAT64;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1282,7 +1282,7 @@ TEST (test_tensor_transform, arithmetic_2_accel)
 
   /* input tensor info */
   config.info.type = _NNS_FLOAT64;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1353,7 +1353,7 @@ TEST (test_tensor_transform, arithmetic_3)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1427,7 +1427,7 @@ TEST (test_tensor_transform, arithmetic_3_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1501,7 +1501,7 @@ TEST (test_tensor_transform, arithmetic_4)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1575,7 +1575,7 @@ TEST (test_tensor_transform, arithmetic_4_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1649,7 +1649,7 @@ TEST (test_tensor_transform, arithmetic_5)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1723,7 +1723,7 @@ TEST (test_tensor_transform, arithmetic_5_accel)
 
   /* input tensor info */
   config.info.type = _NNS_UINT8;
-  get_tensor_dimension ("5", config.info.dimension);
+  gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -1810,14 +1810,14 @@ TEST (test_tensor_aggregator, aggregate_1)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("3:4:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
   gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
   data_in_size = gst_tensor_info_get_size (&config.info);
 
-  get_tensor_dimension ("3:4:2:4", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:2:4", config.info.dimension);
   data_out_size = gst_tensor_info_get_size (&config.info);
 
   /* push buffers */
@@ -1886,14 +1886,14 @@ TEST (test_tensor_aggregator, aggregate_2)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("3:4:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
   gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
   data_in_size = gst_tensor_info_get_size (&config.info);
 
-  get_tensor_dimension ("3:4:4:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:4:2", config.info.dimension);
   data_out_size = gst_tensor_info_get_size (&config.info);
 
   /* push buffers */
@@ -1962,14 +1962,14 @@ TEST (test_tensor_aggregator, aggregate_3)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("3:4:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
   gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
   data_in_size = gst_tensor_info_get_size (&config.info);
 
-  get_tensor_dimension ("3:8:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:8:2:2", config.info.dimension);
   data_out_size = gst_tensor_info_get_size (&config.info);
 
   /* push buffers */
@@ -2038,14 +2038,14 @@ TEST (test_tensor_aggregator, aggregate_4)
 
   /* input tensor info */
   config.info.type = _NNS_INT32;
-  get_tensor_dimension ("3:4:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
   gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
   data_in_size = gst_tensor_info_get_size (&config.info);
 
-  get_tensor_dimension ("6:4:2:2", config.info.dimension);
+  gst_tensor_parse_dimension ("6:4:2:2", config.info.dimension);
   data_out_size = gst_tensor_info_get_size (&config.info);
 
   /* push buffers */

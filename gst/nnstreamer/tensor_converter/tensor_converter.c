@@ -316,12 +316,12 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_INPUT_DIMENSION:
-      if (get_tensor_dimension (g_value_get_string (value),
+      if (gst_tensor_parse_dimension (g_value_get_string (value),
               self->tensor_info.dimension) == 0)
         GST_WARNING ("input dimension unknown (optinal).");
       break;
     case PROP_INPUT_TYPE:
-      self->tensor_info.type = get_tensor_type (g_value_get_string (value));
+      self->tensor_info.type = gst_tensor_get_type (g_value_get_string (value));
       if (self->tensor_info.type == _NNS_END)
         GST_WARNING ("input type unknown (optional).");
       break;
@@ -359,7 +359,7 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
     {
       gchar *str_dim;
 
-      str_dim = get_tensor_dimension_string (self->tensor_info.dimension);
+      str_dim = gst_tensor_get_dimension_string (self->tensor_info.dimension);
       g_value_set_string (value, str_dim);
       g_free (str_dim);
       break;
