@@ -830,23 +830,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
           switch (op_s->op) {
             case GTT_OP_TYPECAST:
               if (num_op > 1 && str_op[1]) {
-                if (i > 0) {
-                  GST_WARNING_OBJECT (filter,
-                      "To prevent memory re-allocation, tensor-transform limits the typecast during the sequence. "
-                      "Please set the typecast in the first.");
-                  op_s->op = GTT_OP_UNKNOWN;
-                  break;
-                }
-
                 op_s->value.type = gst_tensor_get_type (str_op[1]);
-
-                if (op_s->value.type == _NNS_END) {
-                  GST_WARNING_OBJECT (filter, "Unknown tensor type %s",
-                      str_op[1]);
-                  op_s->op = GTT_OP_UNKNOWN;
-                } else {
-                  filter->data_arithmetic.out_type = op_s->value.type;
-                }
+                filter->data_arithmetic.out_type = op_s->value.type;
               } else {
                 GST_WARNING_OBJECT (filter, "Invalid option for typecast %s",
                     str_operators[i]);
