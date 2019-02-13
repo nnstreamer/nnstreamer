@@ -31,6 +31,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define NNS_TENSOR_RANK_LIMIT	(4)
+#define NNS_TENSOR_SIZE_LIMIT	(16)
+#define NNS_TENSOR_SIZE_LIMIT_STR	"16"
+#define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
+
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
  * which is GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c.
@@ -40,15 +45,11 @@
  */
 #define GST_TENSOR_NUM_TENSORS_RANGE "(int) [ 1, " NNS_TENSOR_SIZE_LIMIT_STR " ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0, max ]"
-/**
- * @brief Fixed size of string type
- */
-#define GST_TENSOR_STRING_SIZE (1024)
-#define NNS_TENSOR_RANK_LIMIT	(4)
-#define NNS_TENSOR_SIZE_LIMIT	(16)
-#define NNS_TENSOR_SIZE_LIMIT_STR	"16"
-#define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
+/**
+ * @brief Possible tensor element types
+ */
+#define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 /**
  * @brief Default static capibility for other/tensor
@@ -101,8 +102,6 @@
     GST_TENSOR_AUDIO_CAPS_STR "; " \
     GST_TENSOR_TEXT_CAPS_STR "; " \
     GST_TENSOR_OCTET_CAPS_STR
-
-#define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 /**
  * @brief Possible data element types of other/tensor.
