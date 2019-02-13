@@ -15,6 +15,8 @@
 #include <gst/check/gstharness.h>
 #include <tensor_common.h>
 
+#include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
+
 /**
  * @brief Macro for debug mode.
  */
@@ -45,7 +47,7 @@ TEST (test_tensor_transform, typecast_1)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "uint32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "uint32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -118,7 +120,7 @@ TEST (test_tensor_transform, typecast_1_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "uint32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "uint32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -191,7 +193,7 @@ TEST (test_tensor_transform, typecast_2)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float64", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float64", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -264,7 +266,7 @@ TEST (test_tensor_transform, typecast_2_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float64", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float64", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -337,7 +339,7 @@ TEST (test_tensor_transform, typecast_3)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -410,7 +412,7 @@ TEST (test_tensor_transform, typecast_3_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -483,7 +485,7 @@ TEST (test_tensor_transform, typecast_4)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -556,7 +558,7 @@ TEST (test_tensor_transform, typecast_4_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -629,7 +631,7 @@ TEST (test_tensor_transform, typecast_5)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -702,7 +704,7 @@ TEST (test_tensor_transform, typecast_5_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -775,7 +777,7 @@ TEST (test_tensor_transform, typecast_6)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -848,7 +850,7 @@ TEST (test_tensor_transform, typecast_6_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -921,7 +923,7 @@ TEST (test_tensor_transform, typecast_7)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -994,7 +996,7 @@ TEST (test_tensor_transform, typecast_7_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "typecast", "option", "float32", NULL);
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -1067,7 +1069,7 @@ TEST (test_tensor_transform, arithmetic_1)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic", "option", "add:.5", NULL);
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -1137,7 +1139,7 @@ TEST (test_tensor_transform, arithmetic_1_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic", "option", "add:.5", NULL);
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -1207,7 +1209,7 @@ TEST (test_tensor_transform, arithmetic_2)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic", "option", "mul:.5", NULL);
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "mul:.5", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
@@ -1277,7 +1279,7 @@ TEST (test_tensor_transform, arithmetic_2_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic", "option", "mul:.5", NULL);
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "mul:.5", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
@@ -1347,7 +1349,7 @@ TEST (test_tensor_transform, arithmetic_3)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:float32,add:.5,mul:0.2", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
@@ -1421,7 +1423,7 @@ TEST (test_tensor_transform, arithmetic_3_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:float32,add:.5,mul:0.2", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
@@ -1495,7 +1497,7 @@ TEST (test_tensor_transform, arithmetic_4)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:float64,add:0.2,add:0.1,typecast:uint16", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
@@ -1569,7 +1571,7 @@ TEST (test_tensor_transform, arithmetic_4_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:float64,add:0.2,add:0.1,typecast:uint16", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
@@ -1643,7 +1645,7 @@ TEST (test_tensor_transform, arithmetic_5)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:int32,mul:2,div:2,add:-1", NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
@@ -1717,7 +1719,7 @@ TEST (test_tensor_transform, arithmetic_5_accel)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "mode", "arithmetic",
+  g_object_set (h->element, "mode", GTT_ARITHMETIC,
       "option", "typecast:int32,mul:2,div:2,add:-1", NULL);
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
