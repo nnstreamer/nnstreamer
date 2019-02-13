@@ -45,14 +45,10 @@ std::map <void*, Tensor> TFCore::outputTensorMap;
 TFCore::TFCore (const char * _model_path)
 {
   model_path = _model_path;
+  configured = false;
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
-
-  for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
-    inputTensorRank[i] = 0;
-    outputTensorRank[i] = 0;
-  }
 }
 
 /**
@@ -93,7 +89,7 @@ TFCore::getModelPath ()
  * @note	the model will be loaded
  * @return 0 if OK. non-zero if error.
  *        -1 if the pb file is not loaded.
- *        -2 if the input properties is different with model.
+ *        -2 if the input properties are different with model.
  *        -3 if the Tensorflow session is not created.
  */
 int
@@ -102,39 +98,40 @@ TFCore::loadModel ()
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
+
+  Status status;
   GraphDef graph_def;
-  Status load_graph_status =
-      ReadBinaryProto (Env::Default (), model_path, &graph_def);
-  if (!load_graph_status.ok()) {
-    GST_ERROR ("Failed to load compute graph at '%s'", model_path);
+
+  status = ReadBinaryProto (Env::Default (), model_path, &graph_def);
+  if (!status.ok()) {
+    GST_ERROR ("Failed to read graph.\n%s", status.ToString().c_str());
     return -1;
   }
 
-  /* get input tensor */
-  std::vector <const NodeDef*> placeholders;
-  for (const NodeDef& node : graph_def.node ()) {
-    if (node.op () == "Placeholder") {
-      placeholders.push_back (&node);
-    }
-  }
-
-  if (placeholders.empty ()) {
-    GST_WARNING ("No inputs spotted.");
-  } else {
-    GST_INFO ("Found possible inputs: %ld", placeholders.size ());
-    if (inputTensorValidation (placeholders)) {
-      GST_ERROR ("Input Tensor Information is not valid");
-      return -2;
-    }
+  /* validate input tensor */
+  if (validateInputTensor (graph_def)) {
+    GST_ERROR ("Input Tensor Information is not valid");
+    return -2;
   }
 
   /* get session */
-  Status new_session_status = NewSession (SessionOptions (), &session);
-  Status session_create_status = session->Create (graph_def);
-  if (!new_session_status.ok () || !session_create_status.ok ()) {
-    GST_ERROR ("Create Tensorflow Session was Failed");
+  status = NewSession (SessionOptions (), &session);
+  if (!status.ok()) {
+    GST_ERROR ("Failed to init new session.\n%s", status.ToString().c_str());
     return -3;
   }
+
+  status = session->Create (graph_def);
+  if (!status.ok()) {
+    GST_ERROR ("Failed to create session.\n%s", status.ToString().c_str());
+    return -3;
+  }
+
+  /* prepare output tensor */
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    output_tensor_names.push_back (outputTensorMeta.info[i].name);
+  }
+
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
   g_message ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
@@ -180,43 +177,6 @@ TFCore::getTensorTypeFromTF (DataType tfType)
 }
 
 /**
- * @brief	return the data type of the tensor for Tensorflow
- * @param tType	: the defined type of NNStreamer
- * @return the enum of defined tensorflow::DataType
- */
-DataType
-TFCore::getTensorTypeToTF (tensor_type tType)
-{
-  switch (tType) {
-    case _NNS_INT32:
-      return DT_INT32;
-    case _NNS_UINT32:
-      return DT_UINT32;
-    case _NNS_INT16:
-      return DT_INT16;
-    case _NNS_UINT16:
-      return DT_UINT16;
-    case _NNS_INT8:
-      return DT_INT8;
-    case _NNS_UINT8:
-      return DT_UINT8;
-    case _NNS_INT64:
-      return DT_INT64;
-    case _NNS_UINT64:
-      return DT_UINT64;
-    case _NNS_FLOAT32:
-      return DT_FLOAT;
-    case _NNS_FLOAT64:
-      return DT_DOUBLE;
-    default:
-      /** @todo Support other types */
-      break;
-  }
-
-  return DT_INVALID;
-}
-
-/**
  * @brief	check the inserted information about input tensor with model
  * @return 0 if OK. non-zero if error.
  *        -1 if the number of input tensors is not matched.
@@ -226,9 +186,25 @@ TFCore::getTensorTypeToTF (tensor_type tType)
  *        -5 if the rank of input tensors exceeds our capacity NNS_TENSOR_RANK_LIMIT.
  */
 int
-TFCore::inputTensorValidation (const std::vector <const NodeDef*> &placeholders)
+TFCore::validateInputTensor (const GraphDef &graph_def)
 {
-  int length = placeholders.size ();
+  std::vector <const NodeDef*> placeholders;
+  int length;
+
+  for (const NodeDef& node : graph_def.node ()) {
+    if (node.op () == "Placeholder") {
+      placeholders.push_back (&node);
+    }
+  }
+
+  if (placeholders.empty ()) {
+    GST_WARNING ("No inputs spotted.");
+    /* do nothing? */
+    return 0;
+  }
+
+  length = placeholders.size ();
+  GST_INFO ("Found possible inputs: %d", length);
 
   if (inputTensorMeta.num_tensors != length) {
     GST_ERROR ("Input Tensor is not valid: the number of input tensor is different\n");
@@ -271,31 +247,81 @@ TFCore::inputTensorValidation (const std::vector <const NodeDef*> &placeholders)
       GST_ERROR ("Input Tensor is not valid: the name of input tensor is different\n");
       return -2;
     }
+
     if (inputTensorMeta.info[i].type != getTensorTypeFromTF (dtype)) {
       GST_ERROR ("Input Tensor is not valid: the type of input tensor is different\n");
       return -3;
     }
 
     gchar **str_dims;
+    unsigned int rank, dim;
+    TensorShape ts = TensorShape ({});
+
     str_dims = g_strsplit (shape_description.c_str (), ",", -1);
-    inputTensorRank[i] = g_strv_length (str_dims);
-    if (inputTensorRank[i] > NNS_TENSOR_RANK_LIMIT) {
+    rank = g_strv_length (str_dims);
+
+    if (rank > NNS_TENSOR_RANK_LIMIT) {
       GST_ERROR ("The Rank of Input Tensor is not affordable. It's over our capacity.\n");
       g_strfreev (str_dims);
       return -5;
     }
-    for (int j = 0; j < inputTensorRank[i]; ++j) {
+
+    for (int j = 0; j < rank; ++j) {
+      dim = inputTensorMeta.info[i].dimension[rank - j - 1];
+      ts.AddDim (dim);
+
       if (!strcmp (str_dims[j], "?"))
         continue;
 
-      if (inputTensorMeta.info[i].dimension[inputTensorRank[i] - j - 1] != atoi (str_dims[j])) {
+      if (dim != atoi (str_dims[j])) {
         GST_ERROR ("Input Tensor is not valid: the dim of input tensor is different\n");
         g_strfreev (str_dims);
         return -4;
       }
     }
     g_strfreev (str_dims);
+
+    /* add input tensor info */
+    tf_tensor_info_s info_s = { dtype, ts };
+    input_tensor_info.push_back (info_s);
   }
+  return 0;
+}
+
+/**
+ * @brief	check the inserted information about output tensor with model
+ * @return 0 if OK. non-zero if error.
+ *        -1 if the number of output tensors is not matched.
+ *        -2 if the dimension of output tensors is not matched.
+ *        -3 if the type of output tensors is not matched.
+ */
+int
+TFCore::validateOutputTensor (const std::vector <Tensor> &outputs)
+{
+  if (outputTensorMeta.num_tensors != outputs.size()) {
+    GST_ERROR ("Invalid output meta: different size");
+    return -1;
+  }
+
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    tensor_type otype;
+    gsize num;
+
+    otype = getTensorTypeFromTF (outputs[i].dtype());
+    num = gst_tensor_get_element_count (outputTensorMeta.info[i].dimension);
+
+    if (num != outputs[i].NumElements()) {
+      GST_ERROR ("Invalid output meta: different element count");
+      return -2;
+    }
+
+    if (outputTensorMeta.info[i].type != otype) {
+      GST_ERROR ("Invalid output meta: different type");
+      return -3;
+    }
+  }
+
+  configured = true;
   return 0;
 }
 
@@ -325,22 +351,13 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
   return 0;
 }
 
-#define copyInputWithType(type) do { \
-    for (int idx = 0; idx < array_len; ++idx) \
-      inputTensor.flat<type> ()(idx) = ((type*) input[i].data)[idx]; \
-  } while (0)
-
-#define copyOutputWithType(type) do { \
-    output[i].data = outputs[i].flat<type> ().data (); \
-    outputTensorMap.insert (std::make_pair (output[i].data, outputs[i])); \
-  } while (0)
-
 /**
  * @brief	run the model with the input.
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
  * @return 0 if OK. non-zero if error.
  *         -1 if the model does not work properly.
+ *         -2 if the output properties are different with model.
  */
 int
 TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
@@ -350,112 +367,35 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 #endif
 
   std::vector <std::pair <string, Tensor>> input_feeds;
-  std::vector <string> output_tensor_names;
   std::vector <Tensor> outputs;
-  int array_len;
 
   for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    TensorShape ts = TensorShape ({});
-    for (int j = inputTensorRank[i] - 1; j >= 0; j--) {
-      ts.AddDim (inputTensorMeta.info[i].dimension[j]);
-    }
-    Tensor inputTensor (
-      getTensorTypeToTF (input[i].type),
-      ts
-    );
+    Tensor in (input_tensor_info[i].type, input_tensor_info[i].shape);
 
-    array_len = input[i].size / tensor_element_size[input[i].type];
+    /* copy data */
+    std::copy_n ((char *) input[i].data, input[i].size,
+        const_cast<char *>(in.tensor_data().data()));
 
-    switch (input[i].type) {
-      case _NNS_INT32:
-        copyInputWithType (int32);
-        break;
-      case _NNS_UINT32:
-        copyInputWithType (uint32);
-        break;
-      case _NNS_INT16:
-        copyInputWithType (int16);
-        break;
-      case _NNS_UINT16:
-        copyInputWithType (uint16);
-        break;
-      case _NNS_INT8:
-        copyInputWithType (int8);
-        break;
-      case _NNS_UINT8:
-        copyInputWithType (uint8);
-        break;
-      case _NNS_INT64:
-        copyInputWithType (int64);
-        break;
-      case _NNS_UINT64:
-        copyInputWithType (uint64);
-        break;
-      case _NNS_FLOAT32:
-        copyInputWithType (float);
-        break;
-      case _NNS_FLOAT64:
-        copyInputWithType (double);
-        break;
-      default:
-        /** @todo Support other types */
-        break;
-    }
-
-    input_feeds.push_back ({inputTensorMeta.info[i].name, inputTensor});
-  }
-
-  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    output_tensor_names.push_back (outputTensorMeta.info[i].name);
+    input_feeds.push_back ({inputTensorMeta.info[i].name, in});
   }
 
   Status run_status =
       session->Run (input_feeds, output_tensor_names, {}, &outputs);
 
-  if (run_status != Status::OK ()) {
-    GST_ERROR ("Failed to run model: %s\n", (run_status.ToString ()).c_str ());
+  if (!run_status.ok()) {
+    GST_ERROR ("Failed to run model: %s\n", run_status.ToString().c_str());
     return -1;
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    g_assert (output[i].type == getTensorTypeFromTF (outputs[i].dtype()));
-    array_len = output[i].size / tensor_element_size[output[i].type];
+  /* validate output tensor once */
+  if (!configured && validateOutputTensor (outputs)) {
+    GST_ERROR ("Output Tensor Information is not valid");
+    return -2;
+  }
 
-    switch (output[i].type) {
-      case _NNS_INT32:
-        copyOutputWithType (int32);
-        break;
-      case _NNS_UINT32:
-        copyOutputWithType (uint32);
-        break;
-      case _NNS_INT16:
-        copyOutputWithType (int16);
-        break;
-      case _NNS_UINT16:
-        copyOutputWithType (uint16);
-        break;
-      case _NNS_INT8:
-        copyOutputWithType (int8);
-        break;
-      case _NNS_UINT8:
-        copyOutputWithType (uint8);
-        break;
-      case _NNS_INT64:
-        copyOutputWithType (int64);
-        break;
-      case _NNS_UINT64:
-        copyOutputWithType (uint64);
-        break;
-      case _NNS_FLOAT32:
-        copyOutputWithType (float);
-        break;
-      case _NNS_FLOAT64:
-        copyOutputWithType (double);
-        break;
-      default:
-        /** @todo Support other types */
-        break;
-    }
+  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    output[i].data = const_cast<char *>(outputs[i].tensor_data().data());
+    outputTensorMap.insert (std::make_pair (output[i].data, outputs[i]));
   }
 
 #if (DBG)

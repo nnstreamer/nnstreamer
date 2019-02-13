@@ -54,6 +54,15 @@
 using namespace tensorflow;
 
 /**
+ * @brief	Internal data structure for tensorflow
+ */
+typedef struct
+{
+  DataType type;
+  TensorShape shape;
+} tf_tensor_info_s;
+
+/**
  * @brief	ring cache structure
  */
 class TFCore
@@ -81,14 +90,15 @@ private:
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
 
-  int inputTensorRank[NNS_TENSOR_SIZE_LIMIT];
-  int outputTensorRank[NNS_TENSOR_SIZE_LIMIT];
+  std::vector <tf_tensor_info_s> input_tensor_info;
+  std::vector <string> output_tensor_names;
+  bool configured; /**< True if the model is successfully loaded */
 
   Session *session;
 
   tensor_type getTensorTypeFromTF (DataType tfType);
-  DataType getTensorTypeToTF (tensor_type tType);
-  int inputTensorValidation (const std::vector <const NodeDef*> &placeholders);
+  int validateInputTensor (const GraphDef &graph_def);
+  int validateOutputTensor (const std::vector <Tensor> &outputs);
 };
 
 /**
