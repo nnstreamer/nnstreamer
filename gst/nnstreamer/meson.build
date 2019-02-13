@@ -27,7 +27,6 @@ nnst_common_sources = [
   'nnstreamer.c',
   'nnstreamer_conf.c',
   'nnstreamer_subplugin.c',
-  'nnstreamer_plugin_api.c',
   'tensor_common.c',
   'tensor_repo.c'
 ]
