@@ -66,7 +66,7 @@ gst_tensor_media_type_from_structure (const GstStructure * structure)
   }
 
   if (g_str_has_prefix (name, "text/")) {
-    return _NNS_STRING;
+    return _NNS_TEXT;
   }
 
   if (g_str_equal (name, "application/octet-stream")) {
@@ -892,7 +892,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
     case _NNS_AUDIO:
       gst_tensor_config_from_audio_info (config, structure);
       break;
-    case _NNS_STRING:
+    case _NNS_TEXT:
       gst_tensor_config_from_text_info (config, structure);
       break;
     case _NNS_OCTET:

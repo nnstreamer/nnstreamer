@@ -634,7 +634,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frames_in = buf_size / frame_size;
       break;
 
-    case _NNS_STRING:
+    case _NNS_TEXT:
       frame_size = GST_TENSOR_STRING_SIZE;
       frames_in = 1; /** supposed 1 frame in buffer */
 
@@ -1154,7 +1154,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       self->in_info.audio = info;
       break;
     }
-    case _NNS_STRING:
+    case _NNS_TEXT:
       frames_dim = 1;
       break;
     case _NNS_OCTET:

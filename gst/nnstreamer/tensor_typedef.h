@@ -133,7 +133,7 @@ typedef enum _nns_media_type
 {
   _NNS_VIDEO = 0, /**< supposedly video/x-raw */
   _NNS_AUDIO, /**< supposedly audio/x-raw */
-  _NNS_STRING, /**< supposedly text/x-raw */
+  _NNS_TEXT, /**< supposedly text/x-raw */
   _NNS_OCTET, /**< supposedly application/octet-stream */
 
   _NNS_MEDIA_END, /**< End Marker */
