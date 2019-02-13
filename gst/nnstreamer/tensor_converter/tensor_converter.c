@@ -635,8 +635,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
 
     case _NNS_TEXT:
-      frame_size = GST_TENSOR_STRING_SIZE;
-      frames_in = 1; /** supposed 1 frame in buffer */
+      /* supposed 1 frame in buffer */
+      frame_size = gst_tensor_info_get_size (&config->info) / frames_out;
+      frames_in = 1;
 
       if (buf_size != frame_size) {
         GstMapInfo src_info, dest_info;
@@ -647,8 +648,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         g_assert (gst_buffer_map (buf, &src_info, GST_MAP_READ));
         g_assert (gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE));
 
-        strncpy ((char *) dest_info.data, (char *) src_info.data,
-            frame_size - 1);
+        strncpy ((char *) dest_info.data, (char *) src_info.data, frame_size);
 
         gst_buffer_unmap (buf, &src_info);
         gst_buffer_unmap (inbuf, &dest_info);
@@ -1155,15 +1155,28 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     }
     case _NNS_TEXT:
+      /* get fixed size of text string from property */
+      if (!gst_tensor_dimension_is_valid (self->tensor_info.dimension)) {
+        GST_ERROR_OBJECT (self,
+            "Failed to get tensor info, need to update string size.");
+
+        g_critical ("Please set the property input-dim to convert stream.\n"
+            "For example, input-dim=30 to handle fixed 30 bytes of string.");
+        return FALSE;
+      }
+
+      config.info.dimension[0] = self->tensor_info.dimension[0];
       frames_dim = 1;
       break;
     case _NNS_OCTET:
-      /**
-       * update tensor info from properties
-       */
+      /* update tensor info from properties */
       if (!gst_tensor_info_validate (&self->tensor_info)) {
         GST_ERROR_OBJECT (self,
-            "Failed to get tensor info, update dimension and type.\n");
+            "Failed to get tensor info, need to update dimension and type.");
+
+        g_critical ("Please set the properties input-dim and input-type "
+            "to convert stream.\nFor example, input-dim=30:1 input-type=unit8 "
+            "to handle 30 bytes of bin data.");
         return FALSE;
       }
 

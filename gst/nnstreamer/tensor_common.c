@@ -804,7 +804,8 @@ gst_tensor_config_from_text_info (GstTensorConfig * config,
   }
 
   /* [size][frames] */
-  config->info.dimension[0] = GST_TENSOR_STRING_SIZE;
+  /* Fixed size of string, we cannot get the size from caps. */
+  config->info.dimension[0] = 0;
   /* Supposed 1 frame in tensor, change this if tensor contains N frames. */
   config->info.dimension[1] = 1;
 
