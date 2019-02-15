@@ -249,8 +249,13 @@ TFCore::validateInputTensor (const GraphDef &graph_def)
     }
 
     if (inputTensorMeta.info[i].type != getTensorTypeFromTF (dtype)) {
-      GST_ERROR ("Input Tensor is not valid: the type of input tensor is different\n");
-      return -3;
+      /* consider the input data as bytes if tensor type is string */
+      if (dtype == DT_STRING) {
+        GST_WARNING ("Input type is string, ignore type comparision.");
+      } else {
+        GST_ERROR ("Input Tensor is not valid: the type of input tensor is different\n");
+        return -3;
+      }
     }
 
     gchar **str_dims;
@@ -373,8 +378,12 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     Tensor in (input_tensor_info[i].type, input_tensor_info[i].shape);
 
     /* copy data */
-    std::copy_n ((char *) input[i].data, input[i].size,
-        const_cast<char *>(in.tensor_data().data()));
+    if (input_tensor_info[i].type == DT_STRING) {
+      in.scalar<string>()() = string ((char *) input[i].data, input[i].size);
+    } else {
+      std::copy_n ((char *) input[i].data, input[i].size,
+          const_cast<char *>(in.tensor_data().data()));
+    }
 
     input_feeds.push_back ({inputTensorMeta.info[i].name, in});
   }
@@ -394,6 +403,9 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    /**
+     * @todo support DT_STRING output tensor
+     */
     output[i].data = const_cast<char *>(outputs[i].tensor_data().data());
     outputTensorMap.insert (std::make_pair (output[i].data, outputs[i]));
   }
