@@ -734,10 +734,9 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       gchar **strv = NULL;
 
       if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option, 0, 0)) {
-        g_critical ("%s: dimchg: "
-            "\'%s\' is not valid option string: "
-            "it should be in the form of IDX_DIM_FROM:IDX_DIM_TO: "
-            "with a regex, " REGEX_DIMCHG_OPTION "\n",
+        g_critical
+            ("%s: dimchg: \'%s\' is not valid option string: it should be in the form of IDX_DIM_FROM:IDX_DIM_TO: with a regex, "
+            REGEX_DIMCHG_OPTION "\n",
             gst_object_get_name ((GstObject *) filter), filter->option);
         break;
       }
@@ -756,9 +755,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         filter->data_typecast.to = gst_tensor_get_type (filter->option);
         filter->loaded = TRUE;
       } else {
-        g_critical ("%s: typecast: "
-            "\'%s\' is not valid data type for tensor: "
-            "data type of tensor should be one of %s\n",
+        g_critical
+            ("%s: typecast: \'%s\' is not valid data type for tensor: data type of tensor should be one of %s\n",
             gst_object_get_name ((GstObject *) filter),
             filter->option, GST_TENSOR_TYPE_ALL);
       }
@@ -797,9 +795,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
               1, 0, NULL, NULL)) {
         str_option = g_regex_replace (regex_option_tc, filter->option, -1, 1,
             "", 0, 0);
-        g_critical ("%s: arithmetic: [typecast:TYPE,] should be located "
-            "at the first to prevent memory re-allocation: "
-            "typecast(s) in the middle of \'%s\' will be ignored\n",
+        g_critical
+            ("%s: arithmetic: [typecast:TYPE,] should be located at the first to prevent memory re-allocation: typecast(s) in the middle of \'%s\' will be ignored\n",
             gst_object_get_name ((GstObject *) filter), filter->option);
       } else {
         str_option = g_strdup (filter->option);
@@ -807,9 +804,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       g_regex_unref (regex_option_tc);
 
       if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option, 0, 0)) {
-        g_critical ("%s: arithmetic: "
-            "\'%s\' is not valid option string: "
-            "it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
+        g_critical
+            ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
             gst_object_get_name ((GstObject *) filter), str_option);
         g_free (str_option);
         break;
@@ -892,10 +888,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       gchar **strv = NULL;
 
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
-        g_critical ("%s: transpose: "
-            "\'%s\' is not valid option string: "
-            "it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 "
-            "(note that the index of the last dim is alwayes fixed to 3)\n",
+        g_critical
+            ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is alwayes fixed to 3)\n",
             gst_object_get_name ((GstObject *) filter), filter->option);
         break;
       }
@@ -915,9 +909,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       filter->data_stand.mode =
           gst_tensor_transform_get_stand_mode (filter->option);
       if (filter->data_stand.mode == STAND_END) {
-        g_critical ("%s: stand: "
-            "\'%s\' is not valid option string: "
-            "it should be \'default\', currently the only supported mode.\n",
+        g_critical
+            ("%s: stand: \'%s\' is not valid option string: it should be \'default\', currently the only supported mode.\n",
             gst_object_get_name ((GstObject *) filter), filter->option);
         break;
       }
