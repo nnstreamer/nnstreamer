@@ -45,10 +45,12 @@ override_dh_auto_test:
 	cd build && ./tests/unittest_plugins --gst-plugin-path=. && cd ..
 	cd tests && ssat -n && cd ..
 
+override_dh_link:
+	dh_link /usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so  /usr/lib/$(DEB_HOST_MULTIARCH)/libnnstreamer.so
+
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C build install
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so $(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
 # Add --fail-missing option after adding *.install files for all subpackages.
