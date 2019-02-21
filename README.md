@@ -4,13 +4,16 @@
 
 Neural Network Support as Gstreamer Plugins.
 
-NNStreamer is a set of Gstreamer plugins, which allows
+NNStreamer is a set of Gstreamer plugins that allows
 Gstreamer developers to adopt neural network models easily and efficiently and
 neural network developers to manage stream pipelines and their filters easily and efficiently.
 
-[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)<br />
-[NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf](https://arxiv.org/pdf/1901.04985)]<br />
-[GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnsuite/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf](https://github.com/nnsuite/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]
+[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)<br /> <br />
+
+[NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf/tech report](https://arxiv.org/pdf/1901.04985)]<br />
+[GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnsuite/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf/slides](https://github.com/nnsuite/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]<br />
+[Naver Tech Talk (Korean)](https://www.facebook.com/naverengineering/posts/2255360384531425) [[media](https://youtu.be/XvXxcnbRjgU)] [[pdf/slides](https://www.slideshare.net/NaverEngineering/nnstreamer-stream-pipeline-for-arbitrary-neural-networks)]<br />
+[ResearchGate Page of NNStreamer](https://www.researchgate.net/project/Neural-Network-Streamer-nnstreamer)
 
 
 ## Official Releases
@@ -32,14 +35,14 @@ Daily Releases
 ## Objectives
 
 - Provide neural network framework connectivities (e.g., tensorflow, caffe) for gstreamer streams.
-  - **Efficient Streaming for AI Projects**: Neural network models wanted to use efficient and flexible streaming management as well.
+  - **Efficient Streaming for AI Projects**: Apply efficient and flexible stream pipeline to neural networks.
   - **Intelligent Media Filters!**: Use a neural network model as a media filter / converter.
-  - **Composite Models!**: Allow to use multiple neural network models in a single stream instance.
-  - **Multi Modal Intelligence!**: Allow to use multiple sources for neural network models.
+  - **Composite Models!**: Multiple neural network models in a single stream pipeline instance.
+  - **Multi Modal Intelligence!**: Multiple sources and stream paths for neural network models.
 
 - Provide easy methods to construct media streams with neural network models using the de-facto-standard media stream framework, **GStreamer**.
-  - Allow any gstreamer users to put neural network models as if they are media filters.
-  - Allow any neural network developers to manage media streams fairly easily.
+  - Gstreamer users: use neural network models as if they are yet another media filters.
+  - Neural network developers: manage media streams easily and efficiently.
 
 ## Maintainers
 * [MyungJoo Ham](https://github.com/myungjoo/)
@@ -51,6 +54,7 @@ Daily Releases
 * [Wook Song](https://github.com/wooksong)
 * [Jaeyun Jung](https://github.com/jaeyun-jung)
 * [Hyoungjoo Ahn](https://github.com/helloahn)
+* [Parichay Kapoor](https://github.com/kparichay)
 
 ## Components
 
