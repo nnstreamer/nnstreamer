@@ -20,6 +20,20 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams
 
+Package: nnstreamer-tensorflow
+Architecture: amd64 arm64
+Multi-Arch: same
+Depends: nnstreamer, tensorflow, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer TensorFlow Support
+ This package allows nnstreamer to support tensorflow. Note that users must make sure that they have installed Tensorflow with compatible C-API (recommended to use the same version). However, having different options (e.g., GPU mode) should not affect the compatibility. When we have stable C-API from Tensorflow, we will release corresponding subplugin as well.
+
+Package: nnstreamer-tensorflow-lite
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer TensorFlow Lite Support
+ This package allows nnstreamer to support tensorflow-lite.
+
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same

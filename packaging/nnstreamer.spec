@@ -63,6 +63,26 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
 
+# for tensorflow
+%ifarch x86_64 aarch64
+%package tensorflow
+Summary:	NNStreamer TensorFlow Support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	tensorflow
+%description tensorflow
+NNStreamer's tensor_fliter subplugin of TensorFlow.
+It uses C-API of tensorflow, which is not yet stable as of 1.1x.
+Thus, the user needs to check the version of Tensorflow with the
+Tensorflow used for building this package.
+%endif
+
+%package tensorflow-lite
+Summary:	NNStreamer TensorFlow Lite Support
+Requires:	nnstreamer = %{version}-%{release}
+# tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
+%description tensorflow-lite
+NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
+
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
 Requires:	nnstreamer = %{version}-%{release}
@@ -172,10 +192,20 @@ popd
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_*.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
 %{gstlibdir}/*.so
 %{_sysconfdir}/nnstreamer.ini
+
+# for tensorflow
+%ifarch x86_64 aarch64
+%files tensorflow
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow.so
+%endif
+
+%files tensorflow-lite
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
 %files devel
 %{_includedir}/nnstreamer/*
