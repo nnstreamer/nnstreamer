@@ -1,3 +1,16 @@
+0.1.0 -> 0.1.1:
+	- Full "Plug & Play" capability of subplugins (tensor_filter, tensor_filter::custom, tensor_decoder)
+		- Fully configurable subplugin locations
+		- Capability to build subplungins wihtout the dependencies on nnstreamer sources
+	- Revert Tensorflow input-memcpy-less-ness for multi-tensor support. (Will support memcpy-less-ness later)
+	- Support "String" type of tensors
+	- API sets updated (still not "stable")
+	- Code location refactored.
+	- Yocto/Openembedded Layer Registered (not tested): "meta-neural-network"
+	- No more additional shared libraries.
+	- Better error handling and messages for a few plugins
+	- Android support (N / arm64)
+
 0.0.3 -> 0.1.0:
 	- Build system migration cmake --> meson
 	- Support Tensorflow without input/output tensor memcpy

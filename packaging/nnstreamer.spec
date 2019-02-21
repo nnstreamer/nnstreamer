@@ -6,7 +6,7 @@
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
 Version:	0.1.1
-Release:	0
+Release:	1
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
@@ -194,6 +194,9 @@ popd
 %{_prefix}/lib/nnstreamer/customfilters/*.so
 
 %changelog
+* Mon Feb 25 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 0.1.1
+
 * Thu Jan 24 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 0.1.0
 
