@@ -1161,6 +1161,11 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstStructure *structure;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+
+  /* Not ready */
+  if (self->fw == NULL)
+    return NULL;
+
   gst_tensors_config_init (&config);
 
   silent_debug ("Direction = %d\n", direction);
@@ -1352,6 +1357,10 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   GstTensorFilter *self;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+
+  /* If it is not configured properly, don't allow to start! */
+  if (self->fw == NULL)
+    return FALSE;
 
   gst_tensor_filter_open_fw (self);
 

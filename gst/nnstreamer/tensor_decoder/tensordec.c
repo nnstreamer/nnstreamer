@@ -668,6 +668,10 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
   self = GST_TENSORDEC_CAST (trans);
 
+  /* Not ready */
+  if (self->decoder == NULL)
+    return NULL;
+
   silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
