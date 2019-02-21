@@ -23,7 +23,7 @@
  *
  */
 
-#include<tensor_repo.h>
+#include <tensor_repo.h>
 #include <stdio.h>
 
 #ifndef DBG
