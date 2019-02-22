@@ -251,7 +251,7 @@ gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer,
 }
 
 /**
- * @brief check eos of slot
+ * @brief check EOS (End-of-Stream) of slot
  */
 gboolean
 gst_tensor_repo_check_eos (guint nth)
@@ -265,7 +265,7 @@ gst_tensor_repo_check_eos (guint nth)
 }
 
 /**
- * @brief check eos of slot
+ * @brief check EOS (End-of-Stream) of slot
  */
 gboolean
 gst_tensor_repo_check_changed (guint nth, guint * newid, gboolean is_sink)
@@ -292,7 +292,7 @@ gst_tensor_repo_check_changed (guint nth, guint * newid, gboolean is_sink)
 
 
 /**
- * @brief set eos of slot
+ * @brief set EOS (End-of-Stream) of slot
  */
 gboolean
 gst_tensor_repo_set_eos (guint nth)
