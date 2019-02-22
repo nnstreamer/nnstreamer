@@ -134,7 +134,7 @@ DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
 # Intentionally excluded directories are:
 #
 # tests: We are not going to show testcoverage of the test code itself or example applications
-    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst
+    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext
 
 # Get commit info
     VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
