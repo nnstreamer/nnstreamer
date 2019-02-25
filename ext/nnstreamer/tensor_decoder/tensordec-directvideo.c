@@ -65,7 +65,7 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
-  GST_ERROR ("Num Tensors = %d", config->info.num_tensors);
+  GST_INFO ("Num Tensors = %d", config->info.num_tensors);
   g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
   caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
