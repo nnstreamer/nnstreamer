@@ -106,6 +106,7 @@ typedef enum
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_2, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_3, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_DECODER_PROPERTY, /**< pipeline to test get/set_property of decoder */
   TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
 
@@ -691,7 +692,7 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_split name=split tensorseg=1:160:120,1:160:120,1:160:120 "
+          "tensor_converter ! tensor_split silent=TRUE name=split tensorseg=1:160:120,1:160:120,1:160:120 tensorpick=0,1,2 "
           "split.src_0 ! queue ! tensor_sink "
           "split.src_1 ! queue ! tensor_sink name=test_sink "
           "split.src_2 ! queue ! tensor_sink", option.num_buffers);
@@ -810,6 +811,12 @@ _setup_pipeline (TestOption & option)
           option.num_buffers * 10, option.num_buffers * 25, option.tmpfile);
       break;
     /** @todo Add tensor_mux policy = more policies! */
+    case TEST_TYPE_DECODER_PROPERTY:
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_decoder mode=direct_video name=decoder option1=whatthehell option2=isgoingon option3=nothing option4=iswrong option5=keepcalm option6=\"and have a break\" option7=\"iwill=not\" option8=\"break=your\" option9=\"system=1234\" ! video/x-raw,format=BGRx ! tensor_converter ! tensor_sink name=test_sink ",
+          option.num_buffers);
+      break;
     default:
       goto error;
   }
@@ -3195,8 +3202,26 @@ TEST (tensor_stream_test, video_split)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_SPLIT };
+  GstElement *split;
+  gchar *str;
+  gboolean silent;
 
   ASSERT_TRUE (_setup_pipeline (option));
+
+  /** Check properties of tensor_split */
+  split = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "split");
+  ASSERT_TRUE (split != NULL);
+
+  g_object_get (split, "tensorpick", &str, NULL);
+  EXPECT_STREQ (str, "0,1,2");
+  g_free (str);
+
+  g_object_get (split, "tensorseg", &str, NULL);
+  EXPECT_STREQ (str, "1:160:120:1,1:160:120:1,1:160:120:1");
+  g_free (str);
+
+  g_object_get (split, "silent", &silent, NULL);
+  EXPECT_EQ (silent, TRUE);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
@@ -3848,6 +3873,81 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
     }
     g_free (option.tmpfile);
   }
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test get/set property of tensor_decoder
+ */
+TEST (tensor_stream_test, tensor_decoder_property)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_DECODER_PROPERTY };
+  GstElement *dec;
+  gchar *str;
+  gboolean silent;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  /** Check properties of tensor_decoder */
+  dec = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "decoder");
+  ASSERT_TRUE (dec != NULL);
+
+  g_object_get (dec, "mode", &str, NULL);
+  EXPECT_STREQ (str, "direct_video");
+  g_free (str);
+
+  g_object_get (dec, "silent", &silent, NULL);
+  EXPECT_EQ (silent, TRUE);
+
+  g_object_get (dec, "option1", &str, NULL);
+  EXPECT_STREQ (str, "whatthehell");
+  g_free (str);
+  g_object_get (dec, "option2", &str, NULL);
+  EXPECT_STREQ (str, "isgoingon");
+  g_free (str);
+  g_object_get (dec, "option3", &str, NULL);
+  EXPECT_STREQ (str, "nothing");
+  g_free (str);
+  g_object_get (dec, "option4", &str, NULL);
+  EXPECT_STREQ (str, "iswrong");
+  g_free (str);
+  g_object_get (dec, "option5", &str, NULL);
+  EXPECT_STREQ (str, "keepcalm");
+  g_free (str);
+  g_object_get (dec, "option6", &str, NULL);
+  EXPECT_STREQ (str, "and have a break");
+  g_free (str);
+  g_object_get (dec, "option7", &str, NULL);
+  EXPECT_STREQ (str, "iwill=not");
+  g_free (str);
+  g_object_get (dec, "option8", &str, NULL);
+  EXPECT_STREQ (str, "break=your");
+  g_free (str);
+  g_object_get (dec, "option9", &str, NULL);
+  EXPECT_STREQ (str, "system=1234");
+  g_free (str);
+
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, 5);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 64);     /* uint8_t, 4:4:4:1 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
