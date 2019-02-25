@@ -645,7 +645,17 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
         strings = (gchar **) g_ptr_array_free (arr, FALSE);
         p = g_strjoinv (":", strings);
         g_free (strings);
-        strv = g_strjoin (",", strv, p, NULL);
+        if (i > 0) {
+          /** if i = 1, this is previous p.
+            * otherwise, it's previous g_strjoin result */
+          gchar *oldstrv = strv;
+
+          strv = g_strjoin (",", strv, p, NULL);
+          g_free (oldstrv);
+          g_free (p);
+        } else {
+          strv = p;
+        }
       }
       g_value_set_string (value, strv);
       break;
