@@ -50,4 +50,12 @@ do_test BGRx 642 480 1-3
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_decoder mode=direct_video ! filesink location=\"testcase2.dec.log\" sync=true t. ! queue ! filesink location=\"testcase2.con.log\" sync=true" 2 0 0 $PERFORMANCE
 callCompareTest testcase2.con.log testcase2.dec.log 2 "Compare for case 2" 0 0
 
+# Expand the unit test coverage
+## Set Property woth option*
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_decoder mode=direct_video option1=\"nothing\" option2=\"else\" option3=\"matters\" option4=\"whattheheck=is\" option5=\"goingon=idontknow\" option6=\"whydowehave\" option7=\"somany\" option8=\"options\" option9=\"whydontyouguess\" ! filesink location=\"testcase3.dec.log\" sync=true t. ! queue ! filesink location=\"testcase3.con.log\" sync=true" 3 0 0 $PERFORMANCE
+callCompareTest testcase3.con.log testcase3.dec.log 3 "Compare for case 3" 0 0
+
+## Trigger "decoder not configured"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc ! tensor_converter ! tensor_decoder mode=direct_video ! video/mpeg ! fakesink" 4 0 1 $PERFORMANCE
+
 report
