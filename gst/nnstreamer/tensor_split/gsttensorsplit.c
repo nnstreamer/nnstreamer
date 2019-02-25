@@ -116,8 +116,8 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
   gobject_class->set_property = gst_tensor_split_set_property;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+      g_param_spec_boolean ("silent", "Silent",
+          "Do not produce verbose output ?", TRUE, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
       g_param_spec_string ("tensorpick", "TensorPick",
@@ -161,7 +161,7 @@ gst_tensor_split_init (GstTensorSplit * tensor_split)
 
   tensor_split->num_tensors = 0;
   tensor_split->num_srcpads = 0;
-  tensor_split->silent = FALSE;
+  tensor_split->silent = TRUE;
   tensor_split->tensorpick = NULL;
   tensor_split->tensorseg = NULL;
   tensor_split->have_group_id = FALSE;
