@@ -1354,6 +1354,9 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   self = GST_TENSOR_FILTER_CAST (trans);
 
   gst_tensor_filter_open_fw (self);
+
+  if (self->prop.fw_opened == FALSE)
+    return FALSE;
   return TRUE;
 }
 
