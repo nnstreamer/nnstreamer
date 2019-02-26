@@ -106,11 +106,15 @@ TFLiteCore::loadModel ()
 #endif
 
   if (!interpreter) {
+    if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
+      g_critical ("the file of model_path is not valid\n");
+      return -1;
+    }
     model =
         std::unique_ptr <tflite::FlatBufferModel>
         (tflite::FlatBufferModel::BuildFromFile (model_path));
     if (!model) {
-      GST_ERROR ("Failed to mmap model\n");
+      g_critical ("Failed to mmap model\n");
       return -1;
     }
     /* If got any trouble at model, active below code. It'll be help to analyze. */
@@ -119,7 +123,7 @@ TFLiteCore::loadModel ()
     tflite::ops::builtin::BuiltinOpResolver resolver;
     tflite::InterpreterBuilder (*model, resolver) (&interpreter);
     if (!interpreter) {
-      GST_ERROR ("Failed to construct interpreter\n");
+      g_critical ("Failed to construct interpreter\n");
       return -2;
     }
 
@@ -139,7 +143,7 @@ TFLiteCore::loadModel ()
     }
 
     if (interpreter->AllocateTensors () != kTfLiteOk) {
-      GST_ERROR ("Failed to allocate tensors\n");
+      g_critical ("Failed to allocate tensors\n");
       return -2;
     }
   }
