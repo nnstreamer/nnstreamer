@@ -88,9 +88,11 @@ TFCore::getModelPath ()
  * @brief	load the tf model
  * @note	the model will be loaded
  * @return 0 if OK. non-zero if error.
- *        -1 if the pb file is not loaded.
- *        -2 if the input properties are different with model.
- *        -3 if the Tensorflow session is not created.
+ *        -1 if the modelfile is not valid(or not exist).
+ *        -2 if the pb file is not loaded.
+ *        -3 if the input properties are different with model.
+ *        -4 if the Tensorflow session is not initialized.
+ *        -5 if the Tensorflow session is not created.
  */
 int
 TFCore::loadModel ()
@@ -102,29 +104,33 @@ TFCore::loadModel ()
   Status status;
   GraphDef graph_def;
 
+  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
+    g_critical ("the file of model_path is not valid\n");
+    return -1;
+  }
   status = ReadBinaryProto (Env::Default (), model_path, &graph_def);
   if (!status.ok()) {
-    GST_ERROR ("Failed to read graph.\n%s", status.ToString().c_str());
-    return -1;
+    g_critical ("Failed to read graph.\n%s", status.ToString().c_str());
+    return -2;
   }
 
   /* validate input tensor */
   if (validateInputTensor (graph_def)) {
-    GST_ERROR ("Input Tensor Information is not valid");
-    return -2;
+    g_critical ("Input Tensor Information is not valid");
+    return -3;
   }
 
   /* get session */
   status = NewSession (SessionOptions (), &session);
   if (!status.ok()) {
-    GST_ERROR ("Failed to init new session.\n%s", status.ToString().c_str());
-    return -3;
+    g_critical ("Failed to init new session.\n%s", status.ToString().c_str());
+    return -4;
   }
 
   status = session->Create (graph_def);
   if (!status.ok()) {
-    GST_ERROR ("Failed to create session.\n%s", status.ToString().c_str());
-    return -3;
+    g_critical ("Failed to create session.\n%s", status.ToString().c_str());
+    return -5;
   }
 
   /* prepare output tensor */
