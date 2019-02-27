@@ -28,7 +28,9 @@ LOCAL_PATH := $(call my-dir)
 #
 
 NNSTREAMER_VERSION := 0.1.1
-TARGET_ARCH_ABI    := arm64-v8a
+
+# Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
+# Please append an architecture name behind "APP_ABI" in Application.mk file.
 
 ifeq ($(TARGET_ARCH_ABI),armeabi)
 GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/arm
