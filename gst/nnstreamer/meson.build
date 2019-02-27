@@ -58,6 +58,7 @@ nnst_plugins = [
   'tensor_mux',
   'tensor_saveload',
   'tensor_sink',
+  'tensor_source',
   'tensor_split',
   'tensor_transform',
   'tensor_filter',
