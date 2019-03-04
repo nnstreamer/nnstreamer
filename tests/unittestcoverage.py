@@ -309,21 +309,26 @@ def cmd_help(command=None):
 #
 def main():
   num = len(sys.argv)
-  if (num < 2):
+  if num < 2:
     return cmd_help()
-  arg = (sys.argv[2] if num > 2 else None)
 
-  if num >= 4:
-    if sys.argv[4] == '-d':
+  cmd = sys.argv[1]
+  args = []
+
+  for arg in sys.argv[2:]:
+    if arg == '-d':
+      global debugprint
       debugprint = 1
+    else:
+      args.append(arg)
 
-
-  if (sys.argv[1] == 'help'):
+  if cmd == 'help':
+    arg = (sys.argv[2] if num > 2 else None)
     return cmd_help(arg)
-  elif (sys.argv[1] == 'all'):
-    return cmd_all(arg)
-  elif (sys.argv[1] == 'module'):
-    return cmd_module(sys.argv[2:])
+  elif cmd == 'all':
+    return cmd_all(args)
+  elif cmd == 'module':
+    return cmd_module(args)
 
   return cmd_help()
 
