@@ -16,28 +16,31 @@ The libnnstreamer.so file is to be used as a native libraries on Android devices
 cd ~/android/
 wget https://dl.google.com/android/repository/android-ndk-r12b-linux-x86_64.zip
 vi ~/.bashrc
-export ANDROID_NDK=~/android/android-ndk-r16b
+export ANDROID_NDK=~/android/android-ndk-r12b
 export PATH=$ANDROID_NDK:$PATH
 ```
 
 ## Download prebuilt Android-Gstreamer libraries
-```bash
-mkdir -p ~/android/gst_root_android/arm64
 Please download required files such as "*.tar.bz2" from http://nnsuite.mooo.com/warehouse/.
  * gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/
+```bash
 vi ~/.bashrc
 export GSTREAMER_ROOT_ANDROID=~/android/gst_root_android
+mkdir -p ~/android/gst_root_android/arm64
 ```
 
 ## How to build a NNstreamer library
 ```bash
 cd ./jni
-rm -rf ../libs/ ../obj/ ; ndk-build APP_BUILD_SCRIPT=./Android.mk -j$(nproc)
+# We recommend that you always remove the libs and obj folder to avoid an unexpected binary inconsistency.
+rm -rf ../libs/ ../obj/
+ndk-build NDK_PROJECT_PATH=.  APP_BUILD_SCRIPT=./Android-nnstreamer.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 ls -al ../libs/arm64-v8a/libnnstreamer.so
 ```
 
 ## How to build a test application
 ```bash
-$ ndk-build APP_BUILD_SCRIPT=./Android-app.mk
+cd ./jni
+ndk-build NDK_PROJECT_PATH=.  APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 ls -al ../libs/arm64-v8a/
 ```
