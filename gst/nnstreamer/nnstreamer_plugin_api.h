@@ -29,7 +29,6 @@
 #include <glib.h>
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
-#include <gst/audio/audio-format.h>
 #include <tensor_typedef.h>
 
 G_BEGIN_DECLS

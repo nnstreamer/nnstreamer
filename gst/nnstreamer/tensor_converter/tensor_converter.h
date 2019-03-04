@@ -36,7 +36,6 @@
 
 #include <gst/gst.h>
 #include <gst/video/video-info.h>
-#include <gst/audio/audio-info.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
