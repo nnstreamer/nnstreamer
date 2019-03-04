@@ -75,6 +75,15 @@ else
   add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
+# NO Audio support
+disable_audio = false
+
+if get_option('disable-audio-support')
+   disable_audio = true
+   add_project_arguments('-DNO_AUDIO=1', language: ['c', 'cpp'])
+   message('Disable Audio Type Support')
+endif
+
 # Tensorflow
 have_tensorflow = false
 

@@ -19,6 +19,7 @@ LOCAL_PATH := $(call my-dir)
 NNSTREAMER_VERSION := 0.1.1
 CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
 
+NO_AUDIO := false
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
 # Please append an architecture name behind "APP_ABI" in Application.mk file.
@@ -55,29 +56,41 @@ define shared_lib_gst
 endef
 
 # Describe shared libraries that are needed to run this application.
-so_names_common := gstreamer-1.0 gstbase-1.0 gstaudio-1.0 gstvideo-1.0 glib-2.0 \
+so_names_common := gstreamer-1.0 gstbase-1.0 gstvideo-1.0 glib-2.0 \
                    gobject-2.0 intl z bz2 orc-0.4 gmodule-2.0 ffi gsttag-1.0 iconv \
-                   gstapp-1.0 png16 gstbadaudio-1.0 gstbadbase-1.0 gio-2.0 pangocairo-1.0 \
+                   gstapp-1.0 png16 gstbadbase-1.0 gio-2.0 pangocairo-1.0 \
                    pangoft2-1.0 pango-1.0 gthread-2.0 cairo pixman-1 fontconfig expat freetype \
                    gstbadvideo-1.0 gstcontroller-1.0 jpeg graphene-1.0 gstpbutils-1.0 gstgl-1.0 \
                    gstallocators-1.0 gstbadallocators-1.0 harfbuzz
+
+ifeq ($(NO_AUDIO), false)
+so_names_common += gstaudio-1.0 gstbadaudio-1.0
+endif
+
 $(foreach item,$(so_names_common),$(eval $(call shared_lib_common,$(item))))
 
-so_names_gst := gstcoreelements gstcoretracers gstadder gstapp gstaudioconvert \
-                gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc gstgio \
+so_names_gst := gstcoreelements gstcoretracers gstadder gstapp \
                 gstpango gstrawparse gsttypefindfunctions gstvideoconvert gstvideorate \
                 gstvideoscale gstvideotestsrc gstvolume gstautodetect gstvideofilter gstopengl \
                 gstopensles gstcompositor gstpng gstmultifile nnstreamer
+
+ifeq ($(NO_AUDIO), false)
+so_names_gst += gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
+endif
+
 $(foreach item,$(so_names_gst),$(eval $(call shared_lib_gst,$(item))))
 
-
-BUILDING_BLOCK_LIST := gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements gstcoretracers gstadder \
-gstapp gstaudioconvert gstaudiomixer gstaudioresample gstaudiorate gstaudioresample gstaudiotestsrc gstgio \
+BUILDING_BLOCK_LIST := z gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements gstcoretracers gstadder \
+gstapp gstgio \
 gstpango gstrawparse gsttypefindfunctions gstvideoconvert gstvideorate gstvideoscale gstvideotestsrc \
 gstvolume gstautodetect gstvideofilter gstopengl gstopensles gmodule-2.0 gstcompositor ffi iconv png multifile \
-gstbase-1.0 gstaudio-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badaudio badbase-1.0 gio-2.0 pangocairo  pango gthread \
+gstbase-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badbase-1.0 gio-2.0 pangocairo  pango gthread \
 cairo pixman fontconfig expat gstbadvideo gstcontroller jpeg graphene gstpbutils gstgl gstallocators gstbadallocators \
 harfbuzz bz2 nnstreamer
+
+ifeq ($(NO_AUDIO), false)
+BUILDING_BLOCK_LIST += gstaudio-1.0 gstbadaudio-1.0 gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
+endif
 
 # In case of Android ARM 64bit environment, the default path of linker is "/data/nnstreamer/".
 # We use the "tests/nnstreamer_repo_dynamicity/tensor_repo_dynamic_test.c" file as a test application.

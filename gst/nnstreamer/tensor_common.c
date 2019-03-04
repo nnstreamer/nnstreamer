@@ -693,8 +693,10 @@ gst_tensor_config_from_video_info (GstTensorConfig * config,
  * @note Change dimention if tensor contains N frames.
  * @return TRUE if supported type
  */
-static gboolean
-gst_tensor_config_from_audio_info (GstTensorConfig * config,
+
+__attribute__ ((unused))
+     static gboolean
+         _gst_tensor_config_from_audio_info (GstTensorConfig * config,
     const GstStructure * structure)
 {
   /**

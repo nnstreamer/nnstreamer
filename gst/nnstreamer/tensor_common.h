@@ -51,6 +51,14 @@
 #define nns_memset memset
 #endif
 
+#ifdef NO_AUDIO
+#include <no_audio_define.h>
+#else
+#include <gst/audio/audio-info.h>
+#include <gst/audio/audio-format.h>
+#define gst_tensor_config_from_audio_info(...) _gst_tensor_config_from_audio_info(__VA_ARGS__)
+#endif
+
 G_BEGIN_DECLS
 
 /**

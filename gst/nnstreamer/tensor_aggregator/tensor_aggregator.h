@@ -29,6 +29,7 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
+#include <gst/base/gstadapter.h>
 
 G_BEGIN_DECLS
 
