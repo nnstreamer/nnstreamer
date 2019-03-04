@@ -17,6 +17,7 @@ LOCAL_PATH := $(call my-dir)
 # target#> ./{your-test-app}
 
 NNSTREAMER_VERSION := 0.1.1
+CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
 
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
@@ -86,7 +87,7 @@ LOCAL_MODULE    := tensor_repo_dynamic_test
 LOCAL_CFLAGS    += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_SRC_FILES += ../tests/nnstreamer_repo_dynamicity/tensor_repo_dynamic_test.c 
 LOCAL_CXXFLAGS  += -std=c++11
-LOCAL_LDFLAGS   := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
+LOCAL_LDFLAGS   := $(CUSTOM_LINKER64)
 
 NNSTREAMER_GST_HOME    := ../gst/nnstreamer
 
