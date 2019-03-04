@@ -118,7 +118,7 @@ enable_tf=true
 enable_tf=false
 %endif
 
-meson --buildtype=plain --werror --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} build
 
 ninja -C build %{?_smp_mflags}
 
