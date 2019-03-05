@@ -1,8 +1,13 @@
 if have_tensorflow
-  nnstreamer_filter_tf_sources = [
+  filter_sub_tf_sources = [
     'tensor_filter_tensorflow.c',
     'tensor_filter_tensorflow_core.cc'
   ]
+
+  nnstreamer_filter_tf_sources = []
+  foreach s : filter_sub_tf_sources
+    nnstreamer_filter_tf_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
 
   nnstreamer_filter_tf_deps = [tf_dep, protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
 
@@ -24,10 +29,15 @@ if have_tensorflow
 endif
 
 if have_tensorflow_lite
-  nnstreamer_filter_tflite_sources = [
+  filter_sub_tflite_sources = [
     'tensor_filter_tensorflow_lite.c',
     'tensor_filter_tensorflow_lite_core.cc'
   ]
+
+  nnstreamer_filter_tflite_sources = []
+  foreach s : filter_sub_tflite_sources
+    nnstreamer_filter_tflite_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
 
   nnstreamer_filter_tflite_deps = [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 

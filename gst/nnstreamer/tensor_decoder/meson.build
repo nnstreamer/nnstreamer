@@ -1,5 +1,5 @@
 tensor_decoder_sources = [
-  'tensordec.c',
+  'tensordec.c'
 ]
 
 foreach s : tensor_decoder_sources
