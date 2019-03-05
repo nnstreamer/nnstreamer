@@ -1,44 +1,68 @@
-tensor_decoder_directvideo_shared = shared_library('nnstreamer_decoder_direct_video',
-    [ 'tensordec-directvideo.c' ],
+# direct video
+decoder_sub_direct_video_sources = [
+  'tensordec-directvideo.c'
+]
+
+nnstreamer_decoder_direct_video_sources = []
+foreach s : decoder_sub_direct_video_sources
+  nnstreamer_decoder_direct_video_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+shared_library('nnstreamer_decoder_direct_video',
+  nnstreamer_decoder_direct_video_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: decoder_subplugin_install_dir
 )
-tensor_decoder_directvideo_static = static_library('nnstreamer_decoder_direct_video',
-    [ 'tensordec-directvideo.c' ],
+static_library('nnstreamer_decoder_direct_video',
+  nnstreamer_decoder_direct_video_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: nnstreamer_libdir
 )
 
-tensor_decoder_imagelabel_shared = shared_library('nnstreamer_decoder_image_labeling',
-    [ 'tensordec-imagelabel.c' ],
+# image labeling
+decoder_sub_image_labeling_sources = [
+  'tensordec-imagelabel.c'
+]
+
+nnstreamer_decoder_image_labeling_sources = []
+foreach s : decoder_sub_image_labeling_sources
+  nnstreamer_decoder_image_labeling_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+shared_library('nnstreamer_decoder_image_labeling',
+  nnstreamer_decoder_image_labeling_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: decoder_subplugin_install_dir
 )
-tensor_decoder_imagelabel_static = static_library('nnstreamer_decoder_image_labeling',
-    [ 'tensordec-imagelabel.c' ],
+static_library('nnstreamer_decoder_image_labeling',
+  nnstreamer_decoder_image_labeling_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: nnstreamer_libdir
 )
 
-tensor_decoder_boundingbox_shared = shared_library('nnstreamer_decoder_bounding_boxes',
-    [ 'tensordec-boundingbox.c' ],
+# bounding boxes
+decoder_sub_bounding_boxes_sources = [
+  'tensordec-boundingbox.c'
+]
+
+nnstreamer_decoder_bounding_boxes_sources = []
+foreach s : decoder_sub_bounding_boxes_sources
+  nnstreamer_decoder_bounding_boxes_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+shared_library('nnstreamer_decoder_bounding_boxes',
+  nnstreamer_decoder_bounding_boxes_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: decoder_subplugin_install_dir
 )
-tensor_decoder_boundingbox_static = static_library('nnstreamer_decoder_bounding_boxes',
-    [ 'tensordec-boundingbox.c' ],
+static_library('nnstreamer_decoder_bounding_boxes',
+  nnstreamer_decoder_bounding_boxes_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  include_directories: nnstreamer_inc,
   install: true,
   install_dir: nnstreamer_libdir
 )
