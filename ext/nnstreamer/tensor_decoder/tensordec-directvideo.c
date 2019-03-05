@@ -104,7 +104,7 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "height", G_TYPE_INT, height, NULL);
   }
 
-  if (fn > 0 && fd > 0) {
+  if (fn >= 0 && fd > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
   }
 
