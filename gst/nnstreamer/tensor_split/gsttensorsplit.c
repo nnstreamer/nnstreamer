@@ -624,8 +624,8 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       g_ptr_array_add (arr, NULL);
       strings = (gchar **) g_ptr_array_free (arr, FALSE);
       p = g_strjoinv (",", strings);
-      g_free (strings);
-      g_value_set_string (value, p);
+      g_strfreev (strings);
+      g_value_take_string (value, p);
       break;
     }
     case PROP_TENSORSEG:
@@ -644,7 +644,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
         g_ptr_array_add (arr, NULL);
         strings = (gchar **) g_ptr_array_free (arr, FALSE);
         p = g_strjoinv (":", strings);
-        g_free (strings);
+        g_strfreev (strings);
         if (i > 0) {
           /** if i = 1, this is previous p.
             * otherwise, it's previous g_strjoin result */
@@ -657,7 +657,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
           strv = p;
         }
       }
-      g_value_set_string (value, strv);
+      g_value_take_string (value, strv);
       break;
     }
     default:
