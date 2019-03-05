@@ -8,8 +8,8 @@ LOCAL_PATH := $(call my-dir)
 # ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 #
 # Step2: Install a test application into Android target device
-# readelf -d ../libs/arm64-v8a/{your-test-app}
-# adb push   ../libs/arm64-v8a/{your-test-app} /data/nnstreamer/
+# readelf -d ./libs/arm64-v8a/{your-test-app}
+# adb push   ./libs/arm64-v8a/{your-test-app} /data/nnstreamer/
 #
 # Step3: Run the test application
 # adb shell

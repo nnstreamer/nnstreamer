@@ -20,11 +20,11 @@ LOCAL_PATH := $(call my-dir)
 # ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-nnstreamer.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 #
 # Step4: Install the nnstreamer library into Android target device
-# for i in ../libs/arm64-v8a/*.so ; do echo "$i" ; adb push "$i" /data/nnstreamer/libgstreamer/; done;
+# for i in ./libs/arm64-v8a/*.so ; do echo "$i" ; adb push "$i" /data/nnstreamer/libgstreamer/; done;
 # adb shell ln -s /data/nnstreamer/libgstreamer/libharfbuzz.so   /data/nnstreamer/libgstreamer/libharfbuzz.so.0
 # adb shell ln -s /data/nnstreamer/libgstreamer/libbz2.so        /data/nnstreamer/libgstreamer/libbz2.so.1.0
 # adb shell mv /data/nnstreamer/libgstreamer/libnnstreamer.so    /data/nnstreamer/libnnstreamer/
-# cp ../libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
+# cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
 #
 
 NNSTREAMER_VERSION := 0.1.1
@@ -83,10 +83,10 @@ $(foreach item,$(so_names_gst),$(eval $(call shared_lib_gst,$(item))))
 include $(CLEAR_VARS)
 
 # Please keep the pthread and openmp library for checking a compatibility
-LOCAL_ARM_NEON := true
-LOCAL_CFLAGS   += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_CXXFLAGS += -std=c++11
-LOCAL_CFLAGS   += -pthread -fopenmp
+LOCAL_ARM_NEON      := true
+LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CXXFLAGS      += -std=c++11
+LOCAL_CFLAGS        += -pthread -fopenmp
 
 LOCAL_LDFLAGS       += -fuse-ld=bfd
 LOCAL_MODULE_TAGS   := optional
