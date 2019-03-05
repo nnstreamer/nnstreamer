@@ -581,8 +581,8 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
       g_ptr_array_add (arr, NULL);
       strings = (gchar **) g_ptr_array_free (arr, FALSE);
       p = g_strjoinv (",", strings);
-      g_free (strings);
-      g_value_set_string (value, p);
+      g_strfreev (strings);
+      g_value_take_string (value, p);
       break;
     }
     default:
