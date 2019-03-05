@@ -99,7 +99,7 @@ struct _GstTensorSrcIIO
   GList *channels; /**< channels to be enabled */
   guint channels_enabled; /**< channels to be enabled */
   guint buffer_capacity; /**< size of the buffer */
-  guint64 sampling_frequency; /**< sampling frequncy for the device */
+  gulong sampling_frequency; /**< sampling frequncy for the device */
 };
 
 /**
