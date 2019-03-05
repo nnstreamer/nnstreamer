@@ -24,8 +24,11 @@
  * @bug		No known bugs except for NYI items
  * @todo  fill in empty functions
  * @todo  create a sample example and unit tests
- * @todo  set limit on triggers, channels, buffer capacity, frequency
- * @todo  verify if multiple triggers can be supported
+ * @todo  set limit on buffer capacity, frequency
+ * @todo  support device/trigger number as input
+ * @todo  support for trigger frequency
+ * @todo  support specific channels as input
+ *
  *
  * This is the plugin to capture data from sensors
  * and convert them to tensor format.
@@ -77,19 +80,42 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_iio_debug);
 enum
 {
   PROP_0,
+  PROP_MODE,
   PROP_SILENT,
   PROP_DEVICE,
-  PROP_TRIGGERS,
-  PROP_VOLTAGE,
+  PROP_TRIGGER,
   PROP_CHANNELS,
   PROP_BUFFER_CAPACITY,
   PROP_FREQUENCY
 };
 
 /**
+ * @brief iio device channel enabled mode
+ */
+enum
+{
+  CHANNELS_ENABLED_ALL,
+  CHANNELS_ENABLED_AUTO
+};
+
+/**
+ * @brief iio device channel enabled mode
+ */
+#define CHANNELS_ENABLED_AUTO_CHAR "auto"
+#define CHANNELS_ENABLED_ALL_CHAR "all"
+#define DEFAULT_OPERATING_CHANNELS_ENABLED CHANNELS_ENABLED_AUTO_CHAR
+
+/**
+ * @brief tensor_src_iio device modes
+ */
+#define MODE_ONE_SHOT "one-shot"
+#define MODE_CONTINUOUS "continuous"
+#define DEFAULT_OPERATING_MODE MODE_CONTINUOUS
+
+/**
  * @brief Flag to print minimized log.
  */
-#define DEFAULT_SILENT TRUE
+#define DEFAULT_PROP_SILENT TRUE
 
 /**
  * @brief Flag for general default value of string
@@ -167,22 +193,30 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent",
-          "Produce verbose output", DEFAULT_SILENT,
+          "Produce verbose output", DEFAULT_PROP_SILENT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODE,
+      g_param_spec_string ("mode", "Operating mode",
+          "Mode for the device to run in - one-shot or continuous",
+          DEFAULT_OPERATING_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_DEVICE,
       g_param_spec_string ("device", "Device Name",
           "Name of the device to be opened", DEFAULT_PROP_STRING,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_TRIGGERS,
-      g_param_spec_string ("triggers", "Triggers Name",
-          "Name of the triggers to be used", DEFAULT_PROP_STRING,
+  g_object_class_install_property (gobject_class, PROP_TRIGGER,
+      g_param_spec_string ("trigger", "Trigger Name",
+          "Name of the trigger to be used", DEFAULT_PROP_STRING,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CHANNELS,
-      g_param_spec_string ("channels", "Enabled Channels",
-          "Channels to be enabled", DEFAULT_PROP_STRING, G_PARAM_READWRITE));
+      g_param_spec_string ("channels", "Channels to be enabled",
+          "Enable channels -"
+          "auto: enable all channels when no channels are enabled automatically"
+          "all: enable all channels",
+          DEFAULT_OPERATING_CHANNELS_ENABLED, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_BUFFER_CAPACITY,
       g_param_spec_uint ("buffer_capacity", "Buffer Capacity",
@@ -191,7 +225,7 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_FREQUENCY,
-      g_param_spec_long ("frequency", "Frequency",
+      g_param_spec_uint64 ("frequency", "Frequency",
           "Operating frequency of the device", MIN_FREQUENCY, MAX_FREQUENCY,
           DEFAULT_FREQUENCY, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -217,28 +251,93 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
   bsrc_class->fill = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_fill);
 }
 
+
+/**
+ * @brief initialize GstTensorSrcIIODeviceProperties structure
+ * TODO: verify that this is needed
+ */
+static void
+gst_tensor_src_iio_device_properties_init (GstTensorSrcIIODeviceProperties *
+    prop)
+{
+  prop->name = NULL;
+  prop->base_dir = NULL;
+  prop->id = -1;
+}
+
 /**
  * @brief initialize tensor_src_iio element.
  */
 static void
 gst_tensor_src_iio_init (GstTensorSrcIIO * self)
 {
+  // TODO: verify where locking is needed
   g_mutex_init (&self->mutex);
 
   /** init properties */
-  /** already set using default values */
+  self->configured = FALSE;
+  self->channels = DEFAULT_PROP_STRING;
+  self->channels_enabled = CHANNELS_ENABLED_AUTO;
+  gst_tensor_src_iio_device_properties_init (&self->trigger);
+  gst_tensor_src_iio_device_properties_init (&self->device);
+  self->silent = DEFAULT_PROP_SILENT;
+  self->buffer_capacity = DEFAULT_BUFFER_CAPACITY;
+  self->sampling_frequency = DEFAULT_FREQUENCY;
 
   return;
 }
 
+
 /**
- * @brief set properties of tensor_src_iio
+ * @brief set tensor_src_iio properties
  */
 static void
 gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  //FIXME: fill this function
+  GstTensorSrcIIO *self;
+  self = GST_TENSOR_SRC_IIO (object);
+
+  switch (prop_id) {
+    case PROP_SILENT:
+      self->silent = g_value_get_boolean (value);
+      break;
+
+    case PROP_MODE:
+      self->mode = g_value_dup_string (value);
+      break;
+
+    case PROP_DEVICE:
+      self->device.name = g_value_dup_string (value);
+      break;
+
+    case PROP_TRIGGER:
+      self->trigger.name = g_value_dup_string (value);
+      break;
+
+    case PROP_CHANNELS:
+    {
+      const gchar *param = g_value_get_string (value);
+      if (g_strcmp0 (param, CHANNELS_ENABLED_ALL_CHAR)) {
+        self->channels_enabled = CHANNELS_ENABLED_ALL;
+      } else if (g_strcmp0 (param, CHANNELS_ENABLED_AUTO_CHAR)) {
+        self->channels_enabled = CHANNELS_ENABLED_AUTO;
+      }
+      break;
+    }
+
+    case PROP_BUFFER_CAPACITY:
+      self->buffer_capacity = g_value_get_uint (value);
+      break;
+
+    case PROP_FREQUENCY:
+      self->sampling_frequency = g_value_get_uint64 (value);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 /**
@@ -248,7 +347,48 @@ static void
 gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  //FIXME: fill this function
+  GstTensorSrcIIO *self;
+  self = GST_TENSOR_SRC_IIO (object);
+
+  switch (prop_id) {
+    case PROP_SILENT:
+      g_value_set_boolean (value, self->silent);
+      break;
+
+    case PROP_MODE:
+      g_value_set_string (value, self->mode);
+      break;
+
+    case PROP_DEVICE:
+      g_value_set_string (value, self->device.name);
+      break;
+
+    case PROP_TRIGGER:
+      g_value_set_string (value, self->trigger.name);
+      break;
+
+    case PROP_CHANNELS:
+    {
+      if (self->channels_enabled == CHANNELS_ENABLED_ALL) {
+        g_value_set_string (value, CHANNELS_ENABLED_ALL_CHAR);
+      } else if (self->channels_enabled == CHANNELS_ENABLED_AUTO) {
+        g_value_set_string (value, CHANNELS_ENABLED_AUTO_CHAR);
+      }
+      break;
+    }
+
+    case PROP_BUFFER_CAPACITY:
+      g_value_set_uint (value, self->buffer_capacity);
+      break;
+
+    case PROP_FREQUENCY:
+      g_value_set_uint64 (value, self->sampling_frequency);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 /**
