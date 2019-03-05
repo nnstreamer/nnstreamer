@@ -168,8 +168,10 @@ DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
     #find . -path "/build/*.j
     # Generate report
     lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
+    # Exclude generated files (Orc)
+    lcov -r unittest.info "*/*-orc.*" -o unittest-filtered.info
     # Visualize the report
-    genhtml -o result unittest.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
+    genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
 %endif
 
 %if 0%{?testcoverage}
