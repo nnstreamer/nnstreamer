@@ -42,8 +42,41 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_SRC_IIO))
 #define GST_IS_TENSOR_SRC_IIO_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_SRC_IIO))
+#define GST_TENSOR_SRC_IIO_CAST(obj)  ((GstTensorSrcIIO *)(obj))
 typedef struct _GstTensorSrcIIO GstTensorSrcIIO;
 typedef struct _GstTensorSrcIIOClass GstTensorSrcIIOClass;
+
+/**
+ * @brief GstTensorSrcIIO devices's properties (internal data structure)
+ *
+ * This data structure is used for both device/triggers,
+ * as triggers are also iio devices
+ */
+typedef struct _GstTensorSrcIIODeviceProperties
+{
+  gchar *name; /**< The name of the device */
+  gchar *base_dir; /**< The base directory for the device */
+  gint id; /**< The id of the device */
+} GstTensorSrcIIODeviceProperties;
+
+/**
+ * @brief GstTensorSrcIIO channel's properties (internal data structure)
+ */
+typedef struct _GstTensorSrcIIOChannelProperties
+{
+  gboolean enabled; /**< currently state enabled/disabled */
+  gchar *name; /**< The name of the channel */
+  gchar *generic_name; /**< The generic name of the channel */
+  gchar *base_dir; /**< The base directory for the channel */
+  gchar *base_file; /**< The base filename for the channel */
+  gint index; /**< index of the channel in the buffer */
+
+  gboolean big_endian; /**< endian-ness of the data in buffer */
+  gboolean is_signed; /**< sign property of the data*/
+  guint mask_bits; /**< size of the bitmask for the data */
+  guint storage_bits; /**< total storage size for the data*/
+  guint shift; /**< shift to be applied on the read data*/
+} GstTensorSrcIIOChannelProperties;
 
 /**
  * @brief GstTensorSrcIIO data structure.
@@ -56,13 +89,17 @@ struct _GstTensorSrcIIO
 
   /* gstreamer related properties */
   GMutex mutex; /**< mutex for processing */
+  gboolean silent; /**< true to print minimized log */
+  gboolean configured; /**< true if device is configured and ready */
 
   /* linux IIO related properties */
-  gchar *device_name; /**< IIO device name */
-  GList *triggers; /**< triggers for the IIO device */
-  GList *channels_enabled; /**< channels to be enabled */
+  gchar *mode; /**< IIO device operating mode */
+  GstTensorSrcIIODeviceProperties device; /**< IIO device */
+  GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
+  GList *channels; /**< channels to be enabled */
+  guint channels_enabled; /**< channels to be enabled */
   guint buffer_capacity; /**< size of the buffer */
-  guint sampling_frequency; /**< sampling frequncy for the device */
+  guint64 sampling_frequency; /**< sampling frequncy for the device */
 };
 
 /**
