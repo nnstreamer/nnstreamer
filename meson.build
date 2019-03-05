@@ -2,7 +2,7 @@
 # If you are using Tizen 5.0+ or Ubuntu/Bionix+, you don't need to mind meson version.
 
 project('nnstreamer', 'c', 'cpp',
-  version: '0.1.1',
+  version: '0.1.2',
   license: ['LGPL'],
   meson_version: '>=0.40.0',
   default_options: [

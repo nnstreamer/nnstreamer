@@ -5,6 +5,11 @@
 
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
+# Synchronize the version information among Ubuntu, Tizen, Android, and Meson.
+# 1. Ubuntu : ./debian/changelog
+# 2. Tizen  : ./packaging/nnstreamer.spec
+# 3. Android: ./jni/Android*.mk
+# 4. Meson  : ./meson.build
 Version:	0.1.2
 Release:	0
 Group:		Applications/Multimedia

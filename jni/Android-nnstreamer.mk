@@ -27,7 +27,7 @@ LOCAL_PATH := $(call my-dir)
 # cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
 #
 
-NNSTREAMER_VERSION := 0.1.1
+NNSTREAMER_VERSION := 0.1.2
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
 # Please append an architecture name behind "APP_ABI" in Application.mk file.
