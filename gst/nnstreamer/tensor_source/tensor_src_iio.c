@@ -93,15 +93,6 @@ enum
 /**
  * @brief iio device channel enabled mode
  */
-enum
-{
-  CHANNELS_ENABLED_ALL,
-  CHANNELS_ENABLED_AUTO
-};
-
-/**
- * @brief iio device channel enabled mode
- */
 #define CHANNELS_ENABLED_AUTO_CHAR "auto"
 #define CHANNELS_ENABLED_ALL_CHAR "all"
 #define DEFAULT_OPERATING_CHANNELS_ENABLED CHANNELS_ENABLED_AUTO_CHAR
@@ -284,6 +275,7 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
 
 /**
  * @brief delete GstTensorSrcIIODeviceProperties structure
+ * @param[in] data Data pointer to be freed
  */
 static void
 gst_tensor_src_iio_channel_properties_free (gpointer data)
@@ -298,7 +290,7 @@ gst_tensor_src_iio_channel_properties_free (gpointer data)
 
 /**
  * @brief initialize GstTensorSrcIIODeviceProperties structure
- * TODO: verify that this is needed
+ * @param[in] data Device properties pointer to be initialized
  */
 static void
 gst_tensor_src_iio_device_properties_init (GstTensorSrcIIODeviceProperties *
@@ -333,6 +325,9 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
 
 /**
  * @brief check if device/trigger with the given name exists
+ * @param[in] dir_name Directory containing all the devices
+ * @param[in] name Name of the device to be found
+ * @param[in] prefix Prefix to match with the filename of the device
  * @return >=0 if OK, represents device/trigger number
  *         -1  if returned with error
  */
@@ -395,16 +390,20 @@ error_free_filename:
 
 /**
  * @brief get type info about the channel from the string
+ * @param[in/out] prop Channel properties where type info will be set
+ * @param[in] contents Contains type unparsed information to be set
+ * @return True if info was successfully set, false is info is not be parsed
+ *         correctly
  */
 static gboolean
 gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
-    const gchar * file_contents)
+    const gchar * contents)
 {
   gchar endianchar = '\0', signchar = '\0';
   gint arguments_filled;
   gboolean ret = TRUE;
   arguments_filled =
-      sscanf (file_contents, "%ce:%c%u/%u>>%u", &endianchar, &signchar,
+      sscanf (contents, "%ce:%c%u/%u>>%u", &endianchar, &signchar,
       &prop->mask_bits, &prop->storage_bits, &prop->shift);
   if (arguments_filled < 5) {
     ret = FALSE;
@@ -431,8 +430,9 @@ gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
 
 /**
  * @brief get generic name for channel from the string
- *
- * @return caller should free the returned string
+ * @param[in] channel_name Name of the channel with its id embedded in it
+ * @return Ptr to the generic name of the channel, caller should free the
+ *         returned string
  */
 static gchar *
 gst_tensor_src_iio_get_generic_name (const gchar * channel_name)
@@ -451,6 +451,11 @@ gst_tensor_src_iio_get_generic_name (const gchar * channel_name)
 
 /**
  * @brief compare channels for sort based on their indices
+ * @param[in] a First param to be compared
+ * @param[in] b Second param to be compared
+ * @return negative is a<b
+ *         0 is a==b
+ *         positive if a>b
  */
 static gboolean
 gst_tensor_channel_list_sort_cmp (gconstpointer a, gconstpointer b)
@@ -463,8 +468,11 @@ gst_tensor_channel_list_sort_cmp (gconstpointer a, gconstpointer b)
 
 /**
  * @brief get info about all the channels in the device
+ * @param[in/out] self Tensor src IIO object
+ * @param[in] dir_name Directory name with all the scan elements for device
  * @return >=0 number of enabled channels
  *         -1  if any error when scanning channels
+ * @todo: verify scale and offset can exist in continuous mode
  */
 static gint
 gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
@@ -494,7 +502,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
     // check for enable
     if (g_str_has_suffix (dir_entry->d_name, EN_SUFFIX)) {
       GstTensorSrcIIOChannelProperties channel_prop;
-      self->channels = g_list_append (self->channels, &channel_prop);
+      self->channels = g_list_prepend (self->channels, &channel_prop);
 
       // set the name and base_dir
       channel_prop.name = g_strndup (dir_entry->d_name,
@@ -537,8 +545,6 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       g_free (file_contents);
       channel_prop.index = value;
 
-      // TODO: check if scale and offset is needed as per generic buffers
-
       // find and set the type information
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, TYPE_SUFFIX);
       if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
@@ -546,7 +552,8 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
             gst_tensor_src_iio_get_generic_name (channel_prop.name);
         silent_debug ("Generic name = %s", channel_prop.generic_name);
         g_free (filename);
-        filename = g_strdup (channel_prop.generic_name);
+        filename =
+            g_strdup_printf ("%s%s", channel_prop.generic_name, TYPE_SUFFIX);
       }
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
         GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
@@ -586,6 +593,8 @@ error_cleanup_list:
 
 /**
  * @brief check if device/trigger with the given name exists
+ * @param[in] base_dir Device base directory (containing sampling freq file)
+ * @param[in] frequency Frequency specified by user (else 0)
  * @return >0 if OK, represents sampling frequency to be set
  *         0  if any cannot find the matching frequency
  */
@@ -750,25 +759,39 @@ gst_tensor_src_iio_finalize (GObject * object)
 
 /**
  * @brief write the string in to the file
+ * @param[in] self Tensor src IIO object
+ * @param[in] file Destination file for the data
+ * @param[in] base_dir Directory containing the file
+ * @param[in] contents Data to be written to the file
+ * @return True if write was successful, false on failure
  */
 static gboolean
 gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     const gchar * base_dir, const gchar * contents)
 {
   gchar *filename = NULL;
-  GError *error = NULL;
   gboolean ret = FALSE;
+  gint bytes_printed = 0;
+  FILE *fd = NULL;
+  GError *error = NULL;
 
   filename = g_build_filename (base_dir, file, NULL);
-  if (!g_file_set_contents (filename, contents, strlen (contents), &error)) {
-    GST_ERROR ("Unable to write file %s with error %s.\n", filename,
-        error->message);
-    g_error_free (error);
-    g_free (filename);
-    return ret;
-  } else {
-    ret = TRUE;
+  fd = fopen (filename, "w");
+  if (fd == NULL) {
+    GST_ERROR ("Unable to open file to write %s.\n", filename);
+    goto error_free_filename;
   }
+
+  bytes_printed = fprintf (fd, "%s", contents);
+  if (bytes_printed != strlen (contents)) {
+    GST_ERROR ("Unable to write to file %s.\n", filename);
+    goto error_close_file;
+  }
+  if (!fclose (fd)) {
+    GST_ERROR ("Unable to close file %s after write.\n", filename);
+    goto error_free_filename;
+  }
+  ret = TRUE;
 
   if (DBG) {
     gchar *file_contents = NULL;
@@ -776,7 +799,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
       GST_ERROR ("Unable to read file %s with error %s.\n", filename,
           error->message);
-      g_error_free (error);
+      goto error_free_filename;
     } else {
       if (!g_strcmp0 (contents, file_contents)) {
         ret = TRUE;
@@ -787,10 +810,23 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
 
   g_free (filename);
   return ret;
+
+error_close_file:
+  fclose (fd);
+
+error_free_filename:
+  g_error_free (error);
+  g_free (filename);
+  return ret;
 }
 
 /**
  * @brief write the int in to the file
+ * @param[in] self Tensor src IIO object
+ * @param[in] file Destination file for the data
+ * @param[in] base_dir Directory containing the file
+ * @param[in] contents Data to be written to the file
+ * @return True if write was successful, false on failure
  */
 static gboolean
 gst_tensor_write_sysfs_int (GstTensorSrcIIO * self, const gchar * file,
@@ -808,6 +844,9 @@ gst_tensor_write_sysfs_int (GstTensorSrcIIO * self, const gchar * file,
 
 /**
  * @brief set value to all the channels
+ * @param[in] self Tensor src IIO object
+ * @param[in] contents Data to be written to the file
+ * @return True if write was successful, false if failure on any channel
  */
 static gboolean
 gst_tensor_set_all_channels (GstTensorSrcIIO * self, const gint contents)
@@ -857,6 +896,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
   g_free (dirname);
 
+  // @todo: support scale/offset in one-shot mode for shared/non-shared channels
   // no more configuration for one shot mode
   if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
     goto safe_return;
