@@ -47,6 +47,15 @@ typedef struct _GstTensorSrcIIO GstTensorSrcIIO;
 typedef struct _GstTensorSrcIIOClass GstTensorSrcIIOClass;
 
 /**
+ * @brief iio device channel enabled mode
+ */
+typedef enum
+{
+  CHANNELS_ENABLED_ALL,
+  CHANNELS_ENABLED_AUTO
+} channels_enabled_options;
+
+/**
  * @brief GstTensorSrcIIO devices's properties (internal data structure)
  *
  * This data structure is used for both device/triggers,
@@ -97,7 +106,7 @@ struct _GstTensorSrcIIO
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
   GList *channels; /**< channels to be enabled */
-  guint channels_enabled; /**< channels to be enabled */
+  channels_enabled_options channels_enabled; /**< channels to be enabled */
   guint buffer_capacity; /**< size of the buffer */
   gulong sampling_frequency; /**< sampling frequncy for the device */
 };
