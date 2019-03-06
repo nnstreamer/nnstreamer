@@ -1794,6 +1794,73 @@ const gint aggr_test_frames[2][48] = {
 };
 
 /**
+ * @brief Test for tensor aggregator properties
+ */
+TEST (test_tensor_aggregator, properties)
+{
+  GstHarness *h;
+  guint fr_val, res_fr_val;
+  gboolean concat, res_concat;
+  gboolean silent, res_silent;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  /* default frames-in is 1 */
+  g_object_get (h->element, "frames-in", &fr_val, NULL);
+  EXPECT_EQ (fr_val, 1);
+
+  fr_val = 2;
+  g_object_set (h->element, "frames-in", fr_val, NULL);
+  g_object_get (h->element, "frames-in", &res_fr_val, NULL);
+  EXPECT_EQ (res_fr_val, fr_val);
+
+  /* default frames-out is 1 */
+  g_object_get (h->element, "frames-out", &fr_val, NULL);
+  EXPECT_EQ (fr_val, 1);
+
+  fr_val = 2;
+  g_object_set (h->element, "frames-out", fr_val, NULL);
+  g_object_get (h->element, "frames-out", &res_fr_val, NULL);
+  EXPECT_EQ (res_fr_val, fr_val);
+
+  /* default frames-flush is 0 */
+  g_object_get (h->element, "frames-flush", &fr_val, NULL);
+  EXPECT_EQ (fr_val, 0);
+
+  fr_val = 2;
+  g_object_set (h->element, "frames-flush", fr_val, NULL);
+  g_object_get (h->element, "frames-flush", &res_fr_val, NULL);
+  EXPECT_EQ (res_fr_val, fr_val);
+
+  /* default frames-dim is (NNS_TENSOR_RANK_LIMIT - 1) */
+  g_object_get (h->element, "frames-dim", &fr_val, NULL);
+  EXPECT_EQ (fr_val, (NNS_TENSOR_RANK_LIMIT - 1));
+
+  fr_val = 1;
+  g_object_set (h->element, "frames-dim", fr_val, NULL);
+  g_object_get (h->element, "frames-dim", &res_fr_val, NULL);
+  EXPECT_EQ (res_fr_val, fr_val);
+
+  /* default concat is TRUE */
+  g_object_get (h->element, "concat", &concat, NULL);
+  EXPECT_EQ (concat, TRUE);
+
+  g_object_set (h->element, "concat", !concat, NULL);
+  g_object_get (h->element, "concat", &res_concat, NULL);
+  EXPECT_EQ (res_concat, !concat);
+
+  /* default silent is TRUE */
+  g_object_get (h->element, "silent", &silent, NULL);
+  EXPECT_EQ (silent, TRUE);
+
+  g_object_set (h->element, "silent", !silent, NULL);
+  g_object_get (h->element, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 3, out-dimension 3:4:2:4)
  */
 TEST (test_tensor_aggregator, aggregate_1)
@@ -2094,6 +2161,68 @@ TEST (test_tensor_aggregator, aggregate_4)
   gst_buffer_unref (out_buf);
 
   EXPECT_EQ (gst_harness_buffers_received (h), 1);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (no-concat, same in-out frames)
+ */
+TEST (test_tensor_aggregator, aggregate_5)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorConfig config;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i, j;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "concat", (gboolean) FALSE, NULL);
+
+  /* in/out tensor info */
+  config.info.type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+  data_size = gst_tensor_info_get_size (&config.info);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    /* set input buffer */
+    in_buf = gst_harness_create_buffer (h, data_size);
+
+    mem = gst_buffer_peek_memory (in_buf, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+    memcpy (info.data, aggr_test_frames[i], data_size);
+
+    gst_memory_unmap (mem, &info);
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+    /* get output buffer */
+    out_buf = gst_harness_pull (h);
+
+    ASSERT_TRUE (out_buf != NULL);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+    mem = gst_buffer_peek_memory (out_buf, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+    for (j = 0; j < 48; j++) {
+      EXPECT_EQ (((gint *) info.data)[j], aggr_test_frames[i][j]);
+    }
+
+    gst_memory_unmap (mem, &info);
+    gst_buffer_unref (out_buf);
+  }
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 2);
   gst_harness_teardown (h);
 }
 
