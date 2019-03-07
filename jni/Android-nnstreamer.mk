@@ -47,7 +47,6 @@ else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
 
-
 # Define shared libraries that are required by a gstreamer plug-in.
 define shared_lib_common
     include $(CLEAR_VARS)
@@ -90,19 +89,6 @@ endif
 
 $(foreach item,$(so_names_gst),$(eval $(call shared_lib_gst,$(item))))
 
-
-BUILDING_BLOCK_LIST := gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements gstcoretracers gstadder \
-gstapp \
-gstpango gstrawparse gsttypefindfunctions gstvideoconvert gstvideorate gstvideoscale gstvideotestsrc \
-gstvolume gstautodetect gstvideofilter gstopengl gstopensles gmodule-2.0 gstcompositor ffi iconv png multifile \
-gstbase-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badbase-1.0 pangocairo  pango gthread \
-cairo pixman fontconfig expat gstbadvideo gstcontroller jpeg graphene gstpbutils gstgl gstallocators gstbadallocators \
-harfbuzz bz2
-
-ifeq ($(NO_AUDIO), false)
-BUILDING_BLOCK_LIST += gstaudio-1.0 gstbadaudio-1.0 gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
-endif
-
 include $(CLEAR_VARS)
 
 # Please keep the pthread and openmp library for checking a compatibility
@@ -132,6 +118,7 @@ LOCAL_SRC_FILES := $(NNSTREAMER_GST_HOME)/nnstreamer.c \
 	$(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
 	$(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
 	$(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
+	$(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
 	$(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
 	$(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
 	$(NNSTREAMER_GST_HOME)/tensor_reposink/tensor_reposink.c \
@@ -156,13 +143,17 @@ LOCAL_C_INCLUDES := $(NNSTREAMER_GST_HOME)/ \
 	$(NNSTREAMER_GST_HOME)/tensor_split/ \
 	$(NNSTREAMER_GST_HOME)/tensor_transform/
 
-BUILDING_BLOCK_LIST := gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements gstcoretracers gstadder \
-gstapp gstaudioconvert gstaudiomixer gstaudioresample gstaudiorate gstaudioresample gstaudiotestsrc \
-gstpango gstrawparse gsttypefindfunctions gstvideoconvert gstvideorate gstvideoscale gstvideotestsrc \
-gstvolume gstautodetect gstvideofilter gstopengl gstopensles gmodule-2.0 gstcompositor ffi iconv png multifile \
-gstbase-1.0 gstaudio-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badaudio badbase-1.0 pangocairo  pango gthread \
- cairo pixman fontconfig expat gstbadvideo gstcontroller jpeg graphene gstpbutils gstgl gstbadallocators \
-gstallocators harfbuzz bz2 z
+BUILDING_BLOCK_LIST := gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements \
+gstapp pixman-1 fontconfig expat freetype \
+gstvideoconvert gstvideorate gstvideoscale \
+gmodule-2.0 iconv png16 gstpng gstmultifile gio-2.0 \
+gstbase-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badbase-1.0 gthread \
+cairo pixman gstbadvideo gstcontroller jpeg gstpbutils gstallocators \
+bz2 harfbuzz
+
+ifeq ($(NO_AUDIO), false)
+BUILDING_BLOCK_LIST += gstaudio-1.0 gstbadaudio-1.0 gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
+endif
 
 LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
      $(GSTREAMER_ROOT)/include/glib-2.0 \
@@ -172,4 +163,3 @@ LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
 LOCAL_SHARED_LIBRARIES := $(BUILDING_BLOCK_LIST)
 
 include $(BUILD_SHARED_LIBRARY)
-
