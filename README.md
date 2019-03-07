@@ -4,7 +4,7 @@
 
 Neural Network Support as Gstreamer Plugins.
 
-NNStreamer is a set of Gstreamer plugins that allows
+NNStreamer is a set of Gstreamer plugins that allow
 Gstreamer developers to adopt neural network models easily and efficiently and
 neural network developers to manage stream pipelines and their filters easily and efficiently.
 
@@ -18,17 +18,16 @@ neural network developers to manage stream pipelines and their filters easily an
 
 ## Official Releases
 
-Daily Releases
+| Arch   | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto |
+| :-- | -- | -- | -- | -- | -- |
+|     | 5.5 | 16.04/18.04 | 7.0/N | 7.0/N | TBD |
+| arm | Available  | Available  | Ready | WIP | WIP |
+| arm64 | Available  | Available  | Ready | WIP | Planned |
+| x64 | Available  | Available  | N/A  | N/A  | N/A |
+| x86 | Available  | N/A  | N/A  | N/A  | N/A |
 
-| Arch   | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | Yocto |
-| :-- | -- | -- | -- | -- |
-|     | 5.5 | 16.04/18.04 | TBD  | TBD |
-| arm | Available  | Available  | Planned  | Planned  |
-| arm64 | Available  | Available  | N/A  | Planned  |
-| x64 | Available  | Available  | N/A  | N/A  |
-| x86 | Available  | N/A  | N/A  | N/A  |
-
-[(WIP)](https://github.com/nnsuite/TAOS-CI/issues/452)
+- Ready: CI system ensures build-ability and unit-testing. However, we do not have automated release & deployment system for this instance.
+- Daily Release: [(WIP)](https://github.com/nnsuite/TAOS-CI/issues/452)
 
 
 
