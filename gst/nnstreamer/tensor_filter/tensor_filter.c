@@ -832,6 +832,14 @@ unknown_format:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
   return GST_FLOW_NOT_NEGOTIATED;
 unknown_framework:
+  /**
+    * This is fatal; if framework is not configured until this stage,
+    * it means that an extension is missing or not configured.
+    * We need readable messages for non-developers
+    */
+  g_error
+      ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
+      prop->fwname);
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("framework not configured"));
   return GST_FLOW_ERROR;
