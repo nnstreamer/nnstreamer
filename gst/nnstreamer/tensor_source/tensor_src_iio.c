@@ -1057,7 +1057,7 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
 static gboolean
 gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event)
 {
-  //FIXME: fill this function
+  /* No events to be handled yet */
   return GST_BASE_SRC_CLASS (parent_class)->event (src, event);
 }
 
@@ -1067,8 +1067,26 @@ gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event)
 static gboolean
 gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
 {
-  //FIXME: fill this function
-  return GST_BASE_SRC_CLASS (parent_class)->query (src, query);
+  gboolean res = FALSE;
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_SCHEDULING:
+    {
+      /* Only support sequential data access */
+      gst_query_set_scheduling (query, GST_SCHEDULING_FLAG_SEQUENTIAL, 1, -1,
+          0);
+      /* Only support push mode for now */
+      gst_query_add_scheduling_mode (query, GST_PAD_MODE_PUSH);
+
+      res = TRUE;
+      break;
+    }
+    default:
+      res = GST_BASE_SRC_CLASS (parent_class)->query (src, query);
+      break;
+  }
+
+  return res;
 }
 
 /**
