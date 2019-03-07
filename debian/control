@@ -23,7 +23,7 @@ Description: NNStreamer plugins for Gstreamer
 Package: nnstreamer-tensorflow
 Architecture: amd64 arm64
 Multi-Arch: same
-Depends: nnstreamer, tensorflow, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, tensorflow | tensorflow-dev, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer TensorFlow Support
  This package allows nnstreamer to support tensorflow. Note that users must make sure that they have installed Tensorflow with compatible C-API (recommended to use the same version). However, having different options (e.g., GPU mode) should not affect the compatibility. When we have stable C-API from Tensorflow, we will release corresponding subplugin as well.
 
