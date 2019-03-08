@@ -8,7 +8,7 @@ project('nnstreamer', 'c', 'cpp',
   default_options: [
     'werror=true',
     'warning_level=1',
-    'c_std=gnu89',
+    'c_std=c89',
     'cpp_std=c++11'
   ]
 )
