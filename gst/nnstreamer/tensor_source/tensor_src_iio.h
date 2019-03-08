@@ -96,12 +96,12 @@ struct _GstTensorSrcIIO
 {
   GstBaseSrc element; /**< parent class object */
 
-  /* gstreamer related properties */
+  /** gstreamer related properties */
   GMutex mutex; /**< mutex for processing */
   gboolean silent; /**< true to print minimized log */
   gboolean configured; /**< true if device is configured and ready */
 
-  /* linux IIO related properties */
+  /** linux IIO related properties */
   gchar *mode; /**< IIO device operating mode */
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */

@@ -307,7 +307,7 @@ gst_tensor_src_iio_device_properties_init (GstTensorSrcIIODeviceProperties *
 static void
 gst_tensor_src_iio_init (GstTensorSrcIIO * self)
 {
-  // TODO: verify where locking is needed
+  /** @todo verify where locking is needed */
   g_mutex_init (&self->mutex);
 
   /** init properties */
@@ -348,14 +348,14 @@ gst_tensor_src_iio_get_id_by_name (const gchar * dir_name, const gchar * name,
     return ret;
   }
   dptr = opendir (dir_name);
-  // @todo update cppcheck to work with G_UNLIKELY here
+  /** @todo update cppcheck to work with G_UNLIKELY here */
   if (NULL == dptr) {
     GST_ERROR ("Error in opening directory %s.\n", dir_name);
     return ret;
   }
 
   while ((dir_entry = readdir (dptr)) != NULL) {
-    // check for prefix and the next digit should be a number
+    /** check for prefix and the next digit should be a number */
     if (g_str_has_prefix (dir_entry->d_name, prefix) &&
         g_ascii_isdigit (dir_entry->d_name[strlen (prefix)])) {
 
@@ -492,26 +492,26 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
     return ret;
   }
   dptr = opendir (dir_name);
-  // @todo update cppcheck to work with G_UNLIKELY here
+  /** @todo update cppcheck to work with G_UNLIKELY here */
   if (NULL == dptr) {
     GST_ERROR ("Error in opening directory %s.\n", dir_name);
     return ret;
   }
 
   while ((dir_entry = readdir (dptr)) != NULL) {
-    // check for enable
+    /** check for enable */
     if (g_str_has_suffix (dir_entry->d_name, EN_SUFFIX)) {
       GstTensorSrcIIOChannelProperties channel_prop;
       self->channels = g_list_prepend (self->channels, &channel_prop);
 
-      // set the name and base_dir
+      /** set the name and base_dir */
       channel_prop.name = g_strndup (dir_entry->d_name,
           strlen (dir_entry->d_name) - strlen (EN_SUFFIX));
       channel_prop.base_dir = g_strdup (dir_name);
       channel_prop.base_file =
           g_build_filename (dir_name, channel_prop.name, NULL);
 
-      // find and set the current state
+      /** find and set the current state */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, EN_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
         GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
@@ -533,7 +533,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
         goto error_cleanup_list;
       }
 
-      // find and set the index
+      /** find and set the index */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, INDEX_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
         GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
@@ -545,7 +545,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       g_free (file_contents);
       channel_prop.index = value;
 
-      // find and set the type information
+      /** find and set the type information */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, TYPE_SUFFIX);
       if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
         channel_prop.generic_name =
@@ -571,7 +571,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
     }
   }
 
-  // sort the list with the order of the indices
+  /** sort the list with the order of the indices */
   self->channels =
       g_list_sort (self->channels, gst_tensor_channel_list_sort_cmp);
   ret = num_channels_enabled;
@@ -608,7 +608,7 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
   gint i = 0;
   guint64 ret = 0, val = 0;
 
-  // get frequency list supported by the device
+  /** get frequency list supported by the device */
   filename = g_build_filename (base_dir, AVAIL_FREQUENCY_FILE, NULL);
   if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
     GST_ERROR ("Unable to read sampling frequency for device %s.\n", base_dir);
@@ -622,8 +622,10 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
     GST_ERROR ("No sampling frequencies for device %s.\n", base_dir);
     goto del_freq_list;
   }
-  // if the frequency is set 0, set the first available frequency
-  // else verify the the frequency recceived from user is supported by the device
+  /**
+   * if the frequency is set 0, set the first available frequency
+   * else verify the frequency received from user is supported by the device
+   */
   if (frequency == 0) {
     ret = g_ascii_strtoull (freq_list[0], NULL, 10);
   } else {
@@ -738,7 +740,7 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
       break;
 
     case PROP_FREQUENCY:
-      // interface of frequency is kept long for outside but uint64 inside
+      /** interface of frequency is kept long for outside but uint64 inside */
       g_value_set_ulong (value, self->sampling_frequency);
       break;
 
@@ -754,7 +756,7 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
 static void
 gst_tensor_src_iio_finalize (GObject * object)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
 }
 
 /**
@@ -883,7 +885,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   gchar *dirname = NULL;
   gchar *filename = NULL;
 
-  // Find the device
+  /** Find the device */
   id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
       DEVICE_PREFIX);
   if (G_UNLIKELY (id < 0)) {
@@ -896,14 +898,17 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
   g_free (dirname);
 
-  // @todo: support scale/offset in one-shot mode for shared/non-shared channels
-  // no more configuration for one shot mode
+  /**
+   * @todo: support scale/offset in one-shot mode for
+   * shared/non-shared channels
+   */
+  /** no more configuration for one shot mode */
   if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
     goto safe_return;
   }
-  // register the trigger
+  /** register the trigger */
   if (self->trigger.name != NULL) {
-    // verify if trigger is supported by our device
+    /** verify if trigger is supported by our device */
     gchar *trigger_device_dir =
         g_build_filename (self->device.base_dir, TRIGGER, NULL);
     if (!g_file_test (trigger_device_dir, G_FILE_TEST_IS_DIR)) {
@@ -914,7 +919,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     }
     g_free (trigger_device_dir);
 
-    // find if the provided trigger exists
+    /** find if the provided trigger exists */
     id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->trigger.name,
         TRIGGER_PREFIX);
     if (G_UNLIKELY (id < 0)) {
@@ -927,7 +932,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     self->trigger.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
     g_free (dirname);
 
-    // set the trigger
+    /** set the trigger */
     filename = g_build_filename (TRIGGER, CURRENT_TRIGGER, NULL);
     if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, filename,
                 self->device.base_dir, self->trigger.name))) {
@@ -939,8 +944,8 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     }
     g_free (filename);
   }
-  // setup the frequency (only verifying the frequency now)
-  // @todo verify setting up frequency
+  /** setup the frequency (only verifying the frequency now) */
+  /** @todo verify setting up frequency */
   sampling_frequency =
       gst_tensor_src_iio_set_frequency (self->device.base_dir,
       self->sampling_frequency);
@@ -950,7 +955,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     goto error_trigger_free;
   } else {
     self->sampling_frequency = sampling_frequency;
-    // interface of frequency is kept long for outside but uint64 inside
+    /** interface of frequency is kept long for outside but uint64 inside */
     gulong sampling_frequency_long = (long) self->sampling_frequency;
     gchar *sampling_frequency_char =
         g_strdup_printf ("%lu", sampling_frequency_long);
@@ -965,7 +970,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     g_free (sampling_frequency_char);
   }
 
-  // once all these are set, set the buffer related thingies
+  /** once all these are set, set the buffer related thingies */
   dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
   if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "length", dirname,
               self->buffer_capacity))) {
@@ -977,7 +982,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   }
   g_free (dirname);
 
-  // get all the channels that exist and then set enable on them
+  /** get all the channels that exist and then set enable on them */
   dirname = g_build_filename (self->device.base_dir, CHANNELS, NULL);
   guint num_channels_enabled =
       gst_tensor_src_iio_get_all_channel_info (self, dirname);
@@ -992,7 +997,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       (num_channels_enabled == 0
           || self->channels_enabled == CHANNELS_ENABLED_ALL)) {
     if (!gst_tensor_set_all_channels (self, 1)) {
-      // if enabling all channels failed, disable all channels
+      /** if enabling all channels failed, disable all channels */
       GST_ERROR_OBJECT (self, "Enabling all channels failed for device: %s,"
           "disabling all the channels.\n", self->device.name);
       gst_tensor_set_all_channels (self, 0);
@@ -1003,9 +1008,9 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
 
 safe_return:
   self->configured = TRUE;
-  // set the source as live
+  /** set the source as live */
   gst_base_src_set_live (src, TRUE);
-  // complete the start of the base src
+  /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_OK);
   return TRUE;
 
@@ -1022,7 +1027,7 @@ error_device_free:
   self->device.base_dir = NULL;
 
 error_return:
-  // complete the start of the base src
+  /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_ERROR);
   return FALSE;
 }
@@ -1057,7 +1062,7 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
 static gboolean
 gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event)
 {
-  /* No events to be handled yet */
+  /** No events to be handled yet */
   return GST_BASE_SRC_CLASS (parent_class)->event (src, event);
 }
 
@@ -1072,10 +1077,10 @@ gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_SCHEDULING:
     {
-      /* Only support sequential data access */
+      /** Only support sequential data access */
       gst_query_set_scheduling (query, GST_SCHEDULING_FLAG_SEQUENTIAL, 1, -1,
           0);
-      /* Only support push mode for now */
+      /** Only support push mode for now */
       gst_query_add_scheduling_mode (query, GST_PAD_MODE_PUSH);
 
       res = TRUE;
@@ -1095,7 +1100,7 @@ gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
 static gboolean
 gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
   return TRUE;
 }
 
@@ -1105,7 +1110,7 @@ gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 static GstCaps *
 gst_tensor_src_iio_get_caps (GstBaseSrc * src, GstCaps * filter)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
   GstCaps *caps = NULL;
   return caps;
 }
@@ -1116,7 +1121,7 @@ gst_tensor_src_iio_get_caps (GstBaseSrc * src, GstCaps * filter)
 static GstCaps *
 gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
   GstCaps *ret_caps = NULL;
   return ret_caps;
 }
@@ -1127,7 +1132,7 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
 static gboolean
 gst_tensor_src_iio_is_seekable (GstBaseSrc * src)
 {
-  /* iio sensors are live source without any support for seeking */
+  /** iio sensors are live source without any support for seeking */
   return FALSE;
 }
 
@@ -1138,7 +1143,7 @@ static GstFlowReturn
 gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer ** buf)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
   return GST_FLOW_ERROR;
 }
 
@@ -1149,7 +1154,7 @@ static GstFlowReturn
 gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer * buf)
 {
-  //FIXME: fill this function
+  /** FIXME: fill this function */
   return GST_FLOW_ERROR;
 }
 
