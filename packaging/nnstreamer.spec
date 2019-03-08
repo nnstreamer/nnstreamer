@@ -3,6 +3,9 @@
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 
+# If it is tizen, we can export Tizen API packages.
+%bcond_with tizen
+
 Name:		nnstreamer
 Summary:	gstremaer plugins for neural networks
 # Synchronize the version information among Ubuntu, Tizen, Android, and Meson.
@@ -17,6 +20,9 @@ Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
 Source1001:	nnstreamer.manifest
+%if %{with tizen}
+Source1002:	capi-nnstreamer.manifest
+%endif
 
 Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
@@ -51,6 +57,12 @@ BuildRequires: tensorflow-devel
 %if 0%{?testcoverage}
 BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
+%endif
+%if %{with tizen}
+BuildRequires:	pkgconfig(capi-base-common)
+BuildRequires:	pkgconfig(dlog)
+BuildRequires:	gst-plugins-bad-devel
+BuildRequires:	gst-plugins-base-devel
 %endif
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
@@ -105,9 +117,33 @@ Example custom tensor_filter subplugins and
 plugins created for test purpose.
 
 
+%%%% THIS IS FOR TIZEN ONLY! %%%%
+%if %{with tizen}
+%package -n capi-nnstreamer
+Summary:	Tizen Native API for NNStreamer
+Group:		Multimedia/Framework
+Requires:	%{name} = %{version}-%{release}
+%description -n capi-nnstreamer
+Tizen Native API wrapper for NNStreamer.
+You can construct a data stream pipeline with neural networks easily.
+
+%package -n capi-nnstreamer-devel
+Summary:	Tizen Native API Devel Kit for NNStreamer
+Group:		Multimedia/Framework
+%description -n capi-nnstreamer-devel
+Developmental kit for Tizen Native NNStreamer API.
+%define api -Denable-tizen-capi=true
+%else
+%define api -Denable-tizen-capi=false
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
+%if %{with tizen}
+cp %{SOURCE1002} .
+cp tizen-api/LICENSE.Apache-2.0 LICENSE.APLv2
+%endif
 
 %build
 %if 0%{?testcoverage}
@@ -123,7 +159,7 @@ enable_tf=true
 enable_tf=false
 %endif
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} %{api} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -215,8 +251,13 @@ popd
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
 %files devel
-%{_includedir}/nnstreamer/*
+%{_includedir}/nnstreamer/tensor_typedef.h
+%{_includedir}/nnstreamer/tensor_filter_custom.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api.h
 %{_libdir}/*.a
+%exclude %{_libdir}/libcapi*.a
 %{_libdir}/pkgconfig/nnstreamer.pc
 
 %if 0%{?testcoverage}
@@ -229,6 +270,19 @@ popd
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/customfilters/*.so
+
+%if %{with tizen}
+%files -n capi-nnstreamer
+%manifest capi-nnstreamer.manifest
+%license LICENSE.APLv2
+%{_libdir}/libcapi-nnstreamer.so.*
+
+%files -n capi-nnstreamer-devel
+%{_includedir}/nnstreamer/tizen-api.h
+%{_libdir}/pkgconfig/capi-nnstreamer.pc
+%{_libdir}/libcapi-nnstreamer.so
+%{_libdir}/libcapi-nnstreamer.a
+%endif
 
 %changelog
 * Wed Mar 20 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
