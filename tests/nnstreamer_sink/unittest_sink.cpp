@@ -595,7 +595,7 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("appsrc name=appsrc caps=text/x-raw,format=utf8,framerate=(fraction)100/1 ! "
-          "tensor_converter input-dim=30 frames-per-tensor=3 ! tensor_sink name=test_sink");
+          "tensor_converter name=convert input-dim=30 frames-per-tensor=3 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_OCTET_CUR_TS:
       /** byte stream, timestamp current time */
@@ -616,21 +616,21 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("appsrc name=appsrc caps=application/octet-stream ! "
-          "tensor_converter input-dim=1:10 input-type=uint8 set-timestamp=false ! tensor_sink name=test_sink");
+          "tensor_converter name=convert input-dim=1:10 input-type=uint8 set-timestamp=false ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_OCTET_INVALID_TS:
       /** byte stream, send buffer with invalid timestamp */
       str_pipeline =
           g_strdup_printf
           ("appsrc name=appsrc caps=application/octet-stream ! "
-          "tensor_converter input-dim=1:10 input-type=uint8 set-timestamp=false ! tensor_sink name=test_sink");
+          "tensor_converter name=convert input-dim=1:10 input-type=uint8 set-timestamp=false ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_OCTET_2F:
       /** byte stream, 2 frames */
       str_pipeline =
           g_strdup_printf
           ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)100/1 ! "
-          "tensor_converter input-dim=1:5 input-type=int8 ! tensor_sink name=test_sink");
+          "tensor_converter name=convert input-dim=1:5 input-type=int8 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_TENSORS:
       /** other/tensors with tensor_mux */
@@ -2322,8 +2322,35 @@ TEST (tensor_stream_test, text_utf8_3f)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_TEXT_3F };
+  GstElement *convert;
+  gchar *prop_str;
+  gboolean prop_bool;
+  guint prop_uint;
 
   ASSERT_TRUE (_setup_pipeline (option));
+
+  /* tensor_converter properties */
+  convert = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "convert");
+  ASSERT_TRUE (convert != NULL);
+
+  g_object_get (convert, "input-dim", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "30:1:1:1");
+  g_free (prop_str);
+
+  g_object_get (convert, "input-type", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "");
+  g_free (prop_str);
+
+  g_object_get (convert, "set-timestamp", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "silent", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "frames-per-tensor", &prop_uint, NULL);
+  EXPECT_EQ (prop_uint, 3);
+
+  gst_object_unref (convert);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
@@ -2457,8 +2484,35 @@ TEST (tensor_stream_test, octet_valid_ts)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_VALID_TS };
+  GstElement *convert;
+  gchar *prop_str;
+  gboolean prop_bool;
+  guint prop_uint;
 
   ASSERT_TRUE (_setup_pipeline (option));
+
+  /* tensor_converter properties */
+  convert = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "convert");
+  ASSERT_TRUE (convert != NULL);
+
+  g_object_get (convert, "input-dim", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "1:10:1:1");
+  g_free (prop_str);
+
+  g_object_get (convert, "input-type", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "uint8");
+  g_free (prop_str);
+
+  g_object_get (convert, "set-timestamp", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, FALSE);
+
+  g_object_get (convert, "silent", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "frames-per-tensor", &prop_uint, NULL);
+  EXPECT_EQ (prop_uint, 1);
+
+  gst_object_unref (convert);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
@@ -2502,8 +2556,35 @@ TEST (tensor_stream_test, octet_invalid_ts)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_INVALID_TS };
+  GstElement *convert;
+  gchar *prop_str;
+  gboolean prop_bool;
+  guint prop_uint;
 
   ASSERT_TRUE (_setup_pipeline (option));
+
+  /* tensor_converter properties */
+  convert = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "convert");
+  ASSERT_TRUE (convert != NULL);
+
+  g_object_get (convert, "input-dim", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "1:10:1:1");
+  g_free (prop_str);
+
+  g_object_get (convert, "input-type", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "uint8");
+  g_free (prop_str);
+
+  g_object_get (convert, "set-timestamp", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, FALSE);
+
+  g_object_get (convert, "silent", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "frames-per-tensor", &prop_uint, NULL);
+  EXPECT_EQ (prop_uint, 1);
+
+  gst_object_unref (convert);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
@@ -2547,8 +2628,35 @@ TEST (tensor_stream_test, octet_2f)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_2F };
+  GstElement *convert;
+  gchar *prop_str;
+  gboolean prop_bool;
+  guint prop_uint;
 
   ASSERT_TRUE (_setup_pipeline (option));
+
+  /* tensor_converter properties */
+  convert = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "convert");
+  ASSERT_TRUE (convert != NULL);
+
+  g_object_get (convert, "input-dim", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "1:5:1:1");
+  g_free (prop_str);
+
+  g_object_get (convert, "input-type", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "int8");
+  g_free (prop_str);
+
+  g_object_get (convert, "set-timestamp", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "silent", &prop_bool, NULL);
+  EXPECT_EQ (prop_bool, TRUE);
+
+  g_object_get (convert, "frames-per-tensor", &prop_uint, NULL);
+  EXPECT_EQ (prop_uint, 1);
+
+  gst_object_unref (convert);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
@@ -3222,6 +3330,8 @@ TEST (tensor_stream_test, video_split)
 
   g_object_get (split, "silent", &silent, NULL);
   EXPECT_EQ (silent, TRUE);
+
+  gst_object_unref (split);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
@@ -3930,6 +4040,7 @@ TEST (tensor_stream_test, tensor_decoder_property)
   EXPECT_STREQ (str, "system=1234");
   g_free (str);
 
+  gst_object_unref (dec);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);

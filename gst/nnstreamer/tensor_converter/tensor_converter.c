@@ -356,17 +356,20 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_INPUT_DIMENSION:
-    {
-      gchar *str_dim;
-
-      str_dim = gst_tensor_get_dimension_string (self->tensor_info.dimension);
-      g_value_set_string (value, str_dim);
-      g_free (str_dim);
+      if (gst_tensor_dimension_is_valid (self->tensor_info.dimension)) {
+        g_value_take_string (value,
+            gst_tensor_get_dimension_string (self->tensor_info.dimension));
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
-    }
     case PROP_INPUT_TYPE:
-      g_value_set_string (value,
-          tensor_element_typename[self->tensor_info.type]);
+      if (self->tensor_info.type != _NNS_END) {
+        g_value_set_string (value,
+            tensor_element_typename[self->tensor_info.type]);
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
     case PROP_FRAMES_PER_TENSOR:
       g_value_set_uint (value, self->frames_per_tensor);
