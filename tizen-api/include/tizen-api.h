@@ -41,31 +41,31 @@ extern "C" {
  * @brief A handle of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
-typedef struct nns_pipeline *nns_pipeline_h;
+typedef void *nns_pipeline_h;
 
 /**
  * @brief A handle of a "sink node" of an NNStreamer pipeline
  * @since_tizen 5.5
  */
-typedef struct nns_sink *nns_sink_h;
+typedef void *nns_sink_h;
 
 /**
  * @brief A handle of a "src node" of an NNStreamer pipeline
  * @since_tizen 5.5
  */
-typedef struct nns_src *nns_src_h;
+typedef void *nns_src_h;
 
 /**
  * @brief A handle of a "switch" of an NNStreamer pipeline
  * @since_tizen 5.5
  */
-typedef struct nns_switch *nns_switch_h;
+typedef void *nns_switch_h;
 
 /**
  * @brief A handle of a "valve node" of an NNStreamer pipeline
  * @since_tizen 5.5
  */
-typedef struct nns_valve *nns_valve_h;
+typedef void *nns_valve_h;
 
 /**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.

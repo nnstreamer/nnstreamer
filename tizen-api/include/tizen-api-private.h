@@ -27,23 +27,102 @@
 #define __TIZEN_NNSTREAMER_API_PRIVATE_H___
 
 #include <glib.h>
+#include <gmodule.h>
 #include <gst/gst.h>
+#include "tizen-api.h"
+#include <tizen_error.h>
+#include <nnstreamer/tensor_typedef.h>
+#include <gst/app/gstappsrc.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 /**
+ * @brief Possible controls on elements of a pipeline.
+ */
+typedef enum {
+  NNSAPI_UNKNOWN = 0x0,
+  NNSAPI_SINK = 0x1,
+  NNSAPI_SRC = 0x2,
+  NNSAPI_VALVE = 0x3,
+  NNSAPI_SWITCH_INPUT = 0x8,
+  NNSAPI_SWITCH_OUTPUT = 0x9,
+} elementType;
+
+/**
+ * @brief Internal private representation of pipeline handle.
+ */
+typedef struct _nns_pipeline nns_pipeline;
+
+/**
+ * @brief An element that may be controlled individually in a pipeline.
+ */
+typedef struct _element {
+  GstElement *element; /**< The Sink/Src/Valve/Switch element */
+  nns_pipeline *pipe; /**< The main pipeline */
+  const char *name;
+  elementType type;
+  GstPad *src;
+  GstPad *sink; /**< Unref this at destroy */
+  GstTensorsInfo tensorsinfo;
+  size_t size;
+
+  GList *handles;
+  GMutex lock; /**< Lock for internal values */
+} element;
+
+/**
  * @brief Internal private representation of pipeline handle.
  * @detail This should not be exposed to applications
  */
-typedef struct _nns_pipeline {
-  GstElement *element;
-  GError *error;
-  GMutex lock;
-  /** @todo: add list of switches and valves for faster control */
-  /** @todo: add list of appsrc / tensorsink for faster stream */
-} nns_pipeline;
+struct _nns_pipeline {
+  GstElement *element;    /**< The pipeline itself (GstPipeline) */
+  GMutex lock;            /**< Lock for pipeline operations */
+  GHashTable *namednodes; /**< hash table of "element"s. */
+};
+
+/**
+ * @brief Internal private representation of sink handle of GstTensorSink
+ * @detail This represents a single instance of callback registration. This should not be exposed to applications.
+ */
+typedef struct _nns_sink {
+  nns_pipeline *pipe; /**< The pipeline, which is the owner of this nns_sink */
+  element *element;
+  guint32 id;
+  nns_sink_cb cb;
+  void *pdata;
+} nns_sink;
+
+/**
+ * @brief Internal private representation of src handle of GstAppSrc
+ * @detail This represents a single instance of registration. This should not be exposed to applications.
+ */
+typedef struct _nns_src {
+  nns_pipeline *pipe;
+  element *element;
+  guint32 id;
+} nns_src;
+
+/**
+ * @brief Internal private representation of switch handle (GstInputSelector, GstOutputSelector)
+ * @detail This represents a single instance of registration. This should not be exposed to applications.
+ */
+typedef struct _nns_switch {
+  nns_pipeline *pipe;
+  element *element;
+  guint32 id;
+} nns_switch;
+
+/**
+ * @brief Internal private representation of valve handle (GstValve)
+ * @detail This represents a single instance of registration. This should not be exposed to applications.
+ */
+typedef struct _nns_valve {
+  nns_pipeline *pipe;
+  element *element;
+  guint32 id;
+} nns_valve;
 
 #ifdef __cplusplus
 }
