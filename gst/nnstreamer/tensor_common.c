@@ -874,8 +874,6 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
   media_type m_type;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
-
   g_return_val_if_fail (structure != NULL, FALSE);
 
   /* update config from tensor stream */
@@ -900,6 +898,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
       gst_tensor_config_from_octet_stream_info (config, structure);
       break;
     default:
+      gst_tensor_config_init (config);
       GST_WARNING ("Unsupported type %d\n", m_type);
       return FALSE;
   }
