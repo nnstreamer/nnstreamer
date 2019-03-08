@@ -872,6 +872,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
     const GstStructure * structure)
 {
   media_type m_type;
+  gboolean ret;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensor_config_init (config);
@@ -888,23 +889,23 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
 
   switch (m_type) {
     case _NNS_VIDEO:
-      gst_tensor_config_from_video_info (config, structure);
+      ret = gst_tensor_config_from_video_info (config, structure);
       break;
     case _NNS_AUDIO:
-      gst_tensor_config_from_audio_info (config, structure);
+      ret = gst_tensor_config_from_audio_info (config, structure);
       break;
     case _NNS_TEXT:
-      gst_tensor_config_from_text_info (config, structure);
+      ret = gst_tensor_config_from_text_info (config, structure);
       break;
     case _NNS_OCTET:
-      gst_tensor_config_from_octet_stream_info (config, structure);
+      ret = gst_tensor_config_from_octet_stream_info (config, structure);
       break;
     default:
       GST_WARNING ("Unsupported type %d\n", m_type);
-      return FALSE;
+      ret = FALSE;
   }
 
-  return TRUE;
+  return ret;
 }
 
 /**
