@@ -35,7 +35,7 @@
 #define __GST_TENSOR_CONVERTER_H__
 
 #include <gst/gst.h>
-#include <gst/video/video-info.h>
+#include <gst/base/gstadapter.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
@@ -72,12 +72,7 @@ struct _GstTensorConverter
   GstAdapter *adapter; /**< adapt incoming media stream */
 
   media_type in_media_type; /**< incoming media type */
-  union
-  {
-    GstVideoInfo video; /**< video-info of the input media stream */
-    GstAudioInfo audio; /**< audio-info of the input media stream */
-  } in_info; /**< media input stream info union. will support audio/text later */
-
+  gsize frame_size; /**< size of one frame */
   gboolean remove_padding; /**< If true, zero-padding must be removed */
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
   GstTensorConfig tensor_config; /**< output tensor info */
