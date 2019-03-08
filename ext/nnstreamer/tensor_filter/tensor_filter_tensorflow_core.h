@@ -39,17 +39,7 @@
 #include <algorithm>
 #include <vector>
 
-#include <tensorflow/cc/ops/const_op.h>
-#include <tensorflow/cc/ops/image_ops.h>
-#include <tensorflow/cc/ops/standard_ops.h>
-#include <tensorflow/core/lib/io/path.h>
-#include <tensorflow/core/platform/init_main.h>
 #include <tensorflow/core/public/session.h>
-#include <tensorflow/cc/client/client_session.h>
-#include <tensorflow/core/util/command_line_flags.h>
-#include <tensorflow/core/lib/strings/str_util.h>
-#include <tensorflow/tools/graph_transforms/transform_utils.h>
-
 
 using namespace tensorflow;
 
