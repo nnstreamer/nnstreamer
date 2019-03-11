@@ -125,6 +125,7 @@ cg_getInputDim (void * _data, const GstTensorFilterProperties * prop,
 
   assert (data);
   in_info->num_tensors = 1; /** @todo MODIFY THIS! */
+  in_info->info[0].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
   in_info->info[0].type = _NNS_UINT8; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[0] = 3; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
@@ -157,6 +158,7 @@ cg_getOutputDim (void * _data, const GstTensorFilterProperties * prop,
 
   assert (data);
   out_info->num_tensors = 1; /** @todo MODIFY THIS! */
+  out_info->info[0].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
   out_info->info[0].type = _NNS_UINT8; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[0] = 3; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
@@ -203,9 +205,9 @@ cg_setInputDim (void * _data, const GstTensorFilterProperties *prop,
 
   out_info->num_tensors = in_info->num_tensors; /** @todo Configure the number of tensors in a output frame */
 
-
-  /** @todo Configure the type/dimension of tensors in a output frame. */
+  /** @todo Configure the name/type/dimension of tensors in a output frame. */
   for (i = 0; i < out_info->num_tensors; i++) {{
+    out_info->info[i].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
     out_info->info[i].type = in_info->info[i].type;
 
     for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
