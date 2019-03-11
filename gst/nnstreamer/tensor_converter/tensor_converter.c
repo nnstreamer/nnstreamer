@@ -122,20 +122,19 @@ enum
 #define DEFAULT_FRAMES_PER_TENSOR 1
 
 /**
- * @brief Template for sink pad.
+ * @brief Caps string for supported types
+ * @todo Support other types
  */
-static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_MEDIA_CAPS_STR));
-
-/**
- * @brief Template for src pad.
- */
-static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+#define VIDEO_CAPS_STR \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
+    ", views = (int) 1, interlace-mode = (string) progressive"
+#ifndef NO_AUDIO
+#define AUDIO_CAPS_STR \
+    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE, S32LE, S32BE, U32LE, U32BE, F32LE, F32BE, F64LE, F64BE }") \
+    ", layout = (string) interleaved"
+#endif
+#define TEXT_CAPS_STR "text/x-raw, format = (string) utf8"
+#define OCTET_CAPS_STR "application/octet-stream"
 
 #define gst_tensor_converter_parent_class parent_class
 G_DEFINE_TYPE (GstTensorConverter, gst_tensor_converter, GST_TYPE_ELEMENT);
@@ -172,10 +171,13 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
 {
   GObjectClass *object_class;
   GstElementClass *element_class;
+  GstPadTemplate *pad_template;
+  GstCaps *pad_caps;
 
   object_class = (GObjectClass *) klass;
   element_class = (GstElementClass *) klass;
 
+  /* GObjectClass vmethods */
   object_class->set_property = gst_tensor_converter_set_property;
   object_class->get_property = gst_tensor_converter_get_property;
   object_class->finalize = gst_tensor_converter_finalize;
@@ -237,17 +239,41 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /* set src pad template */
+  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+
+  pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+      pad_caps);
+  gst_element_class_add_pad_template (element_class, pad_template);
+
+  gst_caps_unref (pad_caps);
+
+  /* set sink pad template */
+  pad_caps = gst_caps_new_empty ();
+  /* video */
+  gst_caps_append (pad_caps, gst_caps_from_string (VIDEO_CAPS_STR));
+#ifndef NO_AUDIO
+  /* audio */
+  gst_caps_append (pad_caps, gst_caps_from_string (AUDIO_CAPS_STR));
+#endif
+  /* text */
+  gst_caps_append (pad_caps, gst_caps_from_string (TEXT_CAPS_STR));
+  /* octet stream */
+  gst_caps_append (pad_caps, gst_caps_from_string (OCTET_CAPS_STR));
+
+  pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+      pad_caps);
+  gst_element_class_add_pad_template (element_class, pad_template);
+
+  gst_caps_unref (pad_caps);
+
   gst_element_class_set_static_metadata (element_class,
       "TensorConverter",
       "Converter/Tensor",
       "Converts audio or video stream to tensor stream of C-Array for neural network framework filters",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&src_template));
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&sink_template));
-
+  /* GstElementClass vmethods */
   element_class->change_state = gst_tensor_converter_change_state;
 }
 
@@ -258,7 +284,9 @@ static void
 gst_tensor_converter_init (GstTensorConverter * self)
 {
   /** setup sink pad */
-  self->sinkpad = gst_pad_new_from_static_template (&sink_template, "sink");
+  self->sinkpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template
+      (GST_ELEMENT_GET_CLASS (self), "sink"), "sink");
   gst_pad_set_event_function (self->sinkpad,
       GST_DEBUG_FUNCPTR (gst_tensor_converter_sink_event));
   gst_pad_set_query_function (self->sinkpad,
@@ -269,7 +297,9 @@ gst_tensor_converter_init (GstTensorConverter * self)
   gst_element_add_pad (GST_ELEMENT (self), self->sinkpad);
 
   /** setup src pad */
-  self->srcpad = gst_pad_new_from_static_template (&src_template, "src");
+  self->srcpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template
+      (GST_ELEMENT_GET_CLASS (self), "src"), "src");
   gst_pad_set_query_function (self->srcpad,
       GST_DEBUG_FUNCPTR (gst_tensor_converter_src_query));
   GST_PAD_SET_PROXY_CAPS (self->srcpad);
@@ -1188,7 +1218,7 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
         gst_tensor_config_from_structure (&config, st);
 
         /* convert peer caps to possible media caps */
-        media_caps = gst_caps_from_string (GST_TENSOR_MEDIA_CAPS_STR);
+        media_caps = gst_pad_get_pad_template_caps (pad);
         media_caps = gst_caps_make_writable (media_caps);
         caps_len = gst_caps_get_size (media_caps);
 
