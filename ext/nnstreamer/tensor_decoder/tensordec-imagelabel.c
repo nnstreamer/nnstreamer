@@ -38,6 +38,9 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 
+#define DECODER_IL_TEXT_CAPS_STR \
+    "text/x-raw, format = (string) utf8"
+
 /** @brief Internal data structure for image labeling */
 typedef struct
 {
@@ -185,7 +188,7 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
       return NULL;
     }
 
-  return gst_caps_from_string (GST_TENSOR_TEXT_CAPS_STR);
+  return gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */

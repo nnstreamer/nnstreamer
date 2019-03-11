@@ -47,7 +47,6 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include <gst/gstinfo.h>
 #include <stdio.h>
 #include <glib.h>
 #include <string.h>
@@ -225,8 +224,8 @@ gst_tensordec_media_caps_from_structure (GstTensorDec * self,
   }
 
   if (result == NULL) {
-    /** raw caps for supported media types */
-    result = gst_caps_from_string (GST_TENSOR_MEDIA_CAPS_STR);
+    /* we cannot specify the media type */
+    result = gst_caps_new_any ();
   }
 
   return result;

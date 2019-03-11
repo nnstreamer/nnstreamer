@@ -31,6 +31,10 @@
 #include <gst/video/video-format.h>
 #include <nnstreamer_plugin_api_decoder.h>
 
+#define DECODER_DV_VIDEO_CAPS_STR \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
+    ", views = (int) 1, interlace-mode = (string) progressive"
+
 /** @brief tensordec-plugin's TensorDecDef callback */
 static int
 dv_init (void **pdata)
@@ -68,7 +72,7 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
   GST_INFO ("Num Tensors = %d", config->info.num_tensors);
   g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
-  caps = gst_caps_from_string (GST_TENSOR_VIDEO_CAPS_STR);
+  caps = gst_caps_from_string (DECODER_DV_VIDEO_CAPS_STR);
 
   /* Direct video uses the first tensor only even if it's multi-tensor */
   switch (config->info.info[0].dimension[0]) {
