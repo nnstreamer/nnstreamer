@@ -44,3 +44,17 @@ cd ./jni
 ndk-build NDK_PROJECT_PATH=.  APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 ls -al ../libs/arm64-v8a/
 ```
+
+## How to run the test application on the Android device
+Please download a nnstreamer snapshot file such as "*.tar" from http://nnsuite.mooo.com/warehouse/release-nnstreamer-for-android7/ .
+We assume that you run your test applications in the `/data/nnstreamer/` folder on the Android devices based on ARM64 CPU.
+Note that the 'linker64' file to interpret ELF files is located in the `/data/nnstreamer/libandroid/` folder.
+```bash
+firefox http://nnsuite.mooo.com/warehouse/release-nnstreamer-for-android7/ - Download *.tar file
+adb push *.tar /data/
+adb shell
+android# cd /data
+android# tar xvf *.tar
+android# cd /data/nnstreamer
+android# {your_nnstreamer_applicaiton}
+```
