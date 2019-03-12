@@ -77,6 +77,15 @@ else
   add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
+# NO Video support
+disable_video = false
+
+if get_option('disable-video-support')
+   disable_audio = true
+   add_project_arguments('-DNO_VIDEO=1', language: ['c', 'cpp'])
+   message('Disable Video Type Support')
+endif
+
 # NO Audio support
 disable_audio = false
 
