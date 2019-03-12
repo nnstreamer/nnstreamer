@@ -1122,6 +1122,76 @@ TEST (test_tensor_transform, typecast_7_accel)
 }
 
 /**
+ * @brief Test for tensor_transform typecast (uint64 -> int64)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_8, 3, 5, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, uint64 -> int64)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_8_accel, 3, 5, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (float -> uint32)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_9, 3, 5, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, float -> uint32)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_9_accel, 3, 5, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (uint8 -> int8)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_10, 3, 5, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, uint8 -> int8)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_10_accel, 3, 5, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (uint32 -> int16)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_11, 3, 5, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, uint32 -> int16)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_11_accel, 3, 5, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (float -> uint8)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_12, 3, 5, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, float -> uint8)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_12_accel, 3, 5, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (double -> uint16)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_13, 3, 5, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, double -> uint16)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_13_accel, 3, 5, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, TRUE)
+
+/**
+ * @brief Test for tensor_transform typecast (double -> uint64)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_14, 3, 5, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, FALSE)
+
+/**
+ * @brief Test for tensor_transform typecast (acceleration, double -> uint64)
+ */
+TEST_TRANSFORM_TYPECAST (typecast_14_accel, 3, 5, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, TRUE)
+
+/**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
  */
 TEST (test_tensor_transform, arithmetic_1)
