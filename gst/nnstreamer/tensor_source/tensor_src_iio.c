@@ -188,6 +188,8 @@ static GstFlowReturn gst_tensor_src_iio_create (GstBaseSrc * src,
     guint64 offset, guint size, GstBuffer ** buf);
 static GstFlowReturn gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer * buf);
+static void gst_tensor_src_iio_get_times (GstBaseSrc * basesrc,
+    GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
 
 /** internal functions */
 
@@ -271,6 +273,7 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
   bsrc_class->is_seekable = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_is_seekable);
   bsrc_class->create = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_create);
   bsrc_class->fill = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_fill);
+  bsrc_class->get_times = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_get_times);
 }
 
 /**
@@ -1134,6 +1137,31 @@ gst_tensor_src_iio_is_seekable (GstBaseSrc * src)
 {
   /** iio sensors are live source without any support for seeking */
   return FALSE;
+}
+
+/**
+ * @brief returns the time for the buffers
+ */
+static void
+gst_tensor_src_iio_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
+    GstClockTime * start, GstClockTime * end)
+{
+  GstClockTime timestamp;
+  GstClockTime duration;
+
+  timestamp = GST_BUFFER_DTS (buffer);
+  duration = GST_BUFFER_DURATION (buffer);
+
+  /** can't sync using DTS, use PTS */
+  if (!GST_CLOCK_TIME_IS_VALID (timestamp))
+    timestamp = GST_BUFFER_PTS (buffer);
+
+  if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
+    *start = timestamp;
+    if (GST_CLOCK_TIME_IS_VALID (duration)) {
+      *end = timestamp + duration;
+    }
+  }
 }
 
 /**
