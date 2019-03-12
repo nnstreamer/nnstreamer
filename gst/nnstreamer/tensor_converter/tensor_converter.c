@@ -44,10 +44,7 @@
 
 #include <string.h>
 #include "tensor_converter.h"
-#include <gst/video/video-info.h>
-#ifndef NO_AUDIO
-#include <gst/audio/audio-info.h>
-#endif
+#include "converter-media-info.h"
 
 /**
  * @brief Macro for debug mode.
@@ -120,21 +117,6 @@ enum
  * @brief Frames in output tensor.
  */
 #define DEFAULT_FRAMES_PER_TENSOR 1
-
-/**
- * @brief Caps string for supported types
- * @todo Support other types
- */
-#define VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
-    ", views = (int) 1, interlace-mode = (string) progressive"
-#ifndef NO_AUDIO
-#define AUDIO_CAPS_STR \
-    GST_AUDIO_CAPS_MAKE ("{ S8, U8, S16LE, S16BE, U16LE, U16BE, S32LE, S32BE, U32LE, U32BE, F32LE, F32BE, F64LE, F64BE }") \
-    ", layout = (string) interleaved"
-#endif
-#define TEXT_CAPS_STR "text/x-raw, format = (string) utf8"
-#define OCTET_CAPS_STR "application/octet-stream"
 
 #define gst_tensor_converter_parent_class parent_class
 G_DEFINE_TYPE (GstTensorConverter, gst_tensor_converter, GST_TYPE_ELEMENT);
@@ -250,16 +232,12 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
 
   /* set sink pad template */
   pad_caps = gst_caps_new_empty ();
-  /* video */
-  gst_caps_append (pad_caps, gst_caps_from_string (VIDEO_CAPS_STR));
-#ifndef NO_AUDIO
-  /* audio */
-  gst_caps_append (pad_caps, gst_caps_from_string (AUDIO_CAPS_STR));
-#endif
-  /* text */
-  gst_caps_append (pad_caps, gst_caps_from_string (TEXT_CAPS_STR));
-  /* octet stream */
-  gst_caps_append (pad_caps, gst_caps_from_string (OCTET_CAPS_STR));
+
+  /* append caps string for all media types */
+  append_video_caps_template (pad_caps);
+  append_audio_caps_template (pad_caps);
+  append_text_caps_template (pad_caps);
+  append_octet_caps_template (pad_caps);
 
   pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
       pad_caps);
@@ -667,13 +645,11 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       }
       break;
     }
-#ifndef NO_AUDIO
     case _NNS_AUDIO:
       /* number of bytes for one frame */
       frame_size = self->frame_size;
       frames_in = buf_size / frame_size;
       break;
-#endif
     case _NNS_TEXT:
       /* supposed 1 frame in buffer */
       frame_size = self->frame_size;
@@ -898,6 +874,29 @@ gst_tensor_converter_reset (GstTensorConverter * self)
 }
 
 /**
+ * @brief Get supported format list.
+ */
+static void
+gst_tensor_converter_get_format_list (GValue * list, ...)
+{
+  GValue item = G_VALUE_INIT;
+  gchar *str;
+  va_list args;
+
+  g_value_init (list, GST_TYPE_LIST);
+
+  va_start (args, list);
+  while ((str = va_arg (args, gchar *))) {
+    g_value_init (&item, G_TYPE_STRING);
+    g_value_set_string (&item, str);
+
+    gst_value_list_append_value (list, &item);
+    g_value_unset (&item);
+  }
+  va_end (args);
+}
+
+/**
  * @brief Determine if we need zero-padding
  * @return TRUE if we need to add (or remove) stride per row from the stream data.
  */
@@ -994,7 +993,6 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   return (config->info.type != _NNS_END);
 }
 
-#ifndef NO_AUDIO
 /**
  * @brief Set the tensor config structure from audio info (internal static function)
  * @param self this pointer to GstTensorConverter
@@ -1067,7 +1065,6 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
 
   return (config->info.type != _NNS_END);
 }
-#endif
 
 /**
  * @brief Set the tensor config structure from text info (internal static function)
@@ -1095,7 +1092,7 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
 
   format_string = gst_structure_get_string (structure, "format");
   if (format_string) {
-    if (g_str_equal (format_string, "utf8")) {
+    if (g_ascii_strcasecmp (format_string, "utf8") == 0) {
       config->info.type = _NNS_UINT8;
     } else {
       /* unsupported format */
@@ -1161,29 +1158,6 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
 }
 
 /**
- * @brief Get supported format list.
- */
-static void
-gst_tensor_converter_get_format_list (GValue * list, ...)
-{
-  GValue item = G_VALUE_INIT;
-  gchar *str;
-  va_list args;
-
-  g_value_init (list, GST_TYPE_LIST);
-
-  va_start (args, list);
-  while ((str = va_arg (args, gchar *))) {
-    g_value_init (&item, G_TYPE_STRING);
-    g_value_set_string (&item, str);
-
-    gst_value_list_append_value (list, &item);
-    g_value_unset (&item);
-  }
-  va_end (args);
-}
-
-/**
  * @brief Get pad caps for caps negotiation.
  */
 static GstCaps *
@@ -1229,7 +1203,7 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
           switch (type) {
             case _NNS_VIDEO:
               /* video caps from tensor info */
-              if (config.info.type == _NNS_UINT8) {
+              if (is_video_supported (self) && config.info.type == _NNS_UINT8) {
                 GValue supported_formats = G_VALUE_INIT;
                 gint colorspace, width, height;
 
@@ -1272,10 +1246,9 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
                 }
               }
               break;
-#ifndef NO_AUDIO
             case _NNS_AUDIO:
               /* audio caps from tensor info */
-              if (config.info.type != _NNS_END) {
+              if (is_audio_supported (self) && config.info.type != _NNS_END) {
                 gint channels, samplerate;
                 GstAudioFormat aformat;
 
@@ -1326,7 +1299,6 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
                 }
               }
               break;
-#endif
             default:
               /* do nothing for text and octet stream */
               break;
@@ -1383,60 +1355,68 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
   switch (in_type) {
     case _NNS_VIDEO:
-    {
-      GstVideoInfo info;
+      if (is_video_supported (self)) {
+        GstVideoInfo info;
 
-      gst_video_info_init (&info);
-      if (!gst_video_info_from_caps (&info, caps)) {
-        GST_ERROR_OBJECT (self, "Failed to get video info from caps.\n");
+        gst_video_info_init (&info);
+        if (!gst_video_info_from_caps (&info, caps)) {
+          GST_ERROR_OBJECT (self, "Failed to get video info from caps.\n");
+          return FALSE;
+        }
+
+        if (!gst_tensor_converter_parse_video (self, &config, &info)) {
+          GST_ERROR_OBJECT (self,
+              "Failed to configure tensor from video info.");
+          return FALSE;
+        }
+
+        /**
+         * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
+         * @todo Add more conditions!
+         */
+        if (gst_tensor_converter_video_stride (GST_VIDEO_INFO_FORMAT (&info),
+                GST_VIDEO_INFO_WIDTH (&info))) {
+          self->remove_padding = TRUE;
+          silent_debug ("Set flag to remove padding, width = %d",
+              GST_VIDEO_INFO_WIDTH (&info));
+
+          GST_WARNING_OBJECT (self,
+              "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
+              "Please use 4 x n as image width for inputs.\n");
+        }
+
+        frames_dim = 3;
+        self->frame_size = GST_VIDEO_INFO_SIZE (&info);
+      } else {
+        g_critical
+            ("\n This binary does not support video type. Please build NNStreamer with disable-video-support : false\n");
         return FALSE;
       }
-
-      if (!gst_tensor_converter_parse_video (self, &config, &info)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensor from video info.");
-        return FALSE;
-      }
-
-      /**
-       * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
-       * @todo Add more conditions!
-       */
-      if (gst_tensor_converter_video_stride (GST_VIDEO_INFO_FORMAT (&info),
-              GST_VIDEO_INFO_WIDTH (&info))) {
-        self->remove_padding = TRUE;
-        silent_debug ("Set flag to remove padding, width = %d",
-            GST_VIDEO_INFO_WIDTH (&info));
-
-        GST_WARNING_OBJECT (self,
-            "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
-            "Please use 4 x n as image width for inputs.\n");
-      }
-
-      frames_dim = 3;
-      self->frame_size = GST_VIDEO_INFO_SIZE (&info);
       break;
-    }
-#ifndef NO_AUDIO
     case _NNS_AUDIO:
-    {
-      GstAudioInfo info;
+      if (is_audio_supported (self)) {
+        GstAudioInfo info;
 
-      gst_audio_info_init (&info);
-      if (!gst_audio_info_from_caps (&info, caps)) {
-        GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
+        gst_audio_info_init (&info);
+        if (!gst_audio_info_from_caps (&info, caps)) {
+          GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
+          return FALSE;
+        }
+
+        if (!gst_tensor_converter_parse_audio (self, &config, &info)) {
+          GST_ERROR_OBJECT (self,
+              "Failed to configure tensor from audio info.");
+          return FALSE;
+        }
+
+        frames_dim = 1;
+        self->frame_size = GST_AUDIO_INFO_BPF (&info);
+      } else {
+        g_critical
+            ("\n This binary does not support audio type. Please build NNStreamer with disable-audio-support : false\n");
         return FALSE;
       }
-
-      if (!gst_tensor_converter_parse_audio (self, &config, &info)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensor from audio info.");
-        return FALSE;
-      }
-
-      frames_dim = 1;
-      self->frame_size = GST_AUDIO_INFO_BPF (&info);
       break;
-    }
-#endif
     case _NNS_TEXT:
     {
       if (!gst_tensor_converter_parse_text (self, &config, structure)) {
