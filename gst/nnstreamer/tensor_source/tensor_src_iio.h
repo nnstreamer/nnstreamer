@@ -98,6 +98,7 @@ typedef struct _GstTensorSrcIIOChannelProperties
 struct _GstTensorSrcIIO
 {
   GstBaseSrc element; /**< parent class object */
+  GstPad *srcpad; /**< src pad for the element*/
 
   /** gstreamer related properties */
   GMutex mutex; /**< mutex for processing */
@@ -110,11 +111,17 @@ struct _GstTensorSrcIIO
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
   GList *channels; /**< list of enabled channels */
   channels_enabled_options channels_enabled; /**< enabling which channels */
-  guint buffer_capacity; /**< size of the buffer */
-  gulong sampling_frequency; /**< sampling frequncy for the device */
   guint scan_size; /**< size for a single scan of buffer length 1 */
   struct pollfd *buffer_data_fp; /**< pollfd for reading data buffer */
   FILE *buffer_data_file; /**< file pointer for reading data buffer */
+  guint num_channels_enabled; /**< channels to be enabled */
+  gboolean merge_channels_data; /**< merge channel data with same type/size */
+  gboolean is_tensor; /**< False if tensors is used for data */
+  guint buffer_capacity; /**< size of the buffer */
+  gulong sampling_frequency; /**< sampling frequncy for the device */
+
+  /** Only first element is filled when is_tensor is true */
+  GstTensorsConfig *tensors_config; /**< tensors for storing data config */
 };
 
 /**

@@ -29,6 +29,7 @@
  * @todo  support for trigger frequency
  * @todo  support specific channels as input
  * @todo  support multiple buffers
+ * @todo  support blocksize for multiple samples per buffer
  *
  *
  * This is the plugin to capture data from sensors
@@ -88,7 +89,8 @@ enum
   PROP_TRIGGER,
   PROP_CHANNELS,
   PROP_BUFFER_CAPACITY,
-  PROP_FREQUENCY
+  PROP_FREQUENCY,
+  PROP_MERGE_CHANNELS
 };
 
 /**
@@ -129,6 +131,16 @@ enum
 #define MIN_FREQUENCY 1
 #define MAX_FREQUENCY 999999999
 #define DEFAULT_FREQUENCY 0
+
+/**
+ * @brief Default behavior on merging channels
+ */
+#define DEFAULT_MERGE_CHANNELS FALSE
+
+/**
+ * blocksize for buffer
+ */
+#define BLOCKSIZE 1
 
 /**
  * @brief IIO devices/triggers
@@ -255,6 +267,11 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           "Operating frequency of the device", MIN_FREQUENCY, MAX_FREQUENCY,
           DEFAULT_FREQUENCY, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MERGE_CHANNELS,
+      g_param_spec_boolean ("merge_channels_data", "Merge Channels Data",
+          "Merge the data of channels into single tensor",
+          DEFAULT_MERGE_CHANNELS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorSrcIIO",
       "SrcIIO/Tensor",
@@ -324,8 +341,73 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   self->silent = DEFAULT_PROP_SILENT;
   self->buffer_capacity = DEFAULT_BUFFER_CAPACITY;
   self->sampling_frequency = DEFAULT_FREQUENCY;
+  self->merge_channels_data = DEFAULT_MERGE_CHANNELS;
+  self->is_tensor = FALSE;
+  self->tensors_config = NULL;
 
-  return;
+  /**
+   * format of the source since IIO device as a source is live and operates
+   * at a fixed frequency, GST_FORMAT_TIME is used
+   */
+  gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
+  /** set the source to be live */
+  gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+}
+
+/**
+ * @brief merge multiple other/tensor
+ * @note they should have matching type and shape to form 1 other/tensors
+ * @note extra dimension should be available for other/tensors
+ * @note order of merge is stable
+ * @param[in/out] info Tensor info to be merged
+ * @param[in] size Info array size
+ * @returns >=0 number of valid entries in the info after merge
+ *         -1 failed due to missing extra dimension/mismatch shape/type
+ * @todo merge tensors (in stable order) into buckets based on type
+ */
+static gint
+gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size)
+{
+  gint info_idx, base_idx, dim_idx;
+  gboolean mismatch = FALSE, dim_avail = TRUE;
+
+  /** base error control check */
+  g_return_val_if_fail (size > 0, 0);
+  base_idx = 0;
+
+  /** verify extra dimension */
+  if (info[base_idx].dimension[NNS_TENSOR_RANK_LIMIT - 1] != 1) {
+    dim_avail = FALSE;
+  }
+
+  /** verify that all the types and shapes match */
+  for (info_idx = 0; info_idx < size; info_idx++) {
+    if (!gst_tensor_info_is_equal (info + base_idx, info + info_idx)) {
+      mismatch = TRUE;
+      break;
+    }
+  }
+
+  /** return original if cant be merged and size within limits */
+  if (mismatch || !dim_avail) {
+    if (size > NNS_TENSOR_SIZE_LIMIT) {
+      return -1;
+    } else {
+      return size;
+    }
+  }
+
+  /** Now merge into 1 tensor using the outermost dimension*/
+  for (dim_idx = NNS_TENSOR_RANK_LIMIT - 1; dim_idx > 0; dim_idx--) {
+    if (info[base_idx].dimension[dim_idx] != 1) {
+      dim_idx += 1;
+      break;
+    }
+  }
+
+  info[0].dimension[dim_idx] = size;
+  return 1;
+
 }
 
 /**
@@ -726,6 +808,10 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
       self->sampling_frequency = g_value_get_uint64 (value);
       break;
 
+    case PROP_MERGE_CHANNELS:
+      self->merge_channels_data = g_value_get_boolean (value);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -776,6 +862,10 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
     case PROP_FREQUENCY:
       /** interface of frequency is kept long for outside but uint64 inside */
       g_value_set_ulong (value, self->sampling_frequency);
+      break;
+
+    case PROP_MERGE_CHANNELS:
+      g_value_set_boolean (value, self->merge_channels_data);
       break;
 
     default:
@@ -934,6 +1024,138 @@ gst_tensor_get_size_from_channels (GList * channels)
 }
 
 /**
+ * @brief find type based on bits used
+ * @param[in] channel_prop Channel property containing bits used
+ * @returns type of the data inferred using bits used by the channel data
+ */
+static tensor_type
+gst_tensor_src_iio_get_type_for_channel (GstTensorSrcIIOChannelProperties *
+    channel_prop)
+{
+  tensor_type ret;
+
+  if (channel_prop->is_signed) {
+    switch (channel_prop->storage_bits) {
+      case 8:
+        ret = _NNS_INT8;
+        break;
+      case 16:
+        ret = _NNS_INT16;
+        break;
+      case 32:
+        ret = _NNS_INT32;
+        break;
+      case 64:
+        ret = _NNS_INT64;
+        break;
+      default:
+        ret = _NNS_END;
+        break;
+    }
+  } else {
+    switch (channel_prop->storage_bits) {
+      case 8:
+        ret = _NNS_UINT8;
+        break;
+      case 16:
+        ret = _NNS_UINT16;
+        break;
+      case 32:
+        ret = _NNS_UINT32;
+        break;
+      case 64:
+        ret = _NNS_UINT64;
+        break;
+      default:
+        ret = _NNS_END;
+        break;
+    }
+  }
+  return ret;
+}
+
+/**
+ * @brief create the structure for the caps to update the src pad caps
+ * @param[in/out] structure Caps structure which will filled
+ * @returns True if structure is created and filled, False for any error
+ */
+static gboolean
+gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
+{
+  GList *list;
+  GstTensorSrcIIOChannelProperties *channel_prop;
+  gint tensor_info_merged_size;
+  gint info_idx = 0, dim_idx = 0;
+  GstTensorInfo *info;
+
+  /**
+   * create a bigger array, insert info in it and
+   * then merge tensors with same type+size
+   */
+  info = g_new (GstTensorInfo, tensor_src_iio->num_channels_enabled);
+
+  /** compile tensor info data */
+  for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
+    channel_prop = (GstTensorSrcIIOChannelProperties *) list;
+    if (!channel_prop->enabled)
+      continue;
+    info[info_idx].name = channel_prop->name;
+    info[info_idx].type =
+        gst_tensor_src_iio_get_type_for_channel (channel_prop);
+    for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
+      info[info_idx].dimension[dim_idx] = 1;
+    }
+    info_idx += 1;
+  }
+  g_assert_cmpint (info_idx, ==, tensor_src_iio->num_channels_enabled);
+
+  /** merge info about the tensors with same type */
+  tensor_info_merged_size = tensor_src_iio->num_channels_enabled;
+  if (tensor_src_iio->merge_channels_data) {
+    tensor_info_merged_size =
+        gst_tensor_src_merge_tensor_by_type (info,
+        tensor_src_iio->num_channels_enabled);
+  }
+
+  /** verify the merging of the array */
+  if (tensor_info_merged_size < 0) {
+    GST_ERROR_OBJECT (tensor_src_iio, "Mismatch while merging tensor");
+    goto error_ret;
+  } else if (tensor_info_merged_size == 0) {
+    GST_ERROR_OBJECT (tensor_src_iio, "No info to be merged");
+    goto error_ret;
+  } else if (tensor_info_merged_size > NNS_TENSOR_SIZE_LIMIT) {
+    GST_ERROR_OBJECT (tensor_src_iio,
+        "Number of tensors required %u for data exceed the max limit",
+        tensor_info_merged_size);
+    goto error_ret;
+  }
+
+  /** tensors config data */
+  tensor_src_iio->is_tensor = (tensor_info_merged_size == 1);
+  GstTensorsConfig *config = g_new (GstTensorsConfig, 1);
+  if (config == NULL) {
+    goto error_ret;
+  }
+  gst_tensors_config_init (config);
+  for (info_idx = 0; info_idx < tensor_info_merged_size; info_idx++) {
+    gst_tensor_info_copy (&config->info.info[info_idx], &info[info_idx]);
+  }
+  config->rate_n = tensor_src_iio->sampling_frequency;
+  config->rate_d = BLOCKSIZE;
+  config->info.num_tensors = tensor_info_merged_size;
+
+  tensor_src_iio->tensors_config = config;
+
+  g_free (info);
+  return TRUE;
+
+error_ret:
+  g_free (info);
+  return FALSE;
+}
+
+/**
  * @brief start function, called when state changed null to ready.
  * load the device and init the device resources
  */
@@ -1072,6 +1294,71 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     self->scan_size = gst_tensor_get_size_from_channels (self->channels);
   }
 
+  /** set source pad */
+  GstCaps *prev_caps, *caps, *updated_caps;
+  GstPad *pad;
+
+  self->srcpad = src->srcpad;
+  pad = self->srcpad;
+  gst_pad_use_fixed_caps (pad);
+
+  /**
+   * We can update the caps of the pad in current NULL state
+   * as the pad is activated in READY->PAUSED trainsition.
+   */
+  if (!gst_tensor_src_iio_create_config (self)) {
+    GST_ERROR_OBJECT (self, "Error creating config.\n");
+    goto error_channels_free;
+  }
+
+  if (self->is_tensor) {
+    GstTensorConfig tensor_config;
+    gst_tensor_info_copy (&tensor_config.info,
+        &(self->tensors_config->info.info[0]));
+    tensor_config.rate_n = self->tensors_config->rate_n;
+    tensor_config.rate_d = self->tensors_config->rate_d;
+    caps = gst_tensor_caps_from_config (&tensor_config);
+    gst_tensor_info_free (&tensor_config.info);
+  } else {
+    caps = gst_tensors_caps_from_config (self->tensors_config);
+  }
+  if (caps == NULL) {
+    GST_ERROR_OBJECT (self, "Error creating caps from config.\n");
+    goto error_config_free;
+  }
+
+  /** get current caps, take intersection with it and then set the new ones */
+  if (gst_pad_has_current_caps (pad)) {
+    prev_caps = gst_pad_get_current_caps (pad);
+    if (gst_caps_can_intersect (caps, prev_caps)) {
+      updated_caps = gst_caps_intersect (caps, prev_caps);
+    } else {
+      GST_ERROR_OBJECT (self,
+          "No intersection between new and current caps.\n");
+      gst_caps_unref (prev_caps);
+      gst_caps_unref (caps);
+      goto error_config_free;
+    }
+    gst_caps_unref (caps);
+    gst_caps_unref (prev_caps);
+  } else {
+    updated_caps = caps;
+  }
+
+  if (!gst_pad_set_caps (pad, updated_caps)) {
+    GST_ERROR_OBJECT (self, "Unable to set caps for the pad.\n");
+    gst_caps_unref (updated_caps);
+    goto error_config_free;
+    /** free this in stop as well */
+  }
+
+  if (DBG) {
+    GST_DEBUG_OBJECT (self, "Finalization of caps while starting device");
+    GST_DEBUG_OBJECT (self, "caps = %" GST_PTR_FORMAT, updated_caps);
+  }
+
+  gst_caps_unref (updated_caps);
+
   /** enable the buffer for the data to be captured */
   dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
   if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 1))) {
@@ -1079,7 +1366,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
         "Cannot enable the IIO device buffer for device: %s.\n",
         self->device.name);
     g_free (dirname);
-    goto error_channels_free;
+    goto error_config_free;
   }
   g_free (dirname);
 
@@ -1100,17 +1387,20 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->buffer_data_fp->events = POLLIN;
   g_free (filename);
 
-
 safe_return:
   self->configured = TRUE;
-  /** set the source as live */
-  gst_base_src_set_live (src, TRUE);
+  /** bytes every buffer will be fixed */
+  gst_base_src_set_dynamic_size (src, FALSE);
   /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_OK);
   return TRUE;
 
 error_pollfd_free:
   g_free (self->buffer_data_fp);
+
+error_config_free:
+  gst_tensors_info_free (&self->tensors_config->info);
+  g_free (self->tensors_config);
 
 error_channels_free:
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
@@ -1153,6 +1443,9 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
 
   g_free (self->buffer_data_fp);
   fclose (self->buffer_data_file);
+
+  gst_tensors_info_free (&self->tensors_config->info);
+  g_free (self->tensors_config);
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
@@ -1210,18 +1503,53 @@ gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
 static gboolean
 gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 {
-  /** FIXME: fill this function */
+  GstTensorSrcIIO *self;
+  GstPad *pad;
+
+  self = GST_TENSOR_SRC_IIO (src);
+  pad = self->srcpad;
+
+  if (DBG) {
+    GstCaps *cur_caps = gst_pad_get_current_caps (pad);
+    if (!gst_caps_is_subset (caps, cur_caps)) {
+      GST_DEBUG_OBJECT (self, "Setting caps in source mismatch");
+      GST_DEBUG_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
+      GST_DEBUG_OBJECT (self, "cur_caps = %" GST_PTR_FORMAT, cur_caps);
+    }
+    gst_caps_unref (cur_caps);
+  }
+
+  if (!gst_pad_set_caps (pad, caps)) {
+    return FALSE;
+  }
+
   return TRUE;
 }
 
 /**
  * @brief get caps of subclass
+ * @note basesrc _get_caps returns the caps from the pad_template
+ * however, we set the caps manually and needs to returned here
  */
 static GstCaps *
 gst_tensor_src_iio_get_caps (GstBaseSrc * src, GstCaps * filter)
 {
-  /** FIXME: fill this function */
-  GstCaps *caps = NULL;
+  GstTensorSrcIIO *self;
+  GstCaps *caps;
+  GstPad *pad;
+
+  self = GST_TENSOR_SRC_IIO (src);
+  pad = self->srcpad;
+  caps = gst_pad_get_current_caps (pad);
+
+  if (filter) {
+    GstCaps *intersection;
+    intersection =
+        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (caps);
+    caps = intersection;
+  }
+
   return caps;
 }
 
@@ -1231,9 +1559,11 @@ gst_tensor_src_iio_get_caps (GstBaseSrc * src, GstCaps * filter)
 static GstCaps *
 gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
 {
-  /** FIXME: fill this function */
-  GstCaps *ret_caps = NULL;
-  return ret_caps;
+  /**
+   * Caps are fixated based on the device source in _start().
+   * Nothing to be handled here.
+   */
+  return gst_caps_fixate (caps);
 }
 
 /**
