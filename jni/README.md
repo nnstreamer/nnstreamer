@@ -22,7 +22,7 @@ export PATH=$ANDROID_NDK:$PATH
 
 ## Download prebuilt Android-Gstreamer libraries
 Please download required files such as "*.tar.bz2" from http://nnsuite.mooo.com/warehouse/.
- * gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/
+ * Dir: gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/
 ```bash
 vi ~/.bashrc
 export GSTREAMER_ROOT_ANDROID=~/android/gst_root_android
@@ -33,16 +33,16 @@ mkdir -p ~/android/gst_root_android/arm64
 ```bash
 cd ./jni
 # We recommend that you always remove the libs and obj folder to avoid an unexpected binary inconsistency.
-rm -rf ../libs/ ../obj/
+rm -rf ./libs/ ./obj/
 ndk-build NDK_PROJECT_PATH=.  APP_BUILD_SCRIPT=./Android-nnstreamer.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
-ls -al ../libs/arm64-v8a/libnnstreamer.so
+ls -al ./libs/arm64-v8a/libnnstreamer.so
 ```
 
 ## How to build a test application
 ```bash
 cd ./jni
 ndk-build NDK_PROJECT_PATH=.  APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
-ls -al ../libs/arm64-v8a/
+ls -al ./libs/arm64-v8a/
 ```
 
 ## How to run the test application on the Android device
