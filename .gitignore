@@ -14,6 +14,10 @@
 *.dat
 /tests/bmp2png
 *.pyc
+/tests/codegen/tc*.c
+/tests/codegen/build*
+/tests/codegen/meson.build
+/tests/codegen/*.pc
 
 # vi files
 *.h~
