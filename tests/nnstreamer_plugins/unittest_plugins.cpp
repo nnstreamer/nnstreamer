@@ -100,6 +100,61 @@
     }
 
 /**
+ * @brief Test for setting/getting properties of tensor_transform
+ */
+TEST (test_tensor_transform, properties)
+{
+  const gboolean default_silent = TRUE;
+  const gboolean default_accl = TRUE;
+  const gint default_mode = 1; /* typecast */
+  const gchar default_option[] = "uint32";
+  gchar *str_launch_line;
+  gint res_mode;
+  gchar *res_option = NULL;
+  gboolean silent, res_silent;
+  gboolean accl, res_accl;
+  GstHarness *hrnss;
+  GstElement *transform;
+
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+
+  str_launch_line = g_strdup_printf ("tensor_transform mode=%d option=%s",
+      default_mode, default_option);
+  gst_harness_add_parse (hrnss,  str_launch_line);
+  g_free (str_launch_line);
+  transform = gst_harness_find_element (hrnss, "tensor_transform");
+  ASSERT_TRUE (transform != NULL);
+
+  /** default silent is TRUE */
+  g_object_get (transform, "silent", &silent, NULL);
+  EXPECT_EQ (default_silent, silent);
+
+  g_object_set (transform, "silent", !default_silent, NULL);
+  g_object_get (transform, "silent", &res_silent, NULL);
+  EXPECT_EQ (!default_silent, res_silent);
+
+  /** default acceleration is TRUE */
+  g_object_get (transform, "acceleration", &accl, NULL);
+  EXPECT_EQ (default_accl, accl);
+
+  g_object_set (transform, "acceleration", !default_accl, NULL);
+  g_object_get (transform, "acceleration", &res_accl, NULL);
+  EXPECT_EQ (!default_accl, res_accl);
+
+  /** We do not need to test setting properties for 'mode' and 'option' */
+  g_object_get (transform, "mode", &res_mode, NULL);
+  EXPECT_EQ (default_mode, res_mode);
+
+  g_object_get (transform, "option", &res_option, NULL);
+  EXPECT_STREQ (default_option, res_option);
+  g_free (res_option);
+
+  g_object_unref (transform);
+  gst_harness_teardown (hrnss);
+}
+
+/**
  * @brief Test for tensor_transform typecast (uint8 > uint32)
  */
 TEST (test_tensor_transform, typecast_1)
