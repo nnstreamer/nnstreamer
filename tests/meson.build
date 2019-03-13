@@ -87,3 +87,8 @@ if gtest_dep.found()
 
   test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
 endif
+
+# Tizen C-API
+if get_option('enable-tizen-capi')
+  subdir('tizen_capi')
+endif
