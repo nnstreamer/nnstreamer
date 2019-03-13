@@ -14,6 +14,17 @@ import sys
 import struct
 
 ##
+# @brief Get value of proper type corresponding to the unpack format string
+#
+def getValue (val, unpack_format):
+    if unpack_format in ['b', 'B', 'h', 'H', 'i', 'I', 'q', 'Q']:
+        return int(val)
+    elif unpack_format in ['f', 'd']:
+        return float(val)
+    else:
+        return None
+
+##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
 def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, value1, value2):
@@ -27,23 +38,28 @@ def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, v
     return 11
   limitb = 2 ** (8 * typebsize)
   maskb = limitb - 1
+  value1 = getValue(value1, typeapack)
+  value2 = getValue(value2, typebpack)
+  if value1 is None or value2 is None:
+      return 12
+
   for x in range(0, num):
     vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
     valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
     if (mode == 'add'):
-      diff = vala + float(value1) - valb
+      diff = vala  + value1 - valb
       if diff > 0.01 or diff < -0.01:
         return 20
     elif (mode == 'mul'):
-      diff = vala * float(value1) - valb
+      diff = vala * value1 - valb
       if diff > 0.01 or diff < -0.01:
         return 20
     elif (mode == 'add-mul'):
-      diff = (vala + float(value1)) * float(value2) - valb
+      diff = (vala + value1) * value2 - valb
       if diff > 0.01 or diff < -0.01:
         return 20
     elif (mode == 'mul-add'):
-      diff = (vala * float(value1)) + float(value2) - valb
+      diff = (vala * value1) + value2 - valb
       if diff > 0.01 or diff < -0.01:
         return 20
     else:
