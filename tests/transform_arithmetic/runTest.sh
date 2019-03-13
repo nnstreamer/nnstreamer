@@ -82,4 +82,55 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 testResult $? 6 "Golden test comparison" 0 1
 python checkResult.py arithmetic testcase06.direct.log testcase06.arithmetic.log 8 8 d d add-mul -50.0987e+003 15.3
 
+# Test for mul with tensors typecasted to int8 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:int8,mul:-3 acceleration=false ! filesink location=\"testcase07.arithmetic.1.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=int8 acceleration=false ! filesink location=\"testcase07.direct.1.log\" sync=true" 7-1 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.1.log testcase07.arithmetic.1.log 1 1 b b mul -3 0
+testResult $? 7-1 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to uint8 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:uint8,mul:1 acceleration=false ! filesink location=\"testcase07.arithmetic.2.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=uint8 acceleration=false ! filesink location=\"testcase07.direct.2.log\" sync=true" 7-2 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.2.log testcase07.arithmetic.2.log 1 1 B B mul 1 0
+testResult $? 7-2 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to int16 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:int16,mul:-16 acceleration=false ! filesink location=\"testcase07.arithmetic.3.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=int16 acceleration=false ! filesink location=\"testcase07.direct.3.log\" sync=true" 7-3 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.3.log testcase07.arithmetic.3.log 2 2 h h mul -16 0
+testResult $? 7-3 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to uint16 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:uint16,mul:16 acceleration=false ! filesink location=\"testcase07.arithmetic.4.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=uint16 acceleration=false ! filesink location=\"testcase07.direct.4.log\" sync=true" 7-4 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.4.log testcase07.arithmetic.4.log 2 2 H H mul 16 0
+testResult $? 7-4 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to int32 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:int32,mul:-255 acceleration=false ! filesink location=\"testcase07.arithmetic.5.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=int32 acceleration=false ! filesink location=\"testcase07.direct.5.log\" sync=true" 7-5 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.5.log testcase07.arithmetic.5.log 4 4 i i mul -255 0
+testResult $? 7-5 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to uint32 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:uint32,mul:255 acceleration=false ! filesink location=\"testcase07.arithmetic.6.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=uint32 acceleration=false ! filesink location=\"testcase07.direct.6.log\" sync=true" 7-6 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.6.log testcase07.arithmetic.6.log 4 4 I I mul 255 0
+testResult $? 7-6 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to int64 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:int64,mul:-65535 acceleration=false ! filesink location=\"testcase07.arithmetic.7.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=int64 acceleration=false ! filesink location=\"testcase07.direct.7.log\" sync=true" 7-7 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.7.log testcase07.arithmetic.7.log 8 8 q q mul -65535 0
+testResult $? 7-7 "Golden test comparison" 0 1
+
+# Test for mul with tensors typecasted to uint64 (acceleration=false)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:uint64,mul:65535 acceleration=false ! filesink location=\"testcase07.arithmetic.8.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=uint64 acceleration=false ! filesink location=\"testcase07.direct.8.log\" sync=true" 7-8 0 0 $PERFORMANCE
+
+python checkResult.py arithmetic testcase07.direct.8.log testcase07.arithmetic.8.log 8 8 Q Q mul 65535 0
+testResult $? 7-8 "Golden test comparison" 0 1
+
+# Fail Test for the option string is wrong
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=casttype:uint64,mul:65535 acceleration=false ! fakesink sync=true " 8 0 1 $PERFORMANCE
+
 report
