@@ -30,6 +30,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
 #include <tensor_common.h>
+#include <poll.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_SRC_IIO \
@@ -83,8 +84,10 @@ typedef struct _GstTensorSrcIIOChannelProperties
   gboolean big_endian; /**< endian-ness of the data in buffer */
   gboolean is_signed; /**< sign property of the data*/
   guint mask_bits; /**< size of the bitmask for the data */
-  guint storage_bits; /**< total storage size for the data*/
-  guint shift; /**< shift to be applied on the read data*/
+  guint storage_bytes; /**< total storage size for the data */
+  guint storage_bits; /**< exact bit size for the data */
+  guint shift; /**< shift to be applied on the read data */
+  guint location; /**< location of channel data in buffer */
 } GstTensorSrcIIOChannelProperties;
 
 /**
@@ -105,10 +108,13 @@ struct _GstTensorSrcIIO
   gchar *mode; /**< IIO device operating mode */
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
-  GList *channels; /**< channels to be enabled */
-  channels_enabled_options channels_enabled; /**< channels to be enabled */
+  GList *channels; /**< list of enabled channels */
+  channels_enabled_options channels_enabled; /**< enabling which channels */
   guint buffer_capacity; /**< size of the buffer */
   gulong sampling_frequency; /**< sampling frequncy for the device */
+  guint scan_size; /**< size for a single scan of buffer length 1 */
+  struct pollfd *buffer_data_fp; /**< pollfd for reading data buffer */
+  FILE *buffer_data_file; /**< file pointer for reading data buffer */
 };
 
 /**
