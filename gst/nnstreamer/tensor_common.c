@@ -174,11 +174,12 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 }
 
 /**
- * @brief Copy tensor info
+ * @brief Copy tensor info upto n elements
  * @note Copied info should be freed with gst_tensor_info_free()
  */
 void
-gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
+gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
+    const guint n)
 {
   guint i;
 
@@ -188,9 +189,19 @@ gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
   dest->name = (src->name) ? g_strdup (src->name) : NULL;
   dest->type = src->type;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+  for (i = 0; i < n; i++) {
     dest->dimension[i] = src->dimension[i];
   }
+}
+
+/**
+ * @brief Copy tensor info
+ * @note Copied info should be freed with gst_tensor_info_free()
+ */
+void
+gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
+{
+  gst_tensor_info_copy_n (dest, src, NNS_TENSOR_RANK_LIMIT);
 }
 
 /**
