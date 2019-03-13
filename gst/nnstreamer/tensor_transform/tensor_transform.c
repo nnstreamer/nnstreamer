@@ -1385,7 +1385,8 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   uint8_t *inptr, *outptr;
   GstMapInfo inInfo, outInfo;
 
-  g_assert (filter->loaded);
+  g_return_val_if_fail (filter->loaded, GST_FLOW_ERROR);
+
   g_assert (gst_buffer_map (inbuf, &inInfo, GST_MAP_READ));
   g_assert (gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE));
 
