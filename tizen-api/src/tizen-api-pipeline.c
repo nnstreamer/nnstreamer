@@ -60,6 +60,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 {
   element *elem = data;
 
+  /** @todo CRITICAL if the pipeline is being killed, don't proceed! */
+
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo info[NNS_TENSOR_SIZE_LIMIT];
   guint i;
@@ -154,6 +156,31 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 }
 
 /**
+ * @brief Private function for nns_pipeline_destroy, cleaning up nodes in namednodes
+ */
+static void
+cleanup_node (gpointer data)
+{
+  element *e = data;
+  g_mutex_lock (&e->lock);
+  g_free (e->name);
+  if (e->src)
+    gst_object_unref (e->src);
+  if (e->sink)
+    gst_object_unref (e->sink);
+
+  /** @todo CRITICAL. Stop the handle callbacks if they are running/ready */
+  if (e->handles)
+    g_list_free_full (e->handles, g_free);
+  e->handles = NULL;
+
+  g_mutex_unlock (&e->lock);
+  g_mutex_clear (&e->lock);
+
+  g_free (e);
+}
+
+/**
  * @brief Construct the pipeline (more info in tizen-api.h)
  */
 int
@@ -200,7 +227,8 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
   g_mutex_init (&pipe_h->lock);
   g_mutex_lock (&pipe_h->lock);
 
-  pipe_h->namednodes = g_hash_table_new (g_str_hash, g_str_equal);
+  pipe_h->namednodes =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
 
   it = gst_bin_iterate_elements (GST_BIN (pipeline));
   if (it != NULL) {
@@ -246,7 +274,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
               }
 
               if (e != NULL)
-                g_hash_table_insert (pipe_h->namednodes, e, name);
+                g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
             }
             g_free (name);
           }
@@ -270,9 +298,6 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
     g_object_unref (outputs);
   }
 
-  /** @todo CRITICAL: Prepare the pipeline. Maybe as a forked thread */
-
-
   g_mutex_unlock (&pipe_h->lock);
   return ret;
 }
@@ -283,18 +308,45 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
 int
 nns_pipeline_destroy (nns_pipeline_h pipe)
 {
-  /* nns_pipeline *p = pipe; */
+  nns_pipeline *p = pipe;
+  GstStateChangeReturn scret;
+  GstState state, pending;
 
-  /** @todo NYI */
+  if (p == NULL)
+    return NNS_ERROR_INVALID_PARAMETER;
 
-  /** @todo Pause the pipeline if it's Playing */
+  g_mutex_lock (&p->lock);
 
-  /** @todo Ensure all callbacks are gone. (kill'em all!) */
+  /* if it's PLAYING, PAUSE it. */
+  scret = gst_element_get_state (p->element, &state, &pending, 10000000UL);     /* 10ms */
+  if (scret != GST_STATE_CHANGE_FAILURE && state == GST_STATE_PLAYING) {
+    /* Pause the pipeline if it's Playing */
+    scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
+    if (scret == GST_STATE_CHANGE_FAILURE) {
+      g_mutex_unlock (&p->lock);
+      return NNS_ERROR_PIPELINE_FAIL;
+    }
+  }
 
-  /** @todo Stop (NULL State) the pipeline */
+  /** @todo Ensure all callbacks are gone. (kill'em all!) THIS IS CRITICAL! */
+  g_mutex_unlock (&p->lock);
+  g_usleep (50000);             /* do 50ms sleep until we have it implemented. Let them complete. And hope they don't call start(). */
+  g_mutex_lock (&p->lock);
 
-  /** @todo Destroy Everything */
+  /** Destroy registered callback handles */
+  g_hash_table_remove_all (p->namednodes);
 
+  /** Stop (NULL State) the pipeline */
+  scret = gst_element_set_state (p->element, GST_STATE_NULL);
+  if (scret != GST_STATE_CHANGE_SUCCESS) {
+    g_mutex_unlock (&p->lock);
+    return NNS_ERROR_PIPELINE_FAIL;
+  }
+
+  gst_object_unref (p->element);
+
+  g_mutex_unlock (&p->lock);
+  g_mutex_clear (&p->lock);
   return NNS_ERROR_NONE;
 }
 
@@ -304,10 +356,25 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
 int
 nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state * state)
 {
-  /* *state = NNSAPI_UNKNOWN; */
+  nns_pipeline *p = pipe;
+  GstState _state;
+  GstState pending;
+  GstStateChangeReturn scret;
+  *state = NNS_PIPELINE_UNKNOWN;
 
-  /** @todo NYI */
+  if (p == NULL)
+    return NNS_ERROR_INVALID_PARAMETER;
 
+  g_mutex_lock (&p->lock);
+  scret =
+      gst_element_get_state (p->element, &_state, &pending,
+      GST_CLOCK_TIME_NONE);
+  g_mutex_unlock (&p->lock);
+
+  if (scret == GST_STATE_CHANGE_FAILURE)
+    return NNS_ERROR_PIPELINE_FAIL;
+
+  *state = _state;
   return NNS_ERROR_NONE;
 }
 
@@ -320,7 +387,15 @@ nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state * state)
 int
 nns_pipeline_start (nns_pipeline_h pipe)
 {
-  /** @todo NYI */
+  nns_pipeline *p = pipe;
+  GstStateChangeReturn scret;
+
+  g_mutex_lock (&p->lock);
+  scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
+  g_mutex_unlock (&p->lock);
+
+  if (scret == GST_STATE_CHANGE_FAILURE)
+    return NNS_ERROR_PIPELINE_FAIL;
 
   return NNS_ERROR_NONE;
 }
@@ -331,7 +406,15 @@ nns_pipeline_start (nns_pipeline_h pipe)
 int
 nns_pipeline_stop (nns_pipeline_h pipe)
 {
-  /** @todo NYI */
+  nns_pipeline *p = pipe;
+  GstStateChangeReturn scret;
+
+  g_mutex_lock (&p->lock);
+  scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
+  g_mutex_unlock (&p->lock);
+
+  if (scret == GST_STATE_CHANGE_FAILURE)
+    return NNS_ERROR_PIPELINE_FAIL;
 
   return NNS_ERROR_NONE;
 }
