@@ -76,7 +76,7 @@ typedef enum {
   NNS_ERROR_NONE				= TIZEN_ERROR_NONE, /**< Success! */
   NNS_ERROR_INVALID_PARAMETER			= TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
   NNS_ERROR_NOT_SUPPORTED			= TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
-  NNS_ERROR_PIPELINE_FAIL			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create Gstreamer pipeline. */
+  NNS_ERROR_PIPELINE_FAIL			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access Gstreamer pipeline. */
 } nns_error_e;
 
 /**
@@ -165,6 +165,8 @@ int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pi
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_PIPELINE_FAIL Fail. Cannot access the pipeline status.
+ * @retval #NNS_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
  */
 int nns_pipeline_destroy (nns_pipeline_h pipe);
 
@@ -176,6 +178,8 @@ int nns_pipeline_destroy (nns_pipeline_h pipe);
  * @param[out] state The pipeline state.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #NNS_ERROR_PIPELINE_FAIL Failed to get state from the pipeline.
  */
 int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state *state);
 
@@ -185,20 +189,24 @@ int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state *state);
 /**
  * @brief Start the pipeline
  * @detail The pipeline handle returned by nns_construct_pipeline (pipe) is started.
+ *         Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be started.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_PIPELINE_FAIL Failed to start.
  */
 int nns_pipeline_start (nns_pipeline_h pipe);
 
 /**
  * @brief Stop the pipeline
  * @detail The pipeline handle returned by nns_construct_pipeline (pipe) is stopped.
+ *         Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be stopped.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_PIPELINE_FAIL Failed to start.
  */
 int nns_pipeline_stop (nns_pipeline_h pipe);
 

@@ -61,7 +61,7 @@ typedef struct _nns_pipeline nns_pipeline;
 typedef struct _element {
   GstElement *element; /**< The Sink/Src/Valve/Switch element */
   nns_pipeline *pipe; /**< The main pipeline */
-  const char *name;
+  char *name;
   elementType type;
   GstPad *src;
   GstPad *sink; /**< Unref this at destroy */
