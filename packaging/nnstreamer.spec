@@ -176,6 +176,7 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_common
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
+    LD_LIBRARY_PATH=tizen-api ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=.
     popd
     pushd tests
     ssat -n

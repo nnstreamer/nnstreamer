@@ -39,7 +39,7 @@ tizen_deps = [
 ]
 gst_app_dep = dependency('gstreamer-app-1.0')
 
-shared_library ('capi-nnstreamer',
+tizen_capi_lib = shared_library ('capi-nnstreamer',
   capi_main,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps],
   include_directories: [
@@ -59,6 +59,13 @@ static_library ('capi-nnstreamer',
   ],
   install: true,
   install_dir: nnstreamer_libdir,
+)
+
+tizen_capi_dep = declare_dependency(link_with: tizen_capi_lib,
+  include_directories: [
+    inc,
+    nninc
+  ]
 )
 
 configure_file(input: 'capi-nnstreamer.pc.in', output: 'capi-nnstreamer.pc',
