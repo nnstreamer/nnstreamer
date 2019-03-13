@@ -25,6 +25,15 @@
 #endif
 
 /**
+ * @brief Macro for default value of the transform's 'acceleration' property
+ */
+#ifdef HAVE_ORC
+#define DEFAULT_VAL_PROP_ACCELERATION TRUE
+#else
+#define DEFAULT_VAL_PROP_ACCELERATION FALSE
+#endif
+
+/**
  * @brief Macro for debug message.
  */
 #define _print_log(...) if (DBG) g_message (__VA_ARGS__)
@@ -105,7 +114,7 @@
 TEST (test_tensor_transform, properties)
 {
   const gboolean default_silent = TRUE;
-  const gboolean default_accl = TRUE;
+  const gboolean default_accl = DEFAULT_VAL_PROP_ACCELERATION;
   const gint default_mode = 1; /* typecast */
   const gchar default_option[] = "uint32";
   gchar *str_launch_line;
@@ -134,7 +143,10 @@ TEST (test_tensor_transform, properties)
   g_object_get (transform, "silent", &res_silent, NULL);
   EXPECT_EQ (!default_silent, res_silent);
 
-  /** default acceleration is TRUE */
+  /**
+   * If HAVE_ORC is set, default acceleration is TRUE.
+   * Otherwise the default value is FALSE.
+   */
   g_object_get (transform, "acceleration", &accl, NULL);
   EXPECT_EQ (default_accl, accl);
 
