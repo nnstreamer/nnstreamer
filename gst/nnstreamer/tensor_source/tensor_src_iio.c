@@ -28,6 +28,7 @@
  * @todo  support device/trigger number as input
  * @todo  support for trigger frequency
  * @todo  support specific channels as input
+ * @todo  support multiple buffers
  *
  *
  * This is the plugin to capture data from sensors
@@ -158,6 +159,7 @@ enum
  * @brief IIO system paths
  */
 #define IIO_BASE_DIR "/sys/bus/iio/devices/"
+#define IIO_DEV_DIR "/dev/"
 
 /**
  * @brief Template for src pad.
@@ -408,6 +410,13 @@ gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
   arguments_filled =
       sscanf (contents, "%ce:%c%u/%u>>%u", &endianchar, &signchar,
       &prop->mask_bits, &prop->storage_bits, &prop->shift);
+  if (prop->storage_bits > 0) {
+    prop->storage_bytes = ((prop->storage_bits - 1) >> 3) + 1;
+  } else {
+    GST_WARNING ("Storage bits are 0 for channel %s.", prop->name);
+    prop->storage_bytes = 0;
+  }
+
   if (arguments_filled < 5) {
     ret = FALSE;
     return ret;
@@ -456,11 +465,11 @@ gst_tensor_src_iio_get_generic_name (const gchar * channel_name)
  * @brief compare channels for sort based on their indices
  * @param[in] a First param to be compared
  * @param[in] b Second param to be compared
- * @return negative is a<b
- *         0 is a==b
+ * @return negative if a<b
+ *         zero if a==b
  *         positive if a>b
  */
-static gboolean
+static gint
 gst_tensor_channel_list_sort_cmp (gconstpointer a, gconstpointer b)
 {
   const GstTensorSrcIIOChannelProperties *a_ch = a;
@@ -470,12 +479,34 @@ gst_tensor_channel_list_sort_cmp (gconstpointer a, gconstpointer b)
 }
 
 /**
+ * @brief compare channels for filtering if enabled
+ * @param[in] data Pointer of the data of the element
+ * @param[in/out] user_data Pointer to the address of the list to be filtered
+ */
+static void
+gst_tensor_channel_list_filter_enabled (gpointer data, gpointer user_data)
+{
+  GstTensorSrcIIOChannelProperties *channel;
+  GList **list_addr;
+  GList *list;
+
+  channel = (GstTensorSrcIIOChannelProperties *) data;
+  list_addr = (GList **) user_data;
+  list = *list_addr;
+
+  if (!channel->enabled) {
+    gst_tensor_src_iio_channel_properties_free (channel);
+    *list_addr = g_list_remove (list, channel);
+  }
+}
+
+/**
  * @brief get info about all the channels in the device
  * @param[in/out] self Tensor src IIO object
  * @param[in] dir_name Directory name with all the scan elements for device
  * @return >=0 number of enabled channels
  *         -1  if any error when scanning channels
- * @todo: verify scale and offset can exist in continuous mode
+ * @todo verify scale and offset can exist in continuous mode
  */
 static gint
 gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
@@ -874,6 +905,35 @@ gst_tensor_set_all_channels (GstTensorSrcIIO * self, const gint contents)
 }
 
 /**
+ * @brief get the size of the combined data from channels
+ * @param[in] channels List of all the channels
+ * @return Size of one scan of data combined from all the channels
+ *
+ * Also evaluates the location of each channel in the buffer
+ */
+static guint
+gst_tensor_get_size_from_channels (GList * channels)
+{
+  guint size_bytes = 0;
+  GList *list;
+  GstTensorSrcIIOChannelProperties *channel_prop = NULL;
+
+  for (list = channels; list != NULL; list = list->next) {
+    channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
+    guint remain = size_bytes % channel_prop->storage_bytes;
+    if (remain == 0) {
+      channel_prop->location = size_bytes;
+    } else {
+      channel_prop->location =
+          size_bytes - remain + channel_prop->storage_bytes;
+    }
+    size_bytes = channel_prop->location + channel_prop->storage_bytes;
+  }
+
+  return size_bytes;
+}
+
+/**
  * @brief start function, called when state changed null to ready.
  * load the device and init the device resources
  */
@@ -1006,7 +1066,39 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       gst_tensor_set_all_channels (self, 0);
       goto error_channels_free;
     }
+    /** filter out disabled channels */
+    g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled,
+        &self->channels);
+    self->scan_size = gst_tensor_get_size_from_channels (self->channels);
   }
+
+  /** enable the buffer for the data to be captured */
+  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 1))) {
+    GST_ERROR_OBJECT (self,
+        "Cannot enable the IIO device buffer for device: %s.\n",
+        self->device.name);
+    g_free (dirname);
+    goto error_channels_free;
+  }
+  g_free (dirname);
+
+  /** open the buffer to read and ready the file descriptor */
+  gchar *device_name = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
+  filename = g_build_filename (IIO_DEV_DIR, device_name, NULL);
+  g_free (device_name);
+
+  self->buffer_data_fp = g_new (struct pollfd, 1);
+  self->buffer_data_file = fopen (filename, "r");
+  if (self->buffer_data_file == NULL) {
+    GST_ERROR_OBJECT (self, "Failed to open buffer %s for device %s.\n",
+        filename, self->device.name);
+    g_free (filename);
+    goto error_pollfd_free;
+  }
+  self->buffer_data_fp->fd = fileno (self->buffer_data_file);
+  self->buffer_data_fp->events = POLLIN;
+  g_free (filename);
 
 
 safe_return:
@@ -1016,6 +1108,9 @@ safe_return:
   /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_OK);
   return TRUE;
+
+error_pollfd_free:
+  g_free (self->buffer_data_fp);
 
 error_channels_free:
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
@@ -1046,6 +1141,18 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
   self = GST_TENSOR_SRC_IIO_CAST (src);
 
   self->configured = FALSE;
+
+  /** disable the buffer */
+  gchar *dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 0))) {
+    GST_ERROR_OBJECT (self,
+        "Error in disabling the IIO device buffer for device: %s.\n",
+        self->device.name);
+  }
+  g_free (dirname);
+
+  g_free (self->buffer_data_fp);
+  fclose (self->buffer_data_file);
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
@@ -1169,7 +1276,7 @@ gst_tensor_src_iio_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
  */
 static GstFlowReturn
 gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
-    guint size, GstBuffer ** buf)
+    guint size, GstBuffer ** buffer)
 {
   /** FIXME: fill this function */
   return GST_FLOW_ERROR;
@@ -1180,7 +1287,7 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
  */
 static GstFlowReturn
 gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
-    guint size, GstBuffer * buf)
+    guint size, GstBuffer * buffer)
 {
   /** FIXME: fill this function */
   return GST_FLOW_ERROR;
