@@ -60,8 +60,6 @@ get_subplugin (subpluginType type, const char *name)
   subpluginData *data;
   void *handle;
 
-  nnsconf_loadconf (FALSE);
-
   G_LOCK (splock);
 
   if (subplugins[type] == NULL)
