@@ -97,6 +97,11 @@ if get_option('enable-tensorflow')
   else
     message('Cannot find tensorflow')
   endif
+
+  nnstreamer_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
+else
+  message('Tensorflow is disabled')
+  nnstreamer_conf.set('TF_MEM_OPTMZ', false)
 endif
 
 # Tensorflow-lite
