@@ -87,7 +87,7 @@ extern const gchar *
 nnsconf_get_fullpath_fromfile (const gchar *file2find, nnsconf_type type);
 
 /**
- * @brief Search for "file2find" file in the configured paths for the type
+ * @brief Get the configured paths for the type with sub-plugin name.
  * @param[in] The subplugin name except for the prefix and postfix (.so) to find
  * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
  * @return The full path to the file. Caller MUST NOT modify this.
