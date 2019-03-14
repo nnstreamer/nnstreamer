@@ -1031,6 +1031,103 @@ TEST (test_tensor_transform, arithmetic_5_accel)
 }
 
 /**
+ * @brief Test for tensor_transform arithmetic (changing option string dynamically)
+ */
+TEST (test_tensor_transform, arithmetic_change_option_string)
+{
+  const guint array_size = 5;
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorConfig config;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
+
+  /* input tensor info */
+  config.info.type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("5", config.info.dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+  data_size = gst_tensor_info_get_size (&config.info);
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+  for (i = 0; i < array_size; i++) {
+    float value = (i + 1) * (i * 3 + 1) + .2;
+    ((float *) info.data)[i] = value;
+  }
+
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+  for (i = 0; i < array_size; i++) {
+    float expected = (i + 1) * (i * 3 + 1) + .2 + .5;
+    EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
+  }
+
+  gst_memory_unmap (mem, &info);
+  gst_buffer_unref (out_buf);
+
+  /** Change the option string during runtime */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "mul:20", NULL);
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+  for (i = 0; i < array_size; i++) {
+    float value = (i + 1) * (i * 3 + 1) + .9;
+    ((float *) info.data)[i] = value;
+  }
+
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+  for (i = 0; i < array_size; i++) {
+    float expected = ((i + 1) * (i * 3 + 1) + .9) * 20;
+    EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
+  }
+
+  gst_memory_unmap (mem, &info);
+  gst_buffer_unref (out_buf);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 2);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test data for tensor_aggregator (2 frames with dimension 3:4:2:2)
  */
 const gint aggr_test_frames[2][48] = {
