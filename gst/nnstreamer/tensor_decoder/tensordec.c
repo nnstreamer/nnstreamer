@@ -139,6 +139,7 @@ static void gst_tensordec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensordec_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void gst_tensordec_class_finalize (GObject * object);
 
 /** GstBaseTransform vmethod implementations */
 static GstFlowReturn gst_tensordec_transform (GstBaseTransform * trans,
@@ -266,6 +267,7 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
 
   gobject_class->set_property = gst_tensordec_set_property;
   gobject_class->get_property = gst_tensordec_get_property;
+  gobject_class->finalize = gst_tensordec_class_finalize;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
@@ -540,6 +542,21 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+/**
+ * @brief Finalize instance (GObject vmethod)
+ */
+static void
+gst_tensordec_class_finalize (GObject * object)
+{
+  GstTensorDec *decoder = GST_TENSORDEC (object);
+
+  if (decoder->cleanup_plugin_data) {
+    decoder->cleanup_plugin_data (&decoder->plugin_data);
+  }
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
