@@ -77,16 +77,18 @@ typedef enum {
   NNS_ERROR_INVALID_PARAMETER			= TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
   NNS_ERROR_NOT_SUPPORTED			= TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
   NNS_ERROR_PIPELINE_FAIL			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access Gstreamer pipeline. */
+  NNS_ERROR_TRY_AGAIN				= TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
 } nns_error_e;
 
 /**
  * @brief Enumeration for buffer deallocation policies.
  * @since_tizen 5.5
- * @todo The list is to be filled! (NYI)
+ * @todo The list is to be filled! (NYI): "Memcpy Mode"? "GstBuffer Mode"?
  */
 typedef enum {
-  NNS_BUF_FREE_BY_NNSTREAMER			= 0, /**< Default. Application should not deallocate this buffer. NNStreamer will deallocate when the buffer is no more needed */
-  NNS_BUF_DO_NOT_FREE				= 1, /**< This buffer is not to be freed. */
+  NNS_BUF_FREE_BY_NNSTREAMER,	/**< Default. Application should not deallocate this buffer. NNStreamer will deallocate when the buffer is no more needed */
+  NNS_BUF_DO_NOT_FREE1,		/**< This buffer is not to be freed by NNStreamer (i.e., it's a static object). However, be careful: NNStreamer might be accessing this object after the return of the API call. */
+  NNS_BUF_POLICY_MAX,
 } nns_buf_policy;
 
 /**
@@ -137,7 +139,7 @@ typedef enum {
  * @detail If an application wants to accept data outputs of an nnstreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not hold too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
  * @param[in] buf The contents of the tensor output (a single frame. tensor/tensors). Number of buf is determined by tensorsinfo->num_tensors.
- * @param[in] size The size of the buffer. Number of size is determined by tensorsinfo->num_tensors.
+ * @param[in] size The size of the buffer. Number of size is determined by tensorsinfo->num_tensors. Note that max num_tensors is 16 (NNS_TENSOR_SIZE_LIMIT).
  * @param[in] tensorsinfo The cardinality, dimension, and type of given tensor/tensors.
  * @param[in/out] pdata User Application's Private Data
  */
@@ -223,6 +225,9 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  * @param[in] pdata Private data for the callback. This value is passed to the callback when it's invoked.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sinkname is not found, or sinkname has an invalid type.)
+ *
+ * @todo Allow to use GstBuffer instead of buf/size pairs of cb, probably with yet another API.
  */
 int nns_pipeline_sink_register
 (nns_pipeline_h pipe, const char *sinkname, nns_sink_cb cb, nns_sink_h *h, void *pdata);
@@ -233,6 +238,7 @@ int nns_pipeline_sink_register
  * @param[in] The nns_sink_handle to be unregistered (destroyed)
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_sink_unregister (nns_sink_h h);
 
@@ -245,6 +251,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @param[out] h The src handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_src_gethandle
 (nns_pipeline_h pipe, const char *srcname, GstTensorsInfo *tensorsinfo, nns_src_h *h);
@@ -255,6 +262,7 @@ int nns_pipeline_src_gethandle
  * @param[in] h The src handle to be put (closed).
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_src_puthandle (nns_src_h h);
 
@@ -262,13 +270,18 @@ int nns_pipeline_src_puthandle (nns_src_h h);
  * @brief Put an input data frame.
  * @param[in] h The nns_src_handle returned by nns_pipeline_gethandle().
  * @param[out] policy The policy of buf deallocation.
- * @param[in] buf The input buffer, in the format of tensorsinfo given by nns_pipeline_gethandle()
- * @param[in] size The size of input buffer. This must be consistent with the given tensorsinfo.
+ * @param[in] buf The input buffers, in the format of tensorsinfo given by nns_pipeline_gethandle()
+ * @param[in] size The sizes of input buffers. This must be consistent with the given tensorsinfo, probed by nns_pipeline_src_gethandle().
+ * @param[in] num_tensors The number of tensors (number of buf and number of size) for the input frame. This must be consistent with the given tensorinfo, probed by nns_pipeline_src_gethandle(). MAX is 16 (NNS_TENSOR_SIZE_LIMIT).
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #NNS_ERROR_PIPELINE_FAIL The pipeline has inconsistent padcaps. Not negotiated?
+ *
+ * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
 int nns_pipeline_src_inputdata (nns_src_h h,
-    nns_buf_policy policy, char *buf, size_t size);
+    nns_buf_policy policy, char *buf[], const size_t size[], unsigned int num_tensors);
 
 /****************************************************
  ** NNStreamer Pipeline Switch/Valve Control       **
@@ -280,14 +293,13 @@ int nns_pipeline_src_inputdata (nns_src_h h,
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors
  * @param[in] pipe The pipeline to be managed.
  * @param[in] switchname The name of switch (InputSelector/OutputSelector)
- * @param[out] num_nodes The number of nodes selected by this switch node. We assume they are listed from 0 ... num_nodes-1.
- * @param[in] type The type of the switch.
+ * @param[out] type The type of the switch. If NULL, it is ignored.
  * @param[out] h The switch handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  */
 int nns_pipeline_switch_gethandle
-(nns_pipeline_h pipe, const char *switchname, int *num_nodes, nns_switch_type type, nns_switch_h *h);
+(nns_pipeline_h pipe, const char *switchname, nns_switch_type *type, nns_switch_h *h);
 
 /**
  * @brief Close the given switch handle
@@ -300,11 +312,20 @@ int nns_pipeline_switch_puthandle (nns_switch_h h);
 /**
  * @brief Control the switch with the given handle to select input/output nodes(pads).
  * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
- * @param[in] node The node number, which is 0 ... num_nodes-1.
+ * @param[in] padname The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  */
-int nns_pipeline_switch_select (nns_switch_h h, int node);
+int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
+
+/**
+ * @brief Get the pad names of a switch
+ * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
+ * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
+ * @return @c 0 on success. otherwise a negative error value
+ * @retval #NNS_ERROR_NONE Successful
+ */
+int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 
 /**
  * @brief Get a handle to operate a "GstValve" node of nnstreamer pipelines
@@ -329,11 +350,11 @@ int nns_pipeline_valve_puthandle (nns_valve_h h);
 /**
  * @brief Control the valve with the given handle
  * @param[in] h The valve handle returned by nns_pipeline_valve_gethandle()
- * @param[in] valve_open 0 to close (stop flow). 1 to open (continue flow)
+ * @param[in] valve_drop 1 to close (drop & stop the flow). 0 to open (let the flow pass)
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  */
-int nns_pipeline_valve_control (nns_valve_h h, int valve_open);
+int nns_pipeline_valve_control (nns_valve_h h, int valve_drop);
 
 /**
  * @}

@@ -69,6 +69,8 @@ typedef struct _element {
   size_t size;
 
   GList *handles;
+  int maxid; /**< to allocate id for each handle */
+
   GMutex lock; /**< Lock for internal values */
 } element;
 
