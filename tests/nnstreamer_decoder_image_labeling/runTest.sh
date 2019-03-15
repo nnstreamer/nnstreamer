@@ -23,15 +23,30 @@ PATH_TO_PLUGIN="../../build"
 PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="img/orange.png"
-PATH_TO_FILE="tensordecoder.log"
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow-lite\" model=\"${PATH_TO_MODEL}\" ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"${PATH_TO_FILE}\"" D1 0 0 $PERFORMANCE
+# Decoding 'orange' tests
+# Since data type of output tensor is uint8, int8 requires another 'quantization' (such as /2)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow-lite\" model=\"${PATH_TO_MODEL}\" ! \
+tee name=t ! queue ! tensor_transform mode=typecast option=uint8 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint8.log\" \
+t. ! queue ! tensor_transform mode=typecast option=uint16 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint16.log\" \
+t. ! queue ! tensor_transform mode=typecast option=uint32 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint32.log\" \
+t. ! queue ! tensor_transform mode=typecast option=uint64 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint64.log\" \
+t. ! queue ! tensor_transform mode=arithmetic option=div:2 ! tensor_transform mode=typecast option=int8 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.int8.log\" \
+t. ! queue ! tensor_transform mode=typecast option=int16 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.int16.log\" \
+t. ! queue ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.int32.log\" \
+t. ! queue ! tensor_transform mode=typecast option=int64 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.int64.log\" \
+t. ! queue ! tensor_transform mode=typecast option=float32 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.float.log\" \
+t. ! queue ! tensor_transform mode=typecast option=float64 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.double.log\"" D1 0 0 $PERFORMANCE
+let i=1
+for result in tensordecoder.orange.*.log; do
+	label=$(cat "${result}")
+	if [ "$label" == "orange" ]
+	then
+		testResult 1 D1-${i} "Decoding Orange"
+	else
+		testResult 0 D1-${i} "Decoding Orange"
+	fi
+	let i++
+done
 
-label=$(cat "${PATH_TO_FILE}")
-if [ "$label" == "orange" ]
-then
-	testResult 1 D1A "Decoding Orange"
-else
-	testResult 0 D1A "Decoding Orange"
-fi
 report
