@@ -160,6 +160,8 @@ enum
 #define EN_SUFFIX "_en"
 #define INDEX_SUFFIX "_index"
 #define TYPE_SUFFIX "_type"
+#define SCALE_SUFFIX "_scale"
+#define OFFSET_SUFFIX "_offset"
 
 /**
  * @brief filenames for IIO devices/triggers characteristics
@@ -476,6 +478,44 @@ error_free_filename:
 }
 
 /**
+ * @brief parse float value from the file
+ * @param[in] dirname Directory containing the file
+ * @param[in] name Filename of the file
+ * @param[in] suffix Suffix to be attached to the filename
+ * @param[in/out] value Output value returned via value
+ * @return FALSE on errors, else TRUE
+ */
+static gboolean
+gst_tensor_src_iio_get_float_from_file (const gchar * dirname,
+    const gchar * name, const gchar * suffix, gfloat * value)
+{
+  gchar *filename, *filepath, *file_contents = NULL;
+
+  filename = g_strdup_printf ("%s%s", name, suffix);
+  filepath = g_build_filename (dirname, filename, NULL);
+
+  if (!g_file_get_contents (filepath, &file_contents, NULL, NULL)) {
+    GST_WARNING ("Channel specific scale not found.");
+  } else {
+    if (!sscanf (file_contents, "%f", value)) {
+      GST_ERROR ("Error in parsing channel specific scale.");
+      goto failure;
+    }
+    g_free (file_contents);
+  }
+  g_free (filename);
+  g_free (filepath);
+
+  return TRUE;
+
+failure:
+  g_free (file_contents);
+  g_free (filename);
+  g_free (filepath);
+  return FALSE;
+}
+
+/**
  * @brief get type info about the channel from the string
  * @param[in/out] prop Channel properties where type info will be set
  * @param[in] contents Contains type unparsed information to be set
@@ -602,6 +642,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
   gint ret = -1;
   guint value;
   guint num_channels_enabled = 0;
+  gboolean generic_val, specific_val;
 
   if (!g_file_test (dir_name, G_FILE_TEST_IS_DIR)) {
     GST_ERROR ("No channels available.");
@@ -684,6 +725,32 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
         goto error_cleanup_list;
       }
       g_free (file_contents);
+
+      /** find and setup offset info */
+      channel_prop.scale = 1.0;
+
+      specific_val =
+          gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
+          channel_prop.name, SCALE_SUFFIX, &channel_prop.scale);
+      generic_val =
+          gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
+          channel_prop.generic_name, SCALE_SUFFIX, &channel_prop.scale);
+      if (!specific_val || !generic_val) {
+        goto error_cleanup_list;
+      }
+
+      /** find and setup scale info */
+      channel_prop.offset = 0.0;
+
+      specific_val =
+          gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
+          channel_prop.name, OFFSET_SUFFIX, &channel_prop.offset);
+      generic_val =
+          gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
+          channel_prop.generic_name, OFFSET_SUFFIX, &channel_prop.offset);
+      if (!specific_val || !generic_val) {
+        goto error_cleanup_list;
+      }
     }
   }
 

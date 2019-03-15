@@ -88,6 +88,8 @@ typedef struct _GstTensorSrcIIOChannelProperties
   guint storage_bits; /**< exact bit size for the data */
   guint shift; /**< shift to be applied on the read data */
   guint location; /**< location of channel data in buffer */
+  gfloat offset; /**< offset applied on raw data read from device */
+  gfloat scale; /**< scale applied on offset-ed data read from device */
 } GstTensorSrcIIOChannelProperties;
 
 /**
