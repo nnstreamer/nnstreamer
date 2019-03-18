@@ -36,6 +36,41 @@
 
 #define DLOG_TAG "nnstreamer-capi-pipeline"
 
+#define handle_init(type, name, h) \
+  nns_##type *name= (h); \
+  nns_pipeline *p; \
+  element *elem; \
+  int ret = NNS_ERROR_NONE; \
+  if (h == NULL) { \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
+        "The given handle is invalid"); \
+    return NNS_ERROR_INVALID_PARAMETER; \
+  } \
+\
+  p = name->pipe; \
+  elem = name->element; \
+  if (p == NULL || elem == NULL || p != elem->pipe) { \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
+        "The handle appears to be broken."); \
+    return NNS_ERROR_INVALID_PARAMETER; \
+  } \
+\
+  g_mutex_lock (&p->lock); \
+  g_mutex_lock (&elem->lock); \
+\
+  if (NULL == g_list_find (elem->handles, name)) { \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
+        "The handle does not exists."); \
+    ret = NNS_ERROR_INVALID_PARAMETER; \
+    goto unlock_return; \
+  }
+
+#define handle_exit(h) \
+unlock_return: \
+  g_mutex_unlock (&elem->lock); \
+  g_mutex_unlock (&p->lock); \
+  return ret;
+
 /**
  * @brief Internal function to create a refereable element in a pipeline
  */
@@ -526,43 +561,11 @@ unlock_return:
 int
 nns_pipeline_sink_unregister (nns_sink_h h)
 {
-  nns_sink *sink = h;
-  nns_pipeline *p;
-  element *elem;
-  int ret = NNS_ERROR_NONE;
-
-  if (h == NULL) {
-    dlog_print (DLOG_ERROR, DLOG_TAG,
-        "The handle to be unregistered is invalid");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
-
-  p = sink->pipe;
-  elem = sink->element;
-
-  if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
-
-  g_mutex_lock (&p->lock);
-
-  g_mutex_lock (&elem->lock);
-
-  if (NULL == g_list_find (elem->handles, sink)) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle does not exists.");
-    ret = NNS_ERROR_INVALID_PARAMETER;
-    goto unlock_return;
-  }
+  handle_init (sink, sink, h);
 
   elem->handles = g_list_remove (elem->handles, sink);
 
-unlock_return:
-  g_mutex_unlock (&elem->lock);
-
-  g_mutex_unlock (&p->lock);
-
-  return ret;
+  handle_exit (h);
 }
 
 /**
@@ -655,42 +658,11 @@ unlock_return:
 int
 nns_pipeline_src_puthandle (nns_src_h h)
 {
-  nns_src *src = h;
-  nns_pipeline *p;
-  element *elem;
-  int ret = NNS_ERROR_NONE;
-
-  if (h == NULL) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle to be put is invalid");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
-
-  p = src->pipe;
-  elem = src->element;
-
-  if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
-
-  g_mutex_lock (&p->lock);
-
-  g_mutex_lock (&elem->lock);
-
-  if (NULL == g_list_find (elem->handles, src)) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle does not exists.");
-    ret = NNS_ERROR_INVALID_PARAMETER;
-    goto unlock_return;
-  }
+  handle_init (src, src, h);
 
   elem->handles = g_list_remove (elem->handles, src);
 
-unlock_return:
-  g_mutex_unlock (&elem->lock);
-
-  g_mutex_unlock (&p->lock);
-
-  return ret;
+  handle_exit (h);
 }
 
 /**
@@ -702,37 +674,19 @@ nns_pipeline_src_inputdata (nns_src_h h,
     unsigned int num_tensors)
 {
   /** @todo NYI */
-  nns_src *src = h;
-  nns_pipeline *p;
-  element *elem;
   GstBuffer *buffer;
   GstFlowReturn gret;
-  int ret = NNS_ERROR_NONE;
   unsigned int i;
 
-  if (h == NULL) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle to be put is invalid");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
+  handle_init (src, src, h);
 
   if (num_tensors < 1 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     dlog_print (DLOG_ERROR, DLOG_TAG,
         "The tensor size if invalid. It should be 1 ~ %u; where it is %u",
         NNS_TENSOR_SIZE_LIMIT, num_tensors);
-    return NNS_ERROR_INVALID_PARAMETER;
+    ret = NNS_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
   }
-
-  p = src->pipe;
-  elem = src->element;
-
-  if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
-    return NNS_ERROR_INVALID_PARAMETER;
-  }
-
-  g_mutex_lock (&p->lock);
-
-  g_mutex_lock (&elem->lock);
 
   /** @todo This assumes that padcap is static */
   if (elem->src == NULL) {
@@ -836,10 +790,8 @@ nns_pipeline_src_inputdata (nns_src_h h,
         "THe pipeline is in EOS state. The input is ignored.");
     ret = NNS_ERROR_PIPELINE_FAIL;
   }
-unlock_return:
-  g_mutex_unlock (&elem->lock);
-  g_mutex_unlock (&p->lock);
-  return ret;
+
+  handle_exit (h);
 }
 
 /****************************************************
@@ -920,41 +872,6 @@ unlock_return:
   g_mutex_unlock (&p->lock);
   return ret;
 }
-
-#define handle_init(type, name, h) \
-  nns_##type *name= (h); \
-  nns_pipeline *p; \
-  element *elem; \
-  int ret = NNS_ERROR_NONE; \
-  if (h == NULL) { \
-    dlog_print (DLOG_ERROR, DLOG_TAG, \
-        "The handle to be unregistered is invalid"); \
-    return NNS_ERROR_INVALID_PARAMETER; \
-  } \
-\
-  p = name->pipe; \
-  elem = name->element; \
-  if (p == NULL || elem == NULL || p != elem->pipe) { \
-    dlog_print (DLOG_ERROR, DLOG_TAG, \
-        "The handle appears to be broken."); \
-    return NNS_ERROR_INVALID_PARAMETER; \
-  } \
-\
-  g_mutex_lock (&p->lock); \
-  g_mutex_lock (&elem->lock); \
-\
-  if (NULL == g_list_find (elem->handles, name)) { \
-    dlog_print (DLOG_ERROR, DLOG_TAG, \
-        "The handle does not exists."); \
-    ret = NNS_ERROR_INVALID_PARAMETER; \
-    goto unlock_return; \
-  }
-
-#define handle_exit(h) \
-unlock_return: \
-  g_mutex_unlock (&elem->lock); \
-  g_mutex_unlock (&p->lock); \
-  return ret;
 
 /**
  * @brief Close the given switch handle (more info in tizen-api.h)
