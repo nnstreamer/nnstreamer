@@ -66,10 +66,13 @@ TFCore::~TFCore ()
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::init (const GstTensorFilterProperties * prop)
+TFCore::init (const GstTensorFilterProperties * prop,
+  const gboolean tf_mem_optmz)
 {
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
+
+  mem_optmz = tf_mem_optmz;
 
   return loadModel ();
 }
@@ -180,6 +183,43 @@ TFCore::getTensorTypeFromTF (DataType tfType)
   }
 
   return _NNS_END;
+}
+
+/**
+ * @brief	return the data type of the tensor for Tensorflow
+ * @param tType	: the defined type of NNStreamer
+ * @return the enum of defined tensorflow::DataType
+ */
+TF_DataType
+TFCore::getTensorTypeToTF_Capi (tensor_type tType)
+{
+  switch (tType) {
+    case _NNS_INT32:
+      return TF_INT32;
+    case _NNS_UINT32:
+      return TF_UINT32;
+    case _NNS_INT16:
+      return TF_INT16;
+    case _NNS_UINT16:
+      return TF_UINT16;
+    case _NNS_INT8:
+      return TF_INT8;
+    case _NNS_UINT8:
+      return TF_UINT8;
+    case _NNS_INT64:
+      return TF_INT64;
+    case _NNS_UINT64:
+      return TF_UINT64;
+    case _NNS_FLOAT32:
+      return TF_FLOAT;
+    case _NNS_FLOAT64:
+      return TF_DOUBLE;
+    default:
+      /** @todo Support other types */
+      break;
+  }
+  /* Since there is no INVALID, TF_RESOURCE is used to detect invalid datatype temporally */
+  return TF_RESOURCE;
 }
 
 /**
@@ -363,6 +403,27 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 }
 
 /**
+ * @brief	ring cache structure
+ */
+class TFBuffer : public TensorBuffer {
+ public:
+  void* data_;
+  size_t len_;
+
+  void* data () const override { return data_; }
+  size_t size () const override { return len_; }
+  TensorBuffer* root_buffer () override { return this; }
+  void FillAllocationDescription (AllocationDescription* proto) const override {
+    int64 rb = size ();
+    proto->set_requested_bytes (rb);
+    proto->set_allocator_name (cpu_allocator ()->Name ());
+  }
+
+  // Prevents input forwarding from mutating this buffer.
+  bool OwnsMemory () const override { return false; }
+};
+
+/**
  * @brief	run the model with the input.
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
@@ -379,16 +440,44 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   std::vector <std::pair <string, Tensor>> input_feeds;
   std::vector <Tensor> outputs;
+  Tensor in;
 
   for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    Tensor in (input_tensor_info[i].type, input_tensor_info[i].shape);
 
-    /* copy data */
-    if (input_tensor_info[i].type == DT_STRING) {
-      in.scalar<string>()() = string ((char *) input[i].data, input[i].size);
-    } else {
-      std::copy_n ((char *) input[i].data, input[i].size,
-          const_cast<char *>(in.tensor_data().data()));
+    if (mem_optmz) {
+      TFBuffer *buf = new TFBuffer;
+      buf->len_ = input[i].size;
+      buf->data_ = input[i].data;
+
+      TF_DataType dataType = getTensorTypeToTF_Capi (input[i].type);
+
+      if (dataType == TF_RESOURCE){
+        g_critical ("This data type is not valid: %d", input[i].type);
+        buf->Unref();
+        return -1;
+      }
+
+      in = TensorCApi::MakeTensor (
+        dataType,
+        input_tensor_info[i].shape,
+        buf
+      );
+      if (!in.IsAligned ()) {
+        g_critical ("the input tensor %s is not aligned", inputTensorMeta.info[i].name);
+        buf->Unref();
+        return -2;
+      }
+    }
+    else {
+      in = Tensor (input_tensor_info[i].type, input_tensor_info[i].shape);
+
+      /* copy data */
+      if (input_tensor_info[i].type == DT_STRING) {
+        in.scalar<string>()() = string ((char *) input[i].data, input[i].size);
+      } else {
+        std::copy_n ((char *) input[i].data, input[i].size,
+            const_cast<char *>(in.tensor_data().data()));
+      }
     }
 
     input_feeds.push_back ({inputTensorMeta.info[i].name, in});
@@ -397,14 +486,19 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   Status run_status =
       session->Run (input_feeds, output_tensor_names, {}, &outputs);
 
+  if (mem_optmz) {
+    TensorBuffer *buf = TensorCApi::Buffer (in);
+    buf->Unref();
+  }
+
   if (!run_status.ok()) {
-    GST_ERROR ("Failed to run model: %s\n", run_status.ToString().c_str());
+    g_critical ("Failed to run model: %s\n", run_status.ToString().c_str());
     return -1;
   }
 
   /* validate output tensor once */
   if (!configured && validateOutputTensor (outputs)) {
-    GST_ERROR ("Output Tensor Information is not valid");
+    g_critical ("Output Tensor Information is not valid");
     return -2;
   }
 
@@ -449,10 +543,11 @@ tf_core_delete (void * tf)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_init (void * tf, const GstTensorFilterProperties * prop)
+tf_core_init (void * tf, const GstTensorFilterProperties * prop,
+  const gboolean tf_mem_optmz)
 {
   TFCore *c = (TFCore *) tf;
-  return c->init (prop);
+  return c->init (prop, tf_mem_optmz);
 }
 
 /**

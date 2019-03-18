@@ -30,6 +30,7 @@
 #include "tensor_filter_tensorflow_core.h"
 #include <glib.h>
 #include <string.h>
+#include <nnstreamer_conf.h>
 
 /**
  * @brief internal data of tensorflow
@@ -77,8 +78,12 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
   tf = g_new0 (tf_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
   tf->tf_private_data = tf_core_new (prop->model_file);
+
+  const gboolean tf_mem_optmz =
+      nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ);
+
   if (tf->tf_private_data) {
-    if (tf_core_init (tf->tf_private_data, prop)) {
+    if (tf_core_init (tf->tf_private_data, prop, tf_mem_optmz)) {
       g_printerr ("failed to initailize the object: tensorflow");
       return -2;
     }
