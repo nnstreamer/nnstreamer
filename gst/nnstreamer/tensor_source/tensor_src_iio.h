@@ -83,7 +83,8 @@ typedef struct _GstTensorSrcIIOChannelProperties
 
   gboolean big_endian; /**< endian-ness of the data in buffer */
   gboolean is_signed; /**< sign property of the data*/
-  guint mask_bits; /**< size of the bitmask for the data */
+  guint used_bits; /**< size of the bits used for the data */
+  guint64 mask; /**< size of the bits used for the data */
   guint storage_bytes; /**< total storage size for the data */
   guint storage_bits; /**< exact bit size for the data */
   guint shift; /**< shift to be applied on the read data */
