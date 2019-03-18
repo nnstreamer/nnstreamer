@@ -34,6 +34,8 @@
 #include <gst/gstbuffer.h>
 #include <gst/app/app.h>        /* To push data to pipeline */
 
+#define DLOG_TAG "nnstreamer-capi-pipeline"
+
 /**
  * @brief Internal function to create a refereable element in a pipeline
  */
@@ -78,7 +80,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
   num_mems = gst_buffer_n_memory (b);
 
   if (num_mems > NNS_TENSOR_SIZE_LIMIT) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "Number of memory chunks in a GstBuffer exceed the limit: %u > %u",
         num_mems, NNS_TENSOR_SIZE_LIMIT);
     return;
@@ -121,7 +123,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
           elem->size = 0;
 
           if (elem->tensorsinfo.num_tensors != num_mems) {
-            dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+            dlog_print (DLOG_ERROR, DLOG_TAG,
                 "The sink event of [%s] cannot be handled because the tensor type mismatches.",
                 elem->name);
             gst_caps_unref (caps);
@@ -135,7 +137,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
             size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
 
             if (sz != size[i]) {
-              dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+              dlog_print (DLOG_ERROR, DLOG_TAG,
                   "The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                   elem->name);
               gst_caps_unref (caps);
@@ -160,7 +162,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
   /* Get the data! */
   if (gst_buffer_get_size (b) != total_size ||
       (elem->size > 0 && total_size != elem->size)) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The buffersize mismatches. All the three values must be the same: %zu, %zu, %zu",
         total_size, elem->size, gst_buffer_get_size (b));
     g_mutex_unlock (&elem->lock);
@@ -226,11 +228,11 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
 
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
-      dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+      dlog_print (DLOG_ERROR, DLOG_TAG,
           "Gstreamer has the following error: %s", err->message);
       g_error_free (err);
     } else {
-      dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+      dlog_print (DLOG_ERROR, DLOG_TAG,
           "Cannot initialize gstreamer. Unknown reason.");
     }
     return NNS_ERROR_PIPELINE_FAIL;
@@ -239,12 +241,12 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
   pipeline = gst_parse_launch (pipeline_description, &err);
   if (pipeline == NULL) {
     if (err) {
-      dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+      dlog_print (DLOG_ERROR, DLOG_TAG,
           "Cannot parse and launch the given pipeline = [%s], %s",
           pipeline_description, err->message);
       g_error_free (err);
     } else {
-      dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+      dlog_print (DLOG_ERROR, DLOG_TAG,
           "Cannot parse and launch the given pipeline = [%s], unknown reason",
           pipeline_description);
     }
@@ -316,7 +318,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
           break;
         case GST_ITERATOR_RESYNC:
         case GST_ITERATOR_ERROR:
-          dlog_print (DLOG_WARN, "nnstreamer-capi-pipeline",
+          dlog_print (DLOG_WARN, DLOG_TAG,
               "There is an error or a resync-event while inspecting a pipeline. However, we can still execute the pipeline.");
         case GST_ITERATOR_DONE:
           done = TRUE;
@@ -469,13 +471,13 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname,
   int ret = NNS_ERROR_NONE;
 
   if (pipe == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The first argument, pipeline handle is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   if (cb == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The callback argument, cb, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
@@ -484,14 +486,14 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname,
   elem = g_hash_table_lookup (p->namednodes, sinkname);
 
   if (elem == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is no element named [%s] in the pipeline.", sinkname);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_SINK) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The element [%s] in the pipeline is not a tensor_sink.", sinkname);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -530,7 +532,7 @@ nns_pipeline_sink_unregister (nns_sink_h h)
   int ret = NNS_ERROR_NONE;
 
   if (h == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The handle to be unregistered is invalid");
     return NNS_ERROR_INVALID_PARAMETER;
   }
@@ -539,8 +541,7 @@ nns_pipeline_sink_unregister (nns_sink_h h)
   elem = sink->element;
 
   if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
-        "The handle appears to be broken.");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -549,8 +550,7 @@ nns_pipeline_sink_unregister (nns_sink_h h)
   g_mutex_lock (&elem->lock);
 
   if (NULL == g_list_find (elem->handles, sink)) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
-        "The handle does not exists.");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle does not exists.");
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -606,7 +606,7 @@ int nns_pipeline_src_gethandle
   int ret = NNS_ERROR_NONE;
 
   if (pipe == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The first argument, pipeline handle is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
@@ -616,14 +616,14 @@ int nns_pipeline_src_gethandle
   elem = g_hash_table_lookup (p->namednodes, srcname);
 
   if (elem == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is no element named [%s] in the pipeline.", srcname);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_SRC) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The element [%s] in the pipeline is not a tensor_src.", srcname);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -661,8 +661,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
   int ret = NNS_ERROR_NONE;
 
   if (h == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pieline",
-        "The handle to be put is invalid");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle to be put is invalid");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -670,8 +669,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
   elem = src->element;
 
   if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
-        "The handle appears to be broken.");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -680,8 +678,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
   g_mutex_lock (&elem->lock);
 
   if (NULL == g_list_find (elem->handles, src)) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
-        "The handle does not exists.");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle does not exists.");
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -714,13 +711,12 @@ nns_pipeline_src_inputdata (nns_src_h h,
   unsigned int i;
 
   if (h == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pieline",
-        "The handle to be put is invalid");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle to be put is invalid");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   if (num_tensors < 1 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pieline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The tensor size if invalid. It should be 1 ~ %u; where it is %u",
         NNS_TENSOR_SIZE_LIMIT, num_tensors);
     return NNS_ERROR_INVALID_PARAMETER;
@@ -730,8 +726,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
   elem = src->element;
 
   if (p == NULL || elem == NULL || p != elem->pipe) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
-        "The handle appears to be broken.");
+    dlog_print (DLOG_ERROR, DLOG_TAG, "The handle appears to be broken.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -766,7 +761,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
           elem->size = 0;
 
           if (elem->tensorsinfo.num_tensors != num_tensors) {
-            dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+            dlog_print (DLOG_ERROR, DLOG_TAG,
                 "The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
                 elem->name, elem->tensorsinfo.num_tensors, num_tensors);
             gst_caps_unref (caps);
@@ -779,7 +774,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
             size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
 
             if (sz != size[i]) {
-              dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+              dlog_print (DLOG_ERROR, DLOG_TAG,
                   "The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                   elem->name);
               gst_caps_unref (caps);
@@ -791,7 +786,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
             elem->size += sz;
 
             if (sz != size[i]) {
-              dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+              dlog_print (DLOG_ERROR, DLOG_TAG,
                   "The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
                   i, size[i], sz);
               gst_caps_unref (caps);
@@ -811,7 +806,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
   }
 
   if (elem->size == 0) {
-    dlog_print (DLOG_WARN, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_WARN, DLOG_TAG,
         "The pipeline is not ready to accept inputs. The input is ignored.");
     ret = NNS_ERROR_TRY_AGAIN;
     goto unlock_return;
@@ -833,11 +828,11 @@ nns_pipeline_src_inputdata (nns_src_h h,
   gret = gst_app_src_push_buffer (GST_APP_SRC (elem->element), buffer);
 
   if (gret == GST_FLOW_FLUSHING) {
-    dlog_print (DLOG_WARN, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_WARN, DLOG_TAG,
         "The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
     ret = NNS_ERROR_TRY_AGAIN;
   } else if (gret == GST_FLOW_EOS) {
-    dlog_print (DLOG_WARN, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_WARN, DLOG_TAG,
         "THe pipeline is in EOS state. The input is ignored.");
     ret = NNS_ERROR_PIPELINE_FAIL;
   }
@@ -864,13 +859,13 @@ nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
   int ret = NNS_ERROR_NONE;
 
   if (pipe == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The first argument, pipeline handle, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   if (switchname == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The second argument, switchname, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
@@ -879,14 +874,14 @@ nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
   elem = g_hash_table_lookup (p->namednodes, switchname);
 
   if (elem == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is no switch element named [%s] in the pipeline.", switchname);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_SWITCH_INPUT && elem->type != NNSAPI_SWITCH_OUTPUT) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is an element named [%s] in the pipeline, but it is not an input/output switch",
         switchname);
     ret = NNS_ERROR_INVALID_PARAMETER;
@@ -905,7 +900,7 @@ nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
     else if (elem->type == NNSAPI_SWITCH_OUTPUT)
       *type = NNS_SWITCH_OUTPUTSELECTOR;
     else {
-      dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+      dlog_print (DLOG_ERROR, DLOG_TAG,
           "Internal data of switch-handle [%s] is broken. It is fatal.",
           elem->name);
       ret = NNS_ERROR_INVALID_PARAMETER;
@@ -932,7 +927,7 @@ unlock_return:
   element *elem; \
   int ret = NNS_ERROR_NONE; \
   if (h == NULL) { \
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline", \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
         "The handle to be unregistered is invalid"); \
     return NNS_ERROR_INVALID_PARAMETER; \
   } \
@@ -940,7 +935,7 @@ unlock_return:
   p = name->pipe; \
   elem = name->element; \
   if (p == NULL || elem == NULL || p != elem->pipe) { \
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline", \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
         "The handle appears to be broken."); \
     return NNS_ERROR_INVALID_PARAMETER; \
   } \
@@ -949,7 +944,7 @@ unlock_return:
   g_mutex_lock (&elem->lock); \
 \
   if (NULL == g_list_find (elem->handles, name)) { \
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline", \
+    dlog_print (DLOG_ERROR, DLOG_TAG, \
         "The handle does not exists."); \
     ret = NNS_ERROR_INVALID_PARAMETER; \
     goto unlock_return; \
@@ -989,7 +984,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   active_name = gst_pad_get_name (active_pad);
 
   if (!g_strcmp0 (padname, active_name)) {
-    dlog_print (DLOG_INFO, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_INFO, DLOG_TAG,
         "Switch is called, but there is no effective changes: %s->%s.",
         active_name, padname);
     g_free (active_name);
@@ -1004,7 +999,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   new_pad = gst_element_get_static_pad (elem->element, padname);
   if (new_pad == NULL) {
     /* Not Found! */
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "Cannot find the pad, [%s], from the switch, [%s].",
         padname, elem->name);
     ret = NNS_ERROR_INVALID_PARAMETER;
@@ -1014,7 +1009,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   g_object_set (G_OBJECT (elem->element), "active-pad", new_pad, NULL);
   gst_object_unref (new_pad);
 
-  dlog_print (DLOG_INFO, "nnstreamer-capi-pipeline",
+  dlog_print (DLOG_INFO, DLOG_TAG,
       "Switched to [%s] successfully at switch [%s].", padname, elem->name);
 
   handle_exit (h);
@@ -1040,7 +1035,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
   else if (elem->type == NNSAPI_SWITCH_OUTPUT)
     it = gst_element_iterate_src_pads (elem->element);
   else {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The element, [%s], is supposed to be input/output switch, but it is not. Internal data structure is broken.",
         elem->name);
     ret = NNS_ERROR_PIPELINE_FAIL;
@@ -1062,7 +1057,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
         gst_iterator_resync (it);
         break;
       case GST_ITERATOR_ERROR:
-        dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+        dlog_print (DLOG_ERROR, DLOG_TAG,
             "Cannot access the list of pad properly of a switch, [%s].",
             elem->name);
         ret = NNS_ERROR_PIPELINE_FAIL;
@@ -1088,7 +1083,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
         g_list_free_full (dllist, g_free);      /* This frees all strings as well */
         g_free (list);
 
-        dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+        dlog_print (DLOG_ERROR, DLOG_TAG,
             "Internal data inconsistency. This could be a bug in nnstreamer. Switch [%s].",
             elem->name);
         ret = NNS_ERROR_PIPELINE_FAIL;
@@ -1113,13 +1108,13 @@ int nns_pipeline_valve_gethandle
   int ret = NNS_ERROR_NONE;
 
   if (pipe == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The first argument, pipeline handle, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   if (valvename == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "The second argument, valvename, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
@@ -1128,14 +1123,14 @@ int nns_pipeline_valve_gethandle
   elem = g_hash_table_lookup (p->namednodes, valvename);
 
   if (elem == NULL) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is no valve element named [%s] in the pipeline.", valvename);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_VALVE) {
-    dlog_print (DLOG_ERROR, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_ERROR, DLOG_TAG,
         "There is an element named [%s] in the pipeline, but it is not a valve",
         valvename);
     ret = NNS_ERROR_INVALID_PARAMETER;
@@ -1187,14 +1182,14 @@ nns_pipeline_valve_control (nns_valve_h h, int valve_drop)
 
   if ((valve_drop != 0) == (drop != FALSE)) {
     /* Nothing to do */
-    dlog_print (DLOG_INFO, "nnstreamer-capi-pipeline",
+    dlog_print (DLOG_INFO, DLOG_TAG,
         "Valve is called, but there is no effective changes: %d->%d",
         ! !drop, ! !valve_drop);
     goto unlock_return;
   }
 
   g_object_set (G_OBJECT (elem->element), "drop", ! !valve_drop, NULL);
-  dlog_print (DLOG_INFO, "nnstreamer-capi-pipeline",
+  dlog_print (DLOG_INFO, DLOG_TAG,
       "Valve is changed: %d->%d", ! !drop, ! !valve_drop);
 
   handle_exit (h);
