@@ -27,18 +27,20 @@
 #define TENSOR_FILTER_TENSORFLOW_CORE_H
 
 #include <tensor_typedef.h>
-
-#ifdef __cplusplus
 #include <glib.h>
 #include <gst/gst.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef __cplusplus
 #include <iostream>
 #include <fstream>
 #include <algorithm>
 #include <vector>
 
+#include <tensorflow/c/c_api.h>
+#include <tensorflow/c/c_api_internal.h>
 #include <tensorflow/core/public/session.h>
 
 using namespace tensorflow;
@@ -64,7 +66,7 @@ public:
   TFCore (const char * _model_path);
    ~TFCore ();
 
-  int init(const GstTensorFilterProperties * prop);
+  int init (const GstTensorFilterProperties * prop, const gboolean tf_mem_optmz);
   int loadModel ();
   const char* getModelPath();
   int getInputTensorDim (GstTensorsInfo * info);
@@ -76,6 +78,7 @@ public:
 private:
 
   const char *model_path;
+  gboolean mem_optmz;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
@@ -87,6 +90,7 @@ private:
   Session *session;
 
   tensor_type getTensorTypeFromTF (DataType tfType);
+  TF_DataType getTensorTypeToTF_Capi (tensor_type tType);
   int validateInputTensor (const GraphDef &graph_def);
   int validateOutputTensor (const std::vector <Tensor> &outputs);
 };
@@ -100,7 +104,8 @@ extern "C"
 
   void *tf_core_new (const char *_model_path);
   void tf_core_delete (void * tf);
-  int tf_core_init (void * tf, const GstTensorFilterProperties * prop);
+  int tf_core_init (void * tf, const GstTensorFilterProperties * prop,
+      const gboolean tf_mem_optmz);
   const char *tf_core_getModelPath (void * tf);
   int tf_core_getInputDim (void * tf, GstTensorsInfo * info);
   int tf_core_getOutputDim (void * tf, GstTensorsInfo * info);
