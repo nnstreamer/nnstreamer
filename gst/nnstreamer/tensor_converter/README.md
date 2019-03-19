@@ -34,7 +34,7 @@ For each outgoing frame (on the source pad), there always is a **single** instan
 ## Performance Characteristics
 
 - Video
-  - Unless it is RGB with ```width % 4 > 0``` or Gray8 with ```width % 4 > 0```, there is no memcpy or data modification processes. It only converts meta data in such cases.
+  - Unless it is RGB with ```width % 4 > 0``` or Gray8 with ```width % 4 > 0```, there are no memcpy or data modification processes. It only converts meta data in such cases.
   - Otherwise, there will be one memcpy for each frame.
 - Audio
   - TBD.
