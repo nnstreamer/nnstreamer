@@ -73,8 +73,6 @@ get_subplugin (subpluginType type, const char *name)
   if (data == NULL) {
     /* Search and register if found with the conf */
     const gchar *fullpath = nnsconf_get_fullpath (name, type);
-    char *dlsym_error;
-    nnstreamer_subplugin_data *nsdata;
 
     if (fullpath == NULL)
       goto error;               /* No Such Thing !!! */
@@ -91,48 +89,14 @@ get_subplugin (subpluginType type, const char *name)
 
     /* If a subplugin's constructor has called register_subplugin, skip the rest */
     data = g_hash_table_lookup (table, name);
-    if (data != NULL)
-      goto registered;
-
-    nsdata = (nnstreamer_subplugin_data *)
-        dlsym (handle, "nnstreamer_subplugin");
-    dlsym_error = dlerror ();
-
-    if (NULL == nsdata) {
-      GST_ERROR ("nnstreamer_subplugin does not exists in %s (%s)", name,
-          fullpath);
-      goto error_handle;
-    }
-    if (dlsym_error) {
-      GST_ERROR ("Loading nnstreamer_subplugin in %s (%s) incurs: %s", name,
-          fullpath, dlsym_error);
-      goto error_handle;
-    }
-
-    if (nsdata->checker != NNS_SUBPLUGIN_CHECKER) {
-      GST_ERROR ("nnstreamer_subplugin of %s (%s) is broken (first bytes)",
+    if (data == NULL) {
+      GST_ERROR
+          ("nnstreamer_subplugin of %s (%s) is broken. It does not call register_subplugin with its init function.",
           name, fullpath);
       goto error_handle;
     }
-
-    if (nsdata->type != type) {
-      GST_ERROR ("nnstreamer_subplugin of %s (%s) is broken (type mismatch)",
-          name, fullpath);
-      goto error_handle;
-    }
-
-    if (g_strcmp0 (nsdata->name, name)) {
-      GST_ERROR ("nnstreamer_subplugin of %s (%s) is broken (name mismatch)",
-          name, fullpath);
-      goto error_handle;
-    }
-
-    g_assert (TRUE == register_subplugin (type, name, nsdata->data));
-    g_assert ((data = g_hash_table_lookup (table, name)) != NULL);
-    data->handle = handle;
   }
 
-registered:
   G_UNLOCK (splock);
   return data->data;
 

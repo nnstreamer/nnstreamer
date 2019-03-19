@@ -26,10 +26,8 @@
  * This fils it to be packaged as "devel" package for NN developers. (subplugin writers)
  *
  * @note        Any independent subplugin (existing as an independent .so)
- *              should have an exported variable "nnstreamer_subplugin",
- *              whose type is nnstreamer_subplugin_data.
- *              A built-in subplugin (existing in libnnstreamer.so) does not
- *              need this.
+ *              should call register_subplugin () (or its wrapper) with the
+ *              subplugin's constructor function.
  */
 #ifndef __GST_NNSTREAMER_SUBPLUGIN_H__
 #define __GST_NNSTREAMER_SUBPLUGIN_H__
@@ -45,17 +43,6 @@ typedef enum {
 } subpluginType;
 
 #define NNS_SUBPLUGIN_CHECKER (0xdeadbeef)
-
-/**
- * @brief Any independent shared object subplugin must export this as
- * "nnstreamer_subplugin"
- */
-typedef struct {
-  uint32_t checker; /**< This MUST be 0xdeadbeef (NNS_SUBPLUGIN_CHECKER) */
-  subpluginType type; /**< The subplugin type */
-  const char *name; /**< The name of subplugin. The resulting .so file should be ${prefix}${name}.so */
-  void *data; /**< Subplugin specific data (usually funcptr callbacks), forwarded to subplugin's corresponding handler */
-} nnstreamer_subplugin_data;
 
 /**
  * @brief Retrieve the resigered data with the subplugin name.
