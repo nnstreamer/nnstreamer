@@ -42,7 +42,7 @@ It means that you are legally responsible for the given commit that, according t
 
 Usually, you are not allowed to push commits of other's work; however, you may do so if you
 - Maintain the original authorship in the git commit (you can edit authors of a given commit: ```$ man git commit```)
-- You can sure there is no patents, licenses, or copyright issues.
+- You can sure there are no patents, licenses, or copyright issues.
 - You can grant all related rights to the community or project (depending on the licenses)
 
 From Torvalds' (original author of Linux and git) git repo, (documentation about git commit message tags)[https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/Documentation/process/5.Posting.rst]

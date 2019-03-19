@@ -76,7 +76,7 @@ extern gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
 
 /**
- * @brief Copy tensor info upto n elements
+ * @brief Copy tensor info up to n elements
  * @note Copied info should be freed with gst_tensor_info_free()
  */
 extern void

@@ -92,7 +92,7 @@ typedef enum {
 /**
  * @brief Enumeration for nns pipeline state
  * @detail Refer to https://gstreamer.freedesktop.org/documentation/design/states.html
- *         The state diagram of pipeline looks like this, assuming that there is no errors.
+ *         The state diagram of pipeline looks like this, assuming that there are no errors.
  *
  *          [ UNKNOWN ] "new null object"
  *               | "nns_pipeline_construct" starts

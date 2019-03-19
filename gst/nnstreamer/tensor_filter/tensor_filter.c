@@ -284,7 +284,7 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_string ("input", "Input dimension",
-          "Input tensor dimension from inner array, upto 4 dimensions ?", "",
+          "Input tensor dimension from inner array, up to 4 dimensions ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUTNAME,
       g_param_spec_string ("inputname", "Name of Input Tensor",
@@ -300,7 +300,7 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_string ("output", "Output dimension",
-          "Output tensor dimension from inner array, upto 4 dimensions ?", "",
+          "Output tensor dimension from inner array, up to 4 dimensions ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
       g_param_spec_string ("outputtype", "Output tensor element type",
