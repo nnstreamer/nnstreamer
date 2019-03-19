@@ -40,12 +40,18 @@ typedef struct
 
   gchar *conffile;            /**< Location of conf file. */
 
-  /* 0: ENVVAR. 1: CONFFILE, 2: Hardcoded */
+  /*************************************************
+   * Cached Raw Values                             *
+   * 0: ENVVAR. 1: CONFFILE, 2: Hardcoded          *
+   *************************************************/
   gchar *pathFILTERS[CONF_SOURCES];        /**< directory paths for FILTERS */
   gchar *pathDECODERS[CONF_SOURCES];       /**< directory paths for DECODERS */
   gchar *pathCUSTOM_FILTERS[CONF_SOURCES]; /**< directory paths for CUSTOM FILTERS */
   gchar *valueTF_MEM_OPTMZ[CONF_SOURCES];  /**< value of TF_MEM_OPTMZ */
 
+  /*************************************************
+   * Processed Values                              *
+   *************************************************/
   gchar **filesFILTERS;        /**< Null terminated list of full filepaths for FILTERS */
   gchar **filesDECODERS;;      /**< Null terminated list of full filepaths for DECODERS */
   gchar **filesCUSTOM_FILTERS; /**< Null terminated list of full filepaths for CUSTOM FILTERS */
@@ -291,6 +297,20 @@ nnsconf_loadconf (gboolean force_reload)
   _fill_in_vstr (&conf.filesCUSTOM_FILTERS, &conf.basenameCUSTOM_FILTERS,
       conf.pathCUSTOM_FILTERS);
 
+  /* Fill in conf.bool values */
+  for (i = 0; i < CONF_SOURCES; i++) {
+    if (conf.valueTF_MEM_OPTMZ[i] && conf.valueTF_MEM_OPTMZ[i][0]) {
+      if (!g_ascii_strncasecmp ("1", conf.valueTF_MEM_OPTMZ[i], 1) ||   /* 1 */
+          !g_ascii_strncasecmp ("t", conf.valueTF_MEM_OPTMZ[i], 1) ||   /* True */
+          !g_ascii_strncasecmp ("on", conf.valueTF_MEM_OPTMZ[i], 2) ||  /* On */
+          !g_ascii_strncasecmp ("y", conf.valueTF_MEM_OPTMZ[i], 1))     /* Yes */
+        conf.boolTF_MEM_OPTMZ = TRUE;
+      else
+        conf.boolTF_MEM_OPTMZ = FALSE;
+      break;
+    }
+  }
+
   conf.loaded = TRUE;
   g_key_file_free (key_file);
 
@@ -346,8 +366,7 @@ const gchar *subplugin_prefixes[NNSCONF_PATH_END] = {
 const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 {
-  if (!conf.loaded)
-    nnsconf_loadconf (FALSE);
+  nnsconf_loadconf (FALSE);
 
   gchar *filename =
       g_strconcat (subplugin_prefixes[type], subpluginname, ".so", NULL);
@@ -361,25 +380,12 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 const gboolean
 nnsconf_get_value_bool (nnsconf_type_value type)
 {
-  int i;
   gboolean ret;
 
-  if (!conf.loaded)
-    nnsconf_loadconf (FALSE);
+  nnsconf_loadconf (FALSE);
 
   switch (type) {
     case NNSCONF_VAL_TF_MEM_OPTMZ:
-      for (i = 0; i < CONF_SOURCES; i++) {
-        if (conf.valueTF_MEM_OPTMZ[i]) {
-          if (!g_ascii_strncasecmp ("1", conf.valueTF_MEM_OPTMZ[i], 1) ||
-              !g_ascii_strncasecmp ("t", conf.valueTF_MEM_OPTMZ[i], 1))
-            conf.boolTF_MEM_OPTMZ = TRUE;
-          else
-            conf.boolTF_MEM_OPTMZ = FALSE;
-
-          break;
-        }
-      }
       ret = conf.boolTF_MEM_OPTMZ;
       break;
 
