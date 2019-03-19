@@ -30,6 +30,7 @@
  * @todo  support specific channels as input
  * @todo  support multiple buffers
  * @todo  support blocksize for multiple samples per buffer
+ * @todo  support buffer timestamps based on IIO channel timestamp
  *
  *
  * This is the plugin to capture data from sensors
@@ -150,6 +151,7 @@ enum
 #define TRIGGER "trigger"
 #define CHANNELS "scan_elements"
 #define IIO "iio:"
+#define TIMESTAMP "timestamp"
 #define DEVICE_PREFIX IIO DEVICE
 #define TRIGGER_PREFIX IIO TRIGGER
 #define CURRENT_TRIGGER "current_trigger"
@@ -352,6 +354,8 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
   /** set the source to be live */
   gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+  /** set the timestamps on each buffer */
+  gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
 }
 
 /**
@@ -617,6 +621,11 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
   while ((dir_entry = readdir (dptr)) != NULL) {
     /** check for enable */
     if (g_str_has_suffix (dir_entry->d_name, EN_SUFFIX)) {
+      /** not enabling and handling buffer timestamps for now */
+      if (g_str_has_prefix (dir_entry->d_name, TIMESTAMP)) {
+        continue;
+      }
+
       GstTensorSrcIIOChannelProperties channel_prop;
       self->channels = g_list_prepend (self->channels, &channel_prop);
 
@@ -1603,12 +1612,38 @@ gst_tensor_src_iio_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 
 /**
  * @brief create a buffer with requested size and offset
+ * @note offset, size ignored as the tensor src iio does not support pull mode
  */
 static GstFlowReturn
 gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer ** buffer)
 {
-  /** FIXME: fill this function */
+  GstTensorSrcIIO *self;
+  GstBuffer *buf;
+  GstMemory *mem;
+  guint buffer_size;
+
+  self = GST_TENSOR_SRC_IIO_CAST (src);
+  buffer_size = gst_tensor_info_get_size (&self->tensors_config->info.info[0]);
+
+  mem = gst_allocator_alloc (NULL, buffer_size, NULL);
+  if (mem == NULL) {
+    GST_ERROR_OBJECT (self, "Error allocating memory for buffer.");
+    return GST_FLOW_ERROR;
+  }
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, mem);
+
+  if (gst_tensor_src_iio_fill (src, offset, buffer_size, buf) != GST_FLOW_OK) {
+    goto error_buffer_unref;
+  }
+
+  *buffer = buf;
+  return GST_FLOW_OK;
+
+error_buffer_unref:
+  gst_buffer_unref (buf);
   return GST_FLOW_ERROR;
 }
 
