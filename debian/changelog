@@ -1,3 +1,9 @@
+nnstreamer (0.1.3.0) unstable xenial bionic; urgency=medium
+
+  * 0.1.3 RC Development Started
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 20 Mar 2019 15:01:00 +0900
+
 nnstreamer (0.1.2.1) unstable xenial bionic; urgency=medium
 
   * 0.1.2 Release

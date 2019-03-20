@@ -16,7 +16,7 @@ LOCAL_PATH := $(call my-dir)
 # target#> cd /data/nnstreamer/
 # target#> ./{your-test-app}
 
-NNSTREAMER_VERSION := 0.1.1
+NNSTREAMER_VERSION := 0.1.3
 CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
 
 NO_AUDIO := false
