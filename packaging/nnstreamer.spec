@@ -66,7 +66,9 @@ BuildRequires:	gst-plugins-base-devel
 %endif
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
+%if 0%{?unit_test}
 BuildRequires: ssat
+%endif
 
 # For ORC (Oil Runtime Compiler)
 BuildRequires: orc-devel
