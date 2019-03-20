@@ -1,3 +1,15 @@
+0.1.1 -> 0.1.2:
+	- Tizen Public C-API Draft Prototype
+	- Yocto/Openembedded Layer Tested.
+	- ROS sink/src supported and partially tested.
+	- IIO support draft
+	- Custom filter codegen
+	- Capability to cut the dependencies on audio/video plugins for minimal memory footprint.
+	- More clear error messages when the pipeline cannot be initiated.
+	- Increased unit test coverages with additional unit test cases.
+	- Minor feature adds on elements.
+	- A series of bug fixes.
+
 0.1.0 -> 0.1.1:
 	- Full "Plug & Play" capability of subplugins (tensor_filter, tensor_filter::custom, tensor_decoder)
 		- Fully configurable subplugin locations
