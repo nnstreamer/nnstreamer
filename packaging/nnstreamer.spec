@@ -11,7 +11,7 @@ Summary:	gstremaer plugins for neural networks
 # 3. Android: ./jni/Android*.mk
 # 4. Meson  : ./meson.build
 Version:	0.1.2
-Release:	0
+Release:	1
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
@@ -231,6 +231,9 @@ popd
 %{_prefix}/lib/nnstreamer/customfilters/*.so
 
 %changelog
+* Wed Mar 20 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 0.1.2
+
 * Mon Feb 25 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 0.1.1
 
