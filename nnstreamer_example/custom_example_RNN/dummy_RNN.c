@@ -135,6 +135,8 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   if (!in0 || !in1 || !out)
     return -EINVAL;
 
+  memset (out, 0, output[0].size);
+
   for (h = 0; h < 4; h++) {
     w = 0;
     memcpy (&(out[location (0, w, h)]), &(in0[location (0, w, h)]), TSIZE);
