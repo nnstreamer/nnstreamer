@@ -92,9 +92,8 @@ switch_slot_index (GstElement * tensor_repo)
 int
 main (int argc, char *argv[])
 {
-  GstElement *pipeline, *multifilesrc, *pngdec, *tensor_converter,
-      *tensor_reposink;
-  GstElement *tensor_reposrc, *multifilesink;
+  GstElement *pipeline, *multifilesrc, *pngdec, *tensor_converter;
+  GstElement *tensor_reposrc, *tensor_reposink, *multifilesink, *queue;
   GstBus *bus;
   GstCaps *msrc_cap, *reposrc_cap;
 
@@ -116,6 +115,8 @@ main (int argc, char *argv[])
 
   tensor_converter =
       gst_element_factory_make ("tensor_converter", "tensor_converter");
+
+  queue = gst_element_factory_make ("queue", "queue");
 
   tensor_reposink =
       gst_element_factory_make ("tensor_reposink", "tensor_reposink");
@@ -140,11 +141,12 @@ main (int argc, char *argv[])
       "tensorsequence01_%1d.log", NULL);
 
   gst_bin_add_many (GST_BIN (pipeline), multifilesrc, pngdec, tensor_converter,
-      tensor_reposink, tensor_reposrc, multifilesink, NULL);
+      queue, tensor_reposink, tensor_reposrc, multifilesink, NULL);
 
   gst_element_link (multifilesrc, pngdec);
   gst_element_link (pngdec, tensor_converter);
-  gst_element_link (tensor_converter, tensor_reposink);
+  gst_element_link (tensor_converter, queue);
+  gst_element_link (queue, tensor_reposink);
   gst_element_link (tensor_reposrc, multifilesink);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));

@@ -121,7 +121,7 @@ TEST (test_tensor_transform, properties)
   gint res_mode;
   gchar *res_option = NULL;
   gboolean silent, res_silent;
-  gboolean accl, res_accl;
+  gboolean accl;
   GstHarness *hrnss;
   GstElement *transform;
 
@@ -150,9 +150,11 @@ TEST (test_tensor_transform, properties)
   g_object_get (transform, "acceleration", &accl, NULL);
   EXPECT_EQ (default_accl, accl);
 
+#ifdef HAVE_ORC
   g_object_set (transform, "acceleration", !default_accl, NULL);
-  g_object_get (transform, "acceleration", &res_accl, NULL);
-  EXPECT_EQ (!default_accl, res_accl);
+  g_object_get (transform, "acceleration", &accl, NULL);
+  EXPECT_EQ (!default_accl, accl);
+#endif
 
   /** We do not need to test setting properties for 'mode' and 'option' */
   g_object_get (transform, "mode", &res_mode, NULL);

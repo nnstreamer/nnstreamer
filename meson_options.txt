@@ -1,4 +1,5 @@
 option('enable-test', type: 'boolean', value: true)
+option('install-test', type: 'boolean', value: false)
 option('enable-opencv-test', type: 'boolean', value: true)
 option('enable-tensorflow-lite', type: 'boolean', value: true)
 option('enable-tensorflow', type: 'boolean', value: true)
