@@ -39,6 +39,8 @@ subplugin_install_prefix = join_paths(nnstreamer_prefix, 'lib', 'nnstreamer')
 filter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'filters')
 decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
+unittest_install_dir = join_paths(subplugin_install_prefix, 'unittest')
+
 
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
@@ -106,6 +108,7 @@ endif
 
 # Tensorflow-lite
 have_tensorflow_lite = false
+install_test=false
 
 if get_option('enable-tensorflow-lite')
   tflite_dep = dependency('tensorflow-lite', required: true)
@@ -136,6 +139,9 @@ endif
 
 # Build unittests
 if get_option('enable-test')
+  if get_option('install-test')
+    install_test=true
+  endif
   subdir('tests')
 endif
 

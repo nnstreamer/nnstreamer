@@ -31,7 +31,14 @@ else
 fi
 convertBMP2PNG
 
-../../build/tests/unittest_repo --gst-plugin-path=../../build
+if [[ -z "${UNITTEST_DIR// }" ]]
+then
+    TESTBINDIR="../../build/tests/"
+else
+    TESTBINDIR="${UNITTEST_DIR}"
+fi
+
+${TESTBINDIR}/unittest_repo --gst-plugin-path=../../build
 
 callCompareTest testsequence_1.golden tensorsequence01_1.log 1-1 "Compare 1-1" 1 0
 callCompareTest testsequence_2.golden tensorsequence01_2.log 1-2 "Compare 1-2" 1 0
