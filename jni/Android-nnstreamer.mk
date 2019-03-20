@@ -27,7 +27,7 @@ LOCAL_PATH := $(call my-dir)
 # cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
 #
 
-NNSTREAMER_VERSION := 0.1.2
+NNSTREAMER_VERSION := 0.1.3
 NO_AUDIO := false
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,

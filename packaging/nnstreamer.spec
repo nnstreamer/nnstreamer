@@ -10,8 +10,8 @@ Summary:	gstremaer plugins for neural networks
 # 2. Tizen  : ./packaging/nnstreamer.spec
 # 3. Android: ./jni/Android*.mk
 # 4. Meson  : ./meson.build
-Version:	0.1.2
-Release:	1
+Version:	0.1.3
+Release:	0
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
