@@ -791,6 +791,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
 
+      /* init memory block */
+      memset (out_info[i].data, 0, out_info[i].size);
       out_tensors[i].data = out_info[i].data;
     }
   }
