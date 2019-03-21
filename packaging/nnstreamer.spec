@@ -71,7 +71,7 @@ BuildRequires: ssat
 %endif
 
 # For ORC (Oil Runtime Compiler)
-BuildRequires: orc-devel
+BuildRequires:	pkgconfig(orc-0.4)
 
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
