@@ -107,17 +107,9 @@ gst_tensor_src_iio_process_scanned_data_from_##DTYPE_UNSIGNED ( \
     shift_value = (sizeof (DTYPE_UNSIGNED) * 8) - prop->used_bits; \
     value_signed = ((DTYPE_SIGNED) (value_unsigned << shift_value)) >> \
         shift_value; \
-    /**
-     * @todo
-     * value_float = (((gfloat) value_signed + prop->offset) * prop->scale);
-     */ \
-    value_float = (gfloat) value_signed; \
+    value_float = ((gfloat) value_signed + prop->offset) * prop->scale; \
   } else { \
-    /**
-     * @todo
-     * value_float = (((gfloat) value_unsigned + prop->offset) * prop->scale);
-     */ \
-    value_float = (gfloat) value_unsigned; \
+    value_float = ((gfloat) value_unsigned + prop->offset) * prop->scale; \
   } \
   return value_float; \
 }
@@ -383,9 +375,6 @@ gst_tensor_src_iio_device_properties_init (GstTensorSrcIIODeviceProperties *
 static void
 gst_tensor_src_iio_init (GstTensorSrcIIO * self)
 {
-  /** @todo verify where locking is needed */
-  g_mutex_init (&self->mutex);
-
   /** init properties */
   self->configured = FALSE;
   self->channels = DEFAULT_PROP_STRING;
@@ -490,8 +479,7 @@ gst_tensor_src_iio_get_id_by_name (const gchar * dir_name, const gchar * name,
     return ret;
   }
   dptr = opendir (dir_name);
-  /** @todo update cppcheck to work with G_UNLIKELY here */
-  if (NULL == dptr) {
+  if (G_UNLIKELY (NULL == dptr)) {
     GST_ERROR ("Error in opening directory %s.\n", dir_name);
     return ret;
   }
@@ -688,7 +676,6 @@ gst_tensor_channel_list_filter_enabled (gpointer data, gpointer user_data)
  * @param[in] dir_name Directory name with all the scan elements for device
  * @return >=0 number of enabled channels
  *         -1  if any error when scanning channels
- * @todo verify scale and offset can exist in continuous mode
  */
 static gint
 gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
@@ -703,15 +690,15 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
   guint value;
   guint num_channels_enabled = 0;
   gboolean generic_val, specific_val;
+  gchar *generic_type_filename;
 
   if (!g_file_test (dir_name, G_FILE_TEST_IS_DIR)) {
-    GST_ERROR ("No channels available.");
+    GST_ERROR_OBJECT (self, "No channels available.");
     return ret;
   }
   dptr = opendir (dir_name);
-  /** @todo update cppcheck to work with G_UNLIKELY here */
-  if (NULL == dptr) {
-    GST_ERROR ("Error in opening directory %s.\n", dir_name);
+  if (G_UNLIKELY (NULL == dptr)) {
+    GST_ERROR_OBJECT (self, "Error in opening directory %s.\n", dir_name);
     return ret;
   }
 
@@ -732,11 +719,15 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       channel_prop.base_dir = g_strdup (dir_name);
       channel_prop.base_file =
           g_build_filename (dir_name, channel_prop.name, NULL);
+      channel_prop.generic_name =
+          gst_tensor_src_iio_get_generic_name (channel_prop.name);
+      silent_debug ("Generic name = %s", channel_prop.generic_name);
 
       /** find and set the current state */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, EN_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
-        GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
+        GST_ERROR_OBJECT (self, "Unable to read %s, error: %s.\n", filename,
+            error->message);
         goto error_free_filename;
       }
       g_free (filename);
@@ -749,8 +740,9 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       } else if (value == 0) {
         channel_prop.enabled = FALSE;
       } else {
-        GST_ERROR
-            ("Enable bit %u (out of range) in current state of channel %s.\n",
+        GST_ERROR_OBJECT
+            (self,
+            "Enable bit %u (out of range) in current state of channel %s.\n",
             value, channel_prop.name);
         goto error_cleanup_list;
       }
@@ -758,7 +750,8 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       /** find and set the index */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, INDEX_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
-        GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
+        GST_ERROR_OBJECT (self, "Unable to read %s, error: %s.\n", filename,
+            error->message);
         goto error_free_filename;
       }
       g_free (filename);
@@ -770,21 +763,25 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       /** find and set the type information */
       filename = g_strdup_printf ("%s%s", channel_prop.base_file, TYPE_SUFFIX);
       if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
-        channel_prop.generic_name =
-            gst_tensor_src_iio_get_generic_name (channel_prop.name);
-        silent_debug ("Generic name = %s", channel_prop.generic_name);
+        /** if specific type info unavailable, use generic type info */
         g_free (filename);
-        filename =
+        generic_type_filename =
             g_strdup_printf ("%s%s", channel_prop.generic_name, TYPE_SUFFIX);
+        filename =
+            g_build_filename (channel_prop.base_dir, generic_type_filename,
+            NULL);
+        g_free (generic_type_filename);
       }
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
-        GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
+        GST_ERROR_OBJECT (self, "Unable to read %s, error: %s.\n", filename,
+            error->message);
         goto error_free_filename;
       }
       g_free (filename);
 
       if (!gst_tensor_src_iio_set_channel_type (&channel_prop, file_contents)) {
-        GST_ERROR ("Error while setting up channel type for channel %s.\n",
+        GST_ERROR_OBJECT (self,
+            "Error while setting up channel type for channel %s.\n",
             channel_prop.name);
         g_free (file_contents);
         goto error_cleanup_list;
@@ -1036,17 +1033,17 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
   filename = g_build_filename (base_dir, file, NULL);
   fd = fopen (filename, "w");
   if (fd == NULL) {
-    GST_ERROR ("Unable to open file to write %s.\n", filename);
+    GST_ERROR_OBJECT (self, "Unable to open file to write %s.\n", filename);
     goto error_free_filename;
   }
 
   bytes_printed = fprintf (fd, "%s", contents);
   if (bytes_printed != strlen (contents)) {
-    GST_ERROR ("Unable to write to file %s.\n", filename);
+    GST_ERROR_OBJECT (self, "Unable to write to file %s.\n", filename);
     goto error_close_file;
   }
   if (!fclose (fd)) {
-    GST_ERROR ("Unable to close file %s after write.\n", filename);
+    GST_ERROR_OBJECT (self, "Unable to close file %s after write.\n", filename);
     goto error_free_filename;
   }
   ret = TRUE;
@@ -1055,8 +1052,8 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     gchar *file_contents = NULL;
     ret = FALSE;
     if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
-      GST_ERROR ("Unable to read file %s with error %s.\n", filename,
-          error->message);
+      GST_ERROR_OBJECT (self, "Unable to read file %s with error %s.\n",
+          filename, error->message);
       goto error_free_filename;
     } else {
       if (!g_strcmp0 (contents, file_contents)) {
@@ -1432,10 +1429,8 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     /** free this in stop as well */
   }
 
-  if (DBG) {
-    GST_DEBUG_OBJECT (self, "Finalization of caps while starting device");
-    GST_DEBUG_OBJECT (self, "caps = %" GST_PTR_FORMAT, updated_caps);
-  }
+  silent_debug ("Finalization of caps while starting device");
+  silent_debug ("caps = %" GST_PTR_FORMAT, updated_caps);
 
   gst_caps_unref (updated_caps);
 
@@ -1592,9 +1587,9 @@ gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
   if (DBG) {
     GstCaps *cur_caps = gst_pad_get_current_caps (pad);
     if (!gst_caps_is_subset (caps, cur_caps)) {
-      GST_DEBUG_OBJECT (self, "Setting caps in source mismatch");
-      GST_DEBUG_OBJECT (self, "caps = %" GST_PTR_FORMAT, caps);
-      GST_DEBUG_OBJECT (self, "cur_caps = %" GST_PTR_FORMAT, cur_caps);
+      silent_debug ("Setting caps in source mismatch");
+      silent_debug ("caps = %" GST_PTR_FORMAT, caps);
+      silent_debug ("cur_caps = %" GST_PTR_FORMAT, cur_caps);
     }
     gst_caps_unref (cur_caps);
   }
