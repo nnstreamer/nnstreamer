@@ -104,7 +104,6 @@ struct _GstTensorSrcIIO
   GstPad *srcpad; /**< src pad for the element*/
 
   /** gstreamer related properties */
-  GMutex mutex; /**< mutex for processing */
   gboolean silent; /**< true to print minimized log */
   gboolean configured; /**< true if device is configured and ready */
 
