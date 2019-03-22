@@ -437,9 +437,7 @@ nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state * state)
     return NNS_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
-  scret =
-      gst_element_get_state (p->element, &_state, &pending,
-      GST_CLOCK_TIME_NONE);
+  scret = gst_element_get_state (p->element, &_state, &pending, 100000UL);      /* Do it within 100us! */
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
