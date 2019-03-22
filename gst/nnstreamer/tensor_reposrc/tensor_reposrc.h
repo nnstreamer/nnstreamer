@@ -24,7 +24,7 @@
  * @bug		No known bugs except for NYI items
  */
 
-#ifndef __GST_TENSOR_REPOSRC_H_
+#ifndef __GST_TENSOR_REPOSRC_H__
 #define __GST_TENSOR_REPOSRC_H__
 
 #include <gst/gst.h>
