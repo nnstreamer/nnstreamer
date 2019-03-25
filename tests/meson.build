@@ -86,6 +86,15 @@ if gtest_dep.found()
   )
 
   test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
+
+  # Run unittest_src_iio
+  unittest_src_iio = executable('unittest_src_iio',
+    join_paths('nnstreamer_source', 'unittest_src_iio.cpp'),
+    dependencies: [nnstreamer_unittest_deps],
+    install: false
+  )
+
+  test('unittest_src_iio', unittest_src_iio, args: ['--gst-plugin-path=..'])
 endif
 
 # Tizen C-API

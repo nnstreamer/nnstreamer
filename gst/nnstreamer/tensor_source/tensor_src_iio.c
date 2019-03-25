@@ -163,9 +163,9 @@ enum
 
 /**
  * @brief Minimum and maximum operating frequency for the device
- * Default frequency chooses the first available frequency supported by device
+ * Frequency 0 chooses the first available frequency supported by device
  */
-#define MIN_FREQUENCY 1
+#define MIN_FREQUENCY 0
 #define MAX_FREQUENCY 999999999
 #define DEFAULT_FREQUENCY 0
 
@@ -303,18 +303,18 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           DEFAULT_OPERATING_CHANNELS_ENABLED, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_BUFFER_CAPACITY,
-      g_param_spec_uint ("buffer_capacity", "Buffer Capacity",
+      g_param_spec_uint ("buffer-capacity", "Buffer Capacity",
           "Capacity of the data buffer", MIN_BUFFER_CAPACITY,
           MAX_BUFFER_CAPACITY, DEFAULT_BUFFER_CAPACITY,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_FREQUENCY,
-      g_param_spec_uint64 ("frequency", "Frequency",
+      g_param_spec_ulong ("frequency", "Frequency",
           "Operating frequency of the device", MIN_FREQUENCY, MAX_FREQUENCY,
           DEFAULT_FREQUENCY, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MERGE_CHANNELS,
-      g_param_spec_boolean ("merge_channels_data", "Merge Channels Data",
+      g_param_spec_boolean ("merge-channels-data", "Merge Channels Data",
           "Merge the data of channels into single tensor",
           DEFAULT_MERGE_CHANNELS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -378,6 +378,7 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   /** init properties */
   self->configured = FALSE;
   self->channels = DEFAULT_PROP_STRING;
+  self->mode = DEFAULT_OPERATING_MODE;
   self->channels_enabled = CHANNELS_ENABLED_AUTO;
   gst_tensor_src_iio_device_properties_init (&self->trigger);
   gst_tensor_src_iio_device_properties_init (&self->device);
@@ -921,9 +922,9 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     case PROP_CHANNELS:
     {
       const gchar *param = g_value_get_string (value);
-      if (g_strcmp0 (param, CHANNELS_ENABLED_ALL_CHAR)) {
+      if (!g_strcmp0 (param, CHANNELS_ENABLED_ALL_CHAR)) {
         self->channels_enabled = CHANNELS_ENABLED_ALL;
-      } else if (g_strcmp0 (param, CHANNELS_ENABLED_AUTO_CHAR)) {
+      } else if (!g_strcmp0 (param, CHANNELS_ENABLED_AUTO_CHAR)) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
       }
       break;
@@ -934,7 +935,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
       break;
 
     case PROP_FREQUENCY:
-      self->sampling_frequency = g_value_get_uint64 (value);
+      self->sampling_frequency = (guint64) g_value_get_ulong (value);
       break;
 
     case PROP_MERGE_CHANNELS:
@@ -990,7 +991,7 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
 
     case PROP_FREQUENCY:
       /** interface of frequency is kept long for outside but uint64 inside */
-      g_value_set_ulong (value, self->sampling_frequency);
+      g_value_set_ulong (value, (gulong) self->sampling_frequency);
       break;
 
     case PROP_MERGE_CHANNELS:
@@ -1313,14 +1314,13 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       self->sampling_frequency);
   if (0 == sampling_frequency) {
     GST_ERROR_OBJECT (self, "IIO device does not support %lu frequency.\n",
-        self->sampling_frequency);
+        (gulong) self->sampling_frequency);
     goto error_trigger_free;
   } else {
     self->sampling_frequency = sampling_frequency;
     /** interface of frequency is kept long for outside but uint64 inside */
-    gulong sampling_frequency_long = (long) self->sampling_frequency;
     gchar *sampling_frequency_char =
-        g_strdup_printf ("%lu", sampling_frequency_long);
+        g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
     if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, "sampling_frequency",
                 self->device.base_dir, sampling_frequency_char))) {
       GST_ERROR_OBJECT (self,
@@ -1375,8 +1375,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   GstCaps *prev_caps, *caps, *updated_caps;
   GstPad *pad;
 
-  self->srcpad = src->srcpad;
-  pad = self->srcpad;
+  pad = src->srcpad;
   gst_pad_use_fixed_caps (pad);
 
   /**
@@ -1582,7 +1581,7 @@ gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
   GstPad *pad;
 
   self = GST_TENSOR_SRC_IIO (src);
-  pad = self->srcpad;
+  pad = src->srcpad;
 
   if (DBG) {
     GstCaps *cur_caps = gst_pad_get_current_caps (pad);
@@ -1609,13 +1608,14 @@ gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 static GstCaps *
 gst_tensor_src_iio_get_caps (GstBaseSrc * src, GstCaps * filter)
 {
-  GstTensorSrcIIO *self;
   GstCaps *caps;
   GstPad *pad;
 
-  self = GST_TENSOR_SRC_IIO (src);
-  pad = self->srcpad;
+  pad = src->srcpad;
   caps = gst_pad_get_current_caps (pad);
+  if (caps == NULL) {
+    caps = gst_pad_get_pad_template_caps (pad);
+  }
 
   if (filter) {
     GstCaps *intersection;
@@ -1857,7 +1857,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
     }
   } else {
     /** sleep for a device tick */
-    g_usleep (MAX (1, (gulong) 1000000 / self->sampling_frequency));
+    g_usleep (MAX (1, (guint64) 1000000 / self->sampling_frequency));
   }
 
   /** read the data from file */
@@ -1876,7 +1876,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   map_data_float = (gfloat *) map.data;
   raw_data = raw_data_base;
 
-  /** 
+  /**
    * current assumption is that the all data is float and merged to form
    * a 1 dimension data. 2nd dimension comes from buffer capacity.
    * @todo introduce 3rd dimension from blocksize
