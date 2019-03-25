@@ -101,7 +101,6 @@ typedef struct _GstTensorSrcIIOChannelProperties
 struct _GstTensorSrcIIO
 {
   GstBaseSrc element; /**< parent class object */
-  GstPad *srcpad; /**< src pad for the element*/
 
   /** gstreamer related properties */
   gboolean silent; /**< true to print minimized log */
@@ -120,7 +119,7 @@ struct _GstTensorSrcIIO
   gboolean merge_channels_data; /**< merge channel data with same type/size */
   gboolean is_tensor; /**< False if tensors is used for data */
   guint buffer_capacity; /**< size of the buffer */
-  gulong sampling_frequency; /**< sampling frequncy for the device */
+  guint64 sampling_frequency; /**< sampling frequncy for the device */
 
   /** Only first element is filled when is_tensor is true */
   GstTensorsConfig *tensors_config; /**< tensors for storing data config */
