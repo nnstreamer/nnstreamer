@@ -24,15 +24,13 @@
 #define TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
 
 #include <tensor_typedef.h>
-
-#ifdef __cplusplus
-#include <iostream>
 #include <glib.h>
 #include <gst/gst.h>
 
+#ifdef __cplusplus
+#include <iostream>
+
 #include <tensorflow/contrib/lite/model.h>
-#include <tensorflow/contrib/lite/optional_debug_tools.h>
-#include <tensorflow/contrib/lite/string_util.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
 /**
