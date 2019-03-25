@@ -115,4 +115,43 @@ nnsconf_get_fullpath (const gchar *subpluginname, nnsconf_type_path type);
 extern const gboolean
 nnsconf_get_value_bool (nnsconf_type_value type);
 
+/**
+ * @brief Get the custom configuration value from .ini and envvar.
+ * @detail For predefined configurations defined in this header,
+ *         use the given enum for faster configuration processing.
+ *         For custom configurations not defined in this header,
+ *         you may use this API to access your own custom configurations.
+ *         Configuration values may be loaded only once during runtime,
+ *         thus, if the values are changed in run-time, the changes are
+ *         not guaranteed to be reflected.
+ *         The ENVVAR is supposed to be NNSTREAMER_${group}_${key}, which
+ *         has higher priority than the .ini configuration.
+ *         Be careful not to use special characters in group name ([, ], _).
+ * @param[in] group The group name, [group], in .ini file.
+ * @param[in] key The key name, key = value, in .ini file.
+ * @return The newly allocated string. A caller must free it. NULL if it's not available.
+ */
+extern gchar *
+nnsconf_get_custom_value_string (const gchar *group, const gchar *key);
+
+/**
+ * @brief Get the custom configuration value from .ini and envvar.
+ * @detail For predefined configurations defined in this header,
+ *         use the given enum for faster configuration processing.
+ *         For custom configurations not defined in this header,
+ *         you may use this API to access your own custom configurations.
+ *         Configuration values may be loaded only once during runtime,
+ *         thus, if the values are changed in run-time, the changes are
+ *         not guaranteed to be reflected.
+ *         The ENVVAR is supposed to be NNSTREAMER_${group}_${key}, which
+ *         has higher priority than the .ini configuration.
+ *         Be careful not to use special characters in group name ([, ], _).
+ * @param[in] group The group name, [group], in .ini file.
+ * @param[in] key The key name, key = value, in .ini file.
+ * @param[in] def The default return value in case there is no value available.
+ * @return The value interpreted as TRUE/FALSE.
+ */
+extern gboolean
+nnsconf_get_custom_value_bool (const gchar *group, const gchar *key, gboolean def);
+
 #endif /* __GST_NNSTREAMER_CONF_H__ */

@@ -395,3 +395,79 @@ nnsconf_get_value_bool (nnsconf_type_value type)
 
   return ret;
 }
+
+/**
+ * @brief Internal cache for the custom key-values
+ */
+static GHashTable *custom_table = NULL;
+
+/** @brief Public function defined in the header */
+gchar *
+nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
+{
+  gchar *hashkey = g_strdup_printf ("[%s]%s", group, key);
+  gchar *value = NULL;
+
+  nnsconf_loadconf (FALSE);     /* Load .ini file path */
+
+  if (NULL == custom_table)
+    custom_table =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+
+  value = g_hash_table_lookup (custom_table, hashkey);
+
+  if (NULL == value) {
+    gchar *envkey = g_strdup_printf ("NNSTREAMER_%s_%s", group, key);
+
+    /* 1. Read envvar */
+    value = _strdup_getenv (envkey);
+    g_free (envkey);
+
+    /* 2. Read ini */
+    if (NULL == value && conf.conffile) {
+      g_autoptr (GError) error = NULL;
+      g_autoptr (GKeyFile) key_file = g_key_file_new ();
+
+      if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
+              &error)) {
+        value = g_key_file_get_string (key_file, group, key, &error);
+      }
+
+      g_key_file_free (key_file);
+
+    }
+
+    if (value)
+      g_hash_table_insert (custom_table, hashkey, value);
+  }
+
+  if (NULL == value)
+    return NULL;
+
+  return g_strdup (value);
+}
+
+/** @brief Public function defined in the header */
+gboolean
+nnsconf_get_custom_value_bool (const gchar * group, const gchar * key,
+    gboolean def)
+{
+  gchar *strval = nnsconf_get_custom_value_string (group, key);
+  gboolean ret = def;
+
+  if (NULL == strval)
+    return ret;
+
+  /** 1/0, true/false, t/f, yes/no, on/off. case incensitive. */
+  if (strval[0] == '1' || strval[0] == 't' || strval[0] == 'T' ||
+      strval[0] == 'y' || strval[0] == 'Y' ||
+      !g_ascii_strncasecmp ("on", strval, 2))
+    ret = TRUE;
+  if (strval[0] == '0' || strval[0] == 'f' || strval[0] == 'F' ||
+      strval[0] == 'n' || strval[0] == 'N' ||
+      !g_ascii_strncasecmp ("of", strval, 2))
+    ret = FALSE;
+
+  g_free (strval);
+  return ret;
+}
