@@ -90,7 +90,7 @@ private:
   Session *session;
 
   tensor_type getTensorTypeFromTF (DataType tfType);
-  TF_DataType getTensorTypeToTF_Capi (tensor_type tType);
+  gboolean getTensorTypeToTF_Capi (tensor_type tType, TF_DataType * tf_type);
   int validateInputTensor (const GraphDef &graph_def);
   int validateOutputTensor (const std::vector <Tensor> &outputs);
 };
