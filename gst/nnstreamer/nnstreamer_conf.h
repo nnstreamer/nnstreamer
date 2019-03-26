@@ -34,6 +34,7 @@
 #define __GST_NNSTREAMER_CONF_H__
 
 #include <glib.h>
+G_BEGIN_DECLS
 
 /* Env-var names */
 #define NNSTREAMER_ENVVAR_CONF_FILE     "NNSTREAMER_CONF"
@@ -154,4 +155,5 @@ nnsconf_get_custom_value_string (const gchar *group, const gchar *key);
 extern gboolean
 nnsconf_get_custom_value_bool (const gchar *group, const gchar *key, gboolean def);
 
+G_END_DECLS
 #endif /* __GST_NNSTREAMER_CONF_H__ */
