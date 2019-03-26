@@ -43,6 +43,7 @@ override_dh_auto_test:
 	cd build && ./tests/unittest_common && cd ..
 	cd build && ./tests/unittest_sink --gst-plugin-path=. && cd ..
 	cd build && ./tests/unittest_plugins --gst-plugin-path=. && cd ..
+	cd build && ./tests/unittest_src_iio --gst-plugin-path=. && cd ..
 	cd tests && ssat -n && cd ..
 
 override_dh_link:
