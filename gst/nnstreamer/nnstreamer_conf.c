@@ -79,10 +79,10 @@ _strdup_getenv (const char *name)
    * @todo Evaluate if we need to use secure_getenv() here
    *  (and compatible with other OS
    */
-  char *tmp = getenv (name);
+  const gchar *tmp = g_getenv (name);
 
   if (tmp == NULL)
-    return tmp;
+    return NULL;
   return g_strdup (tmp);
 }
 

@@ -16,6 +16,9 @@
 #include <gtest/gtest.h>
 #include <unistd.h>
 #include <tensor_common.h>
+#include <glib.h>
+#include <glib/gstdio.h>
+#include <nnstreamer_conf.h>
 
 /**
  * @brief Test for int32 type string.
@@ -432,6 +435,161 @@ TEST (common_tensors_info_string, names)
       "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
       "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
   EXPECT_EQ (num_names, NNS_TENSOR_SIZE_LIMIT);
+}
+
+/**
+ * @brief Create null files
+ */
+static gchar *create_null_file (const gchar *dir, const gchar *file)
+{
+  gchar *fullpath = g_build_path ("/", dir, file, NULL);
+  FILE *fp = g_fopen (fullpath, "w");
+
+  fclose (fp);
+  return fullpath;
+}
+
+/**
+ * @brief Check string custom conf
+ */
+static gboolean check_custom_conf (const gchar *group, const gchar *key, const gchar *expected)
+{
+  gchar *str = nnsconf_get_custom_value_string (group, key);
+  gboolean ret = (0 == g_strcmp0 (str, expected));
+
+  g_free (str);
+  return ret;
+}
+
+/**
+ * @brief Test custom configurations
+ */
+TEST (conf_custom, env_str_01)
+{
+  gchar *fullpath = g_build_path ("/", g_get_tmp_dir(), "nns-tizen-XXXXXX", NULL);
+  gchar *dir = g_mkdtemp (fullpath);
+  gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
+  gchar *dirf = g_build_path ("/", dir, "filters", NULL);
+  gchar *dircf = g_build_path ("/", dir, "custom", NULL);
+  gchar *dird = g_build_path ("/", dir, "decoders", NULL);
+
+  EXPECT_EQ (g_mkdir (dirf, 0755), 0);
+  EXPECT_EQ (g_mkdir (dircf, 0755), 0);
+  EXPECT_EQ (g_mkdir (dird, 0755), 0);
+
+
+  FILE *fp = g_fopen (filename, "w");
+  const gchar *fn;
+  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+  gchar *tfmemopt = g_strdup (g_getenv ("NNSTREAMER_TF_MEM_OPTMZ"));
+
+
+  EXPECT_TRUE (fp != NULL);
+
+  g_fprintf (fp, "[filter]\n");
+  g_fprintf (fp, "filters=%s\n", dirf);
+  g_fprintf (fp, "customfilters=%s\n", dircf);
+  g_fprintf (fp, "[decoder]\n");
+  g_fprintf (fp, "decoders=%s\n", dird);
+  g_fprintf (fp, "[tensorflow]\n");
+  g_fprintf (fp, "mem_optmz=true\n");
+  g_fprintf (fp, "[customX]\n");
+  g_fprintf (fp, "abc=OFF\n");
+  g_fprintf (fp, "def=on\n");
+  g_fprintf (fp, "ghi=TRUE\n");
+  g_fprintf (fp, "n01=fAlSe\n");
+  g_fprintf (fp, "n02=yeah\n");
+  g_fprintf (fp, "n03=NAH\n");
+  g_fprintf (fp, "n04=1\n");
+  g_fprintf (fp, "n05=0\n");
+  g_fprintf (fp, "mzx=whatsoever\n");
+  g_fprintf (fp, "[customY]\n");
+  g_fprintf (fp, "mzx=dunno\n");
+  g_fprintf (fp, "[customZ]\n");
+  g_fprintf (fp, "mzx=wth\n");
+  g_fprintf (fp, "n05=1\n");
+
+  fclose (fp);
+
+  gchar *f1 = create_null_file (dirf, "libnnstreamer_filter_fantastic.so");
+  gchar *f2 = create_null_file (dirf, "libnnstreamer_filter_neuralnetwork.so");
+  gchar *f3 = create_null_file (dird, "libnnstreamer_decoder_omg.so");
+  gchar *f4 = create_null_file (dird, "libnnstreamer_decoder_wthisgoingon.so");
+  gchar *f5 = create_null_file (dircf, "custom_mechanism.so");
+  gchar *f6 = create_null_file (dircf, "fastfaster.so");
+
+  EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_CONF", filename, TRUE));
+  EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_TF_MEM_OPTMZ", "", TRUE));
+  EXPECT_TRUE (nnsconf_loadconf (TRUE) == TRUE);
+
+  fn = nnsconf_get_fullpath ("fantastic", NNSCONF_PATH_FILTERS);
+  EXPECT_STREQ (fn, f1);
+  fn = nnsconf_get_fullpath ("neuralnetwork", NNSCONF_PATH_FILTERS);
+  EXPECT_STREQ (fn, f2);
+  fn = nnsconf_get_fullpath ("notfound", NNSCONF_PATH_FILTERS);
+  EXPECT_STREQ (fn, NULL);
+  fn = nnsconf_get_fullpath ("omg", NNSCONF_PATH_DECODERS);
+  EXPECT_STREQ (fn, f3);
+  fn = nnsconf_get_fullpath ("wthisgoingon", NNSCONF_PATH_DECODERS);
+  EXPECT_STREQ (fn, f4);
+  fn = nnsconf_get_fullpath ("notfound", NNSCONF_PATH_DECODERS);
+  EXPECT_STREQ (fn, NULL);
+  fn = nnsconf_get_fullpath ("custom_mechanism", NNSCONF_PATH_CUSTOM_FILTERS);
+  EXPECT_STREQ (fn, f5);
+  fn = nnsconf_get_fullpath ("fastfaster", NNSCONF_PATH_CUSTOM_FILTERS);
+  EXPECT_STREQ (fn, f6);
+  fn = nnsconf_get_fullpath ("notfound", NNSCONF_PATH_CUSTOM_FILTERS);
+  EXPECT_STREQ (fn, NULL);
+
+  EXPECT_EQ (nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ), TRUE);
+
+  EXPECT_TRUE (check_custom_conf ("customX", "abc", "OFF"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "abc", TRUE));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "abc", FALSE));
+  EXPECT_TRUE (check_custom_conf ("customX", "def", "on"));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "def", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "def", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "ghi", "TRUE"));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "ghi", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "ghi", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "n02", "yeah"));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "n02", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "n02", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "n03", "NAH"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "n03", FALSE));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "n03", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "n04", "1"));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "n04", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "n04", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "n05", "0"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "n05", FALSE));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "n05", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customX", "mzx", "whatsoever"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "mzx", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customX", "mzx", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customY", "mzx", "dunno"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customY", "mzx", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customY", "mzx", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customZ", "mzx", "wth"));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customZ", "mzx", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customZ", "mzx", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customZ", "n05", "1"));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customZ", "n05", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customZ", "n05", TRUE));
+  EXPECT_TRUE (check_custom_conf ("customW", "n05", NULL));
+  EXPECT_FALSE (nnsconf_get_custom_value_bool ("customW", "n05", FALSE));
+  EXPECT_TRUE (nnsconf_get_custom_value_bool ("customW", "n05", TRUE));
+
+
+  g_setenv ("NNSTREAMER_CONF", confenv, TRUE);
+  g_setenv ("NNSTREAMER_TF_MEM_OPTMZ", tfmemopt, TRUE);
+  g_free (confenv);
+  g_free (f1);
+  g_free (f2);
+  g_free (f3);
+  g_free (f4);
+  g_free (f5);
+  g_free (f6);
 }
 
 /**
