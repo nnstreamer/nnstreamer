@@ -36,7 +36,7 @@ def saveTestData(filename, width, height):
     standard = np.std(a)
     result=abs((a-np.mean(a)) / (np.std(a)+1e-10))
 
-    s = ''
+    s = b''
     for w in range(0,width):
         for h in range(0,height):
             s += pack('f',result[w*height+h])
