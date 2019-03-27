@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Samsung Electronics Co., Ltf All Rights Reserved
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd All Rights Reserved
  *
  * Licensed under the Apache License, Version 2.0 (the License);
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@
  * - Create a stream pipeline with NNStreamer plugins, GStreamer plugins, and sensor/camera/mic inputs
  * - Interfaces to push data to the pipeline from the application
  * - Interfaces to pull data from the pipeline to the application
- * - Interfaces to start/stop/destory the pipeline
+ * - Interfaces to start/stop/destroy the pipeline
  * - Interfaces to control switches and valves in the pipeline.
  *
  *  Note that this API set is supposed to be thread-safe.
