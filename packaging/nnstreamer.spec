@@ -206,7 +206,9 @@ DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
 %else
 %define testtarget
 %endif
-
+    # 'lcov' generates the date format with UTC time zone by default. Let's replace UTC with KST.
+    # If you ccan get a root privilege, run ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+    TZ='Asia/Seoul'; export TZ
     $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext %testtarget
 
 # Get commit info
