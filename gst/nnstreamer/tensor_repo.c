@@ -225,13 +225,13 @@ gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer,
 
   GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
 
+  while (data->buffer != NULL && !data->eos) {
+    GST_TENSOR_REPO_WAIT_PULL (nth);
+  }
+
   if (data->eos) {
     GST_TENSOR_REPO_UNLOCK (nth);
     return FALSE;
-  }
-
-  while (data->buffer != NULL) {
-    GST_TENSOR_REPO_WAIT_PULL (nth);
   }
 
   data->buffer = gst_buffer_copy (buffer);
@@ -301,6 +301,7 @@ gst_tensor_repo_set_eos (guint nth)
   GstTensorRepoData *data = gst_tensor_repo_get_repodata (nth);
   data->eos = TRUE;
   GST_TENSOR_REPO_SIGNAL_PUSH (nth);
+  GST_TENSOR_REPO_SIGNAL_PULL (nth);
   GST_TENSOR_REPO_UNLOCK (nth);
   return data->eos;
 }
