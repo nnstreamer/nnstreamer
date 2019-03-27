@@ -55,7 +55,6 @@
 #include <gst/gst.h>
 #include <glib.h>
 #include <string.h>
-#include <stdio.h>
 #include <endian.h>
 #include <unistd.h>
 #include <errno.h>
@@ -172,7 +171,7 @@ enum
 /**
  * @brief Default behavior on merging channels
  */
-#define DEFAULT_MERGE_CHANNELS FALSE
+#define DEFAULT_MERGE_CHANNELS TRUE
 
 /**
  * blocksize for buffer
@@ -206,12 +205,7 @@ enum
  */
 #define NAME_FILE "name"
 #define AVAIL_FREQUENCY_FILE "sampling_frequency_available"
-
-/**
- * @brief IIO system paths
- */
-#define IIO_BASE_DIR "/sys/bus/iio/devices/"
-#define IIO_DEV_DIR "/dev/"
+#define SAMPLING_FREQUENCY "sampling_frequency"
 
 /**
  * @brief Template for src pad.
@@ -354,6 +348,7 @@ gst_tensor_src_iio_channel_properties_free (gpointer data)
   g_free (prop->generic_name);
   g_free (prop->base_dir);
   g_free (prop->base_file);
+  g_free (prop);
 }
 
 /**
@@ -666,8 +661,8 @@ gst_tensor_channel_list_filter_enabled (gpointer data, gpointer user_data)
   list = *list_addr;
 
   if (!channel->enabled) {
+    *list_addr = g_list_remove (list, data);
     gst_tensor_src_iio_channel_properties_free (channel);
-    *list_addr = g_list_remove (list, channel);
   }
 }
 
@@ -692,6 +687,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
   guint num_channels_enabled = 0;
   gboolean generic_val, specific_val;
   gchar *generic_type_filename;
+  GstTensorSrcIIOChannelProperties *channel_prop;
 
   if (!g_file_test (dir_name, G_FILE_TEST_IS_DIR)) {
     GST_ERROR_OBJECT (self, "No channels available.");
@@ -711,21 +707,21 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
         continue;
       }
 
-      GstTensorSrcIIOChannelProperties channel_prop;
-      self->channels = g_list_prepend (self->channels, &channel_prop);
+      channel_prop = g_new (GstTensorSrcIIOChannelProperties, 1);
+      self->channels = g_list_prepend (self->channels, channel_prop);
 
       /** set the name and base_dir */
-      channel_prop.name = g_strndup (dir_entry->d_name,
+      channel_prop->name = g_strndup (dir_entry->d_name,
           strlen (dir_entry->d_name) - strlen (EN_SUFFIX));
-      channel_prop.base_dir = g_strdup (dir_name);
-      channel_prop.base_file =
-          g_build_filename (dir_name, channel_prop.name, NULL);
-      channel_prop.generic_name =
-          gst_tensor_src_iio_get_generic_name (channel_prop.name);
-      silent_debug ("Generic name = %s", channel_prop.generic_name);
+      channel_prop->base_dir = g_strdup (dir_name);
+      channel_prop->base_file =
+          g_build_filename (dir_name, channel_prop->name, NULL);
+      channel_prop->generic_name =
+          gst_tensor_src_iio_get_generic_name (channel_prop->name);
+      silent_debug ("Generic name = %s", channel_prop->generic_name);
 
       /** find and set the current state */
-      filename = g_strdup_printf ("%s%s", channel_prop.base_file, EN_SUFFIX);
+      filename = g_strdup_printf ("%s%s", channel_prop->base_file, EN_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
         GST_ERROR_OBJECT (self, "Unable to read %s, error: %s.\n", filename,
             error->message);
@@ -736,20 +732,21 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       value = g_ascii_strtoull (file_contents, NULL, 10);
       g_free (file_contents);
       if (value == 1) {
-        channel_prop.enabled = TRUE;
+        channel_prop->enabled = TRUE;
         num_channels_enabled += 1;
       } else if (value == 0) {
-        channel_prop.enabled = FALSE;
+        channel_prop->enabled = FALSE;
       } else {
         GST_ERROR_OBJECT
             (self,
             "Enable bit %u (out of range) in current state of channel %s.\n",
-            value, channel_prop.name);
+            value, channel_prop->name);
         goto error_cleanup_list;
       }
 
       /** find and set the index */
-      filename = g_strdup_printf ("%s%s", channel_prop.base_file, INDEX_SUFFIX);
+      filename =
+          g_strdup_printf ("%s%s", channel_prop->base_file, INDEX_SUFFIX);
       if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
         GST_ERROR_OBJECT (self, "Unable to read %s, error: %s.\n", filename,
             error->message);
@@ -759,17 +756,17 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
 
       value = g_ascii_strtoull (file_contents, NULL, 10);
       g_free (file_contents);
-      channel_prop.index = value;
+      channel_prop->index = value;
 
       /** find and set the type information */
-      filename = g_strdup_printf ("%s%s", channel_prop.base_file, TYPE_SUFFIX);
+      filename = g_strdup_printf ("%s%s", channel_prop->base_file, TYPE_SUFFIX);
       if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
         /** if specific type info unavailable, use generic type info */
         g_free (filename);
         generic_type_filename =
-            g_strdup_printf ("%s%s", channel_prop.generic_name, TYPE_SUFFIX);
+            g_strdup_printf ("%s%s", channel_prop->generic_name, TYPE_SUFFIX);
         filename =
-            g_build_filename (channel_prop.base_dir, generic_type_filename,
+            g_build_filename (channel_prop->base_dir, generic_type_filename,
             NULL);
         g_free (generic_type_filename);
       }
@@ -780,37 +777,37 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       }
       g_free (filename);
 
-      if (!gst_tensor_src_iio_set_channel_type (&channel_prop, file_contents)) {
+      if (!gst_tensor_src_iio_set_channel_type (channel_prop, file_contents)) {
         GST_ERROR_OBJECT (self,
             "Error while setting up channel type for channel %s.\n",
-            channel_prop.name);
+            channel_prop->name);
         g_free (file_contents);
         goto error_cleanup_list;
       }
       g_free (file_contents);
 
       /** find and setup offset info */
-      channel_prop.scale = 1.0;
+      channel_prop->scale = 1.0;
 
       specific_val =
           gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
-          channel_prop.name, SCALE_SUFFIX, &channel_prop.scale);
+          channel_prop->name, SCALE_SUFFIX, &channel_prop->scale);
       generic_val =
           gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
-          channel_prop.generic_name, SCALE_SUFFIX, &channel_prop.scale);
+          channel_prop->generic_name, SCALE_SUFFIX, &channel_prop->scale);
       if (!specific_val || !generic_val) {
         goto error_cleanup_list;
       }
 
       /** find and setup scale info */
-      channel_prop.offset = 0.0;
+      channel_prop->offset = 0.0;
 
       specific_val =
           gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
-          channel_prop.name, OFFSET_SUFFIX, &channel_prop.offset);
+          channel_prop->name, OFFSET_SUFFIX, &channel_prop->offset);
       generic_val =
           gst_tensor_src_iio_get_float_from_file (self->device.base_dir,
-          channel_prop.generic_name, OFFSET_SUFFIX, &channel_prop.offset);
+          channel_prop->generic_name, OFFSET_SUFFIX, &channel_prop->offset);
       if (!specific_val || !generic_val) {
         goto error_cleanup_list;
       }
@@ -842,9 +839,10 @@ error_cleanup_list:
  * @param[in] base_dir Device base directory (containing sampling freq file)
  * @param[in] frequency Frequency specified by user (else 0)
  * @return >0 if OK, represents sampling frequency to be set
- *         0  if any cannot find the matching frequency
+ *         0  if sampling frequency file does not exist, dont change anything
+ *         -1 if any error occurs
  */
-static guint64
+static gint64
 gst_tensor_src_iio_set_frequency (const gchar * base_dir,
     const guint64 frequency)
 {
@@ -852,13 +850,20 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
   gchar *filename = NULL;
   gchar *file_contents = NULL;
   gint i = 0;
-  guint64 ret = 0, val = 0;
+  guint64 val = 0;
+  gint64 ret = 0;
 
   /** get frequency list supported by the device */
   filename = g_build_filename (base_dir, AVAIL_FREQUENCY_FILE, NULL);
+  if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
+    GST_WARNING ("Sampling frequency file does not exist for the file %s.\n",
+        base_dir);
+    goto del_filename;
+  }
   if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
     GST_ERROR ("Unable to read sampling frequency for device %s.\n", base_dir);
     g_error_free (error);
+    ret = -1;
     goto del_filename;
   }
 
@@ -866,6 +871,7 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
   gint num = g_strv_length (freq_list);
   if (num == 0) {
     GST_ERROR ("No sampling frequencies for device %s.\n", base_dir);
+    ret = -1;
     goto del_freq_list;
   }
   /**
@@ -1043,7 +1049,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     GST_ERROR_OBJECT (self, "Unable to write to file %s.\n", filename);
     goto error_close_file;
   }
-  if (!fclose (fd)) {
+  if (fclose (fd)) {
     GST_ERROR_OBJECT (self, "Unable to close file %s after write.\n", filename);
     goto error_free_filename;
   }
@@ -1055,6 +1061,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
       GST_ERROR_OBJECT (self, "Unable to read file %s with error %s.\n",
           filename, error->message);
+      g_error_free (error);
       goto error_free_filename;
     } else {
       if (!g_strcmp0 (contents, file_contents)) {
@@ -1071,7 +1078,6 @@ error_close_file:
   fclose (fd);
 
 error_free_filename:
-  g_error_free (error);
   g_free (filename);
   return ret;
 }
@@ -1175,7 +1181,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
 
   /** compile tensor info data */
   for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
-    channel_prop = (GstTensorSrcIIOChannelProperties *) list;
+    channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
     if (!channel_prop->enabled)
       continue;
     info[info_idx].name = channel_prop->name;
@@ -1244,9 +1250,10 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   GstTensorSrcIIO *self;
   self = GST_TENSOR_SRC_IIO_CAST (src);
   gint id;
-  guint64 sampling_frequency;
+  gint64 sampling_frequency;
   gchar *dirname = NULL;
   gchar *filename = NULL;
+  gint num_channels_enabled;
 
   /** Find the device */
   id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
@@ -1312,24 +1319,35 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   sampling_frequency =
       gst_tensor_src_iio_set_frequency (self->device.base_dir,
       self->sampling_frequency);
-  if (0 == sampling_frequency) {
-    GST_ERROR_OBJECT (self, "IIO device does not support %lu frequency.\n",
-        (gulong) self->sampling_frequency);
+  if (-1 == sampling_frequency) {
+    GST_ERROR_OBJECT (self, "Error in setting frequency for device %s.\n",
+        self->device.name);
     goto error_trigger_free;
+  } else if (0 == sampling_frequency) {
+    /** if sampling frequency file does not exist, no error */
+    GST_WARNING_OBJECT (self, "Cannot verify against sampling frequency list.");
   } else {
-    self->sampling_frequency = sampling_frequency;
-    /** interface of frequency is kept long for outside but uint64 inside */
-    gchar *sampling_frequency_char =
-        g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
-    if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, "sampling_frequency",
-                self->device.base_dir, sampling_frequency_char))) {
-      GST_ERROR_OBJECT (self,
-          "Cannot set the sampling frequency for device: %s.\n",
-          self->device.name);
+    /** check if sampling frequency can be set */
+    filename =
+        g_build_filename (self->device.base_dir, SAMPLING_FREQUENCY, NULL);
+    if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
+      GST_WARNING_OBJECT (self, "Cannot set sampling frequency.");
+    } else {
+      self->sampling_frequency = sampling_frequency;
+      /** interface of frequency is kept long for outside but uint64 inside */
+      gchar *sampling_frequency_char =
+          g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
+      if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, SAMPLING_FREQUENCY,
+                  self->device.base_dir, sampling_frequency_char))) {
+        GST_ERROR_OBJECT (self,
+            "Cannot set the sampling frequency for device: %s.\n",
+            self->device.name);
+        g_free (sampling_frequency_char);
+        goto error_trigger_free;
+      }
       g_free (sampling_frequency_char);
-      goto error_trigger_free;
     }
-    g_free (sampling_frequency_char);
+    g_free (filename);
   }
 
   /** once all these are set, set the buffer related thingies */
@@ -1346,7 +1364,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
 
   /** get all the channels that exist and then set enable on them */
   dirname = g_build_filename (self->device.base_dir, CHANNELS, NULL);
-  guint num_channels_enabled =
+  num_channels_enabled =
       gst_tensor_src_iio_get_all_channel_info (self, dirname);
   g_free (dirname);
   if (G_UNLIKELY (num_channels_enabled == -1)) {
@@ -1365,73 +1383,22 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       gst_tensor_set_all_channels (self, 0);
       goto error_channels_free;
     }
-    /** filter out disabled channels */
-    g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled,
-        &self->channels);
-    self->scan_size = gst_tensor_get_size_from_channels (self->channels);
   }
 
-  /** set source pad */
-  GstCaps *prev_caps, *caps, *updated_caps;
-  GstPad *pad;
+  /** filter out disabled channels */
+  g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled,
+      &self->channels);
+  self->scan_size = gst_tensor_get_size_from_channels (self->channels);
+  self->num_channels_enabled = g_list_length (self->channels);
 
-  pad = src->srcpad;
-  gst_pad_use_fixed_caps (pad);
+  /** set fixed caps for the src pad */
+  gst_pad_use_fixed_caps (src->srcpad);
 
-  /**
-   * We can update the caps of the pad in current NULL state
-   * as the pad is activated in READY->PAUSED trainsition.
-   */
+  /** create tensor_config */
   if (!gst_tensor_src_iio_create_config (self)) {
     GST_ERROR_OBJECT (self, "Error creating config.\n");
     goto error_channels_free;
   }
-
-  if (self->is_tensor) {
-    GstTensorConfig tensor_config;
-    gst_tensor_info_copy (&tensor_config.info,
-        &(self->tensors_config->info.info[0]));
-    tensor_config.rate_n = self->tensors_config->rate_n;
-    tensor_config.rate_d = self->tensors_config->rate_d;
-    caps = gst_tensor_caps_from_config (&tensor_config);
-    gst_tensor_info_free (&tensor_config.info);
-  } else {
-    caps = gst_tensors_caps_from_config (self->tensors_config);
-  }
-  if (caps == NULL) {
-    GST_ERROR_OBJECT (self, "Error creating caps from config.\n");
-    goto error_config_free;
-  }
-
-  /** get current caps, take intersection with it and then set the new ones */
-  if (gst_pad_has_current_caps (pad)) {
-    prev_caps = gst_pad_get_current_caps (pad);
-    if (gst_caps_can_intersect (caps, prev_caps)) {
-      updated_caps = gst_caps_intersect (caps, prev_caps);
-    } else {
-      GST_ERROR_OBJECT (self,
-          "No intersection between new and current caps.\n");
-      gst_caps_unref (prev_caps);
-      gst_caps_unref (caps);
-      goto error_config_free;
-    }
-    gst_caps_unref (caps);
-    gst_caps_unref (prev_caps);
-  } else {
-    updated_caps = caps;
-  }
-
-  if (!gst_pad_set_caps (pad, updated_caps)) {
-    GST_ERROR_OBJECT (self, "Unable to set caps for the pad.\n");
-    gst_caps_unref (updated_caps);
-    goto error_config_free;
-    /** free this in stop as well */
-  }
-
-  silent_debug ("Finalization of caps while starting device");
-  silent_debug ("caps = %" GST_PTR_FORMAT, updated_caps);
-
-  gst_caps_unref (updated_caps);
 
   /** enable the buffer for the data to be captured */
   dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
@@ -1585,12 +1552,12 @@ gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 
   if (DBG) {
     GstCaps *cur_caps = gst_pad_get_current_caps (pad);
-    if (!gst_caps_is_subset (caps, cur_caps)) {
+    if (cur_caps != NULL && !gst_caps_is_subset (caps, cur_caps)) {
       silent_debug ("Setting caps in source mismatch");
       silent_debug ("caps = %" GST_PTR_FORMAT, caps);
       silent_debug ("cur_caps = %" GST_PTR_FORMAT, cur_caps);
+      gst_caps_unref (cur_caps);
     }
-    gst_caps_unref (cur_caps);
   }
 
   if (!gst_pad_set_caps (pad, caps)) {
@@ -1636,9 +1603,42 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
 {
   /**
    * Caps are fixated based on the device source in _start().
-   * Nothing to be handled here.
    */
-  return gst_caps_fixate (caps);
+  GstTensorSrcIIO *self;
+  self = GST_TENSOR_SRC_IIO_CAST (src);
+  GstCaps *updated_caps, *fixated_caps;
+
+  if (self->is_tensor) {
+    GstTensorConfig tensor_config;
+    gst_tensor_info_copy (&tensor_config.info,
+        &(self->tensors_config->info.info[0]));
+    tensor_config.rate_n = self->tensors_config->rate_n;
+    tensor_config.rate_d = self->tensors_config->rate_d;
+    fixated_caps = gst_tensor_caps_from_config (&tensor_config);
+    gst_tensor_info_free (&tensor_config.info);
+  } else {
+    fixated_caps = gst_tensors_caps_from_config (self->tensors_config);
+  }
+
+  if (fixated_caps == NULL) {
+    GST_ERROR_OBJECT (self, "Error creating fixated caps from config.");
+    return NULL;
+  }
+  silent_debug ("Fixated caps from device = %" GST_PTR_FORMAT, fixated_caps);
+
+  if (gst_caps_can_intersect (caps, fixated_caps)) {
+    updated_caps = gst_caps_intersect (caps, fixated_caps);
+  } else {
+    GST_ERROR_OBJECT (self,
+        "No intersection while fixating caps of the element.");
+    gst_caps_unref (caps);
+    gst_caps_unref (fixated_caps);
+    return NULL;
+  }
+
+  gst_caps_unref (caps);
+  gst_caps_unref (fixated_caps);
+  return gst_caps_fixate (updated_caps);
 }
 
 /**

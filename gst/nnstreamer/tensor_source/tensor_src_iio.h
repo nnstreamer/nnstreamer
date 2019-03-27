@@ -29,6 +29,7 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
+#include <glib/gprintf.h>
 #include <tensor_common.h>
 #include <poll.h>
 
@@ -46,6 +47,12 @@ G_BEGIN_DECLS
 #define GST_TENSOR_SRC_IIO_CAST(obj)  ((GstTensorSrcIIO *)(obj))
 typedef struct _GstTensorSrcIIO GstTensorSrcIIO;
 typedef struct _GstTensorSrcIIOClass GstTensorSrcIIOClass;
+
+/**
+ * @brief IIO system paths
+ */
+gchar *IIO_BASE_DIR = "/sys/bus/iio/devices/";
+gchar *IIO_DEV_DIR = "/dev/";
 
 /**
  * @brief iio device channel enabled mode
