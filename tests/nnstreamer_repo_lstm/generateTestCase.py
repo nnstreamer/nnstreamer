@@ -59,7 +59,7 @@ def genFrame(seq, out0, out1):
     return frame.tostring(), out0, out1
 
 filename = "video_4x4xBGRx.xraw"
-f = open(filename, "w")
+f = open(filename, "wb")
 
 out0 = arr.array('f',[0]*64)
 out1 = arr.array('f',[0]*64)

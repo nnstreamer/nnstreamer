@@ -46,7 +46,7 @@ buf.append(saveTestData("channel_00.dat", width, height, 3, batch))
 buf.append(saveTestData("channel_01.dat", width, height, 2, batch))
 buf.append(saveTestData("channel_02.dat", width, height, 4, batch))
 
-out = ''
+out = b''
 for b in range(0, batch):
     for h in range(0,height):
         for w in range(0,width):
@@ -69,7 +69,7 @@ buf.append(saveTestData("width_100.dat", width[0], height, ch, batch))
 buf.append(saveTestData("width_200.dat", width[1], height, ch, batch))
 buf.append(saveTestData("width_300.dat", width[2], height, ch, batch))
 
-out = ''
+out = b''
 
 for b in range(0, batch):
     for h in range(0,height):
@@ -93,7 +93,7 @@ buf.append(saveTestData("batch_1.dat", width, height, ch, batch[0]))
 buf.append(saveTestData("batch_2.dat", width, height, ch, batch[1]))
 buf.append(saveTestData("batch_3.dat", width, height, ch, batch[2]))
 
-out = ''
+out = b''
 for n in range(0,3):
     for b in range(0, batch[n]):
         for h in range(0,height):
