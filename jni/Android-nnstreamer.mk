@@ -123,7 +123,6 @@ LOCAL_SRC_FILES := $(NNSTREAMER_GST_HOME)/nnstreamer.c \
 	$(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
 	$(NNSTREAMER_GST_HOME)/tensor_reposink/tensor_reposink.c \
 	$(NNSTREAMER_GST_HOME)/tensor_reposrc/tensor_reposrc.c \
-	$(NNSTREAMER_GST_HOME)/tensor_saveload/tensor_load.c \
 	$(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
 	$(NNSTREAMER_GST_HOME)/tensor_source/tensor_src_iio.c \
 	$(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
@@ -139,7 +138,6 @@ LOCAL_C_INCLUDES := $(NNSTREAMER_GST_HOME)/ \
 	$(NNSTREAMER_GST_HOME)/tensor_mux/ \
 	$(NNSTREAMER_GST_HOME)/tensor_reposink/ \
 	$(NNSTREAMER_GST_HOME)/tensor_reposrc/ \
-	$(NNSTREAMER_GST_HOME)/tensor_saveload/ \
 	$(NNSTREAMER_GST_HOME)/tensor_sink/ \
 	$(NNSTREAMER_GST_HOME)/tensor_source/ \
 	$(NNSTREAMER_GST_HOME)/tensor_split/ \
