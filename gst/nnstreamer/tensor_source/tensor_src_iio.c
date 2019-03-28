@@ -26,11 +26,9 @@
  * @todo  create a sample example and unit tests
  * @todo  set limit on buffer capacity, frequency
  * @todo  support device/trigger number as input
- * @todo  support for trigger frequency
  * @todo  support specific channels as input
- * @todo  support multiple buffers
- * @todo  support blocksize for multiple samples per buffer
  * @todo  support buffer timestamps based on IIO channel timestamp
+ * @todo  support one-shot mode
  *
  *
  * This is the plugin to capture data from sensors
@@ -173,11 +171,6 @@ enum
  * @brief Default behavior on merging channels
  */
 #define DEFAULT_MERGE_CHANNELS FALSE
-
-/**
- * blocksize for buffer
- */
-#define BLOCKSIZE 1
 
 /**
  * @brief IIO devices/triggers
@@ -405,25 +398,30 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
  * @note they should have matching type and shape to form 1 other/tensors
  * @note extra dimension should be available for other/tensors
  * @note order of merge is stable
+ * @note merging into 1 tensor only supported using innermost dimension.
  * @param[in/out] info Tensor info to be merged
  * @param[in] size Info array size
+ * @param[in] dir Innermost/outermost/innermost-outer (0/1/2) available dimension
  * @returns >=0 number of valid entries in the info after merge
  *         -1 failed due to missing extra dimension/mismatch shape/type
- * @todo merge tensors (in stable order) into buckets based on type
  */
 static gint
-gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size)
+gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size,
+    guint dir)
 {
   gint info_idx, base_idx, dim_idx;
-  gboolean mismatch = FALSE, dim_avail = TRUE;
+  gboolean mismatch = FALSE, dim_avail = FALSE;
+  gint merge_dim = -1;
 
   /** base error control check */
   g_return_val_if_fail (size > 0, 0);
   base_idx = 0;
 
-  /** verify extra dimension */
-  if (info[base_idx].dimension[NNS_TENSOR_RANK_LIMIT - 1] != 1) {
-    dim_avail = FALSE;
+  /** verify extra dimension (innermost to outermost) */
+  for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
+    if (info[base_idx].dimension[dim_idx] == 1) {
+      dim_avail = TRUE;
+    }
   }
 
   /** verify that all the types and shapes match */
@@ -443,15 +441,42 @@ gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size)
     }
   }
 
-  /** Now merge into 1 tensor using the outermost dimension*/
-  for (dim_idx = NNS_TENSOR_RANK_LIMIT - 1; dim_idx > 0; dim_idx--) {
-    if (info[base_idx].dimension[dim_idx] != 1) {
-      dim_idx += 1;
-      break;
+  /**
+   * If there are multiple available dimensions to merge along, we use dir
+   * to choose which the dimension to merge. If there is just 1 dimension,
+   * dir variable has no effect
+   */
+  if (dir == 0) {
+    for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
+      if (info[base_idx].dimension[dim_idx] == 1) {
+        merge_dim = dim_idx;
+        break;
+      }
     }
+  } else if (dir == 1) {
+    for (dim_idx = NNS_TENSOR_RANK_LIMIT - 1; dim_idx >= 0; dim_idx--) {
+      if (info[base_idx].dimension[dim_idx] == 1) {
+        merge_dim = dim_idx;
+        break;
+      }
+    }
+  } else if (dir == 2) {
+    for (dim_idx = NNS_TENSOR_RANK_LIMIT - 1; dim_idx >= 0; dim_idx--) {
+      if (info[base_idx].dimension[dim_idx] != 1) {
+        merge_dim = dim_idx + 1;
+        break;
+      }
+      /** No outer dimension available to merge */
+      if (merge_dim > NNS_TENSOR_RANK_LIMIT) {
+        return size;
+      }
+    }
+  } else {
+    return -1;
   }
 
-  info[0].dimension[dim_idx] = size;
+  /** Now merge into 1 tensor using the selected dimension*/
+  info[0].dimension[merge_dim] = size;
   return 1;
 }
 
@@ -1183,6 +1208,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
     for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
       info[info_idx].dimension[dim_idx] = 1;
     }
+    info[info_idx].dimension[1] = tensor_src_iio->buffer_capacity;
     info_idx += 1;
   }
   g_assert_cmpint (info_idx, ==, tensor_src_iio->num_channels_enabled);
@@ -1192,7 +1218,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   if (tensor_src_iio->merge_channels_data) {
     tensor_info_merged_size =
         gst_tensor_src_merge_tensor_by_type (info,
-        tensor_src_iio->num_channels_enabled);
+        tensor_src_iio->num_channels_enabled, 0);
   }
 
   /** verify the merging of the array */
@@ -1219,8 +1245,13 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   for (info_idx = 0; info_idx < tensor_info_merged_size; info_idx++) {
     gst_tensor_info_copy (&config->info.info[info_idx], &info[info_idx]);
   }
+
+  /**
+   * buffer_capacity number of data samples are captured at once, packed
+   * together and sent downstream
+   */
   config->rate_n = tensor_src_iio->sampling_frequency;
-  config->rate_d = BLOCKSIZE;
+  config->rate_d = tensor_src_iio->buffer_capacity;
   config->info.num_tensors = tensor_info_merged_size;
 
   tensor_src_iio->tensors_config = config;
@@ -1248,6 +1279,12 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   gchar *dirname = NULL;
   gchar *filename = NULL;
 
+  /** no support one shot mode for now */
+  if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
+    GST_ERROR_OBJECT (self, "One-shot mode not yet supported.");
+    goto error_return;
+  }
+
   /** Find the device */
   id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
       DEVICE_PREFIX);
@@ -1261,14 +1298,6 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
   g_free (dirname);
 
-  /**
-   * @todo: support scale/offset in one-shot mode for
-   * shared/non-shared channels
-   */
-  /** no more configuration for one shot mode */
-  if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
-    goto safe_return;
-  }
   /** register the trigger */
   if (self->trigger.name != NULL) {
     /** verify if trigger is supported by our device */
@@ -1307,6 +1336,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     }
     g_free (filename);
   }
+
   /** setup the frequency (only verifying the frequency now) */
   /** @todo verify setting up frequency */
   sampling_frequency =
@@ -1461,7 +1491,6 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->buffer_data_fp->events = POLLIN;
   g_free (filename);
 
-safe_return:
   self->configured = TRUE;
   /** bytes every buffer will be fixed */
   gst_base_src_set_dynamic_size (src, FALSE);
@@ -1825,7 +1854,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
 {
   GstTensorSrcIIO *self;
   gint status, bytes_to_read;
-  guint idx_x, idx_y;
+  guint idx;
   gchar *raw_data_base, *raw_data;
   gfloat *map_data_float;
   GstMemory *mem;
@@ -1857,7 +1886,9 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
     }
   } else {
     /** sleep for a device tick */
-    g_usleep (MAX (1, (guint64) 1000000 / self->sampling_frequency));
+    g_usleep (MAX (1,
+            (guint64) 1000000 / (self->sampling_frequency /
+                self->buffer_capacity)));
   }
 
   /** read the data from file */
@@ -1879,21 +1910,15 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   /**
    * current assumption is that the all data is float and merged to form
    * a 1 dimension data. 2nd dimension comes from buffer capacity.
-   * @todo introduce 3rd dimension from blocksize
    */
-  for (idx_x = 0; idx_x < BLOCKSIZE; idx_x++) {
-    for (idx_y = 0; idx_y < self->buffer_capacity; idx_y++) {
-      map_data_float =
-          ((gfloat *) map.data) +
-          idx_x * self->buffer_capacity * self->num_channels_enabled +
-          idx_y * self->num_channels_enabled;
-      if (!gst_tensor_src_iio_process_scanned_data (self->channels, raw_data,
-              map_data_float)) {
-        GST_ERROR_OBJECT (self, "Error while processing scanned data.");
-        goto error_data_free;
-      }
-      raw_data += self->scan_size;
+  for (idx = 0; idx < self->buffer_capacity; idx++) {
+    map_data_float = ((gfloat *) map.data) + idx * self->num_channels_enabled;
+    if (!gst_tensor_src_iio_process_scanned_data (self->channels, raw_data,
+            map_data_float)) {
+      GST_ERROR_OBJECT (self, "Error while processing scanned data.");
+      goto error_data_free;
     }
+    raw_data += self->scan_size;
   }
 
   /** wrap up the buffer */
