@@ -593,6 +593,7 @@ TEST (test_tensor_src_iio, properties)
   guint buffer_capacity;
   gulong frequency;
   gboolean merge_channels;
+  gint number;
 
   gboolean ret_silent;
   gchar *ret_mode;
@@ -602,6 +603,7 @@ TEST (test_tensor_src_iio, properties)
   guint ret_buffer_capacity;
   gulong ret_frequency;
   gboolean ret_merge_channels;
+  gint ret_number;
 
   /** setup */
   hrnss = gst_harness_new_empty ();
@@ -639,10 +641,22 @@ TEST (test_tensor_src_iio, properties)
   g_object_get (src_iio, "device", &ret_device, NULL);
   EXPECT_STREQ (ret_device, DEVICE_NAME);
 
+  /** setting device num test */
+  number = 5;
+  g_object_set (src_iio, "device-number", number, NULL);
+  g_object_get (src_iio, "device-number", &ret_number, NULL);
+  EXPECT_EQ (ret_number, number);
+
   /** setting trigger test */
   g_object_set (src_iio, "trigger", TRIGGER_NAME, NULL);
   g_object_get (src_iio, "trigger", &ret_trigger, NULL);
   EXPECT_STREQ (ret_trigger, TRIGGER_NAME);
+
+  /** setting trigger num test */
+  number = 5;
+  g_object_set (src_iio, "trigger-number", number, NULL);
+  g_object_get (src_iio, "trigger-number", &ret_number, NULL);
+  EXPECT_EQ (ret_number, number);
 
   /** setting channels test */
   g_object_get (src_iio, "channels", &ret_channels, NULL);

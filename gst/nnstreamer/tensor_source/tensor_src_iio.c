@@ -22,10 +22,7 @@
  * @see		http://github.com/nnsuite/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
- * @todo  fill in empty functions
  * @todo  create a sample example and unit tests
- * @todo  set limit on buffer capacity, frequency
- * @todo  support device/trigger number as input
  * @todo  support specific channels as input
  * @todo  support buffer timestamps based on IIO channel timestamp
  * @todo  support one-shot mode
@@ -120,7 +117,9 @@ enum
   PROP_MODE,
   PROP_SILENT,
   PROP_DEVICE,
+  PROP_DEVICE_NUM,
   PROP_TRIGGER,
+  PROP_TRIGGER_NUM,
   PROP_CHANNELS,
   PROP_BUFFER_CAPACITY,
   PROP_FREQUENCY,
@@ -155,7 +154,7 @@ enum
  * @brief Minimum and maximum buffer length for iio
  */
 #define MIN_BUFFER_CAPACITY 1
-#define MAX_BUFFER_CAPACITY 100
+#define MAX_BUFFER_CAPACITY G_MAXUINT
 #define DEFAULT_BUFFER_CAPACITY 1
 
 /**
@@ -163,13 +162,24 @@ enum
  * Frequency 0 chooses the first available frequency supported by device
  */
 #define MIN_FREQUENCY 0
-#define MAX_FREQUENCY 999999999
+#define MAX_FREQUENCY G_MAXULONG
 #define DEFAULT_FREQUENCY 0
 
 /**
  * @brief Default behavior on merging channels
  */
 #define DEFAULT_MERGE_CHANNELS TRUE
+
+/**
+ * @brief default trigger and device numbers
+ */
+#define DEFAULT_PROP_DEVICE_NUM -1
+#define DEFAULT_PROP_TRIGGER_NUM -1
+
+/**
+ * blocksize for buffer
+ */
+#define BLOCKSIZE 1
 
 /**
  * @brief IIO devices/triggers
@@ -277,10 +287,20 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           "Name of the device to be opened", DEFAULT_PROP_STRING,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_DEVICE_NUM,
+      g_param_spec_int ("device-number", "Device Number",
+          "Number (numeric id) of the device to be opened",
+          -1, G_MAXINT, DEFAULT_PROP_DEVICE_NUM, G_PARAM_READWRITE));
+
   g_object_class_install_property (gobject_class, PROP_TRIGGER,
       g_param_spec_string ("trigger", "Trigger Name",
           "Name of the trigger to be used", DEFAULT_PROP_STRING,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TRIGGER_NUM,
+      g_param_spec_int ("trigger-number", "Trigger Number",
+          "Number (numeric id) of the trigger to be opened",
+          -1, G_MAXINT, DEFAULT_PROP_TRIGGER_NUM, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_CHANNELS,
       g_param_spec_string ("channels", "Channels to be enabled",
@@ -540,6 +560,42 @@ error_free_filename:
 }
 
 /**
+ * @brief check if device/trigger with the given id exists
+ * @param[in] dir_name Directory containing all the devices
+ * @param[in] id ID of the device to be found
+ * @param[in] prefix Prefix to match with the filename of the device
+ * @return name on success (owned by caller), else NULL
+ */
+static gchar *
+gst_tensor_src_iio_get_name_by_id (const gchar * dir_name, const gint id,
+    const gchar * prefix)
+{
+  GError *error = NULL;
+  gchar *filename = NULL;
+  gchar *dev_dirname = NULL;
+  gchar *file_contents = NULL;
+
+  dev_dirname = g_strdup_printf ("%s%d", prefix, id);
+  filename = g_build_filename (dir_name, dev_dirname, NAME_FILE, NULL);
+  g_free (dev_dirname);
+
+  if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
+    GST_ERROR ("No device available with id %d.", id);
+    goto exit_free_filename;
+  }
+
+  if (!g_file_get_contents (filename, &file_contents, NULL, &error)) {
+    GST_ERROR ("Unable to read %s, error: %s.\n", filename, error->message);
+    g_error_free (error);
+    goto exit_free_filename;
+  }
+
+exit_free_filename:
+  g_free (filename);
+  return file_contents;
+}
+
+/**
  * @brief parse float value from the file
  * @param[in] dirname Directory containing the file
  * @param[in] name Filename of the file
@@ -557,10 +613,10 @@ gst_tensor_src_iio_get_float_from_file (const gchar * dirname,
   filepath = g_build_filename (dirname, filename, NULL);
 
   if (!g_file_get_contents (filepath, &file_contents, NULL, NULL)) {
-    GST_WARNING ("Channel specific scale not found.");
+    GST_WARNING ("Unable to retrieve data from file %s.", filename);
   } else {
     if (!sscanf (file_contents, "%f", value)) {
-      GST_ERROR ("Error in parsing channel specific scale.");
+      GST_ERROR ("Error in parsing float.");
       goto failure;
     }
     g_free (file_contents);
@@ -946,8 +1002,16 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
       self->device.name = g_value_dup_string (value);
       break;
 
+    case PROP_DEVICE_NUM:
+      self->device.id = g_value_get_int (value);
+      break;
+
     case PROP_TRIGGER:
       self->trigger.name = g_value_dup_string (value);
+      break;
+
+    case PROP_TRIGGER_NUM:
+      self->trigger.id = g_value_get_int (value);
       break;
 
     case PROP_CHANNELS:
@@ -1002,8 +1066,16 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, self->device.name);
       break;
 
+    case PROP_DEVICE_NUM:
+      g_value_set_int (value, self->device.id);
+      break;
+
     case PROP_TRIGGER:
       g_value_set_string (value, self->trigger.name);
+      break;
+
+    case PROP_TRIGGER_NUM:
+      g_value_set_int (value, self->trigger.id);
       break;
 
     case PROP_CHANNELS:
@@ -1041,7 +1113,14 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
 static void
 gst_tensor_src_iio_finalize (GObject * object)
 {
-  /** FIXME: fill this function */
+  GstTensorSrcIIO *self;
+  self = GST_TENSOR_SRC_IIO (object);
+
+  g_free (self->mode);
+  g_free (self->device.name);
+  g_free (self->trigger.name);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
@@ -1280,7 +1359,6 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   /** load and init resources */
   GstTensorSrcIIO *self;
   self = GST_TENSOR_SRC_IIO_CAST (src);
-  gint id;
   gint64 sampling_frequency;
   gchar *dirname = NULL;
   gchar *filename = NULL;
@@ -1293,20 +1371,27 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   }
 
   /** Find the device */
-  id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
-      DEVICE_PREFIX);
-  if (G_UNLIKELY (id < 0)) {
-    GST_ERROR_OBJECT (self, "Cannot find the IIO device with name: %s.\n",
-        self->device.name);
+  if (self->device.name != NULL) {
+    self->device.id =
+        gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
+        DEVICE_PREFIX);
+  } else if (self->device.id >= 0) {
+    self->device.name = gst_tensor_src_iio_get_name_by_id (IIO_BASE_DIR,
+        self->device.id, DEVICE_PREFIX);
+  } else {
+    GST_ERROR_OBJECT (self, "IIO device information not provided.");
     goto error_return;
   }
-  self->device.id = id;
+  if (G_UNLIKELY (self->device.name == NULL || self->device.id < 0)) {
+    GST_ERROR_OBJECT (self, "Cannot find the specified IIO device.");
+    goto error_return;
+  }
   dirname = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
   self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
   g_free (dirname);
 
   /** register the trigger */
-  if (self->trigger.name != NULL) {
+  if (self->trigger.name != NULL || self->trigger.id >= 0) {
     /** verify if trigger is supported by our device */
     gchar *trigger_device_dir =
         g_build_filename (self->device.base_dir, TRIGGER, NULL);
@@ -1319,14 +1404,19 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     g_free (trigger_device_dir);
 
     /** find if the provided trigger exists */
-    id = gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->trigger.name,
-        TRIGGER_PREFIX);
-    if (G_UNLIKELY (id < 0)) {
-      GST_ERROR_OBJECT (self, "Cannot find the IIO trigger: %s.\n",
-          self->trigger.name);
+    if (self->trigger.name != NULL) {
+      self->trigger.id =
+          gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->trigger.name,
+          TRIGGER_PREFIX);
+    } else {
+      self->trigger.name =
+          gst_tensor_src_iio_get_name_by_id (IIO_BASE_DIR, self->trigger.id,
+          TRIGGER_PREFIX);
+    }
+    if (G_UNLIKELY (self->trigger.name == NULL || self->trigger.id < 0)) {
+      GST_ERROR_OBJECT (self, "Cannot find the specified IIO trigger.");
       goto error_device_free;
     }
-    self->trigger.id = id;
     dirname = g_strdup_printf ("%s%d", TRIGGER_PREFIX, self->trigger.id);
     self->trigger.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
     g_free (dirname);
