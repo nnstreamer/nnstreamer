@@ -1,6 +1,6 @@
 # NNStreamer
 
-[![Gitter][gitter-image]][gitter-url]
+[![Gitter][gitter-image]][gitter-url] [![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html)
 
 Neural Network Support as Gstreamer Plugins.
 
