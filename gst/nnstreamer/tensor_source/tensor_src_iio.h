@@ -82,6 +82,7 @@ typedef struct _GstTensorSrcIIODeviceProperties
 typedef struct _GstTensorSrcIIOChannelProperties
 {
   gboolean enabled; /**< currently state enabled/disabled */
+  gboolean pre_enabled; /**< already in enabled/disabled state */
   gchar *name; /**< The name of the channel */
   gchar *generic_name; /**< The generic name of the channel */
   gchar *base_dir; /**< The base directory for the channel */
@@ -127,6 +128,10 @@ struct _GstTensorSrcIIO
   gboolean is_tensor; /**< False if tensors is used for data */
   guint buffer_capacity; /**< size of the buffer */
   guint64 sampling_frequency; /**< sampling frequncy for the device */
+
+  guint64 default_sampling_frequency; /**< default set value of sampling frequency */
+  guint default_buffer_capacity; /**< size of the buffer */
+  gchar *default_trigger; /**< default set value of sampling frequency */
 
   /** Only first element is filled when is_tensor is true */
   GstTensorsConfig *tensors_config; /**< tensors for storing data config */

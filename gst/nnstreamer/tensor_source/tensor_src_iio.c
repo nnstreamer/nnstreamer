@@ -396,6 +396,9 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   self->merge_channels_data = DEFAULT_MERGE_CHANNELS;
   self->is_tensor = FALSE;
   self->tensors_config = NULL;
+  self->default_sampling_frequency = 0;
+  self->default_buffer_capacity = 0;
+  self->default_trigger = NULL;
 
   /**
    * format of the source since IIO device as a source is live and operates
@@ -814,9 +817,11 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       g_free (file_contents);
       if (value == 1) {
         channel_prop->enabled = TRUE;
+        channel_prop->pre_enabled = TRUE;
         num_channels_enabled += 1;
       } else if (value == 0) {
         channel_prop->enabled = FALSE;
+        channel_prop->pre_enabled = FALSE;
       } else {
         GST_ERROR_OBJECT
             (self,
@@ -1394,6 +1399,8 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   gchar *dirname = NULL;
   gchar *filename = NULL;
   gint num_channels_enabled;
+  gchar *file_contents = NULL;
+  gsize length = 0;
 
   /** no support one shot mode for now */
   if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
@@ -1452,6 +1459,14 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     self->trigger.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
     g_free (dirname);
 
+    /** get the default trigger, if any */
+    filename =
+        g_build_filename (self->device.base_dir, TRIGGER, CURRENT_TRIGGER,
+        NULL);
+    if (!g_file_get_contents (filename, &self->default_trigger, NULL, NULL)) {
+      GST_WARNING_OBJECT (self, "Unable to read default set trigger.");
+    }
+    g_free (filename);
     /** set the trigger */
     filename = g_build_filename (TRIGGER, CURRENT_TRIGGER, NULL);
     if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, filename,
@@ -1478,12 +1493,23 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     /** if sampling frequency file does not exist, no error */
     GST_WARNING_OBJECT (self, "Cannot verify against sampling frequency list.");
   } else {
-    /** check if sampling frequency can be set */
     filename =
         g_build_filename (self->device.base_dir, SAMPLING_FREQUENCY, NULL);
+    /** check if sampling frequency can be set */
     if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
       GST_WARNING_OBJECT (self, "Cannot set sampling frequency.");
+      g_free (filename);
     } else {
+      /** store the default frequency */
+      if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
+        GST_WARNING_OBJECT (self, "Unable to read default sampling frequency.");
+      } else if (file_contents != NULL) {
+        self->default_sampling_frequency =
+            g_ascii_strtoull (file_contents, NULL, 10);
+      }
+      g_free (file_contents);
+      g_free (filename);
+
       self->sampling_frequency = sampling_frequency;
       /** interface of frequency is kept long for outside but uint64 inside */
       gchar *sampling_frequency_char =
@@ -1498,11 +1524,19 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       }
       g_free (sampling_frequency_char);
     }
-    g_free (filename);
   }
 
   /** once all these are set, set the buffer related thingies */
   dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  filename = g_build_filename (dirname, "length", NULL);
+  if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
+    GST_WARNING_OBJECT (self, "Unable to read default buffer capacity.");
+  } else if (file_contents != NULL && length > 0) {
+    self->default_buffer_capacity = g_ascii_strtoull (file_contents, NULL, 10);
+  }
+  g_free (file_contents);
+  g_free (filename);
+
   if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "length", dirname,
               self->buffer_capacity))) {
     GST_ERROR_OBJECT (self,
@@ -1599,7 +1633,9 @@ error_channels_free:
 
 error_trigger_free:
   g_free (self->trigger.base_dir);
+  g_free (self->default_trigger);
   self->trigger.base_dir = NULL;
+  self->default_trigger = NULL;
 
 error_device_free:
   g_free (self->device.base_dir);
@@ -1609,6 +1645,63 @@ error_return:
   /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_ERROR);
   return FALSE;
+}
+
+/**
+ * @brief restore the iio device to its original device.
+ */
+static void
+gst_tensor_src_restore_iio_device (GstTensorSrcIIO * self)
+{
+  GList *ch_list;
+  gchar *filename = NULL, *dirname = NULL, *file_contents = NULL;
+  GstTensorSrcIIOChannelProperties *channel_prop = NULL;
+
+  /** disable the buffer */
+  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 0))) {
+    GST_ERROR_OBJECT (self,
+        "Error in disabling the IIO device buffer for device: %s.\n",
+        self->device.name);
+  }
+  g_free (dirname);
+
+  /** reset enabled channels */
+  for (ch_list = self->channels; ch_list != NULL; ch_list = ch_list->next) {
+    channel_prop = (GstTensorSrcIIOChannelProperties *) ch_list->data;
+    filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
+    gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
+        (int) channel_prop->pre_enabled);
+    g_free (filename);
+  }
+
+  /** reset sampling_frequency */
+  if (self->default_sampling_frequency > 0) {
+    /** converting to long as setting interface to device */
+    file_contents =
+        g_strdup_printf ("%lu", (gulong) self->default_sampling_frequency);
+    gst_tensor_write_sysfs_string (self, "sampling_frequency",
+        self->device.base_dir, file_contents);
+    g_free (file_contents);
+  }
+
+  /** reset buffer_capacity */
+  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  if (self->default_buffer_capacity > 0) {
+    gst_tensor_write_sysfs_int (self, "length", dirname,
+        self->default_buffer_capacity);
+  } else {
+    gst_tensor_write_sysfs_string (self, "length", dirname, "");
+  }
+  g_free (dirname);
+
+  /** reset current trigger */
+  if (self->default_trigger != NULL) {
+    filename = g_build_filename (TRIGGER, CURRENT_TRIGGER, NULL);
+    gst_tensor_write_sysfs_string (self, filename, self->device.base_dir,
+        self->default_trigger);
+    g_free (filename);
+  }
 }
 
 /**
@@ -1623,14 +1716,8 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
 
   self->configured = FALSE;
 
-  /** disable the buffer */
-  gchar *dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
-  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 0))) {
-    GST_ERROR_OBJECT (self,
-        "Error in disabling the IIO device buffer for device: %s.\n",
-        self->device.name);
-  }
-  g_free (dirname);
+  /** restore the iio device */
+  gst_tensor_src_restore_iio_device (self);
 
   g_free (self->buffer_data_fp);
   fclose (self->buffer_data_file);
@@ -1642,7 +1729,9 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
   self->channels = NULL;
 
   g_free (self->trigger.base_dir);
+  g_free (self->default_trigger);
   self->trigger.base_dir = NULL;
+  self->default_trigger = NULL;
 
   g_free (self->device.base_dir);
   self->device.base_dir = NULL;
