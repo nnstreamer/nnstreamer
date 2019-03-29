@@ -1748,11 +1748,11 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
       {
         guint16 value = *(guint16 *) (data + prop->location);
         if (prop->big_endian) {
-          value = be16toh (value);
+          value = GUINT16_FROM_BE (value);
           /** right shift the extra storage bits for big endian */
           value >>= (16 - prop->storage_bits);
         } else {
-          value = le16toh (value);
+          value = GUINT16_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
           storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
           value &= storage_mask;
@@ -1767,11 +1767,11 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
       {
         guint32 value = *(guint32 *) (data + prop->location);
         if (prop->big_endian) {
-          value = be32toh (value);
+          value = GUINT32_FROM_BE (value);
           /** right shift the extra storage bits for big endian */
           value >>= (32 - prop->storage_bits);
         } else {
-          value = le32toh (value);
+          value = GUINT32_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
           storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
           value &= storage_mask;
@@ -1790,11 +1790,11 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
       {
         guint64 value = *(guint64 *) (data + prop->location);
         if (prop->big_endian) {
-          value = be64toh (value);
+          value = GUINT64_FROM_BE (value);
           /** right shift the extra storage bits for big endian */
           value >>= (64 - prop->storage_bits);
         } else {
-          value = le64toh (value);
+          value = GUINT64_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
           storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
           value &= storage_mask;
