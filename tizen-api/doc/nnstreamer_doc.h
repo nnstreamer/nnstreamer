@@ -82,6 +82,41 @@
  * <a href="https://developer.tizen.org/development/tizen-studio/native-tools/configuring-your-app/manifest-text-editor#feature">
  *    <b>Feature Element</b>.
  * </a>
+ *
+ * @defgroup CAPI_ML_NNSTREAMER_SINGLE_MODULE NNStreamer Single Shot
+ * @ingroup  CAPI_ML_NNSTREAMER
+ * @brief The NNStreamer Single API provides interfaces to invoke a neural network model with a single instance of input data.
+ * @section CAPI_ML_NNSTREAMER_SINGLE_HEADER Required Header
+ *   \#include <nnstreamer/nnstreamer-single.h> \n
+ *
+ * @section CAPI_ML_NNSTREAMER_SINGLE_OVERVIEW Overview
+ * The NNStreamer Single API provides interfaces to invoke a neural network model with a single instance of input data.
+ * This API is a syntactic sugar of NNStreamer Pipeline API with simplified features; thus, users are supposed to use NNStreamer Pipeline API directly if they want more advanced features.
+ * The user is expected to preprocess the input data for the given neural network model.
+ *
+ * This API allows the following operations with NNSTreamer:
+ * - Open a machine learning model (ml_model) with various mechanisms.
+ * - Close the model
+ * - Interfaces to enter a single instance of input data to the opened model.
+ * - Utility functions to handle opened model.
+ *
+ * Note that this API set is supposed to be thread-safe.
+ *
+ * @section CAPI_ML_NNSTREAMER_SINGLE_FEATURE Related Features
+ * This API is related with the following features:\n
+ *  - http://tizen.org/feature/nnstreamer.single\n
+ *
+ * It is recommended to probe feaqtures in your applicatoin for reliability.\n
+ * You can check if a device supports the related features for this API by using
+ * @ref CAPI_SYSTEM_SYSTEM_INFO_MODULE, thereby controlling the procedure of
+ * your application.\n
+ * To ensure your application is only running on the device with specific
+ * features, please define the features in your manifest file using the manifest
+ * editor in the SDK.\n
+ * More details on featuring your application can be found from
+ * <a href="https://developer.tizen.org/development/tizen-studio/native-tools/configuring-your-app/manifest-text-editor#feature">
+ *    <b>Feature Element</b>.
+ * </a>
  */
 
 
