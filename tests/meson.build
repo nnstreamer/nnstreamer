@@ -1,16 +1,3 @@
-# These plugins are used for multi-tensors test in nnstreamer_tensors.
-library('testtensors',
-  join_paths('nnstreamer_tensors', 'tensors_test', 'gsttesttensors.c'),
-  dependencies: [gst_dep, nnstreamer_dep],
-  install: false
-)
-
-library('tensorscheck',
-  join_paths('nnstreamer_tensors', 'tensors_test', 'gsttensorscheck.c'),
-  dependencies: [gst_dep, nnstreamer_dep],
-  install: false
-)
-
 # These custom filters are used in unittest_sink.
 library('nnscustom_framecounter',
   join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
