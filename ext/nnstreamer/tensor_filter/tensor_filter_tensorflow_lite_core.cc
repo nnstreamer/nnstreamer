@@ -25,6 +25,7 @@
 #include <algorithm>
 
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_conf.h>
 #include "tensor_filter_tensorflow_lite_core.h"
 
 /**
@@ -43,6 +44,7 @@
 TFLiteCore::TFLiteCore (const char * _model_path)
 {
   model_path = _model_path;
+  use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -126,6 +128,9 @@ TFLiteCore::loadModel ()
       g_critical ("Failed to construct interpreter\n");
       return -2;
     }
+
+    /* Set inference path of tensorflow-lite */
+    interpreter->UseNNAPI (use_nnapi);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
