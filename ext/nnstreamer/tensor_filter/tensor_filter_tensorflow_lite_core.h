@@ -54,6 +54,7 @@ public:
 private:
 
   const char *model_path;
+  bool use_nnapi;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
