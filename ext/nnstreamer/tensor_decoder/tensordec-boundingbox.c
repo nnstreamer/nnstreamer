@@ -245,7 +245,7 @@ loadImageLabels (bounding_boxes * data)
     GList *labels = NULL, *cursor;
 
     while ((read = getline (&line, &len, fp)) != -1) {
-      if (line) {
+      if (line && strlen (line) >= 1) {
         if (line[strlen (line) - 1] == '\n') {
           line[strlen (line) - 1] = '\0';
         }
