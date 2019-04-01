@@ -981,9 +981,9 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     line =
         g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
         g_str_equal (left, right) ? "" : "FAILED");
-    if (left[0] != '\0')
+    if (left && left[0] != '\0')
       g_free (left);
-    if (right[0] != '\0')
+    if (right && right[0] != '\0')
       g_free (right);
 
     tmp = g_strdup_printf ("%s%s", result, line);
