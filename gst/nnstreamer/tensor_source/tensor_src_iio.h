@@ -122,7 +122,6 @@ struct _GstTensorSrcIIO
   channels_enabled_options channels_enabled; /**< enabling which channels */
   guint scan_size; /**< size for a single scan of buffer length 1 */
   struct pollfd *buffer_data_fp; /**< pollfd for reading data buffer */
-  FILE *buffer_data_file; /**< file pointer for reading data buffer */
   guint num_channels_enabled; /**< channels to be enabled */
   gboolean merge_channels_data; /**< merge channel data with same type/size */
   gboolean is_tensor; /**< False if tensors is used for data */
