@@ -242,7 +242,7 @@ main (int argc, char *argv[])
   height = *ptr16;
 
   /** Let's not accept BMP files larger than 10000 x 10000 (Fix Covertify Issue #1029514) */
-  if (width > 10000 || height > 10000) {
+  if (width > 10000 || height > 10000 || width < 4 || height < 4) {
     printf
         ("We do not accept BMP files with height or width larger than 10000.\n");
     fclose (bmpF);
