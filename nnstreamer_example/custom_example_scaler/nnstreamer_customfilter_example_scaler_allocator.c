@@ -63,6 +63,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
+  assert (data);
 
   if (prop->custom_properties && strlen (prop->custom_properties) > 0)
     data->property = g_strdup (prop->custom_properties);
