@@ -57,6 +57,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <endian.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -1450,16 +1451,15 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   g_free (device_name);
 
   self->buffer_data_fp = g_new (struct pollfd, 1);
-  self->buffer_data_file = fopen (filename, "r");
-  if (self->buffer_data_file == NULL) {
+  self->buffer_data_fp->fd = open (filename, O_RDONLY | O_NONBLOCK);
+  if (self->buffer_data_fp->fd < 0) {
     GST_ERROR_OBJECT (self, "Failed to open buffer %s for device %s.\n",
         filename, self->device.name);
     g_free (filename);
     goto error_pollfd_free;
   }
-  self->buffer_data_fp->fd = fileno (self->buffer_data_file);
-  self->buffer_data_fp->events = POLLIN;
   g_free (filename);
+  self->buffer_data_fp->events = POLLIN;
 
 safe_return:
   self->configured = TRUE;
@@ -1515,8 +1515,8 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
   }
   g_free (dirname);
 
+  close (self->buffer_data_fp->fd);
   g_free (self->buffer_data_fp);
-  fclose (self->buffer_data_file);
 
   gst_tensors_info_free (&self->tensors_config->info);
   g_free (self->tensors_config);
