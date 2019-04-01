@@ -445,7 +445,12 @@ static gchar *create_null_file (const gchar *dir, const gchar *file)
   gchar *fullpath = g_build_path ("/", dir, file, NULL);
   FILE *fp = g_fopen (fullpath, "w");
 
-  fclose (fp);
+  if (fp) {
+    fclose (fp);
+  } else {
+    g_free (fullpath);
+    return NULL;
+  }
   return fullpath;
 }
 
