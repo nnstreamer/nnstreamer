@@ -34,7 +34,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
-
+  assert (data);
   data->id = 0;
   return data;
 }
