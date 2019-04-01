@@ -355,6 +355,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
         case GST_ITERATOR_ERROR:
           dlog_print (DLOG_WARN, DLOG_TAG,
               "There is an error or a resync-event while inspecting a pipeline. However, we can still execute the pipeline.");
+          break;
         case GST_ITERATOR_DONE:
           done = TRUE;
       }
