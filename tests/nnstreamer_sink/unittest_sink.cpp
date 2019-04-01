@@ -340,7 +340,7 @@ _push_text_data (const guint num_buffers, const gboolean timestamps = TRUE)
     GstMapInfo info;
 
     gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    sprintf ((char *) info.data, "%d", i);
+    snprintf ((char *) info.data, 10, "%d", i);
     gst_buffer_unmap (buf, &info);
 
     if (timestamps) {
