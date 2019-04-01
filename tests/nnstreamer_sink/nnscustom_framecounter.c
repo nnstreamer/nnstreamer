@@ -94,6 +94,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
+  assert (data);
   maxid = maxid + 1;
   data->id = maxid;
   data->counter = 0U;
