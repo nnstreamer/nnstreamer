@@ -386,7 +386,7 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   /** init properties */
   self->configured = FALSE;
   self->channels = DEFAULT_PROP_STRING;
-  self->mode = DEFAULT_OPERATING_MODE;
+  self->mode = g_strdup (DEFAULT_OPERATING_MODE);
   self->channels_enabled = CHANNELS_ENABLED_AUTO;
   gst_tensor_src_iio_device_properties_init (&self->trigger);
   gst_tensor_src_iio_device_properties_init (&self->device);
@@ -989,26 +989,57 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
   GstTensorSrcIIO *self;
   self = GST_TENSOR_SRC_IIO (object);
 
+  GstStateChangeReturn status;
+  GstState state;
+
+  /**
+   * No support for setting properties in PAUSED/PLAYING state as it needs to
+   * reset the device. To change the properties, user should stop the pipeline
+   * and set element state to READY/NULL and then change the properties
+   */
+  status = gst_element_get_state (GST_ELEMENT (self), &state, NULL,
+      GST_CLOCK_TIME_NONE);
+  if (status == GST_STATE_CHANGE_FAILURE || status == GST_STATE_CHANGE_ASYNC
+      || state == GST_STATE_PLAYING || state == GST_STATE_PAUSED) {
+    GST_ERROR_OBJECT (self, "Can only set property in NULL or READY state.");
+    return;
+  }
+
   switch (prop_id) {
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
 
     case PROP_MODE:
+    {
+      if (self->mode != NULL) {
+        g_free (self->mode);
+      }
       self->mode = g_value_dup_string (value);
       break;
+    }
 
     case PROP_DEVICE:
+    {
+      if (self->device.name != NULL) {
+        g_free (self->device.name);
+      }
       self->device.name = g_value_dup_string (value);
       break;
+    }
 
     case PROP_DEVICE_NUM:
       self->device.id = g_value_get_int (value);
       break;
 
     case PROP_TRIGGER:
+    {
+      if (self->trigger.name != NULL) {
+        g_free (self->trigger.name);
+      }
       self->trigger.name = g_value_dup_string (value);
       break;
+    }
 
     case PROP_TRIGGER_NUM:
       self->trigger.id = g_value_get_int (value);
