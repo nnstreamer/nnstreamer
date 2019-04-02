@@ -196,8 +196,6 @@ static void gst_tensor_filter_finalize (GObject * object);
 /* GstBaseTransform vmethod implementations */
 static GstFlowReturn gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf);
-static GstFlowReturn gst_tensor_filter_transform_ip (GstBaseTransform * trans,
-    GstBuffer * buf);
 static GstCaps *gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter);
 static GstCaps *gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
@@ -327,8 +325,6 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 
   /* Processing units */
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensor_filter_transform);
-  trans_class->transform_ip =
-      GST_DEBUG_FUNCPTR (gst_tensor_filter_transform_ip);
 
   /* Negotiation units */
   trans_class->transform_caps =
@@ -850,22 +846,6 @@ unknown_model:
 unknown_invoke:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("invoke function is not defined"));
-  return GST_FLOW_ERROR;
-}
-
-/**
- * @brief in-place transform. required vmethod of GstBaseTransform.
- */
-static GstFlowReturn
-gst_tensor_filter_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
-{
-  /** @todo 0. Check all properties and inbuf size. */
-  /** @todo 0-1. This shouldn't reach here if in-place mode if OFF with the subplugin */
-  /** @todo 0-1. , which could be done at *_caps with gst_base_transform_set_in_place() */
-  /** @todo 1. Resize buf if output is larger than input */
-  /** @todo 2. Call the filter-subplugin callback, "invoke" */
-  /** @todo 3. Return result! */
-  g_assert (0);
   return GST_FLOW_ERROR;
 }
 
