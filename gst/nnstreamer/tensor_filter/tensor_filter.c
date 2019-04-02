@@ -877,7 +877,6 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
         if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
           GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
           gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
-          g_assert (0);
           goto done;
         }
       } else {
@@ -901,7 +900,6 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
         if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
           GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
           gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
-          g_assert (0);
           goto done;
         }
       } else {
@@ -1060,7 +1058,6 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
       if (!prop->output_configured) {
         GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
-        g_assert (0);
         goto done;
       }
     }
@@ -1195,7 +1192,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
           result = gst_tensor_filter_caps_from_config (self, &config);
         } else {
           GST_ERROR_OBJECT (self, "Cannot get the output tensor info.");
-          g_assert (0);
           result = gst_caps_from_string (CAPS_STRING);
         }
 
