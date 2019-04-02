@@ -326,7 +326,7 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     guint i;
     gchar **str_dims;
 
-    str_dims = g_strsplit (dim_string, ",", -1);
+    str_dims = g_strsplit_set (dim_string, ",.", -1);
     num_dims = g_strv_length (str_dims);
 
     if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
@@ -364,7 +364,7 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     guint i;
     gchar **str_types;
 
-    str_types = g_strsplit (type_string, ",", -1);
+    str_types = g_strsplit_set (type_string, ",.", -1);
     num_types = g_strv_length (str_types);
 
     if (num_types > NNS_TENSOR_SIZE_LIMIT) {
