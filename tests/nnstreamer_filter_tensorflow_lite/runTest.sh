@@ -24,8 +24,14 @@ PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="img/orange.png"
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow-lite\" model=\"${PATH_TO_MODEL}\" ! filesink location=\"tensorfilter.out.log\" " 1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
 python checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} ${PATH_TO_IMAGE}
 testResult $? 1 "Golden test comparison" 0 1
+
+# Fail test for invalid input properties
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} input=7:1 inputtype=float32 ! filesink location=tensorfilter.out.log" 2-F 0 1 $PERFORMANCE
+
+# Fail test for invalid output properties
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} output=1:7 outputtype=int8 ! filesink location=tensorfilter.out.log" 3-F 0 1 $PERFORMANCE
 
 report
