@@ -24,6 +24,7 @@ Source1001:	nnstreamer.manifest
 Source1002:	capi-nnstreamer.manifest
 %endif
 
+
 Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
@@ -72,6 +73,14 @@ BuildRequires: ssat
 
 # For ORC (Oil Runtime Compiler)
 BuildRequires:	pkgconfig(orc-0.4)
+
+# Note that debug packages generate an additional build and storage cost.
+# If you do not need debug packages, run '$ gbs build ... --define "_skip_debug_rpm 1"'.
+
+%if "%{?_skip_debug_rpm}" == "1"
+%global debug_package %{nil}
+%global __debug_install_post %{nil}
+%endif
 
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
