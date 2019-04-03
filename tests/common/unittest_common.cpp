@@ -404,7 +404,7 @@ TEST (common_tensors_info_string, types)
 TEST (common_tensors_info_string, names)
 {
   GstTensorsInfo info;
-  guint num_names;
+  guint i, num_names;
   gchar *str_names;
 
   gst_tensors_info_init (&info);
@@ -428,6 +428,19 @@ TEST (common_tensors_info_string, names)
 
   str_names = gst_tensors_info_get_names_string (&info);
   EXPECT_TRUE (g_str_equal (str_names, "tensor1,tensor2,tensor3,tensor4"));
+  g_free (str_names);
+
+  /* empty name string */
+  num_names = gst_tensors_info_parse_names_string (&info, ",,");
+  EXPECT_EQ (num_names, 3);
+
+  info.num_tensors = num_names;
+  for (i = 0; i < num_names; ++i) {
+    EXPECT_TRUE (g_str_equal (info.info[i].name, ""));
+  }
+
+  str_names = gst_tensors_info_get_names_string (&info);
+  EXPECT_TRUE (g_str_equal (str_names, ",,"));
   g_free (str_names);
 
   /* max */
