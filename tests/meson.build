@@ -96,3 +96,23 @@ endif
 if get_option('enable-tizen-capi')
   subdir('tizen_capi')
 endif
+
+# Install Unittest
+if get_option('install-test')
+   install_subdir('nnstreamer_converter', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_merge', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_decoder', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_demux', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_filter_custom', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_mux', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_repo', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_repo_dynamicity', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_repo_lstm', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_repo_rnn', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('nnstreamer_split', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('transform_arithmetic', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('transform_dimchg', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('transform_stand', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('transform_transpose', install_dir: join_paths(unittest_install_dir,'tests'))
+   install_subdir('transform_typecast', install_dir: join_paths(unittest_install_dir,'tests'))
+endif
