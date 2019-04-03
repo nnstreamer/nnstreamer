@@ -377,7 +377,7 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 }
 
 /** @brief Public function defined in the header */
-const gboolean
+gboolean
 nnsconf_get_value_bool (nnsconf_type_value type)
 {
   gboolean ret;
