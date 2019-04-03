@@ -484,13 +484,14 @@ gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size,
         merge_dim = dim_idx + 1;
         break;
       }
-      /** No outer dimension available to merge */
-      if (merge_dim > NNS_TENSOR_RANK_LIMIT) {
-        return size;
-      }
     }
   } else {
     return -1;
+  }
+
+  /** No outer dimension available to merge */
+  if (merge_dim >= NNS_TENSOR_RANK_LIMIT || merge_dim < 0) {
+    return size;
   }
 
   /** Now merge into 1 tensor using the selected dimension*/
