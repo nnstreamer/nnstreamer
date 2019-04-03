@@ -341,7 +341,13 @@ _push_text_data (const guint num_buffers, const gboolean timestamps = TRUE)
     GstBuffer *buf = gst_buffer_new_allocate (NULL, 10, NULL);
     GstMapInfo info;
 
-    gst_buffer_map (buf, &info, GST_MAP_WRITE);
+    if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
+      _print_log ("failed to get mem map");
+      g_test_data.test_failed = failed = TRUE;
+      gst_buffer_unref (buf);
+      goto error;
+    }
+
     snprintf ((char *) info.data, 10, "%d", i);
     gst_buffer_unmap (buf, &info);
 
@@ -353,6 +359,7 @@ _push_text_data (const guint num_buffers, const gboolean timestamps = TRUE)
     if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
       _print_log ("failed to push buffer [%d]", i);
       g_test_data.test_failed = failed = TRUE;
+      gst_buffer_unref (buf);
       goto error;
     }
   }
