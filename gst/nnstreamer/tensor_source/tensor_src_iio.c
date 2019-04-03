@@ -939,6 +939,8 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
   gint i = 0;
   guint64 val = 0;
   gint64 ret = 0;
+  gchar **freq_list = NULL;
+  gint num = 0;
 
   /** get frequency list supported by the device */
   filename = g_build_filename (base_dir, AVAIL_FREQUENCY_FILE, NULL);
@@ -954,8 +956,8 @@ gst_tensor_src_iio_set_frequency (const gchar * base_dir,
     goto del_filename;
   }
 
-  gchar **freq_list = g_strsplit (file_contents, " ", -1);
-  gint num = g_strv_length (freq_list);
+  freq_list = g_strsplit (file_contents, " ", -1);
+  num = g_strv_length (freq_list);
   if (num == 0) {
     GST_ERROR ("No sampling frequencies for device %s.\n", base_dir);
     ret = -1;
@@ -1313,6 +1315,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   gint tensor_info_merged_size;
   gint info_idx = 0, dim_idx = 0;
   GstTensorInfo *info;
+  GstTensorsConfig *config;
 
   /**
    * create a bigger array, insert info in it and
@@ -1359,7 +1362,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
 
   /** tensors config data */
   tensor_src_iio->is_tensor = (tensor_info_merged_size == 1);
-  GstTensorsConfig *config = g_new (GstTensorsConfig, 1);
+  config = g_new (GstTensorsConfig, 1);
   if (config == NULL) {
     goto error_ret;
   }
