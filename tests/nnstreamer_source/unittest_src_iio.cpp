@@ -536,8 +536,12 @@ clean_iio_dev_structure (iio_dev_dir_struct * iio_dev)
 /**
  * @brief destroy dir for iio device simulation
  * @param[in] iio_dev struct of iio device
+ * @returns 0 on success, -1 on failure
+ * @note return value of remove/rmdir is ignored as those files/folders might
+ *    not exist and deleting them will return failure. Instead check if the base
+ *    directory is deleted towards the end successfully.
  */
-static void
+static gint
 destroy_dev_dir (const iio_dev_dir_struct * iio_dev)
 {
   for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
@@ -576,7 +580,7 @@ destroy_dev_dir (const iio_dev_dir_struct * iio_dev)
   remove (iio_dev->dev_device_dir);
   rmdir (iio_dev->dev_dir);
 
-  rmdir (iio_dev->base_dir);
+  return rmdir (iio_dev->base_dir);
 }
 
 /**
@@ -786,7 +790,7 @@ TEST (test_tensor_src_iio, start_stop)
   gst_harness_teardown (hrnss);
 
   /** delete device structure */
-  destroy_dev_dir (dev0);
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
   clean_iio_dev_structure (dev0);
 }
 
