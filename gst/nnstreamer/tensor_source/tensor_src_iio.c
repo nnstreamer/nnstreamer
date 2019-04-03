@@ -1402,6 +1402,8 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   gint num_channels_enabled;
   gchar *file_contents = NULL;
   gsize length = 0;
+  gchar *device_name = NULL;
+  gchar *trigger_device_dir = NULL;
 
   /** no support one shot mode for now */
   if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
@@ -1432,7 +1434,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   /** register the trigger */
   if (self->trigger.name != NULL || self->trigger.id >= 0) {
     /** verify if trigger is supported by our device */
-    gchar *trigger_device_dir =
+    trigger_device_dir =
         g_build_filename (self->device.base_dir, TRIGGER, NULL);
     if (!g_file_test (trigger_device_dir, G_FILE_TEST_IS_DIR)) {
       GST_ERROR_OBJECT (self, "IIO device %s does not supports trigger.\n",
@@ -1598,7 +1600,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   g_free (dirname);
 
   /** open the buffer to read and ready the file descriptor */
-  gchar *device_name = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
+  device_name = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
   filename = g_build_filename (IIO_DEV_DIR, device_name, NULL);
   g_free (device_name);
 
