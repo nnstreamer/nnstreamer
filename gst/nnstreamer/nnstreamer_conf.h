@@ -113,7 +113,7 @@ nnsconf_get_fullpath (const gchar *subpluginname, nnsconf_type_path type);
  * @return The boolean value to the file. Caller MUST NOT modify this.
  *         Returns FALSE if we cannot find the file or the value as a DEFAULT.
  */
-extern const gboolean
+extern gboolean
 nnsconf_get_value_bool (nnsconf_type_value type);
 
 /**
