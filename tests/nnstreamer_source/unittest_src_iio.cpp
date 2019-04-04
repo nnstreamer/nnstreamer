@@ -91,6 +91,10 @@ typedef struct _iio_dev_dir_struct
   gchar *dev_device_dir;
 } iio_dev_dir_struct;
 
+
+static gint safe_remove (const char *filename);
+static gint safe_rmdir (const char *dirname);
+
 /**
  * @brief make structure for iio device with all file names
  * @param[in] num number assigned to the device
@@ -108,7 +112,7 @@ make_iio_dev_structure (int num)
   iio_dev_dir_struct *iio_dev = g_new (iio_dev_dir_struct, 1);
   iio_dev->base_dir = g_build_filename (_tmp_dir, _dirname, NULL);
   iio_dev->base_dir = g_mkdtemp_full (iio_dev->base_dir, 0777);
-  rmdir (iio_dev->base_dir);
+  EXPECT_EQ (safe_rmdir (iio_dev->base_dir), 0);
 
   iio_dev->sys_dir = g_build_filename (iio_dev->base_dir, "sys", NULL);
   iio_dev->bus_dir = g_build_filename (iio_dev->sys_dir, "bus", NULL);
@@ -534,53 +538,84 @@ clean_iio_dev_structure (iio_dev_dir_struct * iio_dev)
 }
 
 /**
+ * @brief removes file if exists
+ * @param[in] filename Name of the file to be removed
+ * @returns 0 on success, -1 on failure
+ * @note returns success if the file does not exist
+ */
+static gint
+safe_remove (const char *filename)
+{
+  if (g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
+    return remove (filename);
+  }
+  return 0;
+}
+
+/**
+ * @brief removes directory if exists
+ * @param[in] dirname Name of the directory to be removed
+ * @returns 0 on success, -1 on failure
+ * @note returns success if the directory does not exist
+ * @note callers responsibility to empty the directory before calling
+ */
+static gint
+safe_rmdir (const char *dirname)
+{
+  if (g_file_test (dirname, G_FILE_TEST_IS_DIR)) {
+    return rmdir (dirname);
+  }
+  return 0;
+}
+
+/**
  * @brief destroy dir for iio device simulation
  * @param[in] iio_dev struct of iio device
  * @returns 0 on success, -1 on failure
- * @note return value of remove/rmdir is ignored as those files/folders might
- *    not exist and deleting them will return failure. Instead check if the base
- *    directory is deleted towards the end successfully.
  */
 static gint
 destroy_dev_dir (const iio_dev_dir_struct * iio_dev)
 {
+  gint status = 0;
+
   for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
-    remove (iio_dev->scan_el_en[idx]);
-    remove (iio_dev->scan_el_index[idx]);
-    remove (iio_dev->scan_el_type[idx]);
-    remove (iio_dev->scan_el_raw[idx]);
+    status += safe_remove (iio_dev->scan_el_en[idx]);
+    status += safe_remove (iio_dev->scan_el_index[idx]);
+    status += safe_remove (iio_dev->scan_el_type[idx]);
+    status += safe_remove (iio_dev->scan_el_raw[idx]);
   }
-  remove (iio_dev->scan_el_time_en);
-  remove (iio_dev->scan_el_time_index);
-  remove (iio_dev->scan_el_time_type);
-  rmdir (iio_dev->scan_el);
+  status += safe_remove (iio_dev->scan_el_time_en);
+  status += safe_remove (iio_dev->scan_el_time_index);
+  status += safe_remove (iio_dev->scan_el_time_type);
+  status += safe_rmdir (iio_dev->scan_el);
 
-  remove (iio_dev->buf_en);
-  remove (iio_dev->buf_length);
-  rmdir (iio_dev->buffer);
+  status += safe_remove (iio_dev->buf_en);
+  status += safe_remove (iio_dev->buf_length);
+  status += safe_rmdir (iio_dev->buffer);
 
-  remove (iio_dev->cur_trig);
-  rmdir (iio_dev->trigger);
+  status += safe_remove (iio_dev->cur_trig);
+  status += safe_rmdir (iio_dev->trigger);
 
-  remove (iio_dev->scale);
-  remove (iio_dev->offset);
-  remove (iio_dev->samp_freq);
-  remove (iio_dev->samp_freq_avail);
-  remove (iio_dev->name);
+  status += safe_remove (iio_dev->scale);
+  status += safe_remove (iio_dev->offset);
+  status += safe_remove (iio_dev->samp_freq);
+  status += safe_remove (iio_dev->samp_freq_avail);
+  status += safe_remove (iio_dev->name);
 
-  remove (iio_dev->trigger_name);
+  status += safe_remove (iio_dev->trigger_name);
 
-  rmdir (iio_dev->trigger_dev);
-  rmdir (iio_dev->device);
-  rmdir (iio_dev->iio_base_dir_sim);
-  rmdir (iio_dev->iio_dir);
-  rmdir (iio_dev->bus_dir);
-  rmdir (iio_dev->sys_dir);
+  status += safe_rmdir (iio_dev->trigger_dev);
+  status += safe_rmdir (iio_dev->device);
+  status += safe_rmdir (iio_dev->iio_base_dir_sim);
+  status += safe_rmdir (iio_dev->iio_dir);
+  status += safe_rmdir (iio_dev->bus_dir);
+  status += safe_rmdir (iio_dev->sys_dir);
 
-  remove (iio_dev->dev_device_dir);
-  rmdir (iio_dev->dev_dir);
+  status += safe_remove (iio_dev->dev_device_dir);
+  status += safe_rmdir (iio_dev->dev_dir);
+  status += safe_rmdir (iio_dev->base_dir);
 
-  return rmdir (iio_dev->base_dir);
+  return status;
 }
 
 /**
