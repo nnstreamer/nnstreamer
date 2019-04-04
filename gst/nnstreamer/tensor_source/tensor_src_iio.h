@@ -131,6 +131,7 @@ struct _GstTensorSrcIIO
   guint64 default_sampling_frequency; /**< default set value of sampling frequency */
   guint default_buffer_capacity; /**< size of the buffer */
   gchar *default_trigger; /**< default set value of sampling frequency */
+  gint poll_timeout; /**< timeout for polling the fifo file */
 
   /** Only first element is filled when is_tensor is true */
   GstTensorsConfig *tensors_config; /**< tensors for storing data config */

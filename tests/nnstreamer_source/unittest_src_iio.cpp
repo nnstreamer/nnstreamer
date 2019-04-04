@@ -11,6 +11,7 @@
 #include <gst/check/gstharness.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
 /**
  * @brief element name to be tested
@@ -36,10 +37,14 @@ gchar *PREV_IIO_DEV_DIR;
 #define DEFAULT_FREQUENCY 0
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_MERGE_CHANNELS TRUE
+#define DEFAULT_POLL_TIMEOUT 10000
 #define DEVICE_NAME "test-device-1"
 #define TRIGGER_NAME "test-trigger-1"
+#define BUF_LENGTH 1
 #define SCALE  10.1
 #define OFFSET 1.1
+#define DATA 98
+#define NUM_FRAMES 5
 
 /**
  * @brief iio states and values
@@ -48,6 +53,27 @@ gchar *PREV_IIO_DEV_DIR;
 const gchar *mode[] = { "one-shot", "continuous" };
 const gchar *channels[] = { "auto", "all" };
 const gchar *samp_freq_avail[] = { "1000", "2000", "3000", NULL };
+
+#define CHANGE_ENDIANNESS(NUMBITS, UDATA, SDATA, SHIFT, IDX) \
+{ \
+  if (signchar == 's') { \
+    sdata##NUMBITS = ((gint##NUMBITS *) scan_el_data) + idx; \
+    if (endianchar == 'l') { \
+      *sdata##NUMBITS = GINT##NUMBITS##_TO_LE (SDATA << SHIFT); \
+    } else { \
+      *sdata##NUMBITS = GINT##NUMBITS##_TO_BE (SDATA << SHIFT); \
+    } \
+  } else { \
+    udata##NUMBITS = ((guint##NUMBITS *) scan_el_data) + idx; \
+    if (endianchar == 'l') { \
+      *udata##NUMBITS = GUINT##NUMBITS##_TO_LE (UDATA << SHIFT); \
+    } else { \
+      *udata##NUMBITS = GUINT##NUMBITS##_TO_BE (UDATA << SHIFT); \
+    } \
+  } \
+  break; \
+}
+
 
 /**
  * @brief structure for iio device file/folder names
@@ -89,6 +115,9 @@ typedef struct _iio_dev_dir_struct
 
   gchar *dev_dir;
   gchar *dev_device_dir;
+  gchar *log_file;
+  gint dev_device_dir_fd;
+  gint dev_device_dir_fd_read;
 } iio_dev_dir_struct;
 
 
@@ -165,7 +194,7 @@ make_iio_dev_structure (int num)
     g_free (scan_element_name);
     scan_element_name = g_strdup_printf ("%s%d%s", "in_voltage", idx, "_raw");
     iio_dev->scan_el_raw[idx] =
-        g_build_filename (iio_dev->scan_el, scan_element_name, NULL);
+        g_build_filename (iio_dev->device, scan_element_name, NULL);
     g_free (scan_element_name);
   }
   iio_dev->scan_el_time_en =
@@ -219,6 +248,27 @@ write_file_int (const gchar * filename, const gint contents)
 }
 
 /**
+ * @brief append string in to the file
+ * @param[in] filename Destination file for the data
+ * @param[in] contents Data to be written to the file
+ * @param[in] size Size of the contents
+ * @returns 0 on success, non-zero on failure
+ */
+static gint
+write_file_string_single_trigger (const gint fd, const gchar * contents,
+    const gint size)
+{
+  gint write_size = 0;
+
+  write_size = write (fd, contents, size);
+  if (write_size != size) {
+    return -1;
+  }
+
+  return 0;
+}
+
+/**
  * @brief write float in to the file
  * @param[in] filename Destination file for the data
  * @param[in] contents Data to be written to the file
@@ -261,18 +311,46 @@ build_dev_dir_base (const iio_dev_dir_struct * iio_dev)
 }
 
 /**
+ * @brief open a read on fifo to allow write to open in parallel
+ * @param[in] vargp struct of iio device
+ * @returns NULL
+ */
+static void *
+open_fifo_read (void *vargp)
+{
+  iio_dev_dir_struct *iio_dev = (iio_dev_dir_struct *) vargp;
+  iio_dev->dev_device_dir_fd_read = open (iio_dev->dev_device_dir, O_RDONLY);
+  return NULL;
+}
+
+/**
  * @brief build dev data dir and fills it for iio device simulation
  * @param[in] iio_dev struct of iio device
  * @returns 0 on success, non-zero on failure
  */
 static gint
-build_dev_dir_dev_data (const iio_dev_dir_struct * iio_dev)
+build_dev_dir_dev_data (iio_dev_dir_struct * iio_dev)
 {
   gint status = 0;
 
   status += g_mkdir_with_parents (iio_dev->dev_dir, 0777);
-  /** @todo fill in proper data */
-  status += write_file_string (iio_dev->dev_device_dir, "FIXME");
+  status += mkfifo (iio_dev->dev_device_dir, 0777);
+  pthread_t thread_read;
+  /**
+   * create a new thread to open pipe in read mode, main thread will open
+   * pipe in write mode. Without an extra thread, attempt to open pipe in write
+   * will block indefinitely till the pipe is opened in read mode as well
+   */
+  gint val =
+      pthread_create (&thread_read, NULL, open_fifo_read, (void *) iio_dev);
+  if (val != 0) {
+    status = -1;
+  } else {
+    iio_dev->dev_device_dir_fd = open (iio_dev->dev_device_dir, O_WRONLY);
+    if (iio_dev->dev_device_dir_fd < 0) {
+      status = -1;
+    }
+  }
 
   return status;
 }
@@ -382,8 +460,8 @@ build_dev_dir_scale_offset (const iio_dev_dir_struct * iio_dev)
  * @returns 0 on success, non-zero on failure
  */
 static gint
-build_dev_dir_raw_elements (const iio_dev_dir_struct * iio_dev, gboolean skip =
-    FALSE)
+build_dev_dir_raw_elements (const iio_dev_dir_struct * iio_dev, const gint data,
+    gboolean skip = FALSE)
 {
   gint status = 0;
 
@@ -391,8 +469,7 @@ build_dev_dir_raw_elements (const iio_dev_dir_struct * iio_dev, gboolean skip =
     if (idx % 2 && skip) {
       continue;
     }
-    /** todo: verify what is the dtype of this data */
-    status += write_file_int (iio_dev->scan_el_raw[idx], 1000);
+    status += write_file_int (iio_dev->scan_el_raw[idx], data);
   }
 
   return status;
@@ -405,20 +482,43 @@ build_dev_dir_raw_elements (const iio_dev_dir_struct * iio_dev, gboolean skip =
  * @returns 0 on success, non-zero on failure
  */
 static gint
-build_dev_dir_scan_elements (const iio_dev_dir_struct * iio_dev,
-    const guint num_bits)
+build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
+    const guint num_bits, const guint64 udata, const gint64 sdata)
 {
   gint status = 0;
   gchar *type_data;
   gchar endianchar, signchar;
   gint storage, used, shift;
+  guint num_bytes;
+  guint8 *udata8;
+  gint8 *sdata8;
+  guint16 *udata16;
+  gint16 *sdata16;
+  guint32 *udata32;
+  gint32 *sdata32;
+  guint64 *udata64;
+  gint64 *sdata64;
+  gint data_size;
+  gchar *scan_el_data;
+  gint location = 0;
 
   if (!g_file_test (iio_dev->scan_el, G_FILE_TEST_IS_DIR)) {
     status += g_mkdir_with_parents (iio_dev->scan_el, 0777);
   }
+
+  /** ensures num_bytes should round up to 1,2,4,8 */
+  num_bytes = ((num_bits - 1) >> 3) + 1;
+  num_bytes--;
+  num_bytes |= num_bytes >> 1;
+  num_bytes |= num_bytes >> 2;
+  num_bytes |= num_bytes >> 4;
+  num_bytes++;
+
+  data_size = num_bytes * iio_dev->num_scan_elements;
+  scan_el_data = (char *) malloc (data_size);
   /** total 8 possible cases */
   for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
-    status += write_file_int (iio_dev->scan_el_en[idx], idx % 2);
+    status += write_file_int (iio_dev->scan_el_en[idx], 1);
     status += write_file_int (iio_dev->scan_el_index[idx], idx);
     /** form 4 possible combinations */
     endianchar = 'b';
@@ -435,11 +535,12 @@ build_dev_dir_scan_elements (const iio_dev_dir_struct * iio_dev,
         endianchar = 'l';
         break;
     }
-    storage = num_bits;
-    used = storage - 2 * (idx / (iio_dev->num_scan_elements / 2));
+    storage = num_bytes * 8;
+    used = num_bits - 2 * (idx / (iio_dev->num_scan_elements / 2));
     if (used <= 0) {
       used = 1;
     }
+
     /** shift will be 0 or non-zero (2 in this case) */
     shift = storage - used;
     type_data =
@@ -447,7 +548,47 @@ build_dev_dir_scan_elements (const iio_dev_dir_struct * iio_dev,
         shift);
     status += write_file_string (iio_dev->scan_el_type[idx], type_data);
     g_free (type_data);
+
+    switch (num_bytes) {
+      case 1:
+      {
+        /** endian-ness does not matter for 1 byte */
+        if (signchar == 's') {
+          sdata8 = (gint8 *) (scan_el_data + location);
+          *sdata8 = sdata << shift;
+        } else {
+          udata8 = (guint8 *) (scan_el_data + location);
+          *udata8 = udata << shift;
+        }
+        location += num_bytes;
+        break;
+      }
+      case 2:
+        CHANGE_ENDIANNESS (16, udata, sdata, shift, idx);
+      case 3:
+      case 4:
+        CHANGE_ENDIANNESS (32, udata, sdata, shift, idx);
+      case 5:
+      case 6:
+      case 7:
+      case 8:
+        CHANGE_ENDIANNESS (64, udata, sdata, shift, idx);
+      default:
+        return -1;
+    };
   }
+
+  gchar *copied_scan_el_data = (gchar *) malloc (data_size * BUF_LENGTH);
+  for (int idx = 0; idx < BUF_LENGTH; idx++) {
+    memcpy (copied_scan_el_data + data_size * idx, scan_el_data, data_size);
+  }
+  EXPECT_TRUE (0 == memcmp (copied_scan_el_data, scan_el_data,
+          data_size * BUF_LENGTH));
+  status +=
+      write_file_string_single_trigger (iio_dev->dev_device_dir_fd,
+      copied_scan_el_data, data_size * BUF_LENGTH);
+  g_free (copied_scan_el_data);
+  g_free (scan_el_data);
 
   return status;
 }
@@ -546,7 +687,9 @@ clean_iio_dev_structure (iio_dev_dir_struct * iio_dev)
 static gint
 safe_remove (const char *filename)
 {
-  if (g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
+  /** cover for both regular file as well as pipes */
+  if (g_file_test (filename, G_FILE_TEST_EXISTS)
+      && !g_file_test (filename, G_FILE_TEST_IS_DIR)) {
     return remove (filename);
   }
   return 0;
@@ -611,8 +754,11 @@ destroy_dev_dir (const iio_dev_dir_struct * iio_dev)
   status += safe_rmdir (iio_dev->bus_dir);
   status += safe_rmdir (iio_dev->sys_dir);
 
+  close (iio_dev->dev_device_dir_fd);
+  close (iio_dev->dev_device_dir_fd_read);
   status += safe_remove (iio_dev->dev_device_dir);
   status += safe_rmdir (iio_dev->dev_dir);
+  status += safe_remove (iio_dev->log_file);
   status += safe_rmdir (iio_dev->base_dir);
 
   return status;
@@ -632,6 +778,7 @@ TEST (test_tensor_src_iio, properties)
   guint buffer_capacity;
   gulong frequency;
   gboolean merge_channels;
+  gint poll_timeout;
   gint number;
 
   gboolean ret_silent;
@@ -642,6 +789,7 @@ TEST (test_tensor_src_iio, properties)
   guint ret_buffer_capacity;
   gulong ret_frequency;
   gboolean ret_merge_channels;
+  gint ret_poll_timeout;
   gint ret_number;
 
   /** setup */
@@ -731,8 +879,66 @@ TEST (test_tensor_src_iio, properties)
   g_object_get (src_iio, "merge-channels-data", &ret_merge_channels, NULL);
   EXPECT_EQ (ret_merge_channels, merge_channels);
 
+  /** poll timeout test */
+  g_object_get (src_iio, "poll-timeout", &ret_poll_timeout, NULL);
+  EXPECT_EQ (ret_poll_timeout, DEFAULT_POLL_TIMEOUT);
+  poll_timeout = 100;
+  g_object_set (src_iio, "poll-timeout", poll_timeout, NULL);
+  g_object_get (src_iio, "poll-timeout", &ret_poll_timeout, NULL);
+  EXPECT_EQ (ret_poll_timeout, poll_timeout);
+
   /** teardown */
   gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief makes full device structure
+ * @param[in] data_value value of the data for making
+ * @param[in] data_bits number of bits for the data
+ * @param[in] trigger if the device should support trigger
+ * @returns allocated device structure on success, NULL on error
+ */
+static iio_dev_dir_struct *
+make_full_device (guint64 data_value, gint data_bits, gboolean trigger = TRUE)
+{
+  iio_dev_dir_struct *dev0;
+  gint status = 0;
+
+  /** build iio dummy device */
+  dev0 = make_iio_dev_structure (0);
+  status += build_dev_dir_base (dev0);
+
+  /** build iio dummy trigger */
+  status += build_dev_dir_trigger_dev (dev0);
+
+  /** add trigger support in device */
+  if (trigger) {
+    status += build_dev_dir_trigger (dev0);
+  }
+
+  /** dir for continuous mode */
+  status += build_dev_dir_buffer (dev0);
+  status += build_dev_dir_dev_data (dev0);
+  status +=
+      build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value);
+  status += build_dev_dir_timestamp (dev0);
+
+  /** dir for single-shot mode */
+  status += build_dev_dir_raw_elements (dev0, data_value);
+
+  /** other attributes */
+  status += build_dev_dir_samp_freq (dev0);
+  status += build_dev_dir_samp_freq_avail (dev0);
+  status += build_dev_dir_scale_offset (dev0);
+
+  if (status != 0) {
+  /** delete device structure */
+    destroy_dev_dir (dev0);
+    clean_iio_dev_structure (dev0);
+    return NULL;
+  }
+
+  return dev0;
 }
 
 /**
@@ -746,29 +952,9 @@ TEST (test_tensor_src_iio, start_stop)
   GstStateChangeReturn status;
   GstState state;
 
-  /** build iio dummy device */
-  dev0 = make_iio_dev_structure (0);
-  ASSERT_EQ (build_dev_dir_base (dev0), 0);
-
-  /** build iio dummy trigger */
-  ASSERT_EQ (build_dev_dir_trigger_dev (dev0), 0);
-
-  /** add trigger support in device */
-  ASSERT_EQ (build_dev_dir_trigger (dev0), 0);
-
-  /** dir for continuous mode */
-  ASSERT_EQ (build_dev_dir_buffer (dev0), 0);
-  ASSERT_EQ (build_dev_dir_scan_elements (dev0, 32), 0);
-  ASSERT_EQ (build_dev_dir_timestamp (dev0), 0);
-  ASSERT_EQ (build_dev_dir_dev_data (dev0), 0);
-
-  /** dir for single-shot mode */
-  ASSERT_EQ (build_dev_dir_raw_elements (dev0), 0);
-
-  /** other attributes */
-  ASSERT_EQ (build_dev_dir_samp_freq (dev0), 0);
-  ASSERT_EQ (build_dev_dir_samp_freq_avail (dev0), 0);
-  ASSERT_EQ (build_dev_dir_scale_offset (dev0), 0);
+  /** Make device */
+  dev0 = make_full_device (DATA, 16);
+  ASSERT_NE (dev0, nullptr);
 
   /** setup */
   hrnss = gst_harness_new_empty ();
@@ -780,7 +966,6 @@ TEST (test_tensor_src_iio, start_stop)
   /** setup properties */
   g_object_set (src_iio, "device", DEVICE_NAME, NULL);
   g_object_set (src_iio, "silent", FALSE, NULL);
-  g_object_set (src_iio, "trigger", TRIGGER_NAME, NULL);
 
   /** silent mode test */
   status = gst_element_set_state (src_iio, GST_STATE_NULL);
@@ -829,6 +1014,205 @@ TEST (test_tensor_src_iio, start_stop)
   clean_iio_dev_structure (dev0);
 }
 
+/**
+ * @brief generate tests for tensor source IIO data with trigger
+ */
+#define GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER(DATA_VALUE, DATA_BITS) \
+/**
+ * @brief tests tensor source IIO data without trigger
+ */ \
+TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
+{ \
+  iio_dev_dir_struct *dev0; \
+  GstElement *src_iio; \
+  GstStateChangeReturn status; \
+  GstState state; \
+  gchar *parse_launch; \
+  gint data_value; \
+  gint samp_freq; \
+  guint data_bits; \
+  gint fd, bytes_to_read, bytes_read; \
+  gchar *data_buffer; \
+  gfloat expect_val, actual_val; \
+  guint64 expect_val_mask; \
+  gchar *expect_val_char, *actual_val_char; \
+  struct stat stat_buf; \
+  gint stat_ret; \
+  data_value = DATA_VALUE; \
+  data_bits = DATA_BITS; \
+  /** Make device */ \
+  dev0 = make_full_device (data_value, data_bits, FALSE); \
+  ASSERT_NE (dev0, nullptr); \
+  /** setup */ \
+  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10); \
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL); \
+  parse_launch = \
+      g_strdup_printf ("%s device=%s silent=FALSE ! multifilesink location=%s", \
+      ELEMENT_NAME, DEVICE_NAME, dev0->log_file); \
+  src_iio = gst_parse_launch (parse_launch, NULL); \
+  /** state transition test upwards */ \
+  status = gst_element_set_state (src_iio, GST_STATE_PLAYING); \
+  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC); \
+  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+  EXPECT_EQ (state, GST_STATE_PLAYING); \
+  /** \
+   * while loop is to make sure the element if fed with data with device freq \
+   * till multifilesink makes the needed file \
+   */ \
+  while (TRUE) { \
+    g_usleep (MAX (10, 1000000 / samp_freq)); \
+    ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
+            data_value), 0); \
+    if (g_file_test (dev0->log_file, G_FILE_TEST_IS_REGULAR)) { \
+      stat_ret = stat (dev0->log_file, &stat_buf); \
+      if (stat_ret == 0 && stat_buf.st_size != 0) { \
+        /** verify playing state has been maintained */ \
+        status = \
+            gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+        EXPECT_EQ (state, GST_STATE_PLAYING); \
+        /** state transition test downwards */ \
+        status = gst_element_set_state (src_iio, GST_STATE_NULL); \
+        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+        status = \
+            gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+        EXPECT_EQ (state, GST_STATE_NULL); \
+        break; \
+      } \
+    } \
+  } \
+  /** verify correctness of data */ \
+  fd = open (dev0->log_file, O_RDONLY); \
+  bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements; \
+  data_buffer = (gchar *) malloc (bytes_to_read); \
+  bytes_read = read (fd, data_buffer, bytes_to_read); \
+  EXPECT_EQ (bytes_read, bytes_to_read); \
+  expect_val_mask = G_MAXUINT64 >> (64 - data_bits); \
+  expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE; \
+  expect_val_char = g_strdup_printf ("%.2f", expect_val); \
+  for (int idx = 0; idx < bytes_to_read; idx += sizeof (float)) { \
+    actual_val = *((gfloat *) data_buffer); \
+    actual_val_char = g_strdup_printf ("%.2f", actual_val); \
+    EXPECT_STREQ (expect_val_char, actual_val_char); \
+    g_free (actual_val_char); \
+  } \
+  close (fd); \
+  ASSERT_EQ (safe_remove (dev0->log_file), 0); \
+  /** delete device structure */ \
+  ASSERT_EQ (destroy_dev_dir (dev0), 0); \
+  g_free (dev0->log_file); \
+  clean_iio_dev_structure (dev0); \
+}
+
+/**
+ * @brief generate various tests to test data correctness without trigger
+ * @note verifies data correctness for various number of data size (byte aligned
+ * and un-aligned as well)
+ */
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 4);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 8);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 12);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 16);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 24);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 32);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 40);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 48);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 56);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 64);
+
+/**
+ * @brief tests tensor source IIO data with trigger
+ * @note verifies that no frames have been lost as well
+ */
+TEST (test_tensor_src_iio, data_verify_trigger)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio;
+  GstStateChangeReturn status;
+  GstState state;
+  gchar *parse_launch;
+  gint samp_freq;
+  gint data_value;
+  guint data_bits;
+  gint fd, bytes_to_read, bytes_read;
+  gchar *data_buffer;
+  gfloat expect_val, actual_val;
+  guint64 expect_val_mask;
+  gchar *expect_val_char, *actual_val_char;
+  struct stat stat_buf;
+  gint stat_ret;
+  data_value = DATA;
+  data_bits = 16;
+  /** Make device */
+  dev0 = make_full_device (data_value, data_bits);
+  ASSERT_NE (dev0, nullptr);
+  /** setup */
+  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
+  parse_launch =
+      g_strdup_printf
+      ("%s device=%s trigger=%s silent=FALSE ! multifilesink location=%s",
+      ELEMENT_NAME, DEVICE_NAME, TRIGGER_NAME, dev0->log_file);
+  src_iio = gst_parse_launch (parse_launch, NULL);
+  /** state transition test upwards */
+  status = gst_element_set_state (src_iio, GST_STATE_PLAYING);
+  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+  /** let a few frames transfer */
+  for (int idx = 0; idx < NUM_FRAMES; idx++) {
+    /** wait for filter to process the frame and multifilesink to write it */
+    while (TRUE) {
+      if (g_file_test (dev0->log_file, G_FILE_TEST_IS_REGULAR)) {
+        stat_ret = stat (dev0->log_file, &stat_buf);
+        if (stat_ret == 0 && stat_buf.st_size != 0) {
+          break;
+        }
+      }
+      g_usleep (MAX (1, 1000000 / samp_freq));
+    }
+
+    /** verify correctness of data */
+    fd = open (dev0->log_file, O_RDONLY);
+    bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
+    data_buffer = (gchar *) malloc (bytes_to_read);
+    bytes_read = read (fd, data_buffer, bytes_to_read);
+    EXPECT_EQ (bytes_read, bytes_to_read);
+    expect_val_mask = G_MAXUINT64 >> (64 - data_bits);
+    expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE;
+    expect_val_char = g_strdup_printf ("%.2f", expect_val);
+    for (int idx = 0; idx < bytes_to_read; idx += sizeof (float)) {
+      actual_val = *((gfloat *) data_buffer);
+      actual_val_char = g_strdup_printf ("%.2f", actual_val);
+      EXPECT_STREQ (expect_val_char, actual_val_char);
+      g_free (actual_val_char);
+    }
+    close (fd);
+    ASSERT_EQ (safe_remove (dev0->log_file), 0);
+    /** update data value to check data updates */
+    data_value += 1;
+    ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value,
+            data_value), 0);
+  }
+
+  /** verify playing state has been maintained */
+  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+  /** state transition test downwards */
+  status = gst_element_set_state (src_iio, GST_STATE_NULL);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_NULL);
+  /** delete device structure */
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  g_free (dev0->log_file);
+  clean_iio_dev_structure (dev0);
+}
 
 /**
  * @brief Main function for unit test.
@@ -837,8 +1221,6 @@ int
 main (int argc, char **argv)
 {
   testing::InitGoogleTest (&argc, argv);
-
   gst_init (&argc, &argv);
-
   return RUN_ALL_TESTS ();
 }
