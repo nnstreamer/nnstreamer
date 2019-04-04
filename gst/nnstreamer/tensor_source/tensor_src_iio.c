@@ -22,10 +22,9 @@
  * @see		http://github.com/nnsuite/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
- * @todo  create a sample example and unit tests
  * @todo  support specific channels as input
- * @todo  support buffer timestamps based on IIO channel timestamp
- * @todo  support one-shot mode
+ * @todo  support/sync buffer timestamps based on IIO channel timestamp
+ * @todo  handle timestamp received from device
  *
  *
  * This is the plugin to capture data from sensors
@@ -124,7 +123,8 @@ enum
   PROP_CHANNELS,
   PROP_BUFFER_CAPACITY,
   PROP_FREQUENCY,
-  PROP_MERGE_CHANNELS
+  PROP_MERGE_CHANNELS,
+  PROP_POLL_TIMEOUT
 };
 
 /**
@@ -165,6 +165,13 @@ enum
 #define MIN_FREQUENCY 0
 #define MAX_FREQUENCY G_MAXULONG
 #define DEFAULT_FREQUENCY 0
+
+/**
+ * @brief Minimum and maximum polling timeout for the buffered reading
+ */
+#define MIN_POLL_TIMEOUT -1
+#define MAX_POLL_TIMEOUT G_MAXINT
+#define DEFAULT_POLL_TIMEOUT 10000
 
 /**
  * @brief Default behavior on merging channels
@@ -326,6 +333,11 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           "Merge the data of channels into single tensor",
           DEFAULT_MERGE_CHANNELS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_POLL_TIMEOUT,
+      g_param_spec_int ("poll-timeout", "Poll Timeout",
+          "Timeout for polling in milliseconds", MIN_POLL_TIMEOUT,
+          MAX_POLL_TIMEOUT, DEFAULT_POLL_TIMEOUT, G_PARAM_READWRITE));
+
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorSrcIIO",
       "SrcIIO/Tensor",
@@ -400,6 +412,7 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   self->default_sampling_frequency = 0;
   self->default_buffer_capacity = 0;
   self->default_trigger = NULL;
+  self->poll_timeout = DEFAULT_POLL_TIMEOUT;
 
   /**
    * format of the source since IIO device as a source is live and operates
@@ -618,7 +631,7 @@ gst_tensor_src_iio_get_float_from_file (const gchar * dirname,
   filepath = g_build_filename (dirname, filename, NULL);
 
   if (!g_file_get_contents (filepath, &file_contents, NULL, NULL)) {
-    GST_WARNING ("Unable to retrieve data from file %s.", filename);
+    GST_INFO ("Unable to retrieve data from file %s.", filename);
   } else {
     if (!sscanf (file_contents, "%f", value)) {
       GST_ERROR ("Error in parsing float.");
@@ -662,11 +675,7 @@ gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
     prop->storage_bytes = 0;
   }
 
-  if (prop->used_bits == 64) {
-    prop->mask = G_MAXUINT64;
-  } else {
-    prop->mask = (G_GUINT64_CONSTANT (1) << prop->used_bits) - 1;
-  }
+  prop->mask = G_MAXUINT64 >> (64 - prop->used_bits);
 
   /** checks to verify device channel type settings */
   g_return_val_if_fail (arguments_filled == 5, FALSE);
@@ -1077,6 +1086,10 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
       self->merge_channels_data = g_value_get_boolean (value);
       break;
 
+    case PROP_POLL_TIMEOUT:
+      self->poll_timeout = g_value_get_int (value);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1139,6 +1152,10 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
 
     case PROP_MERGE_CHANNELS:
       g_value_set_boolean (value, self->merge_channels_data);
+      break;
+
+    case PROP_POLL_TIMEOUT:
+      g_value_set_int (value, self->poll_timeout);
       break;
 
     default:
@@ -1488,7 +1505,6 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   }
 
   /** setup the frequency (only verifying the frequency now) */
-  /** @todo verify setting up frequency */
   sampling_frequency =
       gst_tensor_src_iio_set_frequency (self->device.base_dir,
       self->sampling_frequency);
@@ -1999,7 +2015,7 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
         } else {
           value = GUINT16_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
-          storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
+          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
           value &= storage_mask;
         }
         buffer_map[channel_idx] =
@@ -2018,7 +2034,7 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
         } else {
           value = GUINT32_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
-          storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
+          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
           value &= storage_mask;
         }
         buffer_map[channel_idx] =
@@ -2041,7 +2057,7 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
         } else {
           value = GUINT64_FROM_LE (value);
           /** mask out the extra storage bits for little endian */
-          storage_mask = (G_GUINT64_CONSTANT (1) << prop->storage_bits) - 1;
+          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
           value &= storage_mask;
         }
         buffer_map[channel_idx] =
@@ -2060,9 +2076,6 @@ gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
  * @brief fill the buffer with data
  * @note ignore offset as there is no header
  * @note buffer timestamp is already handled by gstreamer with gst clock
- *
- * @todo handle timestamp received from device
- * @todo sync buffer timestamp with IIO timestamps
  */
 static GstFlowReturn
 gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
@@ -2075,6 +2088,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   gfloat *map_data_float;
   GstMemory *mem;
   GstMapInfo map;
+  guint64 time_to_end, cur_time;
 
   self = GST_TENSOR_SRC_IIO (src);
 
@@ -2090,33 +2104,51 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   g_assert (gst_memory_map (mem, &map, GST_MAP_WRITE));
 
   /** wait for the data to arrive */
-  if (self->trigger.name != NULL) {
-    status = poll (self->buffer_data_fp, 1, -1);
-    if (status < 0) {
-      GST_ERROR_OBJECT (self, "Error %d while polling the buffer.", status);
-      goto error_mem_unmap;
-    } else if (status == 0) {
-      /** this case happens for timeout, which is not set yet */
-      GST_ERROR_OBJECT (self, "Timeout while polling the buffer.");
-      goto error_mem_unmap;
+  time_to_end = g_get_real_time () + self->poll_timeout * 1000;
+  while (TRUE) {
+    if (self->trigger.name != NULL) {
+      status = poll (self->buffer_data_fp, 1, self->poll_timeout);
+      if (status < 0) {
+        GST_ERROR_OBJECT (self, "Error %d while polling the buffer.", status);
+        goto error_mem_unmap;
+      } else if (status == 0) {
+        GST_ERROR_OBJECT (self, "Timeout while polling the buffer.");
+        goto error_mem_unmap;
+      } else if (!(self->buffer_data_fp->revents & POLLIN)) {
+        GST_ERROR_OBJECT (self, "Poll succeeded on an unexpected event %d.",
+            self->buffer_data_fp->revents);
+        goto error_mem_unmap;
+      }
+      self->buffer_data_fp->revents = 0;
+    } else {
+      /** sleep for a device tick */
+      g_usleep (MAX (1,
+              (guint64) 1000000 / (self->sampling_frequency /
+                  self->buffer_capacity)));
     }
-  } else {
-    /** sleep for a device tick */
-    g_usleep (MAX (1,
-            (guint64) 1000000 / (self->sampling_frequency /
-                self->buffer_capacity)));
-  }
 
-  /** read the data from file */
-  bytes_to_read = self->scan_size * self->buffer_capacity;
-  raw_data_base = g_malloc (bytes_to_read);
-  /** using read for non-blocking access */
-  status = read (self->buffer_data_fp->fd, raw_data_base, bytes_to_read);
-  if (status < bytes_to_read) {
-    GST_ERROR_OBJECT (self,
-        "Error: read %d/%d bytes while reading from the buffer. Error no: %d",
-        status, bytes_to_read, errno);
-    goto error_data_free;
+    /** read the data from file */
+    bytes_to_read = self->scan_size * self->buffer_capacity;
+    raw_data_base = g_malloc (bytes_to_read);
+    /** using read for non-blocking access */
+    status = read (self->buffer_data_fp->fd, raw_data_base, bytes_to_read);
+    if (status < bytes_to_read) {
+      if (errno == EAGAIN) {
+        GST_WARNING_OBJECT (self, "EAGAIN error, try again.");
+        cur_time = g_get_real_time ();
+        if (time_to_end >= cur_time) {
+          continue;
+        } else {
+          GST_ERROR_OBJECT (self, "EAGAIN timeout expired.");
+          goto error_data_free;
+        }
+      }
+      GST_ERROR_OBJECT (self,
+          "Error no %d: read %d/%d bytes while reading from the buffer fd.",
+          errno, status, bytes_to_read);
+      goto error_data_free;
+    }
+    break;
   }
 
   /** parse the read data */
