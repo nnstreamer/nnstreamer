@@ -20,7 +20,13 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
+# Test for opencv installed, enable OPENCV test if opencv is found
 TEST_OPENCV="NO"
+ldconfig -p | grep opencv > /dev/null 2>&1
+if [[ "$?" == 0 ]]
+then
+  TEST_OPENCV="YES"
+fi
 
 if [ "$SKIPGEN" == "YES" ]
 then
@@ -133,16 +139,21 @@ then
 	PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_scaler.so"
     fi
 
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"640x480\" ! filesink location=\"testcase12.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase12.direct.log\" sync=true" 12 0 0 $PERFORMANCE
-    callCompareTest testcase12.direct.log testcase12.passthrough.log 12 "Compare 12" 0 0
+    # Verify that opencv tests were build before running them
+    if [ -e $PATH_TO_MODEL ]
+    then
+      echo "Running OPENCV"
+      gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"640x480\" ! filesink location=\"testcase12.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase12.direct.log\" sync=true" 12 0 0 $PERFORMANCE
+      callCompareTest testcase12.direct.log testcase12.passthrough.log 12 "Compare 12" 0 0
 
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320x240\" ! filesink location=\"testcase13.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase13.direct.log\" sync=true" 13 0 0 $PERFORMANCE
-    python checkScaledTensor.py testcase13.direct.log 640 480 testcase13.scaled.log 320 240 3
-    testResult $? 13 "Golden test comparison" 0 1
+      gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320x240\" ! filesink location=\"testcase13.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase13.direct.log\" sync=true" 13 0 0 $PERFORMANCE
+      python checkScaledTensor.py testcase13.direct.log 640 480 testcase13.scaled.log 320 240 3
+      testResult $? 13 "Golden test comparison" 0 1
 
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"1920x1080\" ! filesink location=\"testcase14.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase14.direct.log\" sync=true" 14 0 0 $PERFORMANCE
-    python checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 1920 1080 3
-    testResult $? 14 "Golden test comparison" 0 1
+      gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"1920x1080\" ! filesink location=\"testcase14.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase14.direct.log\" sync=true" 14 0 0 $PERFORMANCE
+      python checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 1920 1080 3
+      testResult $? 14 "Golden test comparison" 0 1
+    fi
 
     # Test average using OpenCV (15)
     # custom version
@@ -162,9 +173,12 @@ then
 	PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_average.so"
     fi
 
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase15.opencv.average.log\" sync=true" 15 0 0 $PERFORMANCE
+    if [ -e $PATH_TO_MODEL_A ]
+    then
+      gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase15.opencv.average.log\" sync=true" 15 0 0 $PERFORMANCE
 
-    callCompareTest testcase15.opencv.average.log testcase15.average.log 15 "Compare 15" 0 0
+      callCompareTest testcase15.opencv.average.log testcase15.average.log 15 "Compare 15" 0 0
+    fi
 fi
 
 report
