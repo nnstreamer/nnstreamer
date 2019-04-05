@@ -20,13 +20,11 @@ if meson.project_name() != 'nnstreamer'
 endif
 
 
-capi_main = [
-  'src/tizen-api-pipeline.c'
-]
+capi_main = []
+capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-pipeline.c')
 
-capi_devel_main = [
-  'include/tizen-api.h'
-]
+capi_devel_main = []
+capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'tizen-api.h')
 
 inc = include_directories('include')
 nninc = include_directories('../gst')
