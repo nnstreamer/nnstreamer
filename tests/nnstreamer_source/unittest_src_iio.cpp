@@ -54,23 +54,24 @@ const gchar *mode[] = { "one-shot", "continuous" };
 const gchar *channels[] = { "auto", "all" };
 const gchar *samp_freq_avail[] = { "1000", "2000", "3000", NULL };
 
-#define CHANGE_ENDIANNESS(NUMBITS, UDATA, SDATA, SHIFT, IDX) \
+#define CHANGE_ENDIANNESS(NUMBITS) \
 { \
   if (signchar == 's') { \
-    sdata##NUMBITS = ((gint##NUMBITS *) scan_el_data) + idx; \
+    sdata##NUMBITS = (gint##NUMBITS *) (scan_el_data + location); \
     if (endianchar == 'l') { \
-      *sdata##NUMBITS = GINT##NUMBITS##_TO_LE (SDATA << SHIFT); \
+      *sdata##NUMBITS = GINT##NUMBITS##_TO_LE (sdata << shift); \
     } else { \
-      *sdata##NUMBITS = GINT##NUMBITS##_TO_BE (SDATA << SHIFT); \
+      *sdata##NUMBITS = GINT##NUMBITS##_TO_BE (sdata << shift); \
     } \
   } else { \
-    udata##NUMBITS = ((guint##NUMBITS *) scan_el_data) + idx; \
+    udata##NUMBITS = (guint##NUMBITS *) (scan_el_data + location); \
     if (endianchar == 'l') { \
-      *udata##NUMBITS = GUINT##NUMBITS##_TO_LE (UDATA << SHIFT); \
+      *udata##NUMBITS = GUINT##NUMBITS##_TO_LE (udata << shift); \
     } else { \
-      *udata##NUMBITS = GUINT##NUMBITS##_TO_BE (UDATA << SHIFT); \
+      *udata##NUMBITS = GUINT##NUMBITS##_TO_BE (udata << shift); \
     } \
   } \
+  location += num_bytes; \
   break; \
 }
 
@@ -483,7 +484,8 @@ build_dev_dir_raw_elements (const iio_dev_dir_struct * iio_dev, const gint data,
  */
 static gint
 build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
-    const guint num_bits, const guint64 udata, const gint64 sdata)
+    const guint num_bits, const guint64 udata, const gint64 sdata,
+    const gint skip = 1)
 {
   gint status = 0;
   gchar *type_data;
@@ -501,6 +503,7 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
   gint data_size;
   gchar *scan_el_data;
   gint location = 0;
+  gint enabled = 0;
 
   if (!g_file_test (iio_dev->scan_el, G_FILE_TEST_IS_DIR)) {
     status += g_mkdir_with_parents (iio_dev->scan_el, 0777);
@@ -514,11 +517,12 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
   num_bytes |= num_bytes >> 4;
   num_bytes++;
 
-  data_size = num_bytes * iio_dev->num_scan_elements;
+  data_size = num_bytes * iio_dev->num_scan_elements / skip;
   scan_el_data = (char *) malloc (data_size);
   /** total 8 possible cases */
   for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
-    status += write_file_int (iio_dev->scan_el_en[idx], 1);
+    enabled = (idx % skip == 0);
+    status += write_file_int (iio_dev->scan_el_en[idx], enabled);
     status += write_file_int (iio_dev->scan_el_index[idx], idx);
     /** form 4 possible combinations */
     endianchar = 'b';
@@ -549,33 +553,31 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
     status += write_file_string (iio_dev->scan_el_type[idx], type_data);
     g_free (type_data);
 
-    switch (num_bytes) {
-      case 1:
-      {
-        /** endian-ness does not matter for 1 byte */
-        if (signchar == 's') {
-          sdata8 = (gint8 *) (scan_el_data + location);
-          *sdata8 = sdata << shift;
-        } else {
-          udata8 = (guint8 *) (scan_el_data + location);
-          *udata8 = udata << shift;
+    if (enabled) {
+      switch (num_bytes) {
+        case 1:
+        {
+          /** endian-ness does not matter for 1 byte */
+          if (signchar == 's') {
+            sdata8 = (gint8 *) (scan_el_data + location);
+            *sdata8 = sdata << shift;
+          } else {
+            udata8 = (guint8 *) (scan_el_data + location);
+            *udata8 = udata << shift;
+          }
+          location += num_bytes;
+          break;
         }
-        location += num_bytes;
-        break;
-      }
-      case 2:
-        CHANGE_ENDIANNESS (16, udata, sdata, shift, idx);
-      case 3:
-      case 4:
-        CHANGE_ENDIANNESS (32, udata, sdata, shift, idx);
-      case 5:
-      case 6:
-      case 7:
-      case 8:
-        CHANGE_ENDIANNESS (64, udata, sdata, shift, idx);
-      default:
-        return -1;
-    };
+        case 2:
+          CHANGE_ENDIANNESS (16);
+        case 4:
+          CHANGE_ENDIANNESS (32);
+        case 8:
+          CHANGE_ENDIANNESS (64);
+        default:
+          return -1;
+      };
+    }
   }
 
   gchar *copied_scan_el_data = (gchar *) malloc (data_size * BUF_LENGTH);
@@ -899,7 +901,8 @@ TEST (test_tensor_src_iio, properties)
  * @returns allocated device structure on success, NULL on error
  */
 static iio_dev_dir_struct *
-make_full_device (guint64 data_value, gint data_bits, gboolean trigger = TRUE)
+make_full_device (const guint64 data_value, const gint data_bits,
+    const gboolean trigger = TRUE, const gint skip = 1)
 {
   iio_dev_dir_struct *dev0;
   gint status = 0;
@@ -920,7 +923,8 @@ make_full_device (guint64 data_value, gint data_bits, gboolean trigger = TRUE)
   status += build_dev_dir_buffer (dev0);
   status += build_dev_dir_dev_data (dev0);
   status +=
-      build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value);
+      build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value,
+      skip);
   status += build_dev_dir_timestamp (dev0);
 
   /** dir for single-shot mode */
@@ -1017,14 +1021,14 @@ TEST (test_tensor_src_iio, start_stop)
 /**
  * @brief generate tests for tensor source IIO data with trigger
  */
-#define GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER(DATA_VALUE, DATA_BITS) \
+#define GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER(DATA_VALUE, DATA_BITS, SKIP) \
 /**
  * @brief tests tensor source IIO data without trigger
  */ \
-TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
+TEST (test_tensor_src_iio, data_verify_no_trigger_bits##DATA_BITS##_alternate##SKIP) \
 { \
   iio_dev_dir_struct *dev0; \
-  GstElement *src_iio; \
+  GstElement *src_iio_pipeline; \
   GstStateChangeReturn status; \
   GstState state; \
   gchar *parse_launch; \
@@ -1041,7 +1045,7 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
   data_value = DATA_VALUE; \
   data_bits = DATA_BITS; \
   /** Make device */ \
-  dev0 = make_full_device (data_value, data_bits, FALSE); \
+  dev0 = make_full_device (data_value, data_bits, FALSE, SKIP); \
   ASSERT_NE (dev0, nullptr); \
   /** setup */ \
   samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10); \
@@ -1049,11 +1053,11 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
   parse_launch = \
       g_strdup_printf ("%s device=%s silent=FALSE ! multifilesink location=%s", \
       ELEMENT_NAME, DEVICE_NAME, dev0->log_file); \
-  src_iio = gst_parse_launch (parse_launch, NULL); \
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL); \
   /** state transition test upwards */ \
-  status = gst_element_set_state (src_iio, GST_STATE_PLAYING); \
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING); \
   EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC); \
-  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+  status = gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
   EXPECT_EQ (state, GST_STATE_PLAYING); \
   /** \
@@ -1063,20 +1067,20 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
   while (TRUE) { \
     g_usleep (MAX (10, 1000000 / samp_freq)); \
     ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
-            data_value), 0); \
+            data_value, SKIP), 0); \
     if (g_file_test (dev0->log_file, G_FILE_TEST_IS_REGULAR)) { \
       stat_ret = stat (dev0->log_file, &stat_buf); \
       if (stat_ret == 0 && stat_buf.st_size != 0) { \
         /** verify playing state has been maintained */ \
         status = \
-            gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+            gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
         EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
         EXPECT_EQ (state, GST_STATE_PLAYING); \
         /** state transition test downwards */ \
-        status = gst_element_set_state (src_iio, GST_STATE_NULL); \
+        status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL); \
         EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
         status = \
-            gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE); \
+            gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
         EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
         EXPECT_EQ (state, GST_STATE_NULL); \
         break; \
@@ -1085,7 +1089,7 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
   } \
   /** verify correctness of data */ \
   fd = open (dev0->log_file, O_RDONLY); \
-  bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements; \
+  bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements/SKIP; \
   data_buffer = (gchar *) malloc (bytes_to_read); \
   bytes_read = read (fd, data_buffer, bytes_to_read); \
   EXPECT_EQ (bytes_read, bytes_to_read); \
@@ -1099,8 +1103,10 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
     g_free (actual_val_char); \
   } \
   close (fd); \
-  ASSERT_EQ (safe_remove (dev0->log_file), 0); \
+\
   /** delete device structure */ \
+  ASSERT_EQ (safe_remove (dev0->log_file), 0); \
+  gst_object_unref (src_iio_pipeline); \
   ASSERT_EQ (destroy_dev_dir (dev0), 0); \
   g_free (dev0->log_file); \
   clean_iio_dev_structure (dev0); \
@@ -1110,17 +1116,18 @@ TEST (test_tensor_src_iio, data_verify_no_trigger_##DATA_BITS) \
  * @brief generate various tests to test data correctness without trigger
  * @note verifies data correctness for various number of data size (byte aligned
  * and un-aligned as well)
+ * @note verifies data correctness when some of half the channels are disabled
  */
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 4);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 8);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 12);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 16);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 24);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 32);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 40);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 48);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 56);
-GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 64);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 4, 1);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 8, 2);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 12, 1);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 16, 2);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 24, 1);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 32, 2);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 40, 1);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 48, 2);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 56, 1);
+GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 64, 2);
 
 /**
  * @brief tests tensor source IIO data with trigger
@@ -1129,7 +1136,7 @@ GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 64);
 TEST (test_tensor_src_iio, data_verify_trigger)
 {
   iio_dev_dir_struct *dev0;
-  GstElement *src_iio;
+  GstElement *src_iio_pipeline;
   GstStateChangeReturn status;
   GstState state;
   gchar *parse_launch;
@@ -1153,13 +1160,13 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
-      ("%s device=%s trigger=%s silent=FALSE ! multifilesink location=%s",
-      ELEMENT_NAME, DEVICE_NAME, TRIGGER_NAME, dev0->log_file);
-  src_iio = gst_parse_launch (parse_launch, NULL);
+      ("%s device-number=%d trigger=%s silent=FALSE ! multifilesink location=%s",
+      ELEMENT_NAME, 0, TRIGGER_NAME, dev0->log_file);
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
   /** state transition test upwards */
-  status = gst_element_set_state (src_iio, GST_STATE_PLAYING);
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
   EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
-  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  status = gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (state, GST_STATE_PLAYING);
   /** let a few frames transfer */
@@ -1199,16 +1206,18 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   }
 
   /** verify playing state has been maintained */
-  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  status = gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (state, GST_STATE_PLAYING);
   /** state transition test downwards */
-  status = gst_element_set_state (src_iio, GST_STATE_NULL);
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
-  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  status = gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (state, GST_STATE_NULL);
+
   /** delete device structure */
+  gst_object_unref (src_iio_pipeline);
   ASSERT_EQ (destroy_dev_dir (dev0), 0);
   g_free (dev0->log_file);
   clean_iio_dev_structure (dev0);
