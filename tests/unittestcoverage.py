@@ -233,7 +233,8 @@ def cmd_module(paths):
     return -1
 
   print("\n\n===========================================================")
-  print(str(path) + ": " + str(lines) + " Lines with " + str(rate) + "% unit test coverage")
+  print("Paths for test coverage " + str(paths))
+  print(str(lines) + " Lines with " + str(rate) + "% unit test coverage")
   print("===========================================================\n\n\n")
   return 0
 

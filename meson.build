@@ -117,7 +117,6 @@ endif
 
 # Tensorflow-lite
 have_tensorflow_lite = false
-install_test=false
 
 if get_option('enable-tensorflow-lite')
   tflite_dep = dependency('tensorflow-lite', required: true)
@@ -148,9 +147,6 @@ endif
 
 # Build unittests
 if get_option('enable-test')
-  if get_option('install-test')
-    install_test=true
-  endif
   subdir('tests')
 endif
 

@@ -2,14 +2,14 @@
 library('nnscustom_framecounter',
   join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
   dependencies: [glib_dep, nnstreamer_dep],
-  install: install_test,
+  install: get_option('install-test'),
   install_dir: customfilter_install_dir
 )
 
 library('nnscustom_drop_buffer',
   join_paths('nnstreamer_sink', 'nnscustom_drop_buffer.c'),
   dependencies: [nnstreamer_dep],
-  install: install_test,
+  install: get_option('install-test'),
   install_dir: customfilter_install_dir
 )
 
@@ -19,7 +19,7 @@ if libpng_dep.found()
   b2p = executable('bmp2png',
     'bmp2png.c',
     dependencies: [libpng_dep],
-    install: install_test,
+    install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
@@ -36,7 +36,7 @@ endif
 executable('unittest_repo',
   join_paths('nnstreamer_repo_dynamicity', 'tensor_repo_dynamic_test.c'),
   dependencies: [nnstreamer_dep, gst_dep, glib_dep],
-  install: install_test,
+  install: get_option('install-test'),
   install_dir: unittest_install_dir
 )
 
@@ -55,7 +55,7 @@ if gtest_dep.found()
   unittest_common = executable('unittest_common',
     join_paths('common', 'unittest_common.cpp'),
     dependencies: [nnstreamer_unittest_deps],
-    install: install_test,
+    install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
@@ -65,7 +65,7 @@ if gtest_dep.found()
   unittest_sink = executable('unittest_sink',
     join_paths('nnstreamer_sink', 'unittest_sink.cpp'),
     dependencies: [nnstreamer_unittest_deps],
-    install: install_test,
+    install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
@@ -75,7 +75,7 @@ if gtest_dep.found()
   unittest_plugins = executable('unittest_plugins',
     join_paths('nnstreamer_plugins', 'unittest_plugins.cpp'),
     dependencies: [nnstreamer_unittest_deps],
-    install: install_test,
+    install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
@@ -85,7 +85,7 @@ if gtest_dep.found()
   unittest_src_iio = executable('unittest_src_iio',
     join_paths('nnstreamer_source', 'unittest_src_iio.cpp'),
     dependencies: [nnstreamer_unittest_deps],
-    install: install_test,
+    install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
@@ -99,20 +99,20 @@ endif
 
 # Install Unittest
 if get_option('install-test')
-   install_subdir('nnstreamer_converter', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_merge', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_decoder', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_demux', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_filter_custom', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_mux', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_repo', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_repo_dynamicity', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_repo_lstm', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_repo_rnn', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('nnstreamer_split', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('transform_arithmetic', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('transform_dimchg', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('transform_stand', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('transform_transpose', install_dir: join_paths(unittest_install_dir,'tests'))
-   install_subdir('transform_typecast', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_converter', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_merge', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_decoder', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_demux', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_filter_custom', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_mux', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_repo', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_repo_dynamicity', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_repo_lstm', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_repo_rnn', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('nnstreamer_split', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('transform_arithmetic', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('transform_dimchg', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('transform_stand', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('transform_transpose', install_dir: join_paths(unittest_install_dir,'tests'))
+  install_subdir('transform_typecast', install_dir: join_paths(unittest_install_dir,'tests'))
 endif
