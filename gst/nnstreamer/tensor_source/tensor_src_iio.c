@@ -1391,29 +1391,14 @@ error_ret:
 }
 
 /**
- * @brief start function, called when state changed null to ready.
- * load the device and init the device resources
+ * @brief setup device using name/id
+ * @param[in/out] self Tensor src iio object
+ * @returns TRUE on success, FALSE on failure
  */
 static gboolean
-gst_tensor_src_iio_start (GstBaseSrc * src)
+gst_tensor_src_iio_setup_device_properties (GstTensorSrcIIO * self)
 {
-  /** load and init resources */
-  GstTensorSrcIIO *self;
-  self = GST_TENSOR_SRC_IIO_CAST (src);
-  gint64 sampling_frequency;
   gchar *dirname = NULL;
-  gchar *filename = NULL;
-  gint num_channels_enabled;
-  gchar *file_contents = NULL;
-  gsize length = 0;
-  gchar *device_name = NULL;
-  gchar *trigger_device_dir = NULL;
-
-  /** no support one shot mode for now */
-  if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
-    GST_ERROR_OBJECT (self, "One-shot mode not yet supported.");
-    goto error_return;
-  }
 
   /** Find the device */
   if (self->device.name != NULL) {
@@ -1435,6 +1420,24 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
   g_free (dirname);
 
+  return TRUE;
+
+error_return:
+  return FALSE;
+}
+
+/**
+ * @brief setup trigger using name/id
+ * @param[in/out] self Tensor src iio object
+ * @returns TRUE on success, FALSE on failure
+ */
+static gboolean
+gst_tensor_src_iio_setup_trigger_properties (GstTensorSrcIIO * self)
+{
+  gchar *dirname = NULL;
+  gchar *trigger_device_dir = NULL;
+  gchar *filename = NULL;
+
   /** register the trigger */
   if (self->trigger.name != NULL || self->trigger.id >= 0) {
     /** verify if trigger is supported by our device */
@@ -1444,7 +1447,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
       GST_ERROR_OBJECT (self, "IIO device %s does not supports trigger.\n",
           self->device.name);
       g_free (trigger_device_dir);
-      goto error_device_free;
+      goto error_return;
     }
     g_free (trigger_device_dir);
 
@@ -1460,7 +1463,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     }
     if (G_UNLIKELY (self->trigger.name == NULL || self->trigger.id < 0)) {
       GST_ERROR_OBJECT (self, "Cannot find the specified IIO trigger.");
-      goto error_device_free;
+      goto error_return;
     }
     dirname = g_strdup_printf ("%s%d", TRIGGER_PREFIX, self->trigger.id);
     self->trigger.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
@@ -1487,6 +1490,32 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     g_free (filename);
   }
 
+  return TRUE;
+
+error_trigger_free:
+  g_free (self->trigger.base_dir);
+  g_free (self->default_trigger);
+  self->trigger.base_dir = NULL;
+  self->default_trigger = NULL;
+
+error_return:
+  return FALSE;
+}
+
+/**
+ * @brief setup device sampling frequency
+ * @param[in/out] self Tensor src iio object
+ * @returns TRUE on success, FALSE on failure
+ */
+static gboolean
+gst_tensor_src_iio_setup_sampling_frequency (GstTensorSrcIIO * self)
+{
+  gchar *filename = NULL;
+  gchar *file_contents = NULL;
+  gchar *sampling_frequency_char = NULL;
+  gint64 sampling_frequency;
+  gsize length = 0;
+
   /** setup the frequency (only verifying the frequency now) */
   /** @todo verify setting up frequency */
   sampling_frequency =
@@ -1495,7 +1524,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   if (-1 == sampling_frequency) {
     GST_ERROR_OBJECT (self, "Error in setting frequency for device %s.\n",
         self->device.name);
-    goto error_trigger_free;
+    goto error_return;
   } else if (0 == sampling_frequency) {
     /** if sampling frequency file does not exist, no error */
     GST_WARNING_OBJECT (self, "Cannot verify against sampling frequency list.");
@@ -1519,7 +1548,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
 
       self->sampling_frequency = sampling_frequency;
       /** interface of frequency is kept long for outside but uint64 inside */
-      gchar *sampling_frequency_char =
+      sampling_frequency_char =
           g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
       if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, SAMPLING_FREQUENCY,
                   self->device.base_dir, sampling_frequency_char))) {
@@ -1527,32 +1556,29 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
             "Cannot set the sampling frequency for device: %s.\n",
             self->device.name);
         g_free (sampling_frequency_char);
-        goto error_trigger_free;
+        goto error_return;
       }
       g_free (sampling_frequency_char);
     }
   }
 
-  /** once all these are set, set the buffer related thingies */
-  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
-  filename = g_build_filename (dirname, "length", NULL);
-  if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
-    GST_WARNING_OBJECT (self, "Unable to read default buffer capacity.");
-  } else if (file_contents != NULL && length > 0) {
-    self->default_buffer_capacity = g_ascii_strtoull (file_contents, NULL, 10);
-  }
-  g_free (file_contents);
-  g_free (filename);
 
-  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "length", dirname,
-              self->buffer_capacity))) {
-    GST_ERROR_OBJECT (self,
-        "Cannot set the IIO device buffer capacity for device: %s.\n",
-        self->device.name);
-    g_free (dirname);
-    goto error_trigger_free;
-  }
-  g_free (dirname);
+  return TRUE;
+
+error_return:
+  return FALSE;
+}
+
+/**
+ * @brief setup scan channels for the device
+ * @param[in/out] self Tensor src iio object
+ * @returns TRUE on success, FALSE on failure
+ */
+static gboolean
+gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
+{
+  gchar *dirname = NULL;
+  gint num_channels_enabled;
 
   /** get all the channels that exist and then set enable on them */
   dirname = g_build_filename (self->device.base_dir, CHANNELS, NULL);
@@ -1562,7 +1588,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   if (G_UNLIKELY (num_channels_enabled == -1)) {
     GST_ERROR_OBJECT (self, "Error while scanning channels for device: %s.\n",
         self->device.name);
-    goto error_trigger_free;
+    goto error_return;
   }
 
   if ((num_channels_enabled != g_list_length (self->channels)) &&
@@ -1584,13 +1610,58 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self->num_channels_enabled = g_list_length (self->channels);
 
   /** set fixed caps for the src pad */
-  gst_pad_use_fixed_caps (src->srcpad);
+  gst_pad_use_fixed_caps (GST_BASE_SRC (self)->srcpad);
 
   /** create tensor_config */
   if (!gst_tensor_src_iio_create_config (self)) {
     GST_ERROR_OBJECT (self, "Error creating config.\n");
     goto error_channels_free;
   }
+
+  return TRUE;
+
+error_channels_free:
+  g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
+  self->channels = NULL;
+
+error_return:
+  return FALSE;
+}
+
+/**
+ * @brief setup device using name/id
+ * @param[in/out] self Tensor src iio object
+ * @returns TRUE on success, FALSE on failure
+ */
+static gboolean
+gst_tensor_src_iio_setup_device_buffer (GstTensorSrcIIO * self)
+{
+  gchar *dirname = NULL;
+  gchar *filename = NULL;
+  gchar *file_contents = NULL;
+  gsize length = 0;
+  gchar *device_name = NULL;
+
+  /** once all these are set, set the buffer related thingies */
+  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+  filename = g_build_filename (dirname, "length", NULL);
+  if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
+    GST_WARNING_OBJECT (self, "Unable to read default buffer capacity.");
+  } else if (file_contents != NULL && length > 0) {
+    self->default_buffer_capacity = g_ascii_strtoull (file_contents, NULL, 10);
+  }
+  g_free (file_contents);
+  g_free (filename);
+
+  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "length", dirname,
+              self->buffer_capacity))) {
+    GST_ERROR_OBJECT (self,
+        "Cannot set the IIO device buffer capacity for device: %s.\n",
+        self->device.name);
+    g_free (dirname);
+    goto error_return;
+  }
+  g_free (dirname);
 
   /** enable the buffer for the data to be captured */
   dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
@@ -1599,7 +1670,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
         "Cannot enable the IIO device buffer for device: %s.\n",
         self->device.name);
     g_free (dirname);
-    goto error_config_free;
+    goto error_return;
   }
   g_free (dirname);
 
@@ -1609,15 +1680,64 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   g_free (device_name);
 
   self->buffer_data_fp = g_new (struct pollfd, 1);
+  self->buffer_data_fp->events = POLLIN;
   self->buffer_data_fp->fd = open (filename, O_RDONLY | O_NONBLOCK);
   if (self->buffer_data_fp->fd < 0) {
     GST_ERROR_OBJECT (self, "Failed to open buffer %s for device %s.\n",
         filename, self->device.name);
     g_free (filename);
-    goto error_pollfd_free;
+    g_free (self->buffer_data_fp);
+    goto error_return;
   }
   g_free (filename);
-  self->buffer_data_fp->events = POLLIN;
+
+  return TRUE;
+
+error_return:
+  return FALSE;
+}
+
+/**
+ * @brief start function, called when state changed null to ready.
+ * load the device and init the device resources
+ */
+static gboolean
+gst_tensor_src_iio_start (GstBaseSrc * src)
+{
+  /** load and init resources */
+  GstTensorSrcIIO *self;
+  self = GST_TENSOR_SRC_IIO_CAST (src);
+
+  /** no support one shot mode for now */
+  if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
+    GST_ERROR_OBJECT (self, "One-shot mode not yet supported.");
+    goto error_return;
+  }
+
+  if (!(gst_tensor_src_iio_setup_device_properties (self))) {
+    GST_ERROR_OBJECT (self, "Error setting up IIO device.");
+    goto error_return;
+  }
+
+  if (!(gst_tensor_src_iio_setup_trigger_properties (self))) {
+    GST_ERROR_OBJECT (self, "Error setting up IIO trigger for device.");
+    goto error_device_free;
+  }
+
+  if (!(gst_tensor_src_iio_setup_sampling_frequency (self))) {
+    GST_ERROR_OBJECT (self, "Error setting up sampling frequency for device.");
+    goto error_trigger_free;
+  }
+
+  if (!(gst_tensor_src_iio_setup_scan_channels (self))) {
+    GST_ERROR_OBJECT (self, "Error setting up scan channels for device.");
+    goto error_trigger_free;
+  }
+
+  if (!(gst_tensor_src_iio_setup_device_buffer (self))) {
+    GST_ERROR_OBJECT (self, "Error setting up data buffer for device.");
+    goto error_config_free;
+  }
 
   self->configured = TRUE;
   /** bytes every buffer will be fixed */
@@ -1626,14 +1746,10 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   gst_base_src_start_complete (src, GST_FLOW_OK);
   return TRUE;
 
-error_pollfd_free:
-  g_free (self->buffer_data_fp);
-
 error_config_free:
   gst_tensors_info_free (&self->tensors_config->info);
   g_free (self->tensors_config);
 
-error_channels_free:
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
 
