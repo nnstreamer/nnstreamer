@@ -2089,6 +2089,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   GstMemory *mem;
   GstMapInfo map;
   guint64 time_to_end, cur_time;
+  guint64 safe_multiply;
 
   self = GST_TENSOR_SRC_IIO (src);
 
@@ -2122,9 +2123,14 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
       self->buffer_data_fp->revents = 0;
     } else {
       /** sleep for a device tick */
-      g_usleep (MAX (1,
-              (guint64) 1000000 / (self->sampling_frequency /
-                  self->buffer_capacity)));
+      if (g_uint64_checked_mul (&safe_multiply, G_USEC_PER_SEC,
+              self->buffer_capacity)) {
+        g_usleep (MAX (1, safe_multiply / self->sampling_frequency));
+      } else {
+        g_usleep (MAX (1,
+                (self->buffer_capacity / self->sampling_frequency) *
+                G_USEC_PER_SEC));
+      }
     }
 
     /** read the data from file */
