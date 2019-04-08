@@ -55,6 +55,29 @@ TEST (nnstreamer_capi_construct_destruct, dummy_03)
 }
 
 /**
+ * @brief Test NNStreamer pipeline construct with non-existent filter
+ */
+TEST (nnstreamer_capi_construct_destruct, failed_01)
+{
+  const char *pipeline = "nonexistsrc ! fakesink";
+  nns_pipeline_h handle;
+  int status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_PIPELINE_FAIL);
+}
+
+/**
+ * @brief Test NNStreamer pipeline construct with erroneous pipeline
+ */
+TEST (nnstreamer_capi_construct_destruct, failed_02)
+{
+  const char *pipeline = "videotestsrc num_buffers=2 ! audioconvert ! fakesink";
+  nns_pipeline_h handle;
+  int status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_PIPELINE_FAIL);
+}
+
+
+/**
  * @brief Test NNStreamer pipeline construct & destruct
  */
 TEST (nnstreamer_capi_playstop, dummy_01)
