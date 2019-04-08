@@ -274,7 +274,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
   }
 
   pipeline = gst_parse_launch (pipeline_description, &err);
-  if (pipeline == NULL) {
+  if (pipeline == NULL || err) {
     if (err) {
       dlog_print (DLOG_ERROR, DLOG_TAG,
           "Cannot parse and launch the given pipeline = [%s], %s",
