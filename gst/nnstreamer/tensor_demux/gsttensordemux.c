@@ -337,8 +337,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
 
   tensor_demux->srcpads = g_slist_append (tensor_demux->srcpads, tensorpad);
-  gst_tensor_demux_get_tensor_config (tensor_demux, &config,
-      tensor_demux->num_srcpads);
+  gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth);
 
   tensor_demux->num_srcpads++;
 
