@@ -428,7 +428,7 @@ class TFBuffer : public TensorBuffer {
     proto->set_allocator_name (cpu_allocator ()->Name ());
   }
 
-  // Prevents input forwarding from mutating this buffer.
+  /* Prevents input forwarding from mutating this buffer. */
   bool OwnsMemory () const override { return false; }
 };
 
@@ -449,34 +449,39 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   std::vector <std::pair <string, Tensor>> input_feeds;
   std::vector <Tensor> outputs;
-  Tensor in;
 
   for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    Tensor in;
+
     /* If the datatype is STRING, it should be handled in specific process */
     if (input_tensor_info[i].type == DT_STRING) {
       in = Tensor (input_tensor_info[i].type, input_tensor_info[i].shape);
       in.scalar<string>()() = string ((char *) input[i].data, input[i].size);
     } else {
       if (mem_optmz) {
-        TFBuffer *buf = new TFBuffer;
+        TFBuffer *buf;
+        TF_DataType dataType;
+
+        if (!getTensorTypeToTF_Capi (input[i].type, &dataType)){
+          g_critical ("This data type is not valid: %d", input[i].type);
+          return -1;
+        }
+
+        /* this input tensor should be UNREF */
+        buf = new TFBuffer;
         buf->len_ = input[i].size;
         buf->data_ = input[i].data;
 
-        TF_DataType dataType;
-        if (!getTensorTypeToTF_Capi (input[i].type, &dataType)){
-          g_critical ("This data type is not valid: %d", input[i].type);
-          buf->Unref();
-          return -1;
-        }
-        /* this input tensor should be UNREF */
         in = TensorCApi::MakeTensor (
           dataType,
           input_tensor_info[i].shape,
           buf
         );
+
+        buf->Unref();
+
         if (!in.IsAligned ()) {
           g_critical ("the input tensor %s is not aligned", inputTensorMeta.info[i].name);
-          buf->Unref();
           return -2;
         }
       } else {
@@ -491,15 +496,6 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   Status run_status =
       session->Run (input_feeds, output_tensor_names, {}, &outputs);
-
-  if (mem_optmz) {
-    for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-      if (input_feeds[i].second.dtype () != DT_STRING){
-        TensorBuffer *buf = TensorCApi::Buffer (input_feeds[i].second);
-        buf->Unref();
-      }
-    }
-  }
 
   if (!run_status.ok()) {
     g_critical ("Failed to run model: %s\n", run_status.ToString().c_str());
