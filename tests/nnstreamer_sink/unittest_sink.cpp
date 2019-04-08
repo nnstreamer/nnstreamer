@@ -88,7 +88,9 @@ typedef enum
   TEST_TYPE_OCTET_INVALID_TS, /**< pipeline for octet stream, invalid timestamp */
   TEST_TYPE_OCTET_2F, /**< pipeline for octet stream, 2 frames */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
-  TEST_TYPE_TENSORS_MIX, /**< pipeline for tensors with tensor_mux, tensor_demux */
+  TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
+  TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
+  TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux, tensor_demux pick 1,2 */
   TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
   TEST_TYPE_CUSTOM_TENSORS, /**< pipeline for tensors with passthrough custom filter */
   TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter using custom filter */
@@ -650,7 +652,7 @@ _setup_pipeline (TestOption & option)
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1",
           option.num_buffers, option.num_buffers);
       break;
-    case TEST_TYPE_TENSORS_MIX:
+    case TEST_TYPE_TENSORS_MIX_1:
       /** other/tensors with tensor_mux, tensor_demux */
       str_pipeline =
           g_strdup_printf
@@ -661,6 +663,30 @@ _setup_pipeline (TestOption & option)
           "demux.src_0 ! queue ! tensor_sink "
           "demux.src_1 ! queue ! tensor_sink name=test_sink "
           "demux.src_2 ! queue ! tensor_sink",
+          option.num_buffers, option.num_buffers * 3, option.num_buffers + 3);
+      break;
+    case TEST_TYPE_TENSORS_MIX_2:
+      /** other/tensors with tensor_mux, tensor_demux pick 0,2 */
+      str_pipeline =
+          g_strdup_printf
+          ("tensor_mux name=mux synch=false ! tensor_demux name=demux tensorpick=0,2 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+          "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
+          "demux. ! queue ! tensor_sink "
+          "demux. ! queue ! tensor_sink name=test_sink",
+          option.num_buffers, option.num_buffers * 3, option.num_buffers + 3);
+      break;
+    case TEST_TYPE_TENSORS_MIX_3:
+      /** other/tensors with tensor_mux, tensor_demux pick 1,2 */
+      str_pipeline =
+          g_strdup_printf
+          ("tensor_mux name=mux synch=false ! tensor_demux name=demux tensorpick=1,2 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+          "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
+          "demux. ! queue ! tensor_sink name=test_sink "
+          "demux. ! queue ! tensor_sink",
           option.num_buffers, option.num_buffers * 3, option.num_buffers + 3);
       break;
     case TEST_TYPE_CUSTOM_TENSOR:
@@ -3073,7 +3099,7 @@ TEST (tensor_stream_test, custom_filter_drop_buffer)
 TEST (tensor_stream_test, tensors_mix)
 {
   const guint num_buffers = 5;
-  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX };
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_1 };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -3121,6 +3147,134 @@ TEST (tensor_stream_test, tensors_mix)
 
     gst_caps_unref (caps);
   }
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor demux properties.
+ */
+TEST (tensor_stream_test, demux_properties_1)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_2 };
+
+  GstElement *demux;
+  gboolean silent, res_silent;
+  gchar *pick = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  demux = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "demux");
+
+  /* default silent is TRUE */
+  g_object_get (demux, "silent", &silent, NULL);
+  EXPECT_TRUE (silent);
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  /* silent */
+  g_object_set (demux, "silent", !silent, NULL);
+  g_object_get (demux, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* tensorpick */
+  g_object_get (demux, "tensorpick", &pick, NULL);
+  EXPECT_TRUE (g_str_equal (pick, "0,2"));
+  g_free (pick);
+
+  gst_object_unref (demux);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /* check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /* check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 3 * 64 * 48);
+
+  /* check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /* check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /* check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 3);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 64);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 48);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor demux properties.
+ */
+TEST (tensor_stream_test, demux_properties_2)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_3 };
+
+  GstElement *demux;
+  gboolean silent, res_silent;
+  gchar *pick = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  demux = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "demux");
+
+  /* default silent is TRUE */
+  g_object_get (demux, "silent", &silent, NULL);
+  EXPECT_TRUE (silent);
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  /* silent */
+  g_object_set (demux, "silent", !silent, NULL);
+  g_object_get (demux, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* tensorpick */
+  g_object_get (demux, "tensorpick", &pick, NULL);
+  EXPECT_TRUE (g_str_equal (pick, "1,2"));
+  g_free (pick);
+
+  gst_object_unref (demux);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /* check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /* check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1);
+  EXPECT_EQ (g_test_data.received_size, 500 * 2);
+
+  /* check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /* check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /* check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT16);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 500);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
