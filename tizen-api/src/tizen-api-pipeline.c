@@ -577,7 +577,7 @@ nnsbufpolicy_free (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h,
+ * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h.
  *        "Do Nothing"
  */
 static void
@@ -587,7 +587,7 @@ nnsbufpolicy_nop (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h
+ * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h.
  */
 static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
   [NNS_BUF_FREE_BY_NNSTREAMER] = nnsbufpolicy_free,
@@ -604,7 +604,7 @@ int nns_pipeline_src_gethandle
   nns_pipeline *p = pipe;
   element *elem;
   nns_src *src;
-  int ret = NNS_ERROR_NONE;
+  int ret = NNS_ERROR_NONE, i;
 
   if (pipe == NULL) {
     dlog_print (DLOG_ERROR, DLOG_TAG,
@@ -629,6 +629,47 @@ int nns_pipeline_src_gethandle
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
+
+  if (elem->src == NULL)
+    elem->src = gst_element_get_static_pad (elem->element, "src");
+
+  if (elem->src != NULL) {
+    /** @todo : refactor this along with nns_pipeline_src_inputdata */
+    GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
+
+    /** @todo caps may be NULL for prerolling */
+    if (caps == NULL) {
+      dlog_print (DLOG_WARN, DLOG_TAG,
+          "Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
+          srcname);
+    } else {
+      guint n_caps = gst_caps_get_size (caps);
+      GstTensorsConfig tconfig;
+      gboolean found = FALSE;
+
+      for (i = 0; i < n_caps; i++) {
+        GstStructure *s = gst_caps_get_structure (caps, i);
+
+        found = gst_tensors_config_from_structure (&tconfig, s);
+        if (found)
+          break;
+      }
+
+      if (found) {
+        memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
+        elem->size = 0;
+        for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
+          size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
+          elem->size += sz;
+        }
+      }
+    }
+  } else {
+    ret = NNS_ERROR_STREAMS_PIPE;
+    goto unlock_return;
+  }
+
+  memcpy (tensorsinfo, &elem->tensorsinfo, sizeof (GstTensorsInfo));
 
   *h = g_new (nns_src, 1);
   src = *h;
@@ -690,70 +731,69 @@ nns_pipeline_src_inputdata (nns_src_h h,
   if (elem->src == NULL) {
     /* Get the src-pad-cap */
     elem->src = gst_element_get_static_pad (elem->element, "src");
+  }
 
-    if (elem->src) {
-      /* srcpadcap available (negoticated) */
-      GstCaps *caps = gst_pad_get_current_caps (elem->src);
+  if (elem->src != NULL && elem->size == 0) {
+    /* srcpadcap available (negoticated) */
+    GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
 
-      if (caps) {
-        guint n_caps = gst_caps_get_size (caps);
-        GstTensorsConfig tconfig;
-        gboolean found = FALSE;
+    if (caps) {
+      guint n_caps = gst_caps_get_size (caps);
+      GstTensorsConfig tconfig;
+      gboolean found = FALSE;
 
-        for (i = 0; i < n_caps; i++) {
-          GstStructure *s = gst_caps_get_structure (caps, i);
+      for (i = 0; i < n_caps; i++) {
+        GstStructure *s = gst_caps_get_structure (caps, i);
 
-          found = gst_tensors_config_from_structure (&tconfig, s);
-          if (found)
-            break;
+        found = gst_tensors_config_from_structure (&tconfig, s);
+        if (found)
+          break;
+      }
+
+      if (found) {
+        memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
+        elem->size = 0;
+
+        if (elem->tensorsinfo.num_tensors != num_tensors) {
+          dlog_print (DLOG_ERROR, DLOG_TAG,
+              "The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
+              elem->name, elem->tensorsinfo.num_tensors, num_tensors);
+          gst_caps_unref (caps);
+          elem->sink = NULL;
+          ret = NNS_ERROR_STREAMS_PIPE;
+          goto unlock_return;
         }
 
-        if (found) {
-          memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
-          elem->size = 0;
+        for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
+          size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
 
-          if (elem->tensorsinfo.num_tensors != num_tensors) {
+          if (sz != size[i]) {
             dlog_print (DLOG_ERROR, DLOG_TAG,
-                "The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
-                elem->name, elem->tensorsinfo.num_tensors, num_tensors);
+                "The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
+                elem->name);
             gst_caps_unref (caps);
             elem->sink = NULL;
-            ret = NNS_ERROR_STREAMS_PIPE;
+            ret = NNS_ERROR_INVALID_PARAMETER;
             goto unlock_return;
           }
 
-          for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
-            size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
+          elem->size += sz;
 
-            if (sz != size[i]) {
-              dlog_print (DLOG_ERROR, DLOG_TAG,
-                  "The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
-                  elem->name);
-              gst_caps_unref (caps);
-              elem->sink = NULL;
-              ret = NNS_ERROR_INVALID_PARAMETER;
-              goto unlock_return;
-            }
-
-            elem->size += sz;
-
-            if (sz != size[i]) {
-              dlog_print (DLOG_ERROR, DLOG_TAG,
-                  "The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
-                  i, size[i], sz);
-              gst_caps_unref (caps);
-              elem->sink = NULL;
-              ret = NNS_ERROR_INVALID_PARAMETER;
-              goto unlock_return;
-            }
+          if (sz != size[i]) {
+            dlog_print (DLOG_ERROR, DLOG_TAG,
+                "The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
+                i, size[i], sz);
+            gst_caps_unref (caps);
+            elem->sink = NULL;
+            ret = NNS_ERROR_INVALID_PARAMETER;
+            goto unlock_return;
           }
-        } else {
-          elem->src = NULL;     /* invalid! */
-          /** @todo What if it keeps being "NULL"? */
         }
-
-        gst_caps_unref (caps);
+      } else {
+        elem->src = NULL;       /* invalid! */
+        /** @todo What if it keeps being "NULL"? */
       }
+      gst_caps_unref (caps);
     }
   }
 
