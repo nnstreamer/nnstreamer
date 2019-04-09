@@ -23,7 +23,6 @@
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
  * @todo  support specific channels as input
- * @todo  support/sync buffer timestamps based on IIO channel timestamp
  * @todo  handle timestamp received from device
  *
  *
@@ -242,6 +241,8 @@ static void gst_tensor_src_iio_finalize (GObject * object);
 /** GstBaseSrc method implementation */
 static gboolean gst_tensor_src_iio_start (GstBaseSrc * src);
 static gboolean gst_tensor_src_iio_stop (GstBaseSrc * src);
+static GstStateChangeReturn gst_tensor_src_iio_change_state (GstElement *
+    element, GstStateChange transition);
 static gboolean gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event);
 static gboolean gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query);
 static gboolean gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps);
@@ -346,6 +347,8 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
 
   /** pad template */
   gst_element_class_add_static_pad_template (gstelement_class, &src_factory);
+  gstelement_class->change_state =
+      GST_DEBUG_FUNCPTR (gst_tensor_src_iio_change_state);
 
   /** GstBaseSrcIIO methods */
   bsrc_class->start = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_start);
@@ -1679,17 +1682,6 @@ gst_tensor_src_iio_setup_device_buffer (GstTensorSrcIIO * self)
   }
   g_free (dirname);
 
-  /** enable the buffer for the data to be captured */
-  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
-  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 1))) {
-    GST_ERROR_OBJECT (self,
-        "Cannot enable the IIO device buffer for device: %s.\n",
-        self->device.name);
-    g_free (dirname);
-    goto error_return;
-  }
-  g_free (dirname);
-
   /** open the buffer to read and ready the file descriptor */
   device_name = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
   filename = g_build_filename (IIO_DEV_DIR, device_name, NULL);
@@ -1794,15 +1786,6 @@ gst_tensor_src_restore_iio_device (GstTensorSrcIIO * self)
   GList *ch_list;
   gchar *filename = NULL, *dirname = NULL, *file_contents = NULL;
   GstTensorSrcIIOChannelProperties *channel_prop = NULL;
-
-  /** disable the buffer */
-  dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
-  if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 0))) {
-    GST_ERROR_OBJECT (self,
-        "Error in disabling the IIO device buffer for device: %s.\n",
-        self->device.name);
-  }
-  g_free (dirname);
 
   /** reset enabled channels */
   for (ch_list = self->channels; ch_list != NULL; ch_list = ch_list->next) {
@@ -2016,6 +1999,65 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
   gst_caps_unref (caps);
   gst_caps_unref (fixated_caps);
   return gst_caps_fixate (updated_caps);
+}
+
+/**
+ * @brief Perform state change.
+ */
+static GstStateChangeReturn
+gst_tensor_src_iio_change_state (GstElement * element,
+    GstStateChange transition)
+{
+  GstTensorSrcIIO *self;
+  GstStateChangeReturn ret;
+  gboolean buffer_state_change_success = TRUE;
+  gchar *dirname = NULL;
+
+  self = GST_TENSOR_SRC_IIO (element);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+    {
+      /** enable the buffer for the data to be captured */
+      dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+      if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 1))) {
+        GST_ERROR_OBJECT (self,
+            "Cannot enable the IIO device buffer for device: %s.\n",
+            self->device.name);
+        buffer_state_change_success = FALSE;
+      }
+      g_free (dirname);
+      break;
+    }
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+    {
+      /** disable the buffer */
+      dirname = g_build_filename (self->device.base_dir, BUFFER, NULL);
+      if (G_UNLIKELY (!gst_tensor_write_sysfs_int (self, "enable", dirname, 0))) {
+        GST_ERROR_OBJECT (self,
+            "Error in disabling the IIO device buffer for device: %s.\n",
+            self->device.name);
+        buffer_state_change_success = FALSE;
+      }
+      g_free (dirname);
+      break;
+    }
+    default:
+      break;
+  }
+
+  if (buffer_state_change_success == FALSE) {
+    ret = GST_STATE_CHANGE_FAILURE;
+  }
+
+  return ret;
 }
 
 /**
