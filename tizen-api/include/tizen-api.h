@@ -23,8 +23,8 @@
  * @bug No known bugs except for NYI items
  */
 
-#ifndef __TIZEN_NNSTREAMER_API_MAIN_H__
-#define __TIZEN_NNSTREAMER_API_MAIN_H__
+#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
+#define __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
 
 #include <tizen_error.h>
 #include <nnstreamer/tensor_typedef.h>
@@ -44,25 +44,25 @@ extern "C" {
 typedef void *nns_pipeline_h;
 
 /**
- * @brief A handle of a "sink node" of an NNStreamer pipeline
+ * @brief A handle of a "sink node" of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
 typedef void *nns_sink_h;
 
 /**
- * @brief A handle of a "src node" of an NNStreamer pipeline
+ * @brief A handle of a "src node" of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
 typedef void *nns_src_h;
 
 /**
- * @brief A handle of a "switch" of an NNStreamer pipeline
+ * @brief A handle of a "switch" of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
 typedef void *nns_switch_h;
 
 /**
- * @brief A handle of a "valve node" of an NNStreamer pipeline
+ * @brief A handle of a "valve node" of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
 typedef void *nns_valve_h;
@@ -76,7 +76,7 @@ typedef enum {
   NNS_ERROR_NONE				= TIZEN_ERROR_NONE, /**< Success! */
   NNS_ERROR_INVALID_PARAMETER			= TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
   NNS_ERROR_NOT_SUPPORTED			= TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
-  NNS_ERROR_PIPELINE_FAIL			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access Gstreamer pipeline. */
+  NNS_ERROR_STREAMS_PIPE			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access Gstreamer pipeline. */
   NNS_ERROR_TRY_AGAIN				= TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
 } nns_error_e;
 
@@ -88,12 +88,13 @@ typedef enum {
 typedef enum {
   NNS_BUF_FREE_BY_NNSTREAMER,	/**< Default. Application should not deallocate this buffer. NNStreamer will deallocate when the buffer is no more needed */
   NNS_BUF_DO_NOT_FREE1,		/**< This buffer is not to be freed by NNStreamer (i.e., it's a static object). However, be careful: NNStreamer might be accessing this object after the return of the API call. */
-  NNS_BUF_POLICY_MAX,
-} nns_buf_policy;
+  NNS_BUF_POLICY_MAX,   /**< Max size of nns_buf_policy_e structure */
+} nns_buf_policy_e;
 
 /**
- * @brief Enumeration for nns pipeline state
- * @detail Refer to https://gstreamer.freedesktop.org/documentation/design/states.html
+ * @brief Enumeration for nns pipeline state.
+ * @since_tizen 5.5
+ * @detail Refer to https://gstreamer.freedesktop.org/documentation/design/states.html.
  *         The state diagram of pipeline looks like this, assuming that there are no errors.
  *
  *          [ UNKNOWN ] "new null object"
@@ -111,7 +112,6 @@ typedef enum {
  *               V                          |                      |
  *          [ PLAYING ] --------------------+----------------------+
  *
- * @since_tizen 5.5
  * @todo The list is to be filled! (NYI) Fill with GST's state values.
  * @todo Check the consistency against MMFW APIs.
  */
@@ -121,7 +121,7 @@ typedef enum {
   NNS_PIPELINE_READY				= 2, /**< GST-State "Ready" */
   NNS_PIPELINE_PAUSED				= 3, /**< GST-State "Paused" */
   NNS_PIPELINE_PLAYING				= 4, /**< GST-State "Playing" */
-} nns_pipeline_state;
+} nns_pipeline_state_e;
 
 /**
  * @brief Enumeration for switch types
@@ -130,9 +130,9 @@ typedef enum {
  * @todo There may be more filters that can be supported.
  */
 typedef enum {
-  NNS_SWITCH_OUTPUTSELECTOR			= 0, /** GstOutputSelector */
-  NNS_SWITCH_INPUTSELECTOR			= 1, /** GstInputSelector */
-} nns_switch_type;
+  NNS_SWITCH_OUTPUTSELECTOR			= 0, /**< GstOutputSelector */
+  NNS_SWITCH_INPUTSELECTOR			= 1, /**< GstInputSelector */
+} nns_switch_type_e;
 
 /**
  * @brief Callback for sink (tensor_sink) of nnstreamer pipelines (nnstreamer's output)
@@ -141,7 +141,7 @@ typedef enum {
  * @param[in] buf The contents of the tensor output (a single frame. tensor/tensors). Number of buf is determined by tensorsinfo->num_tensors.
  * @param[in] size The size of the buffer. Number of size is determined by tensorsinfo->num_tensors. Note that max num_tensors is 16 (NNS_TENSOR_SIZE_LIMIT).
  * @param[in] tensorsinfo The cardinality, dimension, and type of given tensor/tensors.
- * @param[in/out] pdata User Application's Private Data
+ * @param[in,out] pdata User Application's Private Data
  */
 typedef void (*nns_sink_cb)
 (const char *buf[], const size_t size[], const GstTensorsInfo *tensorsinfo, void *pdata);
@@ -167,7 +167,7 @@ int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pi
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_PIPELINE_FAIL Fail. Cannot access the pipeline status.
+ * @retval #NNS_ERROR_STREAMS_PIPE Fail. Cannot access the pipeline status.
  * @retval #NNS_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
  */
 int nns_pipeline_destroy (nns_pipeline_h pipe);
@@ -181,9 +181,9 @@ int nns_pipeline_destroy (nns_pipeline_h pipe);
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
- * @retval #NNS_ERROR_PIPELINE_FAIL Failed to get state from the pipeline.
+ * @retval #NNS_ERROR_STREAMS_PIPE Failed to get state from the pipeline.
  */
-int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state *state);
+int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e *state);
 
 /****************************************************
  ** NNStreamer Pipeline Start/Stop Control         **
@@ -196,7 +196,7 @@ int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state *state);
  * @param[in] pipe The pipeline to be started.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_PIPELINE_FAIL Failed to start.
+ * @retval #NNS_ERROR_STREAMS_PIPE Failed to start.
  */
 int nns_pipeline_start (nns_pipeline_h pipe);
 
@@ -208,7 +208,7 @@ int nns_pipeline_start (nns_pipeline_h pipe);
  * @param[in] pipe The pipeline to be stopped.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_PIPELINE_FAIL Failed to start.
+ * @retval #NNS_ERROR_STREAMS_PIPE Failed to start.
  */
 int nns_pipeline_stop (nns_pipeline_h pipe);
 
@@ -276,21 +276,21 @@ int nns_pipeline_src_puthandle (nns_src_h h);
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #NNS_ERROR_PIPELINE_FAIL The pipeline has inconsistent padcaps. Not negotiated?
+ * @retval #NNS_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
 int nns_pipeline_src_inputdata (nns_src_h h,
-    nns_buf_policy policy, char *buf[], const size_t size[], unsigned int num_tensors);
+    nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
 
 /****************************************************
  ** NNStreamer Pipeline Switch/Valve Control       **
  ****************************************************/
 
 /**
- * @brief Get a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines
- * @detail Refer to gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors
- *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors
+ * @brief Get a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
+ * @detail Refer to gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
+ *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @param[in] pipe The pipeline to be managed.
  * @param[in] switchname The name of switch (InputSelector/OutputSelector)
  * @param[out] type The type of the switch. If NULL, it is ignored.
@@ -299,10 +299,10 @@ int nns_pipeline_src_inputdata (nns_src_h h,
  * @retval #NNS_ERROR_NONE Successful
  */
 int nns_pipeline_switch_gethandle
-(nns_pipeline_h pipe, const char *switchname, nns_switch_type *type, nns_switch_h *h);
+(nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
 
 /**
- * @brief Close the given switch handle
+ * @brief Close the given switch handle.
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -319,7 +319,7 @@ int nns_pipeline_switch_puthandle (nns_switch_h h);
 int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 
 /**
- * @brief Get the pad names of a switch
+ * @brief Get the pad names of a switch.
  * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. otherwise a negative error value
@@ -328,7 +328,7 @@ int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 
 /**
- * @brief Get a handle to operate a "GstValve" node of nnstreamer pipelines
+ * @brief Get a handle to operate a "GstValve" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
  * @param[in] pipe The pipeline to be managed.
  * @param[in] valvename The name of valve (Valve)
@@ -340,7 +340,7 @@ int nns_pipeline_valve_gethandle
 (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
 
 /**
- * @brief Close the given valve handle
+ * @brief Close the given valve handle.
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -348,7 +348,7 @@ int nns_pipeline_valve_gethandle
 int nns_pipeline_valve_puthandle (nns_valve_h h);
 
 /**
- * @brief Control the valve with the given handle
+ * @brief Control the valve with the given handle.
  * @param[in] h The valve handle returned by nns_pipeline_valve_gethandle()
  * @param[in] valve_drop 1 to close (drop & stop the flow). 0 to open (let the flow pass)
  * @return @c 0 on success. otherwise a negative error value
@@ -362,4 +362,4 @@ int nns_pipeline_valve_control (nns_valve_h h, int valve_drop);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /*__TIZEN_NNSTREAMER_API_MAIN_H__*/
+#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__ */

@@ -62,7 +62,7 @@ TEST (nnstreamer_capi_construct_destruct, failed_01)
   const char *pipeline = "nonexistsrc ! fakesink";
   nns_pipeline_h handle;
   int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_PIPELINE_FAIL);
+  EXPECT_EQ (status, NNS_ERROR_STREAMS_PIPE);
 }
 
 /**
@@ -73,7 +73,7 @@ TEST (nnstreamer_capi_construct_destruct, failed_02)
   const char *pipeline = "videotestsrc num_buffers=2 ! audioconvert ! fakesink";
   nns_pipeline_h handle;
   int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_PIPELINE_FAIL);
+  EXPECT_EQ (status, NNS_ERROR_STREAMS_PIPE);
 }
 
 
@@ -84,7 +84,7 @@ TEST (nnstreamer_capi_playstop, dummy_01)
 {
   const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
   nns_pipeline_h handle;
-  nns_pipeline_state state;
+  nns_pipeline_state_e state;
   int status = nns_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
@@ -120,7 +120,7 @@ TEST (nnstreamer_capi_playstop, dummy_02)
 {
   const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
   nns_pipeline_h handle;
-  nns_pipeline_state state;
+  nns_pipeline_state_e state;
   int status = nns_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
@@ -177,7 +177,7 @@ TEST (nnstreamer_capi_valve, test01)
   GStatBuf buf;
 
   nns_pipeline_h handle;
-  nns_pipeline_state state;
+  nns_pipeline_state_e state;
   nns_valve_h valve1;
 
   int status = nns_pipeline_construct (pipeline, &handle);
