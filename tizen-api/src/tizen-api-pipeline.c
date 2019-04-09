@@ -270,7 +270,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
       dlog_print (DLOG_ERROR, DLOG_TAG,
           "Cannot initialize gstreamer. Unknown reason.");
     }
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
   }
 
   pipeline = gst_parse_launch (pipeline_description, &err);
@@ -285,7 +285,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
           "Cannot parse and launch the given pipeline = [%s], unknown reason",
           pipeline_description);
     }
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
   }
 
   pipe_h = g_new0 (nns_pipeline, 1);
@@ -395,7 +395,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
     scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
     if (scret == GST_STATE_CHANGE_FAILURE) {
       g_mutex_unlock (&p->lock);
-      return NNS_ERROR_PIPELINE_FAIL;
+      return NNS_ERROR_STREAMS_PIPE;
     }
   }
 
@@ -411,7 +411,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
   scret = gst_element_set_state (p->element, GST_STATE_NULL);
   if (scret != GST_STATE_CHANGE_SUCCESS) {
     g_mutex_unlock (&p->lock);
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
   }
 
   gst_object_unref (p->element);
@@ -425,7 +425,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
  * @brief Get the pipeline state (more info in tizen-api.h)
  */
 int
-nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state * state)
+nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e * state)
 {
   nns_pipeline *p = pipe;
   GstState _state;
@@ -441,7 +441,7 @@ nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state * state)
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
 
   *state = _state;
   return NNS_ERROR_NONE;
@@ -464,7 +464,7 @@ nns_pipeline_start (nns_pipeline_h pipe)
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
 
   return NNS_ERROR_NONE;
 }
@@ -483,7 +483,7 @@ nns_pipeline_stop (nns_pipeline_h pipe)
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_PIPELINE_FAIL;
+    return NNS_ERROR_STREAMS_PIPE;
 
   return NNS_ERROR_NONE;
 }
@@ -567,7 +567,7 @@ nns_pipeline_sink_unregister (nns_sink_h h)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy in tizen-api.h,
+ * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h,
  *        "Free"
  */
 static void
@@ -577,7 +577,7 @@ nnsbufpolicy_free (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy in tizen-api.h,
+ * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h,
  *        "Do Nothing"
  */
 static void
@@ -587,7 +587,7 @@ nnsbufpolicy_nop (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy in tizen-api.h
+ * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h
  */
 static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
   [NNS_BUF_FREE_BY_NNSTREAMER] = nnsbufpolicy_free,
@@ -668,7 +668,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
  */
 int
 nns_pipeline_src_inputdata (nns_src_h h,
-    nns_buf_policy policy, char *buf[], const size_t size[],
+    nns_buf_policy_e policy, char *buf[], const size_t size[],
     unsigned int num_tensors)
 {
   /** @todo NYI */
@@ -718,7 +718,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
                 elem->name, elem->tensorsinfo.num_tensors, num_tensors);
             gst_caps_unref (caps);
             elem->sink = NULL;
-            ret = NNS_ERROR_PIPELINE_FAIL;
+            ret = NNS_ERROR_STREAMS_PIPE;
             goto unlock_return;
           }
 
@@ -786,7 +786,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
   } else if (gret == GST_FLOW_EOS) {
     dlog_print (DLOG_WARN, DLOG_TAG,
         "THe pipeline is in EOS state. The input is ignored.");
-    ret = NNS_ERROR_PIPELINE_FAIL;
+    ret = NNS_ERROR_STREAMS_PIPE;
   }
 
   handle_exit (h);
@@ -801,7 +801,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
  */
 int
 nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
-    nns_switch_type * type, nns_switch_h * h)
+    nns_switch_type_e * type, nns_switch_h * h)
 {
   element *elem;
   nns_pipeline *p = pipe;
@@ -953,7 +953,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
     dlog_print (DLOG_ERROR, DLOG_TAG,
         "The element, [%s], is supposed to be input/output switch, but it is not. Internal data structure is broken.",
         elem->name);
-    ret = NNS_ERROR_PIPELINE_FAIL;
+    ret = NNS_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
 
@@ -975,7 +975,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
         dlog_print (DLOG_ERROR, DLOG_TAG,
             "Cannot access the list of pad properly of a switch, [%s].",
             elem->name);
-        ret = NNS_ERROR_PIPELINE_FAIL;
+        ret = NNS_ERROR_STREAMS_PIPE;
         break;
       case GST_ITERATOR_DONE:
         done = TRUE;
@@ -1001,7 +1001,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
         dlog_print (DLOG_ERROR, DLOG_TAG,
             "Internal data inconsistency. This could be a bug in nnstreamer. Switch [%s].",
             elem->name);
-        ret = NNS_ERROR_PIPELINE_FAIL;
+        ret = NNS_ERROR_STREAMS_PIPE;
         goto unlock_return;
       }
     }
