@@ -1282,9 +1282,12 @@ gst_tensor_set_all_channels (GstTensorSrcIIO * self, const gint contents)
   for (ch_list = self->channels; ch_list != NULL; ch_list = ch_list->next) {
     channel_prop = (GstTensorSrcIIOChannelProperties *) ch_list->data;
     filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
-    ret &=
-        gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
-        contents);
+    if (gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
+            contents)) {
+      channel_prop->enabled = TRUE;
+    } else {
+      ret = FALSE;
+    }
     g_free (filename);
   }
 
@@ -1921,22 +1924,9 @@ gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
 static gboolean
 gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps)
 {
-  GstTensorSrcIIO *self;
   GstPad *pad;
 
-  self = GST_TENSOR_SRC_IIO (src);
   pad = src->srcpad;
-
-  if (DBG) {
-    GstCaps *cur_caps = gst_pad_get_current_caps (pad);
-    if (cur_caps != NULL && !gst_caps_is_subset (caps, cur_caps)) {
-      silent_debug ("Setting caps in source mismatch");
-      silent_debug ("caps = %" GST_PTR_FORMAT, caps);
-      silent_debug ("cur_caps = %" GST_PTR_FORMAT, cur_caps);
-      gst_caps_unref (cur_caps);
-    }
-  }
-
   if (!gst_pad_set_caps (pad, caps)) {
     return FALSE;
   }
