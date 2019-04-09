@@ -232,6 +232,14 @@ PROCESS_SCANNED_DATA (guint16, gint16);
 PROCESS_SCANNED_DATA (guint32, gint32);
 PROCESS_SCANNED_DATA (guint64, gint64);
 
+/** helper functions declaration */
+static gboolean
+gst_tensor_write_sysfs_int (GstTensorSrcIIO * self, const gchar * file,
+    const gchar * base_dir, const gint contents);
+static gboolean
+gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
+    const gchar * base_dir, const gchar * contents);
+
 /** GObject method implementation */
 static void gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -797,10 +805,6 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
   while ((dir_entry = readdir (dptr)) != NULL) {
     /** check for enable */
     if (g_str_has_suffix (dir_entry->d_name, EN_SUFFIX)) {
-      /** not enabling and handling buffer timestamps for now */
-      if (g_str_has_prefix (dir_entry->d_name, TIMESTAMP)) {
-        continue;
-      }
 
       channel_prop = g_new (GstTensorSrcIIOChannelProperties, 1);
       self->channels = g_list_prepend (self->channels, channel_prop);
@@ -839,6 +843,23 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
             "Enable bit %u (out of range) in current state of channel %s.\n",
             value, channel_prop->name);
         goto error_cleanup_list;
+      }
+
+      /** disable buffer timestamps : timestamps data is not directly handled */
+      if (g_str_has_prefix (dir_entry->d_name, TIMESTAMP)
+          && channel_prop->enabled == TRUE) {
+        filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
+        if (!gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
+                0)) {
+          GST_ERROR_OBJECT (self,
+              "Unable to disable buffer timestamp with error %s.\n",
+              error->message);
+          goto error_free_filename;
+        }
+        g_free (filename);
+        channel_prop->enabled = FALSE;
+        channel_prop->pre_enabled = FALSE;
+        num_channels_enabled -= 1;
       }
 
       /** find and set the index */
