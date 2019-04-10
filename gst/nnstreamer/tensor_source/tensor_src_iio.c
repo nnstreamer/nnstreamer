@@ -313,9 +313,10 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_CHANNELS,
       g_param_spec_string ("channels", "Channels to be enabled",
-          "Enable channels -"
-          "auto: enable all channels when no channels are enabled automatically"
-          "all: enable all channels",
+          "Specify channels to be enabled:"
+          " 1) auto: enable all channels when no channels are enabled automatically,"
+          " 2) all: enable all channels,"
+          " 3) x,y,z: list the idx of the channels to be enabled",
           DEFAULT_OPERATING_CHANNELS_ENABLED, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_BUFFER_CAPACITY,
@@ -401,7 +402,8 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
 {
   /** init properties */
   self->configured = FALSE;
-  self->channels = DEFAULT_PROP_STRING;
+  self->channels = NULL;
+  self->custom_channel_table = NULL;
   self->mode = g_strdup (DEFAULT_OPERATING_MODE);
   self->channels_enabled = CHANNELS_ENABLED_AUTO;
   gst_tensor_src_iio_device_properties_init (&self->trigger);
@@ -1073,6 +1075,36 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         self->channels_enabled = CHANNELS_ENABLED_ALL;
       } else if (!g_strcmp0 (param, CHANNELS_ENABLED_AUTO_CHAR)) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
+      } else {
+        gint i;
+        gint64 val;
+        gchar **strv;
+        gchar *endptr = NULL;
+
+        /**
+         * using direct as we only need to store keys
+         * and keys form a unique set
+         */
+        self->custom_channel_table =
+            g_hash_table_new (g_direct_hash, g_direct_equal);
+        strv = g_strsplit_set (param, ",;", -1);
+        gint num = g_strv_length (strv);
+        for (i = 0; i < num; i++) {
+          val = g_ascii_strtoull (strv[i], &endptr, 10);
+          if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
+                  && val == 0)) {
+            GST_ERROR_OBJECT (self, "Cannot parse received custom channels %s",
+                param);
+            g_hash_table_destroy (self->custom_channel_table);
+            self->custom_channel_table = NULL;
+            break;
+          }
+          g_assert (g_hash_table_insert (self->custom_channel_table,
+                  GINT_TO_POINTER (val), NULL));
+        }
+        self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
+        g_strfreev (strv);
+        break;
       }
       break;
     }
@@ -1140,6 +1172,24 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
         g_value_set_string (value, CHANNELS_ENABLED_ALL_CHAR);
       } else if (self->channels_enabled == CHANNELS_ENABLED_AUTO) {
         g_value_set_string (value, CHANNELS_ENABLED_AUTO_CHAR);
+      } else {
+        GHashTableIter iter;
+        gpointer key;
+        gchar *p = NULL;
+        GPtrArray *arr = g_ptr_array_new ();
+        gchar **strings;
+
+        g_hash_table_iter_init (&iter, self->custom_channel_table);
+        while (g_hash_table_iter_next (&iter, &key, NULL)) {
+          g_ptr_array_add (arr, g_strdup_printf ("%u", GPOINTER_TO_INT (key)));
+        }
+        g_ptr_array_add (arr, NULL);
+
+        strings = (gchar **) g_ptr_array_free (arr, FALSE);
+        p = g_strjoinv (",", strings);
+        g_strfreev (strings);
+        g_value_take_string (value, p);
+        break;
       }
       break;
     }
@@ -1179,6 +1229,9 @@ gst_tensor_src_iio_finalize (GObject * object)
   g_free (self->mode);
   g_free (self->device.name);
   g_free (self->trigger.name);
+  if (self->custom_channel_table) {
+    g_hash_table_destroy (self->custom_channel_table);
+  }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -1599,8 +1652,13 @@ error_return:
 static gboolean
 gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
 {
-  gchar *dirname = NULL;
+  gchar *dirname = NULL, *filename = NULL;
   gint num_channels_enabled;
+  GList *ch_list;
+  gboolean item_in_table = FALSE;
+  gint channel_en;
+  GstTensorSrcIIOChannelProperties *channel_prop;
+
 
   /** get all the channels that exist and then set enable on them */
   dirname = g_build_filename (self->device.base_dir, CHANNELS, NULL);
@@ -1622,6 +1680,33 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
           "disabling all the channels.\n", self->device.name);
       gst_tensor_set_all_channels (self, 0);
       goto error_channels_free;
+    }
+  }
+
+  /** enable the custom channels and disable the rest */
+  if (self->channels_enabled == CHANNELS_ENABLED_CUSTOM) {
+    for (ch_list = self->channels; ch_list != NULL; ch_list = ch_list->next) {
+      channel_prop = (GstTensorSrcIIOChannelProperties *) ch_list->data;
+      item_in_table = g_hash_table_contains (self->custom_channel_table,
+          GINT_TO_POINTER (channel_prop->index));
+      channel_en = -1;
+      if (item_in_table == FALSE && channel_prop->enabled == TRUE) {
+        channel_en = 0;
+        channel_prop->enabled = FALSE;
+      } else if (item_in_table != FALSE && channel_prop->enabled == FALSE) {
+        channel_en = 1;
+        channel_prop->enabled = TRUE;
+      }
+      if (channel_en >= 0) {
+        filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
+        if (!gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
+                channel_en)) {
+          GST_ERROR_OBJECT (self, "Error enabling/disabling channel.");
+          g_free (filename);
+          goto error_channels_free;
+        }
+        g_free (filename);
+      }
     }
   }
 
