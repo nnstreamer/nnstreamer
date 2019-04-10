@@ -60,7 +60,8 @@ gchar *IIO_DEV_DIR = "/dev/";
 typedef enum
 {
   CHANNELS_ENABLED_ALL,
-  CHANNELS_ENABLED_AUTO
+  CHANNELS_ENABLED_AUTO,
+  CHANNELS_ENABLED_CUSTOM
 } channels_enabled_options;
 
 /**
@@ -119,6 +120,7 @@ struct _GstTensorSrcIIO
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
   GList *channels; /**< list of enabled channels */
+  GHashTable *custom_channel_table; /**< table of idx of channels to be enabled */
   channels_enabled_options channels_enabled; /**< enabling which channels */
   guint scan_size; /**< size for a single scan of buffer length 1 */
   struct pollfd *buffer_data_fp; /**< pollfd for reading data buffer */

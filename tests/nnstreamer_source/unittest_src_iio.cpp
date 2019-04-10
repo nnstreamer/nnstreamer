@@ -1277,6 +1277,91 @@ TEST (test_tensor_src_iio, data_verify_trigger)
 }
 
 /**
+ * @brief tests tensor source IIO caps with custom channels
+ * @note data verification with/without all channels is verified in another test
+ */
+TEST (test_tensor_src_iio, data_verify_custom_channels)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio_pipeline;
+  GstElement *src_iio;
+  GstStateChangeReturn status;
+  GstState state;
+  gchar *parse_launch;
+  gint samp_freq;
+  gint data_value;
+  guint data_bits;
+  GstCaps *caps;
+  GstPad *src_pad;
+  GstStructure *structure;
+  GstTensorConfig config;
+  data_value = DATA;
+  data_bits = 16;
+  /** Make device */
+  dev0 = make_full_device (data_value, data_bits);
+  ASSERT_NE (dev0, nullptr);
+  /** setup */
+  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
+  parse_launch =
+      g_strdup_printf
+      ("%s device-number=%d trigger=%s silent=FALSE channels=1,3,5 "
+      "name=my-src-iio ! multifilesink location=%s",
+      ELEMENT_NAME, 0, TRIGGER_NAME, dev0->log_file);
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  /** state transition test upwards */
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
+  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  status =
+      gst_element_get_state (src_iio_pipeline, &state, NULL,
+      GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+
+  /** get and verify the caps */
+  src_iio = gst_bin_get_by_name (GST_BIN (src_iio_pipeline), "my-src-iio");
+  ASSERT_NE (src_iio, nullptr);
+  src_pad = gst_element_get_static_pad (src_iio, "src");
+  ASSERT_NE (src_pad, nullptr);
+  caps = gst_pad_get_current_caps (src_pad);
+  ASSERT_NE (caps, nullptr);
+  structure = gst_caps_get_structure (caps, 0);
+  ASSERT_NE (structure, nullptr);
+
+  /** Default has merge channels enabled */
+  EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+  EXPECT_EQ (gst_tensor_config_from_structure (&config, structure), TRUE);
+  EXPECT_EQ (config.rate_n, samp_freq);
+  EXPECT_EQ (config.rate_d, 1);
+  EXPECT_EQ (config.info.type, _NNS_FLOAT32);
+  EXPECT_EQ (config.info.dimension[0], 3);
+  EXPECT_EQ (config.info.dimension[1], 1);
+  EXPECT_EQ (config.info.dimension[2], 1);
+  EXPECT_EQ (config.info.dimension[3], 1);
+
+  /** verify paused state has been maintained */
+  status =
+      gst_element_get_state (src_iio_pipeline, &state, NULL,
+      GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+  /** state transition test downwards */
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  status =
+      gst_element_get_state (src_iio_pipeline, &state, NULL,
+      GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_NULL);
+
+  /** delete device structure */
+  gst_object_unref (src_iio_pipeline);
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  g_free (dev0->log_file);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
  * @brief tests tensor source IIO data with set frequency
  * @note verifies restoration of default values
  * @note verifies setting trigger using trigger number
