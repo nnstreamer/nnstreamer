@@ -16,10 +16,13 @@ LOCAL_PATH := $(call my-dir)
 # target#> cd /data/nnstreamer/
 # target#> ./{your-test-app}
 
-NNSTREAMER_VERSION := 0.1.3
-CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
+ifndef NNSTREAMER_ROOT
+NNSTREAMER_ROOT := $(LOCAL_PATH)/..
+endif
 
-NO_AUDIO := false
+include $(LOCAL_PATH)/nnstreamer.mk
+
+CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
 # Please append an architecture name behind "APP_ABI" in Application.mk file.
@@ -97,14 +100,12 @@ endif
 # This application is dependent on 'multifilesrc' and 'png' element that are provided by Gstreamer.
 include $(CLEAR_VARS)
 LOCAL_MODULE    := tensor_repo_dynamic_test
-LOCAL_CFLAGS    += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_SRC_FILES += ../tests/nnstreamer_repo_dynamicity/tensor_repo_dynamic_test.c
-LOCAL_CXXFLAGS  += -std=c++11
+LOCAL_CFLAGS    += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CXXFLAGS  += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_LDFLAGS   := $(CUSTOM_LINKER64)
 
-NNSTREAMER_GST_HOME    := ../gst/nnstreamer
-
-LOCAL_C_INCLUDES       := $(NNSTREAMER_GST_HOME)
+LOCAL_C_INCLUDES       := $(NNSTREAMER_INCLUDES)
 LOCAL_SHARED_LIBRARIES := $(BUILDING_BLOCK_LIST)
 
 LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
