@@ -11,7 +11,7 @@ Summary:	gstremaer plugins for neural networks
 # Synchronize the version information among Ubuntu, Tizen, Android, and Meson.
 # 1. Ubuntu : ./debian/changelog
 # 2. Tizen  : ./packaging/nnstreamer.spec
-# 3. Android: ./jni/Android*.mk
+# 3. Android: ./jni/nnstreamer.mk
 # 4. Meson  : ./meson.build
 Version:	0.1.3
 Release:	0

@@ -27,8 +27,11 @@ LOCAL_PATH := $(call my-dir)
 # cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
 #
 
-NNSTREAMER_VERSION := 0.1.3
-NO_AUDIO := false
+ifndef NNSTREAMER_ROOT
+NNSTREAMER_ROOT := $(LOCAL_PATH)/..
+endif
+
+include $(LOCAL_PATH)/nnstreamer.mk
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
 # Please append an architecture name behind "APP_ABI" in Application.mk file.
@@ -94,7 +97,7 @@ include $(CLEAR_VARS)
 # Please keep the pthread and openmp library for checking a compatibility
 LOCAL_ARM_NEON      := true
 LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_CXXFLAGS      += -std=c++11
+LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
 ifeq ($(NO_AUDIO), true)
@@ -105,43 +108,9 @@ endif
 LOCAL_LDFLAGS       += -fuse-ld=bfd
 LOCAL_MODULE_TAGS   := optional
 
-LOCAL_MODULE	    := nnstreamer
-NNSTREAMER_GST_HOME := ../gst/nnstreamer
-NNSTREAMER_GST_TEST := ../nnstreamer_example/
-LOCAL_SRC_FILES := $(NNSTREAMER_GST_HOME)/nnstreamer.c \
-	$(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
-	$(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
-	$(NNSTREAMER_GST_HOME)/tensor_common.c \
-	$(NNSTREAMER_GST_HOME)/tensor_repo.c \
-	$(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
-	$(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
-	$(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
-	$(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
-	$(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
-	$(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
-	$(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
-	$(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
-	$(NNSTREAMER_GST_HOME)/tensor_reposink/tensor_reposink.c \
-	$(NNSTREAMER_GST_HOME)/tensor_reposrc/tensor_reposrc.c \
-	$(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
-	$(NNSTREAMER_GST_HOME)/tensor_source/tensor_src_iio.c \
-	$(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
-	$(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c
-
-LOCAL_C_INCLUDES := $(NNSTREAMER_GST_HOME)/ \
-	$(NNSTREAMER_GST_HOME)/tensor_converter/ \
-	$(NNSTREAMER_GST_HOME)/tensor_aggregator/ \
-	$(NNSTREAMER_GST_HOME)/tensor_decoder/ \
-	$(NNSTREAMER_GST_HOME)/tensor_demux/ \
-	$(NNSTREAMER_GST_HOME)/tensor_filter/ \
-	$(NNSTREAMER_GST_HOME)/tensor_merge/ \
-	$(NNSTREAMER_GST_HOME)/tensor_mux/ \
-	$(NNSTREAMER_GST_HOME)/tensor_reposink/ \
-	$(NNSTREAMER_GST_HOME)/tensor_reposrc/ \
-	$(NNSTREAMER_GST_HOME)/tensor_sink/ \
-	$(NNSTREAMER_GST_HOME)/tensor_source/ \
-	$(NNSTREAMER_GST_HOME)/tensor_split/ \
-	$(NNSTREAMER_GST_HOME)/tensor_transform/
+LOCAL_MODULE        := nnstreamer
+LOCAL_SRC_FILES     := $(NNSTREAMER_COMMON_SRCS) $(NNSTREAMER_PLUGINS_SRCS)
+LOCAL_C_INCLUDES    := $(NNSTREAMER_INCLUDES)
 
 BUILDING_BLOCK_LIST := gstreamer-1.0 glib-2.0 gobject-2.0 intl gstcoreelements \
 gstapp pixman-1 fontconfig expat freetype \
