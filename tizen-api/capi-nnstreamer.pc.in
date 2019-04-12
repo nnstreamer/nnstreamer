@@ -2,13 +2,13 @@
 # Package Information for pkg-config
 
 prefix=@PREFIX@
-exec_prefix=/usr
+exec_prefix=@PREFIX@
 libdir=@LIB_INSTALL_DIR@
-includedir=/usr/include/nnstreamer
+includedir=@INCLUDE_INSTALL_DIR@/nnstreamer
 
-Name: @PC_NAME@
-Description: @PACKAGE_DESCRIPTION@
+Name: tizen-api-nnstreamer
+Description: NNStreamer API for Tizen
 Version: @VERSION@
-Requires: @PC_REQUIRED@
-Libs: -L${libdir} @PC_LDFLAGS@
+Requires:
+Libs: -L${libdir}
 Cflags: -I${includedir}

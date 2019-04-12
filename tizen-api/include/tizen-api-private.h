@@ -24,7 +24,7 @@
  */
 
 #ifndef __TIZEN_NNSTREAMER_API_PRIVATE_H__
-#define __TIZEN_NNSTREAMER_API_PRIVATE_H___
+#define __TIZEN_NNSTREAMER_API_PRIVATE_H__
 
 #include <glib.h>
 #include <gmodule.h>
@@ -129,4 +129,4 @@ typedef struct _nns_valve {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /*__TIZEN_NNSTREAMER_API_PRIVATE_H___*/
+#endif /*__TIZEN_NNSTREAMER_API_PRIVATE_H__*/
