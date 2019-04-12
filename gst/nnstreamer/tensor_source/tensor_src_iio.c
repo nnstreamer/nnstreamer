@@ -1069,9 +1069,11 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     case PROP_CHANNELS:
     {
       const gchar *param = g_value_get_string (value);
-      if (!g_strcmp0 (param, CHANNELS_ENABLED_ALL_CHAR)) {
+      if (!g_ascii_strncasecmp (param, CHANNELS_ENABLED_ALL_CHAR,
+              strlen (CHANNELS_ENABLED_ALL_CHAR))) {
         self->channels_enabled = CHANNELS_ENABLED_ALL;
-      } else if (!g_strcmp0 (param, CHANNELS_ENABLED_AUTO_CHAR)) {
+      } else if (!g_ascii_strncasecmp (param, CHANNELS_ENABLED_AUTO_CHAR,
+              strlen (CHANNELS_ENABLED_AUTO_CHAR))) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
       }
       break;
@@ -1720,7 +1722,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self = GST_TENSOR_SRC_IIO_CAST (src);
 
   /** no support one shot mode for now */
-  if (!g_strcmp0 (self->mode, MODE_ONE_SHOT)) {
+  if (!g_ascii_strncasecmp (self->mode, MODE_ONE_SHOT, strlen (MODE_ONE_SHOT))) {
     GST_ERROR_OBJECT (self, "One-shot mode not yet supported.");
     goto error_return;
   }
