@@ -973,7 +973,7 @@ error_cleanup_list:
 }
 
 /**
- * @brief check if device/trigger with the given name exists
+ * @brief return sampling frequency given the frequency input from user
  * @param[in] base_dir Device base directory (containing sampling freq file)
  * @param[in] frequency Frequency specified by user (else 0)
  * @return >0 if OK, represents sampling frequency to be set
@@ -981,7 +981,7 @@ error_cleanup_list:
  *         -1 if any error occurs
  */
 static gint64
-gst_tensor_src_iio_set_frequency (const gchar * base_dir,
+gst_tensor_src_iio_get_available_frequency (const gchar * base_dir,
     const guint64 frequency)
 {
   GError *error = NULL;
@@ -1628,54 +1628,75 @@ gst_tensor_src_iio_setup_sampling_frequency (GstTensorSrcIIO * self)
   gchar *file_contents = NULL;
   gchar *sampling_frequency_char = NULL;
   gint64 sampling_frequency;
-  gsize length = 0;
+  gboolean sampling_frequency_file_exist = TRUE;
 
-  /** setup the frequency (only verifying the frequency now) */
+  /** check if sampling frequency file exists */
+  filename = g_build_filename (self->device.base_dir, SAMPLING_FREQUENCY, NULL);
+  sampling_frequency_file_exist =
+      g_file_test (filename, G_FILE_TEST_IS_REGULAR);
+  if (!sampling_frequency_file_exist) {
+    GST_WARNING_OBJECT (self, "Cannot set sampling frequency, resetting it.");
+    /** reset the sampling frequency set by the user if any, as it cant be set */
+    self->sampling_frequency = 0;
+  } else {
+    /** store the default frequency */
+    if (!g_file_get_contents (filename, &file_contents, NULL, NULL)) {
+      GST_WARNING_OBJECT (self, "Unable to read default sampling frequency.");
+    } else if (file_contents != NULL) {
+      self->default_sampling_frequency =
+          g_ascii_strtoull (file_contents, NULL, 10);
+    }
+    g_free (file_contents);
+  }
+  g_free (filename);
+
+  /**
+   * verify the frequency given by the user if any from the list of available
+   * sampling frequencies
+   */
   sampling_frequency =
-      gst_tensor_src_iio_set_frequency (self->device.base_dir,
+      gst_tensor_src_iio_get_available_frequency (self->device.base_dir,
       self->sampling_frequency);
+
   if (-1 == sampling_frequency) {
-    GST_ERROR_OBJECT (self, "Error in setting frequency for device %s.\n",
+    GST_ERROR_OBJECT (self, "Error in verifying frequency for device %s.",
         self->device.name);
     goto error_return;
-  } else if (0 == sampling_frequency) {
-    /** if sampling frequency file does not exist, no error */
-    GST_WARNING_OBJECT (self, "Cannot verify against sampling frequency list.");
+  } else if (sampling_frequency == 0 && self->default_sampling_frequency == 0) {
+    GST_ERROR_OBJECT (self, "Sampling frequency unknown. Unknown stream rate.");
+    goto error_return;
   } else {
-    filename =
-        g_build_filename (self->device.base_dir, SAMPLING_FREQUENCY, NULL);
-    /** check if sampling frequency can be set */
-    if (!g_file_test (filename, G_FILE_TEST_IS_REGULAR)) {
-      GST_WARNING_OBJECT (self, "Cannot set sampling frequency.");
-      g_free (filename);
+    if (0 == sampling_frequency) {
+      /** if sampling frequency file does not exist, no error */
+      GST_WARNING_OBJECT (self,
+          "Cannot verify against sampling frequency list.");
+      self->sampling_frequency = self->default_sampling_frequency;
     } else {
-      /** store the default frequency */
-      if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
-        GST_WARNING_OBJECT (self, "Unable to read default sampling frequency.");
-      } else if (file_contents != NULL) {
-        self->default_sampling_frequency =
-            g_ascii_strtoull (file_contents, NULL, 10);
-      }
-      g_free (file_contents);
-      g_free (filename);
-
       self->sampling_frequency = sampling_frequency;
-      /** interface of frequency is kept long for outside but uint64 inside */
-      sampling_frequency_char =
-          g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
-      if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self, SAMPLING_FREQUENCY,
-                  self->device.base_dir, sampling_frequency_char))) {
-        GST_ERROR_OBJECT (self,
-            "Cannot set the sampling frequency for device: %s.\n",
-            self->device.name);
+      /**
+       * if sampling frequency file does not exist, sampling frequency is first
+       * value from the list of available sampling frequencies. So, we can
+       * ignore setting it
+       */
+      if (sampling_frequency_file_exist) {
+        /** interface of frequency is kept long for outside but uint64 inside */
+        sampling_frequency_char =
+            g_strdup_printf ("%lu", (gulong) self->sampling_frequency);
+        if (G_UNLIKELY (!gst_tensor_write_sysfs_string (self,
+                    SAMPLING_FREQUENCY, self->device.base_dir,
+                    sampling_frequency_char))) {
+          GST_ERROR_OBJECT (self,
+              "Cannot set the sampling frequency for device: %s.\n",
+              self->device.name);
+          g_free (sampling_frequency_char);
+          goto error_return;
+        }
         g_free (sampling_frequency_char);
-        goto error_return;
       }
-      g_free (sampling_frequency_char);
     }
   }
 
-
+  g_assert (self->sampling_frequency > 0);
   return TRUE;
 
 error_return:
