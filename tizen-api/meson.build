@@ -15,8 +15,6 @@ if meson.project_name() != 'nnstreamer'
 
   cc = meson.get_compiler('c')
   cxx = meson.get_compiler('cpp')
-
-  gst_api_verision = '1.0'
 endif
 
 
@@ -35,7 +33,6 @@ tizen_deps = [
   capi_base_common_dep,
   dlog_dep
 ]
-gst_app_dep = dependency('gstreamer-app-1.0')
 
 tizen_capi_lib = shared_library ('capi-nnstreamer',
   capi_main,
