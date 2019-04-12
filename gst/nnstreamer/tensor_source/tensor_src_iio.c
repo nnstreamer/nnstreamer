@@ -243,7 +243,6 @@ static void gst_tensor_src_iio_finalize (GObject * object);
 static gboolean gst_tensor_src_iio_start (GstBaseSrc * src);
 static gboolean gst_tensor_src_iio_stop (GstBaseSrc * src);
 static gboolean gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event);
-static gboolean gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query);
 static gboolean gst_tensor_src_iio_set_caps (GstBaseSrc * src, GstCaps * caps);
 static GstCaps *gst_tensor_src_iio_get_caps (GstBaseSrc * src,
     GstCaps * filter);
@@ -351,7 +350,6 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
   bsrc_class->start = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_start);
   bsrc_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_stop);
   bsrc_class->event = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_event);
-  bsrc_class->query = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_query);
   bsrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_set_caps);
   bsrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_get_caps);
   bsrc_class->fixate = GST_DEBUG_FUNCPTR (gst_tensor_src_iio_fixate);
@@ -423,6 +421,11 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
   /** set the timestamps on each buffer */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
+  /**
+   * set async is necessary to make state change async
+   * sync state changes does not need calling _start_complete() from _start()
+   */
+  gst_base_src_set_async (GST_BASE_SRC (self), TRUE);
 }
 
 /**
@@ -1885,34 +1888,6 @@ gst_tensor_src_iio_event (GstBaseSrc * src, GstEvent * event)
 {
   /** No events to be handled yet */
   return GST_BASE_SRC_CLASS (parent_class)->event (src, event);
-}
-
-/**
- * @brief handle queries
- */
-static gboolean
-gst_tensor_src_iio_query (GstBaseSrc * src, GstQuery * query)
-{
-  gboolean res = FALSE;
-
-  switch (GST_QUERY_TYPE (query)) {
-    case GST_QUERY_SCHEDULING:
-    {
-      /** Only support sequential data access */
-      gst_query_set_scheduling (query, GST_SCHEDULING_FLAG_SEQUENTIAL, 1, -1,
-          0);
-      /** Only support push mode for now */
-      gst_query_add_scheduling_mode (query, GST_PAD_MODE_PUSH);
-
-      res = TRUE;
-      break;
-    }
-    default:
-      res = GST_BASE_SRC_CLASS (parent_class)->query (src, query);
-      break;
-  }
-
-  return res;
 }
 
 /**

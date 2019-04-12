@@ -209,6 +209,8 @@ make_iio_dev_structure (int num)
   iio_dev->dev_device_dir =
       g_build_filename (iio_dev->dev_dir, device_folder_name, NULL);
 
+  iio_dev->log_file = NULL;
+
   PREV_IIO_DEV_DIR = IIO_DEV_DIR;
   IIO_DEV_DIR = g_strdup (iio_dev->dev_dir);
 
@@ -690,7 +692,7 @@ static gint
 safe_remove (const char *filename)
 {
   /** cover for both regular file as well as pipes */
-  if (g_file_test (filename, G_FILE_TEST_EXISTS)
+  if (filename && g_file_test (filename, G_FILE_TEST_EXISTS)
       && !g_file_test (filename, G_FILE_TEST_IS_DIR)) {
     return remove (filename);
   }
@@ -707,7 +709,7 @@ safe_remove (const char *filename)
 static gint
 safe_rmdir (const char *dirname)
 {
-  if (g_file_test (dirname, G_FILE_TEST_IS_DIR)) {
+  if (dirname && g_file_test (dirname, G_FILE_TEST_IS_DIR)) {
     return rmdir (dirname);
   }
   return 0;
