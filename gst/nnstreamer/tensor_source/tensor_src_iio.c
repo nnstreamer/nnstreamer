@@ -35,9 +35,42 @@
 /**
  * SECTION:element-tensor_src_iio
  *
- * Source element to handle sensors as input.
- * The output are always in the format of other/tensor or other/tensors.
+ * #tensor_src_iio extends #gstbasesrc source element to handle Linux
+ * Industrial I/O sensors as input. IIO sources are only supported in buffered
+ * mode. Source elements only support push mode scheduling as a live source.
  *
+ * #tensor_src_iio supports configuring the device as well as the trigger via
+ * properties. Buffer capacity, frequency and scan channels to be read can
+ * be configured before PLAYING the stream. The configuration is supported only
+ * in states <= READY. Setting the state back to NULL restores the original
+ * configuration of the IIO device. The source can be configured to work with
+ * trigger for the source or read the data from the device at regular time
+ * intervals. Device name/number is the only necessary configuration needed to
+ * run the element (other configuration parameters is optional).
+ *
+ * The output caps is either of
+ * other/tensor or other/tensors.
+ *
+ * Data from various channels can be merged to form 1 other/tensor. Final caps
+ * of the src pad is of the following format:
+ * <itemizedlist>
+ *   <listitem><para>Dimension 0 : Channel number</listitem></para>
+ *   <listitem><para>Dimension 1 : buffer capacity</listitem></para>
+ * </itemizedlist>
+ * Other dimensions are not utilized. The data in the dimension 0 is sorted on
+ * the basis of the indexing of the channels provided by the IIO device.
+ *
+ * The enabling of buffer for data capture is performed when transitioning from
+ * PAUSED to PLAYING state. This leads to automated synchronization handled by
+ * gstreamer. Buffer duration and timestamps set by #gstbasesrc remain in sync
+ * with linux IIO timestamps.
+ *
+ * <refsect2>
+ * <title>Example launch line</title>
+ * |[
+ * gst-launch -v -m tensor_src_iio device-number=0 ! fakesink
+ * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
