@@ -54,18 +54,19 @@
 #include <config.h>
 #endif
 
-#include <gst/gstinfo.h>
 #include <gst/gst.h>
 #include <glib.h>
 #include <string.h>
 
 #include "tensor_filter.h"
+#include <tensor_common.h>
+#include <nnstreamer_subplugin.h>
 
 /**
  * @brief Macro for debug mode.
  */
 #ifndef DBG
-#define DBG (!self->silent)
+#define DBG (!self->priv->silent)
 #endif
 
 /**
@@ -108,6 +109,22 @@
 } while (0)
 
 #define g_free_const(x) g_free((void*)(long)(x))
+
+/**
+ * @brief Internal properties of tensor_filter.
+ */
+struct _GstTensorFilterPrivate
+{
+  void *privateData; /**< NNFW plugin's private data is stored here */
+  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
+  const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
+
+  /* internal properties for tensor-filter */
+  gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
+  gboolean configured; /**< True if already successfully configured tensor metadata */
+  GstTensorsConfig in_config; /**< input tensor info */
+  GstTensorsConfig out_config; /**< output tensor info */
+};
 
 /**
  * @brief Filter subplugin should call this to register itself
@@ -214,13 +231,13 @@ static void gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
 /**
  * @brief Open nn framework.
  */
-#define gst_tensor_filter_open_fw(filter) do { \
-      if (filter->prop.fw_opened == FALSE && filter->fw) { \
-        if (filter->fw->open != NULL) {\
-          if (filter->fw->open (&filter->prop, &filter->privateData) == 0) \
-            filter->prop.fw_opened = TRUE; \
+#define gst_tensor_filter_open_fw(priv) do { \
+      if (priv->prop.fw_opened == FALSE && priv->fw) { \
+        if (priv->fw->open != NULL) {\
+          if (priv->fw->open (&priv->prop, &priv->privateData) == 0) \
+            priv->prop.fw_opened = TRUE; \
         } else {\
-          filter->prop.fw_opened = TRUE; \
+          priv->prop.fw_opened = TRUE; \
         } \
       } \
     } while (0)
@@ -228,26 +245,26 @@ static void gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
 /**
  * @brief Close nn framework.
  */
-#define gst_tensor_filter_close_fw(filter) do { \
-      if (filter->prop.fw_opened) { \
-        if (filter->fw && filter->fw->close) \
-          filter->fw->close (&filter->prop, &filter->privateData); \
-        filter->prop.fw_opened = FALSE; \
-        g_free_const (filter->prop.fwname); \
-        filter->prop.fwname = NULL; \
-        filter->fw = NULL; \
-        filter->privateData = NULL; \
+#define gst_tensor_filter_close_fw(priv) do { \
+      if (priv->prop.fw_opened) { \
+        if (priv->fw && priv->fw->close) \
+          priv->fw->close (&priv->prop, &priv->privateData); \
+        priv->prop.fw_opened = FALSE; \
+        g_free_const (priv->prop.fwname); \
+        priv->prop.fwname = NULL; \
+        priv->fw = NULL; \
+        priv->privateData = NULL; \
       } \
     } while (0)
 
 /**
  * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
  */
-#define gst_tensor_filter_call(filter,ret,funcname,...) do { \
-      gst_tensor_filter_open_fw (filter); \
+#define gst_tensor_filter_call(priv,ret,funcname,...) do { \
+      gst_tensor_filter_open_fw (priv); \
       ret = -1; \
-      if (filter->prop.fw_opened && filter->fw && filter->fw->funcname) { \
-        ret = filter->fw->funcname (&filter->prop, &filter->privateData, __VA_ARGS__); \
+      if (priv->prop.fw_opened && priv->fw && priv->fw->funcname) { \
+        ret = priv->fw->funcname (&priv->prop, &priv->privateData, __VA_ARGS__); \
       } \
     } while (0)
 
@@ -339,6 +356,8 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   /* start/stop to call open/close */
   trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_filter_start);
   trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_filter_stop);
+
+  g_type_class_add_private (klass, sizeof (GstTensorFilterPrivate));
 }
 
 /**
@@ -350,9 +369,14 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 static void
 gst_tensor_filter_init (GstTensorFilter * self)
 {
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
 
-  prop = &self->prop;
+  priv = self->priv =
+      G_TYPE_INSTANCE_GET_PRIVATE (self, GST_TYPE_TENSOR_FILTER,
+      GstTensorFilterPrivate);
+
+  prop = &priv->prop;
 
   /* init NNFW properties */
   prop->fwname = NULL;
@@ -365,12 +389,12 @@ gst_tensor_filter_init (GstTensorFilter * self)
   gst_tensors_info_init (&prop->output_meta);
 
   /* init internal properties */
-  self->fw = NULL;
-  self->privateData = NULL;
-  self->silent = TRUE;
-  self->configured = FALSE;
-  gst_tensors_config_init (&self->in_config);
-  gst_tensors_config_init (&self->out_config);
+  priv->fw = NULL;
+  priv->privateData = NULL;
+  priv->silent = TRUE;
+  priv->configured = FALSE;
+  gst_tensors_config_init (&priv->in_config);
+  gst_tensors_config_init (&priv->out_config);
 }
 
 /**
@@ -380,12 +404,14 @@ static void
 gst_tensor_filter_finalize (GObject * object)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER (object);
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
 
-  gst_tensor_filter_close_fw (self);
+  gst_tensor_filter_close_fw (priv);
 
   g_free_const (prop->fwname);
   g_free_const (prop->model_file);
@@ -394,8 +420,8 @@ gst_tensor_filter_finalize (GObject * object)
   gst_tensors_info_free (&prop->input_meta);
   gst_tensors_info_free (&prop->output_meta);
 
-  gst_tensors_info_free (&self->in_config.info);
-  gst_tensors_info_free (&self->out_config.info);
+  gst_tensors_info_free (&priv->in_config.info);
+  gst_tensors_info_free (&priv->out_config.info);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -409,13 +435,15 @@ gst_tensor_filter_finalize (GObject * object)
 static gsize
 gst_tensor_filter_out_size (GstTensorFilter * self, gint index)
 {
+  GstTensorFilterPrivate *priv;
   GstTensorsInfo *info;
   guint i;
   gsize out_size = 0;
 
-  g_assert (self->configured);
+  priv = self->priv;
+  g_assert (priv->configured);
 
-  info = &self->prop.output_meta;
+  info = &priv->prop.output_meta;
 
   if (index < 0) {
     /** calculate all output tensors */
@@ -439,29 +467,31 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER (object);
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
 
   silent_debug ("Setting property for prop %d.\n", prop_id);
 
   switch (prop_id) {
     case PROP_SILENT:
-      self->silent = g_value_get_boolean (value);
-      silent_debug ("Debug mode = %d", self->silent);
+      priv->silent = g_value_get_boolean (value);
+      silent_debug ("Debug mode = %d", priv->silent);
       break;
     case PROP_FRAMEWORK:
     {
       const gchar *fw_name = g_value_get_string (value);
 
-      if (self->fw != NULL) {
-        gst_tensor_filter_close_fw (self);
+      if (priv->fw != NULL) {
+        gst_tensor_filter_close_fw (priv);
       }
-      self->fw = tensor_filter_find (fw_name);
+      priv->fw = tensor_filter_find (fw_name);
 
       silent_debug ("Framework = %s\n", fw_name);
-      if (self->fw == NULL) {
+      if (priv->fw == NULL) {
         GST_WARNING_OBJECT (self,
             "Cannot identify the given neural network framework, %s\n",
             fw_name);
@@ -472,9 +502,9 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       prop->fwname = g_strdup (fw_name);
 
       /* See if mandatory methods are filled in */
-      g_assert (self->fw->invoke_NN);
-      g_assert ((self->fw->getInputDimension && self->fw->getOutputDimension)
-          || self->fw->setInputDimension);
+      g_assert (priv->fw->invoke_NN);
+      g_assert ((priv->fw->getInputDimension && priv->fw->getOutputDimension)
+          || priv->fw->setInputDimension);
       break;
     }
     case PROP_MODEL:
@@ -482,7 +512,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       gchar *model_file;
 
       if (prop->model_file) {
-        gst_tensor_filter_close_fw (self);
+        gst_tensor_filter_close_fw (priv);
         g_free_const (prop->model_file);
         prop->model_file = NULL;
       }
@@ -630,16 +660,18 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
 
   self = GST_TENSOR_FILTER (object);
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
 
   silent_debug ("Getting property for prop %d.\n", prop_id);
 
   switch (prop_id) {
     case PROP_SILENT:
-      g_value_set_boolean (value, self->silent);
+      g_value_set_boolean (value, priv->silent);
       break;
     case PROP_FRAMEWORK:
       g_value_set_string (value, prop->fwname);
@@ -736,6 +768,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
@@ -746,19 +779,20 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   gint i, ret;
 
   self = GST_TENSOR_FILTER_CAST (trans);
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
 
-  if (G_UNLIKELY (!self->configured))
+  if (G_UNLIKELY (!priv->configured))
     goto unknown_format;
-  if (G_UNLIKELY (!self->fw))
+  if (G_UNLIKELY (!priv->fw))
     goto unknown_framework;
   if (G_UNLIKELY (!prop->model_file))
     goto unknown_model;
-  if (G_UNLIKELY (!self->fw->invoke_NN))
+  if (G_UNLIKELY (!priv->fw->invoke_NN))
     goto unknown_invoke;
 
   /* 0. Check all properties. */
-  silent_debug ("Invoking %s with %s model\n", self->fw->name,
+  silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       prop->model_file);
 
   /* 1. Set input tensors from inbuf. */
@@ -783,7 +817,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].type = prop->output_meta.info[i].type;
 
     /* allocate memory if allocate_in_invoke is FALSE */
-    if (self->fw->allocate_in_invoke == FALSE) {
+    if (priv->fw->allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
 
@@ -792,18 +826,18 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 3. Call the filter-subplugin callback, "invoke" */
-  gst_tensor_filter_call (self, ret, invoke_NN, in_tensors, out_tensors);
+  gst_tensor_filter_call (priv, ret, invoke_NN, in_tensors, out_tensors);
   /** @todo define enum to indicate status code */
   g_assert (ret >= 0);
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    if (self->fw->allocate_in_invoke) {
+    if (priv->fw->allocate_in_invoke) {
       /* filter-subplugin allocated new memory, update this */
       out_mem[i] =
           gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
           0, out_tensors[i].size, out_tensors[i].data,
-          self->fw->destroyNotify ? self->fw->destroyNotify : g_free);
+          priv->fw->destroyNotify ? priv->fw->destroyNotify : g_free);
     } else {
       gst_memory_unmap (out_mem[i], &out_info[i]);
     }
@@ -856,18 +890,20 @@ unknown_invoke:
 static void
 gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 {
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
   GstTensorsInfo in_info, out_info;
   int res;
 
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
 
   gst_tensors_info_init (&in_info);
   gst_tensors_info_init (&out_info);
 
   /* supposed fixed in-tensor info if getInputDimension is defined. */
   if (!prop->input_configured) {
-    gst_tensor_filter_call (self, res, getInputDimension, &in_info);
+    gst_tensor_filter_call (priv, res, getInputDimension, &in_info);
 
     if (res == 0) {
       g_assert (in_info.num_tensors > 0);
@@ -890,7 +926,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
 
   /* supposed fixed out-tensor info if getOutputDimension is defined. */
   if (!prop->output_configured) {
-    gst_tensor_filter_call (self, res, getOutputDimension, &out_info);
+    gst_tensor_filter_call (priv, res, getOutputDimension, &out_info);
 
     if (res == 0) {
       g_assert (out_info.num_tensors > 0);
@@ -989,13 +1025,15 @@ static gboolean
 gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     const GstCaps * incaps)
 {
+  GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
   GstStructure *structure;
   GstTensorsConfig in_config, out_config;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
 
-  prop = &self->prop;
+  priv = self->priv;
+  prop = &priv->prop;
   gst_tensors_config_init (&in_config);
   gst_tensors_config_init (&out_config);
 
@@ -1034,7 +1072,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       int res;
 
       gst_tensors_info_init (&out_info);
-      gst_tensor_filter_call (self, res, setInputDimension, &in_config.info,
+      gst_tensor_filter_call (priv, res, setInputDimension, &in_config.info,
           &out_info);
 
       if (res == 0) {
@@ -1072,27 +1110,27 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     out_config.rate_n = in_config.rate_n;
     out_config.rate_d = in_config.rate_d;
 
-    if (self->configured) {
+    if (priv->configured) {
       /** already configured, compare to old. */
-      g_assert (gst_tensors_config_is_equal (&self->in_config, &in_config));
-      g_assert (gst_tensors_config_is_equal (&self->out_config, &out_config));
+      g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
+      g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
     } else {
-      gst_tensors_info_copy (&self->in_config.info, &in_config.info);
-      self->in_config.rate_n = in_config.rate_n;
-      self->in_config.rate_d = in_config.rate_d;
+      gst_tensors_info_copy (&priv->in_config.info, &in_config.info);
+      priv->in_config.rate_n = in_config.rate_n;
+      priv->in_config.rate_d = in_config.rate_d;
 
-      gst_tensors_info_copy (&self->out_config.info, &out_config.info);
-      self->out_config.rate_n = out_config.rate_n;
-      self->out_config.rate_d = out_config.rate_d;
+      gst_tensors_info_copy (&priv->out_config.info, &out_config.info);
+      priv->out_config.rate_n = out_config.rate_n;
+      priv->out_config.rate_d = out_config.rate_d;
 
-      self->configured = TRUE;
+      priv->configured = TRUE;
     }
   }
 
 done:
   gst_tensors_info_free (&in_config.info);
   gst_tensors_info_free (&out_config.info);
-  return self->configured;
+  return priv->configured;
 }
 
 /**
@@ -1141,14 +1179,16 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * filter)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstTensorsConfig config;
   GstCaps *result;
   GstStructure *structure;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  priv = self->priv;
 
   /* Not ready */
-  if (self->fw == NULL)
+  if (priv->fw == NULL)
     return NULL;
 
   gst_tensors_config_init (&config);
@@ -1172,9 +1212,9 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
   if (direction == GST_PAD_SINK) {
     /* caps: sink pad. get src pad info */
-    if (self->prop.output_configured) {
+    if (priv->prop.output_configured) {
       /* fixed tensor info */
-      config.info = self->prop.output_meta;
+      config.info = priv->prop.output_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /* check in-tensor info to call setInputDimension */
@@ -1184,7 +1224,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
         /* call setInputDimension with given input tensor */
         gst_tensors_info_init (&out_info);
-        gst_tensor_filter_call (self, res, setInputDimension, &config.info,
+        gst_tensor_filter_call (priv, res, setInputDimension, &config.info,
             &out_info);
 
         if (res == 0) {
@@ -1203,9 +1243,9 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     }
   } else {
     /* caps: src pad. get sink pad info */
-    if (self->prop.input_configured) {
+    if (priv->prop.input_configured) {
       /* fixed tensor info */
-      config.info = self->prop.input_meta;
+      config.info = priv->prop.input_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /* we don't know the exact tensor info from src pad caps */
@@ -1270,10 +1310,12 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
   GstStructure *structure;
   GstTensorsConfig config;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  priv = self->priv;
 
   silent_debug_caps (incaps, "incaps");
   silent_debug_caps (outcaps, "outcaps");
@@ -1283,12 +1325,12 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     return FALSE;
   }
 
-  if (!gst_tensors_config_validate (&self->in_config)) {
+  if (!gst_tensors_config_validate (&priv->in_config)) {
     GST_ERROR_OBJECT (self, "Failed to validate input tensor.");
     return FALSE;
   }
 
-  if (!gst_tensors_config_validate (&self->out_config)) {
+  if (!gst_tensors_config_validate (&priv->out_config)) {
     GST_ERROR_OBJECT (self, "Failed to validate output tensor.");
     return FALSE;
   }
@@ -1297,7 +1339,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   structure = gst_caps_get_structure (outcaps, 0);
   gst_tensors_config_from_structure (&config, structure);
 
-  if (!gst_tensors_config_is_equal (&self->out_config, &config)) {
+  if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
     GST_ERROR_OBJECT (self, "Invalid outcaps.");
     return FALSE;
   }
@@ -1317,10 +1359,12 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  priv = self->priv;
 
-  g_assert (self->configured);
+  g_assert (priv->configured);
 
   /**
    * Consider multi-tensors.
@@ -1339,16 +1383,18 @@ static gboolean
 gst_tensor_filter_start (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  priv = self->priv;
 
   /* If it is not configured properly, don't allow to start! */
-  if (self->fw == NULL)
+  if (priv->fw == NULL)
     return FALSE;
 
-  gst_tensor_filter_open_fw (self);
+  gst_tensor_filter_open_fw (priv);
 
-  if (self->prop.fw_opened == FALSE)
+  if (priv->prop.fw_opened == FALSE)
     return FALSE;
   return TRUE;
 }
@@ -1362,10 +1408,12 @@ static gboolean
 gst_tensor_filter_stop (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
 
   self = GST_TENSOR_FILTER_CAST (trans);
+  priv = self->priv;
 
-  gst_tensor_filter_close_fw (self);
+  gst_tensor_filter_close_fw (priv);
   return TRUE;
 }
 
