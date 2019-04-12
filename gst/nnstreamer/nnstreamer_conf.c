@@ -312,7 +312,6 @@ nnsconf_loadconf (gboolean force_reload)
   }
 
   conf.loaded = TRUE;
-  g_key_file_free (key_file);
 
   return TRUE;
 }
