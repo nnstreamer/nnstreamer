@@ -26,8 +26,8 @@
 #ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
 #define __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
 
+#include <stddef.h>
 #include <tizen_error.h>
-#include <nnstreamer/tensor_typedef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,6 +36,24 @@ extern "C" {
  * @addtogroup CAPI_ML_NNSTREAMER_PIPELINE_MODULE
  * @{
  */
+
+/**
+ * @brief The maximum rank that NNStreamer supports with Tizen APIs.
+ * @since_tizen 5.5
+ */
+#define NNS_TENSOR_RANK_LIMIT  (4)
+
+/**
+ * @brief The maximum number of other/tensor instances that other/tensors may have.
+ * @since_tizen 5.5
+ */
+#define NNS_TENSOR_SIZE_LIMIT  (16)
+
+/**
+ * @brief Dimemsion information that NNStreamer support.
+ * @since_tizen 5.5
+ */
+typedef unsigned int tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
  * @brief A handle of an NNStreamer pipeline.
@@ -66,6 +84,24 @@ typedef void *nns_switch_h;
  * @since_tizen 5.5
  */
 typedef void *nns_valve_h;
+
+/**
+ * @brief Possible data element types of Tensor in NNStreamer.
+ * @since_tizen 5.5
+ */
+typedef enum _nns_tensor_type_e
+{
+  NNS_INT32 = 0,      /**< Integer 32bit */
+  NNS_UINT32,         /**< Unsigned integer 32bit */
+  NNS_INT16,          /**< Integer 16bit */
+  NNS_UINT16,         /**< Unsigned integer 16bit */
+  NNS_INT8,           /**< Integer 8bit */
+  NNS_UINT8,          /**< Unsigned integer 8bit */
+  NNS_FLOAT64,        /**< Float 64bit */
+  NNS_FLOAT32,        /**< Float 32bit */
+  NNS_INT64,          /**< Integer 64bit */
+  NNS_UINT64,         /**< Unsigned integer 64bit */
+} nns_tensor_type_e;
 
 /**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.
@@ -135,16 +171,35 @@ typedef enum {
 } nns_switch_type_e;
 
 /**
+ * @brief Data structure for Tensor Information.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  char * name;              /**< Name of each element in the tensor. */
+  nns_tensor_type_e type;   /**< Type of each element in the tensor. */
+  tensor_dim dimension;     /**< Dimension information. */
+} nns_tensor_info_s;
+
+/**
+ * @brief Data structure for Tensors Information, which contains multiple tensors.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  unsigned int num_tensors; /**< The number of tensors */
+  nns_tensor_info_s info[NNS_TENSOR_SIZE_LIMIT];  /**< The list of tensor info */
+} nns_tensors_info_s;
+
+/**
  * @brief Callback for sink (tensor_sink) of nnstreamer pipelines (nnstreamer's output)
  * @detail If an application wants to accept data outputs of an nnstreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not hold too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
  * @param[in] buf The contents of the tensor output (a single frame. tensor/tensors). Number of buf is determined by tensorsinfo->num_tensors.
  * @param[in] size The size of the buffer. Number of size is determined by tensorsinfo->num_tensors. Note that max num_tensors is 16 (NNS_TENSOR_SIZE_LIMIT).
- * @param[in] tensorsinfo The cardinality, dimension, and type of given tensor/tensors.
+ * @param[in] tensors_info The cardinality, dimension, and type of given tensor/tensors.
  * @param[in,out] pdata User Application's Private Data
  */
 typedef void (*nns_sink_cb)
-(const char *buf[], const size_t size[], const GstTensorsInfo *tensorsinfo, void *pdata);
+(const char *buf[], const size_t size[], const nns_tensors_info_s *tensors_info, void *pdata);
 
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
@@ -247,14 +302,14 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be attached with a src node.
  * @param[in] srcname The name of src node, described with nns_pipeline_construct().
- * @param[out] tensorsinfo The cardinality, dimension, and type of given tensor/tensors.
+ * @param[out] tensors_info The cardinality, dimension, and type of given tensor/tensors.
  * @param[out] h The src handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_src_gethandle
-(nns_pipeline_h pipe, const char *srcname, GstTensorsInfo *tensorsinfo, nns_src_h *h);
+(nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
 
 /**
  * @brief Close the given handle of a src node of nnstreamer pipelines.
