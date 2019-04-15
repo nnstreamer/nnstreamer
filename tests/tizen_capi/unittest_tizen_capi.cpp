@@ -237,7 +237,7 @@ TEST (nnstreamer_capi_valve, test01)
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void nns_sink_callback_dm01 (const char *buf[], const size_t size[],
-    const GstTensorsInfo *tensorsinfo, void *pdata)
+    const nns_tensors_info_s *tensorsinfo, void *pdata)
 {
   gchar *filepath = (gchar *) pdata;
   FILE *fp = g_fopen (filepath, "a");
@@ -361,7 +361,8 @@ TEST (nnstreamer_capi_src, dummy_01)
   nns_pipeline_state_e state;
   nns_src_h srchandle;
   int status = nns_pipeline_construct (pipeline, &handle);
-  GstTensorsInfo tensorsinfo;
+  nns_tensors_info_s tensorsinfo;
+
   int i;
   char *uintarray2[10];
   uint8_t *content;
@@ -400,14 +401,14 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, NNS_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1);
 
   tensorsinfo.num_tensors = 1;
-  tensorsinfo.info[0].type = _NNS_UINT8;
+  tensorsinfo.info[0].type = NNS_UINT8;
   tensorsinfo.info[0].dimension[0] = 4;
   tensorsinfo.info[0].dimension[1] = 1;
   tensorsinfo.info[0].dimension[2] = 1;
@@ -426,7 +427,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, NNS_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);

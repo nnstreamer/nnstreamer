@@ -94,6 +94,25 @@ construct_element (GstElement * e, nns_pipeline * p, const char *name,
 }
 
 /**
+ * @brief Internal function to convert GstTensorsInfo into nns_tensors_info_s structure.
+ */
+static int
+get_tensors_info_from_GstTensorsInfo (GstTensorsInfo *gst_tensorsinfo,
+  nns_tensors_info_s *tensors_info)
+{
+  if (!gst_tensorsinfo) {
+    dlog_print (DLOG_ERROR, DLOG_TAG, "GstTensorsInfo should not be NULL!");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  /** Currently, the data structures of GstTensorsInfo are
+   * completely same as that of nns_tensors_info_s. */
+  memcpy (tensors_info, gst_tensorsinfo, sizeof(GstTensorsInfo));
+
+  return NNS_ERROR_NONE;
+}
+
+/**
  * @brief Handle a sink element for registered nns_sink_cb
  */
 static void
@@ -206,10 +225,13 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 
   /* Iterate e->handles, pass the data to them */
   for (l = elem->handles; l != NULL; l = l->next) {
+    nns_tensors_info_s tensors_info;
     nns_sink *sink = l->data;
     nns_sink_cb callback = sink->cb;
 
-    callback (buf, size, &elem->tensorsinfo, sink->pdata);
+    get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, &tensors_info);
+
+    callback (buf, size, &tensors_info, sink->pdata);
 
     /** @todo Measure time. Warn if it takes long. Kill if it takes too long. */
   }
@@ -598,7 +620,7 @@ static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
  * @brief Get a handle to operate a src (more info in tizen-api.h)
  */
 int nns_pipeline_src_gethandle
-    (nns_pipeline_h pipe, const char *srcname, GstTensorsInfo * tensorsinfo,
+    (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info,
     nns_src_h * h)
 {
   nns_pipeline *p = pipe;
@@ -669,7 +691,9 @@ int nns_pipeline_src_gethandle
     goto unlock_return;
   }
 
-  memcpy (tensorsinfo, &elem->tensorsinfo, sizeof (GstTensorsInfo));
+  ret = get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, tensors_info);
+  if (ret != NNS_ERROR_NONE)
+    goto unlock_return;
 
   *h = g_new (nns_src, 1);
   src = *h;
