@@ -324,7 +324,7 @@ int nns_pipeline_src_puthandle (nns_src_h h);
 /**
  * @brief Put an input data frame.
  * @param[in] h The nns_src_handle returned by nns_pipeline_gethandle().
- * @param[out] policy The policy of buf deallocation.
+ * @param[in] policy The policy of buf deallocation.
  * @param[in] buf The input buffers, in the format of tensorsinfo given by nns_pipeline_gethandle()
  * @param[in] size The sizes of input buffers. This must be consistent with the given tensorsinfo, probed by nns_pipeline_src_gethandle().
  * @param[in] num_tensors The number of tensors (number of buf and number of size) for the input frame. This must be consistent with the given tensorinfo, probed by nns_pipeline_src_gethandle(). MAX is 16 (NNS_TENSOR_SIZE_LIMIT).
@@ -332,6 +332,7 @@ int nns_pipeline_src_puthandle (nns_src_h h);
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #NNS_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
+ * @retval #NNS_ERROR_TRY_AGAIN The pipeline is not ready yet.
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
