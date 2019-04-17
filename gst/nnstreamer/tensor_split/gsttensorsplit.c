@@ -453,6 +453,11 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   num_tensors = tensor_split->num_tensors;
   GST_DEBUG_OBJECT (tensor_split, " Number of Tensors: %d", num_tensors);
 
+  if (tensor_split->tensorseg == NULL) {
+    GST_ERROR_OBJECT (tensor_split, "No rule to split incoming buffers.");
+    return GST_FLOW_ERROR;
+  }
+
   for (i = 0; i < num_tensors; i++) {
     if (tensor_split->tensorpick != NULL) {
       gboolean found = FALSE;
@@ -630,34 +635,38 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
     }
     case PROP_TENSORSEG:
     {
-      tensor_dim *dim = NULL;
-      int i, j;
-      gchar **strings;
-      gchar *p = "";
-      gchar *strv = "";
-      for (i = 0; i < self->tensorseg->len; i++) {
-        GPtrArray *arr = g_ptr_array_new ();
-        dim = g_array_index (self->tensorseg, tensor_dim *, i);
-        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-          g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
-        }
-        g_ptr_array_add (arr, NULL);
-        strings = (gchar **) g_ptr_array_free (arr, FALSE);
-        p = g_strjoinv (":", strings);
-        g_strfreev (strings);
-        if (i > 0) {
-          /** if i = 1, this is previous p.
-            * otherwise, it's previous g_strjoin result */
-          gchar *oldstrv = strv;
+      if (self->tensorseg && self->tensorseg->len > 0) {
+        tensor_dim *dim = NULL;
+        int i, j;
+        gchar **strings;
+        gchar *p = "";
+        gchar *strv = "";
+        for (i = 0; i < self->tensorseg->len; i++) {
+          GPtrArray *arr = g_ptr_array_new ();
+          dim = g_array_index (self->tensorseg, tensor_dim *, i);
+          for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+            g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
+          }
+          g_ptr_array_add (arr, NULL);
+          strings = (gchar **) g_ptr_array_free (arr, FALSE);
+          p = g_strjoinv (":", strings);
+          g_strfreev (strings);
+          if (i > 0) {
+            /** if i = 1, this is previous p.
+              * otherwise, it's previous g_strjoin result */
+            gchar *oldstrv = strv;
 
-          strv = g_strjoin (",", strv, p, NULL);
-          g_free (oldstrv);
-          g_free (p);
-        } else {
-          strv = p;
+            strv = g_strjoin (",", strv, p, NULL);
+            g_free (oldstrv);
+            g_free (p);
+          } else {
+            strv = p;
+          }
         }
+        g_value_take_string (value, strv);
+      } else {
+        g_value_set_string (value, "");
       }
-      g_value_take_string (value, strv);
       break;
     }
     default:
