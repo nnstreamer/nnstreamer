@@ -17,14 +17,55 @@ fi
 
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
-if [[ -z "${TEST_TENSORFLOW}" ]]; then
-    report
-fi
 
 # Test with mnist model
 PATH_TO_PLUGIN="../../build"
 PATH_TO_MODEL="../test_models/models/mnist.pb"
 PATH_TO_DATA="data/9.raw"
+
+if [[ -d $PATH_TO_PLUGIN ]]; then
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
+    if [[ -d ${ini_path} ]]; then
+	check=$(ls ${ini_path} | grep tensorflow.so)
+	if [[ ! $check ]]; then
+	    echo "Cannot find tensorflow shared lib"
+	    report
+	    exit
+	fi
+    else
+	echo "Cannot find ${ini_path}"
+    fi
+else
+    ini_file="/etc/nnstreamer.ini"
+    if [[ -f ${ini_file} ]]; then
+	path=$(grep "^filters" ${ini_path})
+	key=${path%=*}
+	value=${path##*=}
+
+	if [[ $key != "filters" ]]
+	then
+	    echo "String Error"
+	    report
+	    exit
+	fi
+
+	if [[ -d ${value} ]]; then
+	    check=$(ls ${value} | grep tensorflow.so)
+	    if [[ ! $check ]]; then
+		echo "Cannot find tensorflow shared lib"
+		report
+		exit
+	    fi
+	else
+	    echo "Cannot file ${value}"
+	    report
+	    exit
+	fi
+    fi
+    echo "Cannot identify nnstreamer.ini"
+    report
+    exit
+fi
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow model=${PATH_TO_MODEL} input=784:1:1:1 inputtype=float32 inputname=input output=10:1:1:1 outputtype=float32 outputname=softmax ! filesink location=tensorfilter.out.1.log " 1 0 0 $PERFORMANCE
 python checkLabel.py tensorfilter.out.1.log ${PATH_TO_DATA}

@@ -24,6 +24,50 @@ PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="img/orange.png"
 
+if [[ -d $PATH_TO_PLUGIN ]]; then
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
+    if [[ -d ${ini_path} ]]; then
+	check=$(ls ${ini_path} | grep tensorflow-lite.so)
+	if [[ ! $check ]]; then
+	    echo "Cannot find tensorflow-lite shared lib"
+	    report
+	    exit
+	fi
+    else
+	echo "Cannot find ${ini_path}"
+    fi
+else
+    ini_file="/etc/nnstreamer.ini"
+    if [[ -f ${ini_file} ]]; then
+	path=$(grep "^filters" ${ini_path})
+	key=${path%=*}
+	value=${path##*=}
+
+	if [[ $key != "filters" ]]
+	then
+	    echo "String Error"
+	    report
+	    exit
+	fi
+
+	if [[ -d ${value} ]]; then
+	    check=$(ls ${value} | grep tensorflow-lite.so)
+	    if [[ ! $check ]]; then
+		echo "Cannot find tensorflow-lite shared lib"
+		report
+		exit
+	    fi
+	else
+	    echo "Cannot file ${value}"
+	    report
+	    exit
+	fi
+    fi
+    echo "Cannot identify nnstreamer.ini"
+    report
+    exit
+fi
+
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
 python checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} ${PATH_TO_IMAGE}
 testResult $? 1 "Golden test comparison" 0 1
