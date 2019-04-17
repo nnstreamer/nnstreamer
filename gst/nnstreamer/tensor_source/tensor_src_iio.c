@@ -2224,18 +2224,25 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
   GstBuffer *buf;
   GstMemory *mem;
   guint buffer_size;
+  gint idx = 0;
 
   self = GST_TENSOR_SRC_IIO_CAST (src);
+  buf = gst_buffer_new ();
   buffer_size = gst_tensor_info_get_size (&self->tensors_config->info.info[0]);
 
-  mem = gst_allocator_alloc (NULL, buffer_size, NULL);
-  if (mem == NULL) {
-    GST_ERROR_OBJECT (self, "Error allocating memory for buffer.");
-    return GST_FLOW_ERROR;
-  }
+  for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
+    /** all the data, if unermged should be of the same size*/
+    g_assert (buffer_size ==
+        gst_tensor_info_get_size (&self->tensors_config->info.info[idx]));
 
-  buf = gst_buffer_new ();
-  gst_buffer_append_memory (buf, mem);
+    mem = gst_allocator_alloc (NULL, buffer_size, NULL);
+    if (mem == NULL) {
+      GST_ERROR_OBJECT (self, "Error allocating memory for buffer.");
+      goto error_buffer_unref;
+    }
+
+    gst_buffer_append_memory (buf, mem);
+  }
 
   if (gst_tensor_src_iio_fill (src, offset, buffer_size, buf) != GST_FLOW_OK) {
     goto error_buffer_unref;
@@ -2251,7 +2258,7 @@ error_buffer_unref:
 
 /**
  * @brief process the scanned data from IIO device
- * @param[in] channels List of the all enabled channels
+ * @param[in] prop Properties of one of the enabled channels
  * @param[in] data Data read from the IIO device
  * @param[in/out] buffer_map Gst buffer map to write data to
  * @returns FALSE if fail, else TRUE
@@ -2259,97 +2266,89 @@ error_buffer_unref:
  * assumes each data starting point is byte aligned
  */
 static gboolean
-gst_tensor_src_iio_process_scanned_data (GList * channels, gchar * data,
-    gfloat * buffer_map)
+gst_tensor_src_iio_process_scanned_data (GstTensorSrcIIOChannelProperties *
+    prop, gchar * data, gfloat * buffer_map)
 {
-  GList *list;
-  GstTensorSrcIIOChannelProperties *prop;
   guint64 storage_mask;
-  guint channel_idx;
-
-  for (list = channels, channel_idx = 0; list != NULL;
-      list = list->next, channel_idx += 1) {
-    prop = list->data;
-    switch (prop->storage_bytes) {
-      case 1:
-      {
-        guint8 value = *(guint8 *) (data + prop->location);
+  switch (prop->storage_bytes) {
+    case 1:
+    {
+      guint8 value = *(guint8 *) (data + prop->location);
         /** right shift the extra storage bits */
-        value >>= (8 - prop->storage_bits);
-        buffer_map[channel_idx] =
-            gst_tensor_src_iio_process_scanned_data_from_guint8 (prop, value);
-        break;
-      }
-      case 2:
-      {
-        guint16 value = *(guint16 *) (data + prop->location);
-        if (prop->big_endian) {
-          value = GUINT16_FROM_BE (value);
-          /** right shift the extra storage bits for big endian */
-          value >>= (16 - prop->storage_bits);
-        } else {
-          value = GUINT16_FROM_LE (value);
-          /** mask out the extra storage bits for little endian */
-          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
-          value &= storage_mask;
-        }
-        buffer_map[channel_idx] =
-            gst_tensor_src_iio_process_scanned_data_from_guint16 (prop, value);
-        break;
-      }
-      case 3:
-      /** follow through */
-      case 4:
-      {
-        guint32 value = *(guint32 *) (data + prop->location);
-        if (prop->big_endian) {
-          value = GUINT32_FROM_BE (value);
-          /** right shift the extra storage bits for big endian */
-          value >>= (32 - prop->storage_bits);
-        } else {
-          value = GUINT32_FROM_LE (value);
-          /** mask out the extra storage bits for little endian */
-          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
-          value &= storage_mask;
-        }
-        buffer_map[channel_idx] =
-            gst_tensor_src_iio_process_scanned_data_from_guint32 (prop, value);
-        break;
-      }
-      case 5:
-      /** follow through */
-      case 6:
-      /** follow through */
-      case 7:
-      /** follow through */
-      case 8:
-      {
-        guint64 value = *(guint64 *) (data + prop->location);
-        if (prop->big_endian) {
-          value = GUINT64_FROM_BE (value);
-          /** right shift the extra storage bits for big endian */
-          value >>= (64 - prop->storage_bits);
-        } else {
-          value = GUINT64_FROM_LE (value);
-          /** mask out the extra storage bits for little endian */
-          storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
-          value &= storage_mask;
-        }
-        buffer_map[channel_idx] =
-            gst_tensor_src_iio_process_scanned_data_from_guint64 (prop, value);
-        break;
-      }
-      default:
-        GST_ERROR ("Storage bytes for channel %s out of bounds", prop->name);
-        return FALSE;
+      value >>= (8 - prop->storage_bits);
+      *buffer_map =
+          gst_tensor_src_iio_process_scanned_data_from_guint8 (prop, value);
+      break;
     }
+    case 2:
+    {
+      guint16 value = *(guint16 *) (data + prop->location);
+      if (prop->big_endian) {
+        value = GUINT16_FROM_BE (value);
+          /** right shift the extra storage bits for big endian */
+        value >>= (16 - prop->storage_bits);
+      } else {
+        value = GUINT16_FROM_LE (value);
+          /** mask out the extra storage bits for little endian */
+        storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
+        value &= storage_mask;
+      }
+      *buffer_map =
+          gst_tensor_src_iio_process_scanned_data_from_guint16 (prop, value);
+      break;
+    }
+    case 3:
+      /** follow through */
+    case 4:
+    {
+      guint32 value = *(guint32 *) (data + prop->location);
+      if (prop->big_endian) {
+        value = GUINT32_FROM_BE (value);
+          /** right shift the extra storage bits for big endian */
+        value >>= (32 - prop->storage_bits);
+      } else {
+        value = GUINT32_FROM_LE (value);
+          /** mask out the extra storage bits for little endian */
+        storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
+        value &= storage_mask;
+      }
+      *buffer_map =
+          gst_tensor_src_iio_process_scanned_data_from_guint32 (prop, value);
+      break;
+    }
+    case 5:
+      /** follow through */
+    case 6:
+      /** follow through */
+    case 7:
+      /** follow through */
+    case 8:
+    {
+      guint64 value = *(guint64 *) (data + prop->location);
+      if (prop->big_endian) {
+        value = GUINT64_FROM_BE (value);
+          /** right shift the extra storage bits for big endian */
+        value >>= (64 - prop->storage_bits);
+      } else {
+        value = GUINT64_FROM_LE (value);
+          /** mask out the extra storage bits for little endian */
+        storage_mask = G_MAXUINT64 >> (64 - prop->storage_bits);
+        value &= storage_mask;
+      }
+      *buffer_map =
+          gst_tensor_src_iio_process_scanned_data_from_guint64 (prop, value);
+      break;
+    }
+    default:
+      GST_ERROR ("Storage bytes for channel %s out of bounds", prop->name);
+      return FALSE;
   }
   return TRUE;
 }
 
 /**
  * @brief fill the buffer with data
- * @note ignore offset as there is no header
+ * @note ignore offset,size as there is pull mode
  * @note buffer timestamp is already handled by gstreamer with gst clock
  */
 static GstFlowReturn
@@ -2358,26 +2357,32 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
 {
   GstTensorSrcIIO *self;
   gint status, bytes_to_read;
-  guint idx;
+  guint idx, ch_idx, num_mapped;
   gchar *raw_data_base, *raw_data;
   gfloat *map_data_float;
-  GstMemory *mem;
-  GstMapInfo map;
+  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
   guint64 time_to_end, cur_time;
   guint64 safe_multiply;
+  GList *channels;
 
   self = GST_TENSOR_SRC_IIO (src);
 
   /** Only supporting tensors made of 1 tensor for now */
-  g_assert (self->tensors_config->info.num_tensors == 1);
-  g_assert (size ==
-      gst_tensor_info_get_size (&self->tensors_config->info.info[0]));
   g_assert (gst_buffer_n_memory (buffer) ==
       self->tensors_config->info.num_tensors);
 
   /** get writable buffer */
-  mem = gst_buffer_peek_memory (buffer, 0);
-  g_assert (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
+    mem[idx] = gst_buffer_peek_memory (buffer, idx);
+    if (!gst_memory_map (mem[idx], &map[idx], GST_MAP_WRITE)) {
+      for (ch_idx = 0; ch_idx < num_mapped; ch_idx++) {
+        gst_memory_unmap (mem[ch_idx], &map[ch_idx]);
+      }
+      return GST_FLOW_ERROR;
+    }
+    num_mapped = idx + 1;
+  }
   /** memory to data from file */
   bytes_to_read = self->scan_size * self->buffer_capacity;
   raw_data_base = g_malloc (bytes_to_read);
@@ -2433,7 +2438,6 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   }
 
   /** parse the read data */
-  map_data_float = (gfloat *) map.data;
   raw_data = raw_data_base;
 
   /**
@@ -2441,24 +2445,40 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
    * a 1 dimension data. 2nd dimension comes from buffer capacity.
    */
   for (idx = 0; idx < self->buffer_capacity; idx++) {
-    map_data_float = ((gfloat *) map.data) + idx * self->num_channels_enabled;
-    if (!gst_tensor_src_iio_process_scanned_data (self->channels, raw_data,
-            map_data_float)) {
-      GST_ERROR_OBJECT (self, "Error while processing scanned data.");
-      goto error_data_free;
+    for (channels = self->channels, ch_idx = 0;
+        ch_idx < self->num_channels_enabled;
+        ch_idx++, channels = channels->next) {
+      if (self->tensors_config->info.num_tensors == 1) {
+        /** for other/tensor, only 1 map exist as there is only 1 mem */
+        map_data_float =
+            ((gfloat *) map[0].data) + idx * self->num_channels_enabled +
+            ch_idx;
+      } else {
+        /** for other/tensors, multiple maps exist as there are multiple mem */
+        map_data_float = ((gfloat *) map[ch_idx].data) + idx;
+      }
+      if (!gst_tensor_src_iio_process_scanned_data (channels->data, raw_data,
+              map_data_float)) {
+        GST_ERROR_OBJECT (self, "Error while processing scanned data.");
+        goto error_data_free;
+      }
     }
     raw_data += self->scan_size;
   }
 
   /** wrap up the buffer */
   g_free (raw_data_base);
-  gst_memory_unmap (mem, &map);
+  for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
+    gst_memory_unmap (mem[idx], &map[idx]);
+  }
 
   return GST_FLOW_OK;
 
 error_data_free:
   g_free (raw_data_base);
-  gst_memory_unmap (mem, &map);
+  for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
+    gst_memory_unmap (mem[idx], &map[idx]);
+  }
 
   return GST_FLOW_ERROR;
 }

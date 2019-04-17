@@ -1225,6 +1225,10 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   EXPECT_EQ (config.info.dimension[2], 1);
   EXPECT_EQ (config.info.dimension[3], 1);
 
+  gst_object_unref (src_iio);
+  gst_object_unref (src_pad);
+  gst_caps_unref (caps);
+
   /** let a few frames transfer */
   for (int idx = 0; idx < NUM_FRAMES; idx++) {
     /** wait for filter to process the frame and multifilesink to write it */
@@ -1347,6 +1351,10 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   EXPECT_EQ (config.info.dimension[2], 1);
   EXPECT_EQ (config.info.dimension[3], 1);
 
+  gst_object_unref (src_iio);
+  gst_object_unref (src_pad);
+  gst_caps_unref (caps);
+
   /** verify paused state has been maintained */
   status =
       gst_element_get_state (src_iio_pipeline, &state, NULL,
@@ -1381,6 +1389,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
 {
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
+  GstElement *src_iio;
   GstStateChangeReturn status;
   GstState state;
   gchar *parse_launch;
@@ -1394,10 +1403,15 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   gchar *expect_val_char, *actual_val_char;
   struct stat stat_buf;
   gint stat_ret;
+  GstCaps *caps;
+  GstPad *src_pad;
+  GstStructure *structure;
+  GstTensorsConfig config;
+  gint num_scan_elements;
+
   data_value = DATA;
   data_bits = 16;
   gint samp_freq_idx = 1;
-  gint num_scan_elements;
   gchar *ret_string = NULL;
   const gchar *buffer_length_char = "3";
   /** Make device */
@@ -1410,7 +1424,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   parse_launch =
       g_strdup_printf
       ("%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "
-      "name=my-src-iio ! multifilesink location=%s",
+      "merge-channels-data=False name=my-src-iio ! multifilesink location=%s",
       ELEMENT_NAME, 0, 0, samp_freq, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
 
@@ -1433,6 +1447,40 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
       GST_CLOCK_TIME_NONE);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (state, GST_STATE_PLAYING);
+
+  /** get and verify the caps */
+  src_iio = gst_bin_get_by_name (GST_BIN (src_iio_pipeline), "my-src-iio");
+  ASSERT_NE (src_iio, nullptr);
+  src_pad = gst_element_get_static_pad (src_iio, "src");
+  ASSERT_NE (src_pad, nullptr);
+  caps = gst_pad_get_current_caps (src_pad);
+  ASSERT_NE (caps, nullptr);
+  structure = gst_caps_get_structure (caps, 0);
+  ASSERT_NE (structure, nullptr);
+
+  /** Default has merge channels enabled */
+  EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
+  EXPECT_EQ (gst_tensors_config_from_structure (&config, structure), TRUE);
+  EXPECT_EQ (config.rate_n, samp_freq);
+  EXPECT_EQ (config.rate_d, 1);
+  EXPECT_EQ (config.info.num_tensors, num_scan_elements);
+  for (int idx = 0; idx < num_scan_elements; idx++) {
+    EXPECT_EQ (config.info.info[idx].type, _NNS_FLOAT32);
+    EXPECT_EQ (config.info.info[idx].dimension[0], 1);
+    EXPECT_EQ (config.info.info[idx].dimension[1], 1);
+    EXPECT_EQ (config.info.info[idx].dimension[2], 1);
+    EXPECT_EQ (config.info.info[idx].dimension[3], 1);
+  }
+  for (int idx = num_scan_elements; idx < NNS_TENSOR_SIZE_LIMIT; idx++) {
+    EXPECT_EQ (config.info.info[idx].dimension[0], 0);
+    EXPECT_EQ (config.info.info[idx].dimension[1], 0);
+    EXPECT_EQ (config.info.info[idx].dimension[2], 0);
+    EXPECT_EQ (config.info.info[idx].dimension[3], 0);
+  }
+
+  gst_object_unref (src_iio);
+  gst_object_unref (src_pad);
+  gst_caps_unref (caps);
 
   /** let a few frames transfer */
   for (int idx = 0; idx < NUM_FRAMES; idx++) {
