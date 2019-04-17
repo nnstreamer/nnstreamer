@@ -135,8 +135,6 @@ typedef struct
   GstBus *bus; /**< gst bus for test */
   GstElement *sink; /**< tensor sink element */
   TestStatus status; /**< current status */
-  TestType tc_type; /**< pipeline for testcase type */
-  tensor_type t_type; /**< tensor type */
   guint received; /**< received buffer count */
   guint mem_blocks; /**< memory blocks in received buffer */
   gsize received_size; /**< received buffer size */
@@ -148,6 +146,8 @@ typedef struct
   gchar *caps_name; /**< negotiated caps name */
   GstTensorConfig tensor_config; /**< tensor config from negotiated caps */
   GstTensorsConfig tensors_config; /**< tensors config from negotiated caps */
+  TestOption option; /**< test option */
+  guint buffer_index; /**< index of buffers sent by appsrc */
 } TestData;
 
 /**
@@ -328,53 +328,77 @@ _eos_cb (GstElement * element, gpointer user_data)
 }
 
 /**
- * @brief Push text data to appsrc for text utf8 type.
+ * @brief Timer callback to push buffer.
+ * @return True to ensure the timer continues
  */
 static gboolean
-_push_text_data (const guint num_buffers, const gboolean timestamps = TRUE)
+_test_src_push_timer_cb (gpointer user_data)
 {
   GstElement *appsrc;
-  gboolean failed = FALSE;
-  guint i;
+  GstBuffer *buf;
+  GstMapInfo info;
+  gboolean timestamps = GPOINTER_TO_INT (user_data);
+  gboolean continue_timer = TRUE;
 
   appsrc = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "appsrc");
 
-  for (i = 0; i < num_buffers; i++) {
-    GstBuffer *buf = gst_buffer_new_allocate (NULL, 10, NULL);
-    GstMapInfo info;
+  buf = gst_buffer_new_allocate (NULL, 10, NULL);
 
-    if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
-      _print_log ("failed to get mem map");
-      g_test_data.test_failed = failed = TRUE;
-      gst_buffer_unref (buf);
-      goto error;
-    }
-
-    snprintf ((char *) info.data, 10, "%d", i);
-    gst_buffer_unmap (buf, &info);
-
-    if (timestamps) {
-      GST_BUFFER_PTS (buf) = (i + 1) * 10 * GST_MSECOND;
-      GST_BUFFER_DURATION (buf) = 10 * GST_MSECOND;
-    }
-
-    if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
-      _print_log ("failed to push buffer [%d]", i);
-      g_test_data.test_failed = failed = TRUE;
-      gst_buffer_unref (buf);
-      goto error;
-    }
+  if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
+    g_critical ("failed to get mem map");
+    g_test_data.test_failed = TRUE;
+    gst_buffer_unref (buf);
+    goto error;
   }
 
-  if (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)) != GST_FLOW_OK) {
-    _print_log ("failed to set eos");
-    g_test_data.test_failed = failed = TRUE;
+  snprintf ((char *) info.data, 10, "%d", g_test_data.buffer_index);
+  gst_buffer_unmap (buf, &info);
+
+  if (timestamps) {
+    GST_BUFFER_PTS (buf) = g_test_data.buffer_index * 100 * GST_MSECOND;
+    GST_BUFFER_DURATION (buf) = 100 * GST_MSECOND;
+  }
+
+  if (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf) != GST_FLOW_OK) {
+    g_critical ("failed to push buffer [%d]", g_test_data.buffer_index);
+    g_test_data.test_failed = TRUE;
     goto error;
   }
 
 error:
+  g_test_data.buffer_index++;
+  if (g_test_data.buffer_index >= g_test_data.option.num_buffers ||
+      g_test_data.test_failed) {
+    /* eos */
+    if (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)) != GST_FLOW_OK) {
+      g_critical ("failed to set eos");
+      g_test_data.test_failed = TRUE;
+    }
+
+    continue_timer = FALSE;
+  }
+
   gst_object_unref (appsrc);
-  return !failed;
+  return (continue_timer && !g_test_data.test_failed);
+}
+
+/**
+ * @brief Timer callback to check eos event.
+ * @return False to stop timer
+ */
+static gboolean
+_test_src_eos_timer_cb (gpointer user_data)
+{
+  GMainLoop *loop;
+
+  loop = (GMainLoop *) user_data;
+
+  if (g_main_loop_is_running (loop)) {
+    g_critical ("Supposed eos event is not reached, stop main loop.");
+    g_main_loop_quit (loop);
+  }
+
+  return FALSE;
 }
 
 /**
@@ -396,8 +420,8 @@ _setup_pipeline (TestOption & option)
   g_test_data.end = FALSE;
   g_test_data.current_caps = NULL;
   g_test_data.caps_name = NULL;
-  g_test_data.tc_type = option.test_type;
-  g_test_data.t_type = option.t_type;
+  g_test_data.option = option;
+  g_test_data.buffer_index = 0;
   gst_tensor_config_init (&g_test_data.tensor_config);
   gst_tensors_config_init (&g_test_data.tensors_config);
 
@@ -605,7 +629,7 @@ _setup_pipeline (TestOption & option)
       /** text stream 3 frames */
       str_pipeline =
           g_strdup_printf
-          ("appsrc name=appsrc caps=text/x-raw,format=utf8,framerate=(fraction)100/1 ! "
+          ("appsrc name=appsrc caps=text/x-raw,format=utf8,framerate=(fraction)10/1 ! "
           "tensor_converter name=convert input-dim=30 frames-per-tensor=3 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_OCTET_CUR_TS:
@@ -619,7 +643,7 @@ _setup_pipeline (TestOption & option)
       /** byte stream, timestamp framerate */
       str_pipeline =
           g_strdup_printf
-          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)50/1 ! "
+          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
           "tensor_converter input-dim=1:10 input-type=uint8 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_OCTET_VALID_TS:
@@ -640,7 +664,7 @@ _setup_pipeline (TestOption & option)
       /** byte stream, 2 frames */
       str_pipeline =
           g_strdup_printf
-          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)100/1 ! "
+          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
           "tensor_converter name=convert input-dim=1:5 input-type=int8 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_TENSORS:
@@ -2312,14 +2336,18 @@ TEST (tensor_stream_test, text_utf8)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_TEXT };
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2361,6 +2389,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   gchar *prop_str;
   gboolean prop_bool;
   guint prop_uint;
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -2389,9 +2418,12 @@ TEST (tensor_stream_test, text_utf8_3f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2415,7 +2447,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 3);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 100);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -2429,14 +2461,18 @@ TEST (tensor_stream_test, octet_current_ts)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_CUR_TS };
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers, FALSE);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (FALSE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2474,14 +2510,18 @@ TEST (tensor_stream_test, octet_framerate_ts)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_RATE_TS };
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers, FALSE);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (FALSE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2505,7 +2545,7 @@ TEST (tensor_stream_test, octet_framerate_ts)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 10);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 50);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -2523,6 +2563,7 @@ TEST (tensor_stream_test, octet_valid_ts)
   gchar *prop_str;
   gboolean prop_bool;
   guint prop_uint;
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -2551,9 +2592,12 @@ TEST (tensor_stream_test, octet_valid_ts)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers, TRUE);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2595,6 +2639,7 @@ TEST (tensor_stream_test, octet_invalid_ts)
   gchar *prop_str;
   gboolean prop_bool;
   guint prop_uint;
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -2623,9 +2668,12 @@ TEST (tensor_stream_test, octet_invalid_ts)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers, FALSE);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (FALSE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2667,6 +2715,7 @@ TEST (tensor_stream_test, octet_2f)
   gchar *prop_str;
   gboolean prop_bool;
   guint prop_uint;
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -2695,9 +2744,12 @@ TEST (tensor_stream_test, octet_2f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers, FALSE);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (FALSE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2721,7 +2773,7 @@ TEST (tensor_stream_test, octet_2f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 5);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 100);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -3289,14 +3341,18 @@ TEST (tensor_stream_test, typecast_int32)
   const tensor_type t_type = _NNS_INT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3336,14 +3392,18 @@ TEST (tensor_stream_test, typecast_uint32)
   const tensor_type t_type = _NNS_UINT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3383,14 +3443,18 @@ TEST (tensor_stream_test, typecast_int16)
   const tensor_type t_type = _NNS_INT16;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3430,14 +3494,18 @@ TEST (tensor_stream_test, typecast_uint16)
   const tensor_type t_type = _NNS_UINT16;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3477,14 +3545,18 @@ TEST (tensor_stream_test, typecast_float64)
   const tensor_type t_type = _NNS_FLOAT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3524,14 +3596,18 @@ TEST (tensor_stream_test, typecast_float32)
   const tensor_type t_type = _NNS_FLOAT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3571,14 +3647,18 @@ TEST (tensor_stream_test, typecast_int64)
   const tensor_type t_type = _NNS_INT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3618,14 +3698,18 @@ TEST (tensor_stream_test, typecast_uint64)
   const tensor_type t_type = _NNS_UINT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
   unsigned int t_size = tensor_element_size[t_type];
+  guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  _push_text_data (num_buffers);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
 
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
