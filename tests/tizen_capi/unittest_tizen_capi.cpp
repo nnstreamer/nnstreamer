@@ -76,7 +76,6 @@ TEST (nnstreamer_capi_construct_destruct, failed_02)
   EXPECT_EQ (status, NNS_ERROR_STREAMS_PIPE);
 }
 
-
 /**
  * @brief Test NNStreamer pipeline construct & destruct
  */
@@ -470,6 +469,90 @@ TEST (nnstreamer_capi_src, dummy_01)
   }
 
   g_free (content);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when pipeline is NULL.
+ */
+TEST (nnstreamer_capi_src, failure_01)
+{
+  int status;
+  nns_tensors_info_s tensorsinfo;
+  nns_src_h srchandle;
+
+  status = nns_pipeline_src_gethandle (NULL, "dummy", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when the name of source node is wrong.
+ */
+TEST (nnstreamer_capi_src, failure_02)
+{
+  const char *pipeline = "appsrc is-live=true name=mysource ! filesink";
+  nns_pipeline_h handle;
+  nns_tensors_info_s tensorsinfo;
+  nns_src_h srchandle;
+
+  int status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_src_gethandle (handle, "wrongname", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when the number of tensors is 0 or bigger than NNS_TENSOR_SIZE_LIMIT;
+ */
+TEST (nnstreamer_capi_src, failure_03)
+{
+  const int num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+  const int num_dims = 4;
+
+  const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! tensor_sink";
+  nns_pipeline_h handle;
+  nns_tensors_info_s tensorsinfo;
+  nns_src_h srchandle;
+  const size_t tensor_size[1] = {num_dims};
+  char *pbuffer[num_tensors];
+
+  for (int i = 0; i < num_tensors; ++i)
+    pbuffer[i] = (char *)g_malloc0 (sizeof(char) * num_dims);
+
+  int status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_start (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_src_gethandle (handle, "srcx", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
+    &(pbuffer[0]), tensor_size, num_tensors);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
+    &(pbuffer[0]), tensor_size, 0);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_src_puthandle (srchandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_stop (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  for (int i = 0; i < num_tensors; ++i)
+    g_free (pbuffer[i]);
 }
 
 /**
