@@ -2,6 +2,34 @@ nnstreamer_inc = include_directories('.')
 nnstreamer_sources = []
 nnstreamer_headers = []
 
+if not (meson.project_name() == 'nnstreamer')
+  nnstreamer_conf = configuration_data()
+  nnstreamer_prefix = get_option('prefix')
+  nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
+  nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
+  nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
+  nnstreamer_inidir = get_option('sysconfdir')
+
+  glib_dep = dependency('glib-2.0')
+  gst_dep = dependency('gstreamer-1.0')
+  gst_base_dep = dependency('gstreamer-base-1.0')
+  gst_controller_dep = dependency('gstreamer-controller-1.0')
+  gst_video_dep = dependency('gstreamer-video-1.0')
+  gst_audio_dep = dependency('gstreamer-audio-1.0')
+  gst_app_dep = dependency('gstreamer-app-1.0')
+  gst_check_dep = dependency('gstreamer-check-1.0')
+
+  libm_dep = cc.find_library('m') # cmath library
+  libdl_dep = cc.find_library('dl') # DL library
+  thread_dep = dependency('threads') # pthread for tensorflow-lite
+
+  # Orc is handled by /meson.build
+
+  # NO Audio/Video support is not supported with gst-plugins-*.
+  disable_video = false
+  disable_audio = false
+endif
+
 # Dependencies
 nnstreamer_base_deps = [
   glib_dep,
@@ -99,3 +127,19 @@ nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
 install_headers(nnstreamer_headers,
   subdir: 'nnstreamer'
 )
+
+if not (meson.project_name() == 'nnstreamer')
+  # Install .ini
+  configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
+    install: true,
+    install_dir: nnstreamer_inidir,
+    configuration: nnstreamer_conf
+  )
+
+  # Install .pc
+  configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
+    install: true,
+    install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+    configuration: nnstreamer_conf
+  )
+endif

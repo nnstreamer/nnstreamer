@@ -13,6 +13,8 @@ project('nnstreamer', 'c', 'cpp',
   ]
 )
 
+build_in_nnstreamer = true
+
 add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: ['c', 'cpp'])
 
 cc = meson.get_compiler('c')
