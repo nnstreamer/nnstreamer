@@ -29,7 +29,6 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
-#include <tensor_repo.h>
 
 G_BEGIN_DECLS
 
@@ -43,6 +42,7 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOSINK))
 #define GST_IS_TENSOR_REPOSINK_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOSINK))
+
 typedef struct _GstTensorRepoSink GstTensorRepoSink;
 typedef struct _GstTensorRepoSinkClass GstTensorRepoSinkClass;
 
@@ -80,4 +80,5 @@ struct _GstTensorRepoSinkClass
 GType gst_tensor_reposink_get_type (void);
 
 G_END_DECLS
-#endif /** __GST_TENSOR_REPOSINK_H__ */
+
+#endif /* __GST_TENSOR_REPOSINK_H__ */

@@ -29,9 +29,9 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
-#include <tensor_repo.h>
 
 G_BEGIN_DECLS
+
 #define GST_TYPE_TENSOR_REPOSRC \
   (gst_tensor_reposrc_get_type())
 #define GST_TENSOR_REPOSRC(obj) \
@@ -42,6 +42,7 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_REPOSRC))
 #define GST_IS_TENSOR_REPOSRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_REPOSRC))
+
 typedef struct _GstTensorRepoSrc GstTensorRepoSrc;
 typedef struct _GstTensorRepoSrcClass GstTensorRepoSrcClass;
 
@@ -59,7 +60,8 @@ struct _GstTensorRepoSrc
   guint o_myid;
   GstCaps *caps;
   gboolean ini;
-  gint fps_n, fps_d;
+  gint fps_n;
+  gint fps_d;
   gboolean negotiation;
   gboolean set_startid;
 };
@@ -80,4 +82,5 @@ struct _GstTensorRepoSrcClass
 GType gst_tensor_reposrc_get_type (void);
 
 G_END_DECLS
-#endif /** __GST_TENSOR_REPOSRC_H__ */
+
+#endif /* __GST_TENSOR_REPOSRC_H__ */

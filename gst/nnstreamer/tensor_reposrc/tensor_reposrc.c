@@ -33,6 +33,7 @@
 #endif
 
 #include <string.h>
+#include "tensor_repo.h"
 #include "tensor_reposrc.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_reposrc_debug);
@@ -52,11 +53,6 @@ enum
 
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_INDEX 0
-
-/**
- * @brief external repo
- */
-extern GstTensorRepo _repo;
 
 /**
  * @brief tensor_reposrc src template

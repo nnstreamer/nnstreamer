@@ -23,7 +23,6 @@
 #include <stdlib.h>
 #include <gst/gst.h>
 #include <tensor_common.h>
-#include <tensor_repo.h>
 
 static GMainLoop *loop = NULL;
 
