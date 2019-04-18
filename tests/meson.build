@@ -104,6 +104,13 @@ if get_option('install-test')
   install_subdir('nnstreamer_decoder', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_demux', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_filter_custom', install_dir: join_paths(unittest_install_dir,'tests'))
+  if get_option('enable-tensorflow-lite')
+     install_subdir('nnstreamer_filter_tensorflow-lite', install_dir: join_paths(unittest_install_dir,'tests'))
+     install_subdir('nnstreamer_decoder_image_labeling', install_dir: join_paths(unittest_install_dir,'tests'))
+  endif
+  if get_option('enable-tensorflow')
+     install_subdir('nnstreamer_filter_tensorflow', install_dir: join_paths(unittest_install_dir,'tests'))
+  endif
   install_subdir('nnstreamer_mux', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_repo', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_repo_dynamicity', install_dir: join_paths(unittest_install_dir,'tests'))
