@@ -2367,6 +2367,9 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   /** get writable buffer */
   mem = gst_buffer_peek_memory (buffer, 0);
   g_assert (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  /** memory to data from file */
+  bytes_to_read = self->scan_size * self->buffer_capacity;
+  raw_data_base = g_malloc (bytes_to_read);
 
   /** wait for the data to arrive */
   time_to_end = g_get_real_time () + self->poll_timeout * 1000;
@@ -2397,9 +2400,6 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
       }
     }
 
-    /** read the data from file */
-    bytes_to_read = self->scan_size * self->buffer_capacity;
-    raw_data_base = g_malloc (bytes_to_read);
     /** using read for non-blocking access */
     status = read (self->buffer_data_fp->fd, raw_data_base, bytes_to_read);
     if (status < bytes_to_read) {

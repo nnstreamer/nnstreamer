@@ -527,6 +527,9 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
 
   data_size = num_bytes * iio_dev->num_scan_elements / skip;
   scan_el_data = (char *) malloc (data_size);
+  if (scan_el_data == NULL) {
+    return -1;
+  }
   /** total 8 possible cases */
   for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
     enabled = (idx % skip == 0);
@@ -583,7 +586,10 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
         case 8:
           CHANGE_ENDIANNESS (64);
         default:
+        {
+          g_free (scan_el_data);
           return -1;
+        }
       };
     }
   }
@@ -1118,6 +1124,7 @@ TEST (test_tensor_src_iio, \
     EXPECT_STREQ (expect_val_char, actual_val_char); \
     g_free (actual_val_char); \
   } \
+  g_free (expect_val_char); \
   close (fd); \
 \
   /** delete device structure */ \
@@ -1246,6 +1253,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
       EXPECT_STREQ (expect_val_char, actual_val_char);
       g_free (actual_val_char);
     }
+    g_free (expect_val_char);
     close (fd);
     ASSERT_EQ (safe_remove (dev0->log_file), 0);
     /** update data value to check data updates */
@@ -1454,6 +1462,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
       EXPECT_STREQ (expect_val_char, actual_val_char);
       g_free (actual_val_char);
     }
+    g_free (expect_val_char);
     close (fd);
     ASSERT_EQ (safe_remove (dev0->log_file), 0);
     /** update data value to check data updates */
