@@ -1082,25 +1082,23 @@ TEST (test_tensor_src_iio, \
     g_usleep (MAX (10, 1000000 / samp_freq)); \
     ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
             data_value, SKIP), 0); \
-    if (g_file_test (dev0->log_file, G_FILE_TEST_IS_REGULAR)) { \
-      stat_ret = stat (dev0->log_file, &stat_buf); \
-      if (stat_ret == 0 && stat_buf.st_size != 0) { \
-        /** verify playing state has been maintained */ \
-        status = \
-            gst_element_get_state ( \
-                src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
-        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
-        EXPECT_EQ (state, GST_STATE_PLAYING); \
-        /** state transition test downwards */ \
-        status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL); \
-        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
-        status = \
-            gst_element_get_state ( \
-                src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
-        EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
-        EXPECT_EQ (state, GST_STATE_NULL); \
-        break; \
-      } \
+    stat_ret = stat (dev0->log_file, &stat_buf); \
+    if (stat_ret == 0 && stat_buf.st_size != 0) { \
+      /** verify playing state has been maintained */ \
+      status = \
+          gst_element_get_state ( \
+              src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
+      EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+      EXPECT_EQ (state, GST_STATE_PLAYING); \
+      /** state transition test downwards */ \
+      status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL); \
+      EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+      status = \
+          gst_element_get_state ( \
+              src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
+      EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
+      EXPECT_EQ (state, GST_STATE_NULL); \
+      break; \
     } \
   } \
   /** verify correctness of data */ \
@@ -1222,11 +1220,9 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   for (int idx = 0; idx < NUM_FRAMES; idx++) {
     /** wait for filter to process the frame and multifilesink to write it */
     while (TRUE) {
-      if (g_file_test (dev0->log_file, G_FILE_TEST_IS_REGULAR)) {
-        stat_ret = stat (dev0->log_file, &stat_buf);
-        if (stat_ret == 0 && stat_buf.st_size != 0) {
-          break;
-        }
+      stat_ret = stat (dev0->log_file, &stat_buf);
+      if (stat_ret == 0 && stat_buf.st_size != 0) {
+        break;
       }
       g_usleep (MAX (1, 1000000 / samp_freq));
     }
