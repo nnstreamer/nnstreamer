@@ -32,12 +32,8 @@
 #include <config.h>
 #endif
 
+#include "tensor_repo.h"
 #include "tensor_reposink.h"
-
-/**
- * @brief tensor repository
- */
-extern GstTensorRepo _repo;
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_reposink_debug);
 #define GST_CAT_DEFAULT gst_tensor_reposink_debug
