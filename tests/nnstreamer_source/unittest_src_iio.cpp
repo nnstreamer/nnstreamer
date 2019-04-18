@@ -1119,6 +1119,7 @@ TEST (test_tensor_src_iio, \
     g_free (actual_val_char); \
   } \
   close (fd); \
+  free (data_buffer); \
 \
   /** delete device structure */ \
   ASSERT_EQ (safe_remove (dev0->log_file), 0); \
@@ -1247,6 +1248,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
       g_free (actual_val_char);
     }
     close (fd);
+    free (data_buffer);
     ASSERT_EQ (safe_remove (dev0->log_file), 0);
     /** update data value to check data updates */
     data_value += 1;
@@ -1455,6 +1457,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
       g_free (actual_val_char);
     }
     close (fd);
+    free (data_buffer);
     ASSERT_EQ (safe_remove (dev0->log_file), 0);
     /** update data value to check data updates */
     data_value += 1;
