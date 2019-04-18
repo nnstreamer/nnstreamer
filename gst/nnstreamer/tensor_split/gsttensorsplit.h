@@ -32,16 +32,19 @@
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
+
 #define GST_TYPE_TENSOR_SPLIT (gst_tensor_split_get_type ())
 #define GST_TENSOR_SPLIT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_TENSOR_SPLIT, GstTensorSplit))
 #define GST_TENSOR_SPLIT_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_TENSOR_SPLIT, GstTensorSplitClass))
 #define GST_TENSOR_SPLIT_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), GST_TYPE_TENSOR_SPLIT, GstTensorSplitClass))
 #define GST_IS_TENSOR_SPLIT(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_SPLIT))
 #define GST_IS_TENSOR_SPLIT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_SPLIT))
-#define GST_TENSOR_SPLIT_CAST(obj)((GstTensorSplit*)(obj))
+#define GST_TENSOR_SPLIT_CAST(obj) ((GstTensorSplit*)(obj))
+
 typedef struct _GstTensorSplit GstTensorSplit;
 typedef struct _GstTensorSplitClass GstTensorSplitClass;
 
+/** @todo consider to move this to common header */
 typedef struct
 {
   GstPad *pad;
@@ -83,4 +86,5 @@ struct _GstTensorSplitClass
 GType gst_tensor_split_get_type (void);
 
 G_END_DECLS
-#endif  /** __GST_TENSOR_SPLIT_H__ **/
+
+#endif  /* __GST_TENSOR_SPLIT_H__ */
