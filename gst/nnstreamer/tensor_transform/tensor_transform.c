@@ -1231,13 +1231,15 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     int inidx = 0, outidx=0;                            \
     for(cl=0;cl<sl;cl++)                      \
       for(ci=0;ci<si;ci++)                    \
-	for(cj=0;cj<sj;cj++)                  \
-	  for(ck=0;ck<sk;ck++){               \
-	    outidx=si*sj*sk*cl + sj*sk*ci + sk*cj+ck; \
-	    inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
-	    const uint8_t *_in = inptr+inidx*typesize; \
-	    uint8_t *_out = outptr + outidx *typesize; \
-	    nns_memcpy(_out, _in, typesize); \
+        for(cj=0;cj<sj;cj++)                  \
+          for(ck=0;ck<sk;ck++){               \
+            const uint8_t *_in; \
+            uint8_t *_out; \
+            outidx = si*sj*sk*cl + sj*sk*ci + sk*cj+ck; \
+            inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
+            _in = inptr + inidx * typesize; \
+            _out = outptr + outidx *typesize; \
+            nns_memcpy(_out, _in, typesize); \
 	  }                                                      \
   } while(0);
 

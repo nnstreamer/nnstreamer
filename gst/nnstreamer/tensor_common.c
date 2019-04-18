@@ -1036,15 +1036,17 @@ gst_tensor_set_current_time (GstCollectPads * collect,
     GstClockTime * current_time, tensor_time_sync_data sync)
 {
   GSList *walk = NULL;
-  walk = collect->data;
   gboolean isEOS = FALSE;
   guint count = 0;
 
+  walk = collect->data;
   while (walk) {
-    GstCollectData *data = (GstCollectData *) walk->data;
-    walk = g_slist_next (walk);
-    GstBuffer *buf = NULL;
+    GstCollectData *data;
+    GstBuffer *buf;
+
+    data = (GstCollectData *) walk->data;
     buf = gst_collect_pads_peek (collect, data);
+    walk = g_slist_next (walk);
 
     if (buf == NULL) {
       isEOS = TRUE;
@@ -1092,10 +1094,14 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
   walk = collect->data;
 
   if (sync.mode == SYNC_BASEPAD) {
+    GstCollectData *data;
+    GstTensorCollectPadData *pad;
+    GstBuffer *buf;
+
     walk = g_slist_nth (walk, sync.data_basepad.sink_id);
-    GstCollectData *data = (GstCollectData *) walk->data;
-    GstTensorCollectPadData *pad = (GstTensorCollectPadData *) data;
-    GstBuffer *buf = NULL;
+    data = (GstCollectData *) walk->data;
+    pad = (GstTensorCollectPadData *) data;
+
     buf = gst_collect_pads_peek (collect, data);
     if (buf != NULL) {
       if (pad->buffer != NULL)
@@ -1114,6 +1120,7 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     GstTensorCollectPadData *pad = (GstTensorCollectPadData *) data;
     GstCaps *caps = gst_pad_get_current_caps (pad->pad);
     GstStructure *s = gst_caps_get_structure (caps, 0);
+    GstBuffer *buf;
 
     gst_tensors_config_from_structure (&in_configs, s);
     g_assert (gst_tensors_config_validate (&in_configs));
@@ -1126,9 +1133,6 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     gst_caps_unref (caps);
 
     walk = g_slist_next (walk);
-
-    GstBuffer *buf = NULL;
-
     buf = gst_collect_pads_peek (collect, data);
 
     switch (sync.mode) {

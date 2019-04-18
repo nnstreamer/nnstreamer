@@ -1046,10 +1046,10 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorSrcIIO *self;
-  self = GST_TENSOR_SRC_IIO (object);
-
   GstStateChangeReturn status;
   GstState state;
+
+  self = GST_TENSOR_SRC_IIO (object);
 
   /**
    * No support for setting properties in PAUSED/PLAYING state as it needs to
@@ -1114,7 +1114,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
               strlen (CHANNELS_ENABLED_AUTO_CHAR))) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
       } else {
-        gint i;
+        gint i, num;
         gint64 val;
         gchar **strv;
         gchar *endptr = NULL;
@@ -1126,7 +1126,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         self->custom_channel_table =
             g_hash_table_new (g_direct_hash, g_direct_equal);
         strv = g_strsplit_set (param, ",;", -1);
-        gint num = g_strv_length (strv);
+        num = g_strv_length (strv);
         for (i = 0; i < num; i++) {
           val = g_ascii_strtoull (strv[i], &endptr, 10);
           if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
@@ -1399,12 +1399,13 @@ static guint
 gst_tensor_get_size_from_channels (GList * channels)
 {
   guint size_bytes = 0;
+  guint remain = 0;
   GList *list;
   GstTensorSrcIIOChannelProperties *channel_prop = NULL;
 
   for (list = channels; list != NULL; list = list->next) {
     channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
-    guint remain = size_bytes % channel_prop->storage_bytes;
+    remain = size_bytes % channel_prop->storage_bytes;
     if (remain == 0) {
       channel_prop->location = size_bytes;
     } else {
@@ -2071,8 +2072,9 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
    * Caps are fixated based on the device source in _start().
    */
   GstTensorSrcIIO *self;
-  self = GST_TENSOR_SRC_IIO_CAST (src);
   GstCaps *updated_caps, *fixated_caps;
+
+  self = GST_TENSOR_SRC_IIO_CAST (src);
 
   if (self->is_tensor) {
     GstTensorConfig tensor_config;

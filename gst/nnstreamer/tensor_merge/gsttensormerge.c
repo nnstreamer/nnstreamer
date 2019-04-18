@@ -522,11 +522,13 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
           for (l = 0; l < dim[3]; l++) {
             for (i = 0; i < dim[2]; i++) {
               for (k = 0; k < num_mem; k++) {
-                size_t c = 1;
+                size_t c, s;
+
+                c = 1;
                 for (j = 0; j < LINEAR_SECOND + 1; j++)
                   c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-                size_t s = tensor_element_size[type] * c;
+                s = tensor_element_size[type] * c;
 
                 inptr = mInfo[k].data + (l * dim[2] + i) * s;
 
@@ -542,11 +544,13 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
         {
           for (l = 0; l < dim[3]; l++) {
             for (k = 0; k < num_mem; k++) {
-              size_t c = 1;
+              size_t c, s;
+
+              c = 1;
               for (j = 0; j < LINEAR_THIRD + 1; j++)
                 c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-              size_t s = tensor_element_size[type] * c;
+              s = tensor_element_size[type] * c;
 
               inptr = mInfo[k].data + l * s;
 
@@ -560,11 +564,13 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
         case LINEAR_FOURTH:
         {
           for (k = 0; k < num_mem; k++) {
-            size_t c = 1;
+            size_t c, s;
+
+            c = 1;
             for (j = 0; j < LINEAR_FOURTH + 1; j++)
               c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-            size_t s = tensor_element_size[type] * c;
+            s = tensor_element_size[type] * c;
 
             inptr = mInfo[k].data;
             memcpy (outptr, inptr, s);

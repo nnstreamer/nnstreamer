@@ -67,6 +67,8 @@ static int
 tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
 {
   tf_data *tf;
+  gboolean tf_mem_optmz;
+
   if (*private_data != NULL) {
     tf = *private_data;
     if (strcmp (prop->model_file, tf_core_getModelPath (tf->tf_private_data))) {
@@ -75,12 +77,12 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
       return 1;
     }
   }
+
+  tf_mem_optmz = nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ);
+
   tf = g_new0 (tf_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
   tf->tf_private_data = tf_core_new (prop->model_file);
-
-  const gboolean tf_mem_optmz =
-      nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ);
 
   if (tf->tf_private_data) {
     if (tf_core_init (tf->tf_private_data, prop, tf_mem_optmz)) {

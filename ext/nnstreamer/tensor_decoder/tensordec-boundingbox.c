@@ -800,14 +800,15 @@ nms (GArray * results)
 #define _get_objects_tf(bb, _type, typename, numinput, classinput, scoreinput, boxesinput, config, results) \
   case typename: \
   { \
-    int d; \
+    int d, num; \
+    size_t boxbpi; \
     _type * num_detection_ = (_type *) numinput; \
     _type * classes_ = (_type *) classinput; \
     _type * scores_ = (_type *) scoreinput; \
     _type * boxes_ = (_type *) boxesinput; \
-    int num = (int) num_detection_[0]; \
+    num = (int) num_detection_[0]; \
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
-    size_t boxbpi = config->info.info[3].dimension[0]; \
+    boxbpi = config->info.info[3].dimension[0]; \
     for (d = 0; d < num; d++) { \
       detectedObject object; \
       object.valid = TRUE; \
