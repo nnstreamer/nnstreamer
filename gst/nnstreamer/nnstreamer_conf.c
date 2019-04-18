@@ -365,11 +365,13 @@ const gchar *subplugin_prefixes[NNSCONF_PATH_END] = {
 const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 {
+  gchar *filename;
+  const gchar *ret;
+
   nnsconf_loadconf (FALSE);
 
-  gchar *filename =
-      g_strconcat (subplugin_prefixes[type], subpluginname, ".so", NULL);
-  const gchar *ret = nnsconf_get_fullpath_fromfile (filename, type);
+  filename = g_strconcat (subplugin_prefixes[type], subpluginname, ".so", NULL);
+  ret = nnsconf_get_fullpath_fromfile (filename, type);
 
   g_free (filename);
   return ret;

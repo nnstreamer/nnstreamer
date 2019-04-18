@@ -303,6 +303,14 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     gboolean * created, gint nth)
 {
   GSList *walk;
+  GstPad *pad;
+  GstTensorPad *tensorpad;
+  gchar *name;
+  GstEvent *event;
+  gchar *stream_id;
+  GstCaps *caps;
+  GstTensorConfig config;
+
   walk = tensor_demux->srcpads;
   while (walk) {
     GstTensorPad *pad = (GstTensorPad *) walk->data;
@@ -314,14 +322,6 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     }
     walk = walk->next;
   }
-
-  GstPad *pad;
-  GstTensorPad *tensorpad;
-  gchar *name;
-  GstEvent *event;
-  gchar *stream_id;
-  GstCaps *caps;
-  GstTensorConfig config;
 
   tensorpad = g_new0 (GstTensorPad, 1);
   GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d(%dth)",
@@ -436,6 +436,12 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
+    GstTensorPad *srcpad;
+    GstBuffer *outbuf;
+    GstMemory *mem;
+    gboolean created;
+    GstClockTime ts;
+
     if (tensor_demux->tensorpick != NULL) {
       gboolean found = FALSE;
       GList *list;
@@ -449,11 +455,6 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         continue;
     }
 
-    GstTensorPad *srcpad;
-    GstBuffer *outbuf;
-    GstMemory *mem;
-    gboolean created;
-    GstClockTime ts;
     srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i);
 
     outbuf = gst_buffer_new ();
@@ -569,7 +570,7 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
     case PROP_TENSORPICK:
     {
       GList *list;
-      char *p = "";
+      char *p;
       GPtrArray *arr = g_ptr_array_new ();
       gchar **strings;
 
