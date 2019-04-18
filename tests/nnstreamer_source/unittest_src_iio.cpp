@@ -1103,6 +1103,7 @@ TEST (test_tensor_src_iio, \
   } \
   /** verify correctness of data */ \
   fd = open (dev0->log_file, O_RDONLY); \
+  ASSERT_GE (fd, 0); \
   bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements/SKIP; \
   data_buffer = (gchar *) malloc (bytes_to_read); \
   bytes_read = read (fd, data_buffer, bytes_to_read); \
@@ -1230,6 +1231,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
 
     /** verify correctness of data */
     fd = open (dev0->log_file, O_RDONLY);
+    ASSERT_GE (fd, 0);
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
     data_buffer = (gchar *) malloc (bytes_to_read);
     bytes_read = read (fd, data_buffer, bytes_to_read);
@@ -1405,7 +1407,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
 
   /** move channel specific type for channel 1 to generic */
-  g_rename (dev0->scan_el_type[1], dev0->scan_el_type_generic);
+  ASSERT_EQ (g_rename (dev0->scan_el_type[1], dev0->scan_el_type_generic), 0);
   /** disable all/some channels */
   for (int idx = 0; idx < num_scan_elements; idx++) {
     write_file_int (dev0->scan_el_en[idx], 0);
@@ -1439,6 +1441,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
 
     /** verify correctness of data */
     fd = open (dev0->log_file, O_RDONLY);
+    ASSERT_GE (fd, 0);
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
     data_buffer = (gchar *) malloc (bytes_to_read);
     bytes_read = read (fd, data_buffer, bytes_to_read);
