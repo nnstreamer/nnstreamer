@@ -26,12 +26,12 @@
 #define __GST_TENSOR_REPO_H__
 
 #include <glib.h>
-#include <stdint.h>
-#include <tensor_common.h>
-#include "tensor_typedef.h"
 #include <gst/gst.h>
 
+#include "tensor_common.h"
+
 G_BEGIN_DECLS
+
 /**
  * @brief GstTensorRepo meta structure.
  */
@@ -42,25 +42,25 @@ typedef struct
 } GstMetaRepo;
 
 /**
- * @brief Define tensor_repo meta data type to register & macro
+ * @brief Define tensor_repo meta data type to register.
  */
 GType gst_meta_repo_api_get_type (void);
 #define GST_META_REPO_API_TYPE (gst_meta_repo_api_get_type())
 
 /**
- * @brief get tensor_repo meta data info & macro
+ * @brief Get tensor_repo meta data info.
  */
 const GstMetaInfo *gst_meta_repo_get_info (void);
 #define GST_META_REPO_INFO ((GstMetaInfo*) gst_meta_repo_get_info())
 
 /**
- * @brief macro of get_tensor_repo meta data
+ * @brief Macro of get_tensor_repo meta data.
  */
 #define gst_buffer_get_meta_repo(b) \
   ((GstMetaRepo*) gst_buffer_get_meta((b), GST_META_REPO_API_TYPE))
 
 /**
- * @brief add get_tensor_repo meta data in buffer
+ * @brief Add get_tensor_repo meta data in buffer.
  */
 GstMetaRepo *gst_buffer_add_meta_repo (GstBuffer * buffer);
 
@@ -70,14 +70,11 @@ GstMetaRepo *gst_buffer_add_meta_repo (GstBuffer * buffer);
 #define GST_META_REPO_GET(buf) ((GstMetaRepo*) gst_buffer_get_meta_repo(buf))
 #define GST_META_REPO_ADD(buf) ((GstMetaRepo*) gst_buffer_add_meta_repo(buf))
 
-
 /**
  * @brief GstTensorRepo internal data structure.
  *
  * GstTensorRepo has GSlist of GstTensorRepoData.
- *
  */
-
 typedef struct
 {
   GstBuffer *buffer;
@@ -97,7 +94,7 @@ typedef struct
  */
 typedef struct
 {
-  gint num_data;
+  guint num_data;
   GMutex repo_lock;
   GCond repo_cond;
   GHashTable* hash;
@@ -105,83 +102,71 @@ typedef struct
 } GstTensorRepo;
 
 /**
- * @brief getter to get nth GstTensorRepoData
+ * @brief Getter to get nth GstTensorRepoData.
  */
 GstTensorRepoData *
 gst_tensor_repo_get_repodata (guint nth);
 
 /**
- * @brief add GstTensorRepoData into repo
+ * @brief Add GstTensorRepoData into repo.
  */
-/* guint */
 gboolean
 gst_tensor_repo_add_repodata (guint myid, gboolean is_sink);
 
 /**
- * @brief push GstBuffer into repo
+ * @brief Push GstBuffer into repo.
  */
 gboolean
 gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer, GstCaps * caps);
 
 /**
- * @brief get EOS
+ * @brief Check EOS (End-of-Stream) of slot.
  */
 gboolean
-gst_tensor_repo_check_eos(guint nth);
+gst_tensor_repo_check_eos (guint nth);
 
 /**
- * @brief set EOS
+ * @brief Set EOS (End-of-Stream) of slot.
  */
 gboolean
-gst_tensor_repo_set_eos(guint nth);
-
-gboolean
-gst_tensor_repo_set_changed(guint o_nth, guint nth, gboolean is_sink);
+gst_tensor_repo_set_eos (guint nth);
 
 /**
- * @brief Get GstTensorRepoData from repo
+ * @brief Set the changing status of repo.
+ */
+gboolean
+gst_tensor_repo_set_changed (guint o_nth, guint nth, gboolean is_sink);
+
+/**
+ * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *
 gst_tensor_repo_get_buffer (guint nth, guint o_nth, gboolean *eos, guint *newid);
 
+/**
+ * @brief Check repo data is changed.
+ */
 gboolean
 gst_tensor_repo_check_changed (guint nth, guint *newid, gboolean is_sink);
 
 /**
- * @brief remove nth GstTensorRepoData from GstTensorRepo
+ * @brief Remove nth GstTensorRepoData from GstTensorRepo.
  */
 gboolean
 gst_tensor_repo_remove_repodata (guint nth);
 
 /**
- * @brief GstTensorRepo initialization
+ * @brief GstTensorRepo initialization.
  */
 void
-gst_tensor_repo_init ();
+gst_tensor_repo_init (void);
 
 /**
- * @brief Wait for the repo initialization
+ * @brief Wait for the repo initialization.
  */
 gboolean
-gst_tensor_repo_wait();
-
-
-/**
- * @brief Macro for Lock & Cond
- */
-#define GST_TENSOR_REPO_GET_LOCK(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->lock)
-#define GST_TENSOR_REPO_GET_COND_PUSH(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond_push)
-#define GST_TENSOR_REPO_GET_COND_PULL(id) (&((GstTensorRepoData*)(gst_tensor_repo_get_repodata(id)))->cond_pull)
-#define GST_TENSOR_REPO_LOCK(id) (g_mutex_lock(GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_UNLOCK(id) (g_mutex_unlock(GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_WAIT_PULL(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND_PULL(id), GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_WAIT_PUSH(id) (g_cond_wait(GST_TENSOR_REPO_GET_COND_PUSH(id), GST_TENSOR_REPO_GET_LOCK(id)))
-#define GST_TENSOR_REPO_SIGNAL_PULL(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND_PULL(id)))
-#define GST_TENSOR_REPO_SIGNAL_PUSH(id) (g_cond_signal (GST_TENSOR_REPO_GET_COND_PUSH(id)))
-#define GST_REPO_LOCK()(g_mutex_lock(&_repo.repo_lock))
-#define GST_REPO_UNLOCK()(g_mutex_unlock(&_repo.repo_lock))
-#define GST_REPO_WAIT() (g_cond_wait(&_repo.repo_cond, &_repo.repo_lock))
-#define GST_REPO_BROADCAST() (g_cond_broadcast (&_repo.repo_cond))
+gst_tensor_repo_wait (void);
 
 G_END_DECLS
+
 #endif /* __GST_TENSOR_REPO_H__ */
