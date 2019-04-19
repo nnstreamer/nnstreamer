@@ -33,6 +33,13 @@
 #include <gmodule.h>
 #include "nnstreamer_conf.h"
 
+static const gchar *subplugin_prefixes[NNSCONF_PATH_END] = {
+  [NNSCONF_PATH_FILTERS] = NNSTREAMER_PREFIX_FILTER,
+  [NNSCONF_PATH_DECODERS] = NNSTREAMER_PREFIX_DECODER,
+  [NNSCONF_PATH_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
+  NULL,
+};
+
 #define CONF_SOURCES (3)
 typedef struct
 {
@@ -73,7 +80,7 @@ static confdata conf = { 0 };
  * @param[in] name Environmetal variable name
  */
 static gchar *
-_strdup_getenv (const char *name)
+_strdup_getenv (const gchar * name)
 {
   /**
    * @todo Evaluate if we need to use secure_getenv() here
@@ -87,60 +94,60 @@ _strdup_getenv (const char *name)
 }
 
 /**
- * @brief Private function to fill in ".so list" with fullpath-filenames in a directory.
- * @param[in] dir Directory to be searched
- * @param[in] list The filename list to be updated
- * @param[in/out] counter increased by the number of appended elements.
- * @return The list updated.
- * @todo This assumes .so for all sub plugins. Support Windows/Mac/iOS!
+ * @brief Private function to validate .so file can be added to the list.
  */
-static GSList *
-_get_fullpath_filenames (const gchar * dir, GSList * list, uint32_t * counter)
+static gboolean
+_validate_file (nnsconf_type_path type, const gchar * fullpath)
 {
-  GDir *gdir = g_dir_open (dir, 0U, NULL);
-  const gchar *name;
-  gchar *dirfullpath;
-
-  if (gdir == NULL)
-    return list;
-
-  if (dir[strlen (dir) - 1] != '/')
-    dirfullpath = g_strconcat (dir, "/", NULL);
-  else
-    dirfullpath = g_strdup (dir);
-
-  while (NULL != (name = g_dir_read_name (gdir))) {
-    list = g_slist_prepend (list, g_strconcat (dirfullpath, name, NULL));
-    *counter = *counter + 1;
-  }
-  g_free (dirfullpath);
-  g_dir_close (gdir);
-  return list;
+  /* ignore directory */
+  if (g_file_test (fullpath, G_FILE_TEST_IS_DIR))
+    return FALSE;
+  /* ignore symbol link file */
+  if (g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
+    return FALSE;
+  /** @todo how to validate with nnsconf type. */
+  return TRUE;
 }
 
 /**
- * @brief Private function to fill in ".so list" with basenames in a directory.
- * @param[in] dir Directory to be searched
- * @param[in] list The filename list to be updated
+ * @brief Private function to fill in ".so list" with fullpath-filenames in a directory.
+ * @param[in] type conf type to scan.
+ * @param[in] dir Directory to be searched.
+ * @param[in/out] listF The fullpath list to be updated.
+ * @param[in/out] listB The basename list to be updated.
  * @param[in/out] counter increased by the number of appended elements.
- * @return The updated list
+ * @return True if successfully updated.
  * @todo This assumes .so for all sub plugins. Support Windows/Mac/iOS!
  */
-static GSList *
-_get_basenames (const gchar * dir, GSList * list, uint32_t * counter)
+static gboolean
+_get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
+    GSList ** listB, guint * counter)
 {
-  GDir *gdir = g_dir_open (dir, 0U, NULL);
+  GDir *gdir;
   const gchar *name;
+  gchar *fullpath;
 
-  if (gdir == NULL)
-    return list;
+  if ((gdir = g_dir_open (dir, 0U, NULL)) == NULL)
+    return FALSE;
 
   while (NULL != (name = g_dir_read_name (gdir))) {
-    list = g_slist_prepend (list, g_path_get_basename (name));
-    *counter = *counter + 1;
+    /* check file prefix for given type, handle .so only. */
+    if (g_str_has_prefix (name, subplugin_prefixes[type]) &&
+        g_str_has_suffix (name, ".so")) {
+      fullpath = g_build_filename (dir, name, NULL);
+
+      if (_validate_file (type, fullpath)) {
+        *listF = g_slist_prepend (*listF, fullpath);
+        *listB = g_slist_prepend (*listB, g_path_get_basename (name));
+        *counter = *counter + 1;
+      } else {
+        g_free (fullpath);
+      }
+    }
   }
+
   g_dir_close (gdir);
-  return list;
+  return TRUE;
 }
 
 /**
@@ -149,8 +156,8 @@ _get_basenames (const gchar * dir, GSList * list, uint32_t * counter)
 typedef struct
 {
   gchar **vstr;    /**< The vstr data (string array) */
-  uint32_t cursor;  /**< The first "empty" element in vstr */
-  uint32_t size;    /**< The number of "g_char *" in vstr, excluding the terminator */
+  guint cursor;  /**< The first "empty" element in vstr */
+  guint size;    /**< The number of "g_char *" in vstr, excluding the terminator */
 } vstr_helper;
 
 /**
@@ -172,40 +179,33 @@ _g_list_foreach_vstr_helper (gpointer data, gpointer user_data)
  */
 static void
 _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
-    gchar * searchpath[CONF_SOURCES])
+    gchar * searchpath[CONF_SOURCES], nnsconf_type_path type)
 {
   GSList *lstF = NULL, *lstB = NULL;
   vstr_helper vstrF, vstrB;
-  uint32_t counterF = 0, counterB = 0;
-  int i;
+  guint i, counter;
 
-  counterF = 0;
-  counterB = 0;
+  counter = 0;
   for (i = 0; i < CONF_SOURCES; i++) {
     if (searchpath[i]) {
-      lstF = _get_fullpath_filenames (searchpath[i], lstF, &counterF);
-      lstB = _get_basenames (searchpath[i], lstB, &counterB);
-    } else {
-      lstF = _get_fullpath_filenames ("./", lstF, &counterF);
-      lstB = _get_basenames ("./", lstB, &counterB);
+      _get_filenames (type, searchpath[i], &lstF, &lstB, &counter);
     }
   }
-  g_assert (counterF == counterB);
 
   /* Because _get_* does "prepend", reverse them to have the correct order. */
   lstF = g_slist_reverse (lstF);
   lstB = g_slist_reverse (lstB);
 
-  *fullpath_vstr = g_malloc_n (counterF + 1, sizeof (gchar *));
-  *basename_vstr = g_malloc_n (counterB + 1, sizeof (gchar *));
+  *fullpath_vstr = g_malloc_n (counter + 1, sizeof (gchar *));
+  *basename_vstr = g_malloc_n (counter + 1, sizeof (gchar *));
 
-  (*fullpath_vstr)[counterF] = NULL;
-  (*basename_vstr)[counterB] = NULL;
+  (*fullpath_vstr)[counter] = NULL;
+  (*basename_vstr)[counter] = NULL;
 
   vstrF.vstr = *fullpath_vstr;
   vstrB.vstr = *basename_vstr;
-  vstrF.size = counterF;
-  vstrB.size = counterB;
+  vstrF.size = counter;
+  vstrB.size = counter;
   vstrF.cursor = 0;
   vstrB.cursor = 0;
   g_slist_foreach (lstF, _g_list_foreach_vstr_helper, (gpointer) & vstrF);
@@ -223,7 +223,7 @@ nnsconf_loadconf (gboolean force_reload)
   g_autoptr (GError) error = NULL;
   g_autoptr (GKeyFile) key_file = NULL;
   GStatBuf gsbuf;
-  int stt, i;
+  gint stt, i;
 
   if (FALSE == force_reload && TRUE == conf.loaded)
     return TRUE;
@@ -291,11 +291,12 @@ nnsconf_loadconf (gboolean force_reload)
   conf.valueTF_MEM_OPTMZ[2] = g_strdup (NNSTREAMER_TF_MEM_OPTMZ);
 
   /* Fill in conf.files* */
-  _fill_in_vstr (&conf.filesFILTERS, &conf.basenameFILTERS, conf.pathFILTERS);
-  _fill_in_vstr (&conf.filesDECODERS, &conf.basenameDECODERS,
-      conf.pathDECODERS);
+  _fill_in_vstr (&conf.filesFILTERS, &conf.basenameFILTERS, conf.pathFILTERS,
+      NNSCONF_PATH_FILTERS);
+  _fill_in_vstr (&conf.filesDECODERS, &conf.basenameDECODERS, conf.pathDECODERS,
+      NNSCONF_PATH_DECODERS);
   _fill_in_vstr (&conf.filesCUSTOM_FILTERS, &conf.basenameCUSTOM_FILTERS,
-      conf.pathCUSTOM_FILTERS);
+      conf.pathCUSTOM_FILTERS, NNSCONF_PATH_CUSTOM_FILTERS);
 
   /* Fill in conf.bool values */
   for (i = 0; i < CONF_SOURCES; i++) {
@@ -312,7 +313,6 @@ nnsconf_loadconf (gboolean force_reload)
   }
 
   conf.loaded = TRUE;
-
   return TRUE;
 }
 
@@ -321,7 +321,7 @@ const gchar *
 nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type_path type)
 {
   gchar **vstr, **vstrFull;
-  int i;
+  guint i;
 
   switch (type) {
     case NNSCONF_PATH_FILTERS:
@@ -354,13 +354,6 @@ nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type_path type)
   return NULL;
 }
 
-const gchar *subplugin_prefixes[NNSCONF_PATH_END] = {
-  [NNSCONF_PATH_FILTERS] = NNSTREAMER_PREFIX_FILTER,
-  [NNSCONF_PATH_DECODERS] = NNSTREAMER_PREFIX_DECODER,
-  [NNSCONF_PATH_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
-  NULL,
-};
-
 /** @brief Public function defined in the header */
 const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
@@ -377,11 +370,61 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
   return ret;
 }
 
+/**
+ * @brief Get sub-plugin's name prefix.
+ * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
+ * @return Predefined prefix string for given type.
+ */
+const gchar *
+nnsconf_get_subplugin_name_prefix (nnsconf_type_path type)
+{
+  return subplugin_prefixes[type];
+}
+
+/**
+ * @brief Public function to get the list of sub-plugins basename and path
+ * @return total number of sub-plugins for given type
+ * @note DO NOT free sub-plugins info
+ */
+guint
+nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info)
+{
+  gchar **vstr, **vstrFull;
+
+  g_return_val_if_fail (info != NULL, 0);
+  info->names = info->paths = NULL;
+
+  nnsconf_loadconf (FALSE);
+
+  switch (type) {
+    case NNSCONF_PATH_FILTERS:
+      vstr = conf.basenameFILTERS;
+      vstrFull = conf.filesFILTERS;
+      break;
+    case NNSCONF_PATH_DECODERS:
+      vstr = conf.basenameDECODERS;
+      vstrFull = conf.filesDECODERS;
+      break;
+    case NNSCONF_PATH_CUSTOM_FILTERS:
+      vstr = conf.basenameCUSTOM_FILTERS;
+      vstrFull = conf.filesCUSTOM_FILTERS;
+      break;
+    default:
+      g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
+      return 0;
+  }
+
+  info->names = vstr;
+  info->paths = vstrFull;
+
+  return g_strv_length (vstr);
+}
+
 /** @brief Public function defined in the header */
 gboolean
 nnsconf_get_value_bool (nnsconf_type_value type)
 {
-  gboolean ret;
+  gboolean ret = FALSE;
 
   nnsconf_loadconf (FALSE);
 
@@ -389,9 +432,8 @@ nnsconf_get_value_bool (nnsconf_type_value type)
     case NNSCONF_VAL_TF_MEM_OPTMZ:
       ret = conf.boolTF_MEM_OPTMZ;
       break;
-
     default:
-      ret = FALSE;
+      break;
   }
 
   return ret;

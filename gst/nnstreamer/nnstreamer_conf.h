@@ -60,6 +60,13 @@ G_BEGIN_DECLS
 #define NNSTREAMER_PREFIX_CUSTOMFILTERS	""
 /* Custom filter does not have prefix */
 
+/* struct for sub-plugins info (name and full path) */
+typedef struct
+{
+  gchar **names;
+  gchar **paths;
+} subplugin_info_s;
+
 typedef enum {
   NNSCONF_PATH_FILTERS = 0,
   NNSCONF_PATH_DECODERS,
@@ -74,8 +81,6 @@ typedef enum {
 
   NNSCONF_VAL_END,
 } nnsconf_type_value;
-
-extern const gchar *subplugin_prefixes[NNSCONF_PATH_END];
 
 /**
  * @brief Load the .ini file
@@ -93,7 +98,7 @@ nnsconf_loadconf (gboolean force_reload);
  *         Returns NULL if we cannot find the file.
  */
 extern const gchar *
-nnsconf_get_fullpath_fromfile (const gchar *file2find, nnsconf_type_path type);
+nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type_path type);
 
 /**
  * @brief Get the configured paths for the type with sub-plugin name.
@@ -105,7 +110,23 @@ nnsconf_get_fullpath_fromfile (const gchar *file2find, nnsconf_type_path type);
  * This is mainly supposed to be used by CUSTOM_FILTERS
  */
 extern const gchar *
-nnsconf_get_fullpath (const gchar *subpluginname, nnsconf_type_path type);
+nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type);
+
+/**
+ * @brief Get sub-plugin's name prefix.
+ * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
+ * @return Predefined prefix string for given type.
+ */
+extern const gchar *
+nnsconf_get_subplugin_name_prefix (nnsconf_type_path type);
+
+/**
+ * @brief Public function to get the list of sub-plugins name and path
+ * @return total number of sub-plugins for given type
+ * @note DO NOT free sub-plugins info
+ */
+extern guint
+nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info);
 
 /**
  * @brief Get the configured boolean values for the type
@@ -133,7 +154,7 @@ nnsconf_get_value_bool (nnsconf_type_value type);
  * @return The newly allocated string. A caller must free it. NULL if it's not available.
  */
 extern gchar *
-nnsconf_get_custom_value_string (const gchar *group, const gchar *key);
+nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
 
 /**
  * @brief Get the custom configuration value from .ini and envvar.
@@ -153,7 +174,7 @@ nnsconf_get_custom_value_string (const gchar *group, const gchar *key);
  * @return The value interpreted as TRUE/FALSE.
  */
 extern gboolean
-nnsconf_get_custom_value_bool (const gchar *group, const gchar *key, gboolean def);
+nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean def);
 
 G_END_DECLS
 #endif /* __GST_NNSTREAMER_CONF_H__ */
