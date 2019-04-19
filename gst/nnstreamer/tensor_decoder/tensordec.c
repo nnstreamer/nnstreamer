@@ -102,7 +102,8 @@ enum
   PROP_MODE_OPTION6,
   PROP_MODE_OPTION7,
   PROP_MODE_OPTION8,
-  PROP_MODE_OPTION9
+  PROP_MODE_OPTION9,
+  PROP_SUBPLUGINS
 };
 
 /**
@@ -321,6 +322,11 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
       g_param_spec_string ("option9", "Mode option 9",
           "option for specific decoder modes, 9th one.", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_SUBPLUGINS,
+      g_param_spec_string ("sub-plugins", "Sub-plugins",
+          "Registrable sub-plugins list", "",
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
@@ -542,6 +548,40 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       PROP_READ_OPTION (7);
       PROP_READ_OPTION (8);
       PROP_READ_OPTION (9);
+    case PROP_SUBPLUGINS:
+    {
+      subplugin_info_s sinfo;
+      guint i, total;
+
+      total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &sinfo);
+
+      if (total > 0) {
+        GString *subplugins;
+        const gchar *prefix_str;
+        gsize prefix, len;
+
+        subplugins = g_string_new (NULL);
+
+        prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_DECODERS);
+        prefix = strlen (prefix_str);
+
+        for (i = 0; i < total; ++i) {
+          /* supposed .so files only */
+          len = strlen (sinfo.names[i]) - prefix - 3;
+          g_string_append_len (subplugins, sinfo.names[i] + prefix, len);
+
+          if (i < total - 1) {
+            g_string_append (subplugins, ",");
+          }
+        }
+
+        g_value_take_string (value, g_string_free (subplugins, FALSE));
+      } else {
+        g_value_set_string (value, "");
+      }
+
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;

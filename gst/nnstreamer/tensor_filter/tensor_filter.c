@@ -160,6 +160,7 @@ enum
   PROP_OUTPUTTYPE,
   PROP_OUTPUTNAME,
   PROP_CUSTOM,
+  PROP_SUBPLUGINS
 };
 
 /**
@@ -308,6 +309,10 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
       g_param_spec_string ("custom", "Custom properties for subplugins",
           "Custom properties for subplugins ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_SUBPLUGINS,
+      g_param_spec_string ("sub-plugins", "Sub-plugins",
+          "Registrable sub-plugins list", "",
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "Tensor_Filter",
@@ -722,6 +727,38 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
     case PROP_CUSTOM:
       g_value_set_string (value, prop->custom_properties);
       break;
+    case PROP_SUBPLUGINS:
+    {
+      GString *subplugins;
+      subplugin_info_s sinfo;
+      guint i, total;
+
+      subplugins = g_string_new (NULL);
+
+      /* add custom */
+      g_string_append (subplugins, "custom");
+
+      total = nnsconf_get_subplugin_info (NNSCONF_PATH_FILTERS, &sinfo);
+
+      if (total > 0) {
+        const gchar *prefix_str;
+        gsize prefix, len;
+
+        prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_FILTERS);
+        prefix = strlen (prefix_str);
+
+        for (i = 0; i < total; ++i) {
+          g_string_append (subplugins, ",");
+
+          /* supposed .so files only */
+          len = strlen (sinfo.names[i]) - prefix - 3;
+          g_string_append_len (subplugins, sinfo.names[i] + prefix, len);
+        }
+      }
+
+      g_value_take_string (value, g_string_free (subplugins, FALSE));
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
