@@ -229,8 +229,10 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = NULL;
 }
 
+static gchar filter_subplugin_custom[] = "custom";
+
 static GstTensorFilterFramework NNS_support_custom = {
-  .name = "custom",
+  .name = filter_subplugin_custom,
   .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
   .allocate_in_invoke = FALSE,  /* GstTensorFilter allocates output buffers */
   .invoke_NN = custom_invoke,

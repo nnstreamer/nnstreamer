@@ -188,9 +188,11 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   return GST_FLOW_OK;
 }
 
+static gchar decoder_subplugin_direct_video[] = "direct_video";
+
 /** @brief Direct-Video tensordec-plugin TensorDecDef instance */
 static TensorDecDef directVideo = {
-  .modename = "direct_video",
+  .modename = decoder_subplugin_direct_video,
   .type = OUTPUT_VIDEO,
   .init = dv_init,
   .exit = dv_exit,

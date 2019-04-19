@@ -51,8 +51,8 @@ typedef struct _GstTensorSrcIIOClass GstTensorSrcIIOClass;
 /**
  * @brief IIO system paths
  */
-gchar *IIO_BASE_DIR = "/sys/bus/iio/devices/";
-gchar *IIO_DEV_DIR = "/dev/";
+extern gchar *IIO_BASE_DIR;
+extern gchar *IIO_DEV_DIR;
 
 /**
  * @brief iio device channel enabled mode

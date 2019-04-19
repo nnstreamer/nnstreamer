@@ -290,9 +290,11 @@ il_decode (void **pdata, const GstTensorsConfig * config,
   return GST_FLOW_OK;
 }
 
+static gchar decoder_subplugin_image_labeling[] = "image_labeling";
+
 /** @brief Image Labeling tensordec-plugin TensorDecDef instance */
 static TensorDecDef imageLabeling = {
-  .modename = "image_labeling",
+  .modename = decoder_subplugin_image_labeling,
   .type = OUTPUT_TEXT,
   .init = il_init,
   .exit = il_exit,
