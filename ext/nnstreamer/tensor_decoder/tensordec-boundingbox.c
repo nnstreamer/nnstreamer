@@ -1,5 +1,5 @@
 /**
- * GStreamer / NNStreamer tensor_decoder subplugin, "image labeling"
+ * GStreamer / NNStreamer tensor_decoder subplugin, "bounding boxes"
  * Copyright (C) 2018 Samsung Electronics Co. Ltd.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
@@ -1000,9 +1000,11 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   return GST_FLOW_OK;
 }
 
-/** @brief Image Labeling tensordec-plugin TensorDecDef instance */
+static gchar decoder_subplugin_bounding_box[] = "bounding_boxes";
+
+/** @brief Bounding box tensordec-plugin TensorDecDef instance */
 static TensorDecDef boundingBox = {
-  .modename = "bounding_boxes",
+  .modename = decoder_subplugin_bounding_box,
   .type = OUTPUT_VIDEO,
   .init = bb_init,
   .exit = bb_exit,

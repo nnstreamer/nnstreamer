@@ -171,8 +171,10 @@ tf_destroyNotify (void *data)
   tf_core_destroyNotify (data);
 }
 
-GstTensorFilterFramework NNS_support_tensorflow = {
-  .name = "tensorflow",
+static gchar filter_subplugin_tensorflow[] = "tensorflow";
+
+static GstTensorFilterFramework NNS_support_tensorflow = {
+  .name = filter_subplugin_tensorflow,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
   .destroyNotify = tf_destroyNotify,

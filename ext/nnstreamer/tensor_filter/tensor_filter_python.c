@@ -116,7 +116,7 @@ py_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
   py_data *py = *private_data;
 
   g_assert (py);
-  
+
   return py_core_getOutputDim (py->py_private_data, info);
 }
 
@@ -170,7 +170,7 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
       g_printerr ("failed to initailize the object: python");
       return -2;
     }
-    
+
     /** check methods in python script */
     cb_type type = py_core_getCbType (py->py_private_data);
     switch (type) {
@@ -207,12 +207,14 @@ py_open (const GstTensorFilterProperties * prop, void **private_data)
   return py_loadScriptFile (prop, private_data);
 }
 
-GstTensorFilterFramework _NNS_support_python = {
 #if PY_VERSION_HEX >= 0x03000000
-  .name = "python3",
+static gchar filter_subplugin_python[] = "python3";
 #else
-  .name = "python2",
+static gchar filter_subplugin_python[] = "python2";
 #endif
+
+GstTensorFilterFramework _NNS_support_python = {
+  .name = filter_subplugin_python,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
   .invoke_NN = py_run,

@@ -159,6 +159,15 @@ enum
   PROP_POLL_TIMEOUT
 };
 
+static gchar nns_iio_base_dir_default[] = "/sys/bus/iio/devices/";
+static gchar nns_iio_dev_dir_default[] = "/dev/";
+
+/**
+ * @brief IIO system paths
+ */
+gchar *IIO_BASE_DIR = nns_iio_base_dir_default;
+gchar *IIO_DEV_DIR = nns_iio_dev_dir_default;
+
 /**
  * @brief iio device channel enabled mode
  */

@@ -158,8 +158,10 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
   return tflite_core_getOutputDim (tf->tflite_private_data, info);
 }
 
-GstTensorFilterFramework NNS_support_tensorflow_lite = {
-  .name = "tensorflow-lite",
+static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
+
+static GstTensorFilterFramework NNS_support_tensorflow_lite = {
+  .name = filter_subplugin_tensorflow_lite,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = FALSE,
   .invoke_NN = tflite_invoke,
