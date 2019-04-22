@@ -69,7 +69,7 @@ if gtest_dep.found()
     install_dir: unittest_install_dir
   )
 
-  test('unittest_sink', unittest_sink, args: ['--gst-plugin-path=..'])
+  test('unittest_sink', unittest_sink, timeout: 120, args: ['--gst-plugin-path=..'])
 
   # Run unittest_plugins
   unittest_plugins = executable('unittest_plugins',
@@ -89,7 +89,7 @@ if gtest_dep.found()
     install_dir: unittest_install_dir
   )
 
-  test('unittest_src_iio', unittest_src_iio, args: ['--gst-plugin-path=..'])
+  test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
 endif
 
 # Tizen C-API
