@@ -38,7 +38,7 @@
 #include "nnstreamer_plugin_api.h"
 
 #ifdef HAVE_ORC
-#include <orc/orc.h>
+#include <orc/orcfunctions.h>
 
 #define nns_memcpy(d,s,n) do { \
     if ((n) > 100) orc_memcpy ((d), (s), (n)); \
