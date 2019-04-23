@@ -330,11 +330,20 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
 
     meta = GST_META_REPO_GET (buf);
 
+    if (meta == NULL) {
+      GST_ELEMENT_ERROR (GST_ELEMENT (self), RESOURCE, NOT_FOUND,
+          ("Cannot get meta from buffer!"), (NULL));
+      return GST_FLOW_ERROR;
+    }
+
     if (!self->negotiation && buf != NULL) {
       if (!gst_caps_can_intersect (self->caps, meta->caps)) {
         GST_ELEMENT_ERROR (GST_ELEMENT (self), CORE, NEGOTIATION,
             ("Negotiation Failed! : repo_sink & repos_src"), (NULL));
-        gst_buffer_remove_meta (buf, (GstMeta *) meta);
+        if (!gst_buffer_remove_meta (buf, (GstMeta *) meta)) {
+          GST_ELEMENT_ERROR (GST_ELEMENT (self), RESOURCE, WRITE,
+              ("Cannot remove meta from buffer!"), (NULL));
+        }
         gst_buffer_unref (buf);
         gst_tensor_repo_set_eos (self->myid);
         return GST_FLOW_EOS;
