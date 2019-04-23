@@ -2380,14 +2380,14 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
       status = poll (self->buffer_data_fp, 1, self->poll_timeout);
       if (status < 0) {
         GST_ERROR_OBJECT (self, "Error %d while polling the buffer.", status);
-        goto error_mem_unmap;
+        goto error_data_free;
       } else if (status == 0) {
         GST_ERROR_OBJECT (self, "Timeout while polling the buffer.");
-        goto error_mem_unmap;
+        goto error_data_free;
       } else if (!(self->buffer_data_fp->revents & POLLIN)) {
         GST_ERROR_OBJECT (self, "Poll succeeded on an unexpected event %d.",
             self->buffer_data_fp->revents);
-        goto error_mem_unmap;
+        goto error_data_free;
       }
       self->buffer_data_fp->revents = 0;
     } else {
@@ -2449,8 +2449,6 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
 
 error_data_free:
   g_free (raw_data_base);
-
-error_mem_unmap:
   gst_memory_unmap (mem, &map);
 
   return GST_FLOW_ERROR;
