@@ -1099,6 +1099,11 @@ gst_gen_tensors_from_collectpad (GstCollectPads * collect,
     GstBuffer *buf;
 
     walk = g_slist_nth (walk, sync.data_basepad.sink_id);
+    if (walk == NULL) {
+      GST_ERROR_OBJECT (collect, "Cannot get GstCollectData from GSList");
+      return FALSE;
+    }
+
     data = (GstCollectData *) walk->data;
     pad = (GstTensorCollectPadData *) data;
 
