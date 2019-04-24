@@ -170,6 +170,9 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
   GObjectClass *object_class;
   GstElementClass *element_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_aggregator_debug, "tensor_aggregator", 0,
+      "Element to aggregate tensor stream");
+
   object_class = (GObjectClass *) klass;
   element_class = (GstElementClass *) klass;
 
@@ -1050,18 +1053,4 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   silent_debug_config (&self->in_config, "in-tensor");
   silent_debug_config (&self->out_config, "out-tensor");
   return TRUE;
-}
-
-/**
- * @brief Function to initialize the plugin.
- *
- * See GstPluginInitFunc() for more details.
- */
-NNSTREAMER_PLUGIN_INIT (tensor_aggregator)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_aggregator_debug, "tensor_aggregator",
-      0, "tensor_aggregator element");
-
-  return gst_element_register (plugin, "tensor_aggregator",
-      GST_RANK_NONE, GST_TYPE_TENSOR_AGGREGATOR);
 }

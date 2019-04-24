@@ -107,6 +107,9 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_split_debug, "tensor_split", 0,
+      "Element to split tensors stream to tensor stream");
+
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
 
@@ -678,20 +681,4 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_split)
-{
-  /** debug category for fltering log messages
-   * exchange the string 'Template tensor_split' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_split_debug, "tensor_split", 0,
-      "Tensor Spliter");
-  return gst_element_register (plugin, "tensor_split",
-      GST_RANK_NONE, GST_TYPE_TENSOR_SPLIT);
 }

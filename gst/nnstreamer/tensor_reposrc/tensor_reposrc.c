@@ -85,6 +85,9 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
   GstPushSrcClass *pushsrc_class = GST_PUSH_SRC_CLASS (klass);
   GstBaseSrcClass *basesrc_class = GST_BASE_SRC_CLASS (klass);
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_reposrc_debug, "tensor_reposrc", 0,
+      "Source element to handle tensor repository");
+
   gobject_class->set_property = gst_tensor_reposrc_set_property;
   gobject_class->get_property = gst_tensor_reposrc_get_property;
 
@@ -358,18 +361,4 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
   *buffer = buf;
 
   return GST_FLOW_OK;
-}
-
-/**
- * @brief Function to initialize the plugin.
- *
- * See GstPluginInitFunc() for more details.
- */
-NNSTREAMER_PLUGIN_INIT (tensor_reposrc)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_reposrc_debug, "tensor_reposrc",
-      0, "tensor_reposrc element");
-
-  return gst_element_register (plugin, "tensor_reposrc",
-      GST_RANK_NONE, GST_TYPE_TENSOR_REPOSRC);
 }

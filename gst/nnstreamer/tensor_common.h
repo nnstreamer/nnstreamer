@@ -119,10 +119,6 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
         gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL); \
     } while (0)
 
-#define NNSTREAMER_PLUGIN_INIT(name)	\
-  gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin * plugin)
-
-
 /**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.

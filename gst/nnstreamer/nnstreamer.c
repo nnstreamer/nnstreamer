@@ -46,30 +46,28 @@
 #endif
 
 #include <gst/gst.h>
-#include <gst/gstplugin.h>
 
-#define NNSTREAMER_PLUGIN(name) \
-  extern gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin *plugin)
+#include "tensor_aggregator/tensor_aggregator.h"
+#include "tensor_converter/tensor_converter.h"
+#include "tensor_decoder/tensordec.h"
+#include "tensor_demux/gsttensordemux.h"
+#include "tensor_filter/tensor_filter.h"
+#include "tensor_merge/gsttensormerge.h"
+#include "tensor_mux/gsttensormux.h"
+#include "tensor_reposink/tensor_reposink.h"
+#include "tensor_reposrc/tensor_reposrc.h"
+#include "tensor_sink/tensor_sink.h"
+#include "tensor_source/tensor_src_iio.h"
+#include "tensor_split/gsttensorsplit.h"
+#include "tensor_transform/tensor_transform.h"
 
-NNSTREAMER_PLUGIN (tensor_converter);
-NNSTREAMER_PLUGIN (tensor_aggregator);
-NNSTREAMER_PLUGIN (tensor_decoder);
-NNSTREAMER_PLUGIN (tensor_demux);
-NNSTREAMER_PLUGIN (tensor_merge);
-NNSTREAMER_PLUGIN (tensor_mux);
-NNSTREAMER_PLUGIN (tensor_sink);
-NNSTREAMER_PLUGIN (tensor_src_iio);
-NNSTREAMER_PLUGIN (tensor_split);
-NNSTREAMER_PLUGIN (tensor_transform);
-NNSTREAMER_PLUGIN (tensor_filter);
-NNSTREAMER_PLUGIN (tensor_reposink);
-NNSTREAMER_PLUGIN (tensor_reposrc);
-
-#define NNSTREAMER_INIT(name, plugin) \
+#define NNSTREAMER_INIT(plugin,name,type) \
   do { \
-    if (!G_PASTE(nnstreamer_export_, name)(plugin)) \
+    if (!gst_element_register (plugin, "tensor_" # name, GST_RANK_NONE, GST_TYPE_TENSOR_ ## type)) { \
+      GST_ERROR ("Failed to register nnstreamer plugin : tensor_" # name); \
       return FALSE; \
-  } while (0);
+    } \
+  } while (0)
 
 /**
  * @brief Function to initialize all nnstreamer elements
@@ -77,20 +75,19 @@ NNSTREAMER_PLUGIN (tensor_reposrc);
 static gboolean
 gst_nnstreamer_init (GstPlugin * plugin)
 {
-  NNSTREAMER_INIT (tensor_converter, plugin);
-  NNSTREAMER_INIT (tensor_aggregator, plugin);
-  NNSTREAMER_INIT (tensor_decoder, plugin);
-  NNSTREAMER_INIT (tensor_demux, plugin);
-  NNSTREAMER_INIT (tensor_merge, plugin);
-  NNSTREAMER_INIT (tensor_mux, plugin);
-  NNSTREAMER_INIT (tensor_sink, plugin);
-  NNSTREAMER_INIT (tensor_src_iio, plugin);
-  NNSTREAMER_INIT (tensor_split, plugin);
-  NNSTREAMER_INIT (tensor_transform, plugin);
-  NNSTREAMER_INIT (tensor_filter, plugin);
-  NNSTREAMER_INIT (tensor_reposink, plugin);
-  NNSTREAMER_INIT (tensor_reposrc, plugin);
-
+  NNSTREAMER_INIT (plugin, aggregator, AGGREGATOR);
+  NNSTREAMER_INIT (plugin, converter, CONVERTER);
+  NNSTREAMER_INIT (plugin, decoder, DECODER);
+  NNSTREAMER_INIT (plugin, demux, DEMUX);
+  NNSTREAMER_INIT (plugin, filter, FILTER);
+  NNSTREAMER_INIT (plugin, merge, MERGE);
+  NNSTREAMER_INIT (plugin, mux, MUX);
+  NNSTREAMER_INIT (plugin, reposink, REPOSINK);
+  NNSTREAMER_INIT (plugin, reposrc, REPOSRC);
+  NNSTREAMER_INIT (plugin, sink, SINK);
+  NNSTREAMER_INIT (plugin, src_iio, SRC_IIO);
+  NNSTREAMER_INIT (plugin, split, SPLIT);
+  NNSTREAMER_INIT (plugin, transform, TRANSFORM);
   return TRUE;
 }
 

@@ -143,6 +143,9 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_merge_debug, "tensor_merge", 0,
+      "Element to merge multiple tensor stream to tensor stream");
+
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
 
@@ -901,21 +904,4 @@ gst_tensor_merge_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_merge)
-{
-  /** debug category for fltering log messages
-   * exchange the string 'Template tensor_merge' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_merge_debug, "tensor_merge", 0,
-      "Tensor Merger");
-  return gst_element_register (plugin, "tensor_merge",
-      GST_RANK_NONE, GST_TYPE_TENSOR_MERGE);
 }

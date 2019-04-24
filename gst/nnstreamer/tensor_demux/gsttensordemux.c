@@ -118,6 +118,9 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_demux_debug, "tensor_demux", 0,
+      "Element to demux tensors to tensor stream");
+
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
 
@@ -589,20 +592,4 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_demux)
-{
-  /** debug category for fltering log messages
-   * exchange the string 'Template tensor_demux' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_demux_debug, "tensor_demux", 0,
-      "Tensor Demuxer");
-  return gst_element_register (plugin, "tensor_demux",
-      GST_RANK_NONE, GST_TYPE_TENSOR_DEMUX);
 }

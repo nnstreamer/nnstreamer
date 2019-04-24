@@ -314,6 +314,9 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
   GstElementClass *gstelement_class;
   GstBaseSrcClass *bsrc_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_src_iio_debug, "tensor_src_iio", 0,
+      "Source element to handle Linux Industrial I/O sensors as input");
+
   gobject_class = G_OBJECT_CLASS (klass);
   gstelement_class = GST_ELEMENT_CLASS (klass);
   bsrc_class = GST_BASE_SRC_CLASS (klass);
@@ -2484,21 +2487,4 @@ error_data_free:
   }
 
   return GST_FLOW_ERROR;
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_src_iio)
-{
-  /**
-   * debug category for filtering log messages
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_src_iio_debug, "tensor_src_iio",
-      0, "tensor_src_iio element");
-
-  return gst_element_register (plugin, "tensor_src_iio", GST_RANK_NONE,
-      GST_TYPE_TENSOR_SRC_IIO);
 }
