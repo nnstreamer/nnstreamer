@@ -38,6 +38,9 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 
+void init_il (void) __attribute__ ((constructor));
+void fini_il (void) __attribute__ ((destructor));
+
 #define DECODER_IL_TEXT_CAPS_STR \
     "text/x-raw, format = (string) utf8"
 
@@ -305,15 +308,15 @@ static TensorDecDef imageLabeling = {
 };
 
 /** @brief Initialize this object for tensordec-plugin */
-__attribute__ ((constructor))
-     void init_il (void)
+void
+init_il (void)
 {
   tensordec_probe (&imageLabeling);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-__attribute__ ((destructor))
-     void fini_il (void)
+void
+fini_il (void)
 {
   tensordec_exit (imageLabeling.modename);
 }

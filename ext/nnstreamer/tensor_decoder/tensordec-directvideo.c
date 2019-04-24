@@ -31,6 +31,9 @@
 #include <gst/video/video-format.h>
 #include <nnstreamer_plugin_api_decoder.h>
 
+void init_dv (void) __attribute__ ((constructor));
+void fini_dv (void) __attribute__ ((destructor));
+
 #define DECODER_DV_VIDEO_CAPS_STR \
     GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
     ", views = (int) 1, interlace-mode = (string) progressive"
@@ -203,15 +206,15 @@ static TensorDecDef directVideo = {
 };
 
 /** @brief Initialize this object for tensordec-plugin */
-__attribute__ ((constructor))
-     void init_dv (void)
+void
+init_dv (void)
 {
   tensordec_probe (&directVideo);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-__attribute__ ((destructor))
-     void fini_dv (void)
+void
+fini_dv (void)
 {
   tensordec_exit (directVideo.modename);
 }

@@ -373,7 +373,7 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
  * @param config Tensor Config Data
  * @return true / false
  */
-gboolean
+static gboolean
 gst_merge_tensors_config (GstTensorMerge * tensor_merge,
     GstTensorsConfig * configs, GstTensorConfig * config)
 {

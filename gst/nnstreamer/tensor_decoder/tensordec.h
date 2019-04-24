@@ -36,22 +36,24 @@
 #include <nnstreamer_plugin_api_decoder.h>
 
 G_BEGIN_DECLS
-#define GST_TYPE_TENSORDEC \
+
+#define GST_TYPE_TENSOR_DECODER \
   (gst_tensordec_get_type())
-#define GST_TENSORDEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSORDEC,GstTensorDec))
-#define GST_TENSORDEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSORDEC,GstTensorDecClass))
-#define GST_IS_TENSORDEC(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSORDEC))
-#define GST_IS_TENSORDEC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSORDEC))
-#define GST_TENSORDEC_CAST(obj)  ((GstTensorDec *)(obj))
+#define GST_TENSOR_DECODER(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TENSOR_DECODER,GstTensorDec))
+#define GST_TENSOR_DECODER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TENSOR_DECODER,GstTensorDecClass))
+#define GST_IS_TENSOR_DECODER(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_DECODER))
+#define GST_IS_TENSOR_DECODER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_DECODER))
+#define GST_TENSOR_DECODER_CAST(obj)  ((GstTensorDec *)(obj))
+
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
 
-
 #define TensorDecMaxOpNum (9)
+
 /**
  * @brief Internal data structure for tensordec instances.
  */
@@ -102,4 +104,5 @@ typedef enum
 GType gst_tensordec_get_type (void);
 
 G_END_DECLS
+
 #endif /* __GST_TENSORDEC_H__ */

@@ -32,6 +32,9 @@
 #include <string.h>
 #include <nnstreamer_conf.h>
 
+void init_filter_tf (void) __attribute__ ((constructor));
+void fini_filter_tf (void) __attribute__ ((destructor));
+
 /**
  * @brief internal data of tensorflow
  */
@@ -186,15 +189,15 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-__attribute__ ((constructor))
-     void init_filter_tf (void)
+void
+init_filter_tf (void)
 {
   tensor_filter_probe (&NNS_support_tensorflow);
 }
 
 /** @brief Destruct the subplugin */
-__attribute__ ((destructor))
-     void fini_filter_tf (void)
+void
+fini_filter_tf (void)
 {
   tensor_filter_exit (NNS_support_tensorflow.name);
 }

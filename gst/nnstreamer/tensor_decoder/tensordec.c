@@ -423,8 +423,10 @@ static void
 gst_tensordec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensorDec *self = GST_TENSORDEC (object);
+  GstTensorDec *self;
   gchar *temp_string;
+
+  self = GST_TENSOR_DECODER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -517,7 +519,9 @@ static void
 gst_tensordec_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensorDec *self = GST_TENSORDEC (object);
+  GstTensorDec *self;
+
+  self = GST_TENSOR_DECODER (object);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -550,10 +554,12 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
 static void
 gst_tensordec_class_finalize (GObject * object)
 {
-  GstTensorDec *decoder = GST_TENSORDEC (object);
+  GstTensorDec *self;
 
-  if (decoder->cleanup_plugin_data) {
-    decoder->cleanup_plugin_data (&decoder->plugin_data);
+  self = GST_TENSOR_DECODER (object);
+
+  if (self->cleanup_plugin_data) {
+    self->cleanup_plugin_data (&self->plugin_data);
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -615,7 +621,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
   GstTensorDec *self;
   GstFlowReturn res;
 
-  self = GST_TENSORDEC_CAST (trans);
+  self = GST_TENSOR_DECODER_CAST (trans);
 
   if (G_UNLIKELY (!self->negotiated))
     goto unknown_tensor;
@@ -682,7 +688,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
   GstTensorDec *self;
   GstCaps *result;
 
-  self = GST_TENSORDEC_CAST (trans);
+  self = GST_TENSOR_DECODER_CAST (trans);
 
   /* Not ready */
   if (self->decoder == NULL)
@@ -738,7 +744,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
   GstCaps *supposed;
   GstCaps *result;
 
-  self = GST_TENSORDEC_CAST (trans);
+  self = GST_TENSOR_DECODER_CAST (trans);
 
   silent_debug_caps (caps, "from caps");
   silent_debug_caps (othercaps, "from othercaps");
@@ -789,7 +795,7 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
 {
   GstTensorDec *self;
 
-  self = GST_TENSORDEC_CAST (trans);
+  self = GST_TENSOR_DECODER_CAST (trans);
   self->negotiated = TRUE;
 
   silent_debug_caps (incaps, "from incaps");
@@ -829,7 +835,7 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
   if (direction == GST_PAD_SRC)
     return FALSE;
   /** @todo If direction = SRC, you may need different interpretation! */
-  self = GST_TENSORDEC_CAST (trans);
+  self = GST_TENSOR_DECODER_CAST (trans);
 
   g_assert (self->configured);
 
@@ -861,5 +867,5 @@ NNSTREAMER_PLUGIN_INIT (tensor_decoder)
       0, "Element to convert tensor to media stream");
 
   return gst_element_register (plugin, "tensor_decoder", GST_RANK_NONE,
-      GST_TYPE_TENSORDEC);
+      GST_TYPE_TENSOR_DECODER);
 }
