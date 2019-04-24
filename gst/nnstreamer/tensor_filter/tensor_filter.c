@@ -60,6 +60,7 @@
 #include <string.h>
 
 #include "tensor_filter.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 /**
  * @brief Macro for debug mode.

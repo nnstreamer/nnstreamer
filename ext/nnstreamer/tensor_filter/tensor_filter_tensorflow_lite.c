@@ -31,6 +31,9 @@
 #include <glib.h>
 #include <string.h>
 
+void init_filter_tflite (void) __attribute__ ((constructor));
+void fini_filter_tflite (void) __attribute__ ((destructor));
+
 /**
  * @brief internal data of tensorflow lite
  */
@@ -172,15 +175,15 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-__attribute__ ((constructor))
-     void init_filter_tflite (void)
+void
+init_filter_tflite (void)
 {
   tensor_filter_probe (&NNS_support_tensorflow_lite);
 }
 
 /** @brief Destruct the subplugin */
-__attribute__ ((destructor))
-     void fini_filter_tflite (void)
+void
+fini_filter_tflite (void)
 {
   tensor_filter_exit (NNS_support_tensorflow_lite.name);
 }

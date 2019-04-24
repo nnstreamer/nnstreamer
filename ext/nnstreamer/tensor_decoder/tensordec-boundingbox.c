@@ -58,6 +58,9 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 
+void init_bb (void) __attribute__ ((constructor));
+void fini_bb (void) __attribute__ ((destructor));
+
 #define BOX_SIZE                  4
 #define TFLITE_SSD_DETECTION_MAX  1917
 #define TFLITE_SSD_MAX_TENSORS    2
@@ -1015,15 +1018,15 @@ static TensorDecDef boundingBox = {
 };
 
 /** @brief Initialize this object for tensordec-plugin */
-__attribute__ ((constructor))
-     void init_bb (void)
+void
+init_bb (void)
 {
   tensordec_probe (&boundingBox);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-__attribute__ ((destructor))
-     void fini_bb (void)
+void
+fini_bb (void)
 {
   tensordec_exit (boundingBox.modename);
 }
