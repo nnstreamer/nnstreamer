@@ -41,7 +41,6 @@ decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 unittest_install_dir = join_paths(subplugin_install_prefix, 'unittest')
 
-
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
 nnstreamer_conf.set('LIB_INSTALL_DIR', nnstreamer_libdir)
@@ -78,35 +77,26 @@ else
 endif
 
 # NO Video support
-disable_video = false
-
 if get_option('disable-video-support')
-   disable_audio = true
-   add_project_arguments('-DNO_VIDEO=1', language: ['c', 'cpp'])
-   message('Disable Video Type Support')
+  add_project_arguments('-DNO_VIDEO=1', language: ['c', 'cpp'])
+  message('Disable Video Type Support')
 endif
 
 # NO Audio support
-disable_audio = false
-
 if get_option('disable-audio-support')
-   disable_audio = true
-   add_project_arguments('-DNO_AUDIO=1', language: ['c', 'cpp'])
-   message('Disable Audio Type Support')
+  add_project_arguments('-DNO_AUDIO=1', language: ['c', 'cpp'])
+  message('Disable Audio Type Support')
 endif
 
 # Tensorflow
-have_tensorflow = false
-
 if get_option('enable-tensorflow')
   tf_dep = dependency('tensorflow', required: true)
   protobuf_dep = dependency('protobuf', version: '>= 3.4.0', required: true)
 
   if tf_dep.found() and protobuf_dep.found()
-    have_tensorflow = true
     add_project_arguments('-DENABLE_TENSORFLOW=1', language: ['c', 'cpp'])
   else
-    message('Cannot find tensorflow')
+    error('Cannot find tensorflow')
   endif
 
   nnstreamer_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
@@ -116,16 +106,13 @@ else
 endif
 
 # Tensorflow-lite
-have_tensorflow_lite = false
-
 if get_option('enable-tensorflow-lite')
   tflite_dep = dependency('tensorflow-lite', required: true)
 
   if tflite_dep.found()
-    have_tensorflow_lite = true
     add_project_arguments('-DENABLE_TENSORFLOW_LITE=1', language: ['c', 'cpp'])
   else
-    message('Cannot find tensorflow-lite')
+    error('Cannot find tensorflow-lite')
   endif
 endif
 

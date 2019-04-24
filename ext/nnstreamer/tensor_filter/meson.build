@@ -1,4 +1,4 @@
-if have_tensorflow
+if get_option('enable-tensorflow')
   filter_sub_tf_sources = [
     'tensor_filter_tensorflow.c',
     'tensor_filter_tensorflow_core.cc'
@@ -28,7 +28,7 @@ if have_tensorflow
   )
 endif
 
-if have_tensorflow_lite
+if get_option('enable-tensorflow-lite')
   filter_sub_tflite_sources = [
     'tensor_filter_tensorflow_lite.c',
     'tensor_filter_tensorflow_lite_core.cc'
