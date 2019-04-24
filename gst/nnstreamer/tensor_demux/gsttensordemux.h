@@ -32,6 +32,7 @@
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
+
 #define GST_TYPE_TENSOR_DEMUX (gst_tensor_demux_get_type ())
 #define GST_TENSOR_DEMUX(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_TENSOR_DEMUX, GstTensorDemux))
 #define GST_TENSOR_DEMUX_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_TENSOR_DEMUX, GstTensorDemuxClass))
@@ -39,16 +40,9 @@ G_BEGIN_DECLS
 #define GST_IS_TENSOR_DEMUX(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_DEMUX))
 #define GST_IS_TENSOR_DEMUX_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_DEMUX))
 #define GST_TENSOR_DEMUX_CAST(obj)((GstTensorDemux*)(obj))
+
 typedef struct _GstTensorDemux GstTensorDemux;
 typedef struct _GstTensorDemuxClass GstTensorDemuxClass;
-
-typedef struct
-{
-  GstPad *pad;
-  GstClockTime last_ts;
-  GstFlowReturn last_ret;
-  gint nth;
-} GstTensorPad;
 
 /**
  * @brief Tensor Muxer data structure
@@ -82,4 +76,5 @@ struct _GstTensorDemuxClass
 GType gst_tensor_demux_get_type (void);
 
 G_END_DECLS
+
 #endif  /** __GST_TENSOR_DEMUX_H__ **/

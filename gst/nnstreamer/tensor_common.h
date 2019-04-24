@@ -96,6 +96,17 @@ typedef struct
 } GstTensorCollectPadData;
 
 /**
+ * @brief Internal data structure for pad in demux / split
+ */
+typedef struct
+{
+  GstPad *pad;
+  GstClockTime last_ts;
+  GstFlowReturn last_ret;
+  gint nth;
+} GstTensorPad;
+
+/**
  * @brief A callback for typefind, trying to find whether a file is other/tensors or not.
  * For the concrete definition of headers, please look at the wiki page of nnstreamer:
  * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
