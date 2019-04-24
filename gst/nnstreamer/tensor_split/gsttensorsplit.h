@@ -44,15 +44,6 @@ G_BEGIN_DECLS
 typedef struct _GstTensorSplit GstTensorSplit;
 typedef struct _GstTensorSplitClass GstTensorSplitClass;
 
-/** @todo consider to move this to common header */
-typedef struct
-{
-  GstPad *pad;
-  GstClockTime last_ts;
-  GstFlowReturn last_ret;
-  gint nth;
-} GstTensorPad;
-
 /**
  * @brief Tensor Spliter data structure
  */
