@@ -157,6 +157,9 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   GstElementClass *element_class;
   GstBaseSinkClass *bsink_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_sink_debug, "tensor_sink", 0,
+      "Sink element to handle tensor stream");
+
   gobject_class = G_OBJECT_CLASS (klass);
   element_class = GST_ELEMENT_CLASS (klass);
   bsink_class = GST_BASE_SINK_CLASS (klass);
@@ -743,18 +746,4 @@ gst_tensor_sink_get_silent (GstTensorSink * self)
   g_return_val_if_fail (GST_IS_TENSOR_SINK (self), TRUE);
 
   return self->silent;
-}
-
-/**
- * @brief Function to initialize the plugin.
- *
- * See GstPluginInitFunc() for more details.
- */
-NNSTREAMER_PLUGIN_INIT (tensor_sink)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_sink_debug, "tensor_sink",
-      0, "tensor_sink element");
-
-  return gst_element_register (plugin, "tensor_sink",
-      GST_RANK_NONE, GST_TYPE_TENSOR_SINK);
 }

@@ -220,6 +220,9 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_transform_debug, "tensor_transform", 0,
+      "Element to transforms tensor dimension or type");
+
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
@@ -1749,21 +1752,4 @@ gst_tensor_transform_transform_size (GstBaseTransform * trans,
    */
   *othersize = gst_tensor_info_get_size (&filter->out_config.info);
   return TRUE;
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_transform)
-{
-  /**
-   * debug category for fltering log messages
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_transform_debug, "tensor_transform",
-      0, "tensor_transform element");
-
-  return gst_element_register (plugin, "tensor_transform",
-      GST_RANK_NONE, GST_TYPE_TENSOR_TRANSFORM);
 }

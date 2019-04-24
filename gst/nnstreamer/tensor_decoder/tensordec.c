@@ -261,6 +261,9 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensor_decoder", 0,
+      "Element to convert tensor to media stream");
+
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
@@ -851,21 +854,4 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
 
   GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
   return FALSE;
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_decoder)
-{
-  /**
-   * debug category for fltering log messages
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensor_decoder",
-      0, "Element to convert tensor to media stream");
-
-  return gst_element_register (plugin, "tensor_decoder", GST_RANK_NONE,
-      GST_TYPE_TENSOR_DECODER);
 }

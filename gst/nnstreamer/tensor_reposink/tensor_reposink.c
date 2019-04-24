@@ -96,6 +96,10 @@ gst_tensor_reposink_class_init (GstTensorRepoSinkClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *element_class;
   GstBaseSinkClass *basesink_class;
+
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_reposink_debug, "tensor_reposink", 0,
+      "Sink element to handle tensor repository");
+
   gobject_class = G_OBJECT_CLASS (klass);
   element_class = GST_ELEMENT_CLASS (klass);
   basesink_class = GST_BASE_SINK_CLASS (klass);
@@ -436,19 +440,4 @@ gst_tensor_reposink_get_caps (GstBaseSink * sink, GstCaps * filter)
   }
 
   return caps;
-}
-
-
-/**
- * @brief Function to initialize the plugin.
- *
- * See GstPluginInitFunc() for more details.
- */
-NNSTREAMER_PLUGIN_INIT (tensor_reposink)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_reposink_debug, "tensor_reposink",
-      0, "tensor_reposink element");
-
-  return gst_element_register (plugin, "tensor_reposink",
-      GST_RANK_NONE, GST_TYPE_TENSOR_REPOSINK);
 }

@@ -156,6 +156,9 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   GstPadTemplate *pad_template;
   GstCaps *pad_caps;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter", 0,
+      "Element to convert media stream to tensor stream");
+
   object_class = (GObjectClass *) klass;
   element_class = (GstElementClass *) klass;
 
@@ -1489,18 +1492,4 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   self->tensor_configured = TRUE;
   self->tensor_config = config;
   return TRUE;
-}
-
-/**
- * @brief Function to initialize the plugin.
- *
- * See GstPluginInitFunc() for more details.
- */
-NNSTREAMER_PLUGIN_INIT (tensor_converter)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter",
-      0, "tensor_converter element");
-
-  return gst_element_register (plugin, "tensor_converter",
-      GST_RANK_NONE, GST_TYPE_TENSOR_CONVERTER);
 }

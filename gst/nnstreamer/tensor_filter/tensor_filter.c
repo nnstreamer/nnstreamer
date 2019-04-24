@@ -261,6 +261,9 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_filter_debug, "tensor_filter", 0,
+      "Tensor filter to invoke neural network model");
+
   trans_class = (GstBaseTransformClass *) klass;
   gstelement_class = (GstElementClass *) trans_class;
   gobject_class = (GObjectClass *) gstelement_class;
@@ -1367,21 +1370,4 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
 
   gst_tensor_filter_close_fw (self);
   return TRUE;
-}
-
-/**
- * @brief entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-NNSTREAMER_PLUGIN_INIT (tensor_filter)
-{
-  /**
-   * debug category for filtering log messages
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_tensor_filter_debug, "tensor_filter",
-      0, "tensor_filter element");
-
-  return gst_element_register (plugin, "tensor_filter", GST_RANK_NONE,
-      GST_TYPE_TENSOR_FILTER);
 }
