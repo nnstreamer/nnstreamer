@@ -1004,7 +1004,7 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     if (info1->num_tensors > i) {
       dimstr = gst_tensor_get_dimension_string (info1->info[i].dimension);
       left = g_strdup_printf ("%s [%s]",
-          tensor_element_typename[info1->info[i].type], dimstr);
+          gst_tensor_get_type_string (info1->info[i].type), dimstr);
       g_free (dimstr);
     } else {
       left = null;
@@ -1013,7 +1013,7 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     if (info2->num_tensors > i) {
       dimstr = gst_tensor_get_dimension_string (info2->info[i].dimension);
       right = g_strdup_printf ("%s [%s]",
-          tensor_element_typename[info2->info[i].type], dimstr);
+          gst_tensor_get_type_string (info2->info[i].type), dimstr);
       g_free (dimstr);
     } else {
       right = null;

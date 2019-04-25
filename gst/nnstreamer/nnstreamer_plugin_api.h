@@ -33,11 +33,6 @@
 G_BEGIN_DECLS
 
 /**
- * @brief String representations for each tensor element type.
- */
-extern const gchar *tensor_element_typename[];
-
-/**
  * @brief Initialize the tensor info structure
  * @param info tensor info structure to be initialized
  */
@@ -308,12 +303,18 @@ extern gsize
 gst_tensor_get_element_count (const tensor_dim dim);
 
 /**
- * @brief Get tensor_type from string tensor_type input
+ * @brief Get tensor type from string input.
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
 extern tensor_type
 gst_tensor_get_type (const gchar * typestr);
+
+/**
+ * @brief Get type string of tensor type.
+ */
+extern const gchar *
+gst_tensor_get_type_string (tensor_type type);
 
 /**
  * @brief Find the index value of the given key string array
