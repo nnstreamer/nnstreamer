@@ -382,7 +382,7 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
     case PROP_INPUT_TYPE:
       if (self->tensor_info.type != _NNS_END) {
         g_value_set_string (value,
-            tensor_element_typename[self->tensor_info.type]);
+            gst_tensor_get_type_string (self->tensor_info.type));
       } else {
         g_value_set_string (value, "");
       }

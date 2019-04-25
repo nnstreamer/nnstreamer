@@ -29,7 +29,7 @@
 /**
  * @brief String representations for each tensor element type.
  */
-const gchar *tensor_element_typename[] = {
+static const gchar *tensor_element_typename[] = {
   [_NNS_INT32] = "int32",
   [_NNS_UINT32] = "uint32",
   [_NNS_INT16] = "int16",
@@ -480,7 +480,7 @@ gst_tensors_info_get_types_string (const GstTensorsInfo * info)
     GString *types = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      g_string_append (types, tensor_element_typename[info->info[i].type]);
+      g_string_append (types, gst_tensor_get_type_string (info->info[i].type));
 
       if (i < info->num_tensors - 1) {
         g_string_append (types, ",");
@@ -639,7 +639,7 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
 
   if (config->info.type != _NNS_END) {
     gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-        tensor_element_typename[config->info.type], NULL);
+        gst_tensor_get_type_string (config->info.type), NULL);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -920,7 +920,7 @@ gst_tensor_get_element_count (const tensor_dim dim)
 }
 
 /**
- * @brief Get tensor_type from string tensor_type input
+ * @brief Get tensor type from string input.
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
@@ -984,6 +984,15 @@ gst_tensor_get_type (const gchar * typestr)
 
   g_free (type_string);
   return type;
+}
+
+/**
+ * @brief Get type string of tensor type.
+ */
+const gchar *
+gst_tensor_get_type_string (tensor_type type)
+{
+  return tensor_element_typename[type];
 }
 
 /**

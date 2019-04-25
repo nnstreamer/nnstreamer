@@ -803,7 +803,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("appsrc name=appsrc caps=text/x-raw,format=utf8 ! "
           "tensor_converter input-dim=10 ! tensor_transform mode=typecast option=%s ! tensor_sink name=test_sink",
-          tensor_element_typename[option.t_type]);
+          gst_tensor_get_type_string (option.t_type));
       break;
     case TEST_TYPE_ISSUE739_MUX_PARALLEL_1:
       /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
