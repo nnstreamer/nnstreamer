@@ -107,14 +107,38 @@ typedef struct
 } GstTensorPad;
 
 /**
+ * @brief Get the corresponding mode from the string value.
+ * @param[in] str The string value for the mode.
+ * @return Corresponding mode for the string. SYNC_END for errors.
+ */
+extern tensor_time_sync_mode
+gst_tensor_time_sync_get_mode (const gchar * str);
+
+/**
+ * @brief Get the time-sync mode string.
+ * @return Corresponding mode string.
+ */
+extern const gchar *
+gst_tensor_time_sync_get_mode_string (tensor_time_sync_mode mode);
+
+/**
+ * @brief Setup time sync option.
+ * @param[in/out] filter "this" pointer. sync_mode & option MUST BE set already.
+ * @return True if successfully set the option.
+ */
+extern gboolean
+gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync);
+
+/**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.
- * @return True / False if EOS, it return TRUE.
+ * @return True / False. If EOS, it return TRUE.
  * @param collect Collect pad.
- * @param current_time Current time
  * @param sync Synchronization Option (NOSYNC, SLOWEST, BASEPAD, END)
+ * @param current_time Current time
  */
-extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTime *current_time, tensor_time_sync_data sync);
+extern gboolean
+gst_tensor_time_sync_get_current_time (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime * current_time);
 
 /**
  * @brief  A function call to make tensors from collected pads
@@ -127,7 +151,8 @@ extern gboolean gst_tensor_set_current_time(GstCollectPads *collect, GstClockTim
  * @param tensors_buf Generated GstBuffer for Collected Buffer
  * @param configs Configuration Info for Collected Buffer
  */
-extern gboolean gst_gen_tensors_from_collectpad (GstCollectPads * collect, tensor_time_sync_data sync, GstClockTime current_time, gboolean *need_buffer, GstBuffer *tensors_buf, GstTensorsConfig *configs);
+extern gboolean
+gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, gboolean * need_buffer, GstBuffer * tensors_buf, GstTensorsConfig * configs);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */

@@ -91,13 +91,6 @@ enum
   PROP_SILENT,
 };
 
-static const gchar *gst_tensor_time_sync_mode_string[] = {
-  [SYNC_NOSYNC] = "nosync",
-  [SYNC_SLOWEST] = "slowest",
-  [SYNC_BASEPAD] = "basepad",
-  [SYNC_END] = "error"
-};
-
 /**
  * @brief the capabilities of the inputs and outputs.
  * describe the real formats here.
@@ -266,6 +259,7 @@ static void
 gst_tensor_merge_finalize (GObject * object)
 {
   GstTensorMerge *tensor_merge;
+
   tensor_merge = GST_TENSOR_MERGE (object);
 
   if (tensor_merge->collect) {
@@ -276,6 +270,11 @@ gst_tensor_merge_finalize (GObject * object)
   if (tensor_merge->option) {
     g_free (tensor_merge->option);
     tensor_merge->option = NULL;
+  }
+
+  if (tensor_merge->sync.option) {
+    g_free (tensor_merge->sync.option);
+    tensor_merge->sync.option = NULL;
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -377,7 +376,7 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
  * @return true / false
  */
 static gboolean
-gst_merge_tensors_config (GstTensorMerge * tensor_merge,
+gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     GstTensorsConfig * configs, GstTensorConfig * config)
 {
   gboolean ret = FALSE;
@@ -434,17 +433,20 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     GstBuffer * tensors_buf, GstClockTime * pts_time, GstClockTime * dts_time)
 {
   gboolean isEOS = FALSE;
+
   if (tensor_merge->sync.mode && tensor_merge->need_set_time) {
-    if (gst_tensor_set_current_time (tensor_merge->collect,
-            &tensor_merge->current_time, tensor_merge->sync))
+    if (gst_tensor_time_sync_get_current_time (tensor_merge->collect,
+            &tensor_merge->sync, &tensor_merge->current_time)) {
+      /* end-of-stream */
       return TRUE;
+    }
 
     tensor_merge->need_set_time = FALSE;
   }
 
   isEOS =
-      gst_gen_tensors_from_collectpad (tensor_merge->collect,
-      tensor_merge->sync, tensor_merge->current_time,
+      gst_tensor_time_sync_buffer_from_collectpad (tensor_merge->collect,
+      &tensor_merge->sync, tensor_merge->current_time,
       &tensor_merge->need_buffer, tensors_buf, &tensor_merge->tensors_config);
 
   if (tensor_merge->need_buffer)
@@ -650,8 +652,8 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     GstCaps *newcaps;
     GstTensorConfig config;
 
-    if (gst_merge_tensors_config (tensor_merge, &tensor_merge->tensors_config,
-            &config)) {
+    if (gst_tensor_merge_get_merged_config (tensor_merge,
+            &tensor_merge->tensors_config, &config)) {
       g_assert (gst_tensor_config_validate (&config));
       newcaps = gst_tensor_caps_from_config (&config);
     } else {
@@ -779,61 +781,6 @@ gst_tensor_merge_set_option_data (GstTensorMerge * filter)
 }
 
 /**
- * @brief Get the corresponding mode from the string value
- * @param[in] str The string value for the mode
- * @return corresponding mode for the string. SYNC_END for errors
- */
-static tensor_time_sync_mode
-gst_tensor_get_time_sync_mode (const gchar * str)
-{
-  int index;
-
-  index = find_key_strv (gst_tensor_time_sync_mode_string, str);
-
-  return (index < 0) ? SYNC_END : index;
-}
-
-/**
- * @brief Setup internal data (data_* in GstTensorMux)
- * @param[in/out] filter "this" pointer. sync_mode & option MUST BE set already.
- */
-static void
-gst_tensor_set_time_sync_option_data (GstTensorMerge * filter)
-{
-  if (filter->sync.mode == SYNC_END || filter->sync.option == NULL)
-    return;
-
-  switch (filter->sync.mode) {
-    case SYNC_NOSYNC:
-      break;
-    case SYNC_SLOWEST:
-      break;
-    case SYNC_BASEPAD:
-    {
-      guint sink_id;
-      guint duration;
-      gchar **strv = g_strsplit (filter->sync.option, ":", 2);
-      if (strv[0] != NULL)
-        sink_id = g_ascii_strtoull (strv[0], NULL, 10);
-      else
-        sink_id = 0;
-
-      if (strv[1] != NULL)
-        duration = g_ascii_strtoull (strv[1], NULL, 10);
-      else
-        duration = G_MAXINT;
-
-      filter->sync.data_basepad.sink_id = sink_id;
-      filter->sync.data_basepad.duration = duration;
-      g_strfreev (strv);
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-/**
  * @brief Get property (gst element vmethod)
  */
 static void
@@ -856,18 +803,18 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
       break;
     case PROP_SYNC_MODE:
       filter->sync.mode =
-          gst_tensor_get_time_sync_mode (g_value_get_string (value));
+          gst_tensor_time_sync_get_mode (g_value_get_string (value));
       if (filter->sync.mode == SYNC_END) {
         filter->sync.mode = SYNC_NOSYNC;
       }
       silent_debug ("Mode = %d(%s)\n", filter->sync.mode,
-          gst_tensor_time_sync_mode_string[filter->sync.mode]);
-      gst_tensor_set_time_sync_option_data (filter);
+          gst_tensor_time_sync_get_mode_string (filter->sync.mode));
+      gst_tensor_time_sync_set_option_data (&filter->sync);
       break;
     case PROP_SYNC_OPTION:
       filter->sync.option = g_value_dup_string (value);
       silent_debug ("Option = %s\n", filter->sync.option);
-      gst_tensor_set_time_sync_option_data (filter);
+      gst_tensor_time_sync_set_option_data (&filter->sync);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -895,7 +842,7 @@ gst_tensor_merge_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SYNC_MODE:
       g_value_set_string (value,
-          gst_tensor_time_sync_mode_string[filter->sync.mode]);
+          gst_tensor_time_sync_get_mode_string (filter->sync.mode));
       break;
     case PROP_SYNC_OPTION:
       g_value_set_string (value, filter->sync.option);
