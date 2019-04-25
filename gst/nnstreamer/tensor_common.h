@@ -107,19 +107,6 @@ typedef struct
 } GstTensorPad;
 
 /**
- * @brief A callback for typefind, trying to find whether a file is other/tensors or not.
- * For the concrete definition of headers, please look at the wiki page of nnstreamer:
- * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
- */
-extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
-
-#define GST_TENSOR_TYPEFIND_REGISTER(plugin)  do { \
-    gst_type_find_register (plugin, "other/tensorsave", \
-        GST_RANK_PRIMARY, gst_tensors_typefind_function, "tnsr", \
-        gst_caps_new_simple ("other/tensorsave", NULL, NULL), NULL, NULL); \
-    } while (0)
-
-/**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.
  * @return True / False if EOS, it return TRUE.

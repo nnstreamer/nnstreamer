@@ -1008,26 +1008,6 @@ find_key_strv (const gchar ** strv, const gchar * key)
 }
 
 /**
- * @brief A callback for typefind, trying to find whether a file is other/tensors or not.
- * For the concrete definition of headers, please look at the wiki page of nnstreamer:
- * https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind
- */
-void
-gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata)
-{
-  const guint8 *data = gst_type_find_peek (tf, 0, 40);  /* The first 40 bytes are header-0 in v.1 protocol */
-  const char formatstr[] = "TENSORST";
-  const unsigned int *supported_version = (const unsigned int *) (&data[8]);
-  const unsigned int *num_tensors = (const unsigned int *) (&data[12]);
-  if (data &&
-      memcmp (data, formatstr, 8) == 0 &&
-      *supported_version == 1 && *num_tensors <= 16 && *num_tensors >= 1) {
-    gst_type_find_suggest (tf, GST_TYPE_FIND_MAXIMUM,
-        gst_caps_new_simple ("other/tensorsave", NULL, NULL));
-  }
-}
-
-/**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.
  */
