@@ -321,7 +321,8 @@ gst_tensor_get_type (const gchar * typestr);
  * @param strv Null terminated array of gchar *
  * @param key The key string value
  */
-extern int find_key_strv (const gchar ** strv, const gchar * key);
+extern gint
+find_key_strv (const gchar ** strv, const gchar * key);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
