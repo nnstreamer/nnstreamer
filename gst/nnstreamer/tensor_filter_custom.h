@@ -36,6 +36,7 @@
 
 #include <stdint.h>
 #include "tensor_typedef.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 /**
  * @brief A function that is called before calling other functions.

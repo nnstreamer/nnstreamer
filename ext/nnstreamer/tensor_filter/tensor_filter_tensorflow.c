@@ -26,11 +26,11 @@
  *
  */
 
-#include <nnstreamer_plugin_api_filter.h>
-#include "tensor_filter_tensorflow_core.h"
 #include <glib.h>
 #include <string.h>
-#include <nnstreamer_conf.h>
+
+#include "nnstreamer_conf.h"
+#include "tensor_filter_tensorflow_core.h"
 
 void init_filter_tf (void) __attribute__ ((constructor));
 void fini_filter_tf (void) __attribute__ ((destructor));
@@ -192,12 +192,12 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
 void
 init_filter_tf (void)
 {
-  tensor_filter_probe (&NNS_support_tensorflow);
+  nnstreamer_filter_probe (&NNS_support_tensorflow);
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_tf (void)
 {
-  tensor_filter_exit (NNS_support_tensorflow.name);
+  nnstreamer_filter_exit (NNS_support_tensorflow.name);
 }

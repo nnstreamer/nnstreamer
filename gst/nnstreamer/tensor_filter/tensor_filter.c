@@ -60,7 +60,6 @@
 #include <string.h>
 
 #include "tensor_filter.h"
-#include "nnstreamer_plugin_api_filter.h"
 
 /**
  * @brief Macro for debug mode.
@@ -116,7 +115,7 @@
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
 int
-tensor_filter_probe (GstTensorFilterFramework * tfsp)
+nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 {
   return register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
 }
@@ -126,7 +125,7 @@ tensor_filter_probe (GstTensorFilterFramework * tfsp)
  * @param[in] name the name of filter sub-plugin
  */
 void
-tensor_filter_exit (const char *name)
+nnstreamer_filter_exit (const char *name)
 {
   unregister_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
@@ -137,7 +136,7 @@ tensor_filter_exit (const char *name)
  * @return NULL if not found or the sub-plugin object.
  */
 static const GstTensorFilterFramework *
-tensor_filter_find (const gchar * name)
+nnstreamer_filter_find (const gchar * name)
 {
   return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
@@ -459,7 +458,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       if (self->fw != NULL) {
         gst_tensor_filter_close_fw (self);
       }
-      self->fw = tensor_filter_find (fw_name);
+      self->fw = nnstreamer_filter_find (fw_name);
 
       silent_debug ("Framework = %s\n", fw_name);
       if (self->fw == NULL) {

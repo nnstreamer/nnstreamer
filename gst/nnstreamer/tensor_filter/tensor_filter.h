@@ -33,8 +33,10 @@
 #include <gst/gst.h>
 #include <gst/gstinfo.h>
 #include <gst/base/gstbasetransform.h>
-#include <tensor_common.h>
-#include <nnstreamer_subplugin.h>
+
+#include "tensor_common.h"
+#include "nnstreamer_subplugin.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 G_BEGIN_DECLS
 

@@ -23,9 +23,10 @@
 #ifndef TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
 #define TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
 
-#include <tensor_typedef.h>
 #include <glib.h>
 #include <gst/gst.h>
+
+#include "nnstreamer_plugin_api_filter.h"
 
 #ifdef __cplusplus
 #include <iostream>

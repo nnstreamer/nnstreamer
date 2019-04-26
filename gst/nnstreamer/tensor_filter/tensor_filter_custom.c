@@ -27,10 +27,11 @@
  */
 
 #include <gst/gst.h>
-#include "tensor_filter_custom.h"
-#include <nnstreamer_plugin_api_filter.h>
 #include <glib.h>
 #include <dlfcn.h>
+
+#include "tensor_filter_custom.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 void init_filter_custom (void) __attribute__ ((constructor));
 void fini_filter_custom (void) __attribute__ ((destructor));
@@ -253,12 +254,12 @@ static GstTensorFilterFramework NNS_support_custom = {
 void
 init_filter_custom (void)
 {
-  tensor_filter_probe (&NNS_support_custom);
+  nnstreamer_filter_probe (&NNS_support_custom);
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_custom (void)
 {
-  tensor_filter_exit (NNS_support_custom.name);
+  nnstreamer_filter_exit (NNS_support_custom.name);
 }
