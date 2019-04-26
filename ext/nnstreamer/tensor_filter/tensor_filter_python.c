@@ -29,6 +29,9 @@
 #include <string.h>
 #include <nnstreamer_conf.h>
 
+void init_filter_py (void) __attribute__ ((constructor));
+void fini_filter_py (void) __attribute__ ((destructor));
+
 /**
  * @brief internal data of python
  */
@@ -228,16 +231,16 @@ GstTensorFilterFramework _NNS_support_python = {
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-__attribute__ ((constructor))
-     void init_filter_py (void)
+void
+init_filter_py (void)
 {
   NNS_support_python = &_NNS_support_python;
-  tensor_filter_probe (NNS_support_python);
+  nnstreamer_filter_probe (NNS_support_python);
 }
 
 /** @brief Destruct the subplugin */
-__attribute__ ((destructor))
-     void fini_filter_py (void)
+void
+fini_filter_py (void)
 {
-  tensor_filter_exit (NNS_support_python->name);
+  nnstreamer_filter_exit (NNS_support_python->name);
 }

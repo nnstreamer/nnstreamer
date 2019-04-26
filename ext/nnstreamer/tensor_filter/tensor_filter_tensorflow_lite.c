@@ -26,10 +26,10 @@
  *
  */
 
-#include <nnstreamer_plugin_api_filter.h>
-#include "tensor_filter_tensorflow_lite_core.h"
 #include <glib.h>
 #include <string.h>
+
+#include "tensor_filter_tensorflow_lite_core.h"
 
 void init_filter_tflite (void) __attribute__ ((constructor));
 void fini_filter_tflite (void) __attribute__ ((destructor));
@@ -178,12 +178,12 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
 void
 init_filter_tflite (void)
 {
-  tensor_filter_probe (&NNS_support_tensorflow_lite);
+  nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_tflite (void)
 {
-  tensor_filter_exit (NNS_support_tensorflow_lite.name);
+  nnstreamer_filter_exit (NNS_support_tensorflow_lite.name);
 }
