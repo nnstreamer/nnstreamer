@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file  nnstreamer_plugin_api_filters.h
+ * @file  nnstreamer_plugin_api_decoder.h
  * @date  30 Jan 2019
  * @brief Mandatory APIs for NNStreamer Decoder sub-plugins (Need Gst Devel)
  * @see https://github.com/nnsuite/nnstreamer
@@ -42,7 +42,7 @@ typedef enum
  * @brief Decoder definitions for different semantics of tensors
  *        This allows developers to create their own decoders.
  */
-typedef struct _TensorDecDef
+typedef struct _GstTensorDecoderDef
 {
   char *modename;
       /**< Unique decoder name. GST users choose decoders with mode="modename". */
@@ -69,19 +69,22 @@ typedef struct _TensorDecDef
       GstCaps *caps, size_t size, GstCaps *othercaps,
       GstPadDirection direction);
       /**< EXPERIMENTAL! @todo We are not ready to use this. This should be NULL or return 0 */
-} TensorDecDef;
+} GstTensorDecoderDef;
 
 /* extern functions for subplugin management, exist in tensor_decoder.c */
 /**
  * @brief decoder's subplugins should call this function to register
  * @param[in] decoder The decoder subplugin instance
  */
-extern gboolean tensordec_probe (TensorDecDef * decoder);
+extern gboolean
+nnstreamer_decoder_probe (GstTensorDecoderDef * decoder);
+
 /**
  * @brief decoder's subplugin may call this to unregister
  * @param[in] name the name of decoder (modename)
  */
-extern void tensordec_exit (const gchar * name);
+extern void
+nnstreamer_decoder_exit (const gchar * name);
 
 
 #endif /* __NNS_PLUGIN_API_DECODER_H__ */

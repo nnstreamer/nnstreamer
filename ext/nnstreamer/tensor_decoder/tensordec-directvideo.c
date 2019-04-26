@@ -38,7 +38,7 @@ void fini_dv (void) __attribute__ ((destructor));
     GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
     ", views = (int) 1, interlace-mode = (string) progressive"
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 dv_init (void **pdata)
 {
@@ -46,7 +46,7 @@ dv_init (void **pdata)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static void
 dv_exit (void **pdata)
 {
@@ -54,7 +54,7 @@ dv_exit (void **pdata)
   return;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 dv_setOption (void **pdata, int opNum, const char *param)
 {
@@ -62,7 +62,7 @@ dv_setOption (void **pdata, int opNum, const char *param)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstCaps *
 dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
@@ -126,7 +126,7 @@ _get_video_xraw_bufsize (const tensor_dim dim)
   return ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static size_t
 dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
@@ -140,7 +140,7 @@ dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
     return 0; /** @todo NYI */
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 dv_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
@@ -193,8 +193,8 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
 
 static gchar decoder_subplugin_direct_video[] = "direct_video";
 
-/** @brief Direct-Video tensordec-plugin TensorDecDef instance */
-static TensorDecDef directVideo = {
+/** @brief Direct-Video tensordec-plugin GstTensorDecoderDef instance */
+static GstTensorDecoderDef directVideo = {
   .modename = decoder_subplugin_direct_video,
   .type = OUTPUT_VIDEO,
   .init = dv_init,
@@ -209,12 +209,12 @@ static TensorDecDef directVideo = {
 void
 init_dv (void)
 {
-  tensordec_probe (&directVideo);
+  nnstreamer_decoder_probe (&directVideo);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_dv (void)
 {
-  tensordec_exit (directVideo.modename);
+  nnstreamer_decoder_exit (directVideo.modename);
 }

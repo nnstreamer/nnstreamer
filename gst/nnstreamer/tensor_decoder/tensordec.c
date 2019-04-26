@@ -161,7 +161,7 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
  * @param[in] decoder The decoder subplugin instance
  */
 gboolean
-tensordec_probe (TensorDecDef * decoder)
+nnstreamer_decoder_probe (GstTensorDecoderDef * decoder)
 {
   return register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
 }
@@ -171,7 +171,7 @@ tensordec_probe (TensorDecDef * decoder)
  * @param[in] name the name of decoder (modename)
  */
 void
-tensordec_exit (const gchar * name)
+nnstreamer_decoder_exit (const gchar * name)
 {
   unregister_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }
@@ -180,8 +180,8 @@ tensordec_exit (const gchar * name)
  * @brief Find decoders subplugin with the name
  * @param[in] name the name of decoder (modename)
  */
-static const TensorDecDef *
-tensordec_find (const gchar * name)
+static const GstTensorDecoderDef *
+nnstreamer_decoder_find (const gchar * name)
 {
   return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }
@@ -443,10 +443,10 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:{
       int i;
-      const TensorDecDef *decoder;
+      const GstTensorDecoderDef *decoder;
       gboolean retval = TRUE;
       temp_string = g_value_dup_string (value);
-      decoder = tensordec_find (temp_string);
+      decoder = nnstreamer_decoder_find (temp_string);
 
       /* See if we are using "plugin" */
       if (NULL != decoder) {

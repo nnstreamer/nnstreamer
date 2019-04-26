@@ -49,7 +49,7 @@ typedef struct
   guint max_word_length; /**< The max size of labels */
 } ImageLabelData;
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 il_init (void **pdata)
 {
@@ -58,7 +58,7 @@ il_init (void **pdata)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static void
 il_exit (void **pdata)
 {
@@ -127,7 +127,7 @@ loadImageLabels (ImageLabelData * data)
   return;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 il_setOption (void **pdata, int opNum, const char *param)
 {
@@ -152,7 +152,7 @@ il_setOption (void **pdata, int opNum, const char *param)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstCaps *
 il_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
@@ -174,7 +174,7 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
   return gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static size_t
 il_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
@@ -205,7 +205,7 @@ case typename:\
   break;
 
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 il_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
@@ -275,8 +275,8 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
 static gchar decoder_subplugin_image_labeling[] = "image_labeling";
 
-/** @brief Image Labeling tensordec-plugin TensorDecDef instance */
-static TensorDecDef imageLabeling = {
+/** @brief Image Labeling tensordec-plugin GstTensorDecoderDef instance */
+static GstTensorDecoderDef imageLabeling = {
   .modename = decoder_subplugin_image_labeling,
   .type = OUTPUT_TEXT,
   .init = il_init,
@@ -291,12 +291,12 @@ static TensorDecDef imageLabeling = {
 void
 init_il (void)
 {
-  tensordec_probe (&imageLabeling);
+  nnstreamer_decoder_probe (&imageLabeling);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_il (void)
 {
-  tensordec_exit (imageLabeling.modename);
+  nnstreamer_decoder_exit (imageLabeling.modename);
 }
