@@ -146,7 +146,7 @@ _init_modes (bounding_boxes * bdata)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 bb_init (void **pdata)
 {
@@ -199,7 +199,7 @@ _exit_modes (bounding_boxes * bdata)
   }
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static void
 bb_exit (void **pdata)
 {
@@ -358,7 +358,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
   return TRUE;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 bb_setOption (void **pdata, int opNum, const char *param)
 {
@@ -497,7 +497,7 @@ _set_max_detection (bounding_boxes * data, const guint max_detection,
 }
 
 /**
- * @brief tensordec-plugin's TensorDecDef callback
+ * @brief tensordec-plugin's GstTensorDecoderDef callback
  *
  * [TF-Lite SSD Model]
  * The first tensor is boxes. BOX_SIZE : 1 : #MaxDetection, ANY-TYPE
@@ -597,7 +597,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
   return caps;
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static size_t
 bb_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
@@ -889,7 +889,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
   }
 }
 
-/** @brief tensordec-plugin's TensorDecDef callback */
+/** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 bb_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
@@ -988,8 +988,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
 static gchar decoder_subplugin_bounding_box[] = "bounding_boxes";
 
-/** @brief Bounding box tensordec-plugin TensorDecDef instance */
-static TensorDecDef boundingBox = {
+/** @brief Bounding box tensordec-plugin GstTensorDecoderDef instance */
+static GstTensorDecoderDef boundingBox = {
   .modename = decoder_subplugin_bounding_box,
   .type = OUTPUT_VIDEO,
   .init = bb_init,
@@ -1004,12 +1004,12 @@ static TensorDecDef boundingBox = {
 void
 init_bb (void)
 {
-  tensordec_probe (&boundingBox);
+  nnstreamer_decoder_probe (&boundingBox);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_bb (void)
 {
-  tensordec_exit (boundingBox.modename);
+  nnstreamer_decoder_exit (boundingBox.modename);
 }
