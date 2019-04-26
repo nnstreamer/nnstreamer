@@ -39,18 +39,11 @@
  * </refsect2>
  */
 
-/** @todo getline requires _GNU_SOURCE. remove this later. */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include <stdio.h>
-#include <glib.h>
+
 #include <string.h>
-#include <stdlib.h>
 #include "tensordec.h"
 
 /**
@@ -155,7 +148,6 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
 
-
 /**
  * @brief decoder's subplugins should call this function to register
  * @param[in] decoder The decoder subplugin instance
@@ -186,7 +178,18 @@ nnstreamer_decoder_find (const gchar * name)
   return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }
 
-
+/**
+ * @brief Macro to clean sub-plugin data
+ */
+#define gst_tensor_decoder_clean_plugin(self) do { \
+    if (self->decoder) { \
+      if (self->decoder->exit) \
+        self->decoder->exit (&self->plugin_data); \
+      else \
+        g_free (self->plugin_data); \
+      self->plugin_data = NULL; \
+    } \
+  } while (0)
 
 /**
  * @brief Get media caps from tensor config
@@ -200,13 +203,13 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
 {
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (self->mode == DECODE_MODE_PLUGIN) {
-    g_assert (self->decoder);
-    return self->decoder->getOutCaps (&self->plugin_data, config);
+  if (self->decoder == NULL) {
+    GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
+    return NULL;
   }
 
-  GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
-  return NULL;
+  /* call sub-plugin vmethod */
+  return self->decoder->getOutCaps (&self->plugin_data, config);
 }
 
 /**
@@ -350,15 +353,6 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
   /** Processing units */
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensordec_transform);
 
-  /**
-    * @todo We don't have inplace ops anymore.
-    *       Need a mechanism to enable it for subplugins later
-    *       for direct_* subplugins)
-    *
-    * trans_class->transform_ip =
-    *     GST_DEBUG_FUNCPTR (gst_tensordec_transform_ip);
-    */
-
   /** Negotiation units */
   trans_class->transform_caps =
       GST_DEBUG_FUNCPTR (gst_tensordec_transform_caps);
@@ -379,16 +373,17 @@ gst_tensordec_class_init (GstTensorDecClass * klass)
 static void
 gst_tensordec_init (GstTensorDec * self)
 {
-  int i;
+  guint i;
+
   self->silent = DEFAULT_SILENT;
   self->configured = FALSE;
   self->negotiated = FALSE;
-  self->output_type = OUTPUT_UNKNOWN;
-  self->mode = DECODE_MODE_UNKNOWN;
+  self->decoder = NULL;
   self->plugin_data = NULL;
+
   for (i = 0; i < TensorDecMaxOpNum; i++)
     self->option[i] = NULL;
-  self->decoder = NULL;
+
   gst_tensors_config_init (&self->tensor_config);
 }
 
@@ -397,7 +392,7 @@ gst_tensordec_init (GstTensorDec * self)
  * @retval FALSE if error. TRUE if OK (or SKIP)
  */
 static gboolean
-_tensordec_process_plugin_options (GstTensorDec * self, int opnum)
+gst_tensordec_process_plugin_options (GstTensorDec * self, guint opnum)
 {
   g_assert (opnum < TensorDecMaxOpNum);
   if (self->decoder == NULL)
@@ -418,11 +413,9 @@ _tensordec_process_plugin_options (GstTensorDec * self, int opnum)
     case PROP_MODE_OPTION ## opnum: \
       g_free (self->option[(opnum) - 1]); \
       self->option[(opnum) - 1] = g_value_dup_string (value); \
-      if (self->mode == DECODE_MODE_PLUGIN) { \
-        if (_tensordec_process_plugin_options (self, (opnum) - 1) != TRUE) \
-          GST_ERROR_OBJECT (self, "Configuring option for tensor-decoder failed (option %d = %s)", \
+      if (gst_tensordec_process_plugin_options (self, (opnum) - 1) != TRUE) \
+        GST_ERROR_OBJECT (self, "Configuring option for tensor-decoder failed (option %d = %s)", \
             (opnum), self->option[(opnum) - 1]); \
-      } \
       break
 
 /**
@@ -433,7 +426,6 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorDec *self;
-  gchar *temp_string;
 
   self = GST_TENSOR_DECODER (object);
 
@@ -441,62 +433,46 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
-    case PROP_MODE:{
-      int i;
+    case PROP_MODE:
+    {
       const GstTensorDecoderDef *decoder;
-      gboolean retval = TRUE;
-      temp_string = g_value_dup_string (value);
-      decoder = nnstreamer_decoder_find (temp_string);
+      const gchar *mode_string;
+      guint i;
+
+      mode_string = g_value_get_string (value);
+      decoder = nnstreamer_decoder_find (mode_string);
 
       /* See if we are using "plugin" */
       if (NULL != decoder) {
+        silent_debug ("tensor_decoder plugin mode (%s)\n", mode_string);
+
         if (decoder == self->decoder) {
           /* Already configured??? */
           GST_WARNING_OBJECT (self,
               "nnstreamer tensor_decoder %s is already confgured.\n",
-              temp_string);
+              mode_string);
         } else {
           /* Changing decoder. Deallocate the previous */
-          if (self->cleanup_plugin_data) {
-            self->cleanup_plugin_data (&self->plugin_data);
-          } else {
-            g_free (self->plugin_data);
-          }
-          self->plugin_data = NULL;
-
+          gst_tensor_decoder_clean_plugin (self);
           self->decoder = decoder;
         }
 
         g_assert (self->decoder->init (&self->plugin_data));
-        self->cleanup_plugin_data = self->decoder->exit;
 
-        silent_debug ("tensor_decoder plugin mode (%s)\n", temp_string);
         for (i = 0; i < TensorDecMaxOpNum; i++)
-          retval &= _tensordec_process_plugin_options (self, i);
-        if (FALSE == retval)
-          GST_WARNING_OBJECT (self,
-              "One or more option has failed to configure while setting the mode.");
-        self->mode = DECODE_MODE_PLUGIN;
-        self->output_type = self->decoder->type;
+          if (!gst_tensordec_process_plugin_options (self, i))
+            GST_WARNING_OBJECT (self,
+                "Failed to configure while setting the option %d.", (i + 1));
       } else {
         GST_ERROR_OBJECT (self,
             "The given mode for tensor_decoder, %s, is unrecognized.\n",
-            temp_string);
-        if (NULL != self->decoder) {
-          if (self->cleanup_plugin_data) {
-            self->cleanup_plugin_data (&self->plugin_data);
-          } else {
-            g_free (self->plugin_data);
-          }
-          self->plugin_data = NULL;
-        }
-        self->mode = DECODE_MODE_UNKNOWN;
+            mode_string);
+        gst_tensor_decoder_clean_plugin (self);
         self->decoder = NULL;
-        self->output_type = OUTPUT_UNKNOWN;
       }
-      g_free (temp_string);
-    }
+
       break;
+    }
       PROP_MODE_OPTION (1);
       PROP_MODE_OPTION (2);
       PROP_MODE_OPTION (3);
@@ -537,7 +513,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
-      if (self->mode == DECODE_MODE_PLUGIN)
+      if (self->decoder)
         g_value_set_string (value, self->decoder->modename);
       else
         g_value_set_string (value, "");
@@ -598,11 +574,14 @@ static void
 gst_tensordec_class_finalize (GObject * object)
 {
   GstTensorDec *self;
+  guint i;
 
   self = GST_TENSOR_DECODER (object);
 
-  if (self->cleanup_plugin_data) {
-    self->cleanup_plugin_data (&self->plugin_data);
+  gst_tensor_decoder_clean_plugin (self);
+
+  for (i = 0; i < TensorDecMaxOpNum; ++i) {
+    g_free (self->option[i]);
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -635,23 +614,14 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
     return FALSE;
   }
 
-  if (self->mode == DECODE_MODE_PLUGIN) {
-    switch (self->output_type) {
-      case OUTPUT_VIDEO:
-      case OUTPUT_AUDIO:
-      case OUTPUT_TEXT:
-        break;
-      default:
-        GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->output_type);
-        return FALSE;
-    }
-    self->tensor_config = config;
-    self->configured = TRUE;
-    return TRUE;
+  if (self->decoder == NULL) {
+    GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
+    return FALSE;
   }
 
-  GST_WARNING_OBJECT (self, "Decoder plugin is not yet configured.");
-  return FALSE;
+  self->tensor_config = config;
+  self->configured = TRUE;
+  return TRUE;
 }
 
 /**
@@ -671,13 +641,13 @@ gst_tensordec_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
 
-  if (self->mode == DECODE_MODE_PLUGIN) {
-    int num_tensors = self->tensor_config.info.num_tensors;
-    int i;
+  if (self->decoder) {
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
+    guint i, num_tensors;
 
+    num_tensors = self->tensor_config.info.num_tensors;
     g_assert (gst_buffer_n_memory (inbuf) == num_tensors);
 
     for (i = 0; i < num_tensors; i++) {
@@ -740,11 +710,6 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
   silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
-
-  /**
-   * If direction is sink, check src. Depending on sink's format, we could choose video or audio.
-   * Currently video/x-raw and audio/x-raw supported.
-   */
 
   if (direction == GST_PAD_SINK) {
     /** caps = sinkpad (other/tensor) return = srcpad (media) */
@@ -839,7 +804,6 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   GstTensorDec *self;
 
   self = GST_TENSOR_DECODER_CAST (trans);
-  self->negotiated = TRUE;
 
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
@@ -849,18 +813,17 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
         &self->tensor_config);
 
     /** Check if outcaps ==equivalent== supposed */
-    if (!gst_caps_is_always_compatible (outcaps, supposed)) {
+    if (gst_caps_is_always_compatible (outcaps, supposed)) {
+      self->negotiated = TRUE;
+    } else {
       GST_ERROR_OBJECT (self,
           "This is not compatible with the supposed output pad cap");
-      gst_caps_unref (supposed);
-      return FALSE;
     }
+
     gst_caps_unref (supposed);
-  } else {
-    return FALSE;
   }
 
-  return TRUE;
+  return self->negotiated;
 }
 
 /**
@@ -881,17 +844,13 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
   self = GST_TENSOR_DECODER_CAST (trans);
 
   g_assert (self->configured);
+  g_assert (self->decoder);
 
-  if (self->mode == DECODE_MODE_PLUGIN) {
-    if (self->decoder->getTransformSize)
-      *othersize = self->decoder->getTransformSize (&self->plugin_data,
-          &self->tensor_config, caps, size, othercaps, direction);
-    else
-      *othersize = 0;
+  if (self->decoder->getTransformSize)
+    *othersize = self->decoder->getTransformSize (&self->plugin_data,
+        &self->tensor_config, caps, size, othercaps, direction);
+  else
+    *othersize = 0;
 
-    return TRUE;
-  }
-
-  GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
-  return FALSE;
+  return TRUE;
 }

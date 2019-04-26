@@ -31,9 +31,10 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
-#include <tensor_common.h>
-#include <nnstreamer_subplugin.h>
-#include <nnstreamer_plugin_api_decoder.h>
+
+#include "tensor_common.h"
+#include "nnstreamer_subplugin.h"
+#include "nnstreamer_plugin_api_decoder.h"
 
 G_BEGIN_DECLS
 
@@ -64,17 +65,14 @@ struct _GstTensorDec
   /** For transformer */
   gboolean negotiated; /**< TRUE if tensor metadata is set */
   gboolean silent; /**< True if logging is minimized */
-  guint output_type; /**< Denotes the output type */
-  guint mode; /** Mode for tensor decoder "direct_video" or "image_labeling" or "bounding_boxes */
   gchar *option[TensorDecMaxOpNum]; /**< Assume we have two options */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
-  void *plugin_data;
-  void (*cleanup_plugin_data)(void **pdata); /**< exit() of subplugin is registered here. If it's null, gfree(plugin_data) is used. */
   GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
 
   const GstTensorDecoderDef *decoder; /**< Plugin object */
+  void *plugin_data;
 };
 
 /**
@@ -88,15 +86,6 @@ struct _GstTensorDecClass
 {
   GstBaseTransformClass parent_class; /**< Inherits GstBaseTransformClass */
 };
-
-/**
- * @brief Decoder Mode.
- */
-typedef enum
-{
-  DECODE_MODE_PLUGIN,
-  DECODE_MODE_UNKNOWN
-} GstDecMode;
 
 /**
  * @brief Get Type function required for gst elements
