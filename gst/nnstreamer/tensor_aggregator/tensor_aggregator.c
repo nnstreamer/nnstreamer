@@ -753,7 +753,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
    */
 
   /** get block size */
-  block_size = tensor_element_size[info->type];
+  block_size = gst_tensor_get_element_size (info->type);
   for (f = 0; f <= self->frames_dim; f++) {
     block_size *= info->dimension[f];
   }

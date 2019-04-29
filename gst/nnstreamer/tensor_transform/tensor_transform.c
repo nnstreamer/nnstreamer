@@ -1035,8 +1035,8 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
   int to = filter->data_dimchg.to;
   int i, j, k;
   unsigned int loopLimit = 1;
-  size_t loopBlockSize = tensor_element_size[in_tensor_type];
-  size_t copyblocksize = tensor_element_size[in_tensor_type];
+  size_t loopBlockSize = gst_tensor_get_element_size (in_tensor_type);
+  size_t copyblocksize = gst_tensor_get_element_size (in_tensor_type);
   size_t copyblocklimit = 1;
 
   if (from == to) {
@@ -1109,6 +1109,7 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
   gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
+  guint in_element_size, out_element_size;
 
   tensor_transform_operand_s value;
   size_t i, data_idx;
@@ -1120,9 +1121,12 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
   }
 #endif
 
+  in_element_size = gst_tensor_get_element_size (in_tensor_type);
+  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
-    data_idx = tensor_element_size[in_tensor_type] * i;
+    data_idx = in_element_size * i;
     gst_tensor_transform_set_value (filter, &value, in_tensor_type,
         (gpointer) (inptr + data_idx));
 
@@ -1131,7 +1135,7 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
 
     /* set output value */
     g_assert (out_tensor_type == value.type);
-    data_idx = tensor_element_size[out_tensor_type] * i;
+    data_idx = out_element_size * i;
     gst_tensor_transform_get_value (filter, &value,
         (gpointer) (outptr + data_idx));
   }
@@ -1153,6 +1157,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
+  guint in_element_size, out_element_size;
 
   GSList *walk;
   tensor_transform_operator_s *op_s;
@@ -1185,9 +1190,12 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   }
 #endif
 
+  in_element_size = gst_tensor_get_element_size (in_tensor_type);
+  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
-    data_idx = tensor_element_size[in_tensor_type] * i;
+    data_idx = in_element_size * i;
     gst_tensor_transform_set_value (filter, &value, in_tensor_type,
         (gpointer) (inptr + data_idx));
 
@@ -1221,7 +1229,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 
     /* set output value */
     g_assert (out_tensor_type == value.type);
-    data_idx = tensor_element_size[out_tensor_type] * i;
+    data_idx = out_element_size * i;
     gst_tensor_transform_get_value (filter, &value,
         (gpointer) (outptr + data_idx));
   }
@@ -1264,7 +1272,7 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   gboolean checkdim = FALSE;
   uint32_t *fromDim = filter->in_config.info.dimension;
   tensor_type in_tensor_type = filter->in_config.info.type;
-  size_t type_size = tensor_element_size[in_tensor_type];
+  size_t type_size = gst_tensor_get_element_size (in_tensor_type);
   size_t indexI, indexJ, SL, SI, SJ, SK;
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     from = i;

@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <glib.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief Custom filter's private data.
@@ -140,7 +141,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
       prop->output_meta.info[0].dimension[3]);
   assert (prop->input_meta.info[0].type == prop->output_meta.info[0].type);
 
-  elementsize = tensor_element_size[prop->input_meta.info[0].type];
+  elementsize = gst_tensor_get_element_size (prop->input_meta.info[0].type);
 
   ox = (data->new_x > 0) ? data->new_x : prop->output_meta.info[0].dimension[1];
   oy = (data->new_y > 0) ? data->new_y : prop->output_meta.info[0].dimension[2];
