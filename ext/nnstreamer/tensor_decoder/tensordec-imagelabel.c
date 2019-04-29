@@ -278,13 +278,12 @@ static gchar decoder_subplugin_image_labeling[] = "image_labeling";
 /** @brief Image Labeling tensordec-plugin GstTensorDecoderDef instance */
 static GstTensorDecoderDef imageLabeling = {
   .modename = decoder_subplugin_image_labeling,
-  .type = OUTPUT_TEXT,
   .init = il_init,
   .exit = il_exit,
   .setOption = il_setOption,
   .getOutCaps = il_getOutCaps,
   .getTransformSize = il_getTransformSize,
-  .decode = il_decode,
+  .decode = il_decode
 };
 
 /** @brief Initialize this object for tensordec-plugin */
