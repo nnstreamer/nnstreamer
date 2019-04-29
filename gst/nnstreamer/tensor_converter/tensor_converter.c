@@ -599,7 +599,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       color = config->info.dimension[0];
       width = config->info.dimension[1];
       height = config->info.dimension[2];
-      type = tensor_element_size[config->info.type];
+      type = gst_tensor_get_element_size (config->info.type);
 
       /** colorspace * width * height * type */
       frame_size = color * width * height * type;

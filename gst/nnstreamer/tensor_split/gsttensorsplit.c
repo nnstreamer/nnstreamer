@@ -417,7 +417,7 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
 
   size += gst_tensor_get_element_count (*dim) *
-      tensor_element_size[split->sink_tensor_conf.info.type];
+      gst_tensor_get_element_size (split->sink_tensor_conf.info.type);
   mem = gst_allocator_alloc (NULL, size, NULL);
   g_assert (gst_memory_map (mem, &dest_info, GST_MAP_WRITE));
   g_assert (gst_buffer_map (buffer, &src_info, GST_MAP_READ));

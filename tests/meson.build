@@ -1,14 +1,14 @@
 # These custom filters are used in unittest_sink.
 library('nnscustom_framecounter',
   join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
-  dependencies: [glib_dep, nnstreamer_dep],
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
   install: get_option('install-test'),
   install_dir: customfilter_install_dir
 )
 
 library('nnscustom_drop_buffer',
   join_paths('nnstreamer_sink', 'nnscustom_drop_buffer.c'),
-  dependencies: [nnstreamer_dep],
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
   install: get_option('install-test'),
   install_dir: customfilter_install_dir
 )
@@ -46,6 +46,8 @@ if gtest_dep.found()
   nnstreamer_unittest_deps = [
     nnstreamer_dep,
     nnstreamer_internal_deps,
+    glib_dep,
+    gst_dep,
     gst_app_dep,
     gst_check_dep,
     gtest_dep

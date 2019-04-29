@@ -20,6 +20,7 @@
 
 #include <glib.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief _pt_data Internal data structure
@@ -30,26 +31,6 @@ typedef struct _pt_data
   uint32_t in_width;   /***< width of input tensor */
   uint32_t in_channel; /***< channel of input tensor */
 } pt_data;
-
-/**
- * @brief get data size of single tensor
- */
-static size_t
-get_tensor_data_size (const GstTensorInfo * info)
-{
-  size_t data_size = 0;
-  int i;
-
-  if (info != NULL) {
-    data_size = tensor_element_size[info->type];
-
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-      data_size *= info->dimension[i];
-    }
-  }
-
-  return data_size;
-}
 
 /**
  * @brief pt_init
@@ -124,7 +105,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   g_assert (input);
   g_assert (output);
 
-  in_size = get_tensor_data_size (&prop->input_meta.info[0]);
+  in_size = gst_tensor_info_get_size (&prop->input_meta.info[0]);
   buffer = g_malloc (in_size);
 
   /* Get Mat object from input tensor */

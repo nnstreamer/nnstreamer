@@ -55,9 +55,7 @@ common_head = """/**
 #include <stdlib.h>
 #include <assert.h>
 #include <tensor_filter_custom.h>
-
-/** @todo @warning This works only when NNS_TENSOR_RANK_LIMIT is 4 */
-#define tensorsize(x) (tensor_element_size[(x).type] * (x).dimension[0] * (x).dimension[1] * (x).dimension[2] * (x).dimension[3])
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief Private Data Structure.
@@ -78,7 +76,10 @@ typedef struct _{sname}_data
 static void *
 cg_init (const GstTensorFilterProperties * prop)
 {{
-  _{sname}_data * data = (_{sname}_data *) malloc (sizeof (_{sname}_data));
+  _{sname}_data * data;
+
+  data = (_{sname}_data *) malloc (sizeof (_{sname}_data));
+  assert (data);
 
   data->id = 0;
   return data;
@@ -250,11 +251,11 @@ cg_allocate_invoke (void * _data, const GstTensorFilterProperties * prop,
 
   /** Allocate output buffer */
   for (i = 0; i < out_info->num_tensors; i++)
-    output[i].data = malloc (tensorsize (out_info->info[i]));
+    output[i].data = malloc (gst_tensor_info_get_size (&out_info->info[i]));
 
   /** @todo Add your inference code/calls. Fill in the output buffer */
   for (i = 0; i < out_info->num_tensors; i++) {{
-    int s, size = tensorsize (out_info->info[i]);
+    int s, size = gst_tensor_info_get_size (&out_info->info[i]);
     uint8_t *ptr = output[i].data;
     for (s = 0; s < size; s++)
       ptr[s] = (uint8_t) s;
@@ -305,7 +306,7 @@ cg_invoke (void * _data, const GstTensorFilterProperties *prop,
 
   /** @todo Add your inference code/calls. Fill in the output buffer */
   for (i = 0; i < out_info->num_tensors; i++) {{
-    int s, size = tensorsize (out_info->info[i]);
+    int s, size = gst_tensor_info_get_size (&out_info->info[i]);
     uint8_t *ptr = output[i].data;
     for (s = 0; s < size; s++)
       ptr[s] = (uint8_t) s;
@@ -359,10 +360,6 @@ project('{fname}', 'c',
 )
 
 cc = meson.get_compiler('c')
-gst_api_version = '1.0'
-
-{fname}_conf = configuration_data()
-{fname}_conf.set('VERSION', meson.project_version())
 
 {fname}_prefix = get_option('prefix')
 {fname}_libdir = join_paths({fname}_prefix, get_option('libdir'))
@@ -372,15 +369,11 @@ gst_api_version = '1.0'
 subplugin_install_prefix = join_paths({fname}_prefix, 'lib', 'nnstreamer')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 
-{fname}_conf.set('PREFIX', {fname}_prefix)
-{fname}_conf.set('EXEC_PREFIX', {fname}_bindir)
-{fname}_conf.set('LIB_INSTALL_DIR', {fname}_libdir)
-{fname}_conf.set('INCLUDE_INSTALL_DIR', {fname}_includedir)
-{fname}_conf.set('SUBPLUGIN_INSTALL_PREFIX', subplugin_install_prefix)
-
 # @todo Declare dependencies if you have libraries to use.
 # example: glib_dep = dependency('glib-2.0')
 # then, add it to "dependencies: ..." later.
+glib_dep = dependency('glib-2.0')
+gst_dep = dependency('gstreamer-1.0')
 nnstreamer_dep = dependency('nnstreamer')
 
 {fname}_srcfiles = [
@@ -394,16 +387,16 @@ endforeach
 
 shared_library('{fname}',
   {fname}_srcfiles_fullpath,
-  dependencies: [nnstreamer_dep],
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
   install: true,
   install_dir: customfilter_install_dir
 )
 
 # @warning NYI. Static library mode of custom filter is not supported yet.
 # This will be supported after fixing #1182.
-# {fname}_static = static_library('{fname}',
+# static_library('{fname}',
 #   {fname}_srcfiles_fullpath,
-#   dependencies: [nnstreamer_dep],
+#   dependencies: [glib_dep, gst_dep, nnstreamer_dep],
 #   install: true,
 #   install_dir: {fname}_libdir,
 # )

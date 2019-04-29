@@ -44,6 +44,24 @@ static const gchar *tensor_element_typename[] = {
 };
 
 /**
+ * @brief Byte-per-element of each tensor element type.
+ */
+static const guint tensor_element_size[] = {
+  [_NNS_INT32] = 4,
+  [_NNS_UINT32] = 4,
+  [_NNS_INT16] = 2,
+  [_NNS_UINT16] = 2,
+  [_NNS_INT8] = 1,
+  [_NNS_UINT8] = 1,
+  [_NNS_FLOAT64] = 8,
+  [_NNS_FLOAT32] = 4,
+  [_NNS_INT64] = 8,
+  [_NNS_UINT64] = 8,
+
+  [_NNS_END] = 0,
+};
+
+/**
  * @brief Get media type from structure
  * @param structure structure to be interpreted
  * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
@@ -124,7 +142,7 @@ gst_tensor_info_get_size (const GstTensorInfo * info)
   g_return_val_if_fail (info != NULL, 0);
 
   data_size = gst_tensor_get_element_count (info->dimension) *
-      tensor_element_size[info->type];
+      gst_tensor_get_element_size (info->type);
 
   return data_size;
 }
@@ -917,6 +935,15 @@ gst_tensor_get_element_count (const tensor_dim dim)
   }
 
   return count;
+}
+
+/**
+ * @brief Get element size of tensor type (byte per element)
+ */
+guint
+gst_tensor_get_element_size (tensor_type type)
+{
+  return tensor_element_size[type];
 }
 
 /**

@@ -479,12 +479,14 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   int num_mem = tensor_merge->tensors_config.info.num_tensors;
   int i, j, k, l;
   size_t outSize = 0;
+  guint element_size;
   tensor_dim dim;
   tensor_type type;
 
   memcpy (&dim, &tensor_merge->tensors_config.info.info[0].dimension,
       sizeof (tensor_dim));
   type = tensor_merge->tensors_config.info.info[0].type;
+  element_size = gst_tensor_get_element_size (type);
 
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
@@ -508,7 +510,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
                 for (k = 0; k < num_mem; k++) {
                   size_t c =
                       tensor_merge->tensors_config.info.info[k].dimension[0];
-                  size_t s = tensor_element_size[type] * c;
+                  size_t s = element_size * c;
                   inptr =
                       mInfo[k].data + (l * dim[2] * dim[1] + i * dim[1] +
                       j) * s;
@@ -533,7 +535,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
                 for (j = 0; j < LINEAR_SECOND + 1; j++)
                   c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-                s = tensor_element_size[type] * c;
+                s = element_size * c;
 
                 inptr = mInfo[k].data + (l * dim[2] + i) * s;
 
@@ -555,7 +557,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
               for (j = 0; j < LINEAR_THIRD + 1; j++)
                 c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-              s = tensor_element_size[type] * c;
+              s = element_size * c;
 
               inptr = mInfo[k].data + l * s;
 
@@ -575,7 +577,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
             for (j = 0; j < LINEAR_FOURTH + 1; j++)
               c *= tensor_merge->tensors_config.info.info[k].dimension[j];
 
-            s = tensor_element_size[type] * c;
+            s = element_size * c;
 
             inptr = mInfo[k].data;
             memcpy (outptr, inptr, s);

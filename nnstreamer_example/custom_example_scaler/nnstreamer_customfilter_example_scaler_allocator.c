@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <glib.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief Private data structure
@@ -35,26 +36,6 @@ typedef struct _pt_data
   uint32_t new_y;
   uint32_t new_x;
 } pt_data;
-
-/**
- * @brief get data size of single tensor
- */
-static size_t
-get_tensor_data_size (const GstTensorInfo * info)
-{
-  size_t data_size = 0;
-  int i;
-
-  if (info != NULL) {
-    data_size = tensor_element_size[info->type];
-
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-      data_size *= info->dimension[i];
-    }
-  }
-
-  return data_size;
-}
 
 /**
  * @brief init callback of tensor_filter custom
@@ -154,8 +135,8 @@ pt_allocate_invoke (void *private_data,
   assert (output);
 
   /* allocate output data */
-  elementsize = tensor_element_size[prop->output_meta.info[0].type];
-  size = get_tensor_data_size (&prop->output_meta.info[0]);
+  elementsize = gst_tensor_get_element_size (prop->output_meta.info[0].type);
+  size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
 
   output[0].data = malloc (size);
   assert (output[0].data);

@@ -303,6 +303,12 @@ extern gsize
 gst_tensor_get_element_count (const tensor_dim dim);
 
 /**
+ * @brief Get element size of tensor type (byte per element)
+ */
+extern guint
+gst_tensor_get_element_size (tensor_type type);
+
+/**
  * @brief Get tensor type from string input.
  * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
