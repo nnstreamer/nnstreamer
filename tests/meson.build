@@ -99,13 +99,14 @@ endif
 
 # Install Unittest
 if get_option('install-test')
+  install_data('gen24bBMP.py', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_converter', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_merge', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_decoder', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_demux', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_filter_custom', install_dir: join_paths(unittest_install_dir,'tests'))
   if get_option('enable-tensorflow-lite')
-    install_subdir('nnstreamer_filter_tensorflow-lite', install_dir: join_paths(unittest_install_dir,'tests'))
+    install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: join_paths(unittest_install_dir,'tests'))
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: join_paths(unittest_install_dir,'tests'))
   endif
   if get_option('enable-tensorflow')
