@@ -991,13 +991,12 @@ static gchar decoder_subplugin_bounding_box[] = "bounding_boxes";
 /** @brief Bounding box tensordec-plugin GstTensorDecoderDef instance */
 static GstTensorDecoderDef boundingBox = {
   .modename = decoder_subplugin_bounding_box,
-  .type = OUTPUT_VIDEO,
   .init = bb_init,
   .exit = bb_exit,
   .setOption = bb_setOption,
   .getOutCaps = bb_getOutCaps,
   .getTransformSize = bb_getTransformSize,
-  .decode = bb_decode,
+  .decode = bb_decode
 };
 
 /** @brief Initialize this object for tensordec-plugin */

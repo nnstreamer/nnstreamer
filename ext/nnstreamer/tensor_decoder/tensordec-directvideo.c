@@ -196,13 +196,12 @@ static gchar decoder_subplugin_direct_video[] = "direct_video";
 /** @brief Direct-Video tensordec-plugin GstTensorDecoderDef instance */
 static GstTensorDecoderDef directVideo = {
   .modename = decoder_subplugin_direct_video,
-  .type = OUTPUT_VIDEO,
   .init = dv_init,
   .exit = dv_exit,
   .setOption = dv_setOption,
   .getOutCaps = dv_getOutCaps,
   .getTransformSize = dv_getTransformSize,
-  .decode = dv_decode,
+  .decode = dv_decode
 };
 
 /** @brief Initialize this object for tensordec-plugin */

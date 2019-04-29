@@ -28,17 +28,6 @@
 #include <gst/gst.h>
 
 /**
- * @brief Tensor Decoder Output type.
- */
-typedef enum
-{
-  OUTPUT_VIDEO,
-  OUTPUT_AUDIO,
-  OUTPUT_TEXT,
-  OUTPUT_UNKNOWN
-} GstDecMediaType;
-
-/**
  * @brief Decoder definitions for different semantics of tensors
  *        This allows developers to create their own decoders.
  */
@@ -46,8 +35,6 @@ typedef struct _GstTensorDecoderDef
 {
   char *modename;
       /**< Unique decoder name. GST users choose decoders with mode="modename". */
-  GstDecMediaType type;
-      /**< Output media type. VIDEO/AUDIO/TEXT are supported */
   int (*init) (void **private_data);
       /**< Object initialization for the decoder */
   void (*exit) (void **private_data);
