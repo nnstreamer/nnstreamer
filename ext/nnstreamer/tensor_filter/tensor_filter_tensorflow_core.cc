@@ -298,7 +298,7 @@ TFCore::validateInputTensor (const GraphDef &graph_def)
       dtype = node->attr ().at ("dtype").type ();
     }
 
-    if (!tensor_name || strcmp (tensor_name, node->name ().c_str ())) {
+    if (!tensor_name || !g_str_equal (tensor_name, node->name ().c_str ())) {
       GST_ERROR ("Input Tensor is not valid: the name of input tensor is different\n");
       return -2;
     }
@@ -314,7 +314,7 @@ TFCore::validateInputTensor (const GraphDef &graph_def)
     }
 
     gchar **str_dims;
-    unsigned int rank, dim;
+    guint rank, dim;
     TensorShape ts = TensorShape ({});
 
     str_dims = g_strsplit (shape_description.c_str (), ",", -1);
@@ -330,10 +330,10 @@ TFCore::validateInputTensor (const GraphDef &graph_def)
       dim = inputTensorMeta.info[i].dimension[rank - j - 1];
       ts.AddDim (dim);
 
-      if (!strcmp (str_dims[j], "?"))
+      if (g_str_equal (str_dims[j], "?"))
         continue;
 
-      if (dim != atoi (str_dims[j])) {
+      if (dim != (guint) g_ascii_strtoull (str_dims[j], NULL, 10)) {
         GST_ERROR ("Input Tensor is not valid: the dim of input tensor is different\n");
         g_strfreev (str_dims);
         return -4;

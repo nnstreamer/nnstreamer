@@ -28,9 +28,6 @@
 
 #include <glib.h>
 #include <gst/gst.h>
-#include <setjmp.h>
-#include <stdio.h>
-#include <string.h>
 
 #include "nnstreamer_plugin_api_filter.h"
 
