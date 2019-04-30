@@ -724,8 +724,11 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
 static void
 gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 {
+  gchar *filter_name;
   if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
     return;
+
+  filter_name = gst_object_get_name ((GstObject *) filter);
 
   switch (filter->mode) {
     case GTT_DIMCHG:
@@ -735,8 +738,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option, 0, 0)) {
         g_critical
             ("%s: dimchg: \'%s\' is not valid option string: it should be in the form of IDX_DIM_FROM:IDX_DIM_TO: with a regex, "
-            REGEX_DIMCHG_OPTION "\n",
-            gst_object_get_name ((GstObject *) filter), filter->option);
+            REGEX_DIMCHG_OPTION "\n", filter_name, filter->option);
         break;
       }
 
@@ -756,8 +758,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       } else {
         g_critical
             ("%s: typecast: \'%s\' is not valid data type for tensor: data type of tensor should be one of %s\n",
-            gst_object_get_name ((GstObject *) filter),
-            filter->option, GST_TENSOR_TYPE_ALL);
+            filter_name, filter->option, GST_TENSOR_TYPE_ALL);
       }
       break;
     }
@@ -796,7 +797,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
             "", 0, 0);
         g_critical
             ("%s: arithmetic: [typecast:TYPE,] should be located at the first to prevent memory re-allocation: typecast(s) in the middle of \'%s\' will be ignored\n",
-            gst_object_get_name ((GstObject *) filter), filter->option);
+            filter_name, filter->option);
       } else {
         str_option = g_strdup (filter->option);
       }
@@ -805,7 +806,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option, 0, 0)) {
         g_critical
             ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
-            gst_object_get_name ((GstObject *) filter), str_option);
+            filter_name, str_option);
         g_free (str_option);
         break;
       }
@@ -889,7 +890,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
         g_critical
             ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is alwayes fixed to 3)\n",
-            gst_object_get_name ((GstObject *) filter), filter->option);
+            filter_name, filter->option);
         break;
       }
 
@@ -910,7 +911,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (filter->data_stand.mode == STAND_END) {
         g_critical
             ("%s: stand: \'%s\' is not valid option string: it should be \'default\', currently the only supported mode.\n",
-            gst_object_get_name ((GstObject *) filter), filter->option);
+            filter_name, filter->option);
         break;
       }
       filter->loaded = TRUE;
@@ -921,6 +922,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       g_assert (0);
       break;
   }
+
+  g_free (filter_name);
 }
 
 /**
