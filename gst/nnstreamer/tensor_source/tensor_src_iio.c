@@ -80,6 +80,7 @@
 #include <gst/gstinfo.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <string.h>
 #include <endian.h>
 #include <fcntl.h>
@@ -1303,7 +1304,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
   GError *error = NULL;
 
   filename = g_build_filename (base_dir, file, NULL);
-  fd = fopen (filename, "w");
+  fd = g_fopen (filename, "w");
   if (fd == NULL) {
     GST_ERROR_OBJECT (self, "Unable to open file to write %s.\n", filename);
     goto error_free_filename;
