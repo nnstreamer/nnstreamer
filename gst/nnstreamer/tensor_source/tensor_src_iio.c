@@ -1043,6 +1043,7 @@ del_freq_list:
   g_strfreev (freq_list);
 
 del_filename:
+  g_free (file_contents);
   g_free (filename);
   return ret;
 }
