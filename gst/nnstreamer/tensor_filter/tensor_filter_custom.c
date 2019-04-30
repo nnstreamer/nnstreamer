@@ -70,6 +70,14 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
     return -1;
   }
 
+  /**
+   * @todo Consider to add option to open symbolic link file and version-specified library name.
+   */
+  if (g_file_test (prop->model_file, G_FILE_TEST_IS_SYMLINK)) {
+    /* symbolic link */
+    return -1;
+  }
+
   ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
   *private_data = ptr;
 
