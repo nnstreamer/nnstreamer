@@ -43,7 +43,7 @@
  *
  */
 
-/** @todo getline requires _GNU_SOURCE. remove this later. */
+/** @todo _GNU_SOURCE fix build warning expf (nested-externs). remove this later. */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -226,8 +226,10 @@ bb_exit (void **pdata)
 static void
 loadImageLabels (bounding_boxes * data)
 {
-  FILE *fp;
-  int i;
+  GError *err = NULL;
+  gchar **labels;
+  gchar *contents = NULL;
+  guint i, len;
 
   /* Clean up previously configured data first */
   if (data->labels) {
@@ -239,57 +241,103 @@ loadImageLabels (bounding_boxes * data)
   data->total_labels = 0;
   data->max_word_length = 0;
 
-  if ((fp = fopen (data->label_path, "r")) != NULL) {
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    char *label;
-
-    GList *labels = NULL, *cursor;
-
-    while ((read = getline (&line, &len, fp)) != -1) {
-      if (line && strlen (line) >= 1) {
-        if (line[strlen (line) - 1] == '\n') {
-          line[strlen (line) - 1] = '\0';
-        }
-        label = g_strdup ((char *) line);
-        labels = g_list_append (labels, label);
-        free (line);
-        if (strlen (label) > data->max_word_length)
-          data->max_word_length = strlen (label);
-      }
-      line = NULL;
-      len = 0;
-    }
-
-    if (line) {
-      free (line);
-    }
-
-    /* Flatten labels (GList) into data->labels (array char **) */
-    data->total_labels = g_list_length (labels);
-    data->labels = g_new (char *, data->total_labels);
-    i = 0;
-    cursor = g_list_first (labels);
-    for (cursor = labels; cursor != NULL; cursor = cursor->next) {
-      data->labels[i] = cursor->data;
-      i++;
-      g_assert (i <= data->total_labels);
-    }
-    g_list_free (labels);       /* Do not free its elements */
-
-    fclose (fp);
-  } else {
-    GST_ERROR ("Cannot load label file %s", data->label_path);
+  /* Read file contents */
+  if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {
+    GST_ERROR ("Unable to read file %s with error %s.",
+        data->label_path, err->message);
+    g_clear_error (&err);
     return;
   }
+
+  labels = g_strsplit (contents, "\n", -1);
+  data->total_labels = g_strv_length (labels);
+  data->labels = g_new0 (char *, data->total_labels);
+
+  for (i = 0; i < data->total_labels; i++) {
+    data->labels[i] = g_strdup (labels[i]);
+
+    len = strlen (labels[i]);
+    if (len > data->max_word_length) {
+      data->max_word_length = len;
+    }
+  }
+
+  g_strfreev (labels);
+  g_free (contents);
 
   GST_INFO ("Loaded image label file successfully. %u labels loaded.",
       data->total_labels);
   return;
 }
 
-static int _tflite_ssd_loadBoxPrior (bounding_boxes * bdata);
+/**
+ * @brief Load box-prior data from a file
+ * @param[in/out] bdata The internal data.
+ * @return TRUE if loaded and configured. FALSE if failed to do so.
+ */
+static int
+_tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
+{
+  properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
+  gboolean failed = FALSE;
+  GError *err = NULL;
+  gchar **priors;
+  gchar *line = NULL;
+  gchar *contents = NULL;
+  guint row;
+  gint prev_reg = -1;
+
+  /* Read file contents */
+  if (!g_file_get_contents (tflite_ssd->box_prior_path, &contents, NULL, &err)) {
+    GST_ERROR ("Decoder/Bound-Box/SSD's box prior file %s cannot be read: %s",
+        tflite_ssd->box_prior_path, err->message);
+    g_clear_error (&err);
+    return FALSE;
+  }
+
+  priors = g_strsplit (contents, "\n", -1);
+  g_assert (g_strv_length (priors) >= BOX_SIZE);
+
+  for (row = 0; row < BOX_SIZE; row++) {
+    gint column = 0, registered = 0;
+
+    line = priors[row];
+    if (line) {
+      gchar **list = g_strsplit_set (line, " \t,", -1);
+      gchar *word;
+
+      while ((word = list[column]) != NULL) {
+        column++;
+
+        if (word && *word) {
+          if (registered > TFLITE_SSD_DETECTION_MAX) {
+            GST_WARNING
+                ("Decoder/Bound-Box/SSD's box prior data file has too many priors. %d >= %d",
+                registered, TFLITE_SSD_DETECTION_MAX);
+            break;
+          }
+          tflite_ssd->box_priors[row][registered] =
+              (gfloat) g_ascii_strtod (word, NULL);
+          registered++;
+        }
+      }
+
+      g_strfreev (list);
+    }
+
+    if (prev_reg != -1 && prev_reg != registered) {
+      GST_ERROR
+          ("Decoder/Bound-Box/SSD's box prior data file is not consistent.");
+      failed = TRUE;
+      break;
+    }
+    prev_reg = registered;
+  }
+
+  g_strfreev (priors);
+  g_free (contents);
+  return !failed;
+}
 
 /** @brief configure per-mode option (option3) */
 static int
@@ -549,72 +597,6 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
   return caps;
 }
 
-/**
- * @brief Load box-prior data from a file
- * @param[in/out] bdata The internal data.
- * @return TRUE if loaded and configured. FALSE if failed to do so.
- */
-static int
-_tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
-{
-  FILE *fp;
-  properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
-
-  if ((fp = fopen (tflite_ssd->box_prior_path, "r")) != NULL) {
-    int row;
-    int prev_reg = -1;
-
-    for (row = 0; row < BOX_SIZE; row++) {
-      int column = 0, registered = 0;
-      size_t len = 0;
-      char *line = NULL;
-      ssize_t read;
-
-      read = getline (&line, &len, fp);
-
-      if (read == -1) {
-        GST_ERROR
-            ("Decoder/Bound-Box/SSD's box prior data file has rows too short");
-        return FALSE;
-      }
-      if (line) {
-        char **list = g_strsplit_set (line, " \t,", -1);
-        char *word;
-
-        while ((word = list[column]) != NULL) {
-          column++;
-
-          if (word && *word) {
-            if (registered > TFLITE_SSD_DETECTION_MAX) {
-              GST_WARNING
-                  ("Decoder/Bound-Box/SSD's box prior data file has too many priors. %d >= %d",
-                  registered, TFLITE_SSD_DETECTION_MAX);
-              break;
-            }
-            tflite_ssd->box_priors[row][registered] = atof (word);
-            registered++;
-          }
-        }
-        g_strfreev (list);
-        free (line);
-      }
-      if (prev_reg != -1 && prev_reg != registered) {
-        GST_ERROR
-            ("Decoder/Bound-Box/SSD's box prior data file is not consistent.");
-        return FALSE;
-      }
-      prev_reg = registered;
-    }
-
-    fclose (fp);
-  } else {
-    GST_ERROR ("Decoder/Bound-Box/SSD's box prior file cannot be read: %s",
-        tflite_ssd->box_prior_path);
-    return FALSE;
-  }
-  return TRUE;
-}
-
 /** @brief tensordec-plugin's TensorDecDef callback */
 static size_t
 bb_getTransformSize (void **pdata, const GstTensorsConfig * config,
@@ -650,15 +632,16 @@ typedef struct
  * @bug This is not macro-argument safe. Use paranthesis!
  * @param[in] bb The configuration, "bounding_boxes"
  * @param[in] index The index (3rd dimension of BOX_SIZE:1:TFLITE_SSD_DETECTION_MAX:1)
+ * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:TFLITE_SSD_DETECTION_MAX:1:1)
  * @param[in] boxprior The box prior data from the box file of SSD.
  * @param[in] boxinputptr Cursor pointer of input + byte-per-index * index (box)
  * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
  * @param[in] result The object returned. (pointer to object)
  */
-#define _get_object_i_tflite(bb, index, boxprior, boxinputptr, detinputptr, result) \
+#define _get_object_i_tflite(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
     int c; \
-    for (c = 1; c < bb->total_labels; c++) { \
+    for (c = 1; c < total_labels; c++) { \
       gfloat score = _expit (detinputptr[c]); \
       if (score >= DETECTION_THRESHOLD) { \
         float ycenter = boxinputptr[0] / Y_SCALE * boxprior[2][index] + boxprior[0][index]; \
@@ -705,7 +688,7 @@ typedef struct
     int num = (TFLITE_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : TFLITE_SSD_DETECTION_MAX; \
     detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0 }; \
     for (d = 0; d < num; d++) { \
-      _get_object_i_tflite (bb, d, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
+      _get_object_i_tflite (bb, d, detbpi, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
       if (object.valid == TRUE) { \
         g_array_append_val (results, object); \
       } \
