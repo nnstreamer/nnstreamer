@@ -60,6 +60,8 @@ get_subplugin (subpluginType type, const char *name)
   subpluginData *data;
   void *handle;
 
+  g_return_val_if_fail (name, NULL);
+
   G_LOCK (splock);
 
   if (subplugins[type] == NULL)
@@ -115,8 +117,23 @@ gboolean
 register_subplugin (subpluginType type, const char *name, const void *data)
 {
   /** @todo data out of scope at add */
-  subpluginData *spdata = g_new (subpluginData, 1);
+  subpluginData *spdata;
   gboolean ret;
+
+  g_return_val_if_fail (name, FALSE);
+  g_return_val_if_fail (data, FALSE);
+
+  switch (type) {
+    case NNS_SUBPLUGIN_FILTER:
+    case NNS_SUBPLUGIN_DECODER:
+      break;
+    default:
+      /* unknown sub-plugin type */
+      return FALSE;
+  }
+
+  spdata = g_new (subpluginData, 1);
+  g_assert (spdata);
 
   spdata->name = g_strdup (name);
   spdata->data = data;
@@ -139,8 +156,9 @@ gboolean
 unregister_subplugin (subpluginType type, const char *name)
 {
   gboolean ret;
-  if (subplugins[type] == NULL)
-    return FALSE;
+
+  g_return_val_if_fail (name, FALSE);
+  g_return_val_if_fail (subplugins[type], FALSE);
 
   G_LOCK (splock);
   ret = g_hash_table_remove (subplugins[type], name);
