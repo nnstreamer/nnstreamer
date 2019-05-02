@@ -149,12 +149,32 @@ static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize);
 
 /**
+ * @brief Validate decoder sub-plugin's data.
+ */
+static gboolean
+nnstreamer_decoder_validate (const GstTensorDecoderDef * decoder)
+{
+  if (!decoder || !decoder->modename) {
+    /* invalid name */
+    return FALSE;
+  }
+
+  if (!decoder->init || !decoder->getOutCaps || !decoder->decode) {
+    /* invalid methods in decoder sub-plugin */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief decoder's subplugins should call this function to register
  * @param[in] decoder The decoder subplugin instance
  */
 gboolean
 nnstreamer_decoder_probe (GstTensorDecoderDef * decoder)
 {
+  g_return_val_if_fail (nnstreamer_decoder_validate (decoder), FALSE);
   return register_subplugin (NNS_SUBPLUGIN_DECODER, decoder->modename, decoder);
 }
 
@@ -443,7 +463,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       decoder = nnstreamer_decoder_find (mode_string);
 
       /* See if we are using "plugin" */
-      if (NULL != decoder) {
+      if (nnstreamer_decoder_validate (decoder)) {
         silent_debug ("tensor_decoder plugin mode (%s)\n", mode_string);
 
         if (decoder == self->decoder) {
