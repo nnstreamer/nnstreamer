@@ -2374,6 +2374,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
       self->tensors_config->info.num_tensors);
 
   /** get writable buffer */
+  num_mapped = 0;
   for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
     mem[idx] = gst_buffer_peek_memory (buffer, idx);
     if (!gst_memory_map (mem[idx], &map[idx], GST_MAP_WRITE)) {
