@@ -26,10 +26,6 @@
  *
  */
 
-/** @todo getline requires _GNU_SOURCE. remove this later. */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,8 +83,10 @@ il_exit (void **pdata)
 static void
 loadImageLabels (ImageLabelData * data)
 {
-  FILE *fp;
-  int i;
+  GError *err = NULL;
+  gchar **labels;
+  gchar *contents = NULL;
+  guint i, len;
 
   /* Clean up previously configured data first */
   if (data->labels) {
@@ -100,47 +98,29 @@ loadImageLabels (ImageLabelData * data)
   data->total_labels = 0;
   data->max_word_length = 0;
 
-  if ((fp = fopen (data->label_path, "r")) != NULL) {
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    char *label;
-
-    GList *labels = NULL, *cursor;
-
-    while ((read = getline (&line, &len, fp)) != -1) {
-      if (line) {
-        label = g_strdup ((char *) line);
-        labels = g_list_append (labels, label);
-        free (line);
-        if (strlen (label) > data->max_word_length)
-          data->max_word_length = strlen (label);
-      }
-      line = NULL;
-      len = 0;
-    }
-
-    if (line) {
-      free (line);
-    }
-
-    /* Flatten labels (GList) into data->labels (array char **) */
-    data->total_labels = g_list_length (labels);
-    data->labels = g_new (char *, data->total_labels);
-    i = 0;
-    cursor = g_list_first (labels);
-    for (cursor = labels; cursor != NULL; cursor = cursor->next) {
-      data->labels[i] = cursor->data;
-      i++;
-      g_assert (i <= data->total_labels);
-    }
-    g_list_free (labels);       /* Do not free its elements */
-
-    fclose (fp);
-  } else {
-    GST_ERROR ("Cannot load label file %s", data->label_path);
+  /* Read file contents */
+  if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {
+    GST_ERROR ("Unable to read file %s with error %s.",
+        data->label_path, err->message);
+    g_clear_error (&err);
     return;
   }
+
+  labels = g_strsplit (contents, "\n", -1);
+  data->total_labels = g_strv_length (labels);
+  data->labels = g_new0 (char *, data->total_labels);
+
+  for (i = 0; i < data->total_labels; i++) {
+    data->labels[i] = g_strdup (labels[i]);
+
+    len = strlen (labels[i]);
+    if (len > data->max_word_length) {
+      data->max_word_length = len;
+    }
+  }
+
+  g_strfreev (labels);
+  g_free (contents);
 
   GST_INFO ("Loaded image label file successfully. %u labels loaded.",
       data->total_labels);
