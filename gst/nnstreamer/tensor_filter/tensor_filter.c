@@ -110,6 +110,31 @@
 #define g_free_const(x) g_free((void*)(long)(x))
 
 /**
+ * @brief Validate filter sub-plugin's data.
+ */
+static gboolean
+nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
+{
+  if (!tfsp || !tfsp->name) {
+    /* invalid fw name */
+    return FALSE;
+  }
+
+  if (!tfsp->invoke_NN) {
+    /* no invoke function */
+    return FALSE;
+  }
+
+  if (!(tfsp->getInputDimension && tfsp->getOutputDimension) &&
+      !tfsp->setInputDimension) {
+    /* no method to get tensor info */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Filter subplugin should call this to register itself
  * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered
  * @return TRUE if registered. FALSE is failed or duplicated.
@@ -117,6 +142,7 @@
 int
 nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 {
+  g_return_val_if_fail (nnstreamer_filter_validate (tfsp), FALSE);
   return register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
 }
 
@@ -459,32 +485,31 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
     case PROP_FRAMEWORK:
     {
       const gchar *fw_name = g_value_get_string (value);
+      const GstTensorFilterFramework *fw;
 
       if (self->fw != NULL) {
+        /* close old framework */
         gst_tensor_filter_close_fw (self);
       }
-      self->fw = nnstreamer_filter_find (fw_name);
 
       silent_debug ("Framework = %s\n", fw_name);
-      if (self->fw == NULL) {
+
+      fw = nnstreamer_filter_find (fw_name);
+
+      /* See if mandatory methods are filled in */
+      if (nnstreamer_filter_validate (fw)) {
+        self->fw = fw;
+        prop->fwname = g_strdup (fw_name);
+      } else {
         GST_WARNING_OBJECT (self,
             "Cannot identify the given neural network framework, %s\n",
             fw_name);
-        break;
       }
-
-      g_free_const (prop->fwname);
-      prop->fwname = g_strdup (fw_name);
-
-      /* See if mandatory methods are filled in */
-      g_assert (self->fw->invoke_NN);
-      g_assert ((self->fw->getInputDimension && self->fw->getOutputDimension)
-          || self->fw->setInputDimension);
       break;
     }
     case PROP_MODEL:
     {
-      gchar *model_file;
+      const gchar *model_file = g_value_get_string (value);
 
       if (prop->model_file) {
         gst_tensor_filter_close_fw (self);
@@ -493,15 +518,13 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       }
 
       /* Once configures, it cannot be changed in runtime */
-      model_file = g_value_dup_string (value);
       g_assert (model_file);
 
       silent_debug ("Model = %s\n", model_file);
       if (!g_file_test (model_file, G_FILE_TEST_IS_REGULAR)) {
         GST_ERROR_OBJECT (self, "Cannot find the model file: %s\n", model_file);
-        g_free (model_file);
       } else {
-        prop->model_file = model_file;
+        prop->model_file = g_strdup (model_file);
       }
       break;
     }
