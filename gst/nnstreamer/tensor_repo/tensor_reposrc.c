@@ -90,6 +90,7 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
 
   gobject_class->set_property = gst_tensor_reposrc_set_property;
   gobject_class->get_property = gst_tensor_reposrc_get_property;
+  gobject_class->dispose = gst_tensor_reposrc_dispose;
 
   g_object_class_install_property (gobject_class, PROP_CAPS,
       g_param_spec_boxed ("caps", "Caps",
@@ -104,8 +105,6 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
       g_param_spec_uint ("slot-index", "Slot Index", "repository slot index",
           0, UINT_MAX, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  gobject_class->dispose = gst_tensor_reposrc_dispose;
 
   basesrc_class->get_caps = gst_tensor_reposrc_getcaps;
   pushsrc_class->create = gst_tensor_reposrc_create;
@@ -139,11 +138,9 @@ gst_tensor_reposrc_init (GstTensorRepoSrc * self)
 static void
 gst_tensor_reposrc_dispose (GObject * object)
 {
-  gboolean ret;
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (object);
 
-  ret = gst_tensor_repo_remove_repodata (self->myid);
-  if (!ret)
+  if (!gst_tensor_repo_remove_repodata (self->myid))
     GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
         ("Cannot remove [key: %d] in repo", self->myid), NULL);
 
@@ -159,16 +156,15 @@ gst_tensor_reposrc_dispose (GObject * object)
 static GstCaps *
 gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
 {
-  GstCaps *cap, *check, *result;
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
+  GstCaps *cap, *check, *result;
   GstStructure *st = NULL;
 
   GST_DEBUG_OBJECT (self, "returning %" GST_PTR_FORMAT, self->caps);
 
   if (self->caps) {
     if (filter) {
-      cap =
-          gst_caps_intersect_full (filter, self->caps,
+      cap = gst_caps_intersect_full (filter, self->caps,
           GST_CAPS_INTERSECT_FIRST);
     } else
       cap = gst_caps_ref (self->caps);
@@ -202,7 +198,6 @@ static void
 gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (object);
 
   switch (prop_id) {
@@ -220,9 +215,9 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
         self->o_myid = self->myid;
         self->set_startid = TRUE;
       }
+
       if (self->o_myid != self->myid)
         gst_tensor_repo_set_changed (self->o_myid, self->myid, FALSE);
-
       break;
     case PROP_CAPS:
     {
@@ -249,8 +244,8 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
         self->fps_d = -1;
       }
       self->negotiation = FALSE;
-    }
       break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -289,20 +284,25 @@ static GstBuffer *
 gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
 {
   GstBuffer *buf = NULL;
-  int i;
-  guint num_tensors = self->config.info.num_tensors;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i, num_tensors;
   gsize size = 0;
+
   buf = gst_buffer_new ();
+  num_tensors = self->config.info.num_tensors;
+
   for (i = 0; i < num_tensors; i++) {
-    GstMemory *mem;
-    GstMapInfo info;
     size = gst_tensor_info_get_size (&self->config.info.info[i]);
     mem = gst_allocator_alloc (NULL, size, NULL);
+
     gst_memory_map (mem, &info, GST_MAP_WRITE);
     memset (info.data, 0, size);
     gst_memory_unmap (mem, &info);
+
     gst_buffer_append_memory (buf, mem);
   }
+
   return buf;
 }
 
@@ -328,6 +328,7 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
     while (!buf && !eos) {
       buf = gst_tensor_repo_get_buffer (self->myid, self->o_myid, &eos, &newid);
     }
+
     if (eos)
       return GST_FLOW_EOS;
 
@@ -343,22 +344,23 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
       if (!gst_caps_can_intersect (self->caps, meta->caps)) {
         GST_ELEMENT_ERROR (GST_ELEMENT (self), CORE, NEGOTIATION,
             ("Negotiation Failed! : repo_sink & repos_src"), (NULL));
+
         if (!gst_buffer_remove_meta (buf, (GstMeta *) meta)) {
           GST_ELEMENT_ERROR (GST_ELEMENT (self), RESOURCE, WRITE,
               ("Cannot remove meta from buffer!"), (NULL));
         }
+
         gst_buffer_unref (buf);
         gst_tensor_repo_set_eos (self->myid);
         return GST_FLOW_EOS;
       }
 
       self->negotiation = TRUE;
-
     }
+
     gst_buffer_remove_meta (buf, (GstMeta *) meta);
   }
 
   *buffer = buf;
-
   return GST_FLOW_OK;
 }

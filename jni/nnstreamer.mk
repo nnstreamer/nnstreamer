@@ -18,8 +18,7 @@ NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
-    $(NNSTREAMER_GST_HOME)/tensor_common.c \
-    $(NNSTREAMER_GST_HOME)/tensor_repo.c
+    $(NNSTREAMER_GST_HOME)/tensor_common.c
 
 # nnstreamer plugins
 NNSTREAMER_PLUGINS_SRCS := \
@@ -31,8 +30,9 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
     $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
-    $(NNSTREAMER_GST_HOME)/tensor_reposink/tensor_reposink.c \
-    $(NNSTREAMER_GST_HOME)/tensor_reposrc/tensor_reposrc.c \
+    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_repo.c \
+    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposink.c \
+    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposrc.c \
     $(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
     $(NNSTREAMER_GST_HOME)/tensor_source/tensor_src_iio.c \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \

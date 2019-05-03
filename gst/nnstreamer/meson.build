@@ -27,8 +27,7 @@ nnst_common_sources = [
   'nnstreamer.c',
   'nnstreamer_conf.c',
   'nnstreamer_subplugin.c',
-  'tensor_common.c',
-  'tensor_repo.c'
+  'tensor_common.c'
 ]
 
 foreach s : nnst_common_sources
@@ -61,8 +60,7 @@ nnst_plugins = [
   'tensor_split',
   'tensor_transform',
   'tensor_filter',
-  'tensor_reposrc',
-  'tensor_reposink'
+  'tensor_repo'
 ]
 
 foreach p : nnst_plugins

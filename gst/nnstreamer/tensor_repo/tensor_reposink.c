@@ -83,7 +83,6 @@ static gboolean gst_tensor_reposink_set_caps (GstBaseSink * sink,
 static GstCaps *gst_tensor_reposink_get_caps (GstBaseSink * sink,
     GstCaps * filter);
 
-
 #define gst_tensor_reposink_parent_class parent_class
 G_DEFINE_TYPE (GstTensorRepoSink, gst_tensor_reposink, GST_TYPE_BASE_SINK);
 
@@ -148,6 +147,7 @@ static void
 gst_tensor_reposink_init (GstTensorRepoSink * self)
 {
   GstBaseSink *basesink;
+
   basesink = GST_BASE_SINK (self);
 
   gst_tensor_repo_init ();
@@ -171,6 +171,7 @@ gst_tensor_reposink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorRepoSink *self;
+
   self = GST_TENSOR_REPOSINK (object);
 
   switch (prop_id) {
@@ -183,14 +184,16 @@ gst_tensor_reposink_set_property (GObject * object, guint prop_id,
     case PROP_SLOT:
       self->o_myid = self->myid;
       self->myid = g_value_get_uint (value);
+
       gst_tensor_repo_add_repodata (self->myid, TRUE);
+
       if (!self->set_startid) {
         self->o_myid = self->myid;
         self->set_startid = TRUE;
       }
+
       if (self->o_myid != self->myid)
         gst_tensor_repo_set_changed (self->o_myid, self->myid, TRUE);
-
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -206,7 +209,9 @@ gst_tensor_reposink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstTensorRepoSink *self;
+
   self = GST_TENSOR_REPOSINK (object);
+
   switch (prop_id) {
     case PROP_SIGNAL_RATE:
       g_value_set_uint (value, self->signal_rate);
@@ -230,7 +235,9 @@ static void
 gst_tensor_reposink_dispose (GObject * object)
 {
   GstTensorRepoSink *self;
+
   self = GST_TENSOR_REPOSINK (object);
+
   if (self->in_caps)
     gst_caps_unref (self->in_caps);
 
@@ -275,10 +282,10 @@ gst_tensor_reposink_event (GstBaseSink * sink, GstEvent * event)
     case GST_EVENT_EOS:
       gst_tensor_repo_set_eos (self->myid);
       break;
-
     default:
       break;
   }
+
   return GST_BASE_SINK_CLASS (parent_class)->event (sink, event);
 }
 
@@ -296,19 +303,18 @@ gst_tensor_reposink_query (GstBaseSink * sink, GstQuery * query)
   type = GST_QUERY_TYPE (query);
 
   GST_DEBUG_OBJECT (self, "received query %s", GST_QUERY_TYPE_NAME (query));
+
   switch (type) {
     case GST_QUERY_SEEKING:
       gst_query_parse_seeking (query, &format, NULL, NULL, NULL);
       gst_query_set_seeking (query, format, FALSE, 0, -1);
       return TRUE;
-
     default:
       break;
   }
 
   return GST_BASE_SINK_CLASS (parent_class)->query (sink, query);
 }
-
 
 /**
  * @brief Push GstBuffer
@@ -326,14 +332,18 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
   if (signal_rate) {
     GstClock *clock;
     GstClockTime render_time;
+
     clock = gst_element_get_clock (GST_ELEMENT (self));
 
     if (clock) {
       now = gst_clock_get_time (clock);
       render_time = (1000 / signal_rate) * GST_MSECOND + self->last_render_time;
+
       if (!GST_CLOCK_TIME_IS_VALID (self->last_render_time) ||
-          GST_CLOCK_DIFF (now, render_time) <= 0)
+          GST_CLOCK_DIFF (now, render_time) <= 0) {
         notify = TRUE;
+      }
+
       gst_object_unref (clock);
     }
   } else {
@@ -341,14 +351,13 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
   }
 
   if (notify) {
-    gboolean ret = FALSE;
     self->last_render_time = now;
-    ret =
-        gst_tensor_repo_set_buffer (self->myid, self->o_myid, buffer,
-        self->in_caps);
-    if (!ret)
+
+    if (!gst_tensor_repo_set_buffer (self->myid, self->o_myid, buffer,
+            self->in_caps)) {
       GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
           ("Cannot Set buffer into repo [key: %d]", self->myid), NULL);
+    }
   }
 }
 
@@ -359,8 +368,8 @@ static GstFlowReturn
 gst_tensor_reposink_render (GstBaseSink * sink, GstBuffer * buffer)
 {
   GstTensorRepoSink *self;
-  self = GST_TENSOR_REPOSINK (sink);
 
+  self = GST_TENSOR_REPOSINK (sink);
 
   gst_tensor_reposink_render_buffer (self, buffer);
   return GST_FLOW_OK;
@@ -400,15 +409,18 @@ gst_tensor_reposink_set_caps (GstBaseSink * sink, GstCaps * caps)
   self = GST_TENSOR_REPOSINK (sink);
   gst_caps_replace (&self->in_caps, caps);
 
+  /* debug print caps */
   if (!self->silent) {
+    GstStructure *structure;
+    gchar *str;
     guint caps_size, i;
 
     caps_size = gst_caps_get_size (caps);
     GST_DEBUG_OBJECT (self, "set caps, size is %d", caps_size);
 
     for (i = 0; i < caps_size; i++) {
-      GstStructure *structure = gst_caps_get_structure (caps, i);
-      gchar *str = gst_structure_to_string (structure);
+      structure = gst_caps_get_structure (caps, i);
+      str = gst_structure_to_string (structure);
 
       GST_DEBUG_OBJECT (self, "[%d] %s", i, str);
       g_free (str);
