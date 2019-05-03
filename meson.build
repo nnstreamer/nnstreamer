@@ -18,6 +18,44 @@ add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: ['c',
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 
+warning_flags = [
+  '-Wredundant-decls',
+  '-Wwrite-strings',
+  '-Wformat',
+  '-Wformat-nonliteral',
+  '-Wformat-security',
+  '-Winit-self',
+  '-Wmissing-include-dirs',
+  '-Waddress',
+  '-Wno-multichar',
+  '-Wvla',
+  '-Wpointer-arith'
+]
+
+warning_c_flags = [
+  '-Wmissing-declarations',
+  '-Wmissing-prototypes',
+  '-Wnested-externs',
+  '-Waggregate-return',
+  '-Wold-style-definition',
+  '-Wdeclaration-after-statement'
+]
+
+foreach extra_arg : warning_flags
+  if cc.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'c')
+  endif
+  if cxx.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'cpp')
+  endif
+endforeach
+
+foreach extra_arg : warning_c_flags
+  if cc.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'c')
+  endif
+endforeach
+
 gst_api_verision = '1.0'
 
 # Set configuration

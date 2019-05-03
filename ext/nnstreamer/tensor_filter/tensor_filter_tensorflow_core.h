@@ -37,9 +37,12 @@
 #include <algorithm>
 #include <vector>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #include <tensorflow/c/c_api.h>
 #include <tensorflow/c/c_api_internal.h>
 #include <tensorflow/core/public/session.h>
+#pragma GCC diagnostic pop
 
 using namespace tensorflow;
 
