@@ -1,3 +1,8 @@
+# Set 1 or True if you want to set your custom sub-plugins' path with env variables.
+# Please be informed that, configured ini file should be in RO partition for the release binary.
+[common]
+enable_envvar=@ENABLE_ENV_VAR@
+
 [filter]
 filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
 customfilters=@SUBPLUGIN_INSTALL_PREFIX@/customfilters/

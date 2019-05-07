@@ -4,7 +4,7 @@
 project('nnstreamer', 'c', 'cpp',
   version: '0.1.3',
   license: ['LGPL'],
-  meson_version: '>=0.40.0',
+  meson_version: '>=0.42.0',
   default_options: [
     'werror=true',
     'warning_level=1',
@@ -13,7 +13,7 @@ project('nnstreamer', 'c', 'cpp',
   ]
 )
 
-add_project_arguments('-DVERSION="'+meson.project_version()+'"', language: ['c', 'cpp'])
+add_project_arguments('-DVERSION="' + meson.project_version() + '"', language: ['c', 'cpp'])
 
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
@@ -58,10 +58,6 @@ endforeach
 
 gst_api_verision = '1.0'
 
-# Set configuration
-nnstreamer_conf = configuration_data()
-nnstreamer_conf.set('VERSION', meson.project_version())
-
 # Set install path
 nnstreamer_prefix = get_option('prefix')
 nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
@@ -79,12 +75,18 @@ decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 unittest_install_dir = join_paths(subplugin_install_prefix, 'unittest')
 
+# Set default configuration
+nnstreamer_conf = configuration_data()
+nnstreamer_conf.set('VERSION', meson.project_version())
 nnstreamer_conf.set('PREFIX', nnstreamer_prefix)
 nnstreamer_conf.set('EXEC_PREFIX', nnstreamer_bindir)
 nnstreamer_conf.set('LIB_INSTALL_DIR', nnstreamer_libdir)
 nnstreamer_conf.set('GST_INSTALL_DIR', plugins_install_dir)
 nnstreamer_conf.set('INCLUDE_INSTALL_DIR', nnstreamer_includedir)
 nnstreamer_conf.set('SUBPLUGIN_INSTALL_PREFIX', subplugin_install_prefix)
+
+# Define default conf file
+add_project_arguments('-DNNSTREAMER_CONF_FILE="' + join_paths(nnstreamer_inidir, 'nnstreamer.ini') + '"', language: 'c')
 
 # Dependencies
 glib_dep = dependency('glib-2.0')
@@ -136,11 +138,6 @@ if get_option('enable-tensorflow')
   else
     error('Cannot find tensorflow')
   endif
-
-  nnstreamer_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
-else
-  message('Tensorflow is disabled')
-  nnstreamer_conf.set('TF_MEM_OPTMZ', false)
 endif
 
 # Tensorflow-lite
@@ -202,16 +199,42 @@ endif
 # Build unittests
 if get_option('enable-test')
   subdir('tests')
+
+  # temporary ini file for test, enable env variables.
+  nnstreamer_test_conf = configuration_data()
+  nnstreamer_test_conf.merge_from(nnstreamer_conf)
+
+  nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
+  nnstreamer_test_conf.set('TF_MEM_OPTMZ', false)
+
+  # meson 0.50 supports install argument in configure_file()
+  if get_option('install-test')
+    configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
+      install_dir: unittest_install_dir,
+      configuration: nnstreamer_test_conf
+    )
+  else
+    configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
+      configuration: nnstreamer_test_conf
+    )
+  endif
 endif
+
+# Set configuration to install .ini
+nnstreamer_install_conf = configuration_data()
+nnstreamer_install_conf.merge_from(nnstreamer_conf)
+
+nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
+nnstreamer_install_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
 
 # Install .ini
 configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
   install_dir: nnstreamer_inidir,
-  configuration: nnstreamer_conf
+  configuration: nnstreamer_install_conf
 )
 
 # Install .pc
 configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
-  configuration: nnstreamer_conf
+  configuration: nnstreamer_install_conf
 )
