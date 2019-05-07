@@ -44,6 +44,9 @@ G_BEGIN_DECLS
 
 /* Internal Hardcoded Values */
 #define NNSTREAMER_DEFAULT_CONF_FILE    "/etc/nnstreamer.ini"
+#ifndef NNSTREAMER_CONF_FILE
+#define NNSTREAMER_CONF_FILE NNSTREAMER_DEFAULT_CONF_FILE
+#endif
 #define NNSTREAMER_FILTERS              "/usr/lib/nnstreamer/filters/"
 #define NNSTREAMER_DECODERS             "/usr/lib/nnstreamer/decoders/"
 #define NNSTREAMER_CUSTOM_FILTERS       "/usr/lib/nnstreamer/customfilters/"

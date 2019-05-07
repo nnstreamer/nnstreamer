@@ -169,13 +169,14 @@ enable_tf=true
 enable_tf=false
 %endif
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} %{api} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} %{api} -Denable-env-var=false build
 
 ninja -C build %{?_smp_mflags}
 
 %if 0%{?unit_test}
     pushd build
     export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
+    export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
     export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
     export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     ./tests/unittest_common

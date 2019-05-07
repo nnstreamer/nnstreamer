@@ -38,6 +38,7 @@ static const gchar *subplugin_prefixes[] = {
 typedef struct
 {
   gboolean loaded;            /**< TRUE if loaded at least once */
+  gboolean enable_envvar;     /**< TRUE to parse env variables */
 
   gchar *conffile;            /**< Location of conf file. */
 
@@ -262,22 +263,24 @@ nnsconf_loadconf (gboolean force_reload)
     memset (&conf, 0, sizeof (confdata));
   }
 
-  /* Read from Environmental Variables */
-  conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
-  if (!conf.conffile || !g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
+  /* Read from the conf file first */
+  conf.conffile = g_strdup (NNSTREAMER_CONF_FILE);
+  if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
     /* File not found or not configured */
-    if (NULL != conf.conffile)
-      g_free (conf.conffile);
-    conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
-  }
+    g_free (conf.conffile);
 
-  conf.pathFILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_FILTERS);
-  conf.pathDECODERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_DECODERS);
-  conf.pathCUSTOM_FILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
+    /* Try to read from Environmental Variables */
+    conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
+  }
 
   /* Read the conf file. It's ok even if we cannot load it. */
   if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
           NULL)) {
+    gchar *value;
+
+    value = g_key_file_get_string (key_file, "common", "enable_envvar", NULL);
+    conf.enable_envvar = _parse_bool_string (value, FALSE);
+    g_free (value);
 
     conf.pathFILTERS[1] =
         g_key_file_get_string (key_file, "filter", "filters", NULL);
@@ -285,6 +288,14 @@ nnsconf_loadconf (gboolean force_reload)
         g_key_file_get_string (key_file, "decoder", "decoders", NULL);
     conf.pathCUSTOM_FILTERS[1] =
         g_key_file_get_string (key_file, "filter", "customfilters", NULL);
+  }
+
+  /* Read from env variables. */
+  if (conf.enable_envvar) {
+    conf.pathFILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_FILTERS);
+    conf.pathDECODERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_DECODERS);
+    conf.pathCUSTOM_FILTERS[0] =
+        _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
   }
 
   /* Strdup the hardcoded */
@@ -429,11 +440,13 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
   value = g_hash_table_lookup (custom_table, hashkey);
 
   if (NULL == value) {
-    gchar *envkey = g_strdup_printf ("NNSTREAMER_%s_%s", group, key);
-
     /* 1. Read envvar */
-    value = _strdup_getenv (envkey);
-    g_free (envkey);
+    if (conf.enable_envvar) {
+      gchar *envkey = g_strdup_printf ("NNSTREAMER_%s_%s", group, key);
+
+      value = _strdup_getenv (envkey);
+      g_free (envkey);
+    }
 
     /* 2. Read ini */
     if (NULL == value && conf.conffile) {
