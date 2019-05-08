@@ -97,8 +97,8 @@ construct_element (GstElement * e, nns_pipeline * p, const char *name,
  * @brief Internal function to convert GstTensorsInfo into nns_tensors_info_s structure.
  */
 static int
-get_tensors_info_from_GstTensorsInfo (GstTensorsInfo *gst_tensorsinfo,
-  nns_tensors_info_s *tensors_info)
+get_tensors_info_from_GstTensorsInfo (GstTensorsInfo * gst_tensorsinfo,
+    nns_tensors_info_s * tensors_info)
 {
   if (!gst_tensorsinfo) {
     dlog_print (DLOG_ERROR, DLOG_TAG, "GstTensorsInfo should not be NULL!");
@@ -107,7 +107,7 @@ get_tensors_info_from_GstTensorsInfo (GstTensorsInfo *gst_tensorsinfo,
 
   /** Currently, the data structures of GstTensorsInfo are
    * completely same as that of nns_tensors_info_s. */
-  memcpy (tensors_info, gst_tensorsinfo, sizeof(GstTensorsInfo));
+  memcpy (tensors_info, gst_tensorsinfo, sizeof (GstTensorsInfo));
 
   return NNS_ERROR_NONE;
 }
@@ -271,7 +271,7 @@ cleanup_node (gpointer data)
 }
 
 /**
- * @brief Construct the pipeline (more info in tizen-api.h)
+ * @brief Construct the pipeline (more info in nnstreamer.h)
  */
 int
 nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
@@ -396,7 +396,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
 }
 
 /**
- * @brief Destroy the pipeline (more info in tizen-api.h)
+ * @brief Destroy the pipeline (more info in nnstreamer.h)
  */
 int
 nns_pipeline_destroy (nns_pipeline_h pipe)
@@ -444,7 +444,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
 }
 
 /**
- * @brief Get the pipeline state (more info in tizen-api.h)
+ * @brief Get the pipeline state (more info in nnstreamer.h)
  */
 int
 nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e * state)
@@ -473,7 +473,7 @@ nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e * state)
  ** NNStreamer Pipeline Start/Stop Control         **
  ****************************************************/
 /**
- * @brief Start/Resume the pipeline! (more info in tizen-api.h)
+ * @brief Start/Resume the pipeline! (more info in nnstreamer.h)
  */
 int
 nns_pipeline_start (nns_pipeline_h pipe)
@@ -492,7 +492,7 @@ nns_pipeline_start (nns_pipeline_h pipe)
 }
 
 /**
- * @brief Pause the pipeline! (more info in tizen-api.h)
+ * @brief Pause the pipeline! (more info in nnstreamer.h)
  */
 int
 nns_pipeline_stop (nns_pipeline_h pipe)
@@ -514,7 +514,7 @@ nns_pipeline_stop (nns_pipeline_h pipe)
  ** NNStreamer Pipeline Sink/Src Control           **
  ****************************************************/
 /**
- * @brief Register a callback for sink (more info in tizen-api.h)
+ * @brief Register a callback for sink (more info in nnstreamer.h)
  */
 int
 nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname,
@@ -576,7 +576,7 @@ unlock_return:
 }
 
 /**
- * @brief Unregister a callback for sink (more info in tizen-api.h)
+ * @brief Unregister a callback for sink (more info in nnstreamer.h)
  */
 int
 nns_pipeline_sink_unregister (nns_sink_h h)
@@ -589,7 +589,7 @@ nns_pipeline_sink_unregister (nns_sink_h h)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h,
+ * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h,
  *        "Free"
  */
 static void
@@ -599,7 +599,7 @@ nnsbufpolicy_free (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h.
+ * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h.
  *        "Do Nothing"
  */
 static void
@@ -609,7 +609,7 @@ nnsbufpolicy_nop (gpointer data)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in tizen-api.h.
+ * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h.
  */
 static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
   [NNS_BUF_FREE_BY_NNSTREAMER] = nnsbufpolicy_free,
@@ -617,11 +617,11 @@ static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
 };
 
 /**
- * @brief Get a handle to operate a src (more info in tizen-api.h)
+ * @brief Get a handle to operate a src (more info in nnstreamer.h)
  */
 int nns_pipeline_src_gethandle
-    (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info,
-    nns_src_h * h)
+    (nns_pipeline_h pipe, const char *srcname,
+    nns_tensors_info_s * tensors_info, nns_src_h * h)
 {
   nns_pipeline *p = pipe;
   element *elem;
@@ -716,7 +716,7 @@ unlock_return:
 }
 
 /**
- * @brief Close a src node (more info in tizen-api.h)
+ * @brief Close a src node (more info in nnstreamer.h)
  */
 int
 nns_pipeline_src_puthandle (nns_src_h h)
@@ -729,7 +729,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
 }
 
 /**
- * @brief Push a data frame to a src (more info in tizen-api.h)
+ * @brief Push a data frame to a src (more info in nnstreamer.h)
  */
 int
 nns_pipeline_src_inputdata (nns_src_h h,
@@ -861,7 +861,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
  ****************************************************/
 
 /**
- * @brief Get a handle to operate a selector (more info in tizen-api.h)
+ * @brief Get a handle to operate a selector (more info in nnstreamer.h)
  */
 int
 nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
@@ -936,7 +936,7 @@ unlock_return:
 }
 
 /**
- * @brief Close the given switch handle (more info in tizen-api.h)
+ * @brief Close the given switch handle (more info in nnstreamer.h)
  */
 int
 nns_pipeline_switch_puthandle (nns_switch_h h)
@@ -949,7 +949,7 @@ nns_pipeline_switch_puthandle (nns_switch_h h)
 }
 
 /**
- * @brief Control the switch (more info in tizen-api.h)
+ * @brief Control the switch (more info in nnstreamer.h)
  */
 int
 nns_pipeline_switch_select (nns_switch_h h, const char *padname)
@@ -995,7 +995,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
 }
 
 /**
- * @brief List nodes of a switch (more info in tizen-api.h)
+ * @brief List nodes of a switch (more info in nnstreamer.h)
  */
 int
 nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
@@ -1076,7 +1076,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
 }
 
 /**
- * @brief Get a handle to operate a Valve (more info in tizen-api.h)
+ * @brief Get a handle to operate a Valve (more info in nnstreamer.h)
  */
 int nns_pipeline_valve_gethandle
     (nns_pipeline_h pipe, const char *valvename, nns_valve_h * h)
@@ -1136,7 +1136,7 @@ unlock_return:
 }
 
 /**
- * @brief Close the given valve handle (more info in tizen-api.h)
+ * @brief Close the given valve handle (more info in nnstreamer.h)
  */
 int
 nns_pipeline_valve_puthandle (nns_valve_h h)
@@ -1149,7 +1149,7 @@ nns_pipeline_valve_puthandle (nns_valve_h h)
 }
 
 /**
- * @brief Control the valve with the given handle (more info in tizen-api.h)
+ * @brief Control the valve with the given handle (more info in nnstreamer.h)
  */
 int
 nns_pipeline_valve_control (nns_valve_h h, int valve_drop)

@@ -301,7 +301,7 @@ popd
 %{_libdir}/libcapi-nnstreamer.so.*
 
 %files -n capi-nnstreamer-devel
-%{_includedir}/nnstreamer/tizen-api.h
+%{_includedir}/nnstreamer/nnstreamer.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 %{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.a

@@ -7,7 +7,7 @@
  * @bug         No known bugs
  */
 
-#include <tizen-api.h>
+#include <nnstreamer.h>
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 /**
- * @file tizen-api.h
+ * @file nnstreamer.h
  * @date 07 March 2019
  * @brief Tizen NNStreamer/Pipeline(main) C-API Header.
  *        This allows to construct and control NNStreamer pipelines.
@@ -23,8 +23,8 @@
  * @bug No known bugs except for NYI items
  */
 
-#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
-#define __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__
+#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_H__
+#define __TIZEN_MACHINELEARNING_NNSTREAMER_H__
 
 #include <stddef.h>
 #include <tizen_error.h>
@@ -418,4 +418,4 @@ int nns_pipeline_valve_control (nns_valve_h h, int valve_drop);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_TIZEN_API_H__ */
+#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_H__ */

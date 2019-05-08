@@ -53,7 +53,7 @@
  * @ingroup  CAPI_ML_NNSTREAMER
  * @brief The NNStreamer API provides interfaces to create and execute stream pipelines with neural networks and sensors.
  * @section CAPI_ML_NNSTREAMER_PIPELINE_HEADER Required Header
- *   \#include <nnstreamer/tizen-api.h> \n
+ *   \#include <nnstreamer/nnstreamer.h> \n
  *
  * @section CAPI_ML_NNSTREAMER_PIPELINE_OVERVIEW Overview
  * The NNStreamer API provides interfaces to create and execute stream pipelines with neural networks and sensors.

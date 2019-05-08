@@ -4,7 +4,7 @@
 prefix=@PREFIX@
 exec_prefix=@PREFIX@
 libdir=@LIB_INSTALL_DIR@
-includedir=@INCLUDE_INSTALL_DIR@/nnstreamer
+includedir=@INCLUDE_INSTALL_DIR@
 
 Name: tizen-api-nnstreamer
 Description: NNStreamer API for Tizen

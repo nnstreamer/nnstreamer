@@ -29,7 +29,7 @@
 #include <glib.h>
 #include <gmodule.h>
 #include <gst/gst.h>
-#include "tizen-api.h"
+#include "nnstreamer.h"
 #include <tizen_error.h>
 #include <nnstreamer/tensor_typedef.h>
 #include <gst/app/gstappsrc.h>
