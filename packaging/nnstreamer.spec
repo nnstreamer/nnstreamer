@@ -153,7 +153,6 @@ Developmental kit for Tizen Native NNStreamer API.
 cp %{SOURCE1001} .
 %if %{with tizen}
 cp %{SOURCE1002} .
-cp tizen-api/LICENSE.Apache-2.0 LICENSE.APLv2
 %endif
 
 %build
@@ -297,7 +296,7 @@ popd
 %if %{with tizen}
 %files -n capi-nnstreamer
 %manifest capi-nnstreamer.manifest
-%license LICENSE.APLv2
+%license LICENSE
 %{_libdir}/libcapi-nnstreamer.so.*
 
 %files -n capi-nnstreamer-devel
