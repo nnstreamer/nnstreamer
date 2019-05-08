@@ -20,6 +20,50 @@ cxx = meson.get_compiler('cpp')
 
 gst_api_verision = '1.0'
 
+# Set compiler warnings
+warning_flags = [
+  '-Wwrite-strings',
+  '-Wformat',
+  '-Wformat-security',
+  '-Winit-self',
+  '-Wmissing-include-dirs',
+  '-Waddress',
+  '-Wno-multichar',
+  '-Wvla',
+  '-Wpointer-arith',
+]
+
+warning_c_flags = [
+  '-Wmissing-prototypes',
+  '-Wdeclaration-after-statement',
+  '-Wold-style-definition',
+]
+
+warning_cxx_flags = [
+  '-Wformat-nonliteral',
+]
+
+foreach extra_arg : warning_c_flags
+  if cc.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'c')
+  endif
+endforeach
+
+foreach extra_arg : warning_cxx_flags
+  if cxx.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'cpp')
+  endif
+endforeach
+
+foreach extra_arg : warning_flags
+  if cc.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'c')
+  endif
+  if cxx.has_argument (extra_arg)
+    add_project_arguments([extra_arg], language: 'cpp')
+  endif
+endforeach
+
 # Set configuration
 nnstreamer_conf = configuration_data()
 nnstreamer_conf.set('VERSION', meson.project_version())

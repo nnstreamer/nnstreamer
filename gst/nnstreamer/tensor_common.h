@@ -122,6 +122,22 @@ extern void gst_tensors_typefind_function (GstTypeFind * tf, gpointer pdata);
 #define NNSTREAMER_PLUGIN_INIT(name)	\
   gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin * plugin)
 
+/**
+ * @brief Prototypes for tensor plugins
+ */
+NNSTREAMER_PLUGIN_INIT (tensor_converter);
+NNSTREAMER_PLUGIN_INIT (tensor_aggregator);
+NNSTREAMER_PLUGIN_INIT (tensor_decoder);
+NNSTREAMER_PLUGIN_INIT (tensor_demux);
+NNSTREAMER_PLUGIN_INIT (tensor_merge);
+NNSTREAMER_PLUGIN_INIT (tensor_mux);
+NNSTREAMER_PLUGIN_INIT (tensor_sink);
+NNSTREAMER_PLUGIN_INIT (tensor_src_iio);
+NNSTREAMER_PLUGIN_INIT (tensor_split);
+NNSTREAMER_PLUGIN_INIT (tensor_transform);
+NNSTREAMER_PLUGIN_INIT (tensor_filter);
+NNSTREAMER_PLUGIN_INIT (tensor_reposink);
+NNSTREAMER_PLUGIN_INIT (tensor_reposrc);
 
 /**
  * @brief A function call to decide current timestamp among collected pads based on PTS.

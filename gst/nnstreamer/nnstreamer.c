@@ -47,23 +47,7 @@
 
 #include <gst/gst.h>
 #include <gst/gstplugin.h>
-
-#define NNSTREAMER_PLUGIN(name) \
-  extern gboolean G_PASTE(nnstreamer_export_, name) (GstPlugin *plugin)
-
-NNSTREAMER_PLUGIN (tensor_converter);
-NNSTREAMER_PLUGIN (tensor_aggregator);
-NNSTREAMER_PLUGIN (tensor_decoder);
-NNSTREAMER_PLUGIN (tensor_demux);
-NNSTREAMER_PLUGIN (tensor_merge);
-NNSTREAMER_PLUGIN (tensor_mux);
-NNSTREAMER_PLUGIN (tensor_sink);
-NNSTREAMER_PLUGIN (tensor_src_iio);
-NNSTREAMER_PLUGIN (tensor_split);
-NNSTREAMER_PLUGIN (tensor_transform);
-NNSTREAMER_PLUGIN (tensor_filter);
-NNSTREAMER_PLUGIN (tensor_reposink);
-NNSTREAMER_PLUGIN (tensor_reposrc);
+#include <tensor_common.h>
 
 #define NNSTREAMER_INIT(name, plugin) \
   do { \
