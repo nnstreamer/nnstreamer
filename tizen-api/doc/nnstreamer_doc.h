@@ -50,6 +50,7 @@
  * * **TBD** Decoder: provide a new tensor-to-media decoder. (tensor_decoder subplugin)\n
  *
  * @defgroup CAPI_ML_NNSTREAMER_PIPELINE_MODULE NNStreamer Pipeline
+ * @ingroup  CAPI_ML_NNSTREAMER
  * @brief The NNStreamer API provides interfaces to create and execute stream pipelines with neural networks and sensors.
  * @section CAPI_ML_NNSTREAMER_PIPELINE_HEADER Required Header
  *   \#include <nnstreamer/tizen-api.h> \n
