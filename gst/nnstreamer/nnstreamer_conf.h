@@ -41,14 +41,12 @@ G_BEGIN_DECLS
 #define NNSTREAMER_ENVVAR_FILTERS       "NNSTREAMER_FILTERS"
 #define NNSTREAMER_ENVVAR_DECODERS      "NNSTREAMER_DECODERS"
 #define NNSTREAMER_ENVVAR_CUSTOMFILTERS "NNSTREAMER_CUSTOMFILTERS"
-#define NNSTREAMER_ENVVAR_TF_MEM_OPTMZ  "NNSTREAMER_TF_MEM_OPTMZ"
 
 /* Internal Hardcoded Values */
 #define NNSTREAMER_DEFAULT_CONF_FILE    "/etc/nnstreamer.ini"
 #define NNSTREAMER_FILTERS              "/usr/lib/nnstreamer/filters/"
 #define NNSTREAMER_DECODERS             "/usr/lib/nnstreamer/decoders/"
 #define NNSTREAMER_CUSTOM_FILTERS       "/usr/lib/nnstreamer/customfilters/"
-#define NNSTREAMER_TF_MEM_OPTMZ         "false"
 /**
  *  Note that users still can place their custom filters anywhere if they
  * designate them with the full path.
@@ -75,12 +73,6 @@ typedef enum {
 
   NNSCONF_PATH_END,
 } nnsconf_type_path;
-
-typedef enum {
-  NNSCONF_VAL_TF_MEM_OPTMZ = 0,
-
-  NNSCONF_VAL_END,
-} nnsconf_type_value;
 
 /**
  * @brief Load the .ini file
@@ -127,15 +119,6 @@ nnsconf_get_subplugin_name_prefix (nnsconf_type_path type);
  */
 extern guint
 nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info);
-
-/**
- * @brief Get the configured boolean values for the type
- * @param[in] type The type (TF_MEM_OPTMZ)
- * @return The boolean value to the file. Caller MUST NOT modify this.
- *         Returns FALSE if we cannot find the file or the value as a DEFAULT.
- */
-extern gboolean
-nnsconf_get_value_bool (nnsconf_type_value type);
 
 /**
  * @brief Get the custom configuration value from .ini and envvar.
