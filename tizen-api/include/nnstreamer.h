@@ -283,8 +283,7 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs of cb, probably with yet another API.
  */
-int nns_pipeline_sink_register
-(nns_pipeline_h pipe, const char *sinkname, nns_sink_cb cb, nns_sink_h *h, void *pdata);
+int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname, nns_sink_cb cb, nns_sink_h *h, void *pdata);
 
 /**
  * @brief Unregister a callback for sink (tensor_sink) of nnstreamer pipelines.
@@ -308,8 +307,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #NNS_ERROR_STREAMS_PIPE Fail to get SRC element.
  */
-int nns_pipeline_src_gethandle
-(nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
+int nns_pipeline_src_gethandle (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
 
 /**
  * @brief Close the given handle of a src node of nnstreamer pipelines.
@@ -336,8 +334,7 @@ int nns_pipeline_src_puthandle (nns_src_h h);
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
-int nns_pipeline_src_inputdata (nns_src_h h,
-    nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
+int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
 
 /****************************************************
  ** NNStreamer Pipeline Switch/Valve Control       **
@@ -355,8 +352,7 @@ int nns_pipeline_src_inputdata (nns_src_h h,
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_switch_gethandle
-(nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
+int nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
 
 /**
  * @brief Close the given switch handle.
@@ -398,8 +394,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_valve_gethandle
-(nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
+int nns_pipeline_valve_gethandle (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
 
 /**
  * @brief Close the given valve handle.
