@@ -64,7 +64,6 @@ tizen_capi_dep = declare_dependency(link_with: tizen_capi_lib,
 )
 
 configure_file(input: 'capi-nnstreamer.pc.in', output: 'capi-nnstreamer.pc',
-  install: true,
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_conf
 )
