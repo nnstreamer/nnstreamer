@@ -81,7 +81,8 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
     }
   }
 
-  tf_mem_optmz = nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ);
+  tf_mem_optmz = nnsconf_get_custom_value_bool ("tensorflow",
+      "enable_mem_optimization", FALSE);
 
   tf = g_new0 (tf_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;

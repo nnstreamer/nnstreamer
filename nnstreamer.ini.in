@@ -8,7 +8,7 @@ decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
 # Set 1 or TRUE if you want to eliminate memcpy of tensorflow input frames for faster executions.
 # It may break in some special cases (running tensorflow & nnstreamer in a chroot of a AWS VM); in such a case, keep it 0 or FALSE.
 [tensorflow]
-mem_optmz=@TF_MEM_OPTMZ@
+enable_mem_optimization=@TF_MEM_OPTMZ@
 
 # Set 1 or TRUE if you want to use NNAPI with tensorflow-lite, which enables to use NNAPI backend, which may use GPU or NPU/TPU.
 [tensorflowlite]

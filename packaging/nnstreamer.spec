@@ -178,9 +178,6 @@ ninja -C build %{?_smp_mflags}
     export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
     export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
     export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-    %ifarch x86_64 aarch64
-    export NNSTREAMER_TF_MEM_OPTMZ=0
-    %endif
     ./tests/unittest_common
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.

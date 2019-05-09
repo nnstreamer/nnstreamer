@@ -54,7 +54,6 @@ typedef struct
   gchar *pathFILTERS[CONF_SOURCES];        /**< directory paths for FILTERS */
   gchar *pathDECODERS[CONF_SOURCES];       /**< directory paths for DECODERS */
   gchar *pathCUSTOM_FILTERS[CONF_SOURCES]; /**< directory paths for CUSTOM FILTERS */
-  gchar *valueTF_MEM_OPTMZ[CONF_SOURCES];  /**< value of TF_MEM_OPTMZ */
 
   /*************************************************
    * Processed Values                              *
@@ -66,8 +65,6 @@ typedef struct
   gchar **basenameFILTERS;        /**< Null terminated list of basenames for FILTERS */
   gchar **basenameDECODERS;;      /**< Null terminated list of basenames for DECODERS */
   gchar **basenameCUSTOM_FILTERS; /**< Null terminated list of basenames for CUSTOM FILTERS */
-
-  gboolean boolTF_MEM_OPTMZ; /**< The flag to decide using memcpy or not at Tensorflow in boolean type */
 } confdata;
 
 static confdata conf = { 0 };
@@ -238,7 +235,6 @@ nnsconf_loadconf (gboolean force_reload)
       g_free (conf.pathFILTERS[i]);
       g_free (conf.pathDECODERS[i]);
       g_free (conf.pathCUSTOM_FILTERS[i]);
-      g_free (conf.valueTF_MEM_OPTMZ[i]);
     }
 
     g_strfreev (conf.filesFILTERS);
@@ -267,7 +263,6 @@ nnsconf_loadconf (gboolean force_reload)
   conf.pathFILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_FILTERS);
   conf.pathDECODERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_DECODERS);
   conf.pathCUSTOM_FILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
-  conf.valueTF_MEM_OPTMZ[0] = _strdup_getenv (NNSTREAMER_ENVVAR_TF_MEM_OPTMZ);
 
   /* Read the conf file. It's ok even if we cannot load it. */
   if (conf.conffile &&
@@ -280,15 +275,12 @@ nnsconf_loadconf (gboolean force_reload)
         g_key_file_get_string (key_file, "decoder", "decoders", &error);
     conf.pathCUSTOM_FILTERS[1] =
         g_key_file_get_string (key_file, "filter", "customfilters", &error);
-    conf.valueTF_MEM_OPTMZ[1] =
-        g_key_file_get_string (key_file, "tensorflow", "mem_optmz", &error);
   }
 
   /* Strdup the hardcoded */
   conf.pathFILTERS[2] = g_strdup (NNSTREAMER_FILTERS);
   conf.pathDECODERS[2] = g_strdup (NNSTREAMER_DECODERS);
   conf.pathCUSTOM_FILTERS[2] = g_strdup (NNSTREAMER_CUSTOM_FILTERS);
-  conf.valueTF_MEM_OPTMZ[2] = g_strdup (NNSTREAMER_TF_MEM_OPTMZ);
 
   /* Fill in conf.files* */
   _fill_in_vstr (&conf.filesFILTERS, &conf.basenameFILTERS, conf.pathFILTERS,
@@ -297,20 +289,6 @@ nnsconf_loadconf (gboolean force_reload)
       NNSCONF_PATH_DECODERS);
   _fill_in_vstr (&conf.filesCUSTOM_FILTERS, &conf.basenameCUSTOM_FILTERS,
       conf.pathCUSTOM_FILTERS, NNSCONF_PATH_CUSTOM_FILTERS);
-
-  /* Fill in conf.bool values */
-  for (i = 0; i < CONF_SOURCES; i++) {
-    if (conf.valueTF_MEM_OPTMZ[i] && conf.valueTF_MEM_OPTMZ[i][0]) {
-      if (!g_ascii_strncasecmp ("1", conf.valueTF_MEM_OPTMZ[i], 1) ||   /* 1 */
-          !g_ascii_strncasecmp ("t", conf.valueTF_MEM_OPTMZ[i], 1) ||   /* True */
-          !g_ascii_strncasecmp ("on", conf.valueTF_MEM_OPTMZ[i], 2) ||  /* On */
-          !g_ascii_strncasecmp ("y", conf.valueTF_MEM_OPTMZ[i], 1))     /* Yes */
-        conf.boolTF_MEM_OPTMZ = TRUE;
-      else
-        conf.boolTF_MEM_OPTMZ = FALSE;
-      break;
-    }
-  }
 
   conf.loaded = TRUE;
   return TRUE;
@@ -418,25 +396,6 @@ nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info)
   info->paths = vstrFull;
 
   return g_strv_length (vstr);
-}
-
-/** @brief Public function defined in the header */
-gboolean
-nnsconf_get_value_bool (nnsconf_type_value type)
-{
-  gboolean ret = FALSE;
-
-  nnsconf_loadconf (FALSE);
-
-  switch (type) {
-    case NNSCONF_VAL_TF_MEM_OPTMZ:
-      ret = conf.boolTF_MEM_OPTMZ;
-      break;
-    default:
-      break;
-  }
-
-  return ret;
 }
 
 /**

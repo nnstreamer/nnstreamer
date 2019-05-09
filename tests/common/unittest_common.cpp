@@ -498,19 +498,21 @@ TEST (conf_custom, env_str_01)
 
   FILE *fp = g_fopen (filename, "w");
   const gchar *fn;
-  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
-  gchar *tfmemopt = g_strdup (g_getenv ("NNSTREAMER_TF_MEM_OPTMZ"));
+  const gchar *base_confenv;
+  gchar *confenv;
 
+  base_confenv = g_getenv ("NNSTREAMER_CONF");
+  confenv = (base_confenv != NULL) ? g_strdup (base_confenv) : NULL;
 
-  EXPECT_TRUE (fp != NULL);
+  ASSERT_TRUE (fp != NULL);
 
+  g_fprintf (fp, "[common]\n");
+  g_fprintf (fp, "enable_envvar=True\n");
   g_fprintf (fp, "[filter]\n");
   g_fprintf (fp, "filters=%s\n", dirf);
   g_fprintf (fp, "customfilters=%s\n", dircf);
   g_fprintf (fp, "[decoder]\n");
   g_fprintf (fp, "decoders=%s\n", dird);
-  g_fprintf (fp, "[tensorflow]\n");
-  g_fprintf (fp, "mem_optmz=true\n");
   g_fprintf (fp, "[customX]\n");
   g_fprintf (fp, "abc=OFF\n");
   g_fprintf (fp, "def=on\n");
@@ -537,7 +539,6 @@ TEST (conf_custom, env_str_01)
   gchar *f6 = create_null_file (dircf, "fastfaster.so");
 
   EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_CONF", filename, TRUE));
-  EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_TF_MEM_OPTMZ", "", TRUE));
   EXPECT_TRUE (nnsconf_loadconf (TRUE) == TRUE);
 
   fn = nnsconf_get_fullpath ("fantastic", NNSCONF_PATH_FILTERS);
@@ -558,8 +559,6 @@ TEST (conf_custom, env_str_01)
   EXPECT_STREQ (fn, f6);
   fn = nnsconf_get_fullpath ("notfound", NNSCONF_PATH_CUSTOM_FILTERS);
   EXPECT_STREQ (fn, NULL);
-
-  EXPECT_EQ (nnsconf_get_value_bool (NNSCONF_VAL_TF_MEM_OPTMZ), TRUE);
 
   EXPECT_TRUE (check_custom_conf ("customX", "abc", "OFF"));
   EXPECT_FALSE (nnsconf_get_custom_value_bool ("customX", "abc", TRUE));
@@ -598,10 +597,12 @@ TEST (conf_custom, env_str_01)
   EXPECT_FALSE (nnsconf_get_custom_value_bool ("customW", "n05", FALSE));
   EXPECT_TRUE (nnsconf_get_custom_value_bool ("customW", "n05", TRUE));
 
-
-  g_setenv ("NNSTREAMER_CONF", confenv, TRUE);
-  g_setenv ("NNSTREAMER_TF_MEM_OPTMZ", tfmemopt, TRUE);
-  g_free (confenv);
+  if (confenv) {
+    g_setenv ("NNSTREAMER_CONF", confenv, TRUE);
+    g_free (confenv);
+  } else {
+    g_unsetenv ("NNSTREAMER_CONF");
+  }
   g_free (f1);
   g_free (f2);
   g_free (f3);
