@@ -139,14 +139,12 @@ endif
 
 # Install .ini
 configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
-  install: true,
   install_dir: nnstreamer_inidir,
   configuration: nnstreamer_conf
 )
 
 # Install .pc
 configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
-  install: true,
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_conf
 )
