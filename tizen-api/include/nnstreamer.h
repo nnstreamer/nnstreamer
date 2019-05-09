@@ -48,7 +48,7 @@ extern "C" {
 #define NNS_TENSOR_SIZE_LIMIT  (16)
 
 /**
- * @brief Dimemsion information that NNStreamer support.
+ * @brief Dimension information that NNStreamer support.
  * @since_tizen 5.5
  */
 typedef unsigned int tensor_dim[NNS_TENSOR_RANK_LIMIT];
