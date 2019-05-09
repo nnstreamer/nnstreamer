@@ -22,22 +22,16 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #include <glib.h>
-#include <glib/gprintf.h>
-#include <glib/gstdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <gmodule.h>
+
 #include "nnstreamer_conf.h"
 
-static const gchar *subplugin_prefixes[NNSCONF_PATH_END] = {
+static const gchar *subplugin_prefixes[] = {
   [NNSCONF_PATH_FILTERS] = NNSTREAMER_PREFIX_FILTER,
   [NNSCONF_PATH_DECODERS] = NNSTREAMER_PREFIX_DECODER,
   [NNSCONF_PATH_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
-  NULL,
+  [NNSCONF_PATH_END] = NULL
 };
 
 #define CONF_SOURCES (3)
@@ -70,6 +64,30 @@ typedef struct
 static confdata conf = { 0 };
 
 /**
+ * @brief Parse string to get boolean value.
+ */
+static gboolean
+_parse_bool_string (const gchar * strval, gboolean def)
+{
+  gboolean res = def;
+
+  if (strval) {
+    /* 1/0, true/false, t/f, yes/no, on/off. case incensitive. */
+    if (strval[0] == '1' || strval[0] == 't' || strval[0] == 'T' ||
+        strval[0] == 'y' || strval[0] == 'Y' ||
+        !g_ascii_strncasecmp ("on", strval, 2)) {
+      res = TRUE;
+    } else if (strval[0] == '0' || strval[0] == 'f' || strval[0] == 'F' ||
+        strval[0] == 'n' || strval[0] == 'N' ||
+        !g_ascii_strncasecmp ("of", strval, 2)) {
+      res = FALSE;
+    }
+  }
+
+  return res;
+}
+
+/**
  * @brief Private function to get strdup-ed env-var if it's valid.
  *        Otherwise, NULL
  *
@@ -85,9 +103,7 @@ _strdup_getenv (const gchar * name)
    */
   const gchar *tmp = g_getenv (name);
 
-  if (tmp == NULL)
-    return NULL;
-  return g_strdup (tmp);
+  return (tmp != NULL) ? g_strdup (tmp) : NULL;
 }
 
 /**
@@ -97,7 +113,7 @@ static gboolean
 _validate_file (nnsconf_type_path type, const gchar * fullpath)
 {
   /* ignore directory */
-  if (g_file_test (fullpath, G_FILE_TEST_IS_DIR))
+  if (!g_file_test (fullpath, G_FILE_TEST_IS_REGULAR))
     return FALSE;
   /* ignore symbol link file */
   if (g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
@@ -217,10 +233,8 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
 gboolean
 nnsconf_loadconf (gboolean force_reload)
 {
-  g_autoptr (GError) error = NULL;
   g_autoptr (GKeyFile) key_file = NULL;
-  GStatBuf gsbuf;
-  gint stt, i;
+  guint i;
 
   if (FALSE == force_reload && TRUE == conf.loaded)
     return TRUE;
@@ -243,18 +257,15 @@ nnsconf_loadconf (gboolean force_reload)
     g_strfreev (conf.basenameFILTERS);
     g_strfreev (conf.basenameDECODERS);
     g_strfreev (conf.basenameCUSTOM_FILTERS);
+
+    /* init with 0 */
+    memset (&conf, 0, sizeof (confdata));
   }
 
   /* Read from Environmental Variables */
   conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
-  stt = 0;                      /* File not found or not configured */
-  if (conf.conffile != NULL) {
-    if (0 == g_stat (conf.conffile, &gsbuf)) {
-      /** @todo Check g_stat results (OK if it's regular file) */
-      stt = 1;
-    }
-  }
-  if (0 == stt) {
+  if (!conf.conffile || !g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
+    /* File not found or not configured */
     if (NULL != conf.conffile)
       g_free (conf.conffile);
     conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
@@ -265,16 +276,15 @@ nnsconf_loadconf (gboolean force_reload)
   conf.pathCUSTOM_FILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
 
   /* Read the conf file. It's ok even if we cannot load it. */
-  if (conf.conffile &&
-      g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
-          &error)) {
+  if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
+          NULL)) {
 
     conf.pathFILTERS[1] =
-        g_key_file_get_string (key_file, "filter", "filters", &error);
+        g_key_file_get_string (key_file, "filter", "filters", NULL);
     conf.pathDECODERS[1] =
-        g_key_file_get_string (key_file, "decoder", "decoders", &error);
+        g_key_file_get_string (key_file, "decoder", "decoders", NULL);
     conf.pathCUSTOM_FILTERS[1] =
-        g_key_file_get_string (key_file, "filter", "customfilters", &error);
+        g_key_file_get_string (key_file, "filter", "customfilters", NULL);
   }
 
   /* Strdup the hardcoded */
@@ -296,7 +306,7 @@ nnsconf_loadconf (gboolean force_reload)
 
 /** @brief Public function defined in the header */
 const gchar *
-nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type_path type)
+nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type)
 {
   gchar **vstr, **vstrFull;
   guint i;
@@ -342,7 +352,7 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
   nnsconf_loadconf (FALSE);
 
   filename = g_strconcat (subplugin_prefixes[type], subpluginname, ".so", NULL);
-  ret = nnsconf_get_fullpath_fromfile (filename, type);
+  ret = nnsconf_get_fullpath_from_file (filename, type);
 
   g_free (filename);
   return ret;
@@ -427,26 +437,21 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
 
     /* 2. Read ini */
     if (NULL == value && conf.conffile) {
-      g_autoptr (GError) error = NULL;
       g_autoptr (GKeyFile) key_file = g_key_file_new ();
 
       if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
-              &error)) {
-        value = g_key_file_get_string (key_file, group, key, &error);
+              NULL)) {
+        value = g_key_file_get_string (key_file, group, key, NULL);
       }
 
       g_key_file_free (key_file);
-
     }
 
     if (value)
       g_hash_table_insert (custom_table, hashkey, value);
   }
 
-  if (NULL == value)
-    return NULL;
-
-  return g_strdup (value);
+  return (value != NULL) ? g_strdup (value) : NULL;
 }
 
 /** @brief Public function defined in the header */
@@ -454,21 +459,11 @@ gboolean
 nnsconf_get_custom_value_bool (const gchar * group, const gchar * key,
     gboolean def)
 {
-  gchar *strval = nnsconf_get_custom_value_string (group, key);
-  gboolean ret = def;
+  gchar *strval;
+  gboolean ret;
 
-  if (NULL == strval)
-    return ret;
-
-  /** 1/0, true/false, t/f, yes/no, on/off. case incensitive. */
-  if (strval[0] == '1' || strval[0] == 't' || strval[0] == 'T' ||
-      strval[0] == 'y' || strval[0] == 'Y' ||
-      !g_ascii_strncasecmp ("on", strval, 2))
-    ret = TRUE;
-  if (strval[0] == '0' || strval[0] == 'f' || strval[0] == 'F' ||
-      strval[0] == 'n' || strval[0] == 'N' ||
-      !g_ascii_strncasecmp ("of", strval, 2))
-    ret = FALSE;
+  strval = nnsconf_get_custom_value_string (group, key);
+  ret = _parse_bool_string (strval, def);
 
   g_free (strval);
   return ret;
