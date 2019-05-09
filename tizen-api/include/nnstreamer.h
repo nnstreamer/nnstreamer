@@ -210,6 +210,7 @@ typedef void (*nns_sink_cb)
  * @param[out] pipe The nnstreamer pipeline handler from the given description
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  */
 int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pipe);
 
@@ -220,8 +221,8 @@ int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pi
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_STREAMS_PIPE Fail. Cannot access the pipeline status.
- * @retval #NNS_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
+ * @retval #NNS_ERROR_STREAMS_PIPE Cannot access the pipeline status.
+ * @retval #NNS_ERROR_INVALID_PARAMETER The parameter is invalid (pipe is NULL?)
  */
 int nns_pipeline_destroy (nns_pipeline_h pipe);
 
@@ -305,6 +306,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #NNS_ERROR_STREAMS_PIPE Fail to get SRC element.
  */
 int nns_pipeline_src_gethandle
 (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
@@ -351,6 +353,7 @@ int nns_pipeline_src_inputdata (nns_src_h h,
  * @param[out] h The switch handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_switch_gethandle
 (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
@@ -360,6 +363,7 @@ int nns_pipeline_switch_gethandle
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_switch_puthandle (nns_switch_h h);
 
@@ -369,6 +373,7 @@ int nns_pipeline_switch_puthandle (nns_switch_h h);
  * @param[in] padname The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 
@@ -378,6 +383,8 @@ int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #NNS_ERROR_STREAMS_PIPE The element is not both input and output switch (Internal data inconsistency).
  */
 int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 
@@ -389,6 +396,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
  * @param[out] h The valve handle.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_valve_gethandle
 (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
@@ -398,6 +406,7 @@ int nns_pipeline_valve_gethandle
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_valve_puthandle (nns_valve_h h);
 
@@ -407,6 +416,7 @@ int nns_pipeline_valve_puthandle (nns_valve_h h);
  * @param[in] valve_drop 1 to close (drop & stop the flow). 0 to open (let the flow pass)
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int nns_pipeline_valve_control (nns_valve_h h, int valve_drop);
 
