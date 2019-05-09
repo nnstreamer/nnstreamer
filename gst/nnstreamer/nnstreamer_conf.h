@@ -69,7 +69,6 @@ typedef enum {
   NNSCONF_PATH_FILTERS = 0,
   NNSCONF_PATH_DECODERS,
   NNSCONF_PATH_CUSTOM_FILTERS,
-  NNSCONF_PATH_CONFFILE,
 
   NNSCONF_PATH_END,
 } nnsconf_type_path;
@@ -90,7 +89,7 @@ nnsconf_loadconf (gboolean force_reload);
  *         Returns NULL if we cannot find the file.
  */
 extern const gchar *
-nnsconf_get_fullpath_fromfile (const gchar * file2find, nnsconf_type_path type);
+nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type);
 
 /**
  * @brief Get the configured paths for the type with sub-plugin name.
