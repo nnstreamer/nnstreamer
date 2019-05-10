@@ -31,13 +31,13 @@
  * https://github.com/nnsuite/nnstreamer/ \n
  * \n
  * Main objectives of NNStreamer include:\n
- * * Provide neural network framework connectivities (e.g., tensorflow, caffe) for gstreamer streams.\n
+ * * Provide neural network framework connectivities (e.g., tensorflow, caffe) for GStreamer streams.\n
  *     * **Efficient Streaming for AI Projects**: Apply efficient and flexible stream pipeline to neural networks.\n
  *     * **Intelligent Media Filters!**: Use a neural network model as a media filter / converter.\n
  *     * **Composite Models!**: Multiple neural network models in a single stream pipeline instance.\n
  *     * **Multi Modal Intelligence!**: Multiple sources and stream paths for neural network models.\n
  * * Provide easy methods to construct media streams with neural network models using the de-facto-standard media stream framework, **GStreamer**.\n
- *     * Gstreamer users: use neural network models as if they are yet another media filters.\n
+ *     * GStreamer users: use neural network models as if they are yet another media filters.\n
  *     * Neural network developers: manage media streams easily and efficiently.\n
  * \n
  * There are following sub groups proposed:\n

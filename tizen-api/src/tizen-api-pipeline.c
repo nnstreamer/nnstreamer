@@ -284,11 +284,11 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
       dlog_print (DLOG_ERROR, DLOG_TAG,
-          "Gstreamer has the following error: %s", err->message);
+          "GStreamer has the following error: %s", err->message);
       g_error_free (err);
     } else {
       dlog_print (DLOG_ERROR, DLOG_TAG,
-          "Cannot initialize gstreamer. Unknown reason.");
+          "Cannot initialize GStreamer. Unknown reason.");
     }
     return NNS_ERROR_STREAMS_PIPE;
   }

@@ -110,7 +110,7 @@ typedef enum {
   NNS_ERROR_NONE				= TIZEN_ERROR_NONE, /**< Success! */
   NNS_ERROR_INVALID_PARAMETER			= TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
   NNS_ERROR_NOT_SUPPORTED			= TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
-  NNS_ERROR_STREAMS_PIPE			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access Gstreamer pipeline. */
+  NNS_ERROR_STREAMS_PIPE			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access GStreamer pipeline. */
   NNS_ERROR_TRY_AGAIN				= TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
 } nns_error_e;
 
@@ -342,7 +342,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
 
 /**
  * @brief Get a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
- * @detail Refer to gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
+ * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @param[in] pipe The pipeline to be managed.
  * @param[in] switchname The name of switch (InputSelector/OutputSelector)
