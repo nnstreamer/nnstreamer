@@ -203,8 +203,8 @@ typedef void (*nns_sink_cb)
  ** NNStreamer Pipeline Construction (gst-parse)   **
  ****************************************************/
 /**
- * @brief Construct the pipeline (GStreamer + NNStreamer)
- * @detail Use this function to create a gst_parse_launch compatible NNStreamer pipelines.
+ * @brief Constructs the pipeline (GStreamer + NNStreamer)
+ * @detail Uses this function to create a gst_parse_launch compatible NNStreamer pipelines.
  * @since_tizen 5.5
  * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
  * @param[out] pipe The nnstreamer pipeline handler from the given description
@@ -215,8 +215,8 @@ typedef void (*nns_sink_cb)
 int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pipe);
 
 /**
- * @brief Destroy the pipeline
- * @detail Use this function to destroy the pipeline constructed with nns_construct_pipeline.
+ * @brief Destroys the pipeline
+ * @detail Uses this function to destroy the pipeline constructed with nns_construct_pipeline.
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. otherwise a negative error value
@@ -227,8 +227,8 @@ int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pi
 int nns_pipeline_destroy (nns_pipeline_h pipe);
 
 /**
- * @brief Get the state of pipeline
- * @detail Get the state of The pipeline handle returned by nns_construct_pipeline (pipe).
+ * @brief Gets the state of pipeline
+ * @detail Gets the state of the pipeline handle returned by nns_construct_pipeline (pipe).
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be monitored.
  * @param[out] state The pipeline state.
@@ -243,7 +243,7 @@ int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e *state);
  ** NNStreamer Pipeline Start/Stop Control         **
  ****************************************************/
 /**
- * @brief Start the pipeline
+ * @brief Starts the pipeline
  * @detail The pipeline handle returned by nns_construct_pipeline (pipe) is started.
  *         Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
@@ -255,7 +255,7 @@ int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e *state);
 int nns_pipeline_start (nns_pipeline_h pipe);
 
 /**
- * @brief Stop the pipeline
+ * @brief Stops the pipeline
  * @detail The pipeline handle returned by nns_construct_pipeline (pipe) is stopped.
  *         Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
@@ -270,7 +270,7 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  ** NNStreamer Pipeline Sink/Src Control           **
  ****************************************************/
 /**
- * @brief Register a callback for sink (tensor_sink) of nnstreamer pipelines.
+ * @brief Registers a callback for sink (tensor_sink) of nnstreamer pipelines.
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be attached with a sink node.
  * @param[in] sinkname The name of sink node, described with nns_pipeline_construct().
@@ -286,7 +286,7 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
 int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname, nns_sink_cb cb, nns_sink_h *h, void *pdata);
 
 /**
- * @brief Unregister a callback for sink (tensor_sink) of nnstreamer pipelines.
+ * @brief Unregisters a callback for sink (tensor_sink) of nnstreamer pipelines.
  * @since_tizen 5.5
  * @param[in] The nns_sink_handle to be unregistered (destroyed)
  * @return @c 0 on success. otherwise a negative error value
@@ -296,7 +296,7 @@ int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname, nns_s
 int nns_pipeline_sink_unregister (nns_sink_h h);
 
 /**
- * @brief Get a handle to operate as a src node of nnstreamer pipelines.
+ * @brief Gets a handle to operate as a src node of nnstreamer pipelines.
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be attached with a src node.
  * @param[in] srcname The name of src node, described with nns_pipeline_construct().
@@ -310,7 +310,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
 int nns_pipeline_src_gethandle (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
 
 /**
- * @brief Close the given handle of a src node of nnstreamer pipelines.
+ * @brief Closes the given handle of a src node of nnstreamer pipelines.
  * @since_tizen 5.5
  * @param[in] h The src handle to be put (closed).
  * @return 0 on success (buf is filled). otherwise a negative error value.
@@ -320,7 +320,7 @@ int nns_pipeline_src_gethandle (nns_pipeline_h pipe, const char *srcname, nns_te
 int nns_pipeline_src_puthandle (nns_src_h h);
 
 /**
- * @brief Put an input data frame.
+ * @brief Puts an input data frame.
  * @param[in] h The nns_src_handle returned by nns_pipeline_gethandle().
  * @param[in] policy The policy of buf deallocation.
  * @param[in] buf The input buffers, in the format of tensorsinfo given by nns_pipeline_gethandle()
@@ -341,7 +341,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
  ****************************************************/
 
 /**
- * @brief Get a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
+ * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @param[in] pipe The pipeline to be managed.
@@ -355,7 +355,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
 int nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
 
 /**
- * @brief Close the given switch handle.
+ * @brief Closes the given switch handle.
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -364,7 +364,7 @@ int nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname, 
 int nns_pipeline_switch_puthandle (nns_switch_h h);
 
 /**
- * @brief Control the switch with the given handle to select input/output nodes(pads).
+ * @brief Controls the switch with the given handle to select input/output nodes(pads).
  * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
  * @param[in] padname The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
  * @return @c 0 on success. otherwise a negative error value
@@ -374,7 +374,7 @@ int nns_pipeline_switch_puthandle (nns_switch_h h);
 int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 
 /**
- * @brief Get the pad names of a switch.
+ * @brief Gets the pad names of a switch.
  * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. otherwise a negative error value
@@ -385,7 +385,7 @@ int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 
 /**
- * @brief Get a handle to operate a "GstValve" node of nnstreamer pipelines.
+ * @brief Gets a handle to operate a "GstValve" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
  * @param[in] pipe The pipeline to be managed.
  * @param[in] valvename The name of valve (Valve)
@@ -397,7 +397,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 int nns_pipeline_valve_gethandle (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
 
 /**
- * @brief Close the given valve handle.
+ * @brief Closes the given valve handle.
  * @param[in] h The handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -406,7 +406,7 @@ int nns_pipeline_valve_gethandle (nns_pipeline_h pipe, const char *valvename, nn
 int nns_pipeline_valve_puthandle (nns_valve_h h);
 
 /**
- * @brief Control the valve with the given handle.
+ * @brief Controls the valve with the given handle.
  * @param[in] h The valve handle returned by nns_pipeline_valve_gethandle()
  * @param[in] valve_drop 1 to close (drop & stop the flow). 0 to open (let the flow pass)
  * @return @c 0 on success. otherwise a negative error value
