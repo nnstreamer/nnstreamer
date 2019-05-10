@@ -206,6 +206,7 @@ typedef void (*nns_sink_cb)
  * @brief Constructs the pipeline (GStreamer + NNStreamer)
  * @detail Uses this function to create a gst_parse_launch compatible NNStreamer pipelines.
  * @since_tizen 5.5
+ * @remarks If the function succeeds, @a pipe handle must be released using nns_pipeline_destroy().
  * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
  * @param[out] pipe The nnstreamer pipeline handler from the given description
  * @return @c 0 on success. otherwise a negative error value
@@ -272,6 +273,7 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
 /**
  * @brief Registers a callback for sink (tensor_sink) of nnstreamer pipelines.
  * @since_tizen 5.5
+ * @remarks If the function succeeds, @a h handle must be unregistered using nns_pipeline_sink_unregister.
  * @param[in] pipe The pipeline to be attached with a sink node.
  * @param[in] sinkname The name of sink node, described with nns_pipeline_construct().
  * @param[in] cb The function to be called by the sink node.
@@ -298,6 +300,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
 /**
  * @brief Gets a handle to operate as a src node of nnstreamer pipelines.
  * @since_tizen 5.5
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_src_puthandle().
  * @param[in] pipe The pipeline to be attached with a src node.
  * @param[in] srcname The name of src node, described with nns_pipeline_construct().
  * @param[out] tensors_info The cardinality, dimension, and type of given tensor/tensors.
@@ -344,6 +347,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
  * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_switch_puthandle().
  * @param[in] pipe The pipeline to be managed.
  * @param[in] switchname The name of switch (InputSelector/OutputSelector)
  * @param[out] type The type of the switch. If NULL, it is ignored.
@@ -387,6 +391,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 /**
  * @brief Gets a handle to operate a "GstValve" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_valve_puthandle().
  * @param[in] pipe The pipeline to be managed.
  * @param[in] valvename The name of valve (Valve)
  * @param[out] h The valve handle.
