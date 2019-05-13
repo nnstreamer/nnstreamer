@@ -76,10 +76,7 @@ get_subplugin (subpluginType type, const char *name)
     /* Search and register if found with the conf */
     const gchar *fullpath = nnsconf_get_fullpath (name, type);
 
-    /**
-     * @todo Consider to add option to open symbolic link file and version-specified library name.
-     */
-    if (fullpath == NULL || g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
+    if (!nnsconf_validate_file (type, fullpath))
       goto error;               /* No Such Thing !!! */
 
     G_UNLOCK (splock);
