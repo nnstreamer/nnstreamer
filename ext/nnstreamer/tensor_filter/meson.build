@@ -57,3 +57,32 @@ if get_option('enable-tensorflow-lite')
     install_dir: nnstreamer_libdir
   )
 endif
+
+if get_option('enable-movidius-ncsdk2')
+  filter_sub_mvncsdk2_sources = [
+    'tensor_filter_movidius_ncsdk2.c'
+  ]
+
+  nnstreamer_filter_mvncsdk2_sources = []
+  foreach s : filter_sub_mvncsdk2_sources
+    nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_movidius-ncsdk2',
+    nnstreamer_filter_mvncsdk2_sources,
+    c_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_mvncsdk2_deps,
+    install: false,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_movidius-ncsdk2',
+    nnstreamer_filter_mvncsdk2_sources,
+    c_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_mvncsdk2_deps,
+    install: false,
+    install_dir: nnstreamer_libdir
+  )
+endif
