@@ -39,6 +39,7 @@ typedef struct
 {
   gboolean loaded;            /**< TRUE if loaded at least once */
   gboolean enable_envvar;     /**< TRUE to parse env variables */
+  gboolean enable_symlink;    /**< TRUE to allow symbolic link file */
 
   gchar *conffile;            /**< Location of conf file. */
 
@@ -117,7 +118,7 @@ _validate_file (nnsconf_type_path type, const gchar * fullpath)
   if (!g_file_test (fullpath, G_FILE_TEST_IS_REGULAR))
     return FALSE;
   /* ignore symbol link file */
-  if (g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
+  if (!conf.enable_symlink && g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
     return FALSE;
   /** @todo how to validate with nnsconf type. */
   return TRUE;
@@ -282,6 +283,10 @@ nnsconf_loadconf (gboolean force_reload)
     conf.enable_envvar = _parse_bool_string (value, FALSE);
     g_free (value);
 
+    value = g_key_file_get_string (key_file, "common", "enable_symlink", NULL);
+    conf.enable_symlink = _parse_bool_string (value, FALSE);
+    g_free (value);
+
     conf.pathFILTERS[1] =
         g_key_file_get_string (key_file, "filter", "filters", NULL);
     conf.pathDECODERS[1] =
@@ -367,6 +372,17 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 
   g_free (filename);
   return ret;
+}
+
+/**
+ * @brief Public function to validate sub-plugin library is available.
+ */
+gboolean
+nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath)
+{
+  nnsconf_loadconf (FALSE);
+
+  return _validate_file (type, fullpath);
 }
 
 /**

@@ -205,6 +205,7 @@ if get_option('enable-test')
   nnstreamer_test_conf.merge_from(nnstreamer_conf)
 
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
+  nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TF_MEM_OPTMZ', false)
 
   # meson 0.50 supports install argument in configure_file()
@@ -225,6 +226,7 @@ nnstreamer_install_conf = configuration_data()
 nnstreamer_install_conf.merge_from(nnstreamer_conf)
 
 nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
+nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
 nnstreamer_install_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
 
 # Install .ini

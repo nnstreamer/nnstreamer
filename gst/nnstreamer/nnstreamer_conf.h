@@ -107,6 +107,15 @@ extern const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type);
 
 /**
+ * @brief Public function to validate sub-plugin library is available.
+ * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
+ * @param[in] fullpath The full path to the file.
+ * @return True if the file is regular and can be added to the list.
+ */
+extern gboolean
+nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath);
+
+/**
  * @brief Get sub-plugin's name prefix.
  * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
  * @return Predefined prefix string for given type.

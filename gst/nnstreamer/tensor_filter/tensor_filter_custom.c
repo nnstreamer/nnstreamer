@@ -32,6 +32,7 @@
 
 #include "tensor_filter_custom.h"
 #include "nnstreamer_plugin_api_filter.h"
+#include "nnstreamer_conf.h"
 
 void init_filter_custom (void) __attribute__ ((constructor));
 void fini_filter_custom (void) __attribute__ ((destructor));
@@ -70,11 +71,8 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
     return -1;
   }
 
-  /**
-   * @todo Consider to add option to open symbolic link file and version-specified library name.
-   */
-  if (g_file_test (prop->model_file, G_FILE_TEST_IS_SYMLINK)) {
-    /* symbolic link */
+  if (!nnsconf_validate_file (NNSCONF_PATH_CUSTOM_FILTERS, prop->model_file)) {
+    /* Cannot load the library */
     return -1;
   }
 

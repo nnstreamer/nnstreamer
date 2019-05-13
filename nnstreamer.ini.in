@@ -2,6 +2,7 @@
 # Please be informed that, configured ini file should be in RO partition for the release binary.
 [common]
 enable_envvar=@ENABLE_ENV_VAR@
+enable_symlink=@ENABLE_SYMBOLIC_LINK@
 
 [filter]
 filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
