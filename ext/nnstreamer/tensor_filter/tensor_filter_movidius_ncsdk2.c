@@ -29,6 +29,7 @@
  */
 
 #include <glib.h>
+#include <mvnc2/mvnc.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 void init_filter_mvncsdk2 (void) __attribute__ ((constructor));

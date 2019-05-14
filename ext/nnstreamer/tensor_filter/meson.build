@@ -59,30 +59,44 @@ if get_option('enable-tensorflow-lite')
 endif
 
 if get_option('enable-movidius-ncsdk2')
-  filter_sub_mvncsdk2_sources = [
+  # Explicitly checks mvnc.h in the ncsdk2 directory
+  # check_header() requires meson >= 0.47
+  # if not cc.check_header('mvnc2/mvnc.h')
+  nns_mvncsdk2_dep = cc.find_library('mvnc')
+  if not cc.has_header('mvnc2/mvnc.h')
+    # warning() requires meson >= 0.44
+    # warning('enable-movidius-ncsdk2 is set but could not find \'mvnc2/mvnc.h\'.')
+    message('enable-movidius-ncsdk2 is set but could not find \'mvnc2/mvnc.h\'.')
+  elif not nns_mvncsdk2_dep.found()
+    # warning() requires meson >= 0.44
+    # warning('enable-movidius-ncsdk2 is set but could not find \'libmvnc.so\'.')
+    message('enable-movidius-ncsdk2 is set but could not find \'libmvnc.so\'.')
+  else
+    filter_sub_mvncsdk2_sources = [
     'tensor_filter_movidius_ncsdk2.c'
-  ]
+    ]
 
-  nnstreamer_filter_mvncsdk2_sources = []
-  foreach s : filter_sub_mvncsdk2_sources
-    nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
+    nnstreamer_filter_mvncsdk2_sources = []
+    foreach s : filter_sub_mvncsdk2_sources
+      nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
+    endforeach
 
-  nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep]
+    nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep, nns_mvncsdk2_dep]
 
-  shared_library('nnstreamer_filter_movidius-ncsdk2',
-    nnstreamer_filter_mvncsdk2_sources,
-    c_args: ['-Wno-sign-compare'],
-    dependencies: nnstreamer_filter_mvncsdk2_deps,
-    install: false,
-    install_dir: filter_subplugin_install_dir
-  )
+    shared_library('nnstreamer_filter_movidius-ncsdk2',
+      nnstreamer_filter_mvncsdk2_sources,
+      c_args: ['-Wno-sign-compare'],
+      dependencies: nnstreamer_filter_mvncsdk2_deps,
+      install: false,
+      install_dir: filter_subplugin_install_dir
+    )
 
-  static_library('nnstreamer_filter_movidius-ncsdk2',
-    nnstreamer_filter_mvncsdk2_sources,
-    c_args: ['-Wno-sign-compare'],
-    dependencies: nnstreamer_filter_mvncsdk2_deps,
-    install: false,
-    install_dir: nnstreamer_libdir
-  )
+    static_library('nnstreamer_filter_movidius-ncsdk2',
+      nnstreamer_filter_mvncsdk2_sources,
+      c_args: ['-Wno-sign-compare'],
+      dependencies: nnstreamer_filter_mvncsdk2_deps,
+      install: false,
+      install_dir: nnstreamer_libdir
+    )
+  endif
 endif
