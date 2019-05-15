@@ -58,6 +58,36 @@ if get_option('enable-tensorflow-lite')
   )
 endif
 
+if get_option('enable-pytorch')
+  filter_sub_torch_sources = [
+    'tensor_filter_pytorch.c',
+    'tensor_filter_pytorch_core.cc'
+  ]
+
+  nnstreamer_filter_torch_sources = []
+  foreach s : filter_sub_torch_sources
+    nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_torch_deps = [torch_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_pytorch',
+    nnstreamer_filter_torch_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_pytorch',
+    nnstreamer_filter_torch_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 filter_sub_python_sources = [
   'tensor_filter_python.c',
   'tensor_filter_python_core.cc'

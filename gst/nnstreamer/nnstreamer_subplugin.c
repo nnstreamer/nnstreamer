@@ -73,7 +73,7 @@ get_subplugin (subpluginType type, const char *name)
   data = g_hash_table_lookup (table, name);
 
   if (data == NULL) {
-    /* Search and register if found with the conf */
+    /** Search and register if found with the conf */
     const gchar *fullpath = nnsconf_get_fullpath (name, type);
 
     if (!nnsconf_validate_file (type, fullpath))
@@ -81,9 +81,12 @@ get_subplugin (subpluginType type, const char *name)
 
     G_UNLOCK (splock);
 
+    /** clear any existing errors */
+    dlerror ();
     handle = dlopen (fullpath, RTLD_NOW);
     if (NULL == handle) {
-      GST_ERROR ("Cannot dlopen %s (%s).", name, fullpath);
+      GST_ERROR ("Cannot dlopen %s (%s) with error %s.", name, fullpath,
+          dlerror ());
       return NULL;
     }
 

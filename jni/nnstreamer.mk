@@ -48,6 +48,11 @@ NNSTREAMER_FILTER_TFLITE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_lite.c \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_lite_core.cc
 
+# filter pytorch
+NNSTREAMER_FILTER_TORCH_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch_core.cc
+
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c
