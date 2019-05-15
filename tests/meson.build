@@ -115,6 +115,9 @@ if get_option('install-test')
   if get_option('enable-tensorflow')
     install_subdir('nnstreamer_filter_tensorflow', install_dir: join_paths(unittest_install_dir,'tests'))
   endif
+  if get_option('enable-pytorch')
+    install_subdir('nnstreamer_filter_pytorch', install_dir: join_paths(unittest_install_dir,'tests'))
+  endif
   install_subdir('nnstreamer_mux', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_repo', install_dir: join_paths(unittest_install_dir,'tests'))
   install_subdir('nnstreamer_repo_dynamicity', install_dir: join_paths(unittest_install_dir,'tests'))
