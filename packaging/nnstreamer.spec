@@ -40,6 +40,9 @@ BuildRequires:	gtest-devel
 # a few test cases uses python
 BuildRequires:	python
 BuildRequires:	python-numpy
+# for python custom filters
+BuildRequires:  pkgconfig(python2)
+BuildRequires:  python-numpy-devel
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
@@ -110,6 +113,13 @@ Requires:	nnstreamer = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
+
+%package -n nnstreamer-python2
+Summary:  NNStreamer Python Custom Filter Support
+Requires: nnstreamer = %{version}-%{release}
+Requires: python
+%description -n nnstreamer-python2
+NNStreamer's tensor_filter subplugin of Python (2.7).
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
@@ -244,6 +254,9 @@ ln -s %{gstlibdir}/libnnstreamer.so libnnstreamer.so
 popd
 /sbin/ldconfig
 
+%post -n nnstreamer-python2
+ln -s %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so %{python_sitelib}/nnstreamer_python.so
+
 %postun -p /sbin/ldconfig
 pushd %{_libdir}
 rm libnnstreamer.so
@@ -267,6 +280,11 @@ popd
 %files tensorflow-lite
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
+
+%files -n nnstreamer-python2
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
+%{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
 
 %files devel
 %{_includedir}/nnstreamer/tensor_typedef.h

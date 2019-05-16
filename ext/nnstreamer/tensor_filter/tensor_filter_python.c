@@ -22,6 +22,20 @@
  * @bug		No known bugs except for NYI items
  */
 
+/**
+ * SECTION:element-tensor_filter_python
+ *
+ * A filter that loads and executes a python script implementing a custom filter.
+ * The python script should be provided.
+ *
+ * <refsect2>
+ * <title>Example launch line</title>
+ * |[
+ * gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_filter framework="python2" model="${PATH_TO_SCRIPT}" ! tensor_sink
+ * ]|
+ * </refsect2>
+ */
+
 #define NO_IMPORT_ARRAY
 #include "tensor_filter_python_core.h"
 #include <nnstreamer_plugin_api_filter.h>
@@ -175,8 +189,7 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     }
 
     /** check methods in python script */
-    cb_type type = py_core_getCbType (py->py_private_data);
-    switch (type) {
+    switch (py_core_getCbType (py->py_private_data)) {
       case CB_SETDIM:
         NNS_support_python->getInputDimension = NULL;
         NNS_support_python->getOutputDimension = NULL;

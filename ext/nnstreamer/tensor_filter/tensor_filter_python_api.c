@@ -22,6 +22,22 @@
  * @bug		No known bugs except for NYI items
  */
 
+/**
+ * SECTION:element-tensor_filter_python_api
+ *
+ * A python module that provides a wrapper for internal structures in tensor_filter_python.
+ * Users can import this module to access such a functionality
+ *
+ * <refsect2>
+ * <title>Example python script</title>
+ * |[
+ * import numpy as np
+ * import nnstreamer_python as nns
+ * dim = nns.TensorShape([1,2,3], np.uint8)
+ * ]|
+ * </refsect2>
+ */
+
 #include "tensor_filter_python_core.h"
 
 /** @brief object structure for custom Python type: TensorShape */
@@ -30,6 +46,13 @@ typedef struct {
   PyObject *dims;
   PyArray_Descr* type;
 } TensorShapeObject;
+
+/** @brief define a prototype for this python module */
+#if PY_VERSION_HEX >= 0x03000000
+PyMODINIT_FUNC PyInit_nnstreamer_python(void);
+#else
+PyMODINIT_FUNC initnnstreamer_python(void);
+#endif
 
 /** 
  * @brief method impl. for setDims
@@ -112,7 +135,7 @@ TensorShape_new(PyTypeObject *type, PyObject *args, PyObject *kw) {
  */
 static int
 TensorShape_init(TensorShapeObject *self, PyObject *args, PyObject *kw) {
-  char *keywords[] = {"dims", "type", NULL};
+  char *keywords[] = {(char*) "dims", (char*) "type", NULL};
   PyObject *dims = NULL;
   PyObject *type = NULL;
 
@@ -120,7 +143,7 @@ TensorShape_init(TensorShapeObject *self, PyObject *args, PyObject *kw) {
     return -1;
 
   if (dims) {
-    PyObject *none = PyObject_CallMethod((PyObject*) self, (char*) "setDims", "O", dims);
+    PyObject *none = PyObject_CallMethod((PyObject*) self, (char*) "setDims", (char*) "O", dims);
     Py_XDECREF(none);
   }
 
@@ -151,15 +174,15 @@ TensorShape_dealloc(TensorShapeObject *self) {
 
 /** @brief members for custom type object */
 static PyMemberDef TensorShape_members[] = {
-  {"dims", T_OBJECT_EX, offsetof(TensorShapeObject, dims), 0, NULL},
-  {"type", T_OBJECT_EX, offsetof(TensorShapeObject, type), 0, NULL}
+  {(char*) "dims", T_OBJECT_EX, offsetof(TensorShapeObject, dims), 0, NULL},
+  {(char*) "type", T_OBJECT_EX, offsetof(TensorShapeObject, type), 0, NULL}
 };
 
 /** @brief methods for custom type object */
 static PyMethodDef TensorShape_methods[] = {
-  {"setDims", (PyCFunction)TensorShape_setDims, METH_VARARGS | METH_KEYWORDS, NULL},
-  {"getDims", (PyCFunction)TensorShape_getDims, METH_VARARGS | METH_KEYWORDS, NULL},
-  {"getType", (PyCFunction)TensorShape_getType, METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char*) "setDims", (PyCFunction)TensorShape_setDims, METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char*) "getDims", (PyCFunction)TensorShape_getDims, METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char*) "getType", (PyCFunction)TensorShape_getType, METH_VARARGS | METH_KEYWORDS, NULL},
   {NULL, NULL, 0, NULL}
 };
 
@@ -181,11 +204,11 @@ static PyTypeObject TensorShapeType = {
 #if PY_VERSION_HEX >= 0x03000000
 #define RETVAL(x) x
 static PyModuleDef nnstreamer_python_module = {
-  PyModuleDef_HEAD_INIT, "nnstreamer_python3", NULL, -1, NULL
+  PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL
 };
 /** @brief module initialization (python 3.x) */
 PyMODINIT_FUNC
-PyInit_nnstreamer_python3(void) {
+PyInit_nnstreamer_python(void) {
 #else
 #define RETVAL(x)
 static PyMethodDef nnstreamer_python_methods[] = {
@@ -193,14 +216,14 @@ static PyMethodDef nnstreamer_python_methods[] = {
 };
 /** @brief module initialization (python 2.x) */
 PyMODINIT_FUNC
-initnnstreamer_python2(void) {
+initnnstreamer_python(void) {
 #endif
   PyObject *type_object = (PyObject*) &TensorShapeType;
   PyObject *module;
 #if PY_VERSION_HEX >= 0x03000000
   module = PyModule_Create(&nnstreamer_python_module);
 #else
-  module = Py_InitModule("nnstreamer_python2", nnstreamer_python_methods);
+  module = Py_InitModule("nnstreamer_python", nnstreamer_python_methods);
 #endif
   if (module == NULL) 
     return RETVAL(NULL);

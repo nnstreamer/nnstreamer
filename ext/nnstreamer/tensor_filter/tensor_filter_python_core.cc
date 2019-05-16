@@ -46,13 +46,13 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
    * To fix import error of python extension modules
    * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
    */
+  gchar libname[32];
 #if PY_VERSION_HEX >= 0x03000000
-  handle = dlopen("libpython3.5m.so.1", RTLD_LAZY | RTLD_GLOBAL);
-  if (handle == NULL) /** try another version */ 
-    handle = dlopen("libpython3.6m.so.1", RTLD_LAZY | RTLD_GLOBAL);
+  g_snprintf (libname, sizeof(libname), "libpython%fm.so.1", PYTHON3_VERSION);
 #else
-  handle = dlopen("libpython2.7.so.1", RTLD_LAZY | RTLD_GLOBAL);
+  g_snprintf (libname, sizeof(libname), "libpython%f.so.1", PYTHON2_VERSION);
 #endif
+  handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
   g_assert(handle);
 
   Py_Initialize();
