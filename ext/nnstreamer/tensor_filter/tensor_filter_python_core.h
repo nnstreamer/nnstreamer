@@ -28,14 +28,14 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 
-#include <tensor_typedef.h>
 #include <glib.h>
 #include <gst/gst.h>
 #include <string.h>
-
 #include <dlfcn.h>
 #include <pthread.h>
 #include <structmember.h>
+
+#include "nnstreamer_plugin_api_filter.h"
 
 #define Py_ERRMSG(...) do {PyErr_Print(); g_critical (__VA_ARGS__);} while (0);
 

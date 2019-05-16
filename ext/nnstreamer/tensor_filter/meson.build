@@ -58,6 +58,72 @@ if get_option('enable-tensorflow-lite')
   )
 endif
 
+filter_sub_python_sources = [
+  'tensor_filter_python.c',
+  'tensor_filter_python_core.cc'
+]
+
+nnstreamer_filter_python_sources = []
+foreach s : filter_sub_python_sources
+  nnstreamer_filter_python_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+if have_python2
+  nnstreamer_filter_python_deps = [python2_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_python2',
+    nnstreamer_filter_python_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_python2',
+    nnstreamer_filter_python_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  shared_library('nnstreamer_python2',
+    'tensor_filter_python_api.c',
+    name_prefix: '',
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+endif
+
+if have_python3
+  nnstreamer_filter_python_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_python3',
+    nnstreamer_filter_python_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_python3',
+    nnstreamer_filter_python_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  shared_library('nnstreamer_python3',
+    'tensor_filter_python_api.c',
+    name_prefix: '',
+    dependencies: nnstreamer_filter_python_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+endif
+
 if get_option('enable-movidius-ncsdk2')
   # Explicitly checks mvnc.h in the ncsdk2 directory
   # check_header() requires meson >= 0.47
