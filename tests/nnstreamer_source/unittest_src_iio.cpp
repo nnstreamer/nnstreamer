@@ -35,8 +35,8 @@ gchar *PREV_IIO_DEV_DIR;
 /**
  * @brief iio default and test values
  */
-#define DEFAULT_BUFFER_CAPACITY 1
-#define DEFAULT_FREQUENCY 0
+#define DEFAULT_BUFFER_CAPACITY (1U)
+#define DEFAULT_FREQUENCY (0U)
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_MERGE_CHANNELS TRUE
 #define DEFAULT_POLL_TIMEOUT 10000
@@ -1220,10 +1220,10 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
   EXPECT_EQ (config.info.type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.dimension[0], num_scan_elements);
-  EXPECT_EQ (config.info.dimension[1], 1);
-  EXPECT_EQ (config.info.dimension[2], 1);
-  EXPECT_EQ (config.info.dimension[3], 1);
+  EXPECT_EQ (config.info.dimension[0], (guint) num_scan_elements);
+  EXPECT_EQ (config.info.dimension[1], 1U);
+  EXPECT_EQ (config.info.dimension[2], 1U);
+  EXPECT_EQ (config.info.dimension[3], 1U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
@@ -1346,10 +1346,10 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
   EXPECT_EQ (config.info.type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.dimension[0], 3);
-  EXPECT_EQ (config.info.dimension[1], 1);
-  EXPECT_EQ (config.info.dimension[2], 1);
-  EXPECT_EQ (config.info.dimension[3], 1);
+  EXPECT_EQ (config.info.dimension[0], 3U);
+  EXPECT_EQ (config.info.dimension[1], 1U);
+  EXPECT_EQ (config.info.dimension[2], 1U);
+  EXPECT_EQ (config.info.dimension[3], 1U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
@@ -1463,19 +1463,19 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   EXPECT_EQ (gst_tensors_config_from_structure (&config, structure), TRUE);
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
-  EXPECT_EQ (config.info.num_tensors, num_scan_elements);
+  EXPECT_EQ (config.info.num_tensors, (guint) num_scan_elements);
   for (int idx = 0; idx < num_scan_elements; idx++) {
     EXPECT_EQ (config.info.info[idx].type, _NNS_FLOAT32);
-    EXPECT_EQ (config.info.info[idx].dimension[0], 1);
-    EXPECT_EQ (config.info.info[idx].dimension[1], 1);
-    EXPECT_EQ (config.info.info[idx].dimension[2], 1);
-    EXPECT_EQ (config.info.info[idx].dimension[3], 1);
+    EXPECT_EQ (config.info.info[idx].dimension[0], 1U);
+    EXPECT_EQ (config.info.info[idx].dimension[1], 1U);
+    EXPECT_EQ (config.info.info[idx].dimension[2], 1U);
+    EXPECT_EQ (config.info.info[idx].dimension[3], 1U);
   }
   for (int idx = num_scan_elements; idx < NNS_TENSOR_SIZE_LIMIT; idx++) {
-    EXPECT_EQ (config.info.info[idx].dimension[0], 0);
-    EXPECT_EQ (config.info.info[idx].dimension[1], 0);
-    EXPECT_EQ (config.info.info[idx].dimension[2], 0);
-    EXPECT_EQ (config.info.info[idx].dimension[3], 0);
+    EXPECT_EQ (config.info.info[idx].dimension[0], 0U);
+    EXPECT_EQ (config.info.info[idx].dimension[1], 0U);
+    EXPECT_EQ (config.info.info[idx].dimension[2], 0U);
+    EXPECT_EQ (config.info.info[idx].dimension[3], 0U);
   }
 
   gst_object_unref (src_iio);
