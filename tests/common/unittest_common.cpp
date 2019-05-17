@@ -181,11 +181,11 @@ TEST (common_get_tensor_dimension, case1)
   guint rank;
 
   rank = gst_tensor_parse_dimension ("345:123:433:177", dim);
-  EXPECT_EQ (rank, 4);
-  EXPECT_EQ (dim[0], 345);
-  EXPECT_EQ (dim[1], 123);
-  EXPECT_EQ (dim[2], 433);
-  EXPECT_EQ (dim[3], 177);
+  EXPECT_EQ (rank, 4U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 177U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:177"));
@@ -202,11 +202,11 @@ TEST (common_get_tensor_dimension, case2)
   guint rank;
 
   rank = gst_tensor_parse_dimension ("345:123:433", dim);
-  EXPECT_EQ (rank, 3);
-  EXPECT_EQ (dim[0], 345);
-  EXPECT_EQ (dim[1], 123);
-  EXPECT_EQ (dim[2], 433);
-  EXPECT_EQ (dim[3], 1);
+  EXPECT_EQ (rank, 3U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:1"));
@@ -223,11 +223,11 @@ TEST (common_get_tensor_dimension, case3)
   guint rank;
 
   rank = gst_tensor_parse_dimension ("345:123", dim);
-  EXPECT_EQ (rank, 2);
-  EXPECT_EQ (dim[0], 345);
-  EXPECT_EQ (dim[1], 123);
-  EXPECT_EQ (dim[2], 1);
-  EXPECT_EQ (dim[3], 1);
+  EXPECT_EQ (rank, 2U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 1U);
+  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (g_str_equal (dim_str, "345:123:1:1"));
@@ -244,11 +244,11 @@ TEST (common_get_tensor_dimension, case4)
   guint rank;
 
   rank = gst_tensor_parse_dimension ("345", dim);
-  EXPECT_EQ (rank, 1);
-  EXPECT_EQ (dim[0], 345);
-  EXPECT_EQ (dim[1], 1);
-  EXPECT_EQ (dim[2], 1);
-  EXPECT_EQ (dim[3], 1);
+  EXPECT_EQ (rank, 1U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 1U);
+  EXPECT_EQ (dim[2], 1U);
+  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (g_str_equal (dim_str, "345:1:1:1"));
@@ -335,7 +335,7 @@ TEST (common_tensors_info_string, dimensions)
 
   /* 1 tensor info */
   num_dims = gst_tensors_info_parse_dimensions_string (&info, "1:2:3:4");
-  EXPECT_EQ (num_dims, 1);
+  EXPECT_EQ (num_dims, 1U);
 
   info.num_tensors = num_dims;
 
@@ -345,7 +345,7 @@ TEST (common_tensors_info_string, dimensions)
 
   /* 4 tensors info */
   num_dims = gst_tensors_info_parse_dimensions_string (&info, "1, 2, 3, 4");
-  EXPECT_EQ (num_dims, 4);
+  EXPECT_EQ (num_dims, 4U);
 
   info.num_tensors = num_dims;
 
@@ -356,7 +356,7 @@ TEST (common_tensors_info_string, dimensions)
   /* max */
   num_dims = gst_tensors_info_parse_dimensions_string (&info,
       "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20");
-  EXPECT_EQ (num_dims, NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_dims, (guint) NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**
@@ -372,7 +372,7 @@ TEST (common_tensors_info_string, types)
 
   /* 1 tensor info */
   num_types = gst_tensors_info_parse_types_string (&info, "uint16");
-  EXPECT_EQ (num_types, 1);
+  EXPECT_EQ (num_types, 1U);
 
   info.num_tensors = num_types;
 
@@ -383,7 +383,7 @@ TEST (common_tensors_info_string, types)
   /* 4 tensors info */
   num_types = gst_tensors_info_parse_types_string (&info,
       "int8, int16, int32, int64");
-  EXPECT_EQ (num_types, 4);
+  EXPECT_EQ (num_types, 4U);
 
   info.num_tensors = num_types;
 
@@ -395,7 +395,7 @@ TEST (common_tensors_info_string, types)
   num_types = gst_tensors_info_parse_types_string (&info,
       "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, "
       "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8");
-  EXPECT_EQ (num_types, NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_types, (guint) NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**
@@ -411,7 +411,7 @@ TEST (common_tensors_info_string, names)
 
   /* 1 tensor info */
   num_names = gst_tensors_info_parse_names_string (&info, "t1");
-  EXPECT_EQ (num_names, 1);
+  EXPECT_EQ (num_names, 1U);
 
   info.num_tensors = num_names;
 
@@ -422,7 +422,7 @@ TEST (common_tensors_info_string, names)
   /* 4 tensors info */
   num_names = gst_tensors_info_parse_names_string (&info,
       "tensor1, tensor2, tensor3, tensor4");
-  EXPECT_EQ (num_names, 4);
+  EXPECT_EQ (num_names, 4U);
 
   info.num_tensors = num_names;
 
@@ -432,7 +432,7 @@ TEST (common_tensors_info_string, names)
 
   /* empty name string */
   num_names = gst_tensors_info_parse_names_string (&info, ",,");
-  EXPECT_EQ (num_names, 3);
+  EXPECT_EQ (num_names, 3U);
 
   info.num_tensors = num_names;
   for (i = 0; i < num_names; ++i) {
@@ -447,7 +447,7 @@ TEST (common_tensors_info_string, names)
   num_names = gst_tensors_info_parse_names_string (&info,
       "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
       "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
-  EXPECT_EQ (num_names, NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_names, (guint) NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**

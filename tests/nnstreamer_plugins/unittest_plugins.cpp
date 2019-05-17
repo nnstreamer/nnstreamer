@@ -90,7 +90,7 @@
         out_buf = gst_harness_pull (h); \
         \
         ASSERT_TRUE (out_buf != NULL);  \
-        ASSERT_EQ (gst_buffer_n_memory (out_buf), 1); \
+        ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U); \
         ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size); \
         \
         mem = gst_buffer_peek_memory (out_buf, 0);  \
@@ -171,142 +171,142 @@ TEST (test_tensor_transform, properties)
 /**
  * @brief Test for tensor_transform typecast (uint8 > uint32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_1, 3, 5, uint8_t, _NNS_UINT8, uint32_t, "uint32", _NNS_UINT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_1, 3U, 5U, uint8_t, _NNS_UINT8, uint32_t, "uint32", _NNS_UINT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint8 > uint32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_1_accel, 3, 5, uint8_t, _NNS_UINT8, uint32_t, "uint32", _NNS_UINT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_1_accel, 3U, 5U, uint8_t, _NNS_UINT8, uint32_t, "uint32", _NNS_UINT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint32 > float64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_2, 3, 5, uint32_t, _NNS_UINT32, double, "float64", _NNS_FLOAT64, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_2, 3U, 5U, uint32_t, _NNS_UINT32, double, "float64", _NNS_FLOAT64, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint32 > float64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_2_accel, 3, 5, uint32_t, _NNS_UINT32, double, "float64", _NNS_FLOAT64, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_2_accel, 3U, 5U, uint32_t, _NNS_UINT32, double, "float64", _NNS_FLOAT64, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (int32 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_3, 3, 5, int32_t, _NNS_INT32, float, "float32", _NNS_FLOAT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_3, 3U, 5U, int32_t, _NNS_INT32, float, "float32", _NNS_FLOAT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, int32 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_3_accel, 3, 5, int32_t, _NNS_INT32, float, "float32", _NNS_FLOAT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_3_accel, 3U, 5U, int32_t, _NNS_INT32, float, "float32", _NNS_FLOAT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (int8 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_4, 3, 5, int8_t, _NNS_INT8, float, "float32", _NNS_FLOAT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_4, 3U, 5U, int8_t, _NNS_INT8, float, "float32", _NNS_FLOAT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, int8 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_4_accel, 3, 5, int8_t, _NNS_INT8, float, "float32", _NNS_FLOAT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_4_accel, 3U, 5U, int8_t, _NNS_INT8, float, "float32", _NNS_FLOAT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint8 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_5, 3, 5, uint8_t, _NNS_UINT8, float, "float32", _NNS_FLOAT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_5, 3U, 5U, uint8_t, _NNS_UINT8, float, "float32", _NNS_FLOAT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint8 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_5_accel, 3, 5, uint8_t, _NNS_UINT8, float, "float32", _NNS_FLOAT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_5_accel, 3U, 5U, uint8_t, _NNS_UINT8, float, "float32", _NNS_FLOAT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (int16 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_6, 3, 5, int16_t, _NNS_INT16, float, "float32", _NNS_FLOAT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_6, 3U, 5U, int16_t, _NNS_INT16, float, "float32", _NNS_FLOAT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, int16 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_6_accel, 3, 5, int16_t, _NNS_INT16, float, "float32", _NNS_FLOAT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_6_accel, 3U, 5U, int16_t, _NNS_INT16, float, "float32", _NNS_FLOAT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint16 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_7, 3, 5, uint16_t, _NNS_UINT16, float, "float32", _NNS_FLOAT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_7, 3U, 5U, uint16_t, _NNS_UINT16, float, "float32", _NNS_FLOAT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint16 > float32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_7_accel, 3, 5, uint16_t, _NNS_UINT16, float, "float32", _NNS_FLOAT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_7_accel, 3U, 5U, uint16_t, _NNS_UINT16, float, "float32", _NNS_FLOAT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint64 -> int64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_8, 3, 5, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_8, 3U, 5U, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint64 -> int64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_8_accel, 3, 5, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_8_accel, 3U, 5U, uint64_t, _NNS_UINT64, int64_t, "int64", _NNS_INT64, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (float -> uint32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_9, 3, 5, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_9, 3U, 5U, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, float -> uint32)
  */
-TEST_TRANSFORM_TYPECAST (typecast_9_accel, 3, 5, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_9_accel, 3U, 5U, float, _NNS_FLOAT32, uint32_t, "uint32", _NNS_UINT32, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint8 -> int8)
  */
-TEST_TRANSFORM_TYPECAST (typecast_10, 3, 5, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_10, 3U, 5U, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint8 -> int8)
  */
-TEST_TRANSFORM_TYPECAST (typecast_10_accel, 3, 5, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_10_accel, 3U, 5U, uint8_t, _NNS_UINT8, int8_t, "int8", _NNS_INT8, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (uint32 -> int16)
  */
-TEST_TRANSFORM_TYPECAST (typecast_11, 3, 5, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_11, 3U, 5U, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, uint32 -> int16)
  */
-TEST_TRANSFORM_TYPECAST (typecast_11_accel, 3, 5, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_11_accel, 3U, 5U, uint32_t, _NNS_UINT32, int16_t, "int16", _NNS_INT16, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (float -> uint8)
  */
-TEST_TRANSFORM_TYPECAST (typecast_12, 3, 5, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_12, 3U, 5U, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, float -> uint8)
  */
-TEST_TRANSFORM_TYPECAST (typecast_12_accel, 3, 5, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_12_accel, 3U, 5U, float, _NNS_FLOAT32, uint8_t, "uint8", _NNS_UINT8, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (double -> uint16)
  */
-TEST_TRANSFORM_TYPECAST (typecast_13, 3, 5, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_13, 3U, 5U, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, double -> uint16)
  */
-TEST_TRANSFORM_TYPECAST (typecast_13_accel, 3, 5, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_13_accel, 3U, 5U, double, _NNS_FLOAT64, uint16_t, "uint16", _NNS_UINT16, TRUE)
 
 /**
  * @brief Test for tensor_transform typecast (double -> uint64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_14, 3, 5, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, FALSE)
+TEST_TRANSFORM_TYPECAST (typecast_14, 3U, 5U, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, FALSE)
 
 /**
  * @brief Test for tensor_transform typecast (acceleration, double -> uint64)
  */
-TEST_TRANSFORM_TYPECAST (typecast_14_accel, 3, 5, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, TRUE)
+TEST_TRANSFORM_TYPECAST (typecast_14_accel, 3U, 5U, double, _NNS_FLOAT64, uint64_t, "uint64", _NNS_UINT64, TRUE)
 
 /**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
@@ -359,7 +359,7 @@ TEST (test_tensor_transform, arithmetic_1)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -429,7 +429,7 @@ TEST (test_tensor_transform, arithmetic_1_accel)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -499,7 +499,7 @@ TEST (test_tensor_transform, arithmetic_2)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -569,7 +569,7 @@ TEST (test_tensor_transform, arithmetic_2_accel)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -643,7 +643,7 @@ TEST (test_tensor_transform, arithmetic_3)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -717,7 +717,7 @@ TEST (test_tensor_transform, arithmetic_3_accel)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -791,7 +791,7 @@ TEST (test_tensor_transform, arithmetic_4)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -865,7 +865,7 @@ TEST (test_tensor_transform, arithmetic_4_accel)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -939,7 +939,7 @@ TEST (test_tensor_transform, arithmetic_5)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1013,7 +1013,7 @@ TEST (test_tensor_transform, arithmetic_5_accel)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1077,7 +1077,7 @@ TEST (test_tensor_transform, arithmetic_change_option_string)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1111,7 +1111,7 @@ TEST (test_tensor_transform, arithmetic_change_option_string)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1125,7 +1125,7 @@ TEST (test_tensor_transform, arithmetic_change_option_string)
   gst_memory_unmap (mem, &info);
   gst_buffer_unref (out_buf);
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 2);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
   gst_harness_teardown (h);
 }
 
@@ -1161,7 +1161,7 @@ TEST (test_tensor_aggregator, properties)
 
   /* default frames-in is 1 */
   g_object_get (h->element, "frames-in", &fr_val, NULL);
-  EXPECT_EQ (fr_val, 1);
+  EXPECT_EQ (fr_val, 1U);
 
   fr_val = 2;
   g_object_set (h->element, "frames-in", fr_val, NULL);
@@ -1170,7 +1170,7 @@ TEST (test_tensor_aggregator, properties)
 
   /* default frames-out is 1 */
   g_object_get (h->element, "frames-out", &fr_val, NULL);
-  EXPECT_EQ (fr_val, 1);
+  EXPECT_EQ (fr_val, 1U);
 
   fr_val = 2;
   g_object_set (h->element, "frames-out", fr_val, NULL);
@@ -1179,7 +1179,7 @@ TEST (test_tensor_aggregator, properties)
 
   /* default frames-flush is 0 */
   g_object_get (h->element, "frames-flush", &fr_val, NULL);
-  EXPECT_EQ (fr_val, 0);
+  EXPECT_EQ (fr_val, 0U);
 
   fr_val = 2;
   g_object_set (h->element, "frames-flush", fr_val, NULL);
@@ -1188,7 +1188,7 @@ TEST (test_tensor_aggregator, properties)
 
   /* default frames-dim is (NNS_TENSOR_RANK_LIMIT - 1) */
   g_object_get (h->element, "frames-dim", &fr_val, NULL);
-  EXPECT_EQ (fr_val, (NNS_TENSOR_RANK_LIMIT - 1));
+  EXPECT_EQ (fr_val, (guint) (NNS_TENSOR_RANK_LIMIT - 1));
 
   fr_val = 1;
   g_object_set (h->element, "frames-dim", fr_val, NULL);
@@ -1262,7 +1262,7 @@ TEST (test_tensor_aggregator, aggregate_1)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1286,7 +1286,7 @@ TEST (test_tensor_aggregator, aggregate_1)
   gst_memory_unmap (mem, &info);
   gst_buffer_unref (out_buf);
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 1);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
   gst_harness_teardown (h);
 }
 
@@ -1338,7 +1338,7 @@ TEST (test_tensor_aggregator, aggregate_2)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1362,7 +1362,7 @@ TEST (test_tensor_aggregator, aggregate_2)
   gst_memory_unmap (mem, &info);
   gst_buffer_unref (out_buf);
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 1);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
   gst_harness_teardown (h);
 }
 
@@ -1414,7 +1414,7 @@ TEST (test_tensor_aggregator, aggregate_3)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1438,7 +1438,7 @@ TEST (test_tensor_aggregator, aggregate_3)
   gst_memory_unmap (mem, &info);
   gst_buffer_unref (out_buf);
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 1);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
   gst_harness_teardown (h);
 }
 
@@ -1490,7 +1490,7 @@ TEST (test_tensor_aggregator, aggregate_4)
   out_buf = gst_harness_pull (h);
 
   ASSERT_TRUE (out_buf != NULL);
-  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
   ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
 
   mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1514,7 +1514,7 @@ TEST (test_tensor_aggregator, aggregate_4)
   gst_memory_unmap (mem, &info);
   gst_buffer_unref (out_buf);
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 1);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
   gst_harness_teardown (h);
 }
 
@@ -1562,7 +1562,7 @@ TEST (test_tensor_aggregator, aggregate_5)
     out_buf = gst_harness_pull (h);
 
     ASSERT_TRUE (out_buf != NULL);
-    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
 
     mem = gst_buffer_peek_memory (out_buf, 0);
@@ -1576,7 +1576,7 @@ TEST (test_tensor_aggregator, aggregate_5)
     gst_buffer_unref (out_buf);
   }
 
-  EXPECT_EQ (gst_harness_buffers_received (h), 2);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
   gst_harness_teardown (h);
 }
 
@@ -1595,23 +1595,23 @@ TEST (test_tensor_transform, orc_add)
   int8_t data_s8[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = i - 1;
+    data_s8[i] = (gint) i - 1;
   }
 
   nns_orc_add_c_s8 (data_s8, -20, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], i - 1 - 20);
+    EXPECT_EQ (data_s8[i], (gint) i - 1 - 20);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s8 (data_s8, 20, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], i + 1 + 20);
+    EXPECT_EQ (data_s8[i], (gint) i + 1 + 20);
   }
 
   /* add constant u8 */
@@ -1631,23 +1631,23 @@ TEST (test_tensor_transform, orc_add)
   int16_t data_s16[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = i - 1;
+    data_s16[i] = (gint) i - 1;
   }
 
   nns_orc_add_c_s16 (data_s16, -16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], i - 1 - 16);
+    EXPECT_EQ (data_s16[i], (gint) i - 1 - 16);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s16 (data_s16, 16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], i + 1 + 16);
+    EXPECT_EQ (data_s16[i], (gint) i + 1 + 16);
   }
 
   /* add constant u16 */
@@ -1667,23 +1667,23 @@ TEST (test_tensor_transform, orc_add)
   int32_t data_s32[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s32 (data_s32, -32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], i + 1 - 32);
+    EXPECT_EQ (data_s32[i], (gint) i + 1 - 32);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s32 (data_s32, 32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], i + 1 + 32);
+    EXPECT_EQ (data_s32[i], (gint) i + 1 + 32);
   }
 
   /* add constant u32 */
@@ -1758,23 +1758,23 @@ TEST (test_tensor_transform, orc_mul)
   int8_t data_s8[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s8 (data_s8, -3, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], (i + 1) * (-3));
+    EXPECT_EQ (data_s8[i], (gint) (i + 1) * (-3));
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s8 (data_s8, 5, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], (i + 1) * 5);
+    EXPECT_EQ (data_s8[i], (gint) (i + 1) * 5);
   }
 
   /* mul constant u8 */
@@ -1794,23 +1794,23 @@ TEST (test_tensor_transform, orc_mul)
   int16_t data_s16[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s16 (data_s16, -16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], (i + 1) * (-16));
+    EXPECT_EQ (data_s16[i], (gint) (i + 1) * (-16));
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s16 (data_s16, 16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], (i + 1) * 16);
+    EXPECT_EQ (data_s16[i], (gint) (i + 1) * 16);
   }
 
   /* mul constant u16 */
@@ -1830,23 +1830,23 @@ TEST (test_tensor_transform, orc_mul)
   int32_t data_s32[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s32 (data_s32, -32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], (i + 1) * (-32));
+    EXPECT_EQ (data_s32[i], (gint) (i + 1) * (-32));
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s32 (data_s32, 32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], (i + 1) * 32);
+    EXPECT_EQ (data_s32[i], (gint) (i + 1) * 32);
   }
 
   /* mul constant u32 */
