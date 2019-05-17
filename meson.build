@@ -156,14 +156,13 @@ have_python2 = false
 have_python3 = false
 
 if get_option('enable-python')
-  prog_pkgconfig = find_program('pkg-config')
+  pg_pkgconfig = find_program('pkg-config')
 
   # Check python 2.7
   python2_dep = dependency('python-2.7', required: false)
   if python2_dep.found()
-    python2_incs = run_command(prog_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
+    python2_incs = run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
     if cc.has_header('numpy/arrayobject.h', args: python2_incs)
-      add_project_arguments('-DPYTHON2_VERSION=2.7', language: ['c', 'cpp'])
       have_python2 = true
     endif
   endif
@@ -171,10 +170,8 @@ if get_option('enable-python')
   # Check python 3.x
   python3_dep = dependency('python3', required: false)
   if python3_dep.found()
-    python3_version = run_command(prog_pkgconfig, ['python3', '--modversion']).stdout().strip()
-    python3_incs = run_command(prog_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+    python3_incs = run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
     if cc.has_header('numpy/arrayobject.h', args: python3_incs)
-      add_project_arguments('-DPYTHON3_VERSION=' + python3_version, language: ['c', 'cpp'])
       have_python3 = true
     endif
   endif
