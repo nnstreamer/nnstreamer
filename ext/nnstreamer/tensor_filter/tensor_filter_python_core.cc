@@ -47,11 +47,15 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
    * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
    */
   gchar libname[32];
-#if PY_VERSION_HEX >= 0x03000000
-  g_snprintf (libname, sizeof(libname), "libpython%fm.so.1", PYTHON3_VERSION);
+
+  g_snprintf (libname, sizeof(libname), 
+#if PY_VERSION_HEX >= 0x03000000 
+              "libpython%d.%dm.so.1.0",
 #else
-  g_snprintf (libname, sizeof(libname), "libpython%f.so.1", PYTHON2_VERSION);
+              "libpython%d.%d.so.1.0",
 #endif
+              PY_MAJOR_VERSION, PY_MINOR_VERSION);
+
   handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
   g_assert(handle);
 
@@ -85,11 +89,7 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   Py_XDECREF(sys_module);
 
   /** Find nnstreamer_api module */
-#if PY_VERSION_HEX >= 0x03000000
-  PyObject *api_module = PyImport_ImportModule("nnstreamer_python3");
-#else
-  PyObject *api_module = PyImport_ImportModule("nnstreamer_python2");
-#endif
+  PyObject *api_module = PyImport_ImportModule("nnstreamer_python");
   g_assert(api_module);
   shape_cls = PyObject_GetAttrString(api_module, "TensorShape"); 
   Py_XDECREF(api_module);
