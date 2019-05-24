@@ -235,6 +235,7 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
 gboolean
 nnsconf_loadconf (gboolean force_reload)
 {
+  const gchar root_path_prefix[] = NNSTREAMER_SYS_ROOT_PATH_PREFIX;
   g_autoptr (GKeyFile) key_file = NULL;
   guint i;
 
@@ -265,7 +266,14 @@ nnsconf_loadconf (gboolean force_reload)
   }
 
   /* Read from the conf file first */
-  conf.conffile = g_strdup (NNSTREAMER_CONF_FILE);
+  if (g_path_is_absolute (NNSTREAMER_CONF_FILE)) {
+    conf.conffile = g_strdup (NNSTREAMER_CONF_FILE);
+  } else {
+    /** default value of 'sysconfdir' in meson is 'etc' */
+    conf.conffile = g_build_path (G_DIR_SEPARATOR_S, root_path_prefix,
+        NNSTREAMER_CONF_FILE, NULL);
+  }
+
   if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
     /* File not found or not configured */
     g_free (conf.conffile);
