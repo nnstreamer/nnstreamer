@@ -36,6 +36,13 @@
 #include <glib.h>
 G_BEGIN_DECLS
 
+/* Hard-coded system-dependent root path prefix */
+#ifdef G_OS_WIN32
+#define NNSTREAMER_SYS_ROOT_PATH_PREFIX "c:\\"
+#else
+#define NNSTREAMER_SYS_ROOT_PATH_PREFIX "/"
+#endif /* G_OS_WIN32 */
+
 /* Env-var names */
 #define NNSTREAMER_ENVVAR_CONF_FILE     "NNSTREAMER_CONF"
 #define NNSTREAMER_ENVVAR_FILTERS       "NNSTREAMER_FILTERS"
