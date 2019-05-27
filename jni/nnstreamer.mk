@@ -4,7 +4,7 @@ ifndef NNSTREAMER_ROOT
 $(error NNSTREAMER_ROOT is not defined!)
 endif
 
-NNSTREAMER_VERSION  := 0.1.3
+NNSTREAMER_VERSION  := 0.2.0
 
 NNSTREAMER_GST_HOME := $(NNSTREAMER_ROOT)/gst/nnstreamer
 NNSTREAMER_EXT_HOME := $(NNSTREAMER_ROOT)/ext/nnstreamer
