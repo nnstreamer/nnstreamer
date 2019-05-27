@@ -1,3 +1,15 @@
+0.1.2 -> 0.2.0:
+	- A lot of security issues and bugs fixed (for Tizen 5.5 M1 release)
+	- Tizen Public C-API Pipeline for 5.5 M1
+	- Tizen Public C-API SingleShot Prototype
+	- Yocto/Openembedded layer released
+	- ROS sink/src
+	- IIO support
+	- Android source draft
+	- Python custom filter
+	- Android sample application released
+	- Tensorflow-lite / NNAPI support
+
 0.1.1 -> 0.1.2:
 	- Tizen Public C-API Draft Prototype
 	- Yocto/Openembedded Layer Tested.
