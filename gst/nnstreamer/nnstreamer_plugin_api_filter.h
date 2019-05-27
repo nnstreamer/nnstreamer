@@ -37,6 +37,7 @@ typedef struct _GstTensorFilterProperties
   const char *fwname; /**< The name of NN Framework */
   int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
   const char *model_file; /**< Filepath to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
+  const char *model_file_sub; /**< Filepath to the init model file (as an argument for NNFW). Some frameworks need this file to initialize the graph(caffe, caffe2) */
 
   int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
   GstTensorsInfo input_meta; /**< configured input tensor info */
