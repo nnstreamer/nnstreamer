@@ -44,6 +44,7 @@ enum _private_constants
   NNS_MVNCSDK2_SUPPORT_API_MAJOR_VER = 2,
   NNS_MVNCSDK2_API_VER_ARRAY_SIZE = NC_VERSION_MAX_SIZE,
   NNS_MVNCSDK2_MAX_NUM_ELEM_IN_FIFO = 2,
+  NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED = 1,
 };
 
 static const char NNS_MVNCSDK2_NAME_INPUT_FIFO[] = "INPUT_FIFO";
@@ -294,12 +295,30 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @param prop : property of tensor_filter instance
  * @param private_data : movidius-ncsdk2 plugin's private data
  * @param[out] info : The dimesions and types of input tensors
- * @todo : fill this function
  */
 static int
 _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
+  mvncsdk2_data *pdata = *private_data;
+  struct ncTensorDescriptor_t *nc_input_desc = &(pdata->tensor_desc_input);
+  GstTensorInfo *nns_input_tensor_info;
+
+  /** MVNCSDK only supports one tensor at a time */
+  info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
+  nns_input_tensor_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED -1]);
+  /**
+   * MVNCSDK only supports data types of FP32 and FP16. If the data type of
+   * input tensor is set to FP32, NCSDK automatically convert it to FP16 as
+   * needed
+   */
+  nns_input_tensor_info->type = _NNS_FLOAT32;
+
+  nns_input_tensor_info->dimension[0] = nc_input_desc->c;
+  nns_input_tensor_info->dimension[1] = nc_input_desc->w;
+  nns_input_tensor_info->dimension[2] = nc_input_desc->h;
+  nns_input_tensor_info->dimension[3] = nc_input_desc->n;
+
   return 0;
 }
 
@@ -314,6 +333,26 @@ static int
 _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
+  mvncsdk2_data *pdata = *private_data;
+  struct ncTensorDescriptor_t *nc_output_desc = &(pdata->tensor_desc_output);
+  GstTensorInfo *nns_output_info;
+
+  g_printerr ("data_type = %d\n", nc_output_desc->dataType);
+  /** MVNCSDK only supports one tensor at a time */
+  info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
+  nns_output_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED -1]);
+  /**
+   * MVNCSDK only supports data types of FP32 and FP16. If the data type of
+   * input tensor is set to FP32, NCSDK automatically convert it to FP16 as
+   * needed
+   */
+  nns_output_info->type = _NNS_FLOAT32;
+
+  nns_output_info->dimension[0] = nc_output_desc->c;
+  nns_output_info->dimension[1] = nc_output_desc->w;
+  nns_output_info->dimension[2] = nc_output_desc->h;
+  nns_output_info->dimension[3] = nc_output_desc->n;
+
   return 0;
 }
 
