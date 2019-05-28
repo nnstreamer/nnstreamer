@@ -238,7 +238,7 @@ int nns_pipeline_destroy (nns_pipeline_h pipe);
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #NNS_ERROR_STREAMS_PIPE Failed to get state from the pipeline.
  */
-int nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e *state);
+int nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e *state);
 
 /****************************************************
  ** NNStreamer Pipeline Start/Stop Control         **
@@ -300,7 +300,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
 /**
  * @brief Gets a handle to operate as a src node of nnstreamer pipelines.
  * @since_tizen 5.5
- * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_src_puthandle().
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_src_put_handle().
  * @param[in] pipe The pipeline to be attached with a src node.
  * @param[in] srcname The name of src node, described with nns_pipeline_construct().
  * @param[out] tensors_info The cardinality, dimension, and type of given tensor/tensors.
@@ -310,7 +310,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #NNS_ERROR_STREAMS_PIPE Fail to get SRC element.
  */
-int nns_pipeline_src_gethandle (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
+int nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
 
 /**
  * @brief Closes the given handle of a src node of nnstreamer pipelines.
@@ -320,15 +320,15 @@ int nns_pipeline_src_gethandle (nns_pipeline_h pipe, const char *srcname, nns_te
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_src_puthandle (nns_src_h h);
+int nns_pipeline_src_put_handle (nns_src_h h);
 
 /**
  * @brief Puts an input data frame.
  * @param[in] h The nns_src_handle returned by nns_pipeline_gethandle().
  * @param[in] policy The policy of buf deallocation.
  * @param[in] buf The input buffers, in the format of tensorsinfo given by nns_pipeline_gethandle()
- * @param[in] size The sizes of input buffers. This must be consistent with the given tensorsinfo, probed by nns_pipeline_src_gethandle().
- * @param[in] num_tensors The number of tensors (number of buf and number of size) for the input frame. This must be consistent with the given tensorinfo, probed by nns_pipeline_src_gethandle(). MAX is 16 (NNS_TENSOR_SIZE_LIMIT).
+ * @param[in] size The sizes of input buffers. This must be consistent with the given tensorsinfo, probed by nns_pipeline_src_get_handle().
+ * @param[in] num_tensors The number of tensors (number of buf and number of size) for the input frame. This must be consistent with the given tensorinfo, probed by nns_pipeline_src_get_handle(). MAX is 16 (NNS_TENSOR_SIZE_LIMIT).
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
@@ -337,7 +337,7 @@ int nns_pipeline_src_puthandle (nns_src_h h);
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
-int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
+int nns_pipeline_src_input_data (nns_src_h h, nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
 
 /****************************************************
  ** NNStreamer Pipeline Switch/Valve Control       **
@@ -347,7 +347,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
  * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
- * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_switch_puthandle().
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_switch_put_handle().
  * @param[in] pipe The pipeline to be managed.
  * @param[in] switchname The name of switch (InputSelector/OutputSelector)
  * @param[out] type The type of the switch. If NULL, it is ignored.
@@ -356,7 +356,7 @@ int nns_pipeline_src_inputdata (nns_src_h h, nns_buf_policy_e policy, char *buf[
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
+int nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
 
 /**
  * @brief Closes the given switch handle.
@@ -365,11 +365,11 @@ int nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname, 
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_switch_puthandle (nns_switch_h h);
+int nns_pipeline_switch_put_handle (nns_switch_h h);
 
 /**
  * @brief Controls the switch with the given handle to select input/output nodes(pads).
- * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
+ * @param[in] h The switch handle returned by nns_pipeline_switch_get_handle()
  * @param[in] padname The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -379,7 +379,7 @@ int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
 
 /**
  * @brief Gets the pad names of a switch.
- * @param[in] h The switch handle returned by nns_pipeline_switch_gethandle()
+ * @param[in] h The switch handle returned by nns_pipeline_switch_get_handle()
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
@@ -391,7 +391,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
 /**
  * @brief Gets a handle to operate a "GstValve" node of nnstreamer pipelines.
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
- * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_valve_puthandle().
+ * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_valve_put_handle().
  * @param[in] pipe The pipeline to be managed.
  * @param[in] valvename The name of valve (Valve)
  * @param[out] h The valve handle.
@@ -399,7 +399,7 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_valve_gethandle (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
+int nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
 
 /**
  * @brief Closes the given valve handle.
@@ -408,11 +408,11 @@ int nns_pipeline_valve_gethandle (nns_pipeline_h pipe, const char *valvename, nn
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_valve_puthandle (nns_valve_h h);
+int nns_pipeline_valve_put_handle (nns_valve_h h);
 
 /**
  * @brief Controls the valve with the given handle.
- * @param[in] h The valve handle returned by nns_pipeline_valve_gethandle()
+ * @param[in] h The valve handle returned by nns_pipeline_valve_get_handle()
  * @param[in] valve_drop 1 to close (drop & stop the flow). 0 to open (let the flow pass)
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful

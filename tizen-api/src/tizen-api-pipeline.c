@@ -445,7 +445,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
  * @brief Get the pipeline state (more info in nnstreamer.h)
  */
 int
-nns_pipeline_getstate (nns_pipeline_h pipe, nns_pipeline_state_e * state)
+nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e * state)
 {
   nns_pipeline *p = pipe;
   GstState _state;
@@ -617,8 +617,8 @@ static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
 /**
  * @brief Get a handle to operate a src (more info in nnstreamer.h)
  */
-int nns_pipeline_src_gethandle
-    (nns_pipeline_h pipe, const char *srcname,
+int
+nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname,
     nns_tensors_info_s * tensors_info, nns_src_h * h)
 {
   nns_pipeline *p = pipe;
@@ -654,7 +654,7 @@ int nns_pipeline_src_gethandle
     elem->src = gst_element_get_static_pad (elem->element, "src");
 
   if (elem->src != NULL) {
-    /** @todo : refactor this along with nns_pipeline_src_inputdata */
+    /** @todo : refactor this along with nns_pipeline_src_input_data */
     GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
 
     /** @todo caps may be NULL for prerolling */
@@ -717,7 +717,7 @@ unlock_return:
  * @brief Close a src node (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_puthandle (nns_src_h h)
+nns_pipeline_src_put_handle (nns_src_h h)
 {
   handle_init (src, src, h);
 
@@ -730,7 +730,7 @@ nns_pipeline_src_puthandle (nns_src_h h)
  * @brief Push a data frame to a src (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_inputdata (nns_src_h h,
+nns_pipeline_src_input_data (nns_src_h h,
     nns_buf_policy_e policy, char *buf[], const size_t size[],
     unsigned int num_tensors)
 {
@@ -862,7 +862,7 @@ nns_pipeline_src_inputdata (nns_src_h h,
  * @brief Get a handle to operate a selector (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_gethandle (nns_pipeline_h pipe, const char *switchname,
+nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname,
     nns_switch_type_e * type, nns_switch_h * h)
 {
   element *elem;
@@ -937,7 +937,7 @@ unlock_return:
  * @brief Close the given switch handle (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_puthandle (nns_switch_h h)
+nns_pipeline_switch_put_handle (nns_switch_h h)
 {
   handle_init (switch, swtc, h);
 
@@ -1076,8 +1076,9 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
 /**
  * @brief Get a handle to operate a Valve (more info in nnstreamer.h)
  */
-int nns_pipeline_valve_gethandle
-    (nns_pipeline_h pipe, const char *valvename, nns_valve_h * h)
+int
+nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename,
+    nns_valve_h * h)
 {
   element *elem;
   nns_pipeline *p = pipe;
@@ -1137,7 +1138,7 @@ unlock_return:
  * @brief Close the given valve handle (more info in nnstreamer.h)
  */
 int
-nns_pipeline_valve_puthandle (nns_valve_h h)
+nns_pipeline_valve_put_handle (nns_valve_h h)
 {
   handle_init (valve, valve, h);
 
