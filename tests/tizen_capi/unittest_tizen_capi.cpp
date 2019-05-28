@@ -89,21 +89,21 @@ TEST (nnstreamer_capi_playstop, dummy_01)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-  g_usleep(50000); /* 50ms. Let a few frames flow. */
-  status = nns_pipeline_getstate(handle, &state);
+  g_usleep (50000); /* 50ms. Let a few frames flow. */
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  g_usleep(50000); /* 50ms. Let a few frames flow. */
+  g_usleep (50000); /* 50ms. Let a few frames flow. */
 
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
 
@@ -125,21 +125,21 @@ TEST (nnstreamer_capi_playstop, dummy_02)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-  g_usleep(50000); /* 50ms. Let a few frames flow. */
-  status = nns_pipeline_getstate(handle, &state);
+  g_usleep (50000); /* 50ms. Let a few frames flow. */
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  g_usleep(50000); /* 50ms. Let a few frames flow. */
+  g_usleep (50000); /* 50ms. Let a few frames flow. */
 
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
 
@@ -149,11 +149,11 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-  g_usleep(50000); /* 50ms. Enough to empty the queue */
+  g_usleep (50000); /* 50ms. Enough to empty the queue */
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
 
@@ -166,13 +166,15 @@ TEST (nnstreamer_capi_playstop, dummy_02)
  */
 TEST (nnstreamer_capi_valve, test01)
 {
-  const gchar *_tmpdir = g_get_tmp_dir();
+  const gchar *_tmpdir = g_get_tmp_dir ();
   const gchar *_dirname = "nns-tizen-XXXXXX";
   gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
-  gchar *dir = g_mkdtemp((gchar *) fullpath);
-  gchar *file1 = g_build_path("/", dir, "valve1", NULL);
-  gchar *pipeline = g_strdup_printf("videotestsrc is-live=true num-buffers=20 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=60/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
-    file1);
+  gchar *dir = g_mkdtemp ((gchar *) fullpath);
+  gchar *file1 = g_build_path ("/", dir, "valve1", NULL);
+  gchar *pipeline =
+      g_strdup_printf
+      ("videotestsrc is-live=true num-buffers=20 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=60/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
+      file1);
   GStatBuf buf;
 
   nns_pipeline_h handle;
@@ -184,7 +186,7 @@ TEST (nnstreamer_capi_valve, test01)
 
   EXPECT_TRUE (dir != NULL);
 
-  status = nns_pipeline_valve_gethandle (handle, "valve1", &valve1);
+  status = nns_pipeline_valve_get_handle (handle, "valve1", &valve1);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   status = nns_pipeline_start (handle);
@@ -193,12 +195,12 @@ TEST (nnstreamer_capi_valve, test01)
   status = nns_pipeline_valve_control (valve1, 1); /* close */
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-  g_usleep(100000); /* 100ms. Let a few frames flow. */
+  g_usleep (100000); /* 100ms. Let a few frames flow. */
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
@@ -211,10 +213,10 @@ TEST (nnstreamer_capi_valve, test01)
 
   status = nns_pipeline_valve_control (valve1, 0); /* open */
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_valve_puthandle (valve1); /* release valve handle */
+  status = nns_pipeline_valve_put_handle (valve1); /* release valve handle */
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  g_usleep(50000); /* 50ms. Let a few frames flow. */
+  g_usleep (50000); /* 50ms. Let a few frames flow. */
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -235,8 +237,9 @@ TEST (nnstreamer_capi_valve, test01)
 /**
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
-static void nns_sink_callback_dm01 (const char *buf[], const size_t size[],
-    const nns_tensors_info_s *tensorsinfo, void *pdata)
+static void
+nns_sink_callback_dm01 (const char *buf[], const size_t size[],
+    const nns_tensors_info_s * tensorsinfo, void *pdata)
 {
   gchar *filepath = (gchar *) pdata;
   FILE *fp = g_fopen (filepath, "a");
@@ -255,7 +258,8 @@ static void nns_sink_callback_dm01 (const char *buf[], const size_t size[],
 /**
  * @brief compare the two files.
  */
-static int file_cmp (const gchar *f1, const gchar *f2)
+static int
+file_cmp (const gchar * f1, const gchar * f2)
 {
   gboolean r;
   gchar *content1, *content2;
@@ -298,7 +302,9 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   gchar *file1 = g_build_path ("/", dir, "original", NULL);
   gchar *file2 = g_build_path ("/", dir, "sink", NULL);
-  gchar *pipeline = g_strdup_printf ("videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,format=BGRx,width=64,height=48,famerate=60/1 ! tee name=t t. ! queue ! filesink location=\"%s\"  t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
+  gchar *pipeline =
+      g_strdup_printf
+      ("videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,format=BGRx,width=64,height=48,famerate=60/1 ! tee name=t t. ! queue ! filesink location=\"%s\"  t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
       file1);
   nns_pipeline_h handle;
   nns_pipeline_state_e state;
@@ -311,21 +317,21 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-  g_usleep(100000); /* 100ms. Let a few frames flow. */
-  status = nns_pipeline_getstate(handle, &state);
+  g_usleep (100000); /* 100ms. Let a few frames flow. */
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  g_usleep(10000); /* 10ms. Wait a bit. */
+  g_usleep (10000); /* 10ms. Wait a bit. */
 
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
 
@@ -342,7 +348,7 @@ TEST (nnstreamer_capi_sink, dummy_01)
 }
 
 static char uintarray[10][4];
-static char* uia_index[10];
+static char *uia_index[10];
 
 /**
  * @brief Test NNStreamer pipeline src
@@ -354,7 +360,9 @@ TEST (nnstreamer_capi_src, dummy_01)
   gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
   gchar *dir = g_mkdtemp ((gchar *) fullpath);
   gchar *file1 = g_build_path ("/", dir, "output", NULL);
-  gchar *pipeline = g_strdup_printf ("appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! filesink location=\"%s\"",
+  gchar *pipeline =
+      g_strdup_printf
+      ("appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! filesink location=\"%s\"",
       file1);
   nns_pipeline_h handle;
   nns_pipeline_state_e state;
@@ -367,7 +375,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   uint8_t *content;
   gboolean r;
   gsize len;
-  const size_t size[1] = {4};
+  const size_t size[1] = { 4 };
 
   EXPECT_EQ (status, NNS_ERROR_NONE);
   EXPECT_TRUE (dir != NULL);
@@ -375,14 +383,14 @@ TEST (nnstreamer_capi_src, dummy_01)
     uia_index[i] = &uintarray[i][0];
 
     uintarray[i][0] = i;
-    uintarray[i][1] = i+1;
-    uintarray[i][2] = i+3;
-    uintarray[i][3] = i+2;
+    uintarray[i][1] = i + 1;
+    uintarray[i][2] = i + 3;
+    uintarray[i][3] = i + 2;
 
     uintarray2[i] = (char *) g_malloc (4);
-    uintarray2[i][0] = i+3;
-    uintarray2[i][1] = i+2;
-    uintarray2[i][2] = i+1;
+    uintarray2[i][0] = i + 3;
+    uintarray2[i][1] = i + 2;
+    uintarray2[i][2] = i + 1;
     uintarray2[i][3] = i;
     /* These will be free'ed by gstreamer (NNS_BUF_FREE_BY_NNSTREAMER) */
     /** @todo Check whether gstreamer really deallocates this */
@@ -390,13 +398,12 @@ TEST (nnstreamer_capi_src, dummy_01)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_getstate(handle, &state);
+  status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
   EXPECT_NE (state, NNS_PIPELINE_NULL);
 
-
-  status = nns_pipeline_src_gethandle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
@@ -413,16 +420,16 @@ TEST (nnstreamer_capi_src, dummy_01)
   tensorsinfo.info[0].dimension[2] = 1;
   tensorsinfo.info[0].dimension[3] = 1;
 
-  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
+  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
       &(uia_index[0]), size, 1);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
+  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
       &(uia_index[0]), size, 1);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_src_puthandle (srchandle);
+  status = nns_pipeline_src_put_handle (srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_src_gethandle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
@@ -434,15 +441,15 @@ TEST (nnstreamer_capi_src, dummy_01)
 
 
   for (i = 0; i < 10; i++) {
-    status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
+    status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
         &(uia_index[i]), size, 1);
     EXPECT_EQ (status, NNS_ERROR_NONE);
-    status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_FREE_BY_NNSTREAMER,
+    status = nns_pipeline_src_input_data (srchandle, NNS_BUF_FREE_BY_NNSTREAMER,
         &(uintarray2[i]), size, 1);
     EXPECT_EQ (status, NNS_ERROR_NONE);
   }
 
-  status = nns_pipeline_src_puthandle (srchandle);
+  status = nns_pipeline_src_put_handle (srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   g_usleep (50000); /* Wait for the pipeline to flush all */
@@ -458,14 +465,14 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (len, 8 * 11);
 
   for (i = 0; i < 10; i++) {
-    EXPECT_EQ (content[i*8 + 0 + 8], i);
-    EXPECT_EQ (content[i*8 + 1 + 8], i+1);
-    EXPECT_EQ (content[i*8 + 2 + 8], i+3);
-    EXPECT_EQ (content[i*8 + 3 + 8], i+2);
-    EXPECT_EQ (content[i*8 + 4 + 8], i+3);
-    EXPECT_EQ (content[i*8 + 5 + 8], i+2);
-    EXPECT_EQ (content[i*8 + 6 + 8], i+1);
-    EXPECT_EQ (content[i*8 + 7 + 8], i);
+    EXPECT_EQ (content[i * 8 + 0 + 8], i);
+    EXPECT_EQ (content[i * 8 + 1 + 8], i + 1);
+    EXPECT_EQ (content[i * 8 + 2 + 8], i + 3);
+    EXPECT_EQ (content[i * 8 + 3 + 8], i + 2);
+    EXPECT_EQ (content[i * 8 + 4 + 8], i + 3);
+    EXPECT_EQ (content[i * 8 + 5 + 8], i + 2);
+    EXPECT_EQ (content[i * 8 + 6 + 8], i + 1);
+    EXPECT_EQ (content[i * 8 + 7 + 8], i);
   }
 
   g_free (content);
@@ -481,7 +488,7 @@ TEST (nnstreamer_capi_src, failure_01)
   nns_tensors_info_s tensorsinfo;
   nns_src_h srchandle;
 
-  status = nns_pipeline_src_gethandle (NULL, "dummy", &tensorsinfo, &srchandle);
+  status = nns_pipeline_src_get_handle (NULL, "dummy", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
 }
 
@@ -499,7 +506,7 @@ TEST (nnstreamer_capi_src, failure_02)
   int status = nns_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_src_gethandle (handle, "wrongname", &tensorsinfo, &srchandle);
+  status = nns_pipeline_src_get_handle (handle, "wrongname", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
 
   status = nns_pipeline_destroy (handle);
@@ -519,11 +526,11 @@ TEST (nnstreamer_capi_src, failure_03)
   nns_pipeline_h handle;
   nns_tensors_info_s tensorsinfo;
   nns_src_h srchandle;
-  const size_t tensor_size[1] = {num_dims};
+  const size_t tensor_size[1] = { num_dims };
   char *pbuffer[num_tensors];
 
   for (int i = 0; i < num_tensors; ++i)
-    pbuffer[i] = (char *)g_malloc0 (sizeof(char) * num_dims);
+    pbuffer[i] = (char *) g_malloc0 (sizeof (char) * num_dims);
 
   int status = nns_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -531,18 +538,18 @@ TEST (nnstreamer_capi_src, failure_03)
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_src_gethandle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
-  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
-    &(pbuffer[0]), tensor_size, num_tensors);
+  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+      &(pbuffer[0]), tensor_size, num_tensors);
   EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_src_inputdata (srchandle, NNS_BUF_DO_NOT_FREE1,
-    &(pbuffer[0]), tensor_size, 0);
+  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+      &(pbuffer[0]), tensor_size, 0);
   EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_src_puthandle (srchandle);
+  status = nns_pipeline_src_put_handle (srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   status = nns_pipeline_stop (handle);
@@ -558,7 +565,8 @@ TEST (nnstreamer_capi_src, failure_03)
 /**
  * @brief Main gtest
  */
-int main (int argc, char **argv)
+int
+main (int argc, char **argv)
 {
   testing::InitGoogleTest (&argc, argv);
 
