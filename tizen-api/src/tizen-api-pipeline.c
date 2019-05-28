@@ -175,6 +175,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
             break;
         }
 
+        gst_caps_unref (caps);
+
         if (found) {
           memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
           elem->size = 0;
@@ -183,7 +185,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
             dloge
                 ("The sink event of [%s] cannot be handled because the tensor type mismatches.",
                 elem->name);
-            gst_caps_unref (caps);
+
+            gst_object_unref (elem->sink);
             elem->sink = NULL;
             g_mutex_unlock (&elem->lock);
 
@@ -197,7 +200,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
               dloge
                   ("The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                   elem->name);
-              gst_caps_unref (caps);
+
+              gst_object_unref (elem->sink);
               elem->sink = NULL;
               g_mutex_unlock (&elem->lock);
 
@@ -207,11 +211,10 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
             elem->size += sz;
           }
         } else {
+          gst_object_unref (elem->sink);
           elem->sink = NULL;    /* It is not valid */
           /** @todo What if it keeps being "NULL"? Exception handling at 2nd frame? */
         }
-
-        gst_caps_unref (caps);
       }
     }
   }
@@ -670,6 +673,8 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname,
           break;
       }
 
+      gst_caps_unref (caps);
+
       if (found) {
         memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
         elem->size = 0;
@@ -766,6 +771,8 @@ nns_pipeline_src_input_data (nns_src_h h,
           break;
       }
 
+      gst_caps_unref (caps);
+
       if (found) {
         memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
         elem->size = 0;
@@ -774,8 +781,9 @@ nns_pipeline_src_input_data (nns_src_h h,
           dloge
               ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
               elem->name, elem->tensorsinfo.num_tensors, num_tensors);
-          gst_caps_unref (caps);
-          elem->sink = NULL;
+
+          gst_object_unref (elem->src);
+          elem->src = NULL;
           ret = NNS_ERROR_STREAMS_PIPE;
           goto unlock_return;
         }
@@ -787,8 +795,9 @@ nns_pipeline_src_input_data (nns_src_h h,
             dloge
                 ("The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                 elem->name);
-            gst_caps_unref (caps);
-            elem->sink = NULL;
+
+            gst_object_unref (elem->src);
+            elem->src = NULL;
             ret = NNS_ERROR_INVALID_PARAMETER;
             goto unlock_return;
           }
@@ -799,17 +808,18 @@ nns_pipeline_src_input_data (nns_src_h h,
             dloge
                 ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
                 i, size[i], sz);
-            gst_caps_unref (caps);
-            elem->sink = NULL;
+
+            gst_object_unref (elem->src);
+            elem->src = NULL;
             ret = NNS_ERROR_INVALID_PARAMETER;
             goto unlock_return;
           }
         }
       } else {
+        gst_object_unref (elem->src);
         elem->src = NULL;       /* invalid! */
         /** @todo What if it keeps being "NULL"? */
       }
-      gst_caps_unref (caps);
     }
   }
 
