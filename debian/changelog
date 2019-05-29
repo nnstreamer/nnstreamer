@@ -1,3 +1,9 @@
+nnstreamer (0.2.1.0) unstable xenial bionic; urgency=medium
+
+  * 0.2.1 RC Development Started
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 29 May 2019 14:52:00 -0800
+
 nnstreamer (0.2.0.0) unstable xenial bionic; urgency=medium
 
   * 0.2.0 Release. 0.1.3 becomes 0.2.0 as Tizen 5.5 M1 releases with nnstreamer.
