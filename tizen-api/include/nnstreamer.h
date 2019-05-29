@@ -212,6 +212,7 @@ typedef void (*nns_sink_cb)
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  */
 int nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h *pipe);
 
@@ -252,6 +253,7 @@ int nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e *state);
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_STREAMS_PIPE Failed to start.
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  */
 int nns_pipeline_start (nns_pipeline_h pipe);
 
@@ -264,6 +266,7 @@ int nns_pipeline_start (nns_pipeline_h pipe);
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_STREAMS_PIPE Failed to start.
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  */
 int nns_pipeline_stop (nns_pipeline_h pipe);
 
