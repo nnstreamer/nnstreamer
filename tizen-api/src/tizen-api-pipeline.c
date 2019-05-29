@@ -109,6 +109,11 @@ get_tensors_info_from_GstTensorsInfo (GstTensorsInfo * gst_tensorsinfo,
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
+  if (!tensors_info) {
+    dloge ("The param nns_tensors_info_s should not be NULL!");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
   /** Currently, the data structures of GstTensorsInfo are
    * completely same as that of nns_tensors_info_s. */
   memcpy (tensors_info, gst_tensorsinfo, sizeof (GstTensorsInfo));
@@ -289,6 +294,12 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
 
   nns_pipeline *pipe_h;
 
+  if (pipe == NULL)
+    return NNS_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *pipe = NULL;
+
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
       dloge ("GStreamer has the following error: %s", err->message);
@@ -456,10 +467,11 @@ nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e * state)
   GstState _state;
   GstState pending;
   GstStateChangeReturn scret;
-  *state = NNS_PIPELINE_STATE_UNKNOWN;
 
-  if (p == NULL)
+  if (p == NULL || state == NULL)
     return NNS_ERROR_INVALID_PARAMETER;
+
+  *state = NNS_PIPELINE_STATE_UNKNOWN;
 
   g_mutex_lock (&p->lock);
   scret = gst_element_get_state (p->element, &_state, &pending, 100000UL);      /* Do it within 100us! */
@@ -484,6 +496,9 @@ nns_pipeline_start (nns_pipeline_h pipe)
   nns_pipeline *p = pipe;
   GstStateChangeReturn scret;
 
+  if (p == NULL)
+    return NNS_ERROR_INVALID_PARAMETER;
+
   g_mutex_lock (&p->lock);
   scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
   g_mutex_unlock (&p->lock);
@@ -502,6 +517,9 @@ nns_pipeline_stop (nns_pipeline_h pipe)
 {
   nns_pipeline *p = pipe;
   GstStateChangeReturn scret;
+
+  if (p == NULL)
+    return NNS_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
   scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
@@ -528,8 +546,21 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
   nns_sink *sink;
   int ret = NNS_ERROR_NONE;
 
+  if (h == NULL) {
+    dloge ("The argument sink handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  /* init null */
+  *h = NULL;
+
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  if (sink_name == NULL) {
+    dloge ("The second argument, sink name is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -627,8 +658,21 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
   nns_src *src;
   int ret = NNS_ERROR_NONE, i;
 
+  if (h == NULL) {
+    dloge ("The argument source handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  /* init null */
+  *h = NULL;
+
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  if (src_name == NULL) {
+    dloge ("The second argument, source name is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
@@ -871,6 +915,14 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name,
   nns_switch *swtc;
   int ret = NNS_ERROR_NONE;
 
+  if (h == NULL) {
+    dloge ("The argument switch handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  /* init null */
+  *h = NULL;
+
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
@@ -955,6 +1007,12 @@ nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
 
   handle_init (switch, swtc, h);
 
+  if (pad_name == NULL) {
+    dloge ("The second argument, pad name, is not valid.");
+    ret = NNS_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
   g_object_get (G_OBJECT (elem->element), "active-pad", &active_pad, NULL);
   active_name = gst_pad_get_name (active_pad);
 
@@ -1001,6 +1059,15 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
   int counter = 0;
 
   handle_init (switch, swtc, h);
+
+  if (list == NULL) {
+    dloge ("The second argument, list, is not valid.");
+    ret = NNS_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  /* init null */
+  *list = NULL;
 
   if (elem->type == NNSAPI_SWITCH_INPUT)
     it = gst_element_iterate_sink_pads (elem->element);
@@ -1078,6 +1145,14 @@ nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name,
   nns_pipeline *p = pipe;
   nns_valve *valve;
   int ret = NNS_ERROR_NONE;
+
+  if (h == NULL) {
+    dloge ("The argument valve handle is not valid.");
+    return NNS_ERROR_INVALID_PARAMETER;
+  }
+
+  /* init null */
+  *h = NULL;
 
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle, is not valid.");
