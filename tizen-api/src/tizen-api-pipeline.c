@@ -456,7 +456,7 @@ nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e * state)
   GstState _state;
   GstState pending;
   GstStateChangeReturn scret;
-  *state = NNS_PIPELINE_UNKNOWN;
+  *state = NNS_PIPELINE_STATE_UNKNOWN;
 
   if (p == NULL)
     return NNS_ERROR_INVALID_PARAMETER;
@@ -520,7 +520,7 @@ nns_pipeline_stop (nns_pipeline_h pipe)
  * @brief Register a callback for sink (more info in nnstreamer.h)
  */
 int
-nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname,
+nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
     nns_sink_cb cb, nns_sink_h * h, void *pdata)
 {
   element *elem;
@@ -539,16 +539,16 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname,
   }
 
   g_mutex_lock (&p->lock);
-  elem = g_hash_table_lookup (p->namednodes, sinkname);
+  elem = g_hash_table_lookup (p->namednodes, sink_name);
 
   if (elem == NULL) {
-    dloge ("There is no element named [%s] in the pipeline.", sinkname);
+    dloge ("There is no element named [%s] in the pipeline.", sink_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_SINK) {
-    dloge ("The element [%s] in the pipeline is not a tensor_sink.", sinkname);
+    dloge ("The element [%s] in the pipeline is not a tensor_sink.", sink_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -619,7 +619,7 @@ static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
  * @brief Get a handle to operate a src (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname,
+nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
     nns_tensors_info_s * tensors_info, nns_src_h * h)
 {
   nns_pipeline *p = pipe;
@@ -634,16 +634,16 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname,
 
   g_mutex_lock (&p->lock);
 
-  elem = g_hash_table_lookup (p->namednodes, srcname);
+  elem = g_hash_table_lookup (p->namednodes, src_name);
 
   if (elem == NULL) {
-    dloge ("There is no element named [%s] in the pipeline.", srcname);
+    dloge ("There is no element named [%s] in the pipeline.", src_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != NNSAPI_SRC) {
-    dloge ("The element [%s] in the pipeline is not a tensor_src.", srcname);
+    dloge ("The element [%s] in the pipeline is not a tensor_src.", src_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -659,7 +659,7 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname,
     if (caps == NULL) {
       dlogw
           ("Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
-          srcname);
+          src_name);
     } else {
       guint n_caps = gst_caps_get_size (caps);
       GstTensorsConfig tconfig;
@@ -863,7 +863,7 @@ nns_pipeline_src_input_data (nns_src_h h,
  * @brief Get a handle to operate a selector (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname,
+nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name,
     nns_switch_type_e * type, nns_switch_h * h)
 {
   element *elem;
@@ -876,17 +876,17 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname,
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
-  if (switchname == NULL) {
-    dloge ("The second argument, switchname, is not valid.");
+  if (switch_name == NULL) {
+    dloge ("The second argument, switch name, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
-  elem = g_hash_table_lookup (p->namednodes, switchname);
+  elem = g_hash_table_lookup (p->namednodes, switch_name);
 
   if (elem == NULL) {
     dloge ("There is no switch element named [%s] in the pipeline.",
-        switchname);
+        switch_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -894,7 +894,7 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname,
   if (elem->type != NNSAPI_SWITCH_INPUT && elem->type != NNSAPI_SWITCH_OUTPUT) {
     dloge
         ("There is an element named [%s] in the pipeline, but it is not an input/output switch",
-        switchname);
+        switch_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -907,9 +907,9 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname,
 
   if (type) {
     if (elem->type == NNSAPI_SWITCH_INPUT)
-      *type = NNS_SWITCH_INPUTSELECTOR;
+      *type = NNS_SWITCH_INPUT_SELECTOR;
     else if (elem->type == NNSAPI_SWITCH_OUTPUT)
-      *type = NNS_SWITCH_OUTPUTSELECTOR;
+      *type = NNS_SWITCH_OUTPUT_SELECTOR;
     else {
       dloge ("Internal data of switch-handle [%s] is broken. It is fatal.",
           elem->name);
@@ -948,7 +948,7 @@ nns_pipeline_switch_put_handle (nns_switch_h h)
  * @brief Control the switch (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_select (nns_switch_h h, const char *padname)
+nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
 {
   GstPad *active_pad, *new_pad;
   gchar *active_name;
@@ -958,9 +958,9 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   g_object_get (G_OBJECT (elem->element), "active-pad", &active_pad, NULL);
   active_name = gst_pad_get_name (active_pad);
 
-  if (!g_strcmp0 (padname, active_name)) {
+  if (!g_strcmp0 (pad_name, active_name)) {
     dlogi ("Switch is called, but there is no effective changes: %s->%s.",
-        active_name, padname);
+        active_name, pad_name);
     g_free (active_name);
     gst_object_unref (active_pad);
 
@@ -970,11 +970,11 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   g_free (active_name);
   gst_object_unref (active_pad);
 
-  new_pad = gst_element_get_static_pad (elem->element, padname);
+  new_pad = gst_element_get_static_pad (elem->element, pad_name);
   if (new_pad == NULL) {
     /* Not Found! */
     dloge ("Cannot find the pad, [%s], from the switch, [%s].",
-        padname, elem->name);
+        pad_name, elem->name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -982,7 +982,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *padname)
   g_object_set (G_OBJECT (elem->element), "active-pad", new_pad, NULL);
   gst_object_unref (new_pad);
 
-  dlogi ("Switched to [%s] successfully at switch [%s].", padname, elem->name);
+  dlogi ("Switched to [%s] successfully at switch [%s].", pad_name, elem->name);
 
   handle_exit (h);
 }
@@ -1071,7 +1071,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
  * @brief Get a handle to operate a Valve (more info in nnstreamer.h)
  */
 int
-nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename,
+nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name,
     nns_valve_h * h)
 {
   element *elem;
@@ -1084,16 +1084,16 @@ nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename,
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
-  if (valvename == NULL) {
-    dloge ("The second argument, valvename, is not valid.");
+  if (valve_name == NULL) {
+    dloge ("The second argument, valve name, is not valid.");
     return NNS_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
-  elem = g_hash_table_lookup (p->namednodes, valvename);
+  elem = g_hash_table_lookup (p->namednodes, valve_name);
 
   if (elem == NULL) {
-    dloge ("There is no valve element named [%s] in the pipeline.", valvename);
+    dloge ("There is no valve element named [%s] in the pipeline.", valve_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -1101,7 +1101,7 @@ nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename,
   if (elem->type != NNSAPI_VALVE) {
     dloge
         ("There is an element named [%s] in the pipeline, but it is not a valve",
-        valvename);
+        valve_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }

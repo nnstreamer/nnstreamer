@@ -89,16 +89,16 @@ typedef void *nns_valve_h;
  */
 typedef enum _nns_tensor_type_e
 {
-  NNS_INT32 = 0,      /**< Integer 32bit */
-  NNS_UINT32,         /**< Unsigned integer 32bit */
-  NNS_INT16,          /**< Integer 16bit */
-  NNS_UINT16,         /**< Unsigned integer 16bit */
-  NNS_INT8,           /**< Integer 8bit */
-  NNS_UINT8,          /**< Unsigned integer 8bit */
-  NNS_FLOAT64,        /**< Float 64bit */
-  NNS_FLOAT32,        /**< Float 32bit */
-  NNS_INT64,          /**< Integer 64bit */
-  NNS_UINT64,         /**< Unsigned integer 64bit */
+  NNS_TENSOR_TYPE_INT32 = 0,      /**< Integer 32bit */
+  NNS_TENSOR_TYPE_UINT32,         /**< Unsigned integer 32bit */
+  NNS_TENSOR_TYPE_INT16,          /**< Integer 16bit */
+  NNS_TENSOR_TYPE_UINT16,         /**< Unsigned integer 16bit */
+  NNS_TENSOR_TYPE_INT8,           /**< Integer 8bit */
+  NNS_TENSOR_TYPE_UINT8,          /**< Unsigned integer 8bit */
+  NNS_TENSOR_TYPE_FLOAT64,        /**< Float 64bit */
+  NNS_TENSOR_TYPE_FLOAT32,        /**< Float 32bit */
+  NNS_TENSOR_TYPE_INT64,          /**< Integer 64bit */
+  NNS_TENSOR_TYPE_UINT64,         /**< Unsigned integer 64bit */
 } nns_tensor_type_e;
 
 /**
@@ -150,11 +150,11 @@ typedef enum {
  * @todo Check the consistency against MMFW APIs.
  */
 typedef enum {
-  NNS_PIPELINE_UNKNOWN				= 0, /**< Unknown state. Maybe not constructed? */
-  NNS_PIPELINE_NULL				= 1, /**< GST-State "Null" */
-  NNS_PIPELINE_READY				= 2, /**< GST-State "Ready" */
-  NNS_PIPELINE_PAUSED				= 3, /**< GST-State "Paused" */
-  NNS_PIPELINE_PLAYING				= 4, /**< GST-State "Playing" */
+  NNS_PIPELINE_STATE_UNKNOWN				= 0, /**< Unknown state. Maybe not constructed? */
+  NNS_PIPELINE_STATE_NULL				= 1, /**< GST-State "Null" */
+  NNS_PIPELINE_STATE_READY				= 2, /**< GST-State "Ready" */
+  NNS_PIPELINE_STATE_PAUSED				= 3, /**< GST-State "Paused" */
+  NNS_PIPELINE_STATE_PLAYING				= 4, /**< GST-State "Playing" */
 } nns_pipeline_state_e;
 
 /**
@@ -164,8 +164,8 @@ typedef enum {
  * @todo There may be more filters that can be supported.
  */
 typedef enum {
-  NNS_SWITCH_OUTPUTSELECTOR			= 0, /**< GstOutputSelector */
-  NNS_SWITCH_INPUTSELECTOR			= 1, /**< GstInputSelector */
+  NNS_SWITCH_OUTPUT_SELECTOR			= 0, /**< GstOutputSelector */
+  NNS_SWITCH_INPUT_SELECTOR			= 1, /**< GstInputSelector */
 } nns_switch_type_e;
 
 /**
@@ -275,17 +275,17 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a h handle must be unregistered using nns_pipeline_sink_unregister.
  * @param[in] pipe The pipeline to be attached with a sink node.
- * @param[in] sinkname The name of sink node, described with nns_pipeline_construct().
+ * @param[in] sink_name The name of sink node, described with nns_pipeline_construct().
  * @param[in] cb The function to be called by the sink node.
  * @param[out] h The sink handle.
  * @param[in] pdata Private data for the callback. This value is passed to the callback when it's invoked.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sinkname is not found, or sinkname has an invalid type.)
+ * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
  *
  * @todo Allow to use GstBuffer instead of buf/size pairs of cb, probably with yet another API.
  */
-int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sinkname, nns_sink_cb cb, nns_sink_h *h, void *pdata);
+int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name, nns_sink_cb cb, nns_sink_h *h, void *pdata);
 
 /**
  * @brief Unregisters a callback for sink (tensor_sink) of nnstreamer pipelines.
@@ -302,7 +302,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_src_put_handle().
  * @param[in] pipe The pipeline to be attached with a src node.
- * @param[in] srcname The name of src node, described with nns_pipeline_construct().
+ * @param[in] src_name The name of src node, described with nns_pipeline_construct().
  * @param[out] tensors_info The cardinality, dimension, and type of given tensor/tensors.
  * @param[out] h The src handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
@@ -310,7 +310,7 @@ int nns_pipeline_sink_unregister (nns_sink_h h);
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #NNS_ERROR_STREAMS_PIPE Fail to get SRC element.
  */
-int nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *srcname, nns_tensors_info_s *tensors_info, nns_src_h *h);
+int nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name, nns_tensors_info_s *tensors_info, nns_src_h *h);
 
 /**
  * @brief Closes the given handle of a src node of nnstreamer pipelines.
@@ -349,14 +349,14 @@ int nns_pipeline_src_input_data (nns_src_h h, nns_buf_policy_e policy, char *buf
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_switch_put_handle().
  * @param[in] pipe The pipeline to be managed.
- * @param[in] switchname The name of switch (InputSelector/OutputSelector)
+ * @param[in] switch_name The name of switch (InputSelector/OutputSelector)
  * @param[out] type The type of the switch. If NULL, it is ignored.
  * @param[out] h The switch handle.
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switchname, nns_switch_type_e *type, nns_switch_h *h);
+int nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name, nns_switch_type_e *type, nns_switch_h *h);
 
 /**
  * @brief Closes the given switch handle.
@@ -370,12 +370,12 @@ int nns_pipeline_switch_put_handle (nns_switch_h h);
 /**
  * @brief Controls the switch with the given handle to select input/output nodes(pads).
  * @param[in] h The switch handle returned by nns_pipeline_switch_get_handle()
- * @param[in] padname The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
+ * @param[in] pad_name The name of the chosen pad to be activated. Use nns_pipeline_switch_nodelist to list the available pad names.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_switch_select (nns_switch_h h, const char *padname);
+int nns_pipeline_switch_select (nns_switch_h h, const char *pad_name);
 
 /**
  * @brief Gets the pad names of a switch.
@@ -393,13 +393,13 @@ int nns_pipeline_switch_nodelist (nns_switch_h h, char *** list);
  * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
  * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_valve_put_handle().
  * @param[in] pipe The pipeline to be managed.
- * @param[in] valvename The name of valve (Valve)
+ * @param[in] valve_name The name of valve (Valve)
  * @param[out] h The valve handle.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valvename, nns_valve_h *h);
+int nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name, nns_valve_h *h);
 
 /**
  * @brief Closes the given valve handle.
