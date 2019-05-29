@@ -91,13 +91,13 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -105,7 +105,7 @@ TEST (nnstreamer_capi_playstop, dummy_01)
 
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
 
   status = nns_pipeline_destroy (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -127,13 +127,13 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   EXPECT_EQ (status, NNS_ERROR_NONE);
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -141,13 +141,13 @@ TEST (nnstreamer_capi_playstop, dummy_02)
 
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
 
   /* Resume playing */
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Enough to empty the queue */
   status = nns_pipeline_stop (handle);
@@ -155,7 +155,7 @@ TEST (nnstreamer_capi_playstop, dummy_02)
 
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
 
   status = nns_pipeline_destroy (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -197,8 +197,8 @@ TEST (nnstreamer_capi_valve, test01)
 
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
   status = nns_pipeline_stop (handle);
@@ -317,15 +317,16 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
+  g_usleep (10000); /* 10ms. Wait a bit. */
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PLAYING);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
 
   status = nns_pipeline_stop (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -333,7 +334,7 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_PAUSED);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
 
   status = nns_pipeline_sink_unregister (sinkhandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
@@ -400,21 +401,21 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_NULL);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
 
   status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, NNS_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, NNS_TENSOR_TYPE_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1);
 
   tensorsinfo.num_tensors = 1;
-  tensorsinfo.info[0].type = NNS_UINT8;
+  tensorsinfo.info[0].type = NNS_TENSOR_TYPE_UINT8;
   tensorsinfo.info[0].dimension[0] = 4;
   tensorsinfo.info[0].dimension[1] = 1;
   tensorsinfo.info[0].dimension[2] = 1;
@@ -433,7 +434,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, NNS_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, NNS_TENSOR_TYPE_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
