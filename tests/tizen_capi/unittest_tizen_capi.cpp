@@ -235,6 +235,48 @@ TEST (nnstreamer_capi_valve, test01)
 }
 
 /**
+ * @brief Test NNStreamer pipeline valve
+ * @detail Failure case to handle valve element with invalid param.
+ */
+TEST (nnstreamer_capi_valve, failure_01)
+{
+  nns_pipeline_h handle;
+  nns_valve_h valvehandle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* invalid param : pipe */
+  status = nns_pipeline_valve_get_handle (NULL, "valvex", &valvehandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : name */
+  status = nns_pipeline_valve_get_handle (handle, NULL, &valvehandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : wrong name */
+  status = nns_pipeline_valve_get_handle (handle, "wrongname", &valvehandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : invalid type */
+  status = nns_pipeline_valve_get_handle (handle, "sinkx", &valvehandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : handle */
+  status = nns_pipeline_valve_get_handle (handle, "valvex", NULL);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
@@ -253,6 +295,18 @@ nns_sink_callback_dm01 (const char *buf[], const size_t size[],
   }
 
   fclose (fp);
+}
+
+/**
+ * @brief A tensor-sink callback for sink handle in a pipeline
+ */
+static void
+nns_sink_callback_count (const char *buf[], const size_t size[],
+    const nns_tensors_info_s * tensorsinfo, void *pdata)
+{
+  guint *count = (guint *) pdata;
+
+  *count = *count + 1;
 }
 
 /**
@@ -348,6 +402,73 @@ TEST (nnstreamer_capi_sink, dummy_01)
   EXPECT_EQ (file_cmp (file1, file2), 0);
 }
 
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_01)
+{
+  nns_pipeline_h handle;
+  nns_sink_h sinkhandle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  *count_sink = 0;
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* invalid param : pipe */
+  status = nns_pipeline_sink_register (NULL, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : name */
+  status = nns_pipeline_sink_register (handle, NULL, nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : wrong name */
+  status = nns_pipeline_sink_register (handle, "wrongname", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : invalid type */
+  status = nns_pipeline_sink_register (handle, "valvex", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : callback */
+  status = nns_pipeline_sink_register (handle, "sinkx", NULL, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : handle */
+  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, NULL, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_start (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_usleep (100000); /* 100ms. Let a few frames flow. */
+
+  status = nns_pipeline_stop (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_TRUE (*count_sink > 0U);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
 static char uintarray[10][4];
 static char *uia_index[10];
 
@@ -399,6 +520,7 @@ TEST (nnstreamer_capi_src, dummy_01)
 
   status = nns_pipeline_start (handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
+  g_usleep (10000); /* 10ms. Wait a bit. */
   status = nns_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
@@ -499,7 +621,7 @@ TEST (nnstreamer_capi_src, failure_01)
  */
 TEST (nnstreamer_capi_src, failure_02)
 {
-  const char *pipeline = "appsrc is-live=true name=mysource ! filesink";
+  const char *pipeline = "appsrc is-live=true name=mysource ! valve name=valvex ! filesink";
   nns_pipeline_h handle;
   nns_tensors_info_s tensorsinfo;
   nns_src_h srchandle;
@@ -507,7 +629,28 @@ TEST (nnstreamer_capi_src, failure_02)
   int status = nns_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
+  /* invalid param : pipe */
+  status = nns_pipeline_src_get_handle (NULL, "mysource", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : name */
+  status = nns_pipeline_src_get_handle (handle, NULL, &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : wrong name */
   status = nns_pipeline_src_get_handle (handle, "wrongname", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : invalid type */
+  status = nns_pipeline_src_get_handle (handle, "valvex", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : info */
+  status = nns_pipeline_src_get_handle (handle, "mysource", NULL, &srchandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : handle */
+  status = nns_pipeline_src_get_handle (handle, "mysource", &tensorsinfo, NULL);
   EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
 
   status = nns_pipeline_destroy (handle);
@@ -561,6 +704,230 @@ TEST (nnstreamer_capi_src, failure_03)
 
   for (int i = 0; i < num_tensors; ++i)
     g_free (pbuffer[i]);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ */
+TEST (nnstreamer_capi_switch, dummy_01)
+{
+  nns_pipeline_h handle;
+  nns_switch_h switchhandle;
+  nns_sink_h sinkhandle;
+  nns_switch_type_e type;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+  gchar **node_list = NULL;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  *count_sink = 0;
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_get_handle (handle, "ins", &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (type, NNS_SWITCH_INPUT_SELECTOR);
+
+  status = nns_pipeline_switch_nodelist (switchhandle, &node_list);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  if (node_list) {
+    gchar *name = NULL;
+    guint idx = 0;
+
+    while ((name = node_list[idx]) != NULL) {
+      EXPECT_TRUE (g_str_equal (name, "sink_0") || g_str_equal (name, "sink_1"));
+      idx++;
+    }
+
+    EXPECT_EQ (idx, 2U);
+  }
+
+  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_select (switchhandle, "sink_1");
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_start (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_usleep (300000); /* 300ms. Let a few frames flow. */
+
+  status = nns_pipeline_stop (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_EQ (*count_sink, 3U);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ */
+TEST (nnstreamer_capi_switch, dummy_02)
+{
+  nns_pipeline_h handle;
+  nns_switch_h switchhandle;
+  nns_sink_h sinkhandle0, sinkhandle1;
+  nns_switch_type_e type;
+  gchar *pipeline;
+  int status;
+  guint *count_sink0, *count_sink1;
+  gchar **node_list = NULL;
+
+  /**
+   * Prerolling problem
+   * For running the test, set async=false in the sink element when using an output selector.
+   * The pipeline state can be changed to paused after all sink element receive buffer.
+   */
+  pipeline = g_strdup ("videotestsrc is-live=true ! videoconvert ! tensor_converter ! output-selector name=outs "
+      "outs.src_0 ! tensor_sink name=sink0 async=false "
+      "outs.src_1 ! tensor_sink name=sink1 async=false");
+
+  count_sink0 = (guint *) g_malloc (sizeof (guint));
+  *count_sink0 = 0;
+
+  count_sink1 = (guint *) g_malloc (sizeof (guint));
+  *count_sink1 = 0;
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_get_handle (handle, "outs", &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (type, NNS_SWITCH_OUTPUT_SELECTOR);
+
+  status = nns_pipeline_switch_nodelist (switchhandle, &node_list);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  if (node_list) {
+    gchar *name = NULL;
+    guint idx = 0;
+
+    while ((name = node_list[idx]) != NULL) {
+      EXPECT_TRUE (g_str_equal (name, "src_0") || g_str_equal (name, "src_1"));
+      idx++;
+    }
+
+    EXPECT_EQ (idx, 2U);
+  }
+
+  status = nns_pipeline_sink_register (handle, "sink0", nns_sink_callback_count, &sinkhandle0, count_sink0);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_register (handle, "sink1", nns_sink_callback_count, &sinkhandle1, count_sink1);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_select (switchhandle, "src_1");
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_start (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_usleep (200000); /* 200ms. Let a few frames flow. */
+
+  status = nns_pipeline_stop (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_unregister (sinkhandle0);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_unregister (sinkhandle1);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_EQ (*count_sink0, 0U);
+  EXPECT_TRUE (*count_sink1 > 0U);
+
+  g_free (pipeline);
+  g_free (count_sink0);
+  g_free (count_sink1);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_01)
+{
+  nns_pipeline_h handle;
+  nns_switch_h switchhandle;
+  nns_switch_type_e type;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* invalid param : pipe */
+  status = nns_pipeline_switch_get_handle (NULL, "ins", &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : name */
+  status = nns_pipeline_switch_get_handle (handle, NULL, &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : wrong name */
+  status = nns_pipeline_switch_get_handle (handle, "wrongname", &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : invalid type */
+  status = nns_pipeline_switch_get_handle (handle, "sinkx", &type, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : handle */
+  status = nns_pipeline_switch_get_handle (handle, "ins", &type, NULL);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* succesfully get switch handle if the param type is null */
+  status = nns_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* invalid param : handle */
+  status = nns_pipeline_switch_select (NULL, "invalidpadname");
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : pad name */
+  status = nns_pipeline_switch_select (switchhandle, NULL);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid param : wrong pad name */
+  status = nns_pipeline_switch_select (switchhandle, "wrongpadname");
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  status = nns_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_free (pipeline);
 }
 
 /**
