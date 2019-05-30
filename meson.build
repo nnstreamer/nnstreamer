@@ -1,8 +1,8 @@
-# If you are using Ubuntu/Xenial, Do "force-version" on meson to get 0.40
+# If you are using Ubuntu/Xenial, Do "force-version" on meson to get the required version.
 # If you are using Tizen 5.0+ or Ubuntu/Bionix+, you don't need to mind meson version.
 
 project('nnstreamer', 'c', 'cpp',
-  version: '0.1.3',
+  version: '0.2.1',
   license: ['LGPL'],
   meson_version: '>=0.42.0',
   default_options: [

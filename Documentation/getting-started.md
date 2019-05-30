@@ -5,7 +5,7 @@ The following dependencies are needed to compile/build/run.
 * gcc/g++
 * gstreamer 1.0 and its relatives
 * glib 2.0
-* meson >= 0.40
+* meson >= 0.42
 
 ### Install via PPA repository (Debian/Ubuntu)
 
@@ -125,7 +125,7 @@ If you need nnstreamer development package:
 **Approach 2.** Build with meson
 * https://mesonbuild.com/Getting-meson.html
 
-Install the required packages. (meson >= 0.40)
+Install the required packages.
 
 ```bash
 $ sudo apt install meson ninja-build
