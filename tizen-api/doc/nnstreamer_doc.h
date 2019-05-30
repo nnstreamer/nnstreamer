@@ -42,10 +42,6 @@
  * \n
  * There are following sub groups proposed:\n
  * * Pipeline: construct and control an NNStreamer pipeline.\n
- * * **TBD** CustomModel: create a custom neural network (C/C++) for an NNStreamer pipeline construction. (tensor_filter::custom)\n
- * * **TBD** PythonModel: create a custom neural network (Python) for an NNStreamer pipeline construction. (TBD)\n
- * * **TBD** NNFW: use new neural network frameworks and their models. (tensor_filter subplugin)\n
- * * **TBD** Decoder: provide a new tensor-to-media decoder. (tensor_decoder subplugin)\n
  *
  * @defgroup CAPI_ML_NNSTREAMER_PIPELINE_MODULE NNStreamer Pipeline
  * @ingroup  CAPI_ML_NNSTREAMER
@@ -66,7 +62,7 @@
  *  Note that this API set is supposed to be thread-safe.
  *
  * @section CAPI_ML_NNSTREAMER_PIPELINE_FEATURE Related Features
- * This API is related with the following features (TBD):\n
+ * This API is related with the following features :\n
  *  - http://tizen.org/feature/nnstreamer.pipeline\n
  *
  * It is recommended to probe features in your application for reliability.\n

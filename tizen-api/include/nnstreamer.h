@@ -104,7 +104,6 @@ typedef enum _nns_tensor_type_e
 /**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.
  * @since_tizen 5.5
- * @todo The list is to be filled! (NYI)
  */
 typedef enum {
   NNS_ERROR_NONE				= TIZEN_ERROR_NONE, /**< Success! */
@@ -117,7 +116,6 @@ typedef enum {
 /**
  * @brief Enumeration for buffer deallocation policies.
  * @since_tizen 5.5
- * @todo The list is to be filled! (NYI): "Memcpy Mode"? "GstBuffer Mode"?
  */
 typedef enum {
   NNS_BUF_FREE_BY_NNSTREAMER,	/**< Default. Application should not deallocate this buffer. NNStreamer will deallocate when the buffer is no more needed */
@@ -146,8 +144,6 @@ typedef enum {
  *               V                          |                      |
  *          [ PLAYING ] --------------------+----------------------+
  *
- * @todo The list is to be filled! (NYI) Fill with GST's state values.
- * @todo Check the consistency against MMFW APIs.
  */
 typedef enum {
   NNS_PIPELINE_STATE_UNKNOWN				= 0, /**< Unknown state. Maybe not constructed? */
@@ -161,7 +157,6 @@ typedef enum {
  * @brief Enumeration for switch types
  * @detail This designates different GStreamer filters, "GstInputSelector"/"GetOutputSelector".
  * @since_tizen 5.5
- * @todo There may be more filters that can be supported.
  */
 typedef enum {
   NNS_SWITCH_OUTPUT_SELECTOR			= 0, /**< GstOutputSelector */
@@ -285,8 +280,6 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
- *
- * @todo Allow to use GstBuffer instead of buf/size pairs of cb, probably with yet another API.
  */
 int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name, nns_sink_cb cb, nns_sink_h *h, void *pdata);
 
@@ -337,8 +330,6 @@ int nns_pipeline_src_put_handle (nns_src_h h);
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #NNS_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  * @retval #NNS_ERROR_TRY_AGAIN The pipeline is not ready yet.
- *
- * @todo Allow to use GstBuffer instead of buf/size pairs, probably with yet another API.
  */
 int nns_pipeline_src_input_data (nns_src_h h, nns_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
 
