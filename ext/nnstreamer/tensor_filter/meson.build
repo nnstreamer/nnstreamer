@@ -139,7 +139,7 @@ if get_option('enable-movidius-ncsdk2')
     message('enable-movidius-ncsdk2 is set but could not find \'libmvnc.so\'.')
   else
     filter_sub_mvncsdk2_sources = [
-    'tensor_filter_movidius_ncsdk2.c'
+      'tensor_filter_movidius_ncsdk2.c'
     ]
 
     nnstreamer_filter_mvncsdk2_sources = []
