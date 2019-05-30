@@ -281,13 +281,63 @@ err_destroy_device_h:
  * @param[in] input : The array of input tensors
  * @param[out] output : The array of output tensors
  * @return 0 if OK. non-zero if error.
- * @todo : fill this function
  */
 static int
 _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
+  ncStatus_t ret_code;
+  mvncsdk2_data *pdata = *private_data;
+  guint32 buf_size;
+
+  g_return_val_if_fail (prop->input_configured, -1);
+  if (prop->input_meta.num_tensors != NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED) {
+    g_critical ("The number of input tensor should be one: "
+        "The MVNCSDK API supports single tensor input and output only");
+    goto err_destroy;
+  }
+
+  /* Warning: conversion unsigned long to unsigned int */
+  buf_size = (guint32) input->size;
+  ret_code = ncFifoWriteElem(pdata->handle_fifo_input, input->data,
+      &buf_size, 0);
+  if (ret_code != NC_OK) {
+    g_printerr ("Cannot write input data to the FIFO buffer in the device");
+    goto err_destroy;
+  }
+
+  ret_code = ncGraphQueueInference(pdata->handle_graph,
+      &(pdata->handle_fifo_input), NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED,
+      &(pdata->handle_fifo_output), NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED);
+  if (ret_code != NC_OK) {
+    g_printerr ("Failed to run inference using the device\n");
+    goto err_destroy;
+  }
+
+  /* Warning: conversion unsigned long to unsigned int */
+  buf_size = (guint32) output->size;
+  ret_code = ncFifoReadElem(pdata->handle_fifo_output, output->data, &buf_size,
+      NULL);
+  if (ret_code != NC_OK) {
+    g_printerr ("Cannot fetch inference results from the device\n");
+    goto err_destroy;
+  }
+
   return 0;
+
+err_destroy:
+  /**
+   * When this invoke callback is returned with -1, the whole pipeline is
+   * immediately terminated by g_assert() without any unref() or free()
+   * invocations. Until we fix this issue, the invoke callback calls the close()
+   * itself before returning.
+   */
+  _mvncsdk2_close (prop, private_data);
+
+  g_printerr ("Failed to call the invoke callback for the tensor_filter"
+      "framework, %s", prop->fwname);
+
+  return -1;
 }
 
 /**
@@ -337,7 +387,6 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
   struct ncTensorDescriptor_t *nc_output_desc = &(pdata->tensor_desc_output);
   GstTensorInfo *nns_output_info;
 
-  g_printerr ("data_type = %d\n", nc_output_desc->dataType);
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
   nns_output_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED -1]);
