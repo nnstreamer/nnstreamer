@@ -97,6 +97,8 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
 
+  callback_type = CB_END;
+  core_obj = NULL;
   configured = false;
 
   /** to prevent concurrent Python C-API calls */
