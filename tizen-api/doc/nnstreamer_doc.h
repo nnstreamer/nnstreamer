@@ -45,28 +45,28 @@
  *
  * @defgroup CAPI_ML_NNSTREAMER_PIPELINE_MODULE NNStreamer Pipeline
  * @ingroup  CAPI_ML_NNSTREAMER
- * @brief The NNStreamer API provides interfaces to create and execute stream pipelines with neural networks and sensors.
+ * @brief The NNStreamer function provides interfaces to create and execute stream pipelines with neural networks and sensors.
  * @section CAPI_ML_NNSTREAMER_PIPELINE_HEADER Required Header
  *   \#include <nnstreamer/nnstreamer.h> \n
  *
  * @section CAPI_ML_NNSTREAMER_PIPELINE_OVERVIEW Overview
- * The NNStreamer API provides interfaces to create and execute stream pipelines with neural networks and sensors.
+ * The NNStreamer function provides interfaces to create and execute stream pipelines with neural networks and sensors.
  *
- *  This API allows the following operations with NNStreamer:
+ *  This function allows the following operations with NNStreamer:
  * - Create a stream pipeline with NNStreamer plugins, GStreamer plugins, and sensor/camera/mic inputs
  * - Interfaces to push data to the pipeline from the application
  * - Interfaces to pull data from the pipeline to the application
  * - Interfaces to start/stop/destroy the pipeline
  * - Interfaces to control switches and valves in the pipeline.
  *
- *  Note that this API set is supposed to be thread-safe.
+ *  Note that this function set is supposed to be thread-safe.
  *
  * @section CAPI_ML_NNSTREAMER_PIPELINE_FEATURE Related Features
- * This API is related with the following features :\n
+ * This function is related with the following features :\n
  *  - http://tizen.org/feature/nnstreamer.pipeline\n
  *
  * It is recommended to probe features in your application for reliability.\n
- * You can check if a device supports the related features for this API by using
+ * You can check if a device supports the related features for this function by using
  * @ref CAPI_SYSTEM_SYSTEM_INFO_MODULE, thereby controlling the procedure of
  * your application.\n
  * To ensure your application is only running on the device with specific
