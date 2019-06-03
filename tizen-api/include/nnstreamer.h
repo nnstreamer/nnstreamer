@@ -279,6 +279,7 @@ int nns_pipeline_stop (nns_pipeline_h pipe);
  * @param[in] pdata Private data for the callback. This value is passed to the callback when it's invoked.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
+ * @retval #NNS_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  * @retval #NNS_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
  */
 int nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name, nns_sink_cb cb, nns_sink_h *h, void *pdata);

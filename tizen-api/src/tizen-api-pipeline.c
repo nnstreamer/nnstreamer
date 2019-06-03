@@ -25,23 +25,12 @@
 #include <glib-object.h>        /* Get GType from GObject Instances */
 #include <gmodule.h>
 #include <tizen-api-private.h>
-#include <dlog.h>
+
 #include <nnstreamer/tensor_typedef.h>
 #include <nnstreamer/nnstreamer_plugin_api.h>
 
 #include <gst/gstbuffer.h>
 #include <gst/app/app.h>        /* To push data to pipeline */
-
-#define DLOG_TAG "nnstreamer-capi-pipeline"
-
-#define dlogi(...) \
-    dlog_print (DLOG_INFO, DLOG_TAG, __VA_ARGS__)
-
-#define dlogw(...) \
-    dlog_print (DLOG_WARN, DLOG_TAG, __VA_ARGS__)
-
-#define dloge(...) \
-    dlog_print (DLOG_ERROR, DLOG_TAG, __VA_ARGS__)
 
 #define handle_init(type, name, h) \
   nns_##type *name= (h); \
@@ -93,6 +82,7 @@ construct_element (GstElement * e, nns_pipeline * p, const char *name,
   gst_tensors_info_init (&ret->tensorsinfo);
   ret->size = 0;
   ret->maxid = 0;
+  ret->handle_id = 0;
   g_mutex_init (&ret->lock);
   return ret;
 }
@@ -257,6 +247,25 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 }
 
 /**
+ * @brief Handle a appsink element for registered nns_sink_cb
+ */
+static GstFlowReturn
+cb_appsink_new_sample (GstElement * e, gpointer user_data)
+{
+  GstSample *sample;
+  GstBuffer *buffer;
+
+  /* get the sample from appsink */
+  sample = gst_app_sink_pull_sample (GST_APP_SINK (e));
+  buffer = gst_sample_get_buffer (sample);
+
+  cb_sink_event (e, buffer, user_data);
+
+  gst_sample_unref (sample);
+  return GST_FLOW_OK;
+}
+
+/**
  * @brief Private function for nns_pipeline_destroy, cleaning up nodes in namednodes
  */
 static void
@@ -360,11 +369,10 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
               if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (tensor_sink))) {
                 e = construct_element (elem, pipe_h, name, NNSAPI_SINK);
-                g_object_set (elem, "emit-signal", (gboolean) TRUE, NULL);
-                g_signal_connect (elem, "new-data", (GCallback) cb_sink_event,
-                    e);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SRC)) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_SRC);
+                e = construct_element (elem, pipe_h, name, NNSAPI_APP_SRC);
+              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SINK)) {
+                e = construct_element (elem, pipe_h, name, NNSAPI_APP_SINK);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (valve))) {
                 e = construct_element (elem, pipe_h, name, NNSAPI_VALVE);
@@ -578,9 +586,39 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_SINK) {
-    dloge ("The element [%s] in the pipeline is not a tensor_sink.", sink_name);
+  if (elem->type != NNSAPI_SINK && elem->type != NNSAPI_APP_SINK) {
+    dloge ("The element [%s] in the pipeline is not a sink element.",
+        sink_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  if (elem->handle_id > 0) {
+    dlogw ("Sink callback is already registered.");
+    ret = NNS_ERROR_NONE;
+    goto unlock_return;
+  }
+
+  /* set callback for new data */
+  if (elem->type == NNSAPI_SINK) {
+    /* tensor_sink */
+    g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE,
+        NULL);
+    elem->handle_id =
+        g_signal_connect (elem->element, "new-data", G_CALLBACK (cb_sink_event),
+        elem);
+  } else {
+    /* appsink */
+    g_object_set (G_OBJECT (elem->element), "emit-signals", (gboolean) TRUE,
+        NULL);
+    elem->handle_id =
+        g_signal_connect (elem->element, "new-sample",
+        G_CALLBACK (cb_appsink_new_sample), elem);
+  }
+
+  if (elem->handle_id == 0) {
+    dloge ("Failed to connect a signal to the element [%s].", sink_name);
+    ret = NNS_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
 
@@ -612,6 +650,11 @@ int
 nns_pipeline_sink_unregister (nns_sink_h h)
 {
   handle_init (sink, sink, h);
+
+  if (elem->handle_id > 0) {
+    g_signal_handler_disconnect (elem->element, elem->handle_id);
+    elem->handle_id = 0;
+  }
 
   elem->handles = g_list_remove (elem->handles, sink);
 
@@ -686,8 +729,9 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_SRC) {
-    dloge ("The element [%s] in the pipeline is not a tensor_src.", src_name);
+  if (elem->type != NNSAPI_APP_SRC) {
+    dloge ("The element [%s] in the pipeline is not a source element.",
+        src_name);
     ret = NNS_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }

@@ -404,6 +404,58 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
 /**
  * @brief Test NNStreamer pipeline sink
+ */
+TEST (nnstreamer_capi_sink, dummy_02)
+{
+  nns_pipeline_h handle;
+  nns_pipeline_state_e state;
+  nns_sink_h sinkhandle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  /* pipeline with appsink */
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! appsink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  *count_sink = 0;
+
+  status = nns_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_start (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_usleep (100000); /* 100ms. Let a few frames flow. */
+  status = nns_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
+
+  status = nns_pipeline_stop (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+  g_usleep (10000); /* 10ms. Wait a bit. */
+
+  status = nns_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+
+  status = nns_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  status = nns_pipeline_destroy (handle);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_TRUE (*count_sink > 0U);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
  * @detail Failure case to register callback with invalid param.
  */
 TEST (nnstreamer_capi_sink, failure_01)
