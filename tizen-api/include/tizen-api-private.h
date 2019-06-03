@@ -29,8 +29,20 @@
 #include <gst/gst.h>
 #include "nnstreamer.h"
 #include <tizen_error.h>
+#include <dlog.h>
 #include <nnstreamer/tensor_typedef.h>
 #include <gst/app/gstappsrc.h>
+
+#define DLOG_TAG "nnstreamer-capi-pipeline"
+
+#define dlogi(...) \
+    dlog_print (DLOG_INFO, DLOG_TAG, __VA_ARGS__)
+
+#define dlogw(...) \
+    dlog_print (DLOG_WARN, DLOG_TAG, __VA_ARGS__)
+
+#define dloge(...) \
+    dlog_print (DLOG_ERROR, DLOG_TAG, __VA_ARGS__)
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,8 +54,9 @@ extern "C" {
 typedef enum {
   NNSAPI_UNKNOWN = 0x0,
   NNSAPI_SINK = 0x1,
-  NNSAPI_SRC = 0x2,
-  NNSAPI_VALVE = 0x3,
+  NNSAPI_APP_SRC = 0x2,
+  NNSAPI_APP_SINK = 0x3,
+  NNSAPI_VALVE = 0x4,
   NNSAPI_SWITCH_INPUT = 0x8,
   NNSAPI_SWITCH_OUTPUT = 0x9,
 } elementType;
@@ -68,6 +81,7 @@ typedef struct _element {
 
   GList *handles;
   int maxid; /**< to allocate id for each handle */
+  gulong handle_id;
 
   GMutex lock; /**< Lock for internal values */
 } element;
