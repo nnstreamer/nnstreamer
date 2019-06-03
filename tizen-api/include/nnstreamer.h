@@ -126,7 +126,7 @@ typedef enum {
 /**
  * @brief Enumeration for nns pipeline state.
  * @since_tizen 5.5
- * @detail Refer to https://gstreamer.freedesktop.org/documentation/design/states.html.
+ * @detail Refer to https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html.
  *         The state diagram of pipeline looks like this, assuming that there are no errors.
  *
  *          [ UNKNOWN ] "new null object"
@@ -340,7 +340,7 @@ int nns_pipeline_src_input_data (nns_src_h h, nns_buf_policy_e policy, char *buf
 
 /**
  * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of nnstreamer pipelines.
- * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-bad-plugins/html/gst-plugins-bad-plugins-input-selector.html for input selectors.
+ * @detail Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-input-selector.html for input selectors.
  *         Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @remarks If the function succeeds, @a h handle must be released using nns_pipeline_switch_put_handle().
  * @param[in] pipe The pipeline to be managed.
