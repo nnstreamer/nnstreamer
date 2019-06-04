@@ -184,6 +184,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 ninja -C build %{?_smp_mflags}
 
 %if 0%{?unit_test}
+    export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
     pushd build
     export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
     export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
@@ -316,6 +317,7 @@ popd
 
 %files -n capi-nnstreamer-devel
 %{_includedir}/nnstreamer/nnstreamer.h
+%{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 %{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.a

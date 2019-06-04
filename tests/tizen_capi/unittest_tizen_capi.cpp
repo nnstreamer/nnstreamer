@@ -8,6 +8,7 @@
  */
 
 #include <nnstreamer.h>
+#include <nnstreamer-single.h>
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
@@ -980,6 +981,228 @@ TEST (nnstreamer_capi_switch, failure_01)
   EXPECT_EQ (status, NNS_ERROR_NONE);
 
   g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer single shot
+ */
+TEST (nnstreamer_capi_singleshot, invoke_01)
+{
+  ml_simpleshot_model_h model;
+  nns_tensors_info_s in_info, out_info;
+  nns_tensors_info_s in_res, out_res;
+  tensor_data *input, *output1, *output2;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  memset (&in_info, 0, sizeof (nns_tensors_info_s));
+  memset (&out_info, 0, sizeof (nns_tensors_info_s));
+  memset (&in_res, 0, sizeof (nns_tensors_info_s));
+  memset (&out_res, 0, sizeof (nns_tensors_info_s));
+
+  ASSERT_TRUE (root_path != NULL);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+
+  in_info.num_tensors = 1;
+  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].dimension[0] = 3;
+  in_info.info[0].dimension[1] = 224;
+  in_info.info[0].dimension[2] = 224;
+  in_info.info[0].dimension[3] = 1;
+
+  out_info.num_tensors = 1;
+  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].dimension[0] = 1001;
+  out_info.info[0].dimension[1] = 1;
+  out_info.info[0].dimension[2] = 1;
+  out_info.info[0].dimension[3] = 1;
+
+  status = ml_model_open (test_model, &model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* input tensor in filter */
+  status = ml_model_get_input_type (model, &in_res);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
+  for (guint idx = 0; idx < in_res.num_tensors; idx++) {
+    EXPECT_TRUE (in_info.info[idx].type == in_res.info[idx].type);
+    EXPECT_TRUE (in_info.info[idx].dimension[0] == in_res.info[idx].dimension[0]);
+    EXPECT_TRUE (in_info.info[idx].dimension[1] == in_res.info[idx].dimension[1]);
+    EXPECT_TRUE (in_info.info[idx].dimension[2] == in_res.info[idx].dimension[2]);
+    EXPECT_TRUE (in_info.info[idx].dimension[3] == in_res.info[idx].dimension[3]);
+  }
+
+  /* output tensor in filter */
+  status = ml_model_get_output_type (model, &out_res);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
+  for (guint idx = 0; idx < out_res.num_tensors; idx++) {
+    EXPECT_TRUE (out_info.info[idx].type == out_res.info[idx].type);
+    EXPECT_TRUE (out_info.info[idx].dimension[0] == out_res.info[idx].dimension[0]);
+    EXPECT_TRUE (out_info.info[idx].dimension[1] == out_res.info[idx].dimension[1]);
+    EXPECT_TRUE (out_info.info[idx].dimension[2] == out_res.info[idx].dimension[2]);
+    EXPECT_TRUE (out_info.info[idx].dimension[3] == out_res.info[idx].dimension[3]);
+  }
+
+  /* generate dummy data */
+  input = ml_model_allocate_tensor_data (&in_info);
+  EXPECT_TRUE (input != NULL);
+
+  output1 = ml_model_inference (model, input, NULL);
+  EXPECT_TRUE (output1 != NULL);
+  ml_model_free_tensor_data (output1);
+
+  output2 = ml_model_allocate_tensor_data (&out_info);
+  EXPECT_TRUE (output2 != NULL);
+
+  output1 = ml_model_inference (model, input, output2);
+  EXPECT_TRUE (output1 != NULL);
+  EXPECT_TRUE (output1 == output2);
+  ml_model_free_tensor_data (output2);
+
+  ml_model_free_tensor_data (input);
+
+  status = ml_model_close (model);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot
+ * @detail Start pipeline without tensor info
+ */
+TEST (nnstreamer_capi_singleshot, invoke_02)
+{
+  ml_simpleshot_model_h model;
+  nns_tensors_info_s in_info, out_info;
+  tensor_data *input, *output1, *output2;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  ASSERT_TRUE (root_path != NULL);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+
+  in_info.num_tensors = 1;
+  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].dimension[0] = 3;
+  in_info.info[0].dimension[1] = 224;
+  in_info.info[0].dimension[2] = 224;
+  in_info.info[0].dimension[3] = 1;
+
+  out_info.num_tensors = 1;
+  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].dimension[0] = 1001;
+  out_info.info[0].dimension[1] = 1;
+  out_info.info[0].dimension[2] = 1;
+  out_info.info[0].dimension[3] = 1;
+
+  status = ml_model_open (test_model, &model, NULL, NULL,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  /* generate dummy data */
+  input = ml_model_allocate_tensor_data (&in_info);
+  EXPECT_TRUE (input != NULL);
+
+  output1 = ml_model_inference (model, input, NULL);
+  EXPECT_TRUE (output1 != NULL);
+  ml_model_free_tensor_data (output1);
+
+  output2 = ml_model_allocate_tensor_data (&out_info);
+  EXPECT_TRUE (output2 != NULL);
+
+  output1 = ml_model_inference (model, input, output2);
+  EXPECT_TRUE (output1 != NULL);
+  EXPECT_TRUE (output1 == output2);
+  ml_model_free_tensor_data (output2);
+
+  ml_model_free_tensor_data (input);
+
+  status = ml_model_close (model);
+  EXPECT_EQ (status, NNS_ERROR_NONE);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot
+ * @detail Failure case with invalid param.
+ */
+TEST (nnstreamer_capi_singleshot, failure_01)
+{
+  ml_simpleshot_model_h model;
+  nns_tensors_info_s in_info, out_info;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  memset (&in_info, 0, sizeof (nns_tensors_info_s));
+  memset (&out_info, 0, sizeof (nns_tensors_info_s));
+
+  ASSERT_TRUE (root_path != NULL);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+
+  /* invalid file path */
+  status = ml_model_open ("wrong_file_name", &model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* null file path */
+  status = ml_model_open (NULL, &model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid handle */
+  status = ml_model_open (test_model, NULL, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  /* invalid input tensor info */
+  status = ml_model_open (test_model, &model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  in_info.num_tensors = 1;
+  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].dimension[0] = 3;
+  in_info.info[0].dimension[1] = 224;
+  in_info.info[0].dimension[2] = 224;
+  in_info.info[0].dimension[3] = 1;
+
+  /* invalid output tensor info */
+  status = ml_model_open (test_model, &model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  out_info.num_tensors = 1;
+  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].dimension[0] = 1001;
+  out_info.info[0].dimension[1] = 1;
+  out_info.info[0].dimension[2] = 1;
+  out_info.info[0].dimension[3] = 1;
+
+  /* unknown fw type */
+  status = ml_model_open (test_model, &model, &in_info, &out_info,
+      ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, NNS_ERROR_NOT_SUPPORTED);
+
+  /* invalid handle */
+  status = ml_model_close (model);
+  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+
+  g_free (test_model);
 }
 
 /**
