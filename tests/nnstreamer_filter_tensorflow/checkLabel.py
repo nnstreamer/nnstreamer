@@ -32,5 +32,5 @@ for i in xrange(10):
   softmax.append(struct.unpack('f', byte))
 
 pred = softmax.index(max(softmax))
-answer = sys.argv[2].split('/')[1].split('.')[0].strip()
-exit(pred != string.atoi(answer))
+answer = string.atoi(sys.argv[2].strip())
+exit(pred != answer)
