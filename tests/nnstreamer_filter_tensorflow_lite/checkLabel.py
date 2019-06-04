@@ -31,5 +31,5 @@ idx = onehot.index(max(onehot))
 label_list = readlabel(sys.argv[2])
 label = label_list[idx].strip()
 
-answer = sys.argv[3].split('/')[1].split('.')[0].strip()
+answer = sys.argv[3].strip()
 exit(label != answer)

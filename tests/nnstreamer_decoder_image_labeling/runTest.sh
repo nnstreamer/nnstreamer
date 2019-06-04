@@ -18,11 +18,8 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
-# Test constant passthrough decoder (1, 2)
+# NNStreamer and plugins path for test
 PATH_TO_PLUGIN="../../build"
-PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
-PATH_TO_LABEL="../test_models/labels/labels.txt"
-PATH_TO_IMAGE="img/orange.png"
 
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
@@ -70,6 +67,10 @@ fi
 
 # Decoding 'orange' tests
 # Since data type of output tensor is uint8, int8 requires another 'quantization' (such as /2)
+PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
+PATH_TO_LABEL="../test_models/labels/labels.txt"
+PATH_TO_IMAGE="../test_models/data/orange.png"
+
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow-lite\" model=\"${PATH_TO_MODEL}\" ! \
 tee name=t ! queue ! tensor_transform mode=typecast option=uint8 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint8.log\" \
 t. ! queue ! tensor_transform mode=typecast option=uint16 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint16.log\" \
