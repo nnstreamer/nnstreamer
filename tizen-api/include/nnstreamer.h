@@ -99,6 +99,7 @@ typedef enum _nns_tensor_type_e
   NNS_TENSOR_TYPE_FLOAT32,        /**< Float 32bit */
   NNS_TENSOR_TYPE_INT64,          /**< Integer 64bit */
   NNS_TENSOR_TYPE_UINT64,         /**< Unsigned integer 64bit */
+  ML_TENSOR_TYPE_UNKNOWN          /**< Unknown type */
 } nns_tensor_type_e;
 
 /**

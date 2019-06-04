@@ -90,13 +90,14 @@ typedef enum {
  * @param[in] model_path This is the path to the neural network model file.
  * @param[out] model This is the model opened. Users are required to close
  *                   the given model with ml_model_close().
- * @param[in] inputtype This is required if the given model has flexible input
+ * @param[in] input_type This is required if the given model has flexible input
  *                      dimension, where the input dimension MUST be given
  *                      before executing the model.
  *                      However, once it's given, the input dimension cannot
  *                      be changed for the given model handle.
- *                      Is is required by some custom filters of nnstreamer.
+ *                      It is required by some custom filters of nnstreamer.
  *                      You may set NULL if it's not required.
+ * @param[in] output_type This is required if the given model has flexible output dimension.
  * @param[in] nnfw The nerual network framework used to open the given
  *                 @model_path. Set ML_NNFW_UNKNOWN to let it auto-detect.
  * @param[in] hw Tell the corresponding @nnfw to use a specific hardware.
@@ -109,8 +110,8 @@ typedef enum {
  *         same dimension.
  */
 int ml_model_open (const char *model_path, ml_simpleshot_model_h *model,
-    const nns_tensors_info_s *inputtype, ml_model_nnfw nnfw,
-    ml_model_hw hw);
+    const nns_tensors_info_s *input_type, const nns_tensors_info_s *output_type,
+    ml_model_nnfw nnfw, ml_model_hw hw);
 
 /**
  * @brief Close the opened model handle.
@@ -154,12 +155,12 @@ tensor_data * ml_model_inference (ml_simpleshot_model_h model,
  *         types are available.
  * @since_tizen 5.5
  * @param[in] model The model to be investigated
- * @param[out] inputtype The type of input tensor.
+ * @param[out] input_type The type of input tensor.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  */
-int ml_model_get_inputtype (ml_simpleshot_model_h model,
-    nns_tensors_info_s *inputtype);
+int ml_model_get_input_type (ml_simpleshot_model_h model,
+    nns_tensors_info_s *input_type);
 
 /**
  * @brief Get type (tensor dimension, type, name and so on) of output
@@ -171,52 +172,52 @@ int ml_model_get_inputtype (ml_simpleshot_model_h model,
  *         types are available.
  * @since_tizen 5.5
  * @param[in] model The model to be investigated
- * @param[out] outputtype The type of output tensor.
+ * @param[out] output_type The type of output tensor.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #NNS_ERROR_NONE Successful
  */
-int ml_model_get_outputtype (ml_simpleshot_model_h model,
-    nns_tensors_info_s *outputtype);
+int ml_model_get_output_type (ml_simpleshot_model_h model,
+    nns_tensors_info_s *output_type);
 
 /**
  * @brief Get the byte size of the given tensor type.
  * @since_tizen 5.5
- * @param[in] tensor_type The tensor type to be investigated.
+ * @param[in] info The tensor information to be investigated.
  * @return @c >= 0 on success with byte size. otherwise a negative error value
  */
-int ml_model_get_tensor_size (const nns_tensor_info_s *tensor_type);
+size_t ml_util_get_tensor_size (const nns_tensor_info_s *info);
 
 /**
  * @brief Get the byte size of the given tensors type.
  * @since_tizen 5.5
- * @param[in] tensors_type The tensors type to be investigated.
+ * @param[in] info The tensors information to be investigated.
  * @return @c >= 0 on success with byte size. otherwise a negative error value
  */
-int ml_model_get_tensors_size (const nns_tensors_info_s *tensors_type);
+size_t ml_util_get_tensors_size (const nns_tensors_info_s *info);
 
 /**
- * @brief Free the tensors type pointer
+ * @brief Free the tensors type pointer.
  * @since_tizen 5.5
  * @param[in] type the tensors type pointer to be freed.
  */
-void ml_model_free_tensorsinfo (nns_tensors_info_s *type);
+void ml_model_free_tensors_info (nns_tensors_info_s *type);
 
 /**
- * @brief Free the tensors data pointer
+ * @brief Free the tensors data pointer.
  * @since_tizen 5.5
  * @param[in] tensor the tensors data pointer to be freed.
  */
-void ml_model_free_tensordata (tensor_data *tensor);
+void ml_model_free_tensor_data (tensor_data *tensor);
 
 /**
  * @brief Allocate a tensor data frame with the given tensors type.
  * @since_tizen 5.5
- * @param[in] type the tensors type pointer for the allocation
+ * @param[in] info The tensors information for the allocation
  * @return @c Tensors data pointer allocated. Null if error.
  * @retval NULL there is an error. call get_last_result() to get specific
  *         error numbers.
  */
-tensor_data *ml_model_allocate_tensors (const nns_tensors_info_s *type);
+tensor_data *ml_model_allocate_tensor_data (const nns_tensors_info_s *info);
 
 /**
  * @brief Check the availability of the given execution environments.

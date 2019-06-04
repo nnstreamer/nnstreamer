@@ -20,9 +20,11 @@ endif
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-pipeline.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-single.c')
 
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
+capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
 
 inc = include_directories('include')
 nninc = include_directories('../gst')

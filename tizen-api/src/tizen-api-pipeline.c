@@ -462,6 +462,8 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
 
   g_mutex_unlock (&p->lock);
   g_mutex_clear (&p->lock);
+
+  g_free (p);
   return NNS_ERROR_NONE;
 }
 
