@@ -19,12 +19,12 @@
 TEST (nnstreamer_capi_construct_destruct, dummy_01)
 {
   const char *pipeline = "videotestsrc num_buffers=2 ! fakesink";
-  nns_pipeline_h handle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
@@ -33,12 +33,12 @@ TEST (nnstreamer_capi_construct_destruct, dummy_01)
 TEST (nnstreamer_capi_construct_destruct, dummy_02)
 {
   const char *pipeline = "videotestsrc num_buffers=2 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224 ! tensor_converter ! fakesink";
-  nns_pipeline_h handle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
@@ -47,12 +47,12 @@ TEST (nnstreamer_capi_construct_destruct, dummy_02)
 TEST (nnstreamer_capi_construct_destruct, dummy_03)
 {
   const char *pipeline = "videotestsrc num_buffers=2 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224 ! tensor_converter ! valve name=valvex ! tensor_sink name=sinkx";
-  nns_pipeline_h handle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
@@ -61,9 +61,9 @@ TEST (nnstreamer_capi_construct_destruct, dummy_03)
 TEST (nnstreamer_capi_construct_destruct, failed_01)
 {
   const char *pipeline = "nonexistsrc ! fakesink";
-  nns_pipeline_h handle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_STREAMS_PIPE);
+  ml_pipeline_h handle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
 }
 
 /**
@@ -72,9 +72,9 @@ TEST (nnstreamer_capi_construct_destruct, failed_01)
 TEST (nnstreamer_capi_construct_destruct, failed_02)
 {
   const char *pipeline = "videotestsrc num_buffers=2 ! audioconvert ! fakesink";
-  nns_pipeline_h handle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_STREAMS_PIPE);
+  ml_pipeline_h handle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
 }
 
 /**
@@ -83,33 +83,33 @@ TEST (nnstreamer_capi_construct_destruct, failed_02)
 TEST (nnstreamer_capi_playstop, dummy_01)
 {
   const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (50000); /* 50ms. Let a few frames flow. */
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 
@@ -119,47 +119,47 @@ TEST (nnstreamer_capi_playstop, dummy_01)
 TEST (nnstreamer_capi_playstop, dummy_02)
 {
   const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (50000); /* 50ms. Let a few frames flow. */
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
   /* Resume playing */
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   g_usleep (50000); /* 50ms. Enough to empty the queue */
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
@@ -178,52 +178,52 @@ TEST (nnstreamer_capi_valve, test01)
       file1);
   GStatBuf buf;
 
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  nns_valve_h valve1;
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  ml_pipeline_valve_h valve1;
 
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (dir != NULL);
 
-  status = nns_pipeline_valve_get_handle (handle, "valve1", &valve1);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_valve_get_handle (handle, "valve1", &valve1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_valve_control (valve1, 1); /* close */
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_valve_control (valve1, 1); /* close */
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = g_lstat (file1, &buf);
   EXPECT_EQ (status, 0);
   EXPECT_EQ (buf.st_size, 0);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_valve_control (valve1, 0); /* open */
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_valve_put_handle (valve1); /* release valve handle */
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_valve_control (valve1, 0); /* open */
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_valve_put_handle (valve1); /* release valve handle */
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = g_lstat (file1, &buf);
   EXPECT_EQ (status, 0);
@@ -241,38 +241,38 @@ TEST (nnstreamer_capi_valve, test01)
  */
 TEST (nnstreamer_capi_valve, failure_01)
 {
-  nns_pipeline_h handle;
-  nns_valve_h valvehandle;
+  ml_pipeline_h handle;
+  ml_pipeline_valve_h valve_h;
   gchar *pipeline;
   int status;
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = nns_pipeline_valve_get_handle (NULL, "valvex", &valvehandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_valve_get_handle (NULL, "valvex", &valve_h);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = nns_pipeline_valve_get_handle (handle, NULL, &valvehandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_valve_get_handle (handle, NULL, &valve_h);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = nns_pipeline_valve_get_handle (handle, "wrongname", &valvehandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_valve_get_handle (handle, "wrongname", &valve_h);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = nns_pipeline_valve_get_handle (handle, "sinkx", &valvehandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_valve_get_handle (handle, "sinkx", &valve_h);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = nns_pipeline_valve_get_handle (handle, "valvex", NULL);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_valve_get_handle (handle, "valvex", NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
 }
@@ -281,8 +281,8 @@ TEST (nnstreamer_capi_valve, failure_01)
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-nns_sink_callback_dm01 (const char *buf[], const size_t size[],
-    const nns_tensors_info_s * tensorsinfo, void *pdata)
+test_sink_callback_dm01 (const char *buf[], const size_t size[],
+    const ml_tensors_info_s * tensorsinfo, void *pdata)
 {
   gchar *filepath = (gchar *) pdata;
   FILE *fp = g_fopen (filepath, "a");
@@ -302,8 +302,8 @@ nns_sink_callback_dm01 (const char *buf[], const size_t size[],
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-nns_sink_callback_count (const char *buf[], const size_t size[],
-    const nns_tensors_info_s * tensorsinfo, void *pdata)
+test_sink_callback_count (const char *buf[], const size_t size[],
+    const ml_tensors_info_s * tensorsinfo, void *pdata)
 {
   guint *count = (guint *) pdata;
 
@@ -361,41 +361,41 @@ TEST (nnstreamer_capi_sink, dummy_01)
       g_strdup_printf
       ("videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,format=BGRx,width=64,height=48,famerate=60/1 ! tee name=t t. ! queue ! filesink location=\"%s\"  t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
       file1);
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  nns_sink_h sinkhandle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  ml_pipeline_sink_h sinkhandle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_dm01,
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_dm01,
       &sinkhandle, file2);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
-  status = nns_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
 
@@ -408,9 +408,9 @@ TEST (nnstreamer_capi_sink, dummy_01)
  */
 TEST (nnstreamer_capi_sink, dummy_02)
 {
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  nns_sink_h sinkhandle;
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  ml_pipeline_sink_h sinkhandle;
   gchar *pipeline;
   int status;
   guint *count_sink;
@@ -421,33 +421,33 @@ TEST (nnstreamer_capi_sink, dummy_02)
   count_sink = (guint *) g_malloc (sizeof (guint));
   *count_sink = 0;
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PLAYING);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
 
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (state, NNS_PIPELINE_STATE_PAUSED);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
-  status = nns_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (*count_sink > 0U);
 
@@ -461,8 +461,8 @@ TEST (nnstreamer_capi_sink, dummy_02)
  */
 TEST (nnstreamer_capi_sink, failure_01)
 {
-  nns_pipeline_h handle;
-  nns_sink_h sinkhandle;
+  ml_pipeline_h handle;
+  ml_pipeline_sink_h sinkhandle;
   gchar *pipeline;
   int status;
   guint *count_sink;
@@ -472,49 +472,49 @@ TEST (nnstreamer_capi_sink, failure_01)
   count_sink = (guint *) g_malloc (sizeof (guint));
   *count_sink = 0;
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = nns_pipeline_sink_register (NULL, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = nns_pipeline_sink_register (handle, NULL, nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (handle, NULL, test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = nns_pipeline_sink_register (handle, "wrongname", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (handle, "wrongname", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = nns_pipeline_sink_register (handle, "valvex", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (handle, "valvex", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : callback */
-  status = nns_pipeline_sink_register (handle, "sinkx", NULL, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (handle, "sinkx", NULL, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, NULL, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, NULL, count_sink);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (100000); /* 100ms. Let a few frames flow. */
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (*count_sink > 0U);
 
@@ -539,11 +539,11 @@ TEST (nnstreamer_capi_src, dummy_01)
       g_strdup_printf
       ("appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! filesink location=\"%s\"",
       file1);
-  nns_pipeline_h handle;
-  nns_pipeline_state_e state;
-  nns_src_h srchandle;
-  int status = nns_pipeline_construct (pipeline, &handle);
-  nns_tensors_info_s tensorsinfo;
+  ml_pipeline_h handle;
+  ml_pipeline_state_e state;
+  ml_pipeline_src_h srchandle;
+  int status = ml_pipeline_construct (pipeline, &handle);
+  ml_tensors_info_s tensorsinfo;
 
   int i;
   char *uintarray2[10];
@@ -552,7 +552,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   gsize len;
   const size_t size[1] = { 4 };
 
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (dir != NULL);
   for (i = 0; i < 10; i++) {
     uia_index[i] = &uintarray[i][0];
@@ -567,49 +567,49 @@ TEST (nnstreamer_capi_src, dummy_01)
     uintarray2[i][1] = i + 2;
     uintarray2[i][2] = i + 1;
     uintarray2[i][3] = i;
-    /* These will be free'ed by gstreamer (NNS_BUF_FREE_BY_NNSTREAMER) */
+    /* These will be free'ed by gstreamer (ML_PIPELINE_BUF_POLICY_AUTO_FREE) */
     /** @todo Check whether gstreamer really deallocates this */
   }
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
-  status = nns_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, NNS_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, NNS_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, NNS_PIPELINE_STATE_NULL);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
+  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, NNS_TENSOR_TYPE_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1);
 
   tensorsinfo.num_tensors = 1;
-  tensorsinfo.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  tensorsinfo.info[0].type = ML_TENSOR_TYPE_UINT8;
   tensorsinfo.info[0].dimension[0] = 4;
   tensorsinfo.info[0].dimension[1] = 1;
   tensorsinfo.info[0].dimension[2] = 1;
   tensorsinfo.info[0].dimension[3] = 1;
 
-  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+  status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE,
       &(uia_index[0]), size, 1);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE,
       &(uia_index[0]), size, 1);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_src_put_handle (srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_src_put_handle (srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_EQ (tensorsinfo.num_tensors, 1);
-  EXPECT_EQ (tensorsinfo.info[0].type, NNS_TENSOR_TYPE_UINT8);
+  EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
   EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
   EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
   EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
@@ -617,21 +617,21 @@ TEST (nnstreamer_capi_src, dummy_01)
 
 
   for (i = 0; i < 10; i++) {
-    status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+    status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE,
         &(uia_index[i]), size, 1);
-    EXPECT_EQ (status, NNS_ERROR_NONE);
-    status = nns_pipeline_src_input_data (srchandle, NNS_BUF_FREE_BY_NNSTREAMER,
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_AUTO_FREE,
         &(uintarray2[i]), size, 1);
-    EXPECT_EQ (status, NNS_ERROR_NONE);
+    EXPECT_EQ (status, ML_ERROR_NONE);
   }
 
-  status = nns_pipeline_src_put_handle (srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_src_put_handle (srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (50000); /* Wait for the pipeline to flush all */
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
 
@@ -661,11 +661,11 @@ TEST (nnstreamer_capi_src, dummy_01)
 TEST (nnstreamer_capi_src, failure_01)
 {
   int status;
-  nns_tensors_info_s tensorsinfo;
-  nns_src_h srchandle;
+  ml_tensors_info_s tensorsinfo;
+  ml_pipeline_src_h srchandle;
 
-  status = nns_pipeline_src_get_handle (NULL, "dummy", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (NULL, "dummy", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
 /**
@@ -675,85 +675,85 @@ TEST (nnstreamer_capi_src, failure_01)
 TEST (nnstreamer_capi_src, failure_02)
 {
   const char *pipeline = "appsrc is-live=true name=mysource ! valve name=valvex ! filesink";
-  nns_pipeline_h handle;
-  nns_tensors_info_s tensorsinfo;
-  nns_src_h srchandle;
+  ml_pipeline_h handle;
+  ml_tensors_info_s tensorsinfo;
+  ml_pipeline_src_h srchandle;
 
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = nns_pipeline_src_get_handle (NULL, "mysource", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (NULL, "mysource", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = nns_pipeline_src_get_handle (handle, NULL, &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (handle, NULL, &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = nns_pipeline_src_get_handle (handle, "wrongname", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (handle, "wrongname", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = nns_pipeline_src_get_handle (handle, "valvex", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (handle, "valvex", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : info */
-  status = nns_pipeline_src_get_handle (handle, "mysource", NULL, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (handle, "mysource", NULL, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = nns_pipeline_src_get_handle (handle, "mysource", &tensorsinfo, NULL);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_src_get_handle (handle, "mysource", &tensorsinfo, NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
  * @brief Test NNStreamer pipeline src
- * @detail Failure case when the number of tensors is 0 or bigger than NNS_TENSOR_SIZE_LIMIT;
+ * @detail Failure case when the number of tensors is 0 or bigger than ML_TENSOR_SIZE_LIMIT;
  */
 TEST (nnstreamer_capi_src, failure_03)
 {
-  const int num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+  const int num_tensors = ML_TENSOR_SIZE_LIMIT + 1;
   const int num_dims = 4;
 
   const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! tensor_sink";
-  nns_pipeline_h handle;
-  nns_tensors_info_s tensorsinfo;
-  nns_src_h srchandle;
+  ml_pipeline_h handle;
+  ml_tensors_info_s tensorsinfo;
+  ml_pipeline_src_h srchandle;
   const size_t tensor_size[1] = { num_dims };
   char *pbuffer[num_tensors];
 
   for (int i = 0; i < num_tensors; ++i)
     pbuffer[i] = (char *) g_malloc0 (sizeof (char) * num_dims);
 
-  int status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  int status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+  status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE,
       &(pbuffer[0]), tensor_size, num_tensors);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_src_input_data (srchandle, NNS_BUF_DO_NOT_FREE1,
+  status = ml_pipeline_src_input_data (srchandle, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE,
       &(pbuffer[0]), tensor_size, 0);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_src_put_handle (srchandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_src_put_handle (srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   for (int i = 0; i < num_tensors; ++i)
     g_free (pbuffer[i]);
@@ -764,10 +764,10 @@ TEST (nnstreamer_capi_src, failure_03)
  */
 TEST (nnstreamer_capi_switch, dummy_01)
 {
-  nns_pipeline_h handle;
-  nns_switch_h switchhandle;
-  nns_sink_h sinkhandle;
-  nns_switch_type_e type;
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_sink_h sinkhandle;
+  ml_pipeline_switch_type_e type;
   gchar *pipeline;
   int status;
   guint *count_sink;
@@ -780,15 +780,15 @@ TEST (nnstreamer_capi_switch, dummy_01)
   count_sink = (guint *) g_malloc (sizeof (guint));
   *count_sink = 0;
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_get_handle (handle, "ins", &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (type, NNS_SWITCH_INPUT_SELECTOR);
+  status = ml_pipeline_switch_get_handle (handle, "ins", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_PIPELINE_SWITCH_INPUT_SELECTOR);
 
-  status = nns_pipeline_switch_nodelist (switchhandle, &node_list);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_nodelist (switchhandle, &node_list);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
     gchar *name = NULL;
@@ -802,28 +802,28 @@ TEST (nnstreamer_capi_switch, dummy_01)
     EXPECT_EQ (idx, 2U);
   }
 
-  status = nns_pipeline_sink_register (handle, "sinkx", nns_sink_callback_count, &sinkhandle, count_sink);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_select (switchhandle, "sink_1");
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_select (switchhandle, "sink_1");
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (300000); /* 300ms. Let a few frames flow. */
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_put_handle (switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_EQ (*count_sink, 3U);
 
@@ -836,10 +836,10 @@ TEST (nnstreamer_capi_switch, dummy_01)
  */
 TEST (nnstreamer_capi_switch, dummy_02)
 {
-  nns_pipeline_h handle;
-  nns_switch_h switchhandle;
-  nns_sink_h sinkhandle0, sinkhandle1;
-  nns_switch_type_e type;
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_sink_h sinkhandle0, sinkhandle1;
+  ml_pipeline_switch_type_e type;
   gchar *pipeline;
   int status;
   guint *count_sink0, *count_sink1;
@@ -860,15 +860,15 @@ TEST (nnstreamer_capi_switch, dummy_02)
   count_sink1 = (guint *) g_malloc (sizeof (guint));
   *count_sink1 = 0;
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_get_handle (handle, "outs", &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
-  EXPECT_EQ (type, NNS_SWITCH_OUTPUT_SELECTOR);
+  status = ml_pipeline_switch_get_handle (handle, "outs", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_PIPELINE_SWITCH_OUTPUT_SELECTOR);
 
-  status = nns_pipeline_switch_nodelist (switchhandle, &node_list);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_nodelist (switchhandle, &node_list);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
     gchar *name = NULL;
@@ -882,34 +882,34 @@ TEST (nnstreamer_capi_switch, dummy_02)
     EXPECT_EQ (idx, 2U);
   }
 
-  status = nns_pipeline_sink_register (handle, "sink0", nns_sink_callback_count, &sinkhandle0, count_sink0);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, &sinkhandle0, count_sink0);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_register (handle, "sink1", nns_sink_callback_count, &sinkhandle1, count_sink1);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_register (handle, "sink1", test_sink_callback_count, &sinkhandle1, count_sink1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_select (switchhandle, "src_1");
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_select (switchhandle, "src_1");
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_start (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (200000); /* 200ms. Let a few frames flow. */
 
-  status = nns_pipeline_stop (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_unregister (sinkhandle0);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle0);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_sink_unregister (sinkhandle1);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_sink_unregister (sinkhandle1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_switch_put_handle (switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_EQ (*count_sink0, 0U);
   EXPECT_TRUE (*count_sink1 > 0U);
@@ -925,9 +925,9 @@ TEST (nnstreamer_capi_switch, dummy_02)
  */
 TEST (nnstreamer_capi_switch, failure_01)
 {
-  nns_pipeline_h handle;
-  nns_switch_h switchhandle;
-  nns_switch_type_e type;
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_switch_type_e type;
   gchar *pipeline;
   int status;
 
@@ -935,50 +935,50 @@ TEST (nnstreamer_capi_switch, failure_01)
       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
-  status = nns_pipeline_construct (pipeline, &handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_construct (pipeline, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = nns_pipeline_switch_get_handle (NULL, "ins", &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_get_handle (NULL, "ins", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = nns_pipeline_switch_get_handle (handle, NULL, &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_get_handle (handle, NULL, &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = nns_pipeline_switch_get_handle (handle, "wrongname", &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_get_handle (handle, "wrongname", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = nns_pipeline_switch_get_handle (handle, "sinkx", &type, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_get_handle (handle, "sinkx", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = nns_pipeline_switch_get_handle (handle, "ins", &type, NULL);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_get_handle (handle, "ins", &type, NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* succesfully get switch handle if the param type is null */
-  status = nns_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : handle */
-  status = nns_pipeline_switch_select (NULL, "invalidpadname");
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_select (NULL, "invalidpadname");
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : pad name */
-  status = nns_pipeline_switch_select (switchhandle, NULL);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_select (switchhandle, NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong pad name */
-  status = nns_pipeline_switch_select (switchhandle, "wrongpadname");
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  status = ml_pipeline_switch_select (switchhandle, "wrongpadname");
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = nns_pipeline_switch_put_handle (switchhandle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_switch_put_handle (switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = nns_pipeline_destroy (handle);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
 }
@@ -989,32 +989,32 @@ TEST (nnstreamer_capi_switch, failure_01)
 TEST (nnstreamer_capi_singleshot, invoke_01)
 {
   ml_simpleshot_model_h model;
-  nns_tensors_info_s in_info, out_info;
-  nns_tensors_info_s in_res, out_res;
-  tensor_data *input, *output1, *output2;
+  ml_tensors_info_s in_info, out_info;
+  ml_tensors_info_s in_res, out_res;
+  ml_tensor_data_s *input, *output1, *output2;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  memset (&in_info, 0, sizeof (nns_tensors_info_s));
-  memset (&out_info, 0, sizeof (nns_tensors_info_s));
-  memset (&in_res, 0, sizeof (nns_tensors_info_s));
-  memset (&out_res, 0, sizeof (nns_tensors_info_s));
+  memset (&in_info, 0, sizeof (ml_tensors_info_s));
+  memset (&out_info, 0, sizeof (ml_tensors_info_s));
+  memset (&in_res, 0, sizeof (ml_tensors_info_s));
+  memset (&out_res, 0, sizeof (ml_tensors_info_s));
 
   ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   in_info.num_tensors = 1;
-  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   in_info.info[0].dimension[0] = 3;
   in_info.info[0].dimension[1] = 224;
   in_info.info[0].dimension[2] = 224;
   in_info.info[0].dimension[3] = 1;
 
   out_info.num_tensors = 1;
-  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   out_info.info[0].dimension[0] = 1001;
   out_info.info[0].dimension[1] = 1;
   out_info.info[0].dimension[2] = 1;
@@ -1022,11 +1022,11 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   status = ml_model_open (test_model, &model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_model_get_input_type (model, &in_res);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
   for (guint idx = 0; idx < in_res.num_tensors; idx++) {
@@ -1039,7 +1039,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   /* output tensor in filter */
   status = ml_model_get_output_type (model, &out_res);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
   for (guint idx = 0; idx < out_res.num_tensors; idx++) {
@@ -1069,7 +1069,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   ml_model_free_tensor_data (input);
 
   status = ml_model_close (model);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
 }
@@ -1081,8 +1081,8 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 TEST (nnstreamer_capi_singleshot, invoke_02)
 {
   ml_simpleshot_model_h model;
-  nns_tensors_info_s in_info, out_info;
-  tensor_data *input, *output1, *output2;
+  ml_tensors_info_s in_info, out_info;
+  ml_tensor_data_s *input, *output1, *output2;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1093,14 +1093,14 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   in_info.num_tensors = 1;
-  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   in_info.info[0].dimension[0] = 3;
   in_info.info[0].dimension[1] = 224;
   in_info.info[0].dimension[2] = 224;
   in_info.info[0].dimension[3] = 1;
 
   out_info.num_tensors = 1;
-  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   out_info.info[0].dimension[0] = 1001;
   out_info.info[0].dimension[1] = 1;
   out_info.info[0].dimension[2] = 1;
@@ -1108,7 +1108,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   status = ml_model_open (test_model, &model, NULL, NULL,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* generate dummy data */
   input = ml_model_allocate_tensor_data (&in_info);
@@ -1129,7 +1129,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   ml_model_free_tensor_data (input);
 
   status = ml_model_close (model);
-  EXPECT_EQ (status, NNS_ERROR_NONE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
 }
@@ -1141,14 +1141,14 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 TEST (nnstreamer_capi_singleshot, failure_01)
 {
   ml_simpleshot_model_h model;
-  nns_tensors_info_s in_info, out_info;
+  ml_tensors_info_s in_info, out_info;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  memset (&in_info, 0, sizeof (nns_tensors_info_s));
-  memset (&out_info, 0, sizeof (nns_tensors_info_s));
+  memset (&in_info, 0, sizeof (ml_tensors_info_s));
+  memset (&out_info, 0, sizeof (ml_tensors_info_s));
 
   ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
@@ -1157,25 +1157,25 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   /* invalid file path */
   status = ml_model_open ("wrong_file_name", &model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* null file path */
   status = ml_model_open (NULL, &model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
   status = ml_model_open (test_model, NULL, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid input tensor info */
   status = ml_model_open (test_model, &model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   in_info.num_tensors = 1;
-  in_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   in_info.info[0].dimension[0] = 3;
   in_info.info[0].dimension[1] = 224;
   in_info.info[0].dimension[2] = 224;
@@ -1184,10 +1184,10 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   /* invalid output tensor info */
   status = ml_model_open (test_model, &model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   out_info.num_tensors = 1;
-  out_info.info[0].type = NNS_TENSOR_TYPE_UINT8;
+  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
   out_info.info[0].dimension[0] = 1001;
   out_info.info[0].dimension[1] = 1;
   out_info.info[0].dimension[2] = 1;
@@ -1196,11 +1196,11 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   /* unknown fw type */
   status = ml_model_open (test_model, &model, &in_info, &out_info,
       ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, NNS_ERROR_NOT_SUPPORTED);
+  EXPECT_EQ (status, ML_ERROR_NOT_SUPPORTED);
 
   /* invalid handle */
   status = ml_model_close (model);
-  EXPECT_EQ (status, NNS_ERROR_INVALID_PARAMETER);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (test_model);
 }
