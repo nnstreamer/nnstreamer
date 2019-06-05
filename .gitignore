@@ -48,3 +48,12 @@ debian/.debhelper/*
 debian/tmp/*
 debian/nnstreamer/*
 debian/nnstreamer-dev/*
+
+# Visual Studio & csapi
+*.exe
+*.dll
+*.csproj.user
+*.lock.json
+.vs/
+bin/
+obj/
