@@ -46,18 +46,6 @@ extern "C" {
  */
 typedef void *ml_simpleshot_model_h;
 
-/* We can handle up to 16 tensors for an input or output frame */
-#define ML_MAX_TENSORS	(16)
-/**
- * @brief An instance of input or output frames. GstTensorsInfo is the metadata
- * @since_tizen 5.5
- */
-typedef struct {
-  void *tensor[ML_MAX_TENSORS]; /**< Tensor data. NULL for unused tensors. */
-  size_t size[ML_MAX_TENSORS]; /**< Size of each tensor. */
-  int num_tensors; /**< Number of tensors. > 0 && < ML_MAX_TENSORS. */
-} tensor_data;
-
 /**
  * @brief Types of NNFWs.
  * @since_tizen 5.5
@@ -103,14 +91,14 @@ typedef enum {
  * @param[in] hw Tell the corresponding @nnfw to use a specific hardware.
  *               Set ML_NNFW_HW_DO_NOT_CARE if it does not matter.
  * @return @c 0 on success. otherwise a negative error value
- * @retval #NNS_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful
  *
  * @detail Even if the model has flexible input data dimensions,
  *         input data frames of an instance of a model should share the
  *         same dimension.
  */
 int ml_model_open (const char *model_path, ml_simpleshot_model_h *model,
-    const nns_tensors_info_s *input_type, const nns_tensors_info_s *output_type,
+    const ml_tensors_info_s *input_type, const ml_tensors_info_s *output_type,
     ml_model_nnfw nnfw, ml_model_hw hw);
 
 /**
@@ -118,8 +106,8 @@ int ml_model_open (const char *model_path, ml_simpleshot_model_h *model,
  * @since_tizen 5.5
  * @param[in] model The model handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
- * @retval #NNS_ERROR_NONE Successful
- * @retval #NNS_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
  */
 int ml_model_close (ml_simpleshot_model_h model);
 
@@ -139,8 +127,8 @@ int ml_model_close (ml_simpleshot_model_h model);
  *         input data frames of an instance of a model should share the
  *         same dimension.
  */
-tensor_data * ml_model_inference (ml_simpleshot_model_h model,
-    const tensor_data *input, tensor_data *output);
+ml_tensor_data_s * ml_model_inference (ml_simpleshot_model_h model,
+    const ml_tensor_data_s *input, ml_tensor_data_s *output);
 
 /*************
  * UTILITIES *
@@ -157,10 +145,10 @@ tensor_data * ml_model_inference (ml_simpleshot_model_h model,
  * @param[in] model The model to be investigated
  * @param[out] input_type The type of input tensor.
  * @return @c 0 on success. otherwise a negative error value
- * @retval #NNS_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful
  */
 int ml_model_get_input_type (ml_simpleshot_model_h model,
-    nns_tensors_info_s *input_type);
+    ml_tensors_info_s *input_type);
 
 /**
  * @brief Get type (tensor dimension, type, name and so on) of output
@@ -174,10 +162,10 @@ int ml_model_get_input_type (ml_simpleshot_model_h model,
  * @param[in] model The model to be investigated
  * @param[out] output_type The type of output tensor.
  * @return @c 0 on success. otherwise a negative error value
- * @retval #NNS_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful
  */
 int ml_model_get_output_type (ml_simpleshot_model_h model,
-    nns_tensors_info_s *output_type);
+    ml_tensors_info_s *output_type);
 
 /**
  * @brief Get the byte size of the given tensor type.
@@ -185,7 +173,7 @@ int ml_model_get_output_type (ml_simpleshot_model_h model,
  * @param[in] info The tensor information to be investigated.
  * @return @c >= 0 on success with byte size. otherwise a negative error value
  */
-size_t ml_util_get_tensor_size (const nns_tensor_info_s *info);
+size_t ml_util_get_tensor_size (const ml_tensor_info_s *info);
 
 /**
  * @brief Get the byte size of the given tensors type.
@@ -193,21 +181,21 @@ size_t ml_util_get_tensor_size (const nns_tensor_info_s *info);
  * @param[in] info The tensors information to be investigated.
  * @return @c >= 0 on success with byte size. otherwise a negative error value
  */
-size_t ml_util_get_tensors_size (const nns_tensors_info_s *info);
+size_t ml_util_get_tensors_size (const ml_tensors_info_s *info);
 
 /**
  * @brief Free the tensors type pointer.
  * @since_tizen 5.5
  * @param[in] type the tensors type pointer to be freed.
  */
-void ml_model_free_tensors_info (nns_tensors_info_s *type);
+void ml_model_free_tensors_info (ml_tensors_info_s *type);
 
 /**
  * @brief Free the tensors data pointer.
  * @since_tizen 5.5
  * @param[in] tensor the tensors data pointer to be freed.
  */
-void ml_model_free_tensor_data (tensor_data *tensor);
+void ml_model_free_tensor_data (ml_tensor_data_s *tensor);
 
 /**
  * @brief Allocate a tensor data frame with the given tensors type.
@@ -217,7 +205,7 @@ void ml_model_free_tensor_data (tensor_data *tensor);
  * @retval NULL there is an error. call get_last_result() to get specific
  *         error numbers.
  */
-tensor_data *ml_model_allocate_tensor_data (const nns_tensors_info_s *info);
+ml_tensor_data_s *ml_model_allocate_tensor_data (const ml_tensors_info_s *info);
 
 /**
  * @brief Check the availability of the given execution environments.
@@ -228,7 +216,7 @@ tensor_data *ml_model_allocate_tensor_data (const nns_tensors_info_s *info);
  *               Set ML_NNFW_HW_DO_NOT_CARE to skip checking hardware.
  * @return @c 0 if it's available. 1 if it's not available.
  *            negative value if there is an error.
- * @retval #NNS_ERROR_NONE Successful and the environments are available.
+ * @retval #ML_ERROR_NONE Successful and the environments are available.
  * @retval 1 Successful but the environments are not available.
  */
 int ml_model_check_nnfw (ml_model_nnfw nnfw, ml_model_hw hw);

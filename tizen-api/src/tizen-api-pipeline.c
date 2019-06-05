@@ -33,20 +33,20 @@
 #include <gst/app/app.h>        /* To push data to pipeline */
 
 #define handle_init(type, name, h) \
-  nns_##type *name= (h); \
-  nns_pipeline *p; \
-  element *elem; \
-  int ret = NNS_ERROR_NONE; \
+  ml_pipeline_##type *name= (h); \
+  ml_pipeline *p; \
+  ml_pipeline_element *elem; \
+  int ret = ML_ERROR_NONE; \
   if (h == NULL) { \
     dloge ("The given handle is invalid"); \
-    return NNS_ERROR_INVALID_PARAMETER; \
+    return ML_ERROR_INVALID_PARAMETER; \
   } \
 \
   p = name->pipe; \
   elem = name->element; \
   if (p == NULL || elem == NULL || p != elem->pipe) { \
     dloge ("The handle appears to be broken."); \
-    return NNS_ERROR_INVALID_PARAMETER; \
+    return ML_ERROR_INVALID_PARAMETER; \
   } \
 \
   g_mutex_lock (&p->lock); \
@@ -54,7 +54,7 @@
 \
   if (NULL == g_list_find (elem->handles, name)) { \
     dloge ("The handle does not exists."); \
-    ret = NNS_ERROR_INVALID_PARAMETER; \
+    ret = ML_ERROR_INVALID_PARAMETER; \
     goto unlock_return; \
   }
 
@@ -67,11 +67,11 @@ unlock_return: \
 /**
  * @brief Internal function to create a refereable element in a pipeline
  */
-static element *
-construct_element (GstElement * e, nns_pipeline * p, const char *name,
-    elementType t)
+static ml_pipeline_element *
+construct_element (GstElement * e, ml_pipeline * p, const char *name,
+    ml_pipeline_element_type_e t)
 {
-  element *ret = g_new0 (element, 1);
+  ml_pipeline_element *ret = g_new0 (ml_pipeline_element, 1);
   ret->element = e;
   ret->pipe = p;
   ret->name = g_strdup (name);
@@ -88,53 +88,53 @@ construct_element (GstElement * e, nns_pipeline * p, const char *name,
 }
 
 /**
- * @brief Internal function to convert GstTensorsInfo into nns_tensors_info_s structure.
+ * @brief Internal function to convert GstTensorsInfo into ml_tensors_info_s structure.
  */
 static int
 get_tensors_info_from_GstTensorsInfo (GstTensorsInfo * gst_tensorsinfo,
-    nns_tensors_info_s * tensors_info)
+    ml_tensors_info_s * tensors_info)
 {
   if (!gst_tensorsinfo) {
     dloge ("GstTensorsInfo should not be NULL!");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (!tensors_info) {
-    dloge ("The param nns_tensors_info_s should not be NULL!");
-    return NNS_ERROR_INVALID_PARAMETER;
+    dloge ("The param ml_tensors_info_s should not be NULL!");
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /** Currently, the data structures of GstTensorsInfo are
-   * completely same as that of nns_tensors_info_s. */
+   * completely same as that of ml_tensors_info_s. */
   memcpy (tensors_info, gst_tensorsinfo, sizeof (GstTensorsInfo));
 
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /**
- * @brief Handle a sink element for registered nns_sink_cb
+ * @brief Handle a sink element for registered ml_pipeline_sink_cb
  */
 static void
 cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 {
-  element *elem = data;
+  ml_pipeline_element *elem = data;
 
   /** @todo CRITICAL if the pipeline is being killed, don't proceed! */
 
-  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
-  GstMapInfo info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *mem[ML_TENSOR_SIZE_LIMIT];
+  GstMapInfo info[ML_TENSOR_SIZE_LIMIT];
   guint i;
   guint num_mems;
   GList *l;
-  const char *buf[NNS_TENSOR_SIZE_LIMIT];
-  size_t size[NNS_TENSOR_SIZE_LIMIT];
+  const char *buf[ML_TENSOR_SIZE_LIMIT];
+  size_t size[ML_TENSOR_SIZE_LIMIT];
   size_t total_size = 0;
 
   num_mems = gst_buffer_n_memory (b);
 
-  if (num_mems > NNS_TENSOR_SIZE_LIMIT) {
+  if (num_mems > ML_TENSOR_SIZE_LIMIT) {
     dloge ("Number of memory chunks in a GstBuffer exceed the limit: %u > %u",
-        num_mems, NNS_TENSOR_SIZE_LIMIT);
+        num_mems, ML_TENSOR_SIZE_LIMIT);
     return;
   }
 
@@ -226,9 +226,9 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 
   /* Iterate e->handles, pass the data to them */
   for (l = elem->handles; l != NULL; l = l->next) {
-    nns_tensors_info_s tensors_info;
-    nns_sink *sink = l->data;
-    nns_sink_cb callback = sink->cb;
+    ml_tensors_info_s tensors_info;
+    ml_pipeline_sink *sink = l->data;
+    ml_pipeline_sink_cb callback = sink->cb;
 
     get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, &tensors_info);
 
@@ -247,7 +247,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer data)
 }
 
 /**
- * @brief Handle a appsink element for registered nns_sink_cb
+ * @brief Handle a appsink element for registered ml_pipeline_sink_cb
  */
 static GstFlowReturn
 cb_appsink_new_sample (GstElement * e, gpointer user_data)
@@ -266,12 +266,13 @@ cb_appsink_new_sample (GstElement * e, gpointer user_data)
 }
 
 /**
- * @brief Private function for nns_pipeline_destroy, cleaning up nodes in namednodes
+ * @brief Private function for ml_pipeline_destroy, cleaning up nodes in namednodes
  */
 static void
 cleanup_node (gpointer data)
 {
-  element *e = data;
+  ml_pipeline_element *e = data;
+
   g_mutex_lock (&e->lock);
   g_free (e->name);
   if (e->src)
@@ -294,17 +295,17 @@ cleanup_node (gpointer data)
  * @brief Construct the pipeline (more info in nnstreamer.h)
  */
 int
-nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
+ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
 {
   GError *err = NULL;
   GstElement *pipeline;
   GstIterator *it = NULL;
-  int ret = NNS_ERROR_NONE;
+  int ret = ML_ERROR_NONE;
 
-  nns_pipeline *pipe_h;
+  ml_pipeline *pipe_h;
 
   if (pipe == NULL)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   /* init null */
   *pipe = NULL;
@@ -316,7 +317,7 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
     } else {
       dloge ("Cannot initialize GStreamer. Unknown reason.");
     }
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
   }
 
   pipeline = gst_parse_launch (pipeline_description, &err);
@@ -330,10 +331,10 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
           ("Cannot parse and launch the given pipeline = [%s], unknown reason",
           pipeline_description);
     }
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
   }
 
-  pipe_h = g_new0 (nns_pipeline, 1);
+  pipe_h = g_new0 (ml_pipeline, 1);
   *pipe = pipe_h;
   g_assert (GST_IS_PIPELINE (pipeline));
   pipe_h->element = pipeline;
@@ -364,25 +365,30 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
             GstElement *elem = GST_ELEMENT (obj);
             name = gst_element_get_name (elem);
             if (name != NULL) {
-              element *e = NULL;
+              ml_pipeline_element *e = NULL;
 
               if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (tensor_sink))) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_SINK);
+                e = construct_element (elem, pipe_h, name,
+                    ML_PIPELINE_ELEMENT_SINK);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SRC)) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_APP_SRC);
+                e = construct_element (elem, pipe_h, name,
+                    ML_PIPELINE_ELEMENT_APP_SRC);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SINK)) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_APP_SINK);
+                e = construct_element (elem, pipe_h, name,
+                    ML_PIPELINE_ELEMENT_APP_SINK);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (valve))) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_VALVE);
+                e = construct_element (elem, pipe_h, name,
+                    ML_PIPELINE_ELEMENT_VALVE);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (inputs))) {
-                e = construct_element (elem, pipe_h, name, NNSAPI_SWITCH_INPUT);
+                e = construct_element (elem, pipe_h, name,
+                    ML_PIPELINE_ELEMENT_SWITCH_INPUT);
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (outputs))) {
                 e = construct_element (elem, pipe_h, name,
-                    NNSAPI_SWITCH_OUTPUT);
+                    ML_PIPELINE_ELEMENT_SWITCH_OUTPUT);
               } else {
                 /** @todo CRITICAL HANDLE THIS! */
               }
@@ -421,14 +427,14 @@ nns_pipeline_construct (const char *pipeline_description, nns_pipeline_h * pipe)
  * @brief Destroy the pipeline (more info in nnstreamer.h)
  */
 int
-nns_pipeline_destroy (nns_pipeline_h pipe)
+ml_pipeline_destroy (ml_pipeline_h pipe)
 {
-  nns_pipeline *p = pipe;
+  ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
   GstState state, pending;
 
   if (p == NULL)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
 
@@ -439,7 +445,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
     scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
     if (scret == GST_STATE_CHANGE_FAILURE) {
       g_mutex_unlock (&p->lock);
-      return NNS_ERROR_STREAMS_PIPE;
+      return ML_ERROR_STREAMS_PIPE;
     }
   }
 
@@ -455,7 +461,7 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
   scret = gst_element_set_state (p->element, GST_STATE_NULL);
   if (scret != GST_STATE_CHANGE_SUCCESS) {
     g_mutex_unlock (&p->lock);
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
   }
 
   gst_object_unref (p->element);
@@ -464,34 +470,34 @@ nns_pipeline_destroy (nns_pipeline_h pipe)
   g_mutex_clear (&p->lock);
 
   g_free (p);
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /**
  * @brief Get the pipeline state (more info in nnstreamer.h)
  */
 int
-nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e * state)
+ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
 {
-  nns_pipeline *p = pipe;
+  ml_pipeline *p = pipe;
   GstState _state;
   GstState pending;
   GstStateChangeReturn scret;
 
   if (p == NULL || state == NULL)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
-  *state = NNS_PIPELINE_STATE_UNKNOWN;
+  *state = ML_PIPELINE_STATE_UNKNOWN;
 
   g_mutex_lock (&p->lock);
   scret = gst_element_get_state (p->element, &_state, &pending, 100000UL);      /* Do it within 100us! */
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
 
   *state = _state;
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /****************************************************
@@ -501,44 +507,44 @@ nns_pipeline_get_state (nns_pipeline_h pipe, nns_pipeline_state_e * state)
  * @brief Start/Resume the pipeline! (more info in nnstreamer.h)
  */
 int
-nns_pipeline_start (nns_pipeline_h pipe)
+ml_pipeline_start (ml_pipeline_h pipe)
 {
-  nns_pipeline *p = pipe;
+  ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
 
   if (p == NULL)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
   scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
 
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /**
  * @brief Pause the pipeline! (more info in nnstreamer.h)
  */
 int
-nns_pipeline_stop (nns_pipeline_h pipe)
+ml_pipeline_stop (ml_pipeline_h pipe)
 {
-  nns_pipeline *p = pipe;
+  ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
 
   if (p == NULL)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
   scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return NNS_ERROR_STREAMS_PIPE;
+    return ML_ERROR_STREAMS_PIPE;
 
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /****************************************************
@@ -548,17 +554,17 @@ nns_pipeline_stop (nns_pipeline_h pipe)
  * @brief Register a callback for sink (more info in nnstreamer.h)
  */
 int
-nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
-    nns_sink_cb cb, nns_sink_h * h, void *pdata)
+ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
+    ml_pipeline_sink_cb cb, ml_pipeline_sink_h * h, void *pdata)
 {
-  element *elem;
-  nns_pipeline *p = pipe;
-  nns_sink *sink;
-  int ret = NNS_ERROR_NONE;
+  ml_pipeline_element *elem;
+  ml_pipeline *p = pipe;
+  ml_pipeline_sink *sink;
+  int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
     dloge ("The argument sink handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* init null */
@@ -566,17 +572,17 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
 
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (sink_name == NULL) {
     dloge ("The second argument, sink name is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (cb == NULL) {
     dloge ("The callback argument, cb, is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
@@ -584,25 +590,26 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
 
   if (elem == NULL) {
     dloge ("There is no element named [%s] in the pipeline.", sink_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_SINK && elem->type != NNSAPI_APP_SINK) {
+  if (elem->type != ML_PIPELINE_ELEMENT_SINK &&
+      elem->type != ML_PIPELINE_ELEMENT_APP_SINK) {
     dloge ("The element [%s] in the pipeline is not a sink element.",
         sink_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->handle_id > 0) {
     dlogw ("Sink callback is already registered.");
-    ret = NNS_ERROR_NONE;
+    ret = ML_ERROR_NONE;
     goto unlock_return;
   }
 
   /* set callback for new data */
-  if (elem->type == NNSAPI_SINK) {
+  if (elem->type == ML_PIPELINE_ELEMENT_SINK) {
     /* tensor_sink */
     g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE,
         NULL);
@@ -620,11 +627,11 @@ nns_pipeline_sink_register (nns_pipeline_h pipe, const char *sink_name,
 
   if (elem->handle_id == 0) {
     dloge ("Failed to connect a signal to the element [%s].", sink_name);
-    ret = NNS_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
 
-  *h = g_new0 (nns_sink, 1);
+  *h = g_new0 (ml_pipeline_sink, 1);
   sink = *h;
 
   sink->pipe = p;
@@ -649,7 +656,7 @@ unlock_return:
  * @brief Unregister a callback for sink (more info in nnstreamer.h)
  */
 int
-nns_pipeline_sink_unregister (nns_sink_h h)
+ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
 {
   handle_init (sink, sink, h);
 
@@ -664,48 +671,48 @@ nns_pipeline_sink_unregister (nns_sink_h h)
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h,
+ * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h,
  *        "Free"
  */
 static void
-nnsbufpolicy_free (gpointer data)
+ml_buf_policy_cb_free (gpointer data)
 {
   g_free (data);
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h.
+ * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h.
  *        "Do Nothing"
  */
 static void
-nnsbufpolicy_nop (gpointer data)
+ml_buf_policy_cb_nop (gpointer data)
 {
   /* DO NOTHING! */
 }
 
 /**
- * @brief Implementation of policies decalred by nns_buf_policy_e in nnstreamer.h.
+ * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h.
  */
-static const GDestroyNotify bufpolicy[NNS_BUF_POLICY_MAX] = {
-  [NNS_BUF_FREE_BY_NNSTREAMER] = nnsbufpolicy_free,
-  [NNS_BUF_DO_NOT_FREE1] = nnsbufpolicy_nop,
+static const GDestroyNotify ml_buf_policy[ML_PIPELINE_BUF_POLICY_MAX] = {
+  [ML_PIPELINE_BUF_POLICY_AUTO_FREE] = ml_buf_policy_cb_free,
+  [ML_PIPELINE_BUF_POLICY_DO_NOT_FREE] = ml_buf_policy_cb_nop,
 };
 
 /**
  * @brief Get a handle to operate a src (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
-    nns_tensors_info_s * tensors_info, nns_src_h * h)
+ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
+    ml_tensors_info_s * tensors_info, ml_pipeline_src_h * h)
 {
-  nns_pipeline *p = pipe;
-  element *elem;
-  nns_src *src;
-  int ret = NNS_ERROR_NONE, i;
+  ml_pipeline *p = pipe;
+  ml_pipeline_element *elem;
+  ml_pipeline_src *src;
+  int ret = ML_ERROR_NONE, i;
 
   if (h == NULL) {
     dloge ("The argument source handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* init null */
@@ -713,12 +720,12 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
 
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (src_name == NULL) {
     dloge ("The second argument, source name is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
@@ -727,14 +734,14 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
 
   if (elem == NULL) {
     dloge ("There is no element named [%s] in the pipeline.", src_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_APP_SRC) {
+  if (elem->type != ML_PIPELINE_ELEMENT_APP_SRC) {
     dloge ("The element [%s] in the pipeline is not a source element.",
         src_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
@@ -742,7 +749,7 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
     elem->src = gst_element_get_static_pad (elem->element, "src");
 
   if (elem->src != NULL) {
-    /** @todo : refactor this along with nns_pipeline_src_input_data */
+    /** @todo : refactor this along with ml_pipeline_src_input_data */
     GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
 
     /** @todo caps may be NULL for prerolling */
@@ -775,15 +782,15 @@ nns_pipeline_src_get_handle (nns_pipeline_h pipe, const char *src_name,
       }
     }
   } else {
-    ret = NNS_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
 
   ret = get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, tensors_info);
-  if (ret != NNS_ERROR_NONE)
+  if (ret != ML_ERROR_NONE)
     goto unlock_return;
 
-  *h = g_new (nns_src, 1);
+  *h = g_new (ml_pipeline_src, 1);
   src = *h;
 
   src->pipe = p;
@@ -807,7 +814,7 @@ unlock_return:
  * @brief Close a src node (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_put_handle (nns_src_h h)
+ml_pipeline_src_put_handle (ml_pipeline_src_h h)
 {
   handle_init (src, src, h);
 
@@ -820,8 +827,8 @@ nns_pipeline_src_put_handle (nns_src_h h)
  * @brief Push a data frame to a src (more info in nnstreamer.h)
  */
 int
-nns_pipeline_src_input_data (nns_src_h h,
-    nns_buf_policy_e policy, char *buf[], const size_t size[],
+ml_pipeline_src_input_data (ml_pipeline_src_h h,
+    ml_pipeline_buf_policy_e policy, char *buf[], const size_t size[],
     unsigned int num_tensors)
 {
   /** @todo NYI */
@@ -831,10 +838,10 @@ nns_pipeline_src_input_data (nns_src_h h,
 
   handle_init (src, src, h);
 
-  if (num_tensors < 1 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+  if (num_tensors < 1 || num_tensors > ML_TENSOR_SIZE_LIMIT) {
     dloge ("The tensor size if invalid. It should be 1 ~ %u; where it is %u",
-        NNS_TENSOR_SIZE_LIMIT, num_tensors);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+        ML_TENSOR_SIZE_LIMIT, num_tensors);
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
@@ -874,7 +881,7 @@ nns_pipeline_src_input_data (nns_src_h h,
 
           gst_object_unref (elem->src);
           elem->src = NULL;
-          ret = NNS_ERROR_STREAMS_PIPE;
+          ret = ML_ERROR_STREAMS_PIPE;
           goto unlock_return;
         }
 
@@ -888,7 +895,7 @@ nns_pipeline_src_input_data (nns_src_h h,
 
             gst_object_unref (elem->src);
             elem->src = NULL;
-            ret = NNS_ERROR_INVALID_PARAMETER;
+            ret = ML_ERROR_INVALID_PARAMETER;
             goto unlock_return;
           }
 
@@ -901,7 +908,7 @@ nns_pipeline_src_input_data (nns_src_h h,
 
             gst_object_unref (elem->src);
             elem->src = NULL;
-            ret = NNS_ERROR_INVALID_PARAMETER;
+            ret = ML_ERROR_INVALID_PARAMETER;
             goto unlock_return;
           }
         }
@@ -915,17 +922,17 @@ nns_pipeline_src_input_data (nns_src_h h,
 
   if (elem->size == 0) {
     dlogw ("The pipeline is not ready to accept inputs. The input is ignored.");
-    ret = NNS_ERROR_TRY_AGAIN;
+    ret = ML_ERROR_TRY_AGAIN;
     goto unlock_return;
   }
 
   /* Create buffer to be pushed from buf[] */
   buffer = gst_buffer_new_wrapped_full (GST_MEMORY_FLAG_READONLY,
-      buf[0], size[0], 0, size[0], buf[0], bufpolicy[policy]);
+      buf[0], size[0], 0, size[0], buf[0], ml_buf_policy[policy]);
   for (i = 1; i < num_tensors; i++) {
     GstBuffer *addbuffer =
         gst_buffer_new_wrapped_full (GST_MEMORY_FLAG_READONLY, buf[i], size[i],
-        0, size[i], buf[i], bufpolicy[policy]);
+        0, size[i], buf[i], ml_buf_policy[policy]);
     buffer = gst_buffer_append (buffer, addbuffer);
 
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
@@ -936,10 +943,10 @@ nns_pipeline_src_input_data (nns_src_h h,
 
   if (gret == GST_FLOW_FLUSHING) {
     dlogw ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
-    ret = NNS_ERROR_TRY_AGAIN;
+    ret = ML_ERROR_TRY_AGAIN;
   } else if (gret == GST_FLOW_EOS) {
     dlogw ("THe pipeline is in EOS state. The input is ignored.");
-    ret = NNS_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_STREAMS_PIPE;
   }
 
   handle_exit (h);
@@ -953,17 +960,17 @@ nns_pipeline_src_input_data (nns_src_h h,
  * @brief Get a handle to operate a selector (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name,
-    nns_switch_type_e * type, nns_switch_h * h)
+ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
+    ml_pipeline_switch_type_e * type, ml_pipeline_switch_h * h)
 {
-  element *elem;
-  nns_pipeline *p = pipe;
-  nns_switch *swtc;
-  int ret = NNS_ERROR_NONE;
+  ml_pipeline_element *elem;
+  ml_pipeline *p = pipe;
+  ml_pipeline_switch *swtc;
+  int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
     dloge ("The argument switch handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* init null */
@@ -971,12 +978,12 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name,
 
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle, is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (switch_name == NULL) {
     dloge ("The second argument, switch name, is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
@@ -985,33 +992,34 @@ nns_pipeline_switch_get_handle (nns_pipeline_h pipe, const char *switch_name,
   if (elem == NULL) {
     dloge ("There is no switch element named [%s] in the pipeline.",
         switch_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_SWITCH_INPUT && elem->type != NNSAPI_SWITCH_OUTPUT) {
+  if (elem->type != ML_PIPELINE_ELEMENT_SWITCH_INPUT &&
+      elem->type != ML_PIPELINE_ELEMENT_SWITCH_OUTPUT) {
     dloge
         ("There is an element named [%s] in the pipeline, but it is not an input/output switch",
         switch_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  *h = g_new0 (nns_switch, 1);
+  *h = g_new0 (ml_pipeline_switch, 1);
   swtc = *h;
 
   swtc->pipe = p;
   swtc->element = elem;
 
   if (type) {
-    if (elem->type == NNSAPI_SWITCH_INPUT)
-      *type = NNS_SWITCH_INPUT_SELECTOR;
-    else if (elem->type == NNSAPI_SWITCH_OUTPUT)
-      *type = NNS_SWITCH_OUTPUT_SELECTOR;
+    if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_INPUT)
+      *type = ML_PIPELINE_SWITCH_INPUT_SELECTOR;
+    else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT)
+      *type = ML_PIPELINE_SWITCH_OUTPUT_SELECTOR;
     else {
       dloge ("Internal data of switch-handle [%s] is broken. It is fatal.",
           elem->name);
-      ret = NNS_ERROR_INVALID_PARAMETER;
+      ret = ML_ERROR_INVALID_PARAMETER;
       goto unlock_return;
     }
   }
@@ -1033,7 +1041,7 @@ unlock_return:
  * @brief Close the given switch handle (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_put_handle (nns_switch_h h)
+ml_pipeline_switch_put_handle (ml_pipeline_switch_h h)
 {
   handle_init (switch, swtc, h);
 
@@ -1046,7 +1054,7 @@ nns_pipeline_switch_put_handle (nns_switch_h h)
  * @brief Control the switch (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
+ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
 {
   GstPad *active_pad, *new_pad;
   gchar *active_name;
@@ -1055,7 +1063,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
 
   if (pad_name == NULL) {
     dloge ("The second argument, pad name, is not valid.");
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
@@ -1079,7 +1087,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
     /* Not Found! */
     dloge ("Cannot find the pad, [%s], from the switch, [%s].",
         pad_name, elem->name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
@@ -1095,7 +1103,7 @@ nns_pipeline_switch_select (nns_switch_h h, const char *pad_name)
  * @brief List nodes of a switch (more info in nnstreamer.h)
  */
 int
-nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
+ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
 {
   GstIterator *it;
   GValue item = G_VALUE_INIT;
@@ -1108,22 +1116,22 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
 
   if (list == NULL) {
     dloge ("The second argument, list, is not valid.");
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   /* init null */
   *list = NULL;
 
-  if (elem->type == NNSAPI_SWITCH_INPUT)
+  if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_INPUT)
     it = gst_element_iterate_sink_pads (elem->element);
-  else if (elem->type == NNSAPI_SWITCH_OUTPUT)
+  else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT)
     it = gst_element_iterate_src_pads (elem->element);
   else {
     dloge
         ("The element, [%s], is supposed to be input/output switch, but it is not. Internal data structure is broken.",
         elem->name);
-    ret = NNS_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
 
@@ -1144,7 +1152,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
       case GST_ITERATOR_ERROR:
         dloge ("Cannot access the list of pad properly of a switch, [%s].",
             elem->name);
-        ret = NNS_ERROR_STREAMS_PIPE;
+        ret = ML_ERROR_STREAMS_PIPE;
         break;
       case GST_ITERATOR_DONE:
         done = TRUE;
@@ -1153,7 +1161,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
   }
 
   /* There has been no error with that "while" loop. */
-  if (ret == NNS_ERROR_NONE) {
+  if (ret == ML_ERROR_NONE) {
     int i = 0;
     GList *l;
 
@@ -1170,7 +1178,7 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
         dloge
             ("Internal data inconsistency. This could be a bug in nnstreamer. Switch [%s].",
             elem->name);
-        ret = NNS_ERROR_STREAMS_PIPE;
+        ret = ML_ERROR_STREAMS_PIPE;
         goto unlock_return;
       }
     }
@@ -1184,17 +1192,17 @@ nns_pipeline_switch_nodelist (nns_switch_h h, char ***list)
  * @brief Get a handle to operate a Valve (more info in nnstreamer.h)
  */
 int
-nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name,
-    nns_valve_h * h)
+ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
+    ml_pipeline_valve_h * h)
 {
-  element *elem;
-  nns_pipeline *p = pipe;
-  nns_valve *valve;
-  int ret = NNS_ERROR_NONE;
+  ml_pipeline_element *elem;
+  ml_pipeline *p = pipe;
+  ml_pipeline_valve *valve;
+  int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
     dloge ("The argument valve handle is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* init null */
@@ -1202,12 +1210,12 @@ nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name,
 
   if (pipe == NULL) {
     dloge ("The first argument, pipeline handle, is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (valve_name == NULL) {
     dloge ("The second argument, valve name, is not valid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   g_mutex_lock (&p->lock);
@@ -1215,19 +1223,19 @@ nns_pipeline_valve_get_handle (nns_pipeline_h pipe, const char *valve_name,
 
   if (elem == NULL) {
     dloge ("There is no valve element named [%s] in the pipeline.", valve_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  if (elem->type != NNSAPI_VALVE) {
+  if (elem->type != ML_PIPELINE_ELEMENT_VALVE) {
     dloge
         ("There is an element named [%s] in the pipeline, but it is not a valve",
         valve_name);
-    ret = NNS_ERROR_INVALID_PARAMETER;
+    ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  *h = g_new0 (nns_valve, 1);
+  *h = g_new0 (ml_pipeline_valve, 1);
   valve = *h;
 
   valve->pipe = p;
@@ -1250,7 +1258,7 @@ unlock_return:
  * @brief Close the given valve handle (more info in nnstreamer.h)
  */
 int
-nns_pipeline_valve_put_handle (nns_valve_h h)
+ml_pipeline_valve_put_handle (ml_pipeline_valve_h h)
 {
   handle_init (valve, valve, h);
 
@@ -1263,22 +1271,22 @@ nns_pipeline_valve_put_handle (nns_valve_h h)
  * @brief Control the valve with the given handle (more info in nnstreamer.h)
  */
 int
-nns_pipeline_valve_control (nns_valve_h h, int valve_drop)
+ml_pipeline_valve_control (ml_pipeline_valve_h h, int drop)
 {
-  gboolean drop;
+  gboolean current_val;
   handle_init (valve, valve, h);
 
-  g_object_get (G_OBJECT (elem->element), "drop", &drop, NULL);
+  g_object_get (G_OBJECT (elem->element), "drop", &current_val, NULL);
 
-  if ((valve_drop != 0) == (drop != FALSE)) {
+  if ((drop != 0) == (current_val != FALSE)) {
     /* Nothing to do */
     dlogi ("Valve is called, but there is no effective changes: %d->%d",
-        ! !drop, ! !valve_drop);
+        ! !current_val, ! !drop);
     goto unlock_return;
   }
 
-  g_object_set (G_OBJECT (elem->element), "drop", ! !valve_drop, NULL);
-  dlogi ("Valve is changed: %d->%d", ! !drop, ! !valve_drop);
+  g_object_set (G_OBJECT (elem->element), "drop", ! !drop, NULL);
+  dlogi ("Valve is changed: %d->%d", ! !current_val, ! !drop);
 
   handle_exit (h);
 }

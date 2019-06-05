@@ -32,7 +32,7 @@
 
 typedef struct
 {
-  nns_pipeline_h pipe;
+  ml_pipeline_h pipe;
 
   GstElement *src;
   GstElement *sink;
@@ -44,9 +44,9 @@ typedef struct
  * @todo move this function to common
  */
 static int
-ml_util_validate_tensor_info (const nns_tensor_info_s * info)
+ml_util_validate_tensor_info (const ml_tensor_info_s * info)
 {
-  unsigned int i;
+  guint i;
 
   if (!info)
     return FALSE;
@@ -54,7 +54,7 @@ ml_util_validate_tensor_info (const nns_tensor_info_s * info)
   if (info->type < 0 || info->type >= ML_TENSOR_TYPE_UNKNOWN)
     return FALSE;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+  for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
     if (info->dimension[i] == 0)
       return FALSE;
   }
@@ -67,9 +67,9 @@ ml_util_validate_tensor_info (const nns_tensor_info_s * info)
  * @todo move this function to common
  */
 static int
-ml_util_validate_tensors_info (const nns_tensors_info_s * info)
+ml_util_validate_tensors_info (const ml_tensors_info_s * info)
 {
-  unsigned int i;
+  guint i;
 
   if (!info || info->num_tensors < 1)
     return FALSE;
@@ -86,7 +86,7 @@ ml_util_validate_tensors_info (const nns_tensors_info_s * info)
  * @brief Get caps from tensors info.
  */
 static GstCaps *
-ml_model_get_caps_from_tensors_info (const nns_tensors_info_s * info)
+ml_model_get_caps_from_tensors_info (const ml_tensors_info_s * info)
 {
   GstCaps *caps;
   GstTensorsConfig config;
@@ -123,21 +123,21 @@ ml_model_get_caps_from_tensors_info (const nns_tensors_info_s * info)
  */
 int
 ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
-    const nns_tensors_info_s * input_type, const nns_tensors_info_s * output_type,
+    const ml_tensors_info_s * input_type, const ml_tensors_info_s * output_type,
     ml_model_nnfw nnfw, ml_model_hw hw)
 {
   ml_simpleshot_model *model_h;
-  nns_pipeline_h pipe;
-  nns_pipeline *pipe_h;
+  ml_pipeline_h pipe;
+  ml_pipeline *pipe_h;
   GstElement *appsrc, *appsink, *filter;
   GstCaps *caps;
-  int ret = NNS_ERROR_NONE;
+  int ret = ML_ERROR_NONE;
   gchar *pipeline_desc = NULL;
 
   /* Validate the params */
   if (!model) {
     dloge ("The given param, model is invalid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* init null */
@@ -146,17 +146,17 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
     dloge ("The given param, model path [%s] is invalid.",
         GST_STR_NULL (model_path));
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (input_type && !ml_util_validate_tensors_info (input_type)) {
     dloge ("The given param, input tensor info is invalid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (output_type && !ml_util_validate_tensors_info (output_type)) {
     dloge ("The given param, output tensor info is invalid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* 1. Determine nnfw */
@@ -171,7 +171,7 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
     case ML_NNFW_TENSORFLOW_LITE:
       if (!g_str_has_suffix (model_path, ".tflite")) {
         dloge ("The given model file [%s] has invalid extension.", model_path);
-        return NNS_ERROR_INVALID_PARAMETER;
+        return ML_ERROR_INVALID_PARAMETER;
       }
 
       pipeline_desc =
@@ -182,22 +182,22 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
     default:
       /** @todo Add other fw later. */
       dloge ("The given nnfw is not supported.");
-      return NNS_ERROR_NOT_SUPPORTED;
+      return ML_ERROR_NOT_SUPPORTED;
   }
 
   /* 2. Determine hw */
   /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
 
   /* 3. Construct a pipeline */
-  ret = nns_pipeline_construct (pipeline_desc, &pipe);
+  ret = ml_pipeline_construct (pipeline_desc, &pipe);
   g_free (pipeline_desc);
-  if (ret != NNS_ERROR_NONE) {
+  if (ret != ML_ERROR_NONE) {
     /* Failed to construct pipeline. */
     return ret;
   }
 
   /* 4. Allocate */
-  pipe_h = (nns_pipeline *) pipe;
+  pipe_h = (ml_pipeline *) pipe;
   appsrc = gst_bin_get_by_name (GST_BIN (pipe_h->element), "srcx");
   appsink = gst_bin_get_by_name (GST_BIN (pipe_h->element), "sinkx");
   filter = gst_bin_get_by_name (GST_BIN (pipe_h->element), "filterx");
@@ -214,7 +214,7 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
   if (input_type) {
     caps = ml_model_get_caps_from_tensors_info (input_type);
   } else {
-    nns_tensors_info_s in_info;
+    ml_tensors_info_s in_info;
 
     ml_model_get_input_type (model_h, &in_info);
     if (!ml_util_validate_tensors_info (&in_info)) {
@@ -231,7 +231,7 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
   if (output_type) {
     caps = ml_model_get_caps_from_tensors_info (output_type);
   } else {
-    nns_tensors_info_s out_info;
+    ml_tensors_info_s out_info;
 
     ml_model_get_output_type (model_h, &out_info);
     if (!ml_util_validate_tensors_info (&out_info)) {
@@ -246,13 +246,13 @@ ml_model_open (const char *model_path, ml_simpleshot_model_h * model,
   gst_caps_unref (caps);
 
   /* 5. Start pipeline */
-  ret = nns_pipeline_start (pipe);
-  if (ret != NNS_ERROR_NONE) {
+  ret = ml_pipeline_start (pipe);
+  if (ret != ML_ERROR_NONE) {
     /* Failed to construct pipeline. */
     goto error;
   }
 
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 
 error:
   ml_model_close (pipe);
@@ -270,7 +270,7 @@ ml_model_close (ml_simpleshot_model_h model)
 
   if (!model) {
     dloge ("The given param, model is invalid.");
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   model_h = (ml_simpleshot_model *) model;
@@ -290,7 +290,7 @@ ml_model_close (ml_simpleshot_model_h model)
     model_h->filter = NULL;
   }
 
-  ret = nns_pipeline_destroy (model_h->pipe);
+  ret = ml_pipeline_destroy (model_h->pipe);
   g_free (model_h);
   return ret;
 }
@@ -298,13 +298,13 @@ ml_model_close (ml_simpleshot_model_h model)
 /**
  * @brief Invoke the model with the given input data. (more info in nnstreamer-single.h)
  */
-tensor_data *
+ml_tensor_data_s *
 ml_model_inference (ml_simpleshot_model_h model,
-    const tensor_data * input, tensor_data * output)
+    const ml_tensor_data_s * input, ml_tensor_data_s * output)
 {
   ml_simpleshot_model *model_h;
-  nns_tensors_info_s out_info;
-  tensor_data *result;
+  ml_tensors_info_s out_info;
+  ml_tensor_data_s *result;
   GstSample *sample;
   GstBuffer *buffer;
   GstMemory *mem;
@@ -320,7 +320,7 @@ ml_model_inference (ml_simpleshot_model_h model,
   model_h = (ml_simpleshot_model *) model;
 
   status = ml_model_get_output_type (model, &out_info);
-  if (status != NNS_ERROR_NONE)
+  if (status != ML_ERROR_NONE)
     return NULL;
 
   /* Validate output memory and size */
@@ -393,7 +393,7 @@ ml_model_inference (ml_simpleshot_model_h model,
  */
 int
 ml_model_get_input_type (ml_simpleshot_model_h model,
-    nns_tensors_info_s * input_type)
+    ml_tensors_info_s * input_type)
 {
   ml_simpleshot_model *model_h;
   GstTensorsInfo info;
@@ -401,7 +401,7 @@ ml_model_get_input_type (ml_simpleshot_model_h model,
   guint rank;
 
   if (!model || !input_type)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   model_h = (ml_simpleshot_model *) model;
 
@@ -431,7 +431,7 @@ ml_model_get_input_type (ml_simpleshot_model_h model,
   }
   /** @todo Make common structure for tensor config */
   memcpy (input_type, &info, sizeof (GstTensorsInfo));
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /**
@@ -439,7 +439,7 @@ ml_model_get_input_type (ml_simpleshot_model_h model,
  */
 int
 ml_model_get_output_type (ml_simpleshot_model_h model,
-    nns_tensors_info_s * output_type)
+    ml_tensors_info_s * output_type)
 {
   ml_simpleshot_model *model_h;
   GstTensorsInfo info;
@@ -447,7 +447,7 @@ ml_model_get_output_type (ml_simpleshot_model_h model,
   guint rank;
 
   if (!model || !output_type)
-    return NNS_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_INVALID_PARAMETER;
 
   model_h = (ml_simpleshot_model *) model;
 
@@ -477,14 +477,14 @@ ml_model_get_output_type (ml_simpleshot_model_h model,
   }
   /** @todo Make common structure for tensor config */
   memcpy (output_type, &info, sizeof (GstTensorsInfo));
-  return NNS_ERROR_NONE;
+  return ML_ERROR_NONE;
 }
 
 /**
  * @brief Get the byte size of the given tensor type. (more info in nnstreamer-single.h)
  */
 size_t
-ml_util_get_tensor_size (const nns_tensor_info_s * info)
+ml_util_get_tensor_size (const ml_tensor_info_s * info)
 {
   size_t tensor_size;
   gint i;
@@ -495,22 +495,22 @@ ml_util_get_tensor_size (const nns_tensor_info_s * info)
   }
 
   switch (info->type) {
-  case NNS_TENSOR_TYPE_INT8:
-  case NNS_TENSOR_TYPE_UINT8:
+  case ML_TENSOR_TYPE_INT8:
+  case ML_TENSOR_TYPE_UINT8:
     tensor_size = 1;
     break;
-  case NNS_TENSOR_TYPE_INT16:
-  case NNS_TENSOR_TYPE_UINT16:
+  case ML_TENSOR_TYPE_INT16:
+  case ML_TENSOR_TYPE_UINT16:
     tensor_size = 2;
     break;
-  case NNS_TENSOR_TYPE_INT32:
-  case NNS_TENSOR_TYPE_UINT32:
-  case NNS_TENSOR_TYPE_FLOAT32:
+  case ML_TENSOR_TYPE_INT32:
+  case ML_TENSOR_TYPE_UINT32:
+  case ML_TENSOR_TYPE_FLOAT32:
     tensor_size = 4;
     break;
-  case NNS_TENSOR_TYPE_FLOAT64:
-  case NNS_TENSOR_TYPE_INT64:
-  case NNS_TENSOR_TYPE_UINT64:
+  case ML_TENSOR_TYPE_FLOAT64:
+  case ML_TENSOR_TYPE_INT64:
+  case ML_TENSOR_TYPE_UINT64:
     tensor_size = 8;
     break;
   default:
@@ -518,7 +518,7 @@ ml_util_get_tensor_size (const nns_tensor_info_s * info)
     return 0;
   }
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+  for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
     tensor_size *= info->dimension[i];
   }
 
@@ -529,7 +529,7 @@ ml_util_get_tensor_size (const nns_tensor_info_s * info)
  * @brief Get the byte size of the given tensors info. (more info in nnstreamer-single.h)
  */
 size_t
-ml_util_get_tensors_size (const nns_tensors_info_s * info)
+ml_util_get_tensors_size (const ml_tensors_info_s * info)
 {
   size_t tensor_size;
   gint i;
@@ -546,7 +546,7 @@ ml_util_get_tensors_size (const nns_tensors_info_s * info)
  * @brief Free the tensors type pointer. (more info in nnstreamer-single.h)
  */
 void
-ml_model_free_tensors_info (nns_tensors_info_s * type)
+ml_model_free_tensors_info (ml_tensors_info_s * type)
 {
   /** @todo Make common structure for tensor config and use gst_tensors_info_free () */
 }
@@ -555,7 +555,7 @@ ml_model_free_tensors_info (nns_tensors_info_s * type)
  * @brief Free the tensors data pointer. (more info in nnstreamer-single.h)
  */
 void
-ml_model_free_tensor_data (tensor_data * tensor)
+ml_model_free_tensor_data (ml_tensor_data_s * tensor)
 {
   gint i;
 
@@ -579,10 +579,10 @@ ml_model_free_tensor_data (tensor_data * tensor)
 /**
  * @brief Allocate a tensor data frame with the given tensors type. (more info in nnstreamer-single.h)
  */
-tensor_data *
-ml_model_allocate_tensor_data (const nns_tensors_info_s * info)
+ml_tensor_data_s *
+ml_model_allocate_tensor_data (const ml_tensors_info_s * info)
 {
-  tensor_data *data;
+  ml_tensor_data_s *data;
   gint i;
 
   if (!info) {
@@ -590,7 +590,7 @@ ml_model_allocate_tensor_data (const nns_tensors_info_s * info)
     return NULL;
   }
 
-  data = g_new0 (tensor_data, 1);
+  data = g_new0 (ml_tensor_data_s, 1);
   if (!data) {
     dloge ("Failed to allocate the memory block.");
     return NULL;

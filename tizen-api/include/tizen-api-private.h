@@ -52,28 +52,28 @@ extern "C" {
  * @brief Possible controls on elements of a pipeline.
  */
 typedef enum {
-  NNSAPI_UNKNOWN = 0x0,
-  NNSAPI_SINK = 0x1,
-  NNSAPI_APP_SRC = 0x2,
-  NNSAPI_APP_SINK = 0x3,
-  NNSAPI_VALVE = 0x4,
-  NNSAPI_SWITCH_INPUT = 0x8,
-  NNSAPI_SWITCH_OUTPUT = 0x9,
-} elementType;
+  ML_PIPELINE_ELEMENT_UNKNOWN = 0x0,
+  ML_PIPELINE_ELEMENT_SINK = 0x1,
+  ML_PIPELINE_ELEMENT_APP_SRC = 0x2,
+  ML_PIPELINE_ELEMENT_APP_SINK = 0x3,
+  ML_PIPELINE_ELEMENT_VALVE = 0x4,
+  ML_PIPELINE_ELEMENT_SWITCH_INPUT = 0x8,
+  ML_PIPELINE_ELEMENT_SWITCH_OUTPUT = 0x9,
+} ml_pipeline_element_type_e;
 
 /**
  * @brief Internal private representation of pipeline handle.
  */
-typedef struct _nns_pipeline nns_pipeline;
+typedef struct _ml_pipeline ml_pipeline;
 
 /**
  * @brief An element that may be controlled individually in a pipeline.
  */
-typedef struct _element {
+typedef struct _ml_pipeline_element {
   GstElement *element; /**< The Sink/Src/Valve/Switch element */
-  nns_pipeline *pipe; /**< The main pipeline */
+  ml_pipeline *pipe; /**< The main pipeline */
   char *name;
-  elementType type;
+  ml_pipeline_element_type_e type;
   GstPad *src;
   GstPad *sink; /**< Unref this at destroy */
   GstTensorsInfo tensorsinfo;
@@ -84,13 +84,13 @@ typedef struct _element {
   gulong handle_id;
 
   GMutex lock; /**< Lock for internal values */
-} element;
+} ml_pipeline_element;
 
 /**
  * @brief Internal private representation of pipeline handle.
  * @detail This should not be exposed to applications
  */
-struct _nns_pipeline {
+struct _ml_pipeline {
   GstElement *element;    /**< The pipeline itself (GstPipeline) */
   GMutex lock;            /**< Lock for pipeline operations */
   GHashTable *namednodes; /**< hash table of "element"s. */
@@ -100,43 +100,43 @@ struct _nns_pipeline {
  * @brief Internal private representation of sink handle of GstTensorSink
  * @detail This represents a single instance of callback registration. This should not be exposed to applications.
  */
-typedef struct _nns_sink {
-  nns_pipeline *pipe; /**< The pipeline, which is the owner of this nns_sink */
-  element *element;
+typedef struct _ml_pipeline_sink {
+  ml_pipeline *pipe; /**< The pipeline, which is the owner of this ml_pipeline_sink */
+  ml_pipeline_element *element;
   guint32 id;
-  nns_sink_cb cb;
+  ml_pipeline_sink_cb cb;
   void *pdata;
-} nns_sink;
+} ml_pipeline_sink;
 
 /**
  * @brief Internal private representation of src handle of GstAppSrc
  * @detail This represents a single instance of registration. This should not be exposed to applications.
  */
-typedef struct _nns_src {
-  nns_pipeline *pipe;
-  element *element;
+typedef struct _ml_pipeline_src {
+  ml_pipeline *pipe;
+  ml_pipeline_element *element;
   guint32 id;
-} nns_src;
+} ml_pipeline_src;
 
 /**
  * @brief Internal private representation of switch handle (GstInputSelector, GstOutputSelector)
  * @detail This represents a single instance of registration. This should not be exposed to applications.
  */
-typedef struct _nns_switch {
-  nns_pipeline *pipe;
-  element *element;
+typedef struct _ml_pipeline_switch {
+  ml_pipeline *pipe;
+  ml_pipeline_element *element;
   guint32 id;
-} nns_switch;
+} ml_pipeline_switch;
 
 /**
  * @brief Internal private representation of valve handle (GstValve)
  * @detail This represents a single instance of registration. This should not be exposed to applications.
  */
-typedef struct _nns_valve {
-  nns_pipeline *pipe;
-  element *element;
+typedef struct _ml_pipeline_valve {
+  ml_pipeline *pipe;
+  ml_pipeline_element *element;
   guint32 id;
-} nns_valve;
+} ml_pipeline_valve;
 
 #ifdef __cplusplus
 }
