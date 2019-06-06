@@ -174,12 +174,12 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 mkdir -p build
 
 %ifarch x86_64 aarch64
-enable_tf=true
+%define enable_tf true
 %else
-enable_tf=false
+%define enable_tf false
 %endif
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=${enable_tf} -Denable-pytorch=false %{api} -Denable-env-var=false -Denable-symbolic-link=false build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false %{api} -Denable-env-var=false -Denable-symbolic-link=false build
 
 ninja -C build %{?_smp_mflags}
 
