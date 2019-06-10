@@ -783,7 +783,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   ml_pipeline_h handle;
   ml_pipeline_switch_h switchhandle;
   ml_pipeline_sink_h sinkhandle;
-  ml_pipeline_switch_type_e type;
+  ml_pipeline_switch_e type;
   gchar *pipeline;
   int status;
   guint *count_sink;
@@ -855,7 +855,7 @@ TEST (nnstreamer_capi_switch, dummy_02)
   ml_pipeline_h handle;
   ml_pipeline_switch_h switchhandle;
   ml_pipeline_sink_h sinkhandle0, sinkhandle1;
-  ml_pipeline_switch_type_e type;
+  ml_pipeline_switch_e type;
   gchar *pipeline;
   int status;
   guint *count_sink0, *count_sink1;
@@ -943,7 +943,7 @@ TEST (nnstreamer_capi_switch, failure_01)
 {
   ml_pipeline_h handle;
   ml_pipeline_switch_h switchhandle;
-  ml_pipeline_switch_type_e type;
+  ml_pipeline_switch_e type;
   gchar *pipeline;
   int status;
 
@@ -1000,11 +1000,11 @@ TEST (nnstreamer_capi_switch, failure_01)
 }
 
 /**
- * @brief Test NNStreamer single shot
+ * @brief Test NNStreamer single shot (tensorflow-lite)
  */
 TEST (nnstreamer_capi_singleshot, invoke_01)
 {
-  ml_simpleshot_model_h model;
+  ml_single_h single;
   ml_tensors_info_s in_info, out_info;
   ml_tensors_info_s in_res, out_res;
   ml_tensors_data_s *input, *output1, *output2;
@@ -1013,10 +1013,10 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  memset (&in_info, 0, sizeof (ml_tensors_info_s));
-  memset (&out_info, 0, sizeof (ml_tensors_info_s));
-  memset (&in_res, 0, sizeof (ml_tensors_info_s));
-  memset (&out_res, 0, sizeof (ml_tensors_info_s));
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
+  ml_util_initialize_tensors_info (&in_res);
+  ml_util_initialize_tensors_info (&out_res);
 
   ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
@@ -1036,12 +1036,12 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   out_info.info[0].dimension[2] = 1;
   out_info.info[0].dimension[3] = 1;
 
-  status = ml_model_open (test_model, &model, &in_info, &out_info,
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
-  status = ml_model_get_input_type (model, &in_res);
+  status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
@@ -1054,7 +1054,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   }
 
   /* output tensor in filter */
-  status = ml_model_get_output_type (model, &out_res);
+  status = ml_single_get_output_info (single, &out_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
@@ -1067,42 +1067,60 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   }
 
   /* generate dummy data */
-  input = ml_model_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (&in_info);
   EXPECT_TRUE (input != NULL);
 
-  output1 = ml_model_inference (model, input, NULL);
-  EXPECT_TRUE (output1 != NULL);
-  ml_model_free_tensors_data (output1);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  output2 = ml_model_allocate_tensors_data (&out_info);
+  output1 = ml_single_inference (single, input, NULL);
+  EXPECT_TRUE (output1 != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_util_free_tensors_data (&output1);
+
+  output2 = ml_util_allocate_tensors_data (&out_info);
   EXPECT_TRUE (output2 != NULL);
 
-  output1 = ml_model_inference (model, input, output2);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  output1 = ml_single_inference (single, input, output2);
   EXPECT_TRUE (output1 != NULL);
   EXPECT_TRUE (output1 == output2);
-  ml_model_free_tensors_data (output2);
 
-  ml_model_free_tensors_data (input);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_model_close (model);
+  ml_util_free_tensors_data (&output2);
+  ml_util_free_tensors_data (&input);
+
+  status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
+  ml_util_free_tensors_info (&in_res);
+  ml_util_free_tensors_info (&out_res);
 }
 
 /**
- * @brief Test NNStreamer single shot
+ * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Start pipeline without tensor info
  */
 TEST (nnstreamer_capi_singleshot, invoke_02)
 {
-  ml_simpleshot_model_h model;
+  ml_single_h single;
   ml_tensors_info_s in_info, out_info;
   ml_tensors_data_s *input, *output1, *output2;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
 
   ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
@@ -1122,71 +1140,191 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   out_info.info[0].dimension[2] = 1;
   out_info.info[0].dimension[3] = 1;
 
-  status = ml_model_open (test_model, &model, NULL, NULL,
+  status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* generate dummy data */
-  input = ml_model_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (&in_info);
   EXPECT_TRUE (input != NULL);
 
-  output1 = ml_model_inference (model, input, NULL);
-  EXPECT_TRUE (output1 != NULL);
-  ml_model_free_tensors_data (output1);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  output2 = ml_model_allocate_tensors_data (&out_info);
+  output1 = ml_single_inference (single, input, NULL);
+  EXPECT_TRUE (output1 != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_util_free_tensors_data (&output1);
+
+  output2 = ml_util_allocate_tensors_data (&out_info);
   EXPECT_TRUE (output2 != NULL);
 
-  output1 = ml_model_inference (model, input, output2);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  output1 = ml_single_inference (single, input, output2);
   EXPECT_TRUE (output1 != NULL);
   EXPECT_TRUE (output1 == output2);
-  ml_model_free_tensors_data (output2);
 
-  ml_model_free_tensors_data (input);
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_model_close (model);
+  ml_util_free_tensors_data (&output2);
+  ml_util_free_tensors_data (&input);
+
+  status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
 }
 
 /**
- * @brief Test NNStreamer single shot
+ * @brief Test NNStreamer single shot (custom filter)
+ * @detail Run pipeline with custom filter, handle multi tensors.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_03)
+{
+  ml_single_h single;
+  ml_tensors_info_s in_info, out_info;
+  ml_tensors_data_s *input, *output1, *output2;
+  int i, status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
+
+  ASSERT_TRUE (root_path != NULL);
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example", "custom_example_passthrough",
+      "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+
+  in_info.num_tensors = 2;
+  in_info.info[0].type = ML_TENSOR_TYPE_INT16;
+  in_info.info[0].dimension[0] = 10;
+  in_info.info[0].dimension[1] = 1;
+  in_info.info[0].dimension[2] = 1;
+  in_info.info[0].dimension[3] = 1;
+  in_info.info[1].type = ML_TENSOR_TYPE_FLOAT32;
+  in_info.info[1].dimension[0] = 10;
+  in_info.info[1].dimension[1] = 1;
+  in_info.info[1].dimension[2] = 1;
+  in_info.info[1].dimension[3] = 1;
+
+  ml_util_copy_tensors_info (&out_info, &in_info);
+
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
+      ML_NNFW_CUSTOM_FILTER, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* generate input data */
+  input = ml_util_allocate_tensors_data (&in_info);
+  ASSERT_TRUE (input != NULL);
+  EXPECT_TRUE (input->num_tensors == 2U);
+
+  for (i = 0; i < 10; i++) {
+    int16_t i16 = (int16_t) (i + 1);
+    float f32 = (float) (i + .1);
+
+    ((int16_t *) input->tensors[0].tensor)[i] = i16;
+    ((float *) input->tensors[1].tensor)[i] = f32;
+  }
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  output1 = ml_single_inference (single, input, NULL);
+  EXPECT_TRUE (output1 != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (output1->tensors[0].size == ml_util_get_tensor_size (&in_info.info[0]));
+  EXPECT_TRUE (output1->tensors[1].size == ml_util_get_tensor_size (&in_info.info[1]));
+
+  for (i = 0; i < 10; i++) {
+    int16_t i16 = (int16_t) (i + 1);
+    float f32 = (float) (i + .1);
+
+    EXPECT_EQ (((int16_t *) output1->tensors[0].tensor)[i], i16);
+    EXPECT_FLOAT_EQ (((float *) output1->tensors[1].tensor)[i], f32);
+  }
+
+  ml_util_free_tensors_data (&output1);
+
+  output2 = ml_util_allocate_tensors_data (&out_info);
+  EXPECT_TRUE (output2 != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  output1 = ml_single_inference (single, input, output2);
+  EXPECT_TRUE (output1 != NULL);
+  EXPECT_TRUE (output1 == output2);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (output1->tensors[0].size == ml_util_get_tensor_size (&in_info.info[0]));
+  EXPECT_TRUE (output1->tensors[1].size == ml_util_get_tensor_size (&in_info.info[1]));
+
+  for (i = 0; i < 10; i++) {
+    int16_t i16 = (int16_t) (i + 1);
+    float f32 = (float) (i + .1);
+
+    EXPECT_EQ (((int16_t *) output1->tensors[0].tensor)[i], i16);
+    EXPECT_FLOAT_EQ (((float *) output1->tensors[1].tensor)[i], f32);
+  }
+
+  ml_util_free_tensors_data (&output2);
+  ml_util_free_tensors_data (&input);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Failure case with invalid param.
  */
 TEST (nnstreamer_capi_singleshot, failure_01)
 {
-  ml_simpleshot_model_h model;
+  ml_single_h single;
   ml_tensors_info_s in_info, out_info;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  memset (&in_info, 0, sizeof (ml_tensors_info_s));
-  memset (&out_info, 0, sizeof (ml_tensors_info_s));
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
 
   ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   /* invalid file path */
-  status = ml_model_open ("wrong_file_name", &model, &in_info, &out_info,
+  status = ml_single_open (&single, "wrong_file_name", &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* null file path */
-  status = ml_model_open (NULL, &model, &in_info, &out_info,
+  status = ml_single_open (&single, NULL, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
-  status = ml_model_open (test_model, NULL, &in_info, &out_info,
+  status = ml_single_open (NULL, test_model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid input tensor info */
-  status = ml_model_open (test_model, &model, &in_info, &out_info,
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -1198,7 +1336,7 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   in_info.info[0].dimension[3] = 1;
 
   /* invalid output tensor info */
-  status = ml_model_open (test_model, &model, &in_info, &out_info,
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
       ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -1210,12 +1348,12 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   out_info.info[0].dimension[3] = 1;
 
   /* unknown fw type */
-  status = ml_model_open (test_model, &model, &in_info, &out_info,
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
       ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
   EXPECT_EQ (status, ML_ERROR_NOT_SUPPORTED);
 
   /* invalid handle */
-  status = ml_model_close (model);
+  status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (test_model);

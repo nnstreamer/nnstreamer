@@ -20,6 +20,7 @@ endif
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-pipeline.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-util.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-single.c')
 
 capi_devel_main = []

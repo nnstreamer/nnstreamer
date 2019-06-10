@@ -32,8 +32,9 @@
 #include <tizen_error.h>
 #include <dlog.h>
 
-#include "nnstreamer.h"
 #include <nnstreamer/tensor_typedef.h>
+
+#include "nnstreamer.h"
 
 #define DLOG_TAG "nnstreamer-capi"
 
@@ -61,7 +62,7 @@ typedef enum {
   ML_PIPELINE_ELEMENT_VALVE = 0x4,
   ML_PIPELINE_ELEMENT_SWITCH_INPUT = 0x8,
   ML_PIPELINE_ELEMENT_SWITCH_OUTPUT = 0x9,
-} ml_pipeline_element_type_e;
+} ml_pipeline_element_e;
 
 /**
  * @brief Internal private representation of pipeline handle.
@@ -75,10 +76,10 @@ typedef struct _ml_pipeline_element {
   GstElement *element; /**< The Sink/Src/Valve/Switch element */
   ml_pipeline *pipe; /**< The main pipeline */
   char *name;
-  ml_pipeline_element_type_e type;
+  ml_pipeline_element_e type;
   GstPad *src;
   GstPad *sink; /**< Unref this at destroy */
-  GstTensorsInfo tensorsinfo;
+  ml_tensors_info_s tensors_info;
   size_t size;
 
   GList *handles;
@@ -139,6 +140,21 @@ typedef struct _ml_pipeline_valve {
   ml_pipeline_element *element;
   guint32 id;
 } ml_pipeline_valve;
+
+/**
+ * @brief Sets the last error code.
+ */
+void ml_util_set_error (int error_code);
+
+/**
+ * @brief Copies tensor metadata from gst tensors info.
+ */
+void ml_util_copy_tensors_info_from_gst (ml_tensors_info_s *ml_info, const GstTensorsInfo *gst_info);
+
+/**
+ * @brief Copies tensor metadata from ml tensors info.
+ */
+void ml_util_copy_tensors_info_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
 
 #ifdef __cplusplus
 }
