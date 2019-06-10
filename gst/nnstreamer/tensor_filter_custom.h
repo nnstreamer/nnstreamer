@@ -1,5 +1,5 @@
 /**
- * GStreamer Tensor_Filter, Tensorflow-Lite Module
+ * GStreamer Tensor_Filter, Customized Module
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
