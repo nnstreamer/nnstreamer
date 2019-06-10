@@ -127,8 +127,8 @@ int ml_model_close (ml_simpleshot_model_h model);
  *         input data frames of an instance of a model should share the
  *         same dimension.
  */
-ml_tensor_data_s * ml_model_inference (ml_simpleshot_model_h model,
-    const ml_tensor_data_s *input, ml_tensor_data_s *output);
+ml_tensors_data_s * ml_model_inference (ml_simpleshot_model_h model,
+    const ml_tensors_data_s *input, ml_tensors_data_s *output);
 
 /*************
  * UTILITIES *
@@ -193,19 +193,18 @@ void ml_model_free_tensors_info (ml_tensors_info_s *type);
 /**
  * @brief Free the tensors data pointer.
  * @since_tizen 5.5
- * @param[in] tensor the tensors data pointer to be freed.
+ * @param[in] data The tensors data pointer to be freed.
  */
-void ml_model_free_tensor_data (ml_tensor_data_s *tensor);
+void ml_model_free_tensors_data (ml_tensors_data_s *data);
 
 /**
  * @brief Allocate a tensor data frame with the given tensors type.
  * @since_tizen 5.5
  * @param[in] info The tensors information for the allocation
  * @return @c Tensors data pointer allocated. Null if error.
- * @retval NULL there is an error. call get_last_result() to get specific
- *         error numbers.
+ * @retval NULL there is an error. call ml_get_last_result() to get specific error numbers.
  */
-ml_tensor_data_s *ml_model_allocate_tensor_data (const ml_tensors_info_s *info);
+ml_tensors_data_s *ml_model_allocate_tensors_data (const ml_tensors_info_s *info);
 
 /**
  * @brief Check the availability of the given execution environments.

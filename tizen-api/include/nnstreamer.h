@@ -184,26 +184,32 @@ typedef struct {
 } ml_tensors_info_s;
 
 /**
+ * @brief An instance of a single input or output frame.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  void *tensor; /**< The instance of tensor data. */
+  size_t size; /**< The size of tensor. */
+} ml_tensor_data_s;
+
+/**
  * @brief An instance of input or output frames. ml_tensors_info_s is the metadata.
  * @since_tizen 5.5
  */
 typedef struct {
   unsigned int num_tensors; /**< The number of tensors. */
-  void *tensor[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
-  size_t size[ML_TENSOR_SIZE_LIMIT]; /**< The size of each tensor. */
-} ml_tensor_data_s;
+  ml_tensor_data_s tensors[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
+} ml_tensors_data_s;
 
 /**
  * @brief Callback for sink element of nnstreamer pipelines (pipeline's output)
  * @detail If an application wants to accept data outputs of an nnstreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not hold too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
- * @param[in] buf The contents of the tensor output (a single frame. tensor/tensors). Number of buf is determined by tensorsinfo->num_tensors.
- * @param[in] size The size of the buffer. Number of size is determined by tensorsinfo->num_tensors. Note that max num_tensors is 16 (ML_TENSOR_SIZE_LIMIT).
- * @param[in] tensors_info The cardinality, dimension, and type of given tensor/tensors.
- * @param[in,out] pdata User Application's Private Data
+ * @param[in] data The contents of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by data->num_tensors. Note that max num_tensors is 16 (ML_TENSOR_SIZE_LIMIT).
+ * @param[in] info The cardinality, dimension, and type of given tensor/tensors.
+ * @param[in,out] pdata User Application's Private Data.
  */
-typedef void (*ml_pipeline_sink_cb)
-(const char *buf[], const size_t size[], const ml_tensors_info_s *tensors_info, void *pdata);
+typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_s *data, const ml_tensors_info_s *info, void *pdata);
 
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
@@ -333,17 +339,15 @@ int ml_pipeline_src_put_handle (ml_pipeline_src_h h);
 /**
  * @brief Puts an input data frame.
  * @param[in] h The source handle returned by ml_pipeline_src_get_handle().
+ * @param[in] data The input tensors, in the format of tensors info given by ml_pipeline_src_get_handle().
  * @param[in] policy The policy of buf deallocation.
- * @param[in] buf The input buffers, in the format of tensorsinfo given by ml_pipeline_gethandle()
- * @param[in] size The sizes of input buffers. This must be consistent with the given tensorsinfo, probed by ml_pipeline_src_get_handle().
- * @param[in] num_tensors The number of tensors (number of buf and number of size) for the input frame. This must be consistent with the given tensorinfo, probed by ml_pipeline_src_get_handle(). MAX is 16 (ML_TENSOR_SIZE_LIMIT).
  * @return 0 on success (buf is filled). otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
-int ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_pipeline_buf_policy_e policy, char *buf[], const size_t size[], unsigned int num_tensors);
+int ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s *data, ml_pipeline_buf_policy_e policy);
 
 /****************************************************
  ** NNStreamer Pipeline Switch/Valve Control       **
