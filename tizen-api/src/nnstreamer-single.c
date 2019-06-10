@@ -298,13 +298,13 @@ ml_model_close (ml_simpleshot_model_h model)
 /**
  * @brief Invoke the model with the given input data. (more info in nnstreamer-single.h)
  */
-ml_tensor_data_s *
+ml_tensors_data_s *
 ml_model_inference (ml_simpleshot_model_h model,
-    const ml_tensor_data_s * input, ml_tensor_data_s * output)
+    const ml_tensors_data_s * input, ml_tensors_data_s * output)
 {
   ml_simpleshot_model *model_h;
   ml_tensors_info_s out_info;
-  ml_tensor_data_s *result;
+  ml_tensors_data_s *result;
   GstSample *sample;
   GstBuffer *buffer;
   GstMemory *mem;
@@ -331,8 +331,8 @@ ml_model_inference (ml_simpleshot_model_h model,
     }
 
     for (i = 0; i < output->num_tensors; i++) {
-      if (!output->tensor[i] ||
-          output->size[i] !=
+      if (!output->tensors[i].tensor ||
+          output->tensors[i].size !=
           ml_util_get_tensor_size (&out_info.info[i])) {
         dloge ("Invalid output data, the size of output is different.");
         return NULL;
@@ -344,7 +344,8 @@ ml_model_inference (ml_simpleshot_model_h model,
 
   for (i = 0; i < input->num_tensors; i++) {
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        input->tensor[i], input->size[i], 0, input->size[i], NULL, NULL);
+        input->tensors[i].tensor, input->tensors[i].size, 0,
+        input->tensors[i].size, NULL, NULL);
     gst_buffer_append_memory (buffer, mem);
   }
 
@@ -365,7 +366,7 @@ ml_model_inference (ml_simpleshot_model_h model,
   if (output) {
     result = output;
   } else {
-    result = ml_model_allocate_tensor_data (&out_info);
+    result = ml_model_allocate_tensors_data (&out_info);
   }
 
   if (!result) {
@@ -379,7 +380,7 @@ ml_model_inference (ml_simpleshot_model_h model,
     mem = gst_buffer_peek_memory (buffer, i);
     gst_memory_map (mem, &mem_info, GST_MAP_READ);
 
-    memcpy (result->tensor[i], mem_info.data, mem_info.size);
+    memcpy (result->tensors[i].tensor, mem_info.data, mem_info.size);
 
     gst_memory_unmap (mem, &mem_info);
   }
@@ -514,7 +515,7 @@ ml_util_get_tensor_size (const ml_tensor_info_s * info)
     tensor_size = 8;
     break;
   default:
-    dloge ("The given param tensor_type is invalid.");
+    dloge ("In the given param, tensor type is invalid.");
     return 0;
   }
 
@@ -555,42 +556,42 @@ ml_model_free_tensors_info (ml_tensors_info_s * type)
  * @brief Free the tensors data pointer. (more info in nnstreamer-single.h)
  */
 void
-ml_model_free_tensor_data (ml_tensor_data_s * tensor)
+ml_model_free_tensors_data (ml_tensors_data_s * data)
 {
   gint i;
 
-  if (!tensor) {
-    dloge ("The given param tensor is invalid.");
+  if (!data) {
+    dloge ("The given param data is invalid.");
     return;
   }
 
-  for (i = 0; i < tensor->num_tensors; i++) {
-    if (tensor->tensor[i]) {
-      g_free (tensor->tensor[i]);
-      tensor->tensor[i] = NULL;
+  for (i = 0; i < data->num_tensors; i++) {
+    if (data->tensors[i].tensor) {
+      g_free (data->tensors[i].tensor);
+      data->tensors[i].tensor = NULL;
     }
 
-    tensor->size[i] = 0;
+    data->tensors[i].size = 0;
   }
 
-  tensor->num_tensors = 0;
+  data->num_tensors = 0;
 }
 
 /**
  * @brief Allocate a tensor data frame with the given tensors type. (more info in nnstreamer-single.h)
  */
-ml_tensor_data_s *
-ml_model_allocate_tensor_data (const ml_tensors_info_s * info)
+ml_tensors_data_s *
+ml_model_allocate_tensors_data (const ml_tensors_info_s * info)
 {
-  ml_tensor_data_s *data;
+  ml_tensors_data_s *data;
   gint i;
 
   if (!info) {
-    dloge ("The given param type is invalid.");
+    dloge ("The given param info is invalid.");
     return NULL;
   }
 
-  data = g_new0 (ml_tensor_data_s, 1);
+  data = g_new0 (ml_tensors_data_s, 1);
   if (!data) {
     dloge ("Failed to allocate the memory block.");
     return NULL;
@@ -598,8 +599,8 @@ ml_model_allocate_tensor_data (const ml_tensors_info_s * info)
 
   data->num_tensors = info->num_tensors;
   for (i = 0; i < data->num_tensors; i++) {
-    data->size[i] = ml_util_get_tensor_size (&info->info[i]);
-    data->tensor[i] = g_malloc0 (data->size[i]);
+    data->tensors[i].size = ml_util_get_tensor_size (&info->info[i]);
+    data->tensors[i].tensor = g_malloc0 (data->tensors[i].size);
   }
 
   return data;

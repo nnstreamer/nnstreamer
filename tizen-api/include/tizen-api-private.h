@@ -27,13 +27,15 @@
 #include <glib.h>
 #include <gmodule.h>
 #include <gst/gst.h>
-#include "nnstreamer.h"
-#include <tizen_error.h>
-#include <dlog.h>
-#include <nnstreamer/tensor_typedef.h>
 #include <gst/app/gstappsrc.h>
 
-#define DLOG_TAG "nnstreamer-capi-pipeline"
+#include <tizen_error.h>
+#include <dlog.h>
+
+#include "nnstreamer.h"
+#include <nnstreamer/tensor_typedef.h>
+
+#define DLOG_TAG "nnstreamer-capi"
 
 #define dlogi(...) \
     dlog_print (DLOG_INFO, DLOG_TAG, __VA_ARGS__)
