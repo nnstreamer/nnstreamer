@@ -69,7 +69,7 @@ unlock_return: \
  */
 static ml_pipeline_element *
 construct_element (GstElement * e, ml_pipeline * p, const char *name,
-    ml_pipeline_element_type_e t)
+    ml_pipeline_element_e t)
 {
   ml_pipeline_element *ret = g_new0 (ml_pipeline_element, 1);
   ret->element = e;
@@ -79,7 +79,7 @@ construct_element (GstElement * e, ml_pipeline * p, const char *name,
   ret->handles = NULL;
   ret->src = NULL;
   ret->sink = NULL;
-  gst_tensors_info_init (&ret->tensorsinfo);
+  ml_util_initialize_tensors_info (&ret->tensors_info);
   ret->size = 0;
   ret->maxid = 0;
   ret->handle_id = 0;
@@ -88,27 +88,30 @@ construct_element (GstElement * e, ml_pipeline * p, const char *name,
 }
 
 /**
- * @brief Internal function to convert GstTensorsInfo into ml_tensors_info_s structure.
+ * @brief Internal function to get the tensors info from the element caps.
  */
-static int
-get_tensors_info_from_GstTensorsInfo (GstTensorsInfo * gst_tensorsinfo,
-    ml_tensors_info_s * tensors_info)
+static gboolean
+get_tensors_info_from_caps (GstCaps * caps, ml_tensors_info_s * info)
 {
-  if (!gst_tensorsinfo) {
-    dloge ("GstTensorsInfo should not be NULL!");
-    return ML_ERROR_INVALID_PARAMETER;
+  GstStructure *s;
+  GstTensorsConfig config;
+  guint i, n_caps;
+  gboolean found = FALSE;
+
+  ml_util_initialize_tensors_info (info);
+  n_caps = gst_caps_get_size (caps);
+
+  for (i = 0; i < n_caps; i++) {
+    s = gst_caps_get_structure (caps, i);
+    found = gst_tensors_config_from_structure (&config, s);
+
+    if (found) {
+      ml_util_copy_tensors_info_from_gst (info, &config.info);
+      break;
+    }
   }
 
-  if (!tensors_info) {
-    dloge ("The param ml_tensors_info_s should not be NULL!");
-    return ML_ERROR_INVALID_PARAMETER;
-  }
-
-  /** Currently, the data structures of GstTensorsInfo are
-   * completely same as that of ml_tensors_info_s. */
-  memcpy (tensors_info, gst_tensorsinfo, sizeof (GstTensorsInfo));
-
-  return ML_ERROR_NONE;
+  return found;
 }
 
 /**
@@ -163,25 +166,15 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
       GstCaps *caps = gst_pad_get_current_caps (elem->sink);
 
       if (caps) {
-        guint n_caps = gst_caps_get_size (caps);
-        GstTensorsConfig tconfig;
-        gboolean found = FALSE;
+        gboolean found;
 
-        for (i = 0; i < n_caps; i++) {
-          GstStructure *s = gst_caps_get_structure (caps, i);
-
-          found = gst_tensors_config_from_structure (&tconfig, s);
-          if (found)
-            break;
-        }
-
+        found = get_tensors_info_from_caps (caps, &elem->tensors_info);
         gst_caps_unref (caps);
 
         if (found) {
-          memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
           elem->size = 0;
 
-          if (elem->tensorsinfo.num_tensors != num_mems) {
+          if (elem->tensors_info.num_tensors != num_mems) {
             dloge
                 ("The sink event of [%s] cannot be handled because the number of tensors mismatches.",
                 elem->name);
@@ -191,8 +184,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
             goto error;
           }
 
-          for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
-            size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
+          for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+            size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
             if (sz != tensors_data.tensors[i].size) {
               dloge
@@ -209,6 +202,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
         } else {
           gst_object_unref (elem->sink);
           elem->sink = NULL;    /* It is not valid */
+          goto error;
           /** @todo What if it keeps being "NULL"? Exception handling at 2nd frame? */
         }
       }
@@ -226,13 +220,10 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
 
   /* Iterate e->handles, pass the data to them */
   for (l = elem->handles; l != NULL; l = l->next) {
-    ml_tensors_info_s tensors_info;
     ml_pipeline_sink *sink = l->data;
     ml_pipeline_sink_cb callback = sink->cb;
 
-    get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, &tensors_info);
-
-    callback (&tensors_data, &tensors_info, sink->pdata);
+    callback (&tensors_data, &elem->tensors_info, sink->pdata);
 
     /** @todo Measure time. Warn if it takes long. Kill if it takes too long. */
   }
@@ -282,14 +273,19 @@ cleanup_node (gpointer data)
     gst_object_unref (e->sink);
 
   /** @todo CRITICAL. Stop the handle callbacks if they are running/ready */
+  if (e->handle_id > 0) {
+    g_signal_handler_disconnect (e->element, e->handle_id);
+    e->handle_id = 0;
+  }
+
   if (e->handles)
     g_list_free_full (e->handles, g_free);
   e->handles = NULL;
 
+  ml_util_free_tensors_info (&e->tensors_info);
+
   g_mutex_unlock (&e->lock);
   g_mutex_clear (&e->lock);
-
-  g_free (e);
 }
 
 /**
@@ -364,6 +360,7 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
 
           if (GST_IS_ELEMENT (obj)) {
             GstElement *elem = GST_ELEMENT (obj);
+
             name = gst_element_get_name (elem);
             if (name != NULL) {
               ml_pipeline_element *e = NULL;
@@ -396,11 +393,12 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
 
               if (e != NULL)
                 g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
-            }
-            g_free (name);
-          }
-          g_value_reset (&item);
 
+              g_free (name);
+            }
+          }
+
+          g_value_reset (&item);
           break;
         case GST_ITERATOR_RESYNC:
         case GST_ITERATOR_ERROR:
@@ -729,6 +727,11 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
+  if (tensors_info == NULL) {
+    dloge ("The 3rd argument, tensors info is not valid.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
   g_mutex_lock (&p->lock);
 
   elem = g_hash_table_lookup (p->namednodes, src_name);
@@ -746,50 +749,44 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
     goto unlock_return;
   }
 
-  if (elem->src == NULL)
+  if (elem->src == NULL) {
     elem->src = gst_element_get_static_pad (elem->element, "src");
 
-  if (elem->src != NULL) {
-    /** @todo : refactor this along with ml_pipeline_src_input_data */
-    GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
-
-    /** @todo caps may be NULL for prerolling */
-    if (caps == NULL) {
-      dlogw
-          ("Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
-          src_name);
-    } else {
-      guint n_caps = gst_caps_get_size (caps);
-      GstTensorsConfig tconfig;
+    if (elem->src != NULL) {
+      /** @todo : refactor this along with ml_pipeline_src_input_data */
+      GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
       gboolean found = FALSE;
 
-      for (i = 0; i < n_caps; i++) {
-        GstStructure *s = gst_caps_get_structure (caps, i);
-
-        found = gst_tensors_config_from_structure (&tconfig, s);
-        if (found)
-          break;
+      /** @todo caps may be NULL for prerolling */
+      if (caps) {
+        found = get_tensors_info_from_caps (caps, &elem->tensors_info);
+        gst_caps_unref (caps);
       }
-
-      gst_caps_unref (caps);
 
       if (found) {
-        memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
         elem->size = 0;
-        for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
-          size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
+
+        for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+          size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
           elem->size += sz;
         }
+      } else {
+        dlogw
+            ("Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
+            src_name);
+        gst_object_unref (elem->src);
+        elem->src = NULL;
+
+        ret = ML_ERROR_TRY_AGAIN;
+        goto unlock_return;
       }
+    } else {
+      ret = ML_ERROR_STREAMS_PIPE;
+      goto unlock_return;
     }
-  } else {
-    ret = ML_ERROR_STREAMS_PIPE;
-    goto unlock_return;
   }
 
-  ret = get_tensors_info_from_GstTensorsInfo (&elem->tensorsinfo, tensors_info);
-  if (ret != ML_ERROR_NONE)
-    goto unlock_return;
+  ml_util_copy_tensors_info (tensors_info, &elem->tensors_info);
 
   *h = g_new (ml_pipeline_src, 1);
   src = *h;
@@ -845,7 +842,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   }
 
   if (data->num_tensors < 1 || data->num_tensors > ML_TENSOR_SIZE_LIMIT) {
-    dloge ("The tensor size if invalid. It should be 1 ~ %u; where it is %u",
+    dloge ("The tensor size is invalid. It should be 1 ~ %u; where it is %u",
         ML_TENSOR_SIZE_LIMIT, data->num_tensors);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -862,28 +859,18 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
     GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
 
     if (caps) {
-      guint n_caps = gst_caps_get_size (caps);
-      GstTensorsConfig tconfig;
-      gboolean found = FALSE;
+      gboolean found;
 
-      for (i = 0; i < n_caps; i++) {
-        GstStructure *s = gst_caps_get_structure (caps, i);
-
-        found = gst_tensors_config_from_structure (&tconfig, s);
-        if (found)
-          break;
-      }
-
+      found = get_tensors_info_from_caps (caps, &elem->tensors_info);
       gst_caps_unref (caps);
 
       if (found) {
-        memcpy (&elem->tensorsinfo, &tconfig.info, sizeof (GstTensorsInfo));
         elem->size = 0;
 
-        if (elem->tensorsinfo.num_tensors != data->num_tensors) {
+        if (elem->tensors_info.num_tensors != data->num_tensors) {
           dloge
               ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
-              elem->name, elem->tensorsinfo.num_tensors, data->num_tensors);
+              elem->name, elem->tensors_info.num_tensors, data->num_tensors);
 
           gst_object_unref (elem->src);
           elem->src = NULL;
@@ -891,8 +878,8 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
           goto unlock_return;
         }
 
-        for (i = 0; i < elem->tensorsinfo.num_tensors; i++) {
-          size_t sz = gst_tensor_info_get_size (&elem->tensorsinfo.info[i]);
+        for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+          size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
           if (sz != data->tensors[i].size) {
             dloge
@@ -910,6 +897,8 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
       } else {
         gst_object_unref (elem->src);
         elem->src = NULL;       /* invalid! */
+        ret = ML_ERROR_STREAMS_PIPE;
+        goto unlock_return;
         /** @todo What if it keeps being "NULL"? */
       }
     }
@@ -956,7 +945,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
  */
 int
 ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
-    ml_pipeline_switch_type_e * type, ml_pipeline_switch_h * h)
+    ml_pipeline_switch_e * type, ml_pipeline_switch_h * h)
 {
   ml_pipeline_element *elem;
   ml_pipeline *p = pipe;
