@@ -999,6 +999,7 @@ TEST (nnstreamer_capi_switch, failure_01)
   g_free (pipeline);
 }
 
+#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  */
@@ -1180,6 +1181,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   g_free (test_model);
 }
+#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Test NNStreamer single shot (custom filter)
@@ -1288,6 +1290,132 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   g_free (test_model);
 }
 
+#ifdef ENABLE_TENSORFLOW
+/**
+ * @brief Test NNStreamer single shot (tensorflow)
+ * @detail Run pipeline with tensorflow speech command model.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_04)
+{
+  ml_single_h single;
+  ml_tensors_info_s in_info, out_info;
+  ml_tensors_info_s in_res, out_res;
+  ml_tensors_data_s *input, *output;
+  int status, max_score_index;
+  float score, max_score;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model, *test_file;
+  gchar *contents = NULL;
+  gsize len = 0;
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
+  ml_util_initialize_tensors_info (&in_res);
+  ml_util_initialize_tensors_info (&out_res);
+
+  ASSERT_TRUE (root_path != NULL);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "conv_actions_frozen.pb", NULL);
+  test_file = g_build_filename (root_path, "tests", "test_models", "data",
+      "yes.wav", NULL);
+
+  in_info.num_tensors = 1;
+  in_info.info[0].name = g_strdup ("wav_data");
+  in_info.info[0].type = ML_TENSOR_TYPE_INT16;
+  in_info.info[0].dimension[0] = 1;
+  in_info.info[0].dimension[1] = 16022;
+  in_info.info[0].dimension[2] = 1;
+  in_info.info[0].dimension[3] = 1;
+
+  out_info.num_tensors = 1;
+  out_info.info[0].name = g_strdup ("labels_softmax");
+  out_info.info[0].type = ML_TENSOR_TYPE_FLOAT32;
+  out_info.info[0].dimension[0] = 12;
+  out_info.info[0].dimension[1] = 1;
+  out_info.info[0].dimension[2] = 1;
+  out_info.info[0].dimension[3] = 1;
+
+  ASSERT_TRUE (g_file_get_contents (test_file, &contents, &len, NULL));
+  ASSERT_TRUE (len == ml_util_get_tensors_size (&in_info));
+
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
+      ML_NNFW_TENSORFLOW, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* input tensor in filter */
+  status = ml_single_get_input_info (single, &in_res);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
+  for (guint idx = 0; idx < in_res.num_tensors; idx++) {
+    EXPECT_TRUE (in_info.info[idx].type == in_res.info[idx].type);
+    EXPECT_TRUE (in_info.info[idx].dimension[0] == in_res.info[idx].dimension[0]);
+    EXPECT_TRUE (in_info.info[idx].dimension[1] == in_res.info[idx].dimension[1]);
+    EXPECT_TRUE (in_info.info[idx].dimension[2] == in_res.info[idx].dimension[2]);
+    EXPECT_TRUE (in_info.info[idx].dimension[3] == in_res.info[idx].dimension[3]);
+  }
+
+  /* output tensor in filter */
+  status = ml_single_get_output_info (single, &out_res);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
+  for (guint idx = 0; idx < out_res.num_tensors; idx++) {
+    EXPECT_TRUE (out_info.info[idx].type == out_res.info[idx].type);
+    EXPECT_TRUE (out_info.info[idx].dimension[0] == out_res.info[idx].dimension[0]);
+    EXPECT_TRUE (out_info.info[idx].dimension[1] == out_res.info[idx].dimension[1]);
+    EXPECT_TRUE (out_info.info[idx].dimension[2] == out_res.info[idx].dimension[2]);
+    EXPECT_TRUE (out_info.info[idx].dimension[3] == out_res.info[idx].dimension[3]);
+  }
+
+  /* generate input data */
+  input = ml_util_allocate_tensors_data (&in_info);
+  EXPECT_TRUE (input != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  memcpy (input->tensors[0].tensor, contents, len);
+
+  output = ml_single_inference (single, input, NULL);
+  EXPECT_TRUE (output != NULL);
+
+  status = ml_util_get_last_error ();
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* check result (max score index is 2) */
+  EXPECT_EQ (output->num_tensors, out_res.num_tensors);
+
+  max_score = .0;
+  max_score_index = 0;
+  for (gint i = 0; i < 12; i++) {
+    score = ((float *) output->tensors[0].tensor)[i];
+    if (score > max_score) {
+      max_score = score;
+      max_score_index = i;
+    }
+  }
+
+  EXPECT_EQ (max_score_index, 2);
+
+  ml_util_free_tensors_data (&output);
+  ml_util_free_tensors_data (&input);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  g_free (test_file);
+  g_free (contents);
+  ml_util_free_tensors_info (&in_info);
+  ml_util_free_tensors_info (&out_info);
+  ml_util_free_tensors_info (&in_res);
+  ml_util_free_tensors_info (&out_res);
+}
+#endif /* ENABLE_TENSORFLOW */
+
+#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Failure case with invalid param.
@@ -1358,6 +1486,7 @@ TEST (nnstreamer_capi_singleshot, failure_01)
 
   g_free (test_model);
 }
+#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Main gtest
