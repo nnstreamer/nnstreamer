@@ -149,6 +149,54 @@ ml_single_open (ml_single_h * single, const char *model_path,
           ("appsrc name=srcx ! tensor_filter name=filterx framework=tensorflow-lite model=%s ! appsink name=sinkx sync=false",
           model_path);
       break;
+    case ML_NNFW_TENSORFLOW:
+      if (!g_str_has_suffix (model_path, ".pb")) {
+        ml_loge ("The given model file [%s] has invalid extension.", model_path);
+        return ML_ERROR_INVALID_PARAMETER;
+      }
+
+      if (input_info && output_info) {
+        GstTensorsInfo in_info, out_info;
+        gchar *str_dim, *str_type, *str_name;
+        gchar *in_option, *out_option;
+
+        ml_util_copy_tensors_info_from_ml (&in_info, input_info);
+        ml_util_copy_tensors_info_from_ml (&out_info, output_info);
+
+        /* Set input option */
+        str_dim = gst_tensors_info_get_dimensions_string (&in_info);
+        str_type = gst_tensors_info_get_types_string (&in_info);
+        str_name = gst_tensors_info_get_names_string (&in_info);
+        in_option = g_strdup_printf ("input=%s inputtype=%s inputname=%s",
+            str_dim, str_type, str_name);
+        g_free (str_dim);
+        g_free (str_type);
+        g_free (str_name);
+
+        /* Set output option */
+        str_dim = gst_tensors_info_get_dimensions_string (&out_info);
+        str_type = gst_tensors_info_get_types_string (&out_info);
+        str_name = gst_tensors_info_get_names_string (&out_info);
+        out_option = g_strdup_printf ("output=%s outputtype=%s outputname=%s",
+            str_dim, str_type, str_name);
+        g_free (str_dim);
+        g_free (str_type);
+        g_free (str_name);
+
+        pipeline_desc =
+            g_strdup_printf
+            ("appsrc name=srcx ! tensor_filter name=filterx framework=tensorflow model=%s %s %s ! appsink name=sinkx sync=false",
+            model_path, in_option, out_option);
+
+        g_free (in_option);
+        g_free (out_option);
+        gst_tensors_info_free (&in_info);
+        gst_tensors_info_free (&out_info);
+      } else {
+        ml_loge ("To run the pipeline with tensorflow model, input and output information should be initialized.");
+        return ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
     default:
       /** @todo Add other fw later. */
       ml_loge ("The given nnfw is not supported.");

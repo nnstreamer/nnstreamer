@@ -21,6 +21,7 @@
  */
 
 #include <nnstreamer/nnstreamer_plugin_api.h>
+#include <nnstreamer/nnstreamer_plugin_api_filter.h>
 
 #include "nnstreamer.h"
 #include "nnstreamer-capi-private.h"
@@ -424,5 +425,22 @@ int
 ml_util_check_nnfw (ml_nnfw_e nnfw, ml_nnfw_hw_e hw)
 {
   /** @todo fill this function */
+  switch (nnfw) {
+    case ML_NNFW_TENSORFLOW_LITE:
+      if (nnstreamer_filter_find ("tensorflow-lite") == NULL) {
+        ml_logw ("Tensorflow-lite is not supported.");
+        return ML_ERROR_NOT_SUPPORTED;
+      }
+      break;
+    case ML_NNFW_TENSORFLOW:
+      if (nnstreamer_filter_find ("tensorflow") == NULL) {
+        ml_logw ("Tensorflow is not supported.");
+        return ML_ERROR_NOT_SUPPORTED;
+      }
+      break;
+    default:
+      break;
+  }
+
   return ML_ERROR_NONE;
 }
