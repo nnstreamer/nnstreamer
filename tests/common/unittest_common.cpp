@@ -31,6 +31,7 @@ TEST (common_get_tensor_type, int32)
   EXPECT_EQ (gst_tensor_get_type ("InT32"), _NNS_INT32);
   EXPECT_EQ (gst_tensor_get_type ("InT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int3"), _NNS_END);
+  EXPECT_EQ (gst_tensor_get_type (""), _NNS_END);
 }
 
 /**
