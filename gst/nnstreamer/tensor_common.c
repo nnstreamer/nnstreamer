@@ -967,6 +967,11 @@ gst_tensor_get_type (const gchar * typestr)
 
   len = strlen (type_string);
 
+  if (len == 0) {
+    g_free (type_string);
+    return _NNS_END;
+  }
+
   if (type_string[0] == 'u' || type_string[0] == 'U') {
     /**
      * Let's believe the developer and the following three letters are "int"

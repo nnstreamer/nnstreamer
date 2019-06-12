@@ -304,6 +304,7 @@ _new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
     /** copy current caps */
     g_test_data.current_caps = gst_caps_copy (caps);
     gst_caps_unref (caps);
+    gst_object_unref (sink_pad);
   }
 }
 
