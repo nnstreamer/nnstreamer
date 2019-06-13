@@ -21,6 +21,7 @@
  * @bug No known bugs except for NYI items
  */
 
+#include <string.h>
 #include <glib.h>
 #include <glib-object.h>        /* Get GType from GObject Instances */
 #include <gmodule.h>
@@ -38,14 +39,14 @@
   ml_pipeline_element *elem; \
   int ret = ML_ERROR_NONE; \
   if (h == NULL) { \
-    dloge ("The given handle is invalid"); \
+    ml_loge ("The given handle is invalid"); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
 \
   p = name->pipe; \
   elem = name->element; \
   if (p == NULL || elem == NULL || p != elem->pipe) { \
-    dloge ("The handle appears to be broken."); \
+    ml_loge ("The handle appears to be broken."); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
 \
@@ -53,7 +54,7 @@
   g_mutex_lock (&elem->lock); \
 \
   if (NULL == g_list_find (elem->handles, name)) { \
-    dloge ("The handle does not exists."); \
+    ml_loge ("The handle does not exists."); \
     ret = ML_ERROR_INVALID_PARAMETER; \
     goto unlock_return; \
   }
@@ -135,7 +136,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
   num_mems = gst_buffer_n_memory (b);
 
   if (num_mems > ML_TENSOR_SIZE_LIMIT) {
-    dloge ("Number of memory chunks in a GstBuffer exceed the limit: %u > %u",
+    ml_loge ("Number of memory chunks in a GstBuffer exceed the limit: %u > %u",
         num_mems, ML_TENSOR_SIZE_LIMIT);
     return;
   }
@@ -175,7 +176,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
           elem->size = 0;
 
           if (elem->tensors_info.num_tensors != num_mems) {
-            dloge
+            ml_loge
                 ("The sink event of [%s] cannot be handled because the number of tensors mismatches.",
                 elem->name);
 
@@ -188,7 +189,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
             size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
             if (sz != tensors_data.tensors[i].size) {
-              dloge
+              ml_loge
                   ("The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                   elem->name);
 
@@ -212,7 +213,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
   /* Get the data! */
   if (gst_buffer_get_size (b) != total_size ||
       (elem->size > 0 && total_size != elem->size)) {
-    dloge
+    ml_loge
         ("The buffersize mismatches. All the three values must be the same: %zu, %zu, %zu",
         total_size, elem->size, gst_buffer_get_size (b));
     goto error;
@@ -309,10 +310,10 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
 
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
-      dloge ("GStreamer has the following error: %s", err->message);
+      ml_loge ("GStreamer has the following error: %s", err->message);
       g_error_free (err);
     } else {
-      dloge ("Cannot initialize GStreamer. Unknown reason.");
+      ml_loge ("Cannot initialize GStreamer. Unknown reason.");
     }
     return ML_ERROR_STREAMS_PIPE;
   }
@@ -320,11 +321,11 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
   pipeline = gst_parse_launch (pipeline_description, &err);
   if (pipeline == NULL || err) {
     if (err) {
-      dloge ("Cannot parse and launch the given pipeline = [%s], %s",
+      ml_loge ("Cannot parse and launch the given pipeline = [%s], %s",
           pipeline_description, err->message);
       g_error_free (err);
     } else {
-      dloge
+      ml_loge
           ("Cannot parse and launch the given pipeline = [%s], unknown reason",
           pipeline_description);
     }
@@ -402,7 +403,7 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
           break;
         case GST_ITERATOR_RESYNC:
         case GST_ITERATOR_ERROR:
-          dlogw
+          ml_logw
               ("There is an error or a resync-event while inspecting a pipeline. However, we can still execute the pipeline.");
         case GST_ITERATOR_DONE:
           done = TRUE;
@@ -562,7 +563,7 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
-    dloge ("The argument sink handle is not valid.");
+    ml_loge ("The argument sink handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -570,17 +571,17 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   *h = NULL;
 
   if (pipe == NULL) {
-    dloge ("The first argument, pipeline handle is not valid.");
+    ml_loge ("The first argument, pipeline handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (sink_name == NULL) {
-    dloge ("The second argument, sink name is not valid.");
+    ml_loge ("The second argument, sink name is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (cb == NULL) {
-    dloge ("The callback argument, cb, is not valid.");
+    ml_loge ("The callback argument, cb, is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -588,21 +589,21 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   elem = g_hash_table_lookup (p->namednodes, sink_name);
 
   if (elem == NULL) {
-    dloge ("There is no element named [%s] in the pipeline.", sink_name);
+    ml_loge ("There is no element named [%s] in the pipeline.", sink_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != ML_PIPELINE_ELEMENT_SINK &&
       elem->type != ML_PIPELINE_ELEMENT_APP_SINK) {
-    dloge ("The element [%s] in the pipeline is not a sink element.",
+    ml_loge ("The element [%s] in the pipeline is not a sink element.",
         sink_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->handle_id > 0) {
-    dlogw ("Sink callback is already registered.");
+    ml_logw ("Sink callback is already registered.");
     ret = ML_ERROR_NONE;
     goto unlock_return;
   }
@@ -625,7 +626,7 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   }
 
   if (elem->handle_id == 0) {
-    dloge ("Failed to connect a signal to the element [%s].", sink_name);
+    ml_loge ("Failed to connect a signal to the element [%s].", sink_name);
     ret = ML_ERROR_STREAMS_PIPE;
     goto unlock_return;
   }
@@ -710,7 +711,7 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
   int ret = ML_ERROR_NONE, i;
 
   if (h == NULL) {
-    dloge ("The argument source handle is not valid.");
+    ml_loge ("The argument source handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -718,17 +719,17 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
   *h = NULL;
 
   if (pipe == NULL) {
-    dloge ("The first argument, pipeline handle is not valid.");
+    ml_loge ("The first argument, pipeline handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (src_name == NULL) {
-    dloge ("The second argument, source name is not valid.");
+    ml_loge ("The second argument, source name is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (tensors_info == NULL) {
-    dloge ("The 3rd argument, tensors info is not valid.");
+    ml_loge ("The 3rd argument, tensors info is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -737,13 +738,13 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
   elem = g_hash_table_lookup (p->namednodes, src_name);
 
   if (elem == NULL) {
-    dloge ("There is no element named [%s] in the pipeline.", src_name);
+    ml_loge ("There is no element named [%s] in the pipeline.", src_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != ML_PIPELINE_ELEMENT_APP_SRC) {
-    dloge ("The element [%s] in the pipeline is not a source element.",
+    ml_loge ("The element [%s] in the pipeline is not a source element.",
         src_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -771,7 +772,7 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
           elem->size += sz;
         }
       } else {
-        dlogw
+        ml_logw
             ("Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
             src_name);
         gst_object_unref (elem->src);
@@ -836,13 +837,13 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   handle_init (src, src, h);
 
   if (!data) {
-    dloge ("The given param data is invalid.");
+    ml_loge ("The given param data is invalid.");
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (data->num_tensors < 1 || data->num_tensors > ML_TENSOR_SIZE_LIMIT) {
-    dloge ("The tensor size is invalid. It should be 1 ~ %u; where it is %u",
+    ml_loge ("The tensor size is invalid. It should be 1 ~ %u; where it is %u",
         ML_TENSOR_SIZE_LIMIT, data->num_tensors);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -868,7 +869,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
         elem->size = 0;
 
         if (elem->tensors_info.num_tensors != data->num_tensors) {
-          dloge
+          ml_loge
               ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
               elem->name, elem->tensors_info.num_tensors, data->num_tensors);
 
@@ -882,7 +883,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
           size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
           if (sz != data->tensors[i].size) {
-            dloge
+            ml_loge
                 ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
                 i, data->tensors[i].size, sz);
 
@@ -905,7 +906,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   }
 
   if (elem->size == 0) {
-    dlogw ("The pipeline is not ready to accept inputs. The input is ignored.");
+    ml_logw ("The pipeline is not ready to accept inputs. The input is ignored.");
     ret = ML_ERROR_TRY_AGAIN;
     goto unlock_return;
   }
@@ -926,10 +927,10 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   gret = gst_app_src_push_buffer (GST_APP_SRC (elem->element), buffer);
 
   if (gret == GST_FLOW_FLUSHING) {
-    dlogw ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
+    ml_logw ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
     ret = ML_ERROR_TRY_AGAIN;
   } else if (gret == GST_FLOW_EOS) {
-    dlogw ("THe pipeline is in EOS state. The input is ignored.");
+    ml_logw ("THe pipeline is in EOS state. The input is ignored.");
     ret = ML_ERROR_STREAMS_PIPE;
   }
 
@@ -953,7 +954,7 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
   int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
-    dloge ("The argument switch handle is not valid.");
+    ml_loge ("The argument switch handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -961,12 +962,12 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
   *h = NULL;
 
   if (pipe == NULL) {
-    dloge ("The first argument, pipeline handle, is not valid.");
+    ml_loge ("The first argument, pipeline handle, is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (switch_name == NULL) {
-    dloge ("The second argument, switch name, is not valid.");
+    ml_loge ("The second argument, switch name, is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -974,7 +975,7 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
   elem = g_hash_table_lookup (p->namednodes, switch_name);
 
   if (elem == NULL) {
-    dloge ("There is no switch element named [%s] in the pipeline.",
+    ml_loge ("There is no switch element named [%s] in the pipeline.",
         switch_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -982,7 +983,7 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
 
   if (elem->type != ML_PIPELINE_ELEMENT_SWITCH_INPUT &&
       elem->type != ML_PIPELINE_ELEMENT_SWITCH_OUTPUT) {
-    dloge
+    ml_loge
         ("There is an element named [%s] in the pipeline, but it is not an input/output switch",
         switch_name);
     ret = ML_ERROR_INVALID_PARAMETER;
@@ -1001,7 +1002,7 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
     else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT)
       *type = ML_PIPELINE_SWITCH_OUTPUT_SELECTOR;
     else {
-      dloge ("Internal data of switch-handle [%s] is broken. It is fatal.",
+      ml_loge ("Internal data of switch-handle [%s] is broken. It is fatal.",
           elem->name);
       ret = ML_ERROR_INVALID_PARAMETER;
       goto unlock_return;
@@ -1046,7 +1047,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   handle_init (switch, swtc, h);
 
   if (pad_name == NULL) {
-    dloge ("The second argument, pad name, is not valid.");
+    ml_loge ("The second argument, pad name, is not valid.");
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -1055,7 +1056,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   active_name = gst_pad_get_name (active_pad);
 
   if (!g_strcmp0 (pad_name, active_name)) {
-    dlogi ("Switch is called, but there is no effective changes: %s->%s.",
+    ml_logi ("Switch is called, but there is no effective changes: %s->%s.",
         active_name, pad_name);
     g_free (active_name);
     gst_object_unref (active_pad);
@@ -1069,7 +1070,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   new_pad = gst_element_get_static_pad (elem->element, pad_name);
   if (new_pad == NULL) {
     /* Not Found! */
-    dloge ("Cannot find the pad, [%s], from the switch, [%s].",
+    ml_loge ("Cannot find the pad, [%s], from the switch, [%s].",
         pad_name, elem->name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -1078,7 +1079,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   g_object_set (G_OBJECT (elem->element), "active-pad", new_pad, NULL);
   gst_object_unref (new_pad);
 
-  dlogi ("Switched to [%s] successfully at switch [%s].", pad_name, elem->name);
+  ml_logi ("Switched to [%s] successfully at switch [%s].", pad_name, elem->name);
 
   handle_exit (h);
 }
@@ -1099,7 +1100,7 @@ ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
   handle_init (switch, swtc, h);
 
   if (list == NULL) {
-    dloge ("The second argument, list, is not valid.");
+    ml_loge ("The second argument, list, is not valid.");
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -1112,7 +1113,7 @@ ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
   else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT)
     it = gst_element_iterate_src_pads (elem->element);
   else {
-    dloge
+    ml_loge
         ("The element, [%s], is supposed to be input/output switch, but it is not. Internal data structure is broken.",
         elem->name);
     ret = ML_ERROR_STREAMS_PIPE;
@@ -1134,7 +1135,7 @@ ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
         gst_iterator_resync (it);
         break;
       case GST_ITERATOR_ERROR:
-        dloge ("Cannot access the list of pad properly of a switch, [%s].",
+        ml_loge ("Cannot access the list of pad properly of a switch, [%s].",
             elem->name);
         ret = ML_ERROR_STREAMS_PIPE;
         break;
@@ -1159,7 +1160,7 @@ ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
         g_list_free_full (dllist, g_free);      /* This frees all strings as well */
         g_free (list);
 
-        dloge
+        ml_loge
             ("Internal data inconsistency. This could be a bug in nnstreamer. Switch [%s].",
             elem->name);
         ret = ML_ERROR_STREAMS_PIPE;
@@ -1185,7 +1186,7 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
   int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
-    dloge ("The argument valve handle is not valid.");
+    ml_loge ("The argument valve handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -1193,12 +1194,12 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
   *h = NULL;
 
   if (pipe == NULL) {
-    dloge ("The first argument, pipeline handle, is not valid.");
+    ml_loge ("The first argument, pipeline handle, is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (valve_name == NULL) {
-    dloge ("The second argument, valve name, is not valid.");
+    ml_loge ("The second argument, valve name, is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -1206,13 +1207,13 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
   elem = g_hash_table_lookup (p->namednodes, valve_name);
 
   if (elem == NULL) {
-    dloge ("There is no valve element named [%s] in the pipeline.", valve_name);
+    ml_loge ("There is no valve element named [%s] in the pipeline.", valve_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   if (elem->type != ML_PIPELINE_ELEMENT_VALVE) {
-    dloge
+    ml_loge
         ("There is an element named [%s] in the pipeline, but it is not a valve",
         valve_name);
     ret = ML_ERROR_INVALID_PARAMETER;
@@ -1264,13 +1265,13 @@ ml_pipeline_valve_control (ml_pipeline_valve_h h, int drop)
 
   if ((drop != 0) == (current_val != FALSE)) {
     /* Nothing to do */
-    dlogi ("Valve is called, but there is no effective changes: %d->%d",
+    ml_logi ("Valve is called, but there is no effective changes: %d->%d",
         ! !current_val, ! !drop);
     goto unlock_return;
   }
 
   g_object_set (G_OBJECT (elem->element), "drop", ! !drop, NULL);
-  dlogi ("Valve is changed: %d->%d", ! !current_val, ! !drop);
+  ml_logi ("Valve is changed: %d->%d", ! !current_val, ! !drop);
 
   handle_exit (h);
 }
