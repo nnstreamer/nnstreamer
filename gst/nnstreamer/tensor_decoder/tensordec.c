@@ -168,10 +168,11 @@ nnstreamer_decoder_validate (const GstTensorDecoderDef * decoder)
 }
 
 /**
- * @brief decoder's subplugins should call this function to register
- * @param[in] decoder The decoder subplugin instance
+ * @brief Decoder's sub-plugin should call this function to register itself.
+ * @param[in] decoder Decoder sub-plugin to be registered.
+ * @return TRUE if registered. FALSE is failed or duplicated.
  */
-gboolean
+int
 nnstreamer_decoder_probe (GstTensorDecoderDef * decoder)
 {
   g_return_val_if_fail (nnstreamer_decoder_validate (decoder), FALSE);
@@ -179,21 +180,22 @@ nnstreamer_decoder_probe (GstTensorDecoderDef * decoder)
 }
 
 /**
- * @brief decoder's subplugin may call this to unregister
- * @param[in] name the name of decoder (modename)
+ * @brief Decoder's sub-plugin may call this to unregister itself.
+ * @param[in] name The name of decoder sub-plugin.
  */
 void
-nnstreamer_decoder_exit (const gchar * name)
+nnstreamer_decoder_exit (const char *name)
 {
   unregister_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }
 
 /**
- * @brief Find decoders subplugin with the name
- * @param[in] name the name of decoder (modename)
+ * @brief Find decoder sub-plugin with the name.
+ * @param[in] name The name of decoder sub-plugin.
+ * @return NULL if not found or the sub-plugin object has an error.
  */
-static const GstTensorDecoderDef *
-nnstreamer_decoder_find (const gchar * name)
+const GstTensorDecoderDef *
+nnstreamer_decoder_find (const char *name)
 {
   return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
 }
