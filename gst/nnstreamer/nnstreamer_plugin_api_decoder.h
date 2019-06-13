@@ -60,18 +60,26 @@ typedef struct _GstTensorDecoderDef
 
 /* extern functions for subplugin management, exist in tensor_decoder.c */
 /**
- * @brief decoder's subplugins should call this function to register
- * @param[in] decoder The decoder subplugin instance
+ * @brief Decoder's sub-plugin should call this function to register itself.
+ * @param[in] decoder Decoder sub-plugin to be registered.
+ * @return TRUE if registered. FALSE is failed or duplicated.
  */
-extern gboolean
+extern int
 nnstreamer_decoder_probe (GstTensorDecoderDef * decoder);
 
 /**
- * @brief decoder's subplugin may call this to unregister
- * @param[in] name the name of decoder (modename)
+ * @brief Decoder's sub-plugin may call this to unregister itself.
+ * @param[in] name The name of decoder sub-plugin.
  */
 extern void
-nnstreamer_decoder_exit (const gchar * name);
+nnstreamer_decoder_exit (const char *name);
 
+/**
+ * @brief Find decoder sub-plugin with the name.
+ * @param[in] name The name of decoder sub-plugin.
+ * @return NULL if not found or the sub-plugin object has an error.
+ */
+extern const GstTensorDecoderDef *
+nnstreamer_decoder_find (const char *name);
 
 #endif /* __NNS_PLUGIN_API_DECODER_H__ */

@@ -135,8 +135,8 @@ nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
 }
 
 /**
- * @brief Filter subplugin should call this to register itself
- * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered
+ * @brief Filter's sub-plugin should call this function to register itself.
+ * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
 int
@@ -147,8 +147,8 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 }
 
 /**
- * @brief filter sub-plugin may call this to unregister itself
- * @param[in] name the name of filter sub-plugin
+ * @brief Filter's sub-plugin may call this to unregister itself.
+ * @param[in] name The name of filter sub-plugin.
  */
 void
 nnstreamer_filter_exit (const char *name)
@@ -157,12 +157,12 @@ nnstreamer_filter_exit (const char *name)
 }
 
 /**
- * @brief Find filter sub-plugin with the name
- * @param[in] name The name of tensor_filter sub-plugin
- * @return NULL if not found or the sub-plugin object.
+ * @brief Find filter sub-plugin with the name.
+ * @param[in] name The name of filter sub-plugin.
+ * @return NULL if not found or the sub-plugin object has an error.
  */
-static const GstTensorFilterFramework *
-nnstreamer_filter_find (const gchar * name)
+const GstTensorFilterFramework *
+nnstreamer_filter_find (const char *name)
 {
   return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }

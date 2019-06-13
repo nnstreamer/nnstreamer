@@ -132,17 +132,30 @@ register_subplugin (subpluginType type, const char *name, const void *data)
       return FALSE;
   }
 
+  if (subplugins[type] == NULL) {
+    subplugins[type] =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+        _spdata_destroy);
+  } else {
+    subpluginData *data;
+
+    G_LOCK (splock);
+    data = g_hash_table_lookup (subplugins[type], name);
+    G_UNLOCK (splock);
+
+    if (data) {
+      /* already exists */
+      GST_ERROR ("Subplugin %s is already registered.", name);
+      return FALSE;
+    }
+  }
+
   spdata = g_new (subpluginData, 1);
   g_assert (spdata);
 
   spdata->name = g_strdup (name);
   spdata->data = data;
   spdata->handle = NULL;
-
-  if (subplugins[type] == NULL)
-    subplugins[type] =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-        _spdata_destroy);
 
   G_LOCK (splock);
   ret = g_hash_table_insert (subplugins[type], g_strdup (name), spdata);
