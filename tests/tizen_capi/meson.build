@@ -1,7 +1,5 @@
 tizen_apptest_deps = [
-  capi_base_common_dep,
-  dlog_dep,
-  tizen_capi_dep,
+  nnstreamer_capi_dep,
   gtest_dep,
   glib_dep
 ]

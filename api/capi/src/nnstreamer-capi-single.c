@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 /**
- * @file nnstreamer-single.c
+ * @file nnstreamer-capi-single.c
  * @date 08 May 2019
- * @brief Tizen NNStreamer/Single C-API Wrapper.
+ * @brief NNStreamer/Single C-API Wrapper.
  *        This allows to invoke individual input frame with NNStreamer.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -26,10 +26,11 @@
 #include <string.h>
 #include <gst/app/app.h>
 
-#include <nnstreamer.h>         /* Uses NNStreamer/Pipeline C-API */
-#include <nnstreamer-single.h>
-#include <tizen-api-private.h>
 #include <nnstreamer/nnstreamer_plugin_api.h>
+
+#include "nnstreamer.h"         /* Uses NNStreamer/Pipeline C-API */
+#include "nnstreamer-single.h"
+#include "nnstreamer-capi-private.h"
 
 typedef struct
 {
@@ -336,7 +337,7 @@ ml_single_inference (ml_single_h single,
       gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND);
   if (!sample) {
     ml_loge ("Failed to get the result from sink element.");
-    status = ML_ERROR_STREAMS_PIPE;
+    status = ML_ERROR_TIMED_OUT;
     goto error;
   }
 

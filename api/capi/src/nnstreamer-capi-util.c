@@ -12,9 +12,9 @@
  * Library General Public License for more details.
  */
 /**
- * @file tizen-api-util.c
+ * @file nnstreamer-capi-util.c
  * @date 10 June 2019
- * @brief Tizen NNStreamer/Utilities C-API Wrapper.
+ * @brief NNStreamer/Utilities C-API Wrapper.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
@@ -23,7 +23,7 @@
 #include <nnstreamer/nnstreamer_plugin_api.h>
 
 #include "nnstreamer.h"
-#include "tizen-api-private.h"
+#include "nnstreamer-capi-private.h"
 
 static int ml_internal_error_code = ML_ERROR_NONE;
 

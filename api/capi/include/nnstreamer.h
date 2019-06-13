@@ -14,15 +14,15 @@
 /**
  * @file nnstreamer.h
  * @date 07 March 2019
- * @brief Tizen NNStreamer/Pipeline(main) C-API Header.
+ * @brief NNStreamer/Pipeline(main) C-API Header.
  *        This allows to construct and control NNStreamer pipelines.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */
 
-#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_H__
-#define __TIZEN_MACHINELEARNING_NNSTREAMER_H__
+#ifndef __NNSTREAMER_CAPI_H__
+#define __NNSTREAMER_CAPI_H__
 
 #include <stddef.h>
 #include <errno.h>
@@ -125,18 +125,19 @@ typedef enum _ml_tensor_type_e
   ML_TENSOR_TYPE_UNKNOWN          /**< Unknown type */
 } ml_tensor_type_e;
 
+#include <tizen_error.h>
 /**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.
  * @since_tizen 5.5
  */
 typedef enum {
-  ML_ERROR_NONE				= 0, /**< Success! */
-  ML_ERROR_INVALID_PARAMETER			= -EINVAL, /**< Invalid parameter */
-  ML_ERROR_STREAMS_PIPE			= -ESTRPIPE, /**< Cannot create or access GStreamer pipeline. */
-  ML_ERROR_TRY_AGAIN				= -EAGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
-  ML_ERROR_UNKNOWN = (-1073741824LL),
-  ML_ERROR_TIMED_OUT,
-  ML_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
+  ML_ERROR_NONE                 = TIZEN_ERROR_NONE, /**< Success! */
+  ML_ERROR_INVALID_PARAMETER    = TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
+  ML_ERROR_STREAMS_PIPE         = TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access GStreamer pipeline. */
+  ML_ERROR_TRY_AGAIN            = TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
+  ML_ERROR_UNKNOWN              = TIZEN_ERROR_UNKNOWN,  /**< Unknown error */
+  ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /** Time out */
+  ML_ERROR_NOT_SUPPORTED        = TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
 } ml_error_e;
 
 /**
@@ -561,4 +562,4 @@ int ml_util_get_last_error (void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_H__ */
+#endif /* __NNSTREAMER_CAPI_H__ */

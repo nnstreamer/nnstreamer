@@ -19,27 +19,29 @@ endif
 
 
 capi_main = []
-capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-pipeline.c')
-capi_main += join_paths(meson.current_source_dir(), 'src', 'tizen-api-util.c')
-capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-single.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
 
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
 
 inc = include_directories('include')
-nninc = include_directories('../gst')
+nninc = include_directories('../../gst')
 
-capi_base_common_dep = dependency('capi-base-common')
-dlog_dep = dependency('dlog')
 tizen_deps = [
-  capi_base_common_dep,
-  dlog_dep
+  dependency('capi-base-common'),
+  dependency('dlog')
 ]
 
-tizen_capi_lib = shared_library ('capi-nnstreamer',
+capi_deps = [
+  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
+]
+
+nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
   capi_main,
-  dependencies: [nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps],
+  dependencies: capi_deps,
   include_directories: [
     inc,
     nninc
@@ -50,7 +52,7 @@ tizen_capi_lib = shared_library ('capi-nnstreamer',
 )
 static_library ('capi-nnstreamer',
   capi_main,
-  dependencies: [nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps],
+  dependencies: capi_deps,
   include_directories: [
     inc,
     nninc
@@ -59,7 +61,8 @@ static_library ('capi-nnstreamer',
   install_dir: nnstreamer_libdir,
 )
 
-tizen_capi_dep = declare_dependency(link_with: tizen_capi_lib,
+nnstreamer_capi_dep = declare_dependency(link_with: nnstreamer_capi_lib,
+  dependencies: capi_deps,
   include_directories: [
     inc,
     nninc
