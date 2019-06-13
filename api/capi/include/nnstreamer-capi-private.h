@@ -12,22 +12,20 @@
  * Library General Public License for more details.
  */
 /**
- * @file tizen-api-private.h
+ * @file nnstreamer-capi-private.h
  * @date 07 March 2019
- * @brief Tizen NNStreamer/Pipeline(main) C-API Private Header.
+ * @brief NNStreamer/Pipeline(main) C-API Private Header.
  *        This file should NOT be exported to SDK or devel package.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */
 
-#ifndef __TIZEN_NNSTREAMER_API_PRIVATE_H__
-#define __TIZEN_NNSTREAMER_API_PRIVATE_H__
+#ifndef __NNSTREAMER_CAPI_PRIVATE_H__
+#define __NNSTREAMER_CAPI_PRIVATE_H__
 
 #include <glib.h>
-#include <gmodule.h>
 #include <gst/gst.h>
-#include <gst/app/gstappsrc.h>
 
 #include <nnstreamer/tensor_typedef.h>
 
@@ -47,6 +45,9 @@
   #define ml_loge(...) \
       dlog_print (DLOG_ERROR, TAG_NAME, __VA_ARGS__)
 
+  #define ml_logd(...) \
+      dlog_print (DLOG_DEBUG, TAG_NAME, __VA_ARGS__)
+
 #elif defined(__ANDROID__)
   #include <android/log.h>
 
@@ -54,15 +55,19 @@
       __android_log_print (ANDROID_LOG_INFO, TAG_NAME, __VA_ARGS__)
 
   #define ml_logw(...) \
-  __android_log_print (ANDROID_LOG_WARNING, TAG_NAME, __VA_ARGS__)
+      __android_log_print (ANDROID_LOG_WARNING, TAG_NAME, __VA_ARGS__)
 
   #define ml_loge(...) \
-  __android_log_print (ANDROID_LOG_ERROR, TAG_NAME, __VA_ARGS__)
+      __android_log_print (ANDROID_LOG_ERROR, TAG_NAME, __VA_ARGS__)
+
+  #define ml_logd(...) \
+      __android_log_print (ANDROID_LOG_DEBUG, TAG_NAME, __VA_ARGS__)
 
 #else /* Linux distro */
-  #define ml_logi g_message
-  #define ml_loge g_message
-  #define ml_logw g_message
+  #define ml_logi g_info
+  #define ml_logw g_warning
+  #define ml_loge g_critical
+  #define ml_logd g_debug
 #endif
 
 #ifdef __cplusplus
@@ -118,7 +123,7 @@ struct _ml_pipeline {
 };
 
 /**
- * @brief Internal private representation of sink handle of GstTensorSink
+ * @brief Internal private representation of sink handle of GstTensorSink and GstAppSink
  * @detail This represents a single instance of callback registration. This should not be exposed to applications.
  */
 typedef struct _ml_pipeline_sink {
@@ -177,4 +182,4 @@ void ml_util_copy_tensors_info_from_ml (GstTensorsInfo *gst_info, const ml_tenso
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /*__TIZEN_NNSTREAMER_API_PRIVATE_H__*/
+#endif /* __NNSTREAMER_CAPI_PRIVATE_H__ */

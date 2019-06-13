@@ -95,7 +95,7 @@ if gtest_dep.found()
 endif
 
 # Tizen C-API
-if get_option('enable-tizen-capi')
+if get_option('enable-capi')
   subdir('tizen_capi')
 endif
 

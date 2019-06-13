@@ -16,7 +16,7 @@
 /**
  * @file nnstreamer-single.h
  * @date 29 March 2019
- * @brief Tizen NNStreamer single-shot invocation C-API Header.
+ * @brief NNStreamer single-shot invocation C-API Header.
  *        This allows to invoke a neural network model directly.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -25,11 +25,9 @@
  * @detail This is targetting Tizen 5.5 M2.
  */
 
-#ifndef __TIZEN_NNSTREAMER_SINGLE_H__
-#define __TIZEN_NNSTREAMER_SINGLE_H__
+#ifndef __NNSTREAMER_CAPI_SINGLE_H__
+#define __NNSTREAMER_CAPI_SINGLE_H__
 
-#include <stddef.h>
-#include <tizen_error.h>
 #include "nnstreamer.h"
 
 #ifdef __cplusplus
@@ -97,6 +95,10 @@ int ml_single_close (ml_single_h single);
  *         allocated buffer; thus, the user needs to free it.
  *         If there is an error, this is set NULL. Check ml_util_get_last_error()
  *         of tizen_error.h in such cases.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
+ * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
  * @detail Even if the model has flexible input data dimensions,
  *         input data frames of an instance of a model should share the
@@ -147,4 +149,4 @@ int ml_single_get_output_info (ml_single_h single, ml_tensors_info_s *output_inf
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* __TIZEN_NNSTREAMER_SINGLE_H__ */
+#endif /* __NNSTREAMER_CAPI_SINGLE_H__ */

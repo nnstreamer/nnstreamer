@@ -12,9 +12,9 @@
  * Library General Public License for more details.
  */
 /**
- * @file tizen-api-pipeline.c
+ * @file nnstreamer-capi-pipeline.c
  * @date 11 March 2019
- * @brief Tizen NNStreamer/Pipeline(main) C-API Wrapper.
+ * @brief NNStreamer/Pipeline(main) C-API Wrapper.
  *        This allows to construct and control NNStreamer pipelines.
  * @see	https://github.com/nnsuite/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -25,13 +25,14 @@
 #include <glib.h>
 #include <glib-object.h>        /* Get GType from GObject Instances */
 #include <gmodule.h>
-#include <tizen-api-private.h>
 
 #include <nnstreamer/tensor_typedef.h>
 #include <nnstreamer/nnstreamer_plugin_api.h>
 
 #include <gst/gstbuffer.h>
 #include <gst/app/app.h>        /* To push data to pipeline */
+
+#include "nnstreamer-capi-private.h"
 
 #define handle_init(type, name, h) \
   ml_pipeline_##type *name= (h); \

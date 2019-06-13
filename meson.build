@@ -194,10 +194,8 @@ subdir('gst')
 # Build ext subplugins
 subdir('ext')
 
-# Build Tizen CAPI
-if get_option('enable-tizen-capi')
-  subdir('tizen-api')
-endif
+# Build API
+subdir('api')
 
 # Build nnstreamer examples
 if get_option('enable-test') or get_option('install-example')
