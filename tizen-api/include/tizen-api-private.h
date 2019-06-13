@@ -29,23 +29,41 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
 
-#include <tizen_error.h>
-#include <dlog.h>
-
 #include <nnstreamer/tensor_typedef.h>
 
 #include "nnstreamer.h"
 
-#define DLOG_TAG "nnstreamer-capi"
+#define TAG_NAME "nnstreamer-capi"
 
-#define dlogi(...) \
-    dlog_print (DLOG_INFO, DLOG_TAG, __VA_ARGS__)
+#if defined(__TIZEN__)
+  #include <dlog.h>
 
-#define dlogw(...) \
-    dlog_print (DLOG_WARN, DLOG_TAG, __VA_ARGS__)
+  #define ml_logi(...) \
+      dlog_print (DLOG_INFO, TAG_NAME, __VA_ARGS__)
 
-#define dloge(...) \
-    dlog_print (DLOG_ERROR, DLOG_TAG, __VA_ARGS__)
+  #define ml_logw(...) \
+      dlog_print (DLOG_WARN, TAG_NAME, __VA_ARGS__)
+
+  #define ml_loge(...) \
+      dlog_print (DLOG_ERROR, TAG_NAME, __VA_ARGS__)
+
+#elif defined(__ANDROID__)
+  #include <android/log.h>
+
+  #define ml_logi(...) \
+      __android_log_print (ANDROID_LOG_INFO, TAG_NAME, __VA_ARGS__)
+
+  #define ml_logw(...) \
+  __android_log_print (ANDROID_LOG_WARNING, TAG_NAME, __VA_ARGS__)
+
+  #define ml_loge(...) \
+  __android_log_print (ANDROID_LOG_ERROR, TAG_NAME, __VA_ARGS__)
+
+#else /* Linux distro */
+  #define ml_logi g_message
+  #define ml_loge g_message
+  #define ml_logw g_message
+#endif
 
 #ifdef __cplusplus
 extern "C" {

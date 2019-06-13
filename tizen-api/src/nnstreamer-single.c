@@ -23,6 +23,7 @@
  * @bug No known bugs except for NYI items
  */
 
+#include <string.h>
 #include <gst/app/app.h>
 
 #include <nnstreamer.h>         /* Uses NNStreamer/Pipeline C-API */
@@ -96,7 +97,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
 
   /* Validate the params */
   if (!single) {
-    dloge ("The given param, single is invalid.");
+    ml_loge ("The given param, single is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -104,26 +105,26 @@ ml_single_open (ml_single_h * single, const char *model_path,
   *single = NULL;
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    dloge ("The given param, model path [%s] is invalid.",
+    ml_loge ("The given param, model path [%s] is invalid.",
         GST_STR_NULL (model_path));
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (input_info &&
       ml_util_validate_tensors_info (input_info) != ML_ERROR_NONE) {
-    dloge ("The given param, input tensor info is invalid.");
+    ml_loge ("The given param, input tensor info is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (output_info &&
       ml_util_validate_tensors_info (output_info) != ML_ERROR_NONE) {
-    dloge ("The given param, output tensor info is invalid.");
+    ml_loge ("The given param, output tensor info is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   status = ml_util_check_nnfw (nnfw, hw);
   if (status < 0) {
-    dloge ("The given nnfw is not available.");
+    ml_loge ("The given nnfw is not available.");
     return status;
   }
 
@@ -138,7 +139,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
       break;
     case ML_NNFW_TENSORFLOW_LITE:
       if (!g_str_has_suffix (model_path, ".tflite")) {
-        dloge ("The given model file [%s] has invalid extension.", model_path);
+        ml_loge ("The given model file [%s] has invalid extension.", model_path);
         return ML_ERROR_INVALID_PARAMETER;
       }
 
@@ -149,7 +150,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
       break;
     default:
       /** @todo Add other fw later. */
-      dloge ("The given nnfw is not supported.");
+      ml_loge ("The given nnfw is not supported.");
       return ML_ERROR_NOT_SUPPORTED;
   }
 
@@ -189,7 +190,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
 
     status = ml_util_validate_tensors_info (&single_h->in_info);
     if (status != ML_ERROR_NONE) {
-      dloge ("Failed to get the input tensor info.");
+      ml_loge ("Failed to get the input tensor info.");
       goto error;
     }
 
@@ -207,7 +208,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
 
     status = ml_util_validate_tensors_info (&single_h->out_info);
     if (status != ML_ERROR_NONE) {
-      dloge ("Failed to get the output tensor info.");
+      ml_loge ("Failed to get the output tensor info.");
       goto error;
     }
 
@@ -242,7 +243,7 @@ ml_single_close (ml_single_h single)
   int ret;
 
   if (!single) {
-    dloge ("The given param, single is invalid.");
+    ml_loge ("The given param, single is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -288,7 +289,7 @@ ml_single_inference (ml_single_h single,
   int i, status = ML_ERROR_NONE;
 
   if (!single || !input) {
-    dloge ("The given param is invalid.");
+    ml_loge ("The given param is invalid.");
     status = ML_ERROR_INVALID_PARAMETER;
     goto error;
   }
@@ -298,7 +299,7 @@ ml_single_inference (ml_single_h single,
   /* Validate output memory and size */
   if (output) {
     if (output->num_tensors != single_h->out_info.num_tensors) {
-      dloge ("Invalid output data, the number of output is different.");
+      ml_loge ("Invalid output data, the number of output is different.");
       status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
@@ -307,7 +308,7 @@ ml_single_inference (ml_single_h single,
       if (!output->tensors[i].tensor ||
           output->tensors[i].size !=
           ml_util_get_tensor_size (&single_h->out_info.info[i])) {
-        dloge ("Invalid output data, the size of output is different.");
+        ml_loge ("Invalid output data, the size of output is different.");
         status = ML_ERROR_INVALID_PARAMETER;
         goto error;
       }
@@ -325,7 +326,7 @@ ml_single_inference (ml_single_h single,
 
   ret = gst_app_src_push_buffer (GST_APP_SRC (single_h->src), buffer);
   if (ret != GST_FLOW_OK) {
-    dloge ("Cannot push a buffer into source element.");
+    ml_loge ("Cannot push a buffer into source element.");
     status = ML_ERROR_STREAMS_PIPE;
     goto error;
   }
@@ -334,7 +335,7 @@ ml_single_inference (ml_single_h single,
   sample =
       gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND);
   if (!sample) {
-    dloge ("Failed to get the result from sink element.");
+    ml_loge ("Failed to get the result from sink element.");
     status = ML_ERROR_STREAMS_PIPE;
     goto error;
   }
@@ -345,7 +346,7 @@ ml_single_inference (ml_single_h single,
     result = ml_util_allocate_tensors_data (&single_h->out_info);
 
     if (!result) {
-      dloge ("Failed to allocate the memory block.");
+      ml_loge ("Failed to allocate the memory block.");
       status = ml_util_get_last_error ();
       goto error;
     }
@@ -401,7 +402,7 @@ ml_single_get_input_info (ml_single_h single,
   g_free (val);
 
   if (info.num_tensors != rank) {
-    dlogw ("Invalid state, input tensor type is mismatched in filter.");
+    ml_logw ("Invalid state, input tensor type is mismatched in filter.");
   }
 
   g_object_get (single_h->filter, "inputname", &val, NULL);
@@ -409,7 +410,7 @@ ml_single_get_input_info (ml_single_h single,
   g_free (val);
 
   if (info.num_tensors != rank) {
-    dlogw ("Invalid state, input tensor name is mismatched in filter.");
+    ml_logw ("Invalid state, input tensor name is mismatched in filter.");
   }
 
   ml_util_copy_tensors_info_from_gst (input_info, &info);
@@ -448,7 +449,7 @@ ml_single_get_output_info (ml_single_h single,
   g_free (val);
 
   if (info.num_tensors != rank) {
-    dlogw ("Invalid state, output tensor type is mismatched in filter.");
+    ml_logw ("Invalid state, output tensor type is mismatched in filter.");
   }
 
   g_object_get (single_h->filter, "outputname", &val, NULL);
@@ -456,7 +457,7 @@ ml_single_get_output_info (ml_single_h single,
   g_free (val);
 
   if (info.num_tensors != rank) {
-    dlogw ("Invalid state, output tensor name is mismatched in filter.");
+    ml_logw ("Invalid state, output tensor name is mismatched in filter.");
   }
 
   ml_util_copy_tensors_info_from_gst (output_info, &info);

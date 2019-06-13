@@ -25,7 +25,7 @@
 #define __TIZEN_MACHINELEARNING_NNSTREAMER_H__
 
 #include <stddef.h>
-#include <tizen_error.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -130,11 +130,13 @@ typedef enum _ml_tensor_type_e
  * @since_tizen 5.5
  */
 typedef enum {
-  ML_ERROR_NONE				= TIZEN_ERROR_NONE, /**< Success! */
-  ML_ERROR_INVALID_PARAMETER			= TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
-  ML_ERROR_NOT_SUPPORTED			= TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
-  ML_ERROR_STREAMS_PIPE			= TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access GStreamer pipeline. */
-  ML_ERROR_TRY_AGAIN				= TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
+  ML_ERROR_NONE				= 0, /**< Success! */
+  ML_ERROR_INVALID_PARAMETER			= -EINVAL, /**< Invalid parameter */
+  ML_ERROR_STREAMS_PIPE			= -ESTRPIPE, /**< Cannot create or access GStreamer pipeline. */
+  ML_ERROR_TRY_AGAIN				= -EAGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
+  ML_ERROR_UNKNOWN = (-1073741824LL),
+  ML_ERROR_TIMED_OUT,
+  ML_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
 } ml_error_e;
 
 /**

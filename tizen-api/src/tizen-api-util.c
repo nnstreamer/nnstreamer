@@ -142,7 +142,7 @@ ml_util_get_tensor_size (const ml_tensor_info_s * info)
       tensor_size = 8;
       break;
     default:
-      dloge ("In the given param, tensor type is invalid.");
+      ml_loge ("In the given param, tensor type is invalid.");
       return 0;
   }
 
@@ -232,7 +232,7 @@ ml_util_allocate_tensors_data (const ml_tensors_info_s * info)
 
   data = g_new0 (ml_tensors_data_s, 1);
   if (!data) {
-    dloge ("Failed to allocate the memory block.");
+    ml_loge ("Failed to allocate the memory block.");
     ml_util_set_error (ML_ERROR_STREAMS_PIPE);
     return NULL;
   }
