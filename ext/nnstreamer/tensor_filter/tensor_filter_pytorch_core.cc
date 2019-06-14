@@ -105,7 +105,7 @@ TorchCore::loadModel ()
 #endif
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path is not valid.");
+    g_critical ("the file of model_path (%s) is not valid (not regular).", model_path);
     return -1;
   }
 
