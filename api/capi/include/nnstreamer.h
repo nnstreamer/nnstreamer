@@ -25,7 +25,11 @@
 #define __NNSTREAMER_CAPI_H__
 
 #include <stddef.h>
-#include <errno.h>
+/**
+ *  Apply modify_nnstreamer_h_for_nontizen.sh if you want to use
+ * in non-Tizen Linux machines
+ */
+#include <tizen_error.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -125,7 +129,6 @@ typedef enum _ml_tensor_type_e
   ML_TENSOR_TYPE_UNKNOWN          /**< Unknown type */
 } ml_tensor_type_e;
 
-#include <tizen_error.h>
 /**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.
  * @since_tizen 5.5
