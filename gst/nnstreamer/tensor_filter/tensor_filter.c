@@ -1091,53 +1091,51 @@ static void
 gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     GstTensorsInfo * info2)
 {
-  gchar null[] = "";
-  gchar *result = null;
-  gchar *dimstr = NULL;
-  int i;
+  gchar *result = NULL;
+  gchar *line, *tmp, *left, *right;
+  guint i;
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    gchar *line, *tmp;
-    gchar *left = NULL, *right = NULL;
-
     if (info1->num_tensors <= i && info2->num_tensors <= i)
       break;
 
     if (info1->num_tensors > i) {
-      dimstr = gst_tensor_get_dimension_string (info1->info[i].dimension);
+      tmp = gst_tensor_get_dimension_string (info1->info[i].dimension);
       left = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info1->info[i].type), dimstr);
-      g_free (dimstr);
+          gst_tensor_get_type_string (info1->info[i].type), tmp);
+      g_free (tmp);
     } else {
-      left = null;
+      left = g_strdup ("None");
     }
 
     if (info2->num_tensors > i) {
-      dimstr = gst_tensor_get_dimension_string (info2->info[i].dimension);
+      tmp = gst_tensor_get_dimension_string (info2->info[i].dimension);
       right = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info2->info[i].type), dimstr);
-      g_free (dimstr);
+          gst_tensor_get_type_string (info2->info[i].type), tmp);
+      g_free (tmp);
     } else {
-      right = null;
+      right = g_strdup ("None");
     }
 
     line =
         g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
-        !strcmp (left, right) ? "" : "FAILED");
-    if (left && left[0] != '\0')
-      g_free (left);
-    if (right && right[0] != '\0')
-      g_free (right);
+        g_str_equal (left, right) ? "" : "FAILED");
 
-    tmp = g_strdup_printf ("%s%s", result, line);
+    g_free (left);
+    g_free (right);
 
-    if (result[0] != '\0')
+    if (result) {
+      tmp = g_strdup_printf ("%s%s", result, line);
       g_free (result);
-    result = tmp;
-    g_free (line);
+      g_free (line);
+
+      result = tmp;
+    } else {
+      result = line;
+    }
   }
 
-  if (result != null) {
+  if (result) {
     /* print warning message */
     g_warning ("Tensor info :\n%s", result);
     g_free (result);

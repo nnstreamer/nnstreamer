@@ -406,6 +406,7 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
         case GST_ITERATOR_ERROR:
           ml_logw
               ("There is an error or a resync-event while inspecting a pipeline. However, we can still execute the pipeline.");
+          /* fallthrough */
         case GST_ITERATOR_DONE:
           done = TRUE;
       }
