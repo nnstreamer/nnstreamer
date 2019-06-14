@@ -333,8 +333,14 @@ ml_single_inference (ml_single_h single,
   }
 
   /* Try to get the result */
+#if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
+  /* gst_app_sink_try_pull_sample() is available at gstreamer-1.10 */
   sample =
       gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND);
+#else
+  sample = gst_app_sink_pull_sample (GST_APP_SINK (single_h->sink));
+#endif
+
   if (!sample) {
     ml_loge ("Failed to get the result from sink element.");
     status = ML_ERROR_TIMED_OUT;
