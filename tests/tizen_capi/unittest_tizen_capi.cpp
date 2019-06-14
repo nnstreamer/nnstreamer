@@ -583,12 +583,12 @@ TEST (nnstreamer_capi_src, dummy_01)
   status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_EQ (tensorsinfo.num_tensors, 1);
+  EXPECT_EQ (tensorsinfo.num_tensors, 1U);
   EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1U);
 
   tensorsinfo.num_tensors = 1;
   tensorsinfo.info[0].type = ML_TENSOR_TYPE_UINT8;
@@ -613,12 +613,12 @@ TEST (nnstreamer_capi_src, dummy_01)
   status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_EQ (tensorsinfo.num_tensors, 1);
+  EXPECT_EQ (tensorsinfo.num_tensors, 1U);
   EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1U);
+  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1U);
 
   for (i = 0; i < 10; i++) {
     data1.num_tensors = 1;
@@ -647,7 +647,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   r = g_file_get_contents (file1, (gchar **) &content, &len, NULL);
   EXPECT_EQ (r, TRUE);
 
-  EXPECT_EQ (len, 8 * 11);
+  EXPECT_EQ (len, 8U * 11);
 
   for (i = 0; i < 10; i++) {
     EXPECT_EQ (content[i * 8 + 0 + 8], i);
