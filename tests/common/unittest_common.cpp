@@ -502,10 +502,10 @@ TEST (conf_custom, env_str_01)
   const gchar *base_confenv;
   gchar *confenv;
 
+  ASSERT_TRUE (fp != NULL);
+
   base_confenv = g_getenv ("NNSTREAMER_CONF");
   confenv = (base_confenv != NULL) ? g_strdup (base_confenv) : NULL;
-
-  ASSERT_TRUE (fp != NULL);
 
   g_fprintf (fp, "[common]\n");
   g_fprintf (fp, "enable_envvar=True\n");
