@@ -165,19 +165,6 @@ cp %{SOURCE1001} .
 cp %{SOURCE1002} .
 %endif
 
-%if ! %{with tizen}
-##
-# If CAPI is built for Non Tizen platform, then below command will be executed.
-sed -i "s|#include <tizen_error.h>||" api/capi/include/nnstreamer.h
-sed -i "s|TIZEN_ERROR_NONE|0|" api/capi/include/nnstreamer.h
-sed -i "s|TIZEN_ERROR_INVALID_PARAMETER|-EINVAL|" api/capi/include/nnstreamer.h
-sed -i "s|TIZEN_ERROR_STREAMS_PIPE|-ESTRPIPE|" api/capi/include/nnstreamer.h
-sed -i "s|TIZEN_ERROR_TRY_AGAIN|-EAGAIN|" api/capi/include/nnstreamer.h
-sed -i "s|TIZEN_ERROR_UNKNOWN|(-1073741824LL)|" api/capi/include/nnstreamer.h
-sed -i "s|= TIZEN_ERROR_TIMED_OUT||" api/capi/include/nnstreamer.h
-sed -i "s|= TIZEN_ERROR_NOT_SUPPORTED||" api/capi/include/nnstreamer.h
-%endif
-
 %build
 %if 0%{?testcoverage}
 CXXFLAGS="${CXXFLAGS} -fprofile-arcs -ftest-coverage"
@@ -192,7 +179,7 @@ mkdir -p build
 %define enable_tf false
 %endif
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Dc_args='-D__TIZEN__' build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true build
 
 ninja -C build %{?_smp_mflags}
 

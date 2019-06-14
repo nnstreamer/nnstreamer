@@ -30,10 +30,21 @@ capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer
 inc = include_directories('include')
 nninc = include_directories('../../gst')
 
-tizen_deps = [
-  dependency('capi-base-common'),
-  dependency('dlog')
-]
+tizen_deps = []
+
+if (get_option('enable-tizen'))
+  message('CAPI is in Tizen mode')
+  tizen_deps = [
+    dependency('capi-base-common'),
+    dependency('dlog')
+  ]
+else
+  r = run_command('./modify_nnstreamer_h_for_nontizen.sh')
+  if (r.returncode() != 0)
+    message('Non-Tizen mode support failed')
+  endif
+  message('CAPI is in non-Tizen mode')
+endif
 
 capi_deps = [
   nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
