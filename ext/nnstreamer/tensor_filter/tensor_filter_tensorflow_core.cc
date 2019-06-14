@@ -108,7 +108,7 @@ TFCore::loadModel ()
   GraphDef graph_def;
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path is not valid\n");
+    g_critical ("the file of model_path (%s) is not valid (not regular)\n", model_path);
     return -1;
   }
   status = ReadBinaryProto (Env::Default (), model_path, &graph_def);
