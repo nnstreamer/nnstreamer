@@ -274,6 +274,12 @@ nnsconf_loadconf (gboolean force_reload)
     conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
   }
 
+  if (conf.conffile == NULL)
+    conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
+
+  g_assert (key_file != NULL);
+  g_assert (conf.conffile != NULL);
+
   /* Read the conf file. It's ok even if we cannot load it. */
   if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
           NULL)) {
@@ -467,6 +473,8 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
     /* 2. Read ini */
     if (NULL == value && conf.conffile) {
       g_autoptr (GKeyFile) key_file = g_key_file_new ();
+
+      g_assert (key_file != NULL);
 
       if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
               NULL)) {
