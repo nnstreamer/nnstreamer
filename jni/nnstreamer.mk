@@ -1,7 +1,8 @@
 # This mk file defines common features to build NNStreamer library for Android.
 
 ifndef NNSTREAMER_ROOT
-$(error NNSTREAMER_ROOT is not defined!)
+$(warning NNSTREAMER_ROOT is not defined! Using $(LOCAL_PATH)/.. )
+NNSTREAMER_ROOT := $(LOCAL_PATH)/..
 endif
 
 NNSTREAMER_VERSION  := 0.2.1
@@ -87,3 +88,39 @@ NNSTREAMER_DECODER_PE_SRCS := \
 # common features
 NO_AUDIO := false
 
+ENABLE_NNAPI :=false
+
+GST_LIBS_COMMON := gstreamer-1.0 gstbase-1.0 gstvideo-1.0 glib-2.0 \
+                   gobject-2.0 intl z bz2 orc-0.4 gmodule-2.0 gsttag-1.0 iconv \
+                   gstapp-1.0 png16 gio-2.0 pangocairo-1.0 \
+                   pangoft2-1.0 pango-1.0 gthread-2.0 cairo pixman-1 fontconfig expat freetype \
+                   gstcontroller-1.0 jpeg graphene-1.0 gstpbutils-1.0 gstgl-1.0 \
+                   gstallocators-1.0 harfbuzz gstphotography-1.0 ffi fribidi gstnet-1.0 \
+		   cairo-gobject cairo-script-interpreter
+
+ifeq ($(NO_AUDIO), false)
+GST_LIBS_COMMON += gstaudio-1.0 gstbadaudio-1.0
+endif
+
+GST_LIBS_GST := gstcoreelements gstcoretracers gstadder gstapp \
+                gstpango gstrawparse gsttypefindfunctions gstvideoconvert gstvideorate \
+                gstvideoscale gstvideotestsrc gstvolume gstautodetect gstvideofilter gstvideocrop gstopengl \
+                gstopensles gstcompositor gstpng gstmultifile gstvideomixer gsttcp gstjpegformat gstcairo
+
+ifeq ($(NO_AUDIO), false)
+GST_LIBS_GST += gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc gstjpeg
+endif
+
+# gstreamer building block for nstreamer
+GST_BUILDING_BLOCK_LIST := $(GST_LIBS_COMMON) $(GST_LIBS_GST)
+
+# gstreamer building block for decoder and filter
+NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite
+
+# libs for nnapi
+NNAPI_BUILDING_BLOCK := arm_compute_ex backend_acl_cl backend_acl_neon backend_cpu \
+                        neuralnetworks arm_compute_core arm_compute_graph arm_compute OpenCL
+
+ifeq ($(ENABLE_NNAPI), true)
+NNSTR$EAMER_BUILDING_BLOCK_LIST += $(NNAPI_BUILDING_BLOCK)
+endif
