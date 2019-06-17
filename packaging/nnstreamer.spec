@@ -194,7 +194,7 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_sink --gst-plugin-path=.
     ./tests/unittest_plugins --gst-plugin-path=.
     ./tests/unittest_src_iio --gst-plugin-path=.
-    LD_LIBRARY_PATH=tizen-api ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=.
+    ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=.
     popd
     pushd tests
     ssat -n
@@ -218,7 +218,7 @@ DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
 # tests: We are not going to show testcoverage of the test code itself or example applications
 
 %if %{with tizen}
-%define testtarget $(pwd)/tizen-api
+%define testtarget $(pwd)/api/capi
 %else
 %define testtarget
 %endif
