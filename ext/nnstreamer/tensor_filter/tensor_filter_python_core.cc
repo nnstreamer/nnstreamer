@@ -92,6 +92,7 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   PyObject *api_module = PyImport_ImportModule("nnstreamer_python");
   g_assert(api_module);
   shape_cls = PyObject_GetAttrString(api_module, "TensorShape"); 
+  g_assert(shape_cls);
   Py_XDECREF(api_module);
 
   gst_tensors_info_init (&inputTensorMeta);
