@@ -21,8 +21,8 @@
  * @bug No known bugs except for NYI items
  */
 
-#ifndef __NNSTREAMER_CAPI_H__
-#define __NNSTREAMER_CAPI_H__
+#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_H__
+#define __TIZEN_MACHINELEARNING_NNSTREAMER_H__
 
 #include <stddef.h>
 /**
@@ -139,7 +139,7 @@ typedef enum {
   ML_ERROR_STREAMS_PIPE         = TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access GStreamer pipeline. */
   ML_ERROR_TRY_AGAIN            = TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
   ML_ERROR_UNKNOWN              = TIZEN_ERROR_UNKNOWN,  /**< Unknown error */
-  ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /** Time out */
+  ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /**< Time out */
   ML_ERROR_NOT_SUPPORTED        = TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
 } ml_error_e;
 
@@ -222,7 +222,7 @@ typedef struct {
 } ml_tensor_data_s;
 
 /**
- * @brief An instance of input or output frames. ml_tensors_info_s is the metadata.
+ * @brief An instance of input or output frames. #ml_tensors_info_s is the metadata.
  * @since_tizen 5.5
  */
 typedef struct {
@@ -234,11 +234,13 @@ typedef struct {
  * @brief Callback for sink element of NNStreamer pipelines (pipeline's output)
  * @detail If an application wants to accept data outputs of an NNStreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not hold too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
+ * @remarks The @a data can be used only in the callback. To use outside, make a copy.
+ * @remarks The @a info can be used only in the callback. To use outside, make a copy.
  * @param[in] data The contents of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by data->num_tensors. Note that max num_tensors is 16 (ML_TENSOR_SIZE_LIMIT).
  * @param[in] info The cardinality, dimension, and type of given tensor/tensors.
- * @param[in,out] pdata User Application's Private Data.
+ * @param[in,out] user_data User Application's Private Data.
  */
-typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_s *data, const ml_tensors_info_s *info, void *pdata);
+typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_s *data, const ml_tensors_info_s *info, void *user_data);
 
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
@@ -252,8 +254,8 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_s *data, const ml_ten
  * @param[out] pipe The NNStreamer pipeline handler from the given description.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  */
 int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h *pipe);
 
@@ -264,8 +266,8 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h *pipe
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (pipe is NULL?)
+ * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
  */
 int ml_pipeline_destroy (ml_pipeline_h pipe);
 
@@ -293,8 +295,8 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @param[in] pipe The pipeline to be started.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_STREAMS_PIPE Failed to start.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to start.
  */
 int ml_pipeline_start (ml_pipeline_h pipe);
 
@@ -306,8 +308,8 @@ int ml_pipeline_start (ml_pipeline_h pipe);
  * @param[in] pipe The pipeline to be stopped.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_STREAMS_PIPE Failed to start.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to start.
  */
 int ml_pipeline_stop (ml_pipeline_h pipe);
 
@@ -325,8 +327,8 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @param[in] pdata Private data for the callback. This value is passed to the callback when it's invoked.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  */
 int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pipeline_sink_cb cb, ml_pipeline_sink_h *h, void *pdata);
 
@@ -541,9 +543,9 @@ ml_tensors_data_s *ml_util_allocate_tensors_data (const ml_tensors_info_s *info)
  * @brief Checks the availability of the given execution environments.
  * @since_tizen 5.5
  * @param[in] nnfw Check if the nnfw is available in the system.
- *                 Set ML_NNFW_UNKNOWN to skip checking nnfw.
+ *               Set #ML_NNFW_UNKNOWN to skip checking nnfw.
  * @param[in] hw Check if the hardware is available in the system.
- *               Set ML_NNFW_HW_DO_NOT_CARE to skip checking hardware.
+ *               Set #ML_NNFW_HW_DO_NOT_CARE to skip checking hardware.
  * @return @c 0 if it's available. 1 if it's not available.
  *            negative value if there is an error.
  * @retval #ML_ERROR_NONE Successful and the environments are available.
@@ -565,4 +567,4 @@ int ml_util_get_last_error (void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* __NNSTREAMER_CAPI_H__ */
+#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_H__ */
