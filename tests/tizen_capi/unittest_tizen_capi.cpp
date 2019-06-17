@@ -537,7 +537,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   gchar *file1 = g_build_path ("/", dir, "output", NULL);
   gchar *pipeline =
       g_strdup_printf
-      ("appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! filesink location=\"%s\"",
+      ("appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! filesink location=\"%s\"",
       file1);
   ml_pipeline_h handle;
   ml_pipeline_state_e state;
@@ -728,7 +728,7 @@ TEST (nnstreamer_capi_src, failure_03)
   const int num_tensors = ML_TENSOR_SIZE_LIMIT + 1;
   const int num_dims = 4;
 
-  const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=4:1:1:1,type=uint8,framerate=0/1 ! tensor_sink";
+  const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! tensor_sink";
   ml_pipeline_h handle;
   ml_tensors_info_s tensorsinfo;
   ml_pipeline_src_h srchandle;
@@ -1014,14 +1014,18 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
   ml_util_initialize_tensors_info (&in_info);
   ml_util_initialize_tensors_info (&out_info);
   ml_util_initialize_tensors_info (&in_res);
   ml_util_initialize_tensors_info (&out_res);
-
-  ASSERT_TRUE (root_path != NULL);
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   in_info.num_tensors = 1;
   in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
@@ -1120,12 +1124,16 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
 
-  ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
 
   in_info.num_tensors = 1;
   in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
@@ -1197,12 +1205,16 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
 
-  ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "build", "nnstreamer_example", "custom_example_passthrough",
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
 
   in_info.num_tensors = 2;
   in_info.info[0].type = ML_TENSOR_TYPE_INT16;
@@ -1309,16 +1321,22 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   gchar *contents = NULL;
   gsize len = 0;
 
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "conv_actions_frozen.pb", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  test_file = g_build_filename (root_path, "tests", "test_models", "data",
+      "yes.wav", NULL);
+  ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
+
   ml_util_initialize_tensors_info (&in_info);
   ml_util_initialize_tensors_info (&out_info);
   ml_util_initialize_tensors_info (&in_res);
   ml_util_initialize_tensors_info (&out_res);
-
-  ASSERT_TRUE (root_path != NULL);
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "conv_actions_frozen.pb", NULL);
-  test_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "yes.wav", NULL);
 
   in_info.num_tensors = 1;
   in_info.info[0].name = g_strdup ("wav_data");
@@ -1429,12 +1447,16 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
 
-  ASSERT_TRUE (root_path != NULL);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_util_initialize_tensors_info (&in_info);
+  ml_util_initialize_tensors_info (&out_info);
 
   /* invalid file path */
   status = ml_single_open (&single, "wrong_file_name", &in_info, &out_info,
