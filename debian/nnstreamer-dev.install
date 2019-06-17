@@ -1,3 +1,4 @@
 /usr/include/nnstreamer/*.h
 /usr/lib/*/pkgconfig/*.pc
+/usr/lib/*/libcapi-*.so
 /usr/lib/*/*.a

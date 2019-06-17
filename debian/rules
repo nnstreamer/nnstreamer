@@ -35,7 +35,7 @@ override_dh_auto_clean:
 
 override_dh_auto_configure:
 	mkdir -p build
-	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include -Dinstall-example=true -Denable-tensorflow=$(enable_tf) build
+	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include -Dinstall-example=true -Denable-tensorflow=$(enable_tf) -Denable-capi=true build
 
 override_dh_auto_build:
 	ninja -C build
@@ -45,6 +45,7 @@ override_dh_auto_test:
 	cd build && ./tests/unittest_sink --gst-plugin-path=. && cd ..
 	cd build && ./tests/unittest_plugins --gst-plugin-path=. && cd ..
 	cd build && ./tests/unittest_src_iio --gst-plugin-path=. && cd ..
+	cd build && ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. && cd ..
 	cd tests && ssat -n && cd ..
 
 override_dh_link:
