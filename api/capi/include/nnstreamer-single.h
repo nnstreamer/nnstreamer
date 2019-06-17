@@ -25,10 +25,10 @@
  * @detail This is targetting Tizen 5.5 M2.
  */
 
-#ifndef __NNSTREAMER_CAPI_SINGLE_H__
-#define __NNSTREAMER_CAPI_SINGLE_H__
+#ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_SINGLE_H__
+#define __TIZEN_MACHINELEARNING_NNSTREAMER_SINGLE_H__
 
-#include "nnstreamer.h"
+#include <nnstreamer.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +39,7 @@ extern "C" {
  */
 
 /**
- * @brief A handle of a single-shot instance
+ * @brief A handle of a single-shot instance.
  * @since_tizen 5.5
  */
 typedef void *ml_single_h;
@@ -62,7 +62,7 @@ typedef void *ml_single_h;
  *                      You may set NULL if it's not required.
  * @param[in] output_info This is required if the given model has flexible output dimension.
  * @param[in] nnfw The nerual network framework used to open the given
- *                 @model_path. Set ML_NNFW_UNKNOWN to let it auto-detect.
+ *                 #model_path. Set ML_NNFW_UNKNOWN to let it auto-detect.
  * @param[in] hw Tell the corresponding @nnfw to use a specific hardware.
  *               Set ML_NNFW_HW_DO_NOT_CARE if it does not matter.
  * @return @c 0 on success. otherwise a negative error value
@@ -149,4 +149,4 @@ int ml_single_get_output_info (ml_single_h single, ml_tensors_info_s *output_inf
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* __NNSTREAMER_CAPI_SINGLE_H__ */
+#endif /* __TIZEN_MACHINELEARNING_NNSTREAMER_SINGLE_H__ */
