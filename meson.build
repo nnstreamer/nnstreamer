@@ -162,6 +162,17 @@ if get_option('enable-pytorch')
   endif
 endif
 
+# Caffe2
+if get_option('enable-caffe2')
+  caffe2_dep = dependency('caffe2', required: true)
+
+  if caffe2_dep.found()
+    add_project_arguments('-DENABLE_CAFFE2=1', language: ['c', 'cpp'])
+  else
+    message('Cannot find caffe2')
+  endif
+endif
+
 # Python
 have_python2 = false
 have_python3 = false

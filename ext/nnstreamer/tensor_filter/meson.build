@@ -88,6 +88,36 @@ if get_option('enable-pytorch')
   )
 endif
 
+if get_option('enable-caffe2')
+  filter_sub_caffe2_sources = [
+    'tensor_filter_caffe2.c',
+    'tensor_filter_caffe2_core.cc'
+  ]
+
+  nnstreamer_filter_caffe2_sources = []
+  foreach s : filter_sub_caffe2_sources
+    nnstreamer_filter_caffe2_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_caffe2_deps = [caffe2_dep, protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_caffe2',
+    nnstreamer_filter_caffe2_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_caffe2_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_caffe2',
+    nnstreamer_filter_caffe2_sources,
+    cpp_args: ['-Wno-sign-compare'],
+    dependencies: nnstreamer_filter_caffe2_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 filter_sub_python_sources = [
   'tensor_filter_python.c',
   'tensor_filter_python_core.cc'

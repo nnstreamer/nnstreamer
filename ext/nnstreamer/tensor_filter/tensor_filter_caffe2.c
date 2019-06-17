@@ -74,7 +74,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     cf2 = *private_data;
     if (g_strcmp0 (prop->model_file,
-            caffe2_core_getModelPath (cf2->caffe2_private_data)) != 0 ||
+            caffe2_core_getPredModelPath (cf2->caffe2_private_data)) != 0 ||
         g_strcmp0 (prop->model_file_sub,
             caffe2_core_getInitModelPath (cf2->caffe2_private_data)) != 0) {
       caffe2_close (prop, private_data);
@@ -87,14 +87,14 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
   cf2->caffe2_private_data = caffe2_core_new (prop->model_file,
       prop->model_file_sub);
   if (cf2->caffe2_private_data) {
-    if (caffe2_core_init (cf2->caffe2_private_data)) {
-      g_printerr ("failed to initialize the object: Caffe2");
+    if (caffe2_core_init (cf2->caffe2_private_data, prop)) {
+      g_critical ("failed to initialize the object: Caffe2");
       g_free (cf2);
       return -2;
     }
     return 0;
   } else {
-    g_printerr ("failed to create the object: Caffe2");
+    g_critical ("failed to create the object: Caffe2");
     g_free (cf2);
     return -1;
   }
@@ -166,12 +166,23 @@ caffe2_getOutputDim (const GstTensorFilterProperties * prop,
   return caffe2_core_getOutputDim (cf2->caffe2_private_data, info);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] data The data element.
+ */
+static void
+caffe2_destroyNotify (void *data)
+{
+  caffe2_core_destroyNotify (data);
+}
+
 static gchar filter_subplugin_caffe2[] = "caffe2";
 
 static GstTensorFilterFramework NNS_support_caffe2 = {
   .name = filter_subplugin_caffe2,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
+  .destroyNotify = caffe2_destroyNotify,
   .invoke_NN = caffe2_run,
   .getInputDimension = caffe2_getInputDim,
   .getOutputDimension = caffe2_getOutputDim,

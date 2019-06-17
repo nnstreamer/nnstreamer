@@ -82,6 +82,7 @@ extern "C"
   int caffe2_core_getOutputDim (void * caffe2, GstTensorsInfo * info);
   int caffe2_core_run (void * caffe2, const GstTensorMemory * input,
       GstTensorMemory * output);
+  void caffe2_core_destroyNotify (void * data);
 
 #ifdef __cplusplus
 }

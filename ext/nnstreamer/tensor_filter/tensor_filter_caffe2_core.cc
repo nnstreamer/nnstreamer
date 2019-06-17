@@ -91,10 +91,10 @@ do {\
   ReinitializeTensor (\
       inputTensor,\
       {\
-        inputTensorMeta.info[i].dimension[0],\
-        inputTensorMeta.info[i].dimension[1],\
+        inputTensorMeta.info[i].dimension[3],\
         inputTensorMeta.info[i].dimension[2],\
-        inputTensorMeta.info[i].dimension[3]\
+        inputTensorMeta.info[i].dimension[1],\
+        inputTensorMeta.info[i].dimension[0]\
       },\
       at::dtype<type> ().device (CPU)\
   );\
@@ -187,16 +187,26 @@ Caffe2Core::loadModels ()
   gint64 start_time = g_get_real_time ();
 #endif
   if (!g_file_test (init_model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of init_model_path is not valid\n");
+    g_critical ("the file of init_model_path is not valid: %s\n", init_model_path);
     return -1;
   }
   if (!g_file_test (pred_model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of pred_model_path is not valid\n");
+    g_critical ("the file of pred_model_path is not valid: %s\n", pred_model_path);
     return -1;
   }
-
   CAFFE_ENFORCE (ReadProtoFromFile (init_model_path, &initNet));
   CAFFE_ENFORCE (ReadProtoFromFile (pred_model_path, &predictNet));
+
+  /* set device type as CPU. If it is required, GPU/CUDA will be added as an option */
+  predictNet.mutable_device_option()->set_device_type(PROTO_CPU);
+  initNet.mutable_device_option()->set_device_type(PROTO_CPU);
+
+  for(int i = 0; i < predictNet.op_size(); ++i){
+      predictNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  }
+  for(int i = 0; i < initNet.op_size(); ++i){
+      initNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  }
 
   CAFFE_ENFORCE (workSpace.RunNetOnce (initNet));
   CAFFE_ENFORCE (workSpace.CreateNet (predictNet));
@@ -292,6 +302,7 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
   for (i = 0; i < outputTensorMeta.num_tensors; i++) {
     const auto& out = workSpace.GetBlob (outputTensorMeta.info[i].name)
       ->Get<Tensor> ();
+
     switch (outputTensorMeta.info[i].type){
       case _NNS_INT32:
         output[i].data = out.data<int32_t>();
@@ -436,4 +447,14 @@ caffe2_core_run (void * caffe2, const GstTensorMemory * input,
 {
   Caffe2Core *c = (Caffe2Core *) caffe2;
   return c->run (input, output);
+}
+
+/**
+ * @brief	the destroy notify method for caffe2. it will free the output tensor
+ * @param[in] data : the data element destroyed at the pipeline
+ */
+void
+caffe2_core_destroyNotify (void * data)
+{
+  /* do nothing */
 }
