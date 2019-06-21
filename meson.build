@@ -102,6 +102,9 @@ libm_dep = cc.find_library('m') # cmath library
 libdl_dep = cc.find_library('dl') # DL library
 thread_dep = dependency('threads') # pthread for tensorflow-lite
 
+# Protobuf
+protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
+
 # Orc
 have_orcc = false
 
@@ -131,7 +134,6 @@ endif
 # Tensorflow
 if get_option('enable-tensorflow')
   tf_dep = dependency('tensorflow', required: true)
-  protobuf_dep = dependency('protobuf', version: '>= 3.4.0', required: true)
 
   if tf_dep.found() and protobuf_dep.found()
     add_project_arguments('-DENABLE_TENSORFLOW=1', language: ['c', 'cpp'])
@@ -158,7 +160,7 @@ if get_option('enable-pytorch')
   if torch_dep.found()
     add_project_arguments('-DENABLE_PYTORCH=1', language: ['c', 'cpp'])
   else
-    message('Cannot find pytorch')
+    error('Cannot find pytorch')
   endif
 endif
 
@@ -166,10 +168,10 @@ endif
 if get_option('enable-caffe2')
   caffe2_dep = dependency('caffe2', required: true)
 
-  if caffe2_dep.found()
+  if caffe2_dep.found() and protobuf_dep.found()
     add_project_arguments('-DENABLE_CAFFE2=1', language: ['c', 'cpp'])
   else
-    message('Cannot find caffe2')
+    error('Cannot find caffe2')
   endif
 endif
 
