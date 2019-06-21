@@ -437,7 +437,7 @@ TEST (common_tensors_info_string, names)
 
   info.num_tensors = num_names;
   for (i = 0; i < num_names; ++i) {
-    EXPECT_TRUE (g_str_equal (info.info[i].name, ""));
+    EXPECT_TRUE (info.info[i].name == NULL);
   }
 
   str_names = gst_tensors_info_get_names_string (&info);
