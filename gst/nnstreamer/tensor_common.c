@@ -436,7 +436,12 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
       g_strstrip (str_name);
 
       g_free (info->info[i].name);
-      info->info[i].name = str_name;
+      info->info[i].name = NULL;
+
+      if (str_name && strlen (str_name))
+        info->info[i].name = str_name;
+      else
+        g_free (str_name);
     }
 
     g_strfreev (str_names);
