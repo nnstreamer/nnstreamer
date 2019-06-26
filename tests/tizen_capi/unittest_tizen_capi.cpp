@@ -1497,14 +1497,22 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   out_info.info[0].dimension[2] = 1;
   out_info.info[0].dimension[3] = 1;
 
-  /* unknown fw type */
+  /* invalid file extension */
   status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
-  EXPECT_EQ (status, ML_ERROR_NOT_SUPPORTED);
+      ML_NNFW_TENSORFLOW, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* Successfully opened unknown fw type (tf-lite) */
+  status = ml_single_open (&single, test_model, &in_info, &out_info,
+      ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
 }

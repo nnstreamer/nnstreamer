@@ -95,6 +95,7 @@ ml_single_open (ml_single_h * single, const char *model_path,
   GstCaps *caps;
   int status = ML_ERROR_NONE;
   gchar *pipeline_desc = NULL;
+  gchar *path_down;
 
   /* Validate the params */
   if (!single) {
@@ -104,12 +105,6 @@ ml_single_open (ml_single_h * single, const char *model_path,
 
   /* init null */
   *single = NULL;
-
-  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid.",
-        GST_STR_NULL (model_path));
-    return ML_ERROR_INVALID_PARAMETER;
-  }
 
   if (input_info &&
       ml_util_validate_tensors_info (input_info) != ML_ERROR_NONE) {
@@ -123,14 +118,65 @@ ml_single_open (ml_single_h * single, const char *model_path,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
+  /* 1. Determine nnfw */
+  /* Check file extention. */
+  path_down = g_ascii_strdown (model_path, -1);
+
+  switch (nnfw) {
+    case ML_NNFW_UNKNOWN:
+      if (g_str_has_suffix (path_down, ".tflite")) {
+        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model_path);
+        nnfw = ML_NNFW_TENSORFLOW_LITE;
+      } else if (g_str_has_suffix (path_down, ".pb")) {
+        ml_logi ("The given model [%s] is supposed a tensorflow model.", model_path);
+        nnfw = ML_NNFW_TENSORFLOW;
+      } else {
+        ml_loge ("The given model [%s] has unknown extension.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_CUSTOM_FILTER:
+      if (!g_str_has_suffix (path_down, ".so")) {
+        ml_loge ("The given model [%s] has invalid extension.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TENSORFLOW_LITE:
+      if (!g_str_has_suffix (path_down, ".tflite")) {
+        ml_loge ("The given model [%s] has invalid extension.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TENSORFLOW:
+      if (!g_str_has_suffix (path_down, ".pb")) {
+        ml_loge ("The given model [%s] has invalid extension.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    default:
+      break;
+  }
+
+  g_free (path_down);
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
+    ml_loge ("The given param, model path [%s] is invalid.",
+        GST_STR_NULL (model_path));
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  /* 2. Determine hw */
+  /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
   status = ml_util_check_nnfw (nnfw, hw);
   if (status < 0) {
     ml_loge ("The given nnfw is not available.");
     return status;
   }
 
-  /* 1. Determine nnfw */
-  /** @todo Check nnfw with file extention. */
+  /* 3. Construct a pipeline */
+  /* Set the pipeline desc with nnfw. */
   switch (nnfw) {
     case ML_NNFW_CUSTOM_FILTER:
       pipeline_desc =
@@ -139,22 +185,13 @@ ml_single_open (ml_single_h * single, const char *model_path,
           model_path);
       break;
     case ML_NNFW_TENSORFLOW_LITE:
-      if (!g_str_has_suffix (model_path, ".tflite")) {
-        ml_loge ("The given model file [%s] has invalid extension.", model_path);
-        return ML_ERROR_INVALID_PARAMETER;
-      }
-
+      /* We can get the tensor meta from tf-lite model. */
       pipeline_desc =
           g_strdup_printf
           ("appsrc name=srcx ! tensor_filter name=filterx framework=tensorflow-lite model=%s ! appsink name=sinkx sync=false",
           model_path);
       break;
     case ML_NNFW_TENSORFLOW:
-      if (!g_str_has_suffix (model_path, ".pb")) {
-        ml_loge ("The given model file [%s] has invalid extension.", model_path);
-        return ML_ERROR_INVALID_PARAMETER;
-      }
-
       if (input_info && output_info) {
         GstTensorsInfo in_info, out_info;
         gchar *str_dim, *str_type, *str_name;
@@ -203,10 +240,6 @@ ml_single_open (ml_single_h * single, const char *model_path,
       return ML_ERROR_NOT_SUPPORTED;
   }
 
-  /* 2. Determine hw */
-  /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
-
-  /* 3. Construct a pipeline */
   status = ml_pipeline_construct (pipeline_desc, &pipe);
   g_free (pipeline_desc);
   if (status != ML_ERROR_NONE) {
