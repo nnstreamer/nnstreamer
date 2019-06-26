@@ -193,7 +193,7 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_valve_control (valve1, 1); /* close */
+  status = ml_pipeline_valve_set_open (valve1, false); /* close */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_get_state (handle, &state);
@@ -212,7 +212,7 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_valve_control (valve1, 0); /* open */
+  status = ml_pipeline_valve_set_open (valve1, true); /* open */
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_pipeline_valve_put_handle (valve1); /* release valve handle */
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -282,14 +282,16 @@ TEST (nnstreamer_capi_valve, failure_01)
  */
 static void
 test_sink_callback_dm01 (const ml_tensors_data_s * data,
-    const ml_tensors_info_s * info, void *pdata)
+    const ml_tensors_info_h info, void *user_data)
 {
-  gchar *filepath = (gchar *) pdata;
+  gchar *filepath = (gchar *) user_data;
+  unsigned int i, num = 0;
   FILE *fp = g_fopen (filepath, "a");
+
   if (fp == NULL)
     return;
 
-  int i, num = info->num_tensors;
+  ml_util_get_tensors_count (info, &num);
 
   for (i = 0; i < num; i++) {
     fwrite (data->tensors[i].tensor, data->tensors[i].size, 1, fp);
@@ -303,9 +305,9 @@ test_sink_callback_dm01 (const ml_tensors_data_s * data,
  */
 static void
 test_sink_callback_count (const ml_tensors_data_s * data,
-    const ml_tensors_info_s * info, void *pdata)
+    const ml_tensors_info_h info, void *user_data)
 {
-  guint *count = (guint *) pdata;
+  guint *count = (guint *) user_data;
 
   *count = *count + 1;
 }
@@ -543,8 +545,11 @@ TEST (nnstreamer_capi_src, dummy_01)
   ml_pipeline_state_e state;
   ml_pipeline_src_h srchandle;
   int status;
-  ml_tensors_info_s tensorsinfo;
+  ml_tensors_info_h info;
   ml_tensors_data_s data1, data2;
+  unsigned int count = 0;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  ml_tensor_dimension dim = { 0, };
 
   int i;
   char *uintarray2[10];
@@ -580,22 +585,25 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_EQ (tensorsinfo.num_tensors, 1U);
-  EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1U);
+  status = ml_pipeline_src_get_tensors_info (srchandle, &info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
-  tensorsinfo.num_tensors = 1;
-  tensorsinfo.info[0].type = ML_TENSOR_TYPE_UINT8;
-  tensorsinfo.info[0].dimension[0] = 4;
-  tensorsinfo.info[0].dimension[1] = 1;
-  tensorsinfo.info[0].dimension[2] = 1;
-  tensorsinfo.info[0].dimension[3] = 1;
+  ml_util_get_tensors_count (info, &count);
+  EXPECT_EQ (count, 1U);
+
+  ml_util_get_tensor_type (info, 0, &type);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_UINT8);
+
+  ml_util_get_tensor_dimension (info, 0, dim);
+  EXPECT_EQ (dim[0], 4U);
+  EXPECT_EQ (dim[1], 1U);
+  EXPECT_EQ (dim[2], 1U);
+  EXPECT_EQ (dim[3], 1U);
+
+  ml_util_destroy_tensors_info (info);
 
   data1.num_tensors = 1;
   data1.tensors[0].tensor = uia_index[0];
@@ -610,15 +618,23 @@ TEST (nnstreamer_capi_src, dummy_01)
   status = ml_pipeline_src_put_handle (srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_EQ (tensorsinfo.num_tensors, 1U);
-  EXPECT_EQ (tensorsinfo.info[0].type, ML_TENSOR_TYPE_UINT8);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[0], 4U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[1], 1U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[2], 1U);
-  EXPECT_EQ (tensorsinfo.info[0].dimension[3], 1U);
+  status = ml_pipeline_src_get_tensors_info (srchandle, &info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_util_get_tensors_count (info, &count);
+  EXPECT_EQ (count, 1U);
+
+  ml_util_get_tensor_type (info, 0, &type);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_UINT8);
+
+  ml_util_get_tensor_dimension (info, 0, dim);
+  EXPECT_EQ (dim[0], 4U);
+  EXPECT_EQ (dim[1], 1U);
+  EXPECT_EQ (dim[2], 1U);
+  EXPECT_EQ (dim[3], 1U);
 
   for (i = 0; i < 10; i++) {
     data1.num_tensors = 1;
@@ -670,10 +686,9 @@ TEST (nnstreamer_capi_src, dummy_01)
 TEST (nnstreamer_capi_src, failure_01)
 {
   int status;
-  ml_tensors_info_s tensorsinfo;
   ml_pipeline_src_h srchandle;
 
-  status = ml_pipeline_src_get_handle (NULL, "dummy", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (NULL, "dummy", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
@@ -685,34 +700,29 @@ TEST (nnstreamer_capi_src, failure_02)
 {
   const char *pipeline = "appsrc is-live=true name=mysource ! valve name=valvex ! filesink";
   ml_pipeline_h handle;
-  ml_tensors_info_s tensorsinfo;
   ml_pipeline_src_h srchandle;
 
   int status = ml_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = ml_pipeline_src_get_handle (NULL, "mysource", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (NULL, "mysource", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = ml_pipeline_src_get_handle (handle, NULL, &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, NULL, &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = ml_pipeline_src_get_handle (handle, "wrongname", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, "wrongname", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = ml_pipeline_src_get_handle (handle, "valvex", &tensorsinfo, &srchandle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  /* invalid param : info */
-  status = ml_pipeline_src_get_handle (handle, "mysource", NULL, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, "valvex", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = ml_pipeline_src_get_handle (handle, "mysource", &tensorsinfo, NULL);
+  status = ml_pipeline_src_get_handle (handle, "mysource", NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   status = ml_pipeline_destroy (handle);
@@ -730,7 +740,6 @@ TEST (nnstreamer_capi_src, failure_03)
 
   const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! tensor_sink";
   ml_pipeline_h handle;
-  ml_tensors_info_s tensorsinfo;
   ml_pipeline_src_h srchandle;
   ml_tensors_data_s data;
 
@@ -745,7 +754,7 @@ TEST (nnstreamer_capi_src, failure_03)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_src_get_handle (handle, "srcx", &tensorsinfo, &srchandle);
+  status = ml_pipeline_src_get_handle (handle, "srcx", &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* null data */
@@ -803,7 +812,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_PIPELINE_SWITCH_INPUT_SELECTOR);
 
-  status = ml_pipeline_switch_nodelist (switchhandle, &node_list);
+  status = ml_pipeline_switch_get_pad_list (switchhandle, &node_list);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
@@ -883,7 +892,7 @@ TEST (nnstreamer_capi_switch, dummy_02)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_PIPELINE_SWITCH_OUTPUT_SELECTOR);
 
-  status = ml_pipeline_switch_nodelist (switchhandle, &node_list);
+  status = ml_pipeline_switch_get_pad_list (switchhandle, &node_list);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
@@ -1006,9 +1015,13 @@ TEST (nnstreamer_capi_switch, failure_01)
 TEST (nnstreamer_capi_singleshot, invoke_01)
 {
   ml_single_h single;
-  ml_tensors_info_s in_info, out_info;
-  ml_tensors_info_s in_res, out_res;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_info_h in_res, out_res;
   ml_tensors_data_s *input, *output1, *output2;
+  ml_tensor_dimension in_dim, out_dim, res_dim;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  unsigned int count = 0;
+  char *name = NULL;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1022,57 +1035,77 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
-  ml_util_initialize_tensors_info (&in_res);
-  ml_util_initialize_tensors_info (&out_res);
+  ml_util_allocate_tensors_info (&in_info);
+  ml_util_allocate_tensors_info (&out_info);
+  ml_util_allocate_tensors_info (&in_res);
+  ml_util_allocate_tensors_info (&out_res);
 
-  in_info.num_tensors = 1;
-  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  in_info.info[0].dimension[0] = 3;
-  in_info.info[0].dimension[1] = 224;
-  in_info.info[0].dimension[2] = 224;
-  in_info.info[0].dimension[3] = 1;
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_util_set_tensors_count (in_info, 1);
+  ml_util_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (in_info, 0, in_dim);
 
-  out_info.num_tensors = 1;
-  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  out_info.info[0].dimension[0] = 1001;
-  out_info.info[0].dimension[1] = 1;
-  out_info.info[0].dimension[2] = 1;
-  out_info.info[0].dimension[3] = 1;
+  out_dim[0] = 1001;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_util_set_tensors_count (out_info, 1);
+  ml_util_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (out_info, 0, out_dim);
 
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
-  for (guint idx = 0; idx < in_res.num_tensors; idx++) {
-    EXPECT_TRUE (in_info.info[idx].type == in_res.info[idx].type);
-    EXPECT_TRUE (in_info.info[idx].dimension[0] == in_res.info[idx].dimension[0]);
-    EXPECT_TRUE (in_info.info[idx].dimension[1] == in_res.info[idx].dimension[1]);
-    EXPECT_TRUE (in_info.info[idx].dimension[2] == in_res.info[idx].dimension[2]);
-    EXPECT_TRUE (in_info.info[idx].dimension[3] == in_res.info[idx].dimension[3]);
-  }
+  status = ml_util_get_tensors_count (in_res, &count);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (count, 1U);
+
+  status = ml_util_get_tensor_name (in_res, 0, &name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (name == NULL);
+
+  status = ml_util_get_tensor_type (in_res, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_UINT8);
+
+  ml_util_get_tensor_dimension (in_res, 0, res_dim);
+  EXPECT_TRUE (in_dim[0] == res_dim[0]);
+  EXPECT_TRUE (in_dim[1] == res_dim[1]);
+  EXPECT_TRUE (in_dim[2] == res_dim[2]);
+  EXPECT_TRUE (in_dim[3] == res_dim[3]);
 
   /* output tensor in filter */
   status = ml_single_get_output_info (single, &out_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
-  for (guint idx = 0; idx < out_res.num_tensors; idx++) {
-    EXPECT_TRUE (out_info.info[idx].type == out_res.info[idx].type);
-    EXPECT_TRUE (out_info.info[idx].dimension[0] == out_res.info[idx].dimension[0]);
-    EXPECT_TRUE (out_info.info[idx].dimension[1] == out_res.info[idx].dimension[1]);
-    EXPECT_TRUE (out_info.info[idx].dimension[2] == out_res.info[idx].dimension[2]);
-    EXPECT_TRUE (out_info.info[idx].dimension[3] == out_res.info[idx].dimension[3]);
-  }
+  status = ml_util_get_tensors_count (out_res, &count);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (count, 1U);
+
+  status = ml_util_get_tensor_name (out_res, 0, &name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (name == NULL);
+
+  status = ml_util_get_tensor_type (out_res, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_UINT8);
+
+  ml_util_get_tensor_dimension (out_res, 0, res_dim);
+  EXPECT_TRUE (out_dim[0] == res_dim[0]);
+  EXPECT_TRUE (out_dim[1] == res_dim[1]);
+  EXPECT_TRUE (out_dim[2] == res_dim[2]);
+  EXPECT_TRUE (out_dim[3] == res_dim[3]);
 
   /* generate dummy data */
-  input = ml_util_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (in_info);
   EXPECT_TRUE (input != NULL);
 
   status = ml_util_get_last_error ();
@@ -1086,7 +1119,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   ml_util_free_tensors_data (&output1);
 
-  output2 = ml_util_allocate_tensors_data (&out_info);
+  output2 = ml_util_allocate_tensors_data (out_info);
   EXPECT_TRUE (output2 != NULL);
 
   status = ml_util_get_last_error ();
@@ -1106,8 +1139,10 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
-  ml_util_free_tensors_info (&in_res);
-  ml_util_free_tensors_info (&out_res);
+  ml_util_destroy_tensors_info (in_info);
+  ml_util_destroy_tensors_info (out_info);
+  ml_util_destroy_tensors_info (in_res);
+  ml_util_destroy_tensors_info (out_res);
 }
 
 /**
@@ -1117,8 +1152,9 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 TEST (nnstreamer_capi_singleshot, invoke_02)
 {
   ml_single_h single;
-  ml_tensors_info_s in_info, out_info;
+  ml_tensors_info_h in_info, out_info;
   ml_tensors_data_s *input, *output1, *output2;
+  ml_tensor_dimension in_dim, out_dim;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1132,29 +1168,31 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  ml_util_allocate_tensors_info (&in_info);
+  ml_util_allocate_tensors_info (&out_info);
 
-  in_info.num_tensors = 1;
-  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  in_info.info[0].dimension[0] = 3;
-  in_info.info[0].dimension[1] = 224;
-  in_info.info[0].dimension[2] = 224;
-  in_info.info[0].dimension[3] = 1;
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_util_set_tensors_count (in_info, 1);
+  ml_util_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (in_info, 0, in_dim);
 
-  out_info.num_tensors = 1;
-  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  out_info.info[0].dimension[0] = 1001;
-  out_info.info[0].dimension[1] = 1;
-  out_info.info[0].dimension[2] = 1;
-  out_info.info[0].dimension[3] = 1;
+  out_dim[0] = 1001;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_util_set_tensors_count (out_info, 1);
+  ml_util_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (out_info, 0, out_dim);
 
   status = ml_single_open (&single, test_model, NULL, NULL,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* generate dummy data */
-  input = ml_util_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (in_info);
   EXPECT_TRUE (input != NULL);
 
   status = ml_util_get_last_error ();
@@ -1168,7 +1206,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   ml_util_free_tensors_data (&output1);
 
-  output2 = ml_util_allocate_tensors_data (&out_info);
+  output2 = ml_util_allocate_tensors_data (out_info);
   EXPECT_TRUE (output2 != NULL);
 
   status = ml_util_get_last_error ();
@@ -1188,6 +1226,8 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
+  ml_util_destroy_tensors_info (in_info);
+  ml_util_destroy_tensors_info (out_info);
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
 
@@ -1198,8 +1238,9 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 TEST (nnstreamer_capi_singleshot, invoke_03)
 {
   ml_single_h single;
-  ml_tensors_info_s in_info, out_info;
+  ml_tensors_info_h in_info, out_info;
   ml_tensors_data_s *input, *output1, *output2;
+  ml_tensor_dimension in_dim;
   int i, status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1213,29 +1254,30 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  ml_util_allocate_tensors_info (&in_info);
+  ml_util_allocate_tensors_info (&out_info);
 
-  in_info.num_tensors = 2;
-  in_info.info[0].type = ML_TENSOR_TYPE_INT16;
-  in_info.info[0].dimension[0] = 10;
-  in_info.info[0].dimension[1] = 1;
-  in_info.info[0].dimension[2] = 1;
-  in_info.info[0].dimension[3] = 1;
-  in_info.info[1].type = ML_TENSOR_TYPE_FLOAT32;
-  in_info.info[1].dimension[0] = 10;
-  in_info.info[1].dimension[1] = 1;
-  in_info.info[1].dimension[2] = 1;
-  in_info.info[1].dimension[3] = 1;
+  ml_util_set_tensors_count (in_info, 2);
 
-  ml_util_copy_tensors_info (&out_info, &in_info);
+  in_dim[0] = 10;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
 
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_CUSTOM_FILTER, ML_NNFW_HW_DO_NOT_CARE);
+  ml_util_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_util_set_tensor_dimension (in_info, 0, in_dim);
+
+  ml_util_set_tensor_type (in_info, 1, ML_TENSOR_TYPE_FLOAT32);
+  ml_util_set_tensor_dimension (in_info, 1, in_dim);
+
+  ml_util_copy_tensors_info (out_info, in_info);
+
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* generate input data */
-  input = ml_util_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (in_info);
   ASSERT_TRUE (input != NULL);
   EXPECT_TRUE (input->num_tensors == 2U);
 
@@ -1256,9 +1298,6 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   status = ml_util_get_last_error ();
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_TRUE (output1->tensors[0].size == ml_util_get_tensor_size (&in_info.info[0]));
-  EXPECT_TRUE (output1->tensors[1].size == ml_util_get_tensor_size (&in_info.info[1]));
-
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
     float f32 = (float) (i + .1);
@@ -1269,7 +1308,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   ml_util_free_tensors_data (&output1);
 
-  output2 = ml_util_allocate_tensors_data (&out_info);
+  output2 = ml_util_allocate_tensors_data (out_info);
   EXPECT_TRUE (output2 != NULL);
 
   status = ml_util_get_last_error ();
@@ -1281,9 +1320,6 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   status = ml_util_get_last_error ();
   EXPECT_EQ (status, ML_ERROR_NONE);
-
-  EXPECT_TRUE (output1->tensors[0].size == ml_util_get_tensor_size (&in_info.info[0]));
-  EXPECT_TRUE (output1->tensors[1].size == ml_util_get_tensor_size (&in_info.info[1]));
 
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
@@ -1300,6 +1336,8 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
+  ml_util_destroy_tensors_info (in_info);
+  ml_util_destroy_tensors_info (out_info);
 }
 
 #ifdef ENABLE_TENSORFLOW
@@ -1310,9 +1348,13 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 TEST (nnstreamer_capi_singleshot, invoke_04)
 {
   ml_single_h single;
-  ml_tensors_info_s in_info, out_info;
-  ml_tensors_info_s in_res, out_res;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_info_h in_res, out_res;
   ml_tensors_data_s *input, *output;
+  ml_tensor_dimension in_dim, out_dim, res_dim;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  unsigned int count = 0;
+  char *name = NULL;
   int status, max_score_index;
   float score, max_score;
 
@@ -1333,62 +1375,82 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
       "yes.wav", NULL);
   ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
-  ml_util_initialize_tensors_info (&in_res);
-  ml_util_initialize_tensors_info (&out_res);
+  ml_util_allocate_tensors_info (&in_info);
+  ml_util_allocate_tensors_info (&out_info);
+  ml_util_allocate_tensors_info (&in_res);
+  ml_util_allocate_tensors_info (&out_res);
 
-  in_info.num_tensors = 1;
-  in_info.info[0].name = g_strdup ("wav_data");
-  in_info.info[0].type = ML_TENSOR_TYPE_INT16;
-  in_info.info[0].dimension[0] = 1;
-  in_info.info[0].dimension[1] = 16022;
-  in_info.info[0].dimension[2] = 1;
-  in_info.info[0].dimension[3] = 1;
+  in_dim[0] = 1;
+  in_dim[1] = 16022;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+  ml_util_set_tensors_count (in_info, 1);
+  ml_util_set_tensor_name (in_info, 0, "wav_data");
+  ml_util_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_util_set_tensor_dimension (in_info, 0, in_dim);
 
-  out_info.num_tensors = 1;
-  out_info.info[0].name = g_strdup ("labels_softmax");
-  out_info.info[0].type = ML_TENSOR_TYPE_FLOAT32;
-  out_info.info[0].dimension[0] = 12;
-  out_info.info[0].dimension[1] = 1;
-  out_info.info[0].dimension[2] = 1;
-  out_info.info[0].dimension[3] = 1;
+  out_dim[0] = 12;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_util_set_tensors_count (out_info, 1);
+  ml_util_set_tensor_name (out_info, 0, "labels_softmax");
+  ml_util_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_util_set_tensor_dimension (out_info, 0, out_dim);
 
   ASSERT_TRUE (g_file_get_contents (test_file, &contents, &len, NULL));
-  ASSERT_TRUE (len == ml_util_get_tensors_size (&in_info));
+  ASSERT_TRUE (len == ml_util_get_tensors_size (in_info));
 
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_TRUE (in_info.num_tensors == in_res.num_tensors);
-  for (guint idx = 0; idx < in_res.num_tensors; idx++) {
-    EXPECT_TRUE (in_info.info[idx].type == in_res.info[idx].type);
-    EXPECT_TRUE (in_info.info[idx].dimension[0] == in_res.info[idx].dimension[0]);
-    EXPECT_TRUE (in_info.info[idx].dimension[1] == in_res.info[idx].dimension[1]);
-    EXPECT_TRUE (in_info.info[idx].dimension[2] == in_res.info[idx].dimension[2]);
-    EXPECT_TRUE (in_info.info[idx].dimension[3] == in_res.info[idx].dimension[3]);
-  }
+  status = ml_util_get_tensors_count (in_res, &count);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (count, 1U);
+
+  status = ml_util_get_tensor_name (in_res, 0, &name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (g_str_equal (name, "wav_data"));
+
+  status = ml_util_get_tensor_type (in_res, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_INT16);
+
+  ml_util_get_tensor_dimension (in_res, 0, res_dim);
+  EXPECT_TRUE (in_dim[0] == res_dim[0]);
+  EXPECT_TRUE (in_dim[1] == res_dim[1]);
+  EXPECT_TRUE (in_dim[2] == res_dim[2]);
+  EXPECT_TRUE (in_dim[3] == res_dim[3]);
 
   /* output tensor in filter */
   status = ml_single_get_output_info (single, &out_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_TRUE (out_info.num_tensors == out_res.num_tensors);
-  for (guint idx = 0; idx < out_res.num_tensors; idx++) {
-    EXPECT_TRUE (out_info.info[idx].type == out_res.info[idx].type);
-    EXPECT_TRUE (out_info.info[idx].dimension[0] == out_res.info[idx].dimension[0]);
-    EXPECT_TRUE (out_info.info[idx].dimension[1] == out_res.info[idx].dimension[1]);
-    EXPECT_TRUE (out_info.info[idx].dimension[2] == out_res.info[idx].dimension[2]);
-    EXPECT_TRUE (out_info.info[idx].dimension[3] == out_res.info[idx].dimension[3]);
-  }
+  status = ml_util_get_tensors_count (out_res, &count);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (count, 1U);
+
+  status = ml_util_get_tensor_name (out_res, 0, &name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (g_str_equal (name, "labels_softmax"));
+
+  status = ml_util_get_tensor_type (out_res, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT32);
+
+  ml_util_get_tensor_dimension (out_res, 0, res_dim);
+  EXPECT_TRUE (out_dim[0] == res_dim[0]);
+  EXPECT_TRUE (out_dim[1] == res_dim[1]);
+  EXPECT_TRUE (out_dim[2] == res_dim[2]);
+  EXPECT_TRUE (out_dim[3] == res_dim[3]);
 
   /* generate input data */
-  input = ml_util_allocate_tensors_data (&in_info);
+  input = ml_util_allocate_tensors_data (in_info);
   EXPECT_TRUE (input != NULL);
 
   status = ml_util_get_last_error ();
@@ -1403,7 +1465,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* check result (max score index is 2) */
-  EXPECT_EQ (output->num_tensors, out_res.num_tensors);
+  EXPECT_EQ (output->num_tensors, 1U);
 
   max_score = .0;
   max_score_index = 0;
@@ -1426,10 +1488,10 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   g_free (test_model);
   g_free (test_file);
   g_free (contents);
-  ml_util_free_tensors_info (&in_info);
-  ml_util_free_tensors_info (&out_info);
-  ml_util_free_tensors_info (&in_res);
-  ml_util_free_tensors_info (&out_res);
+  ml_util_destroy_tensors_info (in_info);
+  ml_util_destroy_tensors_info (out_info);
+  ml_util_destroy_tensors_info (in_res);
+  ml_util_destroy_tensors_info (out_res);
 }
 #endif /* ENABLE_TENSORFLOW */
 
@@ -1441,7 +1503,8 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 TEST (nnstreamer_capi_singleshot, failure_01)
 {
   ml_single_h single;
-  ml_tensors_info_s in_info, out_info;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensor_dimension in_dim, out_dim;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1455,51 +1518,53 @@ TEST (nnstreamer_capi_singleshot, failure_01)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  ml_util_initialize_tensors_info (&in_info);
-  ml_util_initialize_tensors_info (&out_info);
+  ml_util_allocate_tensors_info (&in_info);
+  ml_util_allocate_tensors_info (&out_info);
 
   /* invalid file path */
-  status = ml_single_open (&single, "wrong_file_name", &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, "wrong_file_name", in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* null file path */
-  status = ml_single_open (&single, NULL, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, NULL, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
-  status = ml_single_open (NULL, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (NULL, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid input tensor info */
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  in_info.num_tensors = 1;
-  in_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  in_info.info[0].dimension[0] = 3;
-  in_info.info[0].dimension[1] = 224;
-  in_info.info[0].dimension[2] = 224;
-  in_info.info[0].dimension[3] = 1;
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_util_set_tensors_count (in_info, 1);
+  ml_util_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (in_info, 0, in_dim);
 
   /* invalid output tensor info */
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW_LITE, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  out_info.num_tensors = 1;
-  out_info.info[0].type = ML_TENSOR_TYPE_UINT8;
-  out_info.info[0].dimension[0] = 1001;
-  out_info.info[0].dimension[1] = 1;
-  out_info.info[0].dimension[2] = 1;
-  out_info.info[0].dimension[3] = 1;
+  out_dim[0] = 1001;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_util_set_tensors_count (out_info, 1);
+  ml_util_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_util_set_tensor_dimension (out_info, 0, out_dim);
 
   /* invalid file extension */
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_TENSORFLOW, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
@@ -1507,14 +1572,16 @@ TEST (nnstreamer_capi_singleshot, failure_01)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* Successfully opened unknown fw type (tf-lite) */
-  status = ml_single_open (&single, test_model, &in_info, &out_info,
-      ML_NNFW_UNKNOWN, ML_NNFW_HW_DO_NOT_CARE);
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
+  ml_util_destroy_tensors_info (in_info);
+  ml_util_destroy_tensors_info (out_info);
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
 

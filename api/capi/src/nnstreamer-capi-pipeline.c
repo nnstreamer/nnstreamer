@@ -39,7 +39,7 @@
   ml_pipeline *p; \
   ml_pipeline_element *elem; \
   int ret = ML_ERROR_NONE; \
-  if (h == NULL) { \
+  if ((h) == NULL) { \
     ml_loge ("The given handle is invalid"); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
@@ -557,7 +557,7 @@ ml_pipeline_stop (ml_pipeline_h pipe)
  */
 int
 ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
-    ml_pipeline_sink_cb cb, ml_pipeline_sink_h * h, void *pdata)
+    ml_pipeline_sink_cb cb, ml_pipeline_sink_h * h, void *user_data)
 {
   ml_pipeline_element *elem;
   ml_pipeline *p = pipe;
@@ -639,7 +639,7 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   sink->pipe = p;
   sink->element = elem;
   sink->cb = cb;
-  sink->pdata = pdata;
+  sink->pdata = user_data;
 
   g_mutex_lock (&elem->lock);
 
@@ -668,6 +668,7 @@ ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
   }
 
   elem->handles = g_list_remove (elem->handles, sink);
+  g_free (sink);
 
   handle_exit (h);
 }
@@ -701,16 +702,61 @@ static const GDestroyNotify ml_buf_policy[ML_PIPELINE_BUF_POLICY_MAX] = {
 };
 
 /**
+ * @brief Parse tensors info of src element.
+ */
+static int
+ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
+{
+  int ret = ML_ERROR_NONE;
+
+  if (elem->src == NULL) {
+    elem->src = gst_element_get_static_pad (elem->element, "src");
+    elem->size = 0;
+
+    if (elem->src == NULL) {
+      ret = ML_ERROR_STREAMS_PIPE;
+    } else {
+      GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
+      guint i;
+      gboolean found = FALSE;
+      size_t sz;
+
+      if (caps) {
+        found = get_tensors_info_from_caps (caps, &elem->tensors_info);
+        gst_caps_unref (caps);
+      }
+
+      if (found) {
+        for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+          sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
+          elem->size += sz;
+        }
+      } else {
+        ml_logw
+            ("Cannot find caps. The pipeline is not yet negotiated for src element [%s].",
+            elem->name);
+        gst_object_unref (elem->src);
+        elem->src = NULL;
+
+        ret = ML_ERROR_TRY_AGAIN;
+      }
+    }
+  }
+
+  return ret;
+}
+
+/**
  * @brief Get a handle to operate a src (more info in nnstreamer.h)
  */
 int
 ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
-    ml_tensors_info_s * tensors_info, ml_pipeline_src_h * h)
+    ml_pipeline_src_h * h)
 {
   ml_pipeline *p = pipe;
   ml_pipeline_element *elem;
   ml_pipeline_src *src;
-  int ret = ML_ERROR_NONE, i;
+  int ret = ML_ERROR_NONE;
 
   if (h == NULL) {
     ml_loge ("The argument source handle is not valid.");
@@ -727,11 +773,6 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
 
   if (src_name == NULL) {
     ml_loge ("The second argument, source name is not valid.");
-    return ML_ERROR_INVALID_PARAMETER;
-  }
-
-  if (tensors_info == NULL) {
-    ml_loge ("The 3rd argument, tensors info is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -752,45 +793,6 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
     goto unlock_return;
   }
 
-  if (elem->src == NULL) {
-    elem->src = gst_element_get_static_pad (elem->element, "src");
-
-    if (elem->src != NULL) {
-      /** @todo : refactor this along with ml_pipeline_src_input_data */
-      GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
-      gboolean found = FALSE;
-
-      /** @todo caps may be NULL for prerolling */
-      if (caps) {
-        found = get_tensors_info_from_caps (caps, &elem->tensors_info);
-        gst_caps_unref (caps);
-      }
-
-      if (found) {
-        elem->size = 0;
-
-        for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-          size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
-          elem->size += sz;
-        }
-      } else {
-        ml_logw
-            ("Cannot find caps. The pipeline is not yet negotiated for tensor_src, [%s].",
-            src_name);
-        gst_object_unref (elem->src);
-        elem->src = NULL;
-
-        ret = ML_ERROR_TRY_AGAIN;
-        goto unlock_return;
-      }
-    } else {
-      ret = ML_ERROR_STREAMS_PIPE;
-      goto unlock_return;
-    }
-  }
-
-  ml_util_copy_tensors_info (tensors_info, &elem->tensors_info);
-
   *h = g_new (ml_pipeline_src, 1);
   src = *h;
 
@@ -803,6 +805,7 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
   src->id = elem->maxid;
   elem->handles = g_list_append (elem->handles, src);
 
+  ml_pipeline_src_parse_tensors_info (elem);
   g_mutex_unlock (&elem->lock);
 
 unlock_return:
@@ -820,6 +823,7 @@ ml_pipeline_src_put_handle (ml_pipeline_src_h h)
   handle_init (src, src, h);
 
   elem->handles = g_list_remove (elem->handles, src);
+  g_free (src);
 
   handle_exit (h);
 }
@@ -851,66 +855,33 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
     goto unlock_return;
   }
 
-  /** @todo This assumes that padcap is static */
-  if (elem->src == NULL) {
-    /* Get the src-pad-cap */
-    elem->src = gst_element_get_static_pad (elem->element, "src");
-  }
+  ret = ml_pipeline_src_parse_tensors_info (elem);
 
-  if (elem->src != NULL && elem->size == 0) {
-    /* srcpadcap available (negoticated) */
-    GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
-
-    if (caps) {
-      gboolean found;
-
-      found = get_tensors_info_from_caps (caps, &elem->tensors_info);
-      gst_caps_unref (caps);
-
-      if (found) {
-        elem->size = 0;
-
-        if (elem->tensors_info.num_tensors != data->num_tensors) {
-          ml_loge
-              ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
-              elem->name, elem->tensors_info.num_tensors, data->num_tensors);
-
-          gst_object_unref (elem->src);
-          elem->src = NULL;
-          ret = ML_ERROR_STREAMS_PIPE;
-          goto unlock_return;
-        }
-
-        for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-          size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
-
-          if (sz != data->tensors[i].size) {
-            ml_loge
-                ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
-                i, data->tensors[i].size, sz);
-
-            gst_object_unref (elem->src);
-            elem->src = NULL;
-            ret = ML_ERROR_INVALID_PARAMETER;
-            goto unlock_return;
-          }
-
-          elem->size += sz;
-        }
-      } else {
-        gst_object_unref (elem->src);
-        elem->src = NULL;       /* invalid! */
-        ret = ML_ERROR_STREAMS_PIPE;
-        goto unlock_return;
-        /** @todo What if it keeps being "NULL"? */
-      }
-    }
-  }
-
-  if (elem->size == 0) {
+  if (ret != ML_ERROR_NONE) {
     ml_logw ("The pipeline is not ready to accept inputs. The input is ignored.");
-    ret = ML_ERROR_TRY_AGAIN;
     goto unlock_return;
+  }
+
+  if (elem->tensors_info.num_tensors != data->num_tensors) {
+    ml_loge
+        ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
+        elem->name, elem->tensors_info.num_tensors, data->num_tensors);
+
+    ret = ML_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+    size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
+
+    if (sz != data->tensors[i].size) {
+      ml_loge
+          ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
+          i, data->tensors[i].size, sz);
+
+      ret = ML_ERROR_INVALID_PARAMETER;
+      goto unlock_return;
+    }
   }
 
   /* Create buffer to be pushed from buf[] */
@@ -934,6 +905,30 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   } else if (gret == GST_FLOW_EOS) {
     ml_logw ("THe pipeline is in EOS state. The input is ignored.");
     ret = ML_ERROR_STREAMS_PIPE;
+  }
+
+  handle_exit (h);
+}
+
+/**
+ * @brief Gets a handle for the tensors metadata of given src node.
+ */
+int
+ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h,
+    ml_tensors_info_h * info)
+{
+  handle_init (src, src, h);
+
+  if (info == NULL) {
+    ret = ML_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  ret = ml_pipeline_src_parse_tensors_info (elem);
+
+  if (ret == ML_ERROR_NONE) {
+    ml_util_allocate_tensors_info (info);
+    ml_util_copy_tensors_info (*info, &elem->tensors_info);
   }
 
   handle_exit (h);
@@ -983,11 +978,17 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
     goto unlock_return;
   }
 
-  if (elem->type != ML_PIPELINE_ELEMENT_SWITCH_INPUT &&
-      elem->type != ML_PIPELINE_ELEMENT_SWITCH_OUTPUT) {
+  if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_INPUT) {
+    if (type)
+      *type = ML_PIPELINE_SWITCH_INPUT_SELECTOR;
+  } else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT) {
+    if (type)
+      *type = ML_PIPELINE_SWITCH_OUTPUT_SELECTOR;
+  } else {
     ml_loge
         ("There is an element named [%s] in the pipeline, but it is not an input/output switch",
         switch_name);
+
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -997,19 +998,6 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
 
   swtc->pipe = p;
   swtc->element = elem;
-
-  if (type) {
-    if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_INPUT)
-      *type = ML_PIPELINE_SWITCH_INPUT_SELECTOR;
-    else if (elem->type == ML_PIPELINE_ELEMENT_SWITCH_OUTPUT)
-      *type = ML_PIPELINE_SWITCH_OUTPUT_SELECTOR;
-    else {
-      ml_loge ("Internal data of switch-handle [%s] is broken. It is fatal.",
-          elem->name);
-      ret = ML_ERROR_INVALID_PARAMETER;
-      goto unlock_return;
-    }
-  }
 
   g_mutex_lock (&elem->lock);
 
@@ -1033,6 +1021,7 @@ ml_pipeline_switch_put_handle (ml_pipeline_switch_h h)
   handle_init (switch, swtc, h);
 
   elem->handles = g_list_remove (elem->handles, swtc);
+  g_free (swtc);
 
   handle_exit (h);
 }
@@ -1087,10 +1076,10 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
 }
 
 /**
- * @brief List nodes of a switch (more info in nnstreamer.h)
+ * @brief Gets the pad names of a switch.
  */
 int
-ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
+ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
 {
   GstIterator *it;
   GValue item = G_VALUE_INIT;
@@ -1160,7 +1149,8 @@ ml_pipeline_switch_nodelist (ml_pipeline_switch_h h, char ***list)
 
       if (i > counter) {
         g_list_free_full (dllist, g_free);      /* This frees all strings as well */
-        g_free (list);
+        g_free (*list);
+        *list = NULL;
 
         ml_loge
             ("Internal data inconsistency. This could be a bug in nnstreamer. Switch [%s].",
@@ -1250,6 +1240,7 @@ ml_pipeline_valve_put_handle (ml_pipeline_valve_h h)
   handle_init (valve, valve, h);
 
   elem->handles = g_list_remove (elem->handles, valve);
+  g_free (valve);
 
   handle_exit (h);
 }
@@ -1258,22 +1249,21 @@ ml_pipeline_valve_put_handle (ml_pipeline_valve_h h)
  * @brief Control the valve with the given handle (more info in nnstreamer.h)
  */
 int
-ml_pipeline_valve_control (ml_pipeline_valve_h h, int drop)
+ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
 {
-  gboolean current_val;
+  gboolean drop = FALSE;
   handle_init (valve, valve, h);
 
-  g_object_get (G_OBJECT (elem->element), "drop", &current_val, NULL);
+  g_object_get (G_OBJECT (elem->element), "drop", &drop, NULL);
 
-  if ((drop != 0) == (current_val != FALSE)) {
+  if ((open != false) != (drop != FALSE)) {
     /* Nothing to do */
-    ml_logi ("Valve is called, but there is no effective changes: %d->%d",
-        ! !current_val, ! !drop);
+    ml_logi ("Valve is called, but there is no effective changes");
     goto unlock_return;
   }
 
-  g_object_set (G_OBJECT (elem->element), "drop", ! !drop, NULL);
-  ml_logi ("Valve is changed: %d->%d", ! !current_val, ! !drop);
+  drop = (open) ? FALSE : TRUE;
+  g_object_set (G_OBJECT (elem->element), "drop", drop, NULL);
 
   handle_exit (h);
 }
