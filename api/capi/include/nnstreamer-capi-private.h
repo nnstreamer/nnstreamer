@@ -55,7 +55,7 @@
       __android_log_print (ANDROID_LOG_INFO, TAG_NAME, __VA_ARGS__)
 
   #define ml_logw(...) \
-      __android_log_print (ANDROID_LOG_WARNING, TAG_NAME, __VA_ARGS__)
+      __android_log_print (ANDROID_LOG_WARN, TAG_NAME, __VA_ARGS__)
 
   #define ml_loge(...) \
       __android_log_print (ANDROID_LOG_ERROR, TAG_NAME, __VA_ARGS__)
@@ -73,6 +73,25 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/**
+ * @brief Data structure for tensor information.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  char *name;              /**< Name of each element in the tensor. */
+  ml_tensor_type_e type;   /**< Type of each element in the tensor. */
+  ml_tensor_dimension dimension;     /**< Dimension information. */
+} ml_tensor_info_s;
+
+/**
+ * @brief Data structure for tensors information, which contains multiple tensors.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  unsigned int num_tensors; /**< The number of tensors. */
+  ml_tensor_info_s info[ML_TENSOR_SIZE_LIMIT];  /**< The list of tensor info. */
+} ml_tensors_info_s;
 
 /**
  * @brief Possible controls on elements of a pipeline.
@@ -170,6 +189,28 @@ typedef struct _ml_pipeline_valve {
 void ml_util_set_error (int error_code);
 
 /**
+ * @brief Gets the byte size of the given tensor info.
+ */
+size_t ml_util_get_tensor_size (const ml_tensor_info_s *info);
+
+/**
+ * @brief Initializes the tensors information with default value.
+ * @since_tizen 5.5
+ * @param[in] info The tensors info pointer to be initialized.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_util_initialize_tensors_info (ml_tensors_info_s *info);
+
+/**
+ * @brief Frees the tensors info pointer.
+ * @since_tizen 5.5
+ * @param[in] info The tensors info pointer to be freed.
+ */
+void ml_util_free_tensors_info (ml_tensors_info_s *info);
+
+/**
  * @brief Copies tensor metadata from gst tensors info.
  */
 void ml_util_copy_tensors_info_from_gst (ml_tensors_info_s *ml_info, const GstTensorsInfo *gst_info);
@@ -178,6 +219,11 @@ void ml_util_copy_tensors_info_from_gst (ml_tensors_info_s *ml_info, const GstTe
  * @brief Copies tensor metadata from ml tensors info.
  */
 void ml_util_copy_tensors_info_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
+
+/**
+ * @brief Gets caps from tensors info.
+ */
+GstCaps *ml_util_get_caps_from_tensors_info (const ml_tensors_info_s *info);
 
 #ifdef __cplusplus
 }

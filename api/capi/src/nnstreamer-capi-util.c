@@ -47,15 +47,51 @@ ml_util_set_error (int error_code)
 }
 
 /**
- * @brief Initializes the tensors info.
+ * @brief Allocates a tensors information handle with default value.
  */
-void
+int
+ml_util_allocate_tensors_info (ml_tensors_info_h * info)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *info = tensors_info = g_new0 (ml_tensors_info_s, 1);
+  ml_util_initialize_tensors_info (tensors_info);
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Frees the given handle of a tensors information.
+ */
+int
+ml_util_destroy_tensors_info (ml_tensors_info_h info)
+{
+  ml_tensors_info_s *tensors_info;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (!tensors_info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  ml_util_free_tensors_info (tensors_info);
+  g_free (tensors_info);
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Initializes the tensors information with default value.
+ */
+int
 ml_util_initialize_tensors_info (ml_tensors_info_s * info)
 {
   guint i, j;
 
   if (!info)
-    return;
+    return ML_ERROR_INVALID_PARAMETER;
 
   info->num_tensors = 0;
 
@@ -67,12 +103,14 @@ ml_util_initialize_tensors_info (ml_tensors_info_s * info)
       info->info[i].dimension[j] = 0;
     }
   }
+
+  return ML_ERROR_NONE;
 }
 
 /**
  * @brief Validates the given tensor info is valid.
  */
-int
+static int
 ml_util_validate_tensor_info (const ml_tensor_info_s * info)
 {
   guint i;
@@ -95,17 +133,198 @@ ml_util_validate_tensor_info (const ml_tensor_info_s * info)
  * @brief Validates the given tensors info is valid.
  */
 int
-ml_util_validate_tensors_info (const ml_tensors_info_s * info)
+ml_util_validate_tensors_info (const ml_tensors_info_h info)
 {
+  ml_tensors_info_s *tensors_info;
   guint i;
 
-  if (!info || info->num_tensors < 1)
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (!tensors_info || tensors_info->num_tensors < 1)
     return ML_ERROR_INVALID_PARAMETER;
 
-  for (i = 0; i < info->num_tensors; i++) {
+  for (i = 0; i < tensors_info->num_tensors; i++) {
     /* Failed if returned value is not 0 (ML_ERROR_NONE) */
-    if (ml_util_validate_tensor_info (&info->info[i]) != ML_ERROR_NONE)
+    if (ml_util_validate_tensor_info (&tensors_info->info[i]) != ML_ERROR_NONE)
       return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the number of tensors with given handle of tensors information.
+ */
+int
+ml_util_set_tensors_count (ml_tensors_info_h info, const unsigned int count)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info || count > ML_TENSOR_SIZE_LIMIT)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+  tensors_info->num_tensors = count;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Gets the number of tensors with given handle of tensors information.
+ */
+int
+ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info || !count)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+  *count = tensors_info->num_tensors;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the tensor name with given handle of tensors information.
+ */
+int
+ml_util_set_tensor_name (ml_tensors_info_h info,
+    const unsigned int index, const char *name)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  if (tensors_info->info[index].name) {
+    g_free (tensors_info->info[index].name);
+    tensors_info->info[index].name = NULL;
+  }
+
+  if (name)
+    tensors_info->info[index].name = g_strdup (name);
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Gets the tensor name with given handle of tensors information.
+ */
+int
+ml_util_get_tensor_name (ml_tensors_info_h info,
+    const unsigned int index, char **name)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info || !name)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *name = tensors_info->info[index].name;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the tensor type with given handle of tensors information.
+ */
+int
+ml_util_set_tensor_type (ml_tensors_info_h info,
+    const unsigned int index, const ml_tensor_type_e type)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info->info[index].type = type;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Gets the tensor type with given handle of tensors information.
+ */
+int
+ml_util_get_tensor_type (ml_tensors_info_h info,
+    const unsigned int index, ml_tensor_type_e * type)
+{
+  ml_tensors_info_s *tensors_info;
+
+  if (!info || !type)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *type = tensors_info->info[index].type;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the tensor dimension with given handle of tensors information.
+ */
+int
+ml_util_set_tensor_dimension (ml_tensors_info_h info,
+    const unsigned int index, const ml_tensor_dimension dimension)
+{
+  ml_tensors_info_s *tensors_info;
+  guint i;
+
+  if (!info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
+    tensors_info->info[index].dimension[i] = dimension[i];
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Gets the tensor dimension with given handle of tensors information.
+ */
+int
+ml_util_get_tensor_dimension (ml_tensors_info_h info,
+    const unsigned int index, ml_tensor_dimension dimension)
+{
+  ml_tensors_info_s *tensors_info;
+  guint i;
+
+  if (!info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (tensors_info->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
+    dimension[i] = tensors_info->info[index].dimension[i];
   }
 
   return ML_ERROR_NONE;
@@ -158,17 +377,20 @@ ml_util_get_tensor_size (const ml_tensor_info_s * info)
  * @brief Gets the byte size of the given tensors info.
  */
 size_t
-ml_util_get_tensors_size (const ml_tensors_info_s * info)
+ml_util_get_tensors_size (const ml_tensors_info_h info)
 {
+  ml_tensors_info_s *tensors_info;
   size_t tensor_size;
   gint i;
 
-  if (!info)
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (!tensors_info)
     return 0;
 
   tensor_size = 0;
-  for (i = 0; i < info->num_tensors; i++) {
-    tensor_size += ml_util_get_tensor_size (&info->info[i]);
+  for (i = 0; i < tensors_info->num_tensors; i++) {
+    tensor_size += ml_util_get_tensor_size (&tensors_info->info[i]);
   }
 
   return tensor_size;
@@ -221,12 +443,15 @@ ml_util_free_tensors_data (ml_tensors_data_s ** data)
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
  */
 ml_tensors_data_s *
-ml_util_allocate_tensors_data (const ml_tensors_info_s * info)
+ml_util_allocate_tensors_data (const ml_tensors_info_h info)
 {
   ml_tensors_data_s *data;
+  ml_tensors_info_s *tensors_info;
   gint i;
 
-  if (!info) {
+  tensors_info = (ml_tensors_info_s *) info;
+
+  if (!tensors_info) {
     ml_util_set_error (ML_ERROR_INVALID_PARAMETER);
     return NULL;
   }
@@ -238,9 +463,9 @@ ml_util_allocate_tensors_data (const ml_tensors_info_s * info)
     return NULL;
   }
 
-  data->num_tensors = info->num_tensors;
+  data->num_tensors = tensors_info->num_tensors;
   for (i = 0; i < data->num_tensors; i++) {
-    data->tensors[i].size = ml_util_get_tensor_size (&info->info[i]);
+    data->tensors[i].size = ml_util_get_tensor_size (&tensors_info->info[i]);
     data->tensors[i].tensor = g_malloc0 (data->tensors[i].size);
   }
 
@@ -251,27 +476,32 @@ ml_util_allocate_tensors_data (const ml_tensors_info_s * info)
 /**
  * @brief Copies tensor meta info.
  */
-void
-ml_util_copy_tensors_info (ml_tensors_info_s * dest,
-    const ml_tensors_info_s * src)
+int
+ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src)
 {
+  ml_tensors_info_s *dest_info, *src_info;
   guint i, j;
 
-  if (!dest || !src)
-    return;
+  dest_info = (ml_tensors_info_s *) dest;
+  src_info = (ml_tensors_info_s *) src;
 
-  ml_util_initialize_tensors_info (dest);
+  if (!dest_info || !src_info)
+    return ML_ERROR_INVALID_PARAMETER;
 
-  dest->num_tensors = src->num_tensors;
+  ml_util_initialize_tensors_info (dest_info);
 
-  for (i = 0; i < dest->num_tensors; i++) {
-    dest->info[i].name =
-        (src->info[i].name) ? g_strdup (src->info[i].name) : NULL;
-    dest->info[i].type = src->info[i].type;
+  dest_info->num_tensors = src_info->num_tensors;
+
+  for (i = 0; i < dest_info->num_tensors; i++) {
+    dest_info->info[i].name =
+        (src_info->info[i].name) ? g_strdup (src_info->info[i].name) : NULL;
+    dest_info->info[i].type = src_info->info[i].type;
 
     for (j = 0; j < ML_TENSOR_RANK_LIMIT; j++)
-      dest->info[i].dimension[j] = src->info[i].dimension[j];
+      dest_info->info[i].dimension[j] = src_info->info[i].dimension[j];
   }
+
+  return ML_ERROR_NONE;
 }
 
 /**
@@ -340,7 +570,7 @@ ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
       ml_info->info[i].dimension[j] = gst_info->info[i].dimension[j];
     }
 
-    for ( ; j < ML_TENSOR_RANK_LIMIT; j++) {
+    for (; j < ML_TENSOR_RANK_LIMIT; j++) {
       ml_info->info[i].dimension[j] = 1;
     }
   }
@@ -351,7 +581,7 @@ ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
  */
 void
 ml_util_copy_tensors_info_from_ml (GstTensorsInfo * gst_info,
-  const ml_tensors_info_s * ml_info)
+    const ml_tensors_info_s * ml_info)
 {
   guint i, j;
   guint max_dim;
@@ -412,35 +642,80 @@ ml_util_copy_tensors_info_from_ml (GstTensorsInfo * gst_info,
       gst_info->info[i].dimension[j] = ml_info->info[i].dimension[j];
     }
 
-    for ( ; j < NNS_TENSOR_RANK_LIMIT; j++) {
+    for (; j < NNS_TENSOR_RANK_LIMIT; j++) {
       gst_info->info[i].dimension[j] = 1;
     }
   }
 }
 
 /**
+ * @brief Gets caps from tensors info.
+ */
+GstCaps *
+ml_util_get_caps_from_tensors_info (const ml_tensors_info_s * info)
+{
+  GstCaps *caps;
+  GstTensorsConfig config;
+
+  if (!info)
+    return NULL;
+
+  ml_util_copy_tensors_info_from_ml (&config.info, info);
+
+  /* set framerate 0/1 */
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  /* Supposed input type is single tensor if the number of tensors is 1. */
+  if (config.info.num_tensors == 1) {
+    GstTensorConfig c;
+
+    gst_tensor_info_copy (&c.info, &config.info.info[0]);
+    c.rate_n = 0;
+    c.rate_d = 1;
+
+    caps = gst_tensor_caps_from_config (&c);
+    gst_tensor_info_free (&c.info);
+  } else {
+    caps = gst_tensors_caps_from_config (&config);
+  }
+
+  gst_tensors_info_free (&config.info);
+  return caps;
+}
+
+/**
  * @brief Checks the availability of the given execution environments.
  */
 int
-ml_util_check_nnfw (ml_nnfw_e nnfw, ml_nnfw_hw_e hw)
+ml_util_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
+    bool *available)
 {
-  /** @todo fill this function */
+  if (!available)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init false */
+  *available = false;
+
   switch (nnfw) {
-    case ML_NNFW_TENSORFLOW_LITE:
+    case ML_NNFW_TYPE_TENSORFLOW_LITE:
       if (nnstreamer_filter_find ("tensorflow-lite") == NULL) {
         ml_logw ("Tensorflow-lite is not supported.");
-        return ML_ERROR_NOT_SUPPORTED;
+        goto done;
       }
       break;
-    case ML_NNFW_TENSORFLOW:
+    case ML_NNFW_TYPE_TENSORFLOW:
       if (nnstreamer_filter_find ("tensorflow") == NULL) {
         ml_logw ("Tensorflow is not supported.");
-        return ML_ERROR_NOT_SUPPORTED;
+        goto done;
       }
       break;
     default:
       break;
   }
 
+  *available = true;
+
+done:
   return ML_ERROR_NONE;
 }
