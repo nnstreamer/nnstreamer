@@ -66,6 +66,12 @@ typedef unsigned int ml_tensor_dimension[ML_TENSOR_RANK_LIMIT];
 typedef void *ml_tensors_info_h;
 
 /**
+ * @brief A handle of input or output frames. #ml_tensors_info_h is the handle for tensors metadata.
+ * @since_tizen 5.5
+ */
+typedef void *ml_tensors_data_h;
+
+/**
  * @brief A handle of an NNStreamer pipeline.
  * @since_tizen 5.5
  */
@@ -202,34 +208,16 @@ typedef enum {
 } ml_pipeline_switch_e;
 
 /**
- * @brief An instance of a single input or output frame.
- * @since_tizen 5.5
- */
-typedef struct {
-  void *tensor; /**< The instance of tensor data. */
-  size_t size; /**< The size of tensor. */
-} ml_tensor_data_s;
-
-/**
- * @brief An instance of input or output frames. #ml_tensors_info_h is the handle for tensors metadata.
- * @since_tizen 5.5
- */
-typedef struct {
-  unsigned int num_tensors; /**< The number of tensors. */
-  ml_tensor_data_s tensors[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
-} ml_tensors_data_s;
-
-/**
  * @brief Callback for sink element of NNStreamer pipelines (pipeline's output)
  * @detail If an application wants to accept data outputs of an NNStreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not hold too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
  * @remarks The @a data can be used only in the callback. To use outside, make a copy.
  * @remarks The @a info can be used only in the callback. To use outside, make a copy.
- * @param[out] data The contents of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by data->num_tensors. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
+ * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_util_get_tensors_count() with the handle 'info'. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[out] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[in,out] user_data User Application's Private Data.
  */
-typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_s *data, const ml_tensors_info_h info, void *user_data);
+typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data);
 
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
@@ -359,7 +347,7 @@ int ml_pipeline_src_put_handle (ml_pipeline_src_h h);
 /**
  * @brief Puts an input data frame.
  * @param[in] h The source handle returned by ml_pipeline_src_get_handle().
- * @param[in] data The input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
+ * @param[in] data The handle of input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
  * @param[in] policy The policy of buf deallocation.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
@@ -367,7 +355,7 @@ int ml_pipeline_src_put_handle (ml_pipeline_src_h h);
  * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
-int ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s *data, ml_pipeline_buf_policy_e policy);
+int ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_h data, ml_pipeline_buf_policy_e policy);
 
 /**
  * @brief Gets a handle for the tensors information of given src node.
@@ -611,20 +599,52 @@ int ml_util_get_tensor_dimension (ml_tensors_info_h info, const unsigned int ind
 size_t ml_util_get_tensors_size (const ml_tensors_info_h info);
 
 /**
- * @brief Frees the tensors data pointer.
- * @since_tizen 5.5
- * @param[in] data The tensors data pointer to be freed.
- */
-void ml_util_free_tensors_data (ml_tensors_data_s **data);
-
-/**
  * @brief Allocates a tensor data frame with the given tensors information.
  * @since_tizen 5.5
  * @param[in] info The handle of tensors information for the allocation.
- * @return @c Tensors data pointer allocated. Null if error. Caller is responsible to free the allocated data with ml_util_free_tensors_data().
- * @retval NULL There is an error. Call ml_util_get_last_error() to get specific error code.
+ * @param[out] data The handle of tensors data allocated. Caller is responsible to free the allocated data with ml_util_destroy_tensors_data().
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to allocate new memory.
  */
-ml_tensors_data_s *ml_util_allocate_tensors_data (const ml_tensors_info_h info);
+int ml_util_allocate_tensors_data (const ml_tensors_info_h info, ml_tensors_data_h *data);
+
+/**
+ * @brief Frees the given handle of a tensors data.
+ * @since_tizen 5.5
+ * @param[in] data The handle of tensors data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_util_destroy_tensors_data (ml_tensors_data_h data);
+
+/**
+ * @brief Gets a tensor data of given handle.
+ * @since_tizen 5.5
+ * @param[in] data The handle of tensors data.
+ * @param[in] index The index of tensor in tensors data.
+ * @param[out] raw_data Raw tensor data in the handle.
+ * @param[out] data_size Byte size of tensor data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_util_get_tensor_data (ml_tensors_data_h data, const unsigned int index, void **raw_data, size_t *data_size);
+
+/**
+ * @brief Copies a tensor data to given handle.
+ * @since_tizen 5.5
+ * @param[in] data The handle of tensors data.
+ * @param[in] index The index of tensor in tensors data.
+ * @param[out] raw_data Raw tensor data to be copied.
+ * @param[out] data_size Byte size of raw data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_util_copy_tensor_data (ml_tensors_data_h data, const unsigned int index, const void *raw_data, const size_t data_size);
 
 /**
  * @brief Checks the availability of the given execution environments.
@@ -640,13 +660,6 @@ ml_tensors_data_s *ml_util_allocate_tensors_data (const ml_tensors_info_h info);
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_util_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
-
-/**
- * @brief Gets the last error code.
- * @since_tizen 5.5
- * @return @c 0 on success. Otherwise a negative error value.
- */
-int ml_util_get_last_error (void);
 
 /**
  * @}

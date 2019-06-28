@@ -94,6 +94,24 @@ typedef struct {
 } ml_tensors_info_s;
 
 /**
+ * @brief An instance of a single input or output frame.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  void *tensor; /**< The instance of tensor data. */
+  size_t size; /**< The size of tensor. */
+} ml_tensor_data_s;
+
+/**
+ * @brief An instance of input or output frames. #ml_tensors_info_h is the handle for tensors metadata.
+ * @since_tizen 5.5
+ */
+typedef struct {
+  unsigned int num_tensors; /**< The number of tensors. */
+  ml_tensor_data_s tensors[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
+} ml_tensors_data_s;
+
+/**
  * @brief Possible controls on elements of a pipeline.
  */
 typedef enum {
@@ -182,11 +200,6 @@ typedef struct _ml_pipeline_valve {
   ml_pipeline_element *element;
   guint32 id;
 } ml_pipeline_valve;
-
-/**
- * @brief Sets the last error code.
- */
-void ml_util_set_error (int error_code);
 
 /**
  * @brief Gets the byte size of the given tensor info.

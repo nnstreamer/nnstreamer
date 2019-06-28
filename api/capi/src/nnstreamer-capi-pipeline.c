@@ -131,7 +131,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
   guint i;
   guint num_mems;
   GList *l;
-  ml_tensors_data_s tensors_data;
+  ml_tensors_data_s *data = NULL;
   size_t total_size = 0;
 
   num_mems = gst_buffer_n_memory (b);
@@ -143,15 +143,16 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
   }
 
   /* set tensor data */
-  memset (&tensors_data, 0, sizeof (ml_tensors_data_s));
+  data = g_new0 (ml_tensors_data_s, 1);
+  g_assert (data);
 
-  tensors_data.num_tensors = num_mems;
+  data->num_tensors = num_mems;
   for (i = 0; i < num_mems; i++) {
     mem[i] = gst_buffer_peek_memory (b, i);
     gst_memory_map (mem[i], &info[i], GST_MAP_READ);
 
-    tensors_data.tensors[i].tensor = info[i].data;
-    tensors_data.tensors[i].size = info[i].size;
+    data->tensors[i].tensor = info[i].data;
+    data->tensors[i].size = info[i].size;
 
     total_size += info[i].size;
   }
@@ -189,7 +190,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
           for (i = 0; i < elem->tensors_info.num_tensors; i++) {
             size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
-            if (sz != tensors_data.tensors[i].size) {
+            if (sz != data->tensors[i].size) {
               ml_loge
                   ("The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
                   elem->name);
@@ -225,7 +226,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
     ml_pipeline_sink *sink = l->data;
     ml_pipeline_sink_cb callback = sink->cb;
 
-    callback (&tensors_data, &elem->tensors_info, sink->pdata);
+    callback (data, &elem->tensors_info, sink->pdata);
 
     /** @todo Measure time. Warn if it takes long. Kill if it takes too long. */
   }
@@ -237,6 +238,10 @@ error:
     gst_memory_unmap (mem[i], &info[i]);
   }
 
+  if (data) {
+    g_free (data);
+    data = NULL;
+  }
   return;
 }
 
@@ -832,25 +837,28 @@ ml_pipeline_src_put_handle (ml_pipeline_src_h h)
  * @brief Push a data frame to a src (more info in nnstreamer.h)
  */
 int
-ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
+ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_h data,
     ml_pipeline_buf_policy_e policy)
 {
   /** @todo NYI */
   GstBuffer *buffer;
+  GstMemory *mem;
   GstFlowReturn gret;
+  ml_tensors_data_s *_data;
   unsigned int i;
 
   handle_init (src, src, h);
 
-  if (!data) {
+  _data = (ml_tensors_data_s *) data;
+  if (!_data) {
     ml_loge ("The given param data is invalid.");
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  if (data->num_tensors < 1 || data->num_tensors > ML_TENSOR_SIZE_LIMIT) {
+  if (_data->num_tensors < 1 || _data->num_tensors > ML_TENSOR_SIZE_LIMIT) {
     ml_loge ("The tensor size is invalid. It should be 1 ~ %u; where it is %u",
-        ML_TENSOR_SIZE_LIMIT, data->num_tensors);
+        ML_TENSOR_SIZE_LIMIT, _data->num_tensors);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -862,10 +870,10 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
     goto unlock_return;
   }
 
-  if (elem->tensors_info.num_tensors != data->num_tensors) {
+  if (elem->tensors_info.num_tensors != _data->num_tensors) {
     ml_loge
         ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
-        elem->name, elem->tensors_info.num_tensors, data->num_tensors);
+        elem->name, elem->tensors_info.num_tensors, _data->num_tensors);
 
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
@@ -874,10 +882,10 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
   for (i = 0; i < elem->tensors_info.num_tensors; i++) {
     size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
 
-    if (sz != data->tensors[i].size) {
+    if (sz != _data->tensors[i].size) {
       ml_loge
           ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
-          i, data->tensors[i].size, sz);
+          i, _data->tensors[i].size, sz);
 
       ret = ML_ERROR_INVALID_PARAMETER;
       goto unlock_return;
@@ -886,12 +894,11 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_s * data,
 
   /* Create buffer to be pushed from buf[] */
   buffer = gst_buffer_new ();
-  for (i = 0; i < data->num_tensors; i++) {
-    GstBuffer *addbuffer =
-        gst_buffer_new_wrapped_full (GST_MEMORY_FLAG_READONLY,
-        data->tensors[i].tensor, data->tensors[i].size, 0,
-        data->tensors[i].size, data->tensors[i].tensor, ml_buf_policy[policy]);
-    buffer = gst_buffer_append (buffer, addbuffer);
+  for (i = 0; i < _data->num_tensors; i++) {
+    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
+        _data->tensors[i].tensor, _data->tensors[i].size, 0,
+        _data->tensors[i].size, _data->tensors[i].tensor, ml_buf_policy[policy]);
+    gst_buffer_append_memory (buffer, mem);
 
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
   }
