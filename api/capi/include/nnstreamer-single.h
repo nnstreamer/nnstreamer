@@ -91,12 +91,8 @@ int ml_single_close (ml_single_h single);
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
- * @param[out] output The output buffer. Set NULL if you want to let
- *                    this function to allocate a new output buffer.
- * @return @c The output buffer. If @output is NULL, this is a newly
- *         allocated buffer; thus, the user needs to free it.
- *         If there is an error, this is set NULL. Check ml_util_get_last_error()
- *         of tizen_error.h in such cases.
+ * @param[out] output The output buffer allocated. Caller is responsible to free the output buffer with ml_util_destroy_tensors_data().
+ * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
@@ -106,7 +102,7 @@ int ml_single_close (ml_single_h single);
  *         input data frames of an instance of a model should share the
  *         same dimension.
  */
-ml_tensors_data_s * ml_single_inference (ml_single_h single, const ml_tensors_data_s *input, ml_tensors_data_s *output);
+int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h *output);
 
 /*************
  * UTILITIES *

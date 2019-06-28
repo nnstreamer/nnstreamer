@@ -281,11 +281,14 @@ TEST (nnstreamer_capi_valve, failure_01)
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-test_sink_callback_dm01 (const ml_tensors_data_s * data,
+test_sink_callback_dm01 (const ml_tensors_data_h data,
     const ml_tensors_info_h info, void *user_data)
 {
   gchar *filepath = (gchar *) user_data;
   unsigned int i, num = 0;
+  void *data_ptr;
+  size_t data_size;
+  int status;
   FILE *fp = g_fopen (filepath, "a");
 
   if (fp == NULL)
@@ -294,7 +297,9 @@ test_sink_callback_dm01 (const ml_tensors_data_s * data,
   ml_util_get_tensors_count (info, &num);
 
   for (i = 0; i < num; i++) {
-    fwrite (data->tensors[i].tensor, data->tensors[i].size, 1, fp);
+    status = ml_util_get_tensor_data (data, i, &data_ptr, &data_size);
+    if (status == ML_ERROR_NONE)
+      fwrite (data_ptr, data_size, 1, fp);
   }
 
   fclose (fp);
@@ -304,7 +309,7 @@ test_sink_callback_dm01 (const ml_tensors_data_s * data,
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-test_sink_callback_count (const ml_tensors_data_s * data,
+test_sink_callback_count (const ml_tensors_data_h data,
     const ml_tensors_info_h info, void *user_data)
 {
   guint *count = (guint *) user_data;
@@ -524,9 +529,6 @@ TEST (nnstreamer_capi_sink, failure_01)
   g_free (count_sink);
 }
 
-static char uintarray[10][4];
-static char *uia_index[10];
-
 /**
  * @brief Test NNStreamer pipeline src
  */
@@ -546,33 +548,32 @@ TEST (nnstreamer_capi_src, dummy_01)
   ml_pipeline_src_h srchandle;
   int status;
   ml_tensors_info_h info;
-  ml_tensors_data_s data1, data2;
+  ml_tensors_data_h data1, data2;
   unsigned int count = 0;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
   ml_tensor_dimension dim = { 0, };
 
   int i;
-  char *uintarray2[10];
+  uint8_t *uintarray1[10];
+  uint8_t *uintarray2[10];
   uint8_t *content;
-  gboolean r;
   gsize len;
 
   status = ml_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (dir != NULL);
   for (i = 0; i < 10; i++) {
-    uia_index[i] = &uintarray[i][0];
+    uintarray1[i] = (uint8_t *) g_malloc (4);
+    uintarray1[i][0] = i + 4;
+    uintarray1[i][1] = i + 1;
+    uintarray1[i][2] = i + 3;
+    uintarray1[i][3] = i + 2;
 
-    uintarray[i][0] = i;
-    uintarray[i][1] = i + 1;
-    uintarray[i][2] = i + 3;
-    uintarray[i][3] = i + 2;
-
-    uintarray2[i] = (char *) g_malloc (4);
+    uintarray2[i] = (uint8_t *) g_malloc (4);
     uintarray2[i][0] = i + 3;
     uintarray2[i][1] = i + 2;
     uintarray2[i][2] = i + 1;
-    uintarray2[i][3] = i;
+    uintarray2[i][3] = i + 4;
     /* These will be free'ed by gstreamer (ML_PIPELINE_BUF_POLICY_AUTO_FREE) */
     /** @todo Check whether gstreamer really deallocates this */
   }
@@ -603,17 +604,21 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (dim[2], 1U);
   EXPECT_EQ (dim[3], 1U);
 
+  status = ml_util_allocate_tensors_data (info, &data1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   ml_util_destroy_tensors_info (info);
 
-  data1.num_tensors = 1;
-  data1.tensors[0].tensor = uia_index[0];
-  data1.tensors[0].size = 4;
-
-  status = ml_pipeline_src_input_data (srchandle, &data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_util_copy_tensor_data (data1, 0, uintarray1[0], 4);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_src_input_data (srchandle, &data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (srchandle, data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000); /* 50ms. Wait a bit. */
+
+  status = ml_pipeline_src_input_data (srchandle, data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000); /* 50ms. Wait a bit. */
 
   status = ml_pipeline_src_put_handle (srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -637,17 +642,22 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (dim[3], 1U);
 
   for (i = 0; i < 10; i++) {
-    data1.num_tensors = 1;
-    data1.tensors[0].tensor = uia_index[i];
-    data1.tensors[0].size = 4;
-    status = ml_pipeline_src_input_data (srchandle, &data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+    status = ml_util_copy_tensor_data (data1, 0, uintarray1[i], 4);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
-    data2.num_tensors = 1;
-    data2.tensors[0].tensor = uintarray2[i];
-    data2.tensors[0].size = 4;
-    status = ml_pipeline_src_input_data (srchandle, &data2, ML_PIPELINE_BUF_POLICY_AUTO_FREE);
+    status = ml_pipeline_src_input_data (srchandle, data1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
     EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_util_allocate_tensors_data (info, &data2);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_util_copy_tensor_data (data2, 0, uintarray2[i], 4);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_pipeline_src_input_data (srchandle, data2, ML_PIPELINE_BUF_POLICY_AUTO_FREE);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    g_usleep (50000); /* 50ms. Wait a bit. */
   }
 
   status = ml_pipeline_src_put_handle (srchandle);
@@ -660,23 +670,23 @@ TEST (nnstreamer_capi_src, dummy_01)
 
   g_free (pipeline);
 
-  r = g_file_get_contents (file1, (gchar **) &content, &len, NULL);
-  EXPECT_EQ (r, TRUE);
-
+  EXPECT_TRUE (g_file_get_contents (file1, (gchar **) &content, &len, NULL));
   EXPECT_EQ (len, 8U * 11);
 
   for (i = 0; i < 10; i++) {
-    EXPECT_EQ (content[i * 8 + 0 + 8], i);
+    EXPECT_EQ (content[i * 8 + 0 + 8], i + 4);
     EXPECT_EQ (content[i * 8 + 1 + 8], i + 1);
     EXPECT_EQ (content[i * 8 + 2 + 8], i + 3);
     EXPECT_EQ (content[i * 8 + 3 + 8], i + 2);
     EXPECT_EQ (content[i * 8 + 4 + 8], i + 3);
     EXPECT_EQ (content[i * 8 + 5 + 8], i + 2);
     EXPECT_EQ (content[i * 8 + 6 + 8], i + 1);
-    EXPECT_EQ (content[i * 8 + 7 + 8], i);
+    EXPECT_EQ (content[i * 8 + 7 + 8], i + 4);
   }
 
   g_free (content);
+  ml_util_destroy_tensors_info (info);
+  ml_util_destroy_tensors_data (data1);
 }
 
 /**
@@ -735,18 +745,11 @@ TEST (nnstreamer_capi_src, failure_02)
  */
 TEST (nnstreamer_capi_src, failure_03)
 {
-  const int num_tensors = ML_TENSOR_SIZE_LIMIT + 1;
-  const int num_dims = 4;
-
   const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! tensor_sink";
   ml_pipeline_h handle;
   ml_pipeline_src_h srchandle;
-  ml_tensors_data_s data;
-
-  for (int i = 0; i < ML_TENSOR_SIZE_LIMIT; ++i) {
-    data.tensors[i].tensor = g_malloc0 (sizeof (char) * num_dims);
-    data.tensors[i].size = num_dims;
-  }
+  ml_tensors_data_h data;
+  ml_tensors_info_h info;
 
   int status = ml_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -757,18 +760,13 @@ TEST (nnstreamer_capi_src, failure_03)
   status = ml_pipeline_src_get_handle (handle, "srcx", &srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_pipeline_src_get_tensors_info (srchandle, &info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_util_allocate_tensors_data (info, &data);
+
   /* null data */
   status = ml_pipeline_src_input_data (srchandle, NULL, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  /* invalid number of tensors (max size) */
-  data.num_tensors = num_tensors;
-  status = ml_pipeline_src_input_data (srchandle, &data, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  /* invalid number of tensors (size is 0) */
-  data.num_tensors = 0;
-  status = ml_pipeline_src_input_data (srchandle, &data, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   status = ml_pipeline_src_put_handle (srchandle);
@@ -780,8 +778,8 @@ TEST (nnstreamer_capi_src, failure_03)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  for (int i = 0; i < ML_TENSOR_SIZE_LIMIT; ++i)
-    g_free (data.tensors[i].tensor);
+  status = ml_util_destroy_tensors_data (data);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /**
@@ -1017,7 +1015,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_info_h in_res, out_res;
-  ml_tensors_data_s *input, *output1, *output2;
+  ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim, res_dim;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
   unsigned int count = 0;
@@ -1104,36 +1102,19 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   EXPECT_TRUE (out_dim[2] == res_dim[2]);
   EXPECT_TRUE (out_dim[3] == res_dim[3]);
 
+  input = output = NULL;
+
   /* generate dummy data */
-  input = ml_util_allocate_tensors_data (in_info);
+  status = ml_util_allocate_tensors_data (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_util_get_last_error ();
+  status = ml_single_inference (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
 
-  output1 = ml_single_inference (single, input, NULL);
-  EXPECT_TRUE (output1 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  ml_util_free_tensors_data (&output1);
-
-  output2 = ml_util_allocate_tensors_data (out_info);
-  EXPECT_TRUE (output2 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  output1 = ml_single_inference (single, input, output2);
-  EXPECT_TRUE (output1 != NULL);
-  EXPECT_TRUE (output1 == output2);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  ml_util_free_tensors_data (&output2);
-  ml_util_free_tensors_data (&input);
+  ml_util_destroy_tensors_data (output);
+  ml_util_destroy_tensors_data (input);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1153,7 +1134,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
-  ml_tensors_data_s *input, *output1, *output2;
+  ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim;
   int status;
 
@@ -1191,36 +1172,19 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  input = output = NULL;
+
   /* generate dummy data */
-  input = ml_util_allocate_tensors_data (in_info);
+  status = ml_util_allocate_tensors_data (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_util_get_last_error ();
+  status = ml_single_inference (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
 
-  output1 = ml_single_inference (single, input, NULL);
-  EXPECT_TRUE (output1 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  ml_util_free_tensors_data (&output1);
-
-  output2 = ml_util_allocate_tensors_data (out_info);
-  EXPECT_TRUE (output2 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  output1 = ml_single_inference (single, input, output2);
-  EXPECT_TRUE (output1 != NULL);
-  EXPECT_TRUE (output1 == output2);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  ml_util_free_tensors_data (&output2);
-  ml_util_free_tensors_data (&input);
+  ml_util_destroy_tensors_data (output);
+  ml_util_destroy_tensors_data (input);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1239,9 +1203,12 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
-  ml_tensors_data_s *input, *output1, *output2;
+  ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim;
-  int i, status;
+  int status;
+  unsigned int i;
+  void *data_ptr;
+  size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
@@ -1276,61 +1243,45 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
       ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  input = output = NULL;
+
   /* generate input data */
-  input = ml_util_allocate_tensors_data (in_info);
+  status = ml_util_allocate_tensors_data (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   ASSERT_TRUE (input != NULL);
-  EXPECT_TRUE (input->num_tensors == 2U);
 
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
     float f32 = (float) (i + .1);
 
-    ((int16_t *) input->tensors[0].tensor)[i] = i16;
-    ((float *) input->tensors[1].tensor)[i] = f32;
+    status = ml_util_get_tensor_data (input, 0, &data_ptr, &data_size);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    ((int16_t *) data_ptr)[i] = i16;
+
+    status = ml_util_get_tensor_data (input, 1, &data_ptr, &data_size);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    ((float *) data_ptr)[i] = f32;
   }
 
-  status = ml_util_get_last_error ();
+  status = ml_single_inference (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
-
-  output1 = ml_single_inference (single, input, NULL);
-  EXPECT_TRUE (output1 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
 
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
     float f32 = (float) (i + .1);
 
-    EXPECT_EQ (((int16_t *) output1->tensors[0].tensor)[i], i16);
-    EXPECT_FLOAT_EQ (((float *) output1->tensors[1].tensor)[i], f32);
+    status = ml_util_get_tensor_data (output, 0, &data_ptr, &data_size);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (((int16_t *) data_ptr)[i], i16);
+
+    status = ml_util_get_tensor_data (output, 1, &data_ptr, &data_size);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_FLOAT_EQ (((float *) data_ptr)[i], f32);
   }
 
-  ml_util_free_tensors_data (&output1);
-
-  output2 = ml_util_allocate_tensors_data (out_info);
-  EXPECT_TRUE (output2 != NULL);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  output1 = ml_single_inference (single, input, output2);
-  EXPECT_TRUE (output1 != NULL);
-  EXPECT_TRUE (output1 == output2);
-
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  for (i = 0; i < 10; i++) {
-    int16_t i16 = (int16_t) (i + 1);
-    float f32 = (float) (i + .1);
-
-    EXPECT_EQ (((int16_t *) output1->tensors[0].tensor)[i], i16);
-    EXPECT_FLOAT_EQ (((float *) output1->tensors[1].tensor)[i], f32);
-  }
-
-  ml_util_free_tensors_data (&output2);
-  ml_util_free_tensors_data (&input);
+  ml_util_destroy_tensors_data (output);
+  ml_util_destroy_tensors_data (input);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1350,13 +1301,15 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_info_h in_res, out_res;
-  ml_tensors_data_s *input, *output;
+  ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim, res_dim;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
   unsigned int count = 0;
   char *name = NULL;
   int status, max_score_index;
   float score, max_score;
+  void *data_ptr;
+  size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model, *test_file;
@@ -1449,28 +1402,31 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   EXPECT_TRUE (out_dim[2] == res_dim[2]);
   EXPECT_TRUE (out_dim[3] == res_dim[3]);
 
+  input = output = NULL;
+
   /* generate input data */
-  input = ml_util_allocate_tensors_data (in_info);
+  status = ml_util_allocate_tensors_data (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_util_get_last_error ();
+  status = ml_util_copy_tensor_data (input, 0, contents, len);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  memcpy (input->tensors[0].tensor, contents, len);
-
-  output = ml_single_inference (single, input, NULL);
+  status = ml_single_inference (single, input, &output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  status = ml_util_get_last_error ();
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
   /* check result (max score index is 2) */
-  EXPECT_EQ (output->num_tensors, 1U);
+  status = ml_util_get_tensor_data (output, 1, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_util_get_tensor_data (output, 0, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   max_score = .0;
   max_score_index = 0;
   for (gint i = 0; i < 12; i++) {
-    score = ((float *) output->tensors[0].tensor)[i];
+    score = ((float *) data_ptr)[i];
     if (score > max_score) {
       max_score = score;
       max_score_index = i;
@@ -1479,8 +1435,8 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   EXPECT_EQ (max_score_index, 2);
 
-  ml_util_free_tensors_data (&output);
-  ml_util_free_tensors_data (&input);
+  ml_util_destroy_tensors_data (output);
+  ml_util_destroy_tensors_data (input);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);

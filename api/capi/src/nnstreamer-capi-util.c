@@ -20,31 +20,12 @@
  * @bug No known bugs except for NYI items
  */
 
+#include <string.h>
 #include <nnstreamer/nnstreamer_plugin_api.h>
 #include <nnstreamer/nnstreamer_plugin_api_filter.h>
 
 #include "nnstreamer.h"
 #include "nnstreamer-capi-private.h"
-
-static int ml_internal_error_code = ML_ERROR_NONE;
-
-/**
- * @brief Gets the last error code.
- */
-int
-ml_util_get_last_error (void)
-{
-  return ml_internal_error_code;
-}
-
-/**
- * @brief Sets the last error code.
- */
-void
-ml_util_set_error (int error_code)
-{
-  ml_internal_error_code = error_code;
-}
 
 /**
  * @brief Allocates a tensors information handle with default value.
@@ -420,57 +401,118 @@ ml_util_free_tensors_info (ml_tensors_info_s * info)
 /**
  * @brief Frees the tensors data pointer.
  */
-void
-ml_util_free_tensors_data (ml_tensors_data_s ** data)
+int
+ml_util_destroy_tensors_data (ml_tensors_data_h data)
 {
-  gint i;
+  ml_tensors_data_s *_data;
+  guint i;
 
-  if (data == NULL || (*data) == NULL)
-    return;
+  if (!data)
+    return ML_ERROR_INVALID_PARAMETER;
 
-  for (i = 0; i < (*data)->num_tensors; i++) {
-    if ((*data)->tensors[i].tensor) {
-      g_free ((*data)->tensors[i].tensor);
-      (*data)->tensors[i].tensor = NULL;
+  _data = (ml_tensors_data_s *) data;
+
+  for (i = 0; i < _data->num_tensors; i++) {
+    if (_data->tensors[i].tensor) {
+      g_free (_data->tensors[i].tensor);
+      _data->tensors[i].tensor = NULL;
     }
   }
 
-  g_free (*data);
-  *data = NULL;
+  g_free (_data);
+  return ML_ERROR_NONE;
 }
 
 /**
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
  */
-ml_tensors_data_s *
-ml_util_allocate_tensors_data (const ml_tensors_info_h info)
+int
+ml_util_allocate_tensors_data (const ml_tensors_info_h info,
+    ml_tensors_data_h * data)
 {
-  ml_tensors_data_s *data;
+  ml_tensors_data_s *_data;
   ml_tensors_info_s *tensors_info;
   gint i;
 
+  if (!info || !data)
+    return ML_ERROR_INVALID_PARAMETER;
+
   tensors_info = (ml_tensors_info_s *) info;
+  *data = NULL;
 
-  if (!tensors_info) {
-    ml_util_set_error (ML_ERROR_INVALID_PARAMETER);
-    return NULL;
-  }
-
-  data = g_new0 (ml_tensors_data_s, 1);
-  if (!data) {
+  _data = g_new0 (ml_tensors_data_s, 1);
+  if (!_data) {
     ml_loge ("Failed to allocate the memory block.");
-    ml_util_set_error (ML_ERROR_STREAMS_PIPE);
-    return NULL;
+    return ML_ERROR_STREAMS_PIPE;
   }
 
-  data->num_tensors = tensors_info->num_tensors;
-  for (i = 0; i < data->num_tensors; i++) {
-    data->tensors[i].size = ml_util_get_tensor_size (&tensors_info->info[i]);
-    data->tensors[i].tensor = g_malloc0 (data->tensors[i].size);
+  _data->num_tensors = tensors_info->num_tensors;
+  for (i = 0; i < _data->num_tensors; i++) {
+    _data->tensors[i].size = ml_util_get_tensor_size (&tensors_info->info[i]);
+    _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
+    if (_data->tensors[i].tensor == NULL)
+      goto failed;
   }
 
-  ml_util_set_error (ML_ERROR_NONE);
-  return data;
+  *data = _data;
+  return ML_ERROR_NONE;
+
+failed:
+  if (_data) {
+    for (i = 0; i < _data->num_tensors; i++) {
+      g_free (_data->tensors[i].tensor);
+    }
+  }
+
+  ml_loge ("Failed to allocate the memory block.");
+  return ML_ERROR_STREAMS_PIPE;
+}
+
+/**
+ * @brief Gets a tensor data of given handle.
+ */
+int
+ml_util_get_tensor_data (ml_tensors_data_h data, const unsigned int index,
+    void **raw_data, size_t * data_size)
+{
+  ml_tensors_data_s *_data;
+
+  if (!data)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  _data = (ml_tensors_data_s *) data;
+
+  if (_data->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *raw_data = _data->tensors[index].tensor;
+  *data_size = _data->tensors[index].size;
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Copies a tensor data to given handle.
+ */
+int
+ml_util_copy_tensor_data (ml_tensors_data_h data, const unsigned int index,
+    const void *raw_data, const size_t data_size)
+{
+  ml_tensors_data_s *_data;
+
+  if (!data)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  _data = (ml_tensors_data_s *) data;
+
+  if (_data->num_tensors <= index)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  if (data_size <= 0 || _data->tensors[index].size < data_size)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  memcpy (_data->tensors[index].tensor, raw_data, data_size);
+  return ML_ERROR_NONE;
 }
 
 /**
@@ -689,7 +731,7 @@ ml_util_get_caps_from_tensors_info (const ml_tensors_info_s * info)
  */
 int
 ml_util_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
-    bool *available)
+    bool * available)
 {
   if (!available)
     return ML_ERROR_INVALID_PARAMETER;

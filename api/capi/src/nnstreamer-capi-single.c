@@ -334,12 +334,12 @@ ml_single_close (ml_single_h single)
 /**
  * @brief Invokes the model with the given input data.
  */
-ml_tensors_data_s *
+int
 ml_single_inference (ml_single_h single,
-    const ml_tensors_data_s * input, ml_tensors_data_s * output)
+    const ml_tensors_data_h input, ml_tensors_data_h * output)
 {
   ml_single *single_h;
-  ml_tensors_data_s *result = NULL;
+  ml_tensors_data_s *in_data, *result;
   GstSample *sample;
   GstBuffer *buffer;
   GstMemory *mem;
@@ -347,47 +347,38 @@ ml_single_inference (ml_single_h single,
   GstFlowReturn ret;
   int i, status = ML_ERROR_NONE;
 
-  if (!single || !input) {
+  if (!single || !input || !output) {
     ml_loge ("The given param is invalid.");
-    status = ML_ERROR_INVALID_PARAMETER;
-    goto error;
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   single_h = (ml_single *) single;
+  in_data = (ml_tensors_data_s *) input;
 
-  /* Validate output memory and size */
-  if (output) {
-    if (output->num_tensors != single_h->out_info.num_tensors) {
-      ml_loge ("Invalid output data, the number of output is different.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
-
-    for (i = 0; i < output->num_tensors; i++) {
-      if (!output->tensors[i].tensor ||
-          output->tensors[i].size !=
-          ml_util_get_tensor_size (&single_h->out_info.info[i])) {
-        ml_loge ("Invalid output data, the size of output is different.");
-        status = ML_ERROR_INVALID_PARAMETER;
-        goto error;
-      }
-    }
+  /* Allocate output buffer */
+  status = ml_util_allocate_tensors_data (&single_h->out_info, output);
+  if (status != ML_ERROR_NONE) {
+    ml_loge ("Failed to allocate the memory block.");
+    *output = NULL;
+    return status;
   }
 
+  result = (ml_tensors_data_s *) (*output);
+
+  /* Push input buffer */
   buffer = gst_buffer_new ();
 
-  for (i = 0; i < input->num_tensors; i++) {
+  for (i = 0; i < in_data->num_tensors; i++) {
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        input->tensors[i].tensor, input->tensors[i].size, 0,
-        input->tensors[i].size, NULL, NULL);
+        in_data->tensors[i].tensor, in_data->tensors[i].size, 0,
+        in_data->tensors[i].size, NULL, NULL);
     gst_buffer_append_memory (buffer, mem);
   }
 
   ret = gst_app_src_push_buffer (GST_APP_SRC (single_h->src), buffer);
   if (ret != GST_FLOW_OK) {
     ml_loge ("Cannot push a buffer into source element.");
-    status = ML_ERROR_STREAMS_PIPE;
-    goto error;
+    return ML_ERROR_STREAMS_PIPE;
   }
 
   /* Try to get the result */
@@ -401,20 +392,7 @@ ml_single_inference (ml_single_h single,
 
   if (!sample) {
     ml_loge ("Failed to get the result from sink element.");
-    status = ML_ERROR_TIMED_OUT;
-    goto error;
-  }
-
-  if (output) {
-    result = output;
-  } else {
-    result = ml_util_allocate_tensors_data (&single_h->out_info);
-
-    if (!result) {
-      ml_loge ("Failed to allocate the memory block.");
-      status = ml_util_get_last_error ();
-      goto error;
-    }
+    return ML_ERROR_TIMED_OUT;
   }
 
   /* Copy the result */
@@ -429,11 +407,7 @@ ml_single_inference (ml_single_h single,
   }
 
   gst_sample_unref (sample);
-  status = ML_ERROR_NONE;
-
-error:
-  ml_util_set_error (status);
-  return result;
+  return ML_ERROR_NONE;
 }
 
 /**
