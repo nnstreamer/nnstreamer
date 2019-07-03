@@ -90,7 +90,7 @@ int ml_single_close (ml_single_h single);
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
- * @param[out] output The allocated output buffer. The caller is responsible for freeing the output buffer with ml_util_destroy_tensors_data().
+ * @param[out] output The allocated output buffer. The caller is responsible for freeing the output buffer with ml_tensors_data_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
@@ -112,7 +112,7 @@ int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_t
  *          Besides, names of tensors may be not available while dimensions and types are available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
- * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_util_destroy_tensors_info().
+ * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
@@ -125,7 +125,7 @@ int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
  *          Besides, names of tensors may be not available while dimensions and types are available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
- * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_util_destroy_tensors_info().
+ * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
