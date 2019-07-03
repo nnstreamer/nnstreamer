@@ -375,8 +375,7 @@ TEST (nnstreamer_capi_sink, dummy_01)
   int status = ml_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_dm01,
-      &sinkhandle, file2);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_dm01, file2, &sinkhandle);
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -432,7 +431,7 @@ TEST (nnstreamer_capi_sink, dummy_02)
   status = ml_pipeline_construct (pipeline, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_start (handle);
@@ -484,30 +483,30 @@ TEST (nnstreamer_capi_sink, failure_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : pipe */
-  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : name */
-  status = ml_pipeline_sink_register (handle, NULL, test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, NULL, test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : wrong name */
-  status = ml_pipeline_sink_register (handle, "wrongname", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "wrongname", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : invalid type */
-  status = ml_pipeline_sink_register (handle, "valvex", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "valvex", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : callback */
-  status = ml_pipeline_sink_register (handle, "sinkx", NULL, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "sinkx", NULL, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid param : handle */
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, NULL, count_sink);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_start (handle);
@@ -826,7 +825,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
     EXPECT_EQ (idx, 2U);
   }
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, &sinkhandle, count_sink);
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_switch_select (switchhandle, "sink_1");
@@ -906,10 +905,10 @@ TEST (nnstreamer_capi_switch, dummy_02)
     EXPECT_EQ (idx, 2U);
   }
 
-  status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, &sinkhandle0, count_sink0);
+  status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, count_sink0, &sinkhandle0);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sink1", test_sink_callback_count, &sinkhandle1, count_sink1);
+  status = ml_pipeline_sink_register (handle, "sink1", test_sink_callback_count, count_sink1, &sinkhandle1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_switch_select (switchhandle, "src_1");

@@ -114,22 +114,31 @@ ml_util_validate_tensor_info (const ml_tensor_info_s * info)
  * @brief Validates the given tensors info is valid.
  */
 int
-ml_util_validate_tensors_info (const ml_tensors_info_h info)
+ml_util_validate_tensors_info (const ml_tensors_info_h info, bool * valid)
 {
   ml_tensors_info_s *tensors_info;
   guint i;
+
+  if (!valid)
+    return ML_ERROR_INVALID_PARAMETER;
 
   tensors_info = (ml_tensors_info_s *) info;
 
   if (!tensors_info || tensors_info->num_tensors < 1)
     return ML_ERROR_INVALID_PARAMETER;
 
+  /* init false */
+  *valid = false;
+
   for (i = 0; i < tensors_info->num_tensors; i++) {
     /* Failed if returned value is not 0 (ML_ERROR_NONE) */
     if (ml_util_validate_tensor_info (&tensors_info->info[i]) != ML_ERROR_NONE)
-      return ML_ERROR_INVALID_PARAMETER;
+      goto done;
   }
 
+  *valid = true;
+
+done:
   return ML_ERROR_NONE;
 }
 
@@ -137,7 +146,7 @@ ml_util_validate_tensors_info (const ml_tensors_info_h info)
  * @brief Sets the number of tensors with given handle of tensors information.
  */
 int
-ml_util_set_tensors_count (ml_tensors_info_h info, const unsigned int count)
+ml_util_set_tensors_count (ml_tensors_info_h info, unsigned int count)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -172,7 +181,7 @@ ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count)
  */
 int
 ml_util_set_tensor_name (ml_tensors_info_h info,
-    const unsigned int index, const char *name)
+    unsigned int index, const char *name)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -200,7 +209,7 @@ ml_util_set_tensor_name (ml_tensors_info_h info,
  */
 int
 ml_util_get_tensor_name (ml_tensors_info_h info,
-    const unsigned int index, char **name)
+    unsigned int index, char **name)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -222,7 +231,7 @@ ml_util_get_tensor_name (ml_tensors_info_h info,
  */
 int
 ml_util_set_tensor_type (ml_tensors_info_h info,
-    const unsigned int index, const ml_tensor_type_e type)
+    unsigned int index, const ml_tensor_type_e type)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -244,7 +253,7 @@ ml_util_set_tensor_type (ml_tensors_info_h info,
  */
 int
 ml_util_get_tensor_type (ml_tensors_info_h info,
-    const unsigned int index, ml_tensor_type_e * type)
+    unsigned int index, ml_tensor_type_e * type)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -266,7 +275,7 @@ ml_util_get_tensor_type (ml_tensors_info_h info,
  */
 int
 ml_util_set_tensor_dimension (ml_tensors_info_h info,
-    const unsigned int index, const ml_tensor_dimension dimension)
+    unsigned int index, const ml_tensor_dimension dimension)
 {
   ml_tensors_info_s *tensors_info;
   guint i;
@@ -291,7 +300,7 @@ ml_util_set_tensor_dimension (ml_tensors_info_h info,
  */
 int
 ml_util_get_tensor_dimension (ml_tensors_info_h info,
-    const unsigned int index, ml_tensor_dimension dimension)
+    unsigned int index, ml_tensor_dimension dimension)
 {
   ml_tensors_info_s *tensors_info;
   guint i;
@@ -472,7 +481,7 @@ failed:
  * @brief Gets a tensor data of given handle.
  */
 int
-ml_util_get_tensor_data (ml_tensors_data_h data, const unsigned int index,
+ml_util_get_tensor_data (ml_tensors_data_h data, unsigned int index,
     void **raw_data, size_t * data_size)
 {
   ml_tensors_data_s *_data;
@@ -495,7 +504,7 @@ ml_util_get_tensor_data (ml_tensors_data_h data, const unsigned int index,
  * @brief Copies a tensor data to given handle.
  */
 int
-ml_util_copy_tensor_data (ml_tensors_data_h data, const unsigned int index,
+ml_util_copy_tensor_data (ml_tensors_data_h data, unsigned int index,
     const void *raw_data, const size_t data_size)
 {
   ml_tensors_data_s *_data;
@@ -547,7 +556,7 @@ ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src)
 }
 
 /**
- * @brief Copies tensor meta info from gst tensots info.
+ * @brief Copies tensor meta info from gst tensors info.
  */
 void
 ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
@@ -619,7 +628,7 @@ ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
 }
 
 /**
- * @brief Copies tensor meta info from gst tensots info.
+ * @brief Copies tensor meta info from gst tensors info.
  */
 void
 ml_util_copy_tensors_info_from_ml (GstTensorsInfo * gst_info,

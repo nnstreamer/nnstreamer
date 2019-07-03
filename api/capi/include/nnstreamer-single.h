@@ -22,7 +22,7 @@
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  *
- * @detail This is targetting Tizen 5.5 M2.
+ * @details This is targetting Tizen 5.5 M2.
  */
 
 #ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_SINGLE_H__
@@ -61,18 +61,17 @@ typedef void *ml_single_h;
  *                      It is required by some custom filters of NNStreamer.
  *                      You may set NULL if it's not required.
  * @param[in] output_info This is required if the given model has flexible output dimension.
- * @param[in] nnfw The nerual network framework used to open the given
- *                 #model_path. Set #ML_NNFW_TYPE_ANY to let it auto-detect.
- * @param[in] hw Tell the corresponding @nnfw to use a specific hardware.
+ * @param[in] nnfw The neural network framework used to open the given @a model.
+ *                 Set #ML_NNFW_TYPE_ANY to let it auto-detect.
+ * @param[in] hw Tell the corresponding @a nnfw to use a specific hardware.
  *               Set #ML_NNFW_HW_ANY if it does not matter.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  *
- * @detail Even if the model has flexible input data dimensions,
- *         input data frames of an instance of a model should share the
- *         same dimension.
+ * @details Even if the model has flexible input data dimensions,
+ *          input data frames of an instance of a model should share the same dimension.
  */
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
 
@@ -91,16 +90,15 @@ int ml_single_close (ml_single_h single);
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
- * @param[out] output The output buffer allocated. Caller is responsible to free the output buffer with ml_util_destroy_tensors_data().
+ * @param[out] output The allocated output buffer. The caller is responsible for freeing the output buffer with ml_util_destroy_tensors_data().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
- * @detail Even if the model has flexible input data dimensions,
- *         input data frames of an instance of a model should share the
- *         same dimension.
+ * @details Even if the model has flexible input data dimensions,
+ *          input data frames of an instance of a model should share the same dimension.
  */
 int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h *output);
 
@@ -109,15 +107,12 @@ int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_t
  *************/
 
 /**
- * @brief Gets the type (tensor dimension, type, name and so on) of required input
- *        data for the given handle.
- * @detail Note that a model may not have such
- *         information if its input type is flexible.
- *         Besides, names of tensors may be not available while dimensions and
- *         types are available.
+ * @brief Gets the type (tensor dimension, type, name and so on) of required input data for the given model.
+ * @details Note that a model may not have such information if its input type is flexible.
+ *          Besides, names of tensors may be not available while dimensions and types are available.
  * @since_tizen 5.5
- * @param[in] single The model handle to be investigated.
- * @param[out] info The handle of input tensors information. Caller is responsible to free the information with ml_util_destroy_tensors_info().
+ * @param[in] single The model handle.
+ * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_util_destroy_tensors_info().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
@@ -125,16 +120,12 @@ int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_t
 int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
 
 /**
- * @brief Gets the type (tensor dimension, type, name and so on) of output
- *        data for the given handle.
- * @detail Note that a model may not have such
- *         information if its input type is flexible and output type is
- *         not determined statically.
- *         Besides, names of tensors may be not available while dimensions and
- *         types are available.
+ * @brief Gets the type (tensor dimension, type, name and so on) of output data for the given model.
+ * @details Note that a model may not have such information if its output type is flexible and output type is not determined statically.
+ *          Besides, names of tensors may be not available while dimensions and types are available.
  * @since_tizen 5.5
- * @param[in] single The model handle to be investigated.
- * @param[out] info The handle of output tensors information. Caller is responsible to free the returned with ml_util_destroy_tensors_info().
+ * @param[in] single The model handle.
+ * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_util_destroy_tensors_info().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
