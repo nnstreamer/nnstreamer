@@ -62,6 +62,7 @@ ml_single_open (ml_single_h * single, const char *model,
   gchar *path_down;
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   bool available = false;
+  bool valid = false;
 
   /* Validate the params */
   if (!single) {
@@ -75,16 +76,22 @@ ml_single_open (ml_single_h * single, const char *model,
   in_tensors_info = (ml_tensors_info_s *) input_info;
   out_tensors_info = (ml_tensors_info_s *) output_info;
 
-  if (in_tensors_info &&
-      ml_util_validate_tensors_info (in_tensors_info) != ML_ERROR_NONE) {
-    ml_loge ("The given param, input tensor info is invalid.");
-    return ML_ERROR_INVALID_PARAMETER;
+  if (input_info) {
+    /* Validate input tensor info. */
+    if (ml_util_validate_tensors_info (input_info, &valid) != ML_ERROR_NONE ||
+        valid == false) {
+      ml_loge ("The given param, input tensor info is invalid.");
+      return ML_ERROR_INVALID_PARAMETER;
+    }
   }
 
-  if (out_tensors_info &&
-      ml_util_validate_tensors_info (out_tensors_info) != ML_ERROR_NONE) {
-    ml_loge ("The given param, output tensor info is invalid.");
-    return ML_ERROR_INVALID_PARAMETER;
+  if (output_info) {
+    /* Validate output tensor info. */
+    if (ml_util_validate_tensors_info (output_info, &valid) != ML_ERROR_NONE ||
+        valid == false) {
+      ml_loge ("The given param, output tensor info is invalid.");
+      return ML_ERROR_INVALID_PARAMETER;
+    }
   }
 
   /* 1. Determine nnfw */
@@ -243,8 +250,8 @@ ml_single_open (ml_single_h * single, const char *model,
     ml_util_copy_tensors_info (&single_h->in_info, in_info);
     ml_util_destroy_tensors_info (in_info);
 
-    status = ml_util_validate_tensors_info (&single_h->in_info);
-    if (status != ML_ERROR_NONE) {
+    status = ml_util_validate_tensors_info (&single_h->in_info, &valid);
+    if (status != ML_ERROR_NONE || valid == false) {
       ml_loge ("Failed to get the input tensor info.");
       goto error;
     }
@@ -265,8 +272,8 @@ ml_single_open (ml_single_h * single, const char *model,
     ml_util_copy_tensors_info (&single_h->out_info, out_info);
     ml_util_destroy_tensors_info (out_info);
 
-    status = ml_util_validate_tensors_info (&single_h->out_info);
-    if (status != ML_ERROR_NONE) {
+    status = ml_util_validate_tensors_info (&single_h->out_info, &valid);
+    if (status != ML_ERROR_NONE || valid == false) {
       ml_loge ("Failed to get the output tensor info.");
       goto error;
     }

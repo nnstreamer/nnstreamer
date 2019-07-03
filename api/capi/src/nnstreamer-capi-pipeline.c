@@ -561,7 +561,7 @@ ml_pipeline_stop (ml_pipeline_h pipe)
  */
 int
 ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
-    ml_pipeline_sink_cb cb, ml_pipeline_sink_h * h, void *user_data)
+    ml_pipeline_sink_cb cb, void *user_data, ml_pipeline_sink_h * h)
 {
   ml_pipeline_element *elem;
   ml_pipeline *p = pipe;
@@ -836,7 +836,7 @@ ml_pipeline_src_put_handle (ml_pipeline_src_h h)
  * @brief Push a data frame to a src (more info in nnstreamer.h)
  */
 int
-ml_pipeline_src_input_data (ml_pipeline_src_h h, const ml_tensors_data_h data,
+ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     ml_pipeline_buf_policy_e policy)
 {
   /** @todo NYI */
