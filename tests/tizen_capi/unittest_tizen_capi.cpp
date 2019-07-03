@@ -82,7 +82,7 @@ TEST (nnstreamer_capi_construct_destruct, failed_02)
  */
 TEST (nnstreamer_capi_playstop, dummy_01)
 {
-  const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
+  const char *pipeline = "videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
   ml_pipeline_h handle;
   ml_pipeline_state_e state;
   int status = ml_pipeline_construct (pipeline, &handle);
@@ -118,7 +118,7 @@ TEST (nnstreamer_capi_playstop, dummy_01)
  */
 TEST (nnstreamer_capi_playstop, dummy_02)
 {
-  const char *pipeline = "videotestsrc is-live=true num-buffers=30 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
+  const char *pipeline = "videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! valve name=valvex ! valve name=valvey ! input-selector name=is01 ! tensor_sink name=sinkx";
   ml_pipeline_h handle;
   ml_pipeline_state_e state;
   int status = ml_pipeline_construct (pipeline, &handle);
@@ -174,7 +174,7 @@ TEST (nnstreamer_capi_valve, test01)
   gchar *file1 = g_build_path ("/", dir, "valve1", NULL);
   gchar *pipeline =
       g_strdup_printf
-      ("videotestsrc is-live=true num-buffers=20 ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=60/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
+      ("videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=60/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
       file1);
   GStatBuf buf;
 
@@ -190,10 +190,10 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_valve_get_handle (handle, "valve1", &valve1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_start (handle);
+  status = ml_pipeline_valve_set_open (valve1, false); /* close */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_valve_set_open (valve1, false); /* close */
+  status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_get_state (handle, &state);
@@ -214,6 +214,7 @@ TEST (nnstreamer_capi_valve, test01)
 
   status = ml_pipeline_valve_set_open (valve1, true); /* open */
   EXPECT_EQ (status, ML_ERROR_NONE);
+
   status = ml_pipeline_valve_put_handle (valve1); /* release valve handle */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
