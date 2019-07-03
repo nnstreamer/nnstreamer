@@ -213,7 +213,7 @@ typedef enum {
  * @since_tizen 5.5
  * @remarks The @a data can be used only in the callback. To use outside, make a copy.
  * @remarks The @a info can be used only in the callback. To use outside, make a copy.
- * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_util_get_tensors_count() with the handle 'info'. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
+ * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[out] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[in,out] user_data User Application's Private Data.
  */
@@ -360,7 +360,7 @@ int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h 
 /**
  * @brief Gets a handle for the tensors information of given src node.
  * @since_tizen 5.5
- * @remarks If the function succeeds, @a info handle must be released using ml_util_destroy_tensors_info().
+ * @remarks If the function succeeds, @a info handle must be released using ml_tensors_info_destroy().
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
  * @param[out] info The handle of tensors information.
  * @return 0 on success. Otherwise a negative error value.
@@ -456,14 +456,14 @@ int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
  ** NNStreamer Utilities                           **
  ****************************************************/
 /**
- * @brief Allocates a tensors information handle with default value.
+ * @brief Creates a tensors information handle with default value.
  * @since_tizen 5.5
  * @param[out] info The handle of tensors information.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_allocate_tensors_info (ml_tensors_info_h *info);
+int ml_tensors_info_create (ml_tensors_info_h *info);
 
 /**
  * @brief Frees the given handle of a tensors information.
@@ -473,7 +473,7 @@ int ml_util_allocate_tensors_info (ml_tensors_info_h *info);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_destroy_tensors_info (ml_tensors_info_h info);
+int ml_tensors_info_destroy (ml_tensors_info_h info);
 
 /**
  * @brief Validates the given tensors information.
@@ -485,7 +485,7 @@ int ml_util_destroy_tensors_info (ml_tensors_info_h info);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_validate_tensors_info (const ml_tensors_info_h info, bool *valid);
+int ml_tensors_info_validate (const ml_tensors_info_h info, bool *valid);
 
 /**
  * @brief Copies the tensors information.
@@ -496,7 +496,7 @@ int ml_util_validate_tensors_info (const ml_tensors_info_h info, bool *valid);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src);
+int ml_tensors_info_clone (ml_tensors_info_h dest, const ml_tensors_info_h src);
 
 /**
  * @brief Sets the number of tensors with given handle of tensors information.
@@ -507,7 +507,7 @@ int ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h s
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_set_tensors_count (ml_tensors_info_h info, unsigned int count);
+int ml_tensors_info_set_count (ml_tensors_info_h info, unsigned int count);
 
 /**
  * @brief Gets the number of tensors with given handle of tensors information.
@@ -518,7 +518,7 @@ int ml_util_set_tensors_count (ml_tensors_info_h info, unsigned int count);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count);
+int ml_tensors_info_get_count (ml_tensors_info_h info, unsigned int *count);
 
 /**
  * @brief Sets the tensor name with given handle of tensors information.
@@ -530,7 +530,7 @@ int ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_set_tensor_name (ml_tensors_info_h info, unsigned int index, const char *name);
+int ml_tensors_info_set_tensor_name (ml_tensors_info_h info, unsigned int index, const char *name);
 
 /**
  * @brief Gets the tensor name with given handle of tensors information.
@@ -542,7 +542,7 @@ int ml_util_set_tensor_name (ml_tensors_info_h info, unsigned int index, const c
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_get_tensor_name (ml_tensors_info_h info, unsigned int index, char **name);
+int ml_tensors_info_get_tensor_name (ml_tensors_info_h info, unsigned int index, char **name);
 
 /**
  * @brief Sets the tensor type with given handle of tensors information.
@@ -554,7 +554,7 @@ int ml_util_get_tensor_name (ml_tensors_info_h info, unsigned int index, char **
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_set_tensor_type (ml_tensors_info_h info, unsigned int index, const ml_tensor_type_e type);
+int ml_tensors_info_set_tensor_type (ml_tensors_info_h info, unsigned int index, const ml_tensor_type_e type);
 
 /**
  * @brief Gets the tensor type with given handle of tensors information.
@@ -566,7 +566,7 @@ int ml_util_set_tensor_type (ml_tensors_info_h info, unsigned int index, const m
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_get_tensor_type (ml_tensors_info_h info, unsigned int index, ml_tensor_type_e *type);
+int ml_tensors_info_get_tensor_type (ml_tensors_info_h info, unsigned int index, ml_tensor_type_e *type);
 
 /**
  * @brief Sets the tensor dimension with given handle of tensors information.
@@ -578,7 +578,7 @@ int ml_util_get_tensor_type (ml_tensors_info_h info, unsigned int index, ml_tens
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_set_tensor_dimension (ml_tensors_info_h info, unsigned int index, const ml_tensor_dimension dimension);
+int ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info, unsigned int index, const ml_tensor_dimension dimension);
 
 /**
  * @brief Gets the tensor dimension with given handle of tensors information.
@@ -590,7 +590,7 @@ int ml_util_set_tensor_dimension (ml_tensors_info_h info, unsigned int index, co
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_get_tensor_dimension (ml_tensors_info_h info, unsigned int index, ml_tensor_dimension dimension);
+int ml_tensors_info_get_tensor_dimension (ml_tensors_info_h info, unsigned int index, ml_tensor_dimension dimension);
 
 /**
  * @brief Gets the byte size of the given tensors type.
@@ -598,19 +598,19 @@ int ml_util_get_tensor_dimension (ml_tensors_info_h info, unsigned int index, ml
  * @param[in] info The tensors' information handle.
  * @return @c >= 0 on success with byte size.
  */
-size_t ml_util_get_tensors_size (const ml_tensors_info_h info);
+size_t ml_tensors_info_get_size (const ml_tensors_info_h info);
 
 /**
- * @brief Allocates a tensor data frame with the given tensors information.
+ * @brief Creates a tensor data frame with the given tensors information.
  * @since_tizen 5.5
  * @param[in] info The handle of tensors information for the allocation.
- * @param[out] data The handle of tensors data. The caller is responsible for freeing the allocated data with ml_util_destroy_tensors_data().
+ * @param[out] data The handle of tensors data. The caller is responsible for freeing the allocated data with ml_tensors_data_destroy().
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to allocate new memory.
  */
-int ml_util_allocate_tensors_data (const ml_tensors_info_h info, ml_tensors_data_h *data);
+int ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h *data);
 
 /**
  * @brief Frees the given tensors' data handle.
@@ -620,7 +620,7 @@ int ml_util_allocate_tensors_data (const ml_tensors_info_h info, ml_tensors_data
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_destroy_tensors_data (ml_tensors_data_h data);
+int ml_tensors_data_destroy (ml_tensors_data_h data);
 
 /**
  * @brief Gets a tensor data of given handle.
@@ -633,7 +633,7 @@ int ml_util_destroy_tensors_data (ml_tensors_data_h data);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_get_tensor_data (ml_tensors_data_h data, unsigned int index, void **raw_data, size_t *data_size);
+int ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index, void **raw_data, size_t *data_size);
 
 /**
  * @brief Copies a tensor data to given handle.
@@ -646,7 +646,7 @@ int ml_util_get_tensor_data (ml_tensors_data_h data, unsigned int index, void **
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_copy_tensor_data (ml_tensors_data_h data, unsigned int index, const void *raw_data, const size_t data_size);
+int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index, const void *raw_data, const size_t data_size);
 
 /**
  * @brief Checks the availability of the given execution environments.
@@ -661,7 +661,7 @@ int ml_util_copy_tensor_data (ml_tensors_data_h data, unsigned int index, const 
  * @retval #ML_ERROR_NONE Successful and the environments are available.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
+int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
 
 /**
  * @}

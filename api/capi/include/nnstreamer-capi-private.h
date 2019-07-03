@@ -204,7 +204,7 @@ typedef struct _ml_pipeline_valve {
 /**
  * @brief Gets the byte size of the given tensor info.
  */
-size_t ml_util_get_tensor_size (const ml_tensor_info_s *info);
+size_t ml_tensor_info_get_size (const ml_tensor_info_s *info);
 
 /**
  * @brief Initializes the tensors information with default value.
@@ -214,29 +214,29 @@ size_t ml_util_get_tensor_size (const ml_tensor_info_s *info);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_util_initialize_tensors_info (ml_tensors_info_s *info);
+int ml_tensors_info_initialize (ml_tensors_info_s *info);
 
 /**
  * @brief Frees the tensors info pointer.
  * @since_tizen 5.5
  * @param[in] info The tensors info pointer to be freed.
  */
-void ml_util_free_tensors_info (ml_tensors_info_s *info);
+void ml_tensors_info_free (ml_tensors_info_s *info);
 
 /**
  * @brief Copies tensor metadata from gst tensors info.
  */
-void ml_util_copy_tensors_info_from_gst (ml_tensors_info_s *ml_info, const GstTensorsInfo *gst_info);
+void ml_tensors_info_copy_from_gst (ml_tensors_info_s *ml_info, const GstTensorsInfo *gst_info);
 
 /**
  * @brief Copies tensor metadata from ml tensors info.
  */
-void ml_util_copy_tensors_info_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
+void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
 
 /**
  * @brief Gets caps from tensors info.
  */
-GstCaps *ml_util_get_caps_from_tensors_info (const ml_tensors_info_s *info);
+GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
 
 #ifdef __cplusplus
 }

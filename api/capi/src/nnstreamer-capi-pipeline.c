@@ -81,7 +81,7 @@ construct_element (GstElement * e, ml_pipeline * p, const char *name,
   ret->handles = NULL;
   ret->src = NULL;
   ret->sink = NULL;
-  ml_util_initialize_tensors_info (&ret->tensors_info);
+  ml_tensors_info_initialize (&ret->tensors_info);
   ret->size = 0;
   ret->maxid = 0;
   ret->handle_id = 0;
@@ -100,7 +100,7 @@ get_tensors_info_from_caps (GstCaps * caps, ml_tensors_info_s * info)
   guint i, n_caps;
   gboolean found = FALSE;
 
-  ml_util_initialize_tensors_info (info);
+  ml_tensors_info_initialize (info);
   n_caps = gst_caps_get_size (caps);
 
   for (i = 0; i < n_caps; i++) {
@@ -108,7 +108,7 @@ get_tensors_info_from_caps (GstCaps * caps, ml_tensors_info_s * info)
     found = gst_tensors_config_from_structure (&config, s);
 
     if (found) {
-      ml_util_copy_tensors_info_from_gst (info, &config.info);
+      ml_tensors_info_copy_from_gst (info, &config.info);
       break;
     }
   }
@@ -188,7 +188,7 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
           }
 
           for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-            size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
+            size_t sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
 
             if (sz != data->tensors[i].size) {
               ml_loge
@@ -289,7 +289,7 @@ cleanup_node (gpointer data)
     g_list_free_full (e->handles, g_free);
   e->handles = NULL;
 
-  ml_util_free_tensors_info (&e->tensors_info);
+  ml_tensors_info_free (&e->tensors_info);
 
   g_mutex_unlock (&e->lock);
   g_mutex_clear (&e->lock);
@@ -732,7 +732,7 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
 
       if (found) {
         for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-          sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
+          sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
           elem->size += sz;
         }
       } else {
@@ -879,7 +879,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   }
 
   for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-    size_t sz = ml_util_get_tensor_size (&elem->tensors_info.info[i]);
+    size_t sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
 
     if (sz != _data->tensors[i].size) {
       ml_loge
@@ -933,8 +933,8 @@ ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h,
   ret = ml_pipeline_src_parse_tensors_info (elem);
 
   if (ret == ML_ERROR_NONE) {
-    ml_util_allocate_tensors_info (info);
-    ml_util_copy_tensors_info (*info, &elem->tensors_info);
+    ml_tensors_info_create (info);
+    ml_tensors_info_clone (*info, &elem->tensors_info);
   }
 
   handle_exit (h);

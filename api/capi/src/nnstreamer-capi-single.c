@@ -78,7 +78,7 @@ ml_single_open (ml_single_h * single, const char *model,
 
   if (input_info) {
     /* Validate input tensor info. */
-    if (ml_util_validate_tensors_info (input_info, &valid) != ML_ERROR_NONE ||
+    if (ml_tensors_info_validate (input_info, &valid) != ML_ERROR_NONE ||
         valid == false) {
       ml_loge ("The given param, input tensor info is invalid.");
       return ML_ERROR_INVALID_PARAMETER;
@@ -87,7 +87,7 @@ ml_single_open (ml_single_h * single, const char *model,
 
   if (output_info) {
     /* Validate output tensor info. */
-    if (ml_util_validate_tensors_info (output_info, &valid) != ML_ERROR_NONE ||
+    if (ml_tensors_info_validate (output_info, &valid) != ML_ERROR_NONE ||
         valid == false) {
       ml_loge ("The given param, output tensor info is invalid.");
       return ML_ERROR_INVALID_PARAMETER;
@@ -145,7 +145,7 @@ ml_single_open (ml_single_h * single, const char *model,
 
   /* 2. Determine hw */
   /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
-  status = ml_util_check_nnfw_availability (nnfw, hw, &available);
+  status = ml_check_nnfw_availability (nnfw, hw, &available);
   if (status != ML_ERROR_NONE || !available) {
     ml_loge ("The given nnfw is not available.");
     return status;
@@ -173,8 +173,8 @@ ml_single_open (ml_single_h * single, const char *model,
         gchar *str_dim, *str_type, *str_name;
         gchar *in_option, *out_option;
 
-        ml_util_copy_tensors_info_from_ml (&in_info, in_tensors_info);
-        ml_util_copy_tensors_info_from_ml (&out_info, out_tensors_info);
+        ml_tensors_info_copy_from_ml (&in_info, in_tensors_info);
+        ml_tensors_info_copy_from_ml (&out_info, out_tensors_info);
 
         /* Set input option */
         str_dim = gst_tensors_info_get_dimensions_string (&in_info);
@@ -236,49 +236,49 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->src = appsrc;
   single_h->sink = appsink;
   single_h->filter = filter;
-  ml_util_initialize_tensors_info (&single_h->in_info);
-  ml_util_initialize_tensors_info (&single_h->out_info);
+  ml_tensors_info_initialize (&single_h->in_info);
+  ml_tensors_info_initialize (&single_h->out_info);
 
   /* 5. Set in/out caps and metadata */
   if (in_tensors_info) {
-    caps = ml_util_get_caps_from_tensors_info (in_tensors_info);
-    ml_util_copy_tensors_info (&single_h->in_info, in_tensors_info);
+    caps = ml_tensors_info_get_caps (in_tensors_info);
+    ml_tensors_info_clone (&single_h->in_info, in_tensors_info);
   } else {
     ml_tensors_info_h in_info;
 
     ml_single_get_input_info (single_h, &in_info);
-    ml_util_copy_tensors_info (&single_h->in_info, in_info);
-    ml_util_destroy_tensors_info (in_info);
+    ml_tensors_info_clone (&single_h->in_info, in_info);
+    ml_tensors_info_destroy (in_info);
 
-    status = ml_util_validate_tensors_info (&single_h->in_info, &valid);
+    status = ml_tensors_info_validate (&single_h->in_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
       ml_loge ("Failed to get the input tensor info.");
       goto error;
     }
 
-    caps = ml_util_get_caps_from_tensors_info (&single_h->in_info);
+    caps = ml_tensors_info_get_caps (&single_h->in_info);
   }
 
   gst_app_src_set_caps (GST_APP_SRC (appsrc), caps);
   gst_caps_unref (caps);
 
   if (out_tensors_info) {
-    caps = ml_util_get_caps_from_tensors_info (out_tensors_info);
-    ml_util_copy_tensors_info (&single_h->out_info, out_tensors_info);
+    caps = ml_tensors_info_get_caps (out_tensors_info);
+    ml_tensors_info_clone (&single_h->out_info, out_tensors_info);
   } else {
     ml_tensors_info_h out_info;
 
     ml_single_get_output_info (single_h, &out_info);
-    ml_util_copy_tensors_info (&single_h->out_info, out_info);
-    ml_util_destroy_tensors_info (out_info);
+    ml_tensors_info_clone (&single_h->out_info, out_info);
+    ml_tensors_info_destroy (out_info);
 
-    status = ml_util_validate_tensors_info (&single_h->out_info, &valid);
+    status = ml_tensors_info_validate (&single_h->out_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
       ml_loge ("Failed to get the output tensor info.");
       goto error;
     }
 
-    caps = ml_util_get_caps_from_tensors_info (&single_h->out_info);
+    caps = ml_tensors_info_get_caps (&single_h->out_info);
   }
 
   gst_app_sink_set_caps (GST_APP_SINK (appsink), caps);
@@ -330,8 +330,8 @@ ml_single_close (ml_single_h single)
     single_h->filter = NULL;
   }
 
-  ml_util_free_tensors_info (&single_h->in_info);
-  ml_util_free_tensors_info (&single_h->out_info);
+  ml_tensors_info_free (&single_h->in_info);
+  ml_tensors_info_free (&single_h->out_info);
 
   status = ml_pipeline_destroy (single_h->pipe);
   g_free (single_h);
@@ -363,7 +363,7 @@ ml_single_inference (ml_single_h single,
   in_data = (ml_tensors_data_s *) input;
 
   /* Allocate output buffer */
-  status = ml_util_allocate_tensors_data (&single_h->out_info, output);
+  status = ml_tensors_data_create (&single_h->out_info, output);
   if (status != ML_ERROR_NONE) {
     ml_loge ("Failed to allocate the memory block.");
     *output = NULL;
@@ -435,7 +435,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
   single_h = (ml_single *) single;
 
   /* allocate handle for tensors info */
-  ml_util_allocate_tensors_info (info);
+  ml_tensors_info_create (info);
   input_info = (ml_tensors_info_s *) (*info);
 
   gst_tensors_info_init (&gst_info);
@@ -463,7 +463,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
     ml_logw ("Invalid state, input tensor name is mismatched in filter.");
   }
 
-  ml_util_copy_tensors_info_from_gst (input_info, &gst_info);
+  ml_tensors_info_copy_from_gst (input_info, &gst_info);
   gst_tensors_info_free (&gst_info);
   return ML_ERROR_NONE;
 }
@@ -486,7 +486,7 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
   single_h = (ml_single *) single;
 
   /* allocate handle for tensors info */
-  ml_util_allocate_tensors_info (info);
+  ml_tensors_info_create (info);
   output_info = (ml_tensors_info_s *) (*info);
 
   gst_tensors_info_init (&gst_info);
@@ -514,7 +514,7 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
     ml_logw ("Invalid state, output tensor name is mismatched in filter.");
   }
 
-  ml_util_copy_tensors_info_from_gst (output_info, &gst_info);
+  ml_tensors_info_copy_from_gst (output_info, &gst_info);
   gst_tensors_info_free (&gst_info);
   return ML_ERROR_NONE;
 }

@@ -31,7 +31,7 @@
  * @brief Allocates a tensors information handle with default value.
  */
 int
-ml_util_allocate_tensors_info (ml_tensors_info_h * info)
+ml_tensors_info_create (ml_tensors_info_h * info)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -39,7 +39,7 @@ ml_util_allocate_tensors_info (ml_tensors_info_h * info)
     return ML_ERROR_INVALID_PARAMETER;
 
   *info = tensors_info = g_new0 (ml_tensors_info_s, 1);
-  ml_util_initialize_tensors_info (tensors_info);
+  ml_tensors_info_initialize (tensors_info);
 
   return ML_ERROR_NONE;
 }
@@ -48,7 +48,7 @@ ml_util_allocate_tensors_info (ml_tensors_info_h * info)
  * @brief Frees the given handle of a tensors information.
  */
 int
-ml_util_destroy_tensors_info (ml_tensors_info_h info)
+ml_tensors_info_destroy (ml_tensors_info_h info)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -57,7 +57,7 @@ ml_util_destroy_tensors_info (ml_tensors_info_h info)
   if (!tensors_info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ml_util_free_tensors_info (tensors_info);
+  ml_tensors_info_free (tensors_info);
   g_free (tensors_info);
 
   return ML_ERROR_NONE;
@@ -67,7 +67,7 @@ ml_util_destroy_tensors_info (ml_tensors_info_h info)
  * @brief Initializes the tensors information with default value.
  */
 int
-ml_util_initialize_tensors_info (ml_tensors_info_s * info)
+ml_tensors_info_initialize (ml_tensors_info_s * info)
 {
   guint i, j;
 
@@ -92,7 +92,7 @@ ml_util_initialize_tensors_info (ml_tensors_info_s * info)
  * @brief Validates the given tensor info is valid.
  */
 static int
-ml_util_validate_tensor_info (const ml_tensor_info_s * info)
+ml_tensor_info_validate (const ml_tensor_info_s * info)
 {
   guint i;
 
@@ -114,7 +114,7 @@ ml_util_validate_tensor_info (const ml_tensor_info_s * info)
  * @brief Validates the given tensors info is valid.
  */
 int
-ml_util_validate_tensors_info (const ml_tensors_info_h info, bool * valid)
+ml_tensors_info_validate (const ml_tensors_info_h info, bool * valid)
 {
   ml_tensors_info_s *tensors_info;
   guint i;
@@ -132,7 +132,7 @@ ml_util_validate_tensors_info (const ml_tensors_info_h info, bool * valid)
 
   for (i = 0; i < tensors_info->num_tensors; i++) {
     /* Failed if returned value is not 0 (ML_ERROR_NONE) */
-    if (ml_util_validate_tensor_info (&tensors_info->info[i]) != ML_ERROR_NONE)
+    if (ml_tensor_info_validate (&tensors_info->info[i]) != ML_ERROR_NONE)
       goto done;
   }
 
@@ -146,7 +146,7 @@ done:
  * @brief Sets the number of tensors with given handle of tensors information.
  */
 int
-ml_util_set_tensors_count (ml_tensors_info_h info, unsigned int count)
+ml_tensors_info_set_count (ml_tensors_info_h info, unsigned int count)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -163,7 +163,7 @@ ml_util_set_tensors_count (ml_tensors_info_h info, unsigned int count)
  * @brief Gets the number of tensors with given handle of tensors information.
  */
 int
-ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count)
+ml_tensors_info_get_count (ml_tensors_info_h info, unsigned int *count)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -180,7 +180,7 @@ ml_util_get_tensors_count (ml_tensors_info_h info, unsigned int *count)
  * @brief Sets the tensor name with given handle of tensors information.
  */
 int
-ml_util_set_tensor_name (ml_tensors_info_h info,
+ml_tensors_info_set_tensor_name (ml_tensors_info_h info,
     unsigned int index, const char *name)
 {
   ml_tensors_info_s *tensors_info;
@@ -208,7 +208,7 @@ ml_util_set_tensor_name (ml_tensors_info_h info,
  * @brief Gets the tensor name with given handle of tensors information.
  */
 int
-ml_util_get_tensor_name (ml_tensors_info_h info,
+ml_tensors_info_get_tensor_name (ml_tensors_info_h info,
     unsigned int index, char **name)
 {
   ml_tensors_info_s *tensors_info;
@@ -230,7 +230,7 @@ ml_util_get_tensor_name (ml_tensors_info_h info,
  * @brief Sets the tensor type with given handle of tensors information.
  */
 int
-ml_util_set_tensor_type (ml_tensors_info_h info,
+ml_tensors_info_set_tensor_type (ml_tensors_info_h info,
     unsigned int index, const ml_tensor_type_e type)
 {
   ml_tensors_info_s *tensors_info;
@@ -252,7 +252,7 @@ ml_util_set_tensor_type (ml_tensors_info_h info,
  * @brief Gets the tensor type with given handle of tensors information.
  */
 int
-ml_util_get_tensor_type (ml_tensors_info_h info,
+ml_tensors_info_get_tensor_type (ml_tensors_info_h info,
     unsigned int index, ml_tensor_type_e * type)
 {
   ml_tensors_info_s *tensors_info;
@@ -274,7 +274,7 @@ ml_util_get_tensor_type (ml_tensors_info_h info,
  * @brief Sets the tensor dimension with given handle of tensors information.
  */
 int
-ml_util_set_tensor_dimension (ml_tensors_info_h info,
+ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info,
     unsigned int index, const ml_tensor_dimension dimension)
 {
   ml_tensors_info_s *tensors_info;
@@ -299,7 +299,7 @@ ml_util_set_tensor_dimension (ml_tensors_info_h info,
  * @brief Gets the tensor dimension with given handle of tensors information.
  */
 int
-ml_util_get_tensor_dimension (ml_tensors_info_h info,
+ml_tensors_info_get_tensor_dimension (ml_tensors_info_h info,
     unsigned int index, ml_tensor_dimension dimension)
 {
   ml_tensors_info_s *tensors_info;
@@ -324,7 +324,7 @@ ml_util_get_tensor_dimension (ml_tensors_info_h info,
  * @brief Gets the byte size of the given tensor info.
  */
 size_t
-ml_util_get_tensor_size (const ml_tensor_info_s * info)
+ml_tensor_info_get_size (const ml_tensor_info_s * info)
 {
   size_t tensor_size;
   gint i;
@@ -367,7 +367,7 @@ ml_util_get_tensor_size (const ml_tensor_info_s * info)
  * @brief Gets the byte size of the given tensors info.
  */
 size_t
-ml_util_get_tensors_size (const ml_tensors_info_h info)
+ml_tensors_info_get_size (const ml_tensors_info_h info)
 {
   ml_tensors_info_s *tensors_info;
   size_t tensor_size;
@@ -380,7 +380,7 @@ ml_util_get_tensors_size (const ml_tensors_info_h info)
 
   tensor_size = 0;
   for (i = 0; i < tensors_info->num_tensors; i++) {
-    tensor_size += ml_util_get_tensor_size (&tensors_info->info[i]);
+    tensor_size += ml_tensor_info_get_size (&tensors_info->info[i]);
   }
 
   return tensor_size;
@@ -390,7 +390,7 @@ ml_util_get_tensors_size (const ml_tensors_info_h info)
  * @brief Frees the tensors info pointer.
  */
 void
-ml_util_free_tensors_info (ml_tensors_info_s * info)
+ml_tensors_info_free (ml_tensors_info_s * info)
 {
   gint i;
 
@@ -404,14 +404,14 @@ ml_util_free_tensors_info (ml_tensors_info_s * info)
     }
   }
 
-  ml_util_initialize_tensors_info (info);
+  ml_tensors_info_initialize (info);
 }
 
 /**
  * @brief Frees the tensors data pointer.
  */
 int
-ml_util_destroy_tensors_data (ml_tensors_data_h data)
+ml_tensors_data_destroy (ml_tensors_data_h data)
 {
   ml_tensors_data_s *_data;
   guint i;
@@ -436,7 +436,7 @@ ml_util_destroy_tensors_data (ml_tensors_data_h data)
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
  */
 int
-ml_util_allocate_tensors_data (const ml_tensors_info_h info,
+ml_tensors_data_create (const ml_tensors_info_h info,
     ml_tensors_data_h * data)
 {
   ml_tensors_data_s *_data;
@@ -457,7 +457,7 @@ ml_util_allocate_tensors_data (const ml_tensors_info_h info,
 
   _data->num_tensors = tensors_info->num_tensors;
   for (i = 0; i < _data->num_tensors; i++) {
-    _data->tensors[i].size = ml_util_get_tensor_size (&tensors_info->info[i]);
+    _data->tensors[i].size = ml_tensor_info_get_size (&tensors_info->info[i]);
     _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
     if (_data->tensors[i].tensor == NULL)
       goto failed;
@@ -481,7 +481,7 @@ failed:
  * @brief Gets a tensor data of given handle.
  */
 int
-ml_util_get_tensor_data (ml_tensors_data_h data, unsigned int index,
+ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index,
     void **raw_data, size_t * data_size)
 {
   ml_tensors_data_s *_data;
@@ -504,7 +504,7 @@ ml_util_get_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @brief Copies a tensor data to given handle.
  */
 int
-ml_util_copy_tensor_data (ml_tensors_data_h data, unsigned int index,
+ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
     const void *raw_data, const size_t data_size)
 {
   ml_tensors_data_s *_data;
@@ -528,7 +528,7 @@ ml_util_copy_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @brief Copies tensor meta info.
  */
 int
-ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src)
+ml_tensors_info_clone (ml_tensors_info_h dest, const ml_tensors_info_h src)
 {
   ml_tensors_info_s *dest_info, *src_info;
   guint i, j;
@@ -539,7 +539,7 @@ ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src)
   if (!dest_info || !src_info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ml_util_initialize_tensors_info (dest_info);
+  ml_tensors_info_initialize (dest_info);
 
   dest_info->num_tensors = src_info->num_tensors;
 
@@ -559,7 +559,7 @@ ml_util_copy_tensors_info (ml_tensors_info_h dest, const ml_tensors_info_h src)
  * @brief Copies tensor meta info from gst tensors info.
  */
 void
-ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
+ml_tensors_info_copy_from_gst (ml_tensors_info_s * ml_info,
     const GstTensorsInfo * gst_info)
 {
   guint i, j;
@@ -568,7 +568,7 @@ ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
   if (!ml_info || !gst_info)
     return;
 
-  ml_util_initialize_tensors_info (ml_info);
+  ml_tensors_info_initialize (ml_info);
   max_dim = MIN (ML_TENSOR_RANK_LIMIT, NNS_TENSOR_RANK_LIMIT);
 
   ml_info->num_tensors = gst_info->num_tensors;
@@ -631,7 +631,7 @@ ml_util_copy_tensors_info_from_gst (ml_tensors_info_s * ml_info,
  * @brief Copies tensor meta info from gst tensors info.
  */
 void
-ml_util_copy_tensors_info_from_ml (GstTensorsInfo * gst_info,
+ml_tensors_info_copy_from_ml (GstTensorsInfo * gst_info,
     const ml_tensors_info_s * ml_info)
 {
   guint i, j;
@@ -703,7 +703,7 @@ ml_util_copy_tensors_info_from_ml (GstTensorsInfo * gst_info,
  * @brief Gets caps from tensors info.
  */
 GstCaps *
-ml_util_get_caps_from_tensors_info (const ml_tensors_info_s * info)
+ml_tensors_info_get_caps (const ml_tensors_info_s * info)
 {
   GstCaps *caps;
   GstTensorsConfig config;
@@ -711,7 +711,7 @@ ml_util_get_caps_from_tensors_info (const ml_tensors_info_s * info)
   if (!info)
     return NULL;
 
-  ml_util_copy_tensors_info_from_ml (&config.info, info);
+  ml_tensors_info_copy_from_ml (&config.info, info);
 
   /* set framerate 0/1 */
   config.rate_n = 0;
@@ -739,7 +739,7 @@ ml_util_get_caps_from_tensors_info (const ml_tensors_info_s * info)
  * @brief Checks the availability of the given execution environments.
  */
 int
-ml_util_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
+ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     bool * available)
 {
   if (!available)
