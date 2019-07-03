@@ -18,7 +18,7 @@ Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
- Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams
+ Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
 
 Package: nnstreamer-tensorflow
 Architecture: amd64 arm64
@@ -60,6 +60,6 @@ Architecture: any
 Multi-Arch: same
 Depends: nnstreamer
 Description: NNStreamer development package
- Gstreamer plugins, "NNStreamer", provides access to nerual network frameworks for media streams
+ Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is development package for nnstreamer.
  If you want to develop Android applications with nnstreamer+gstreamer, you need the libnnstreamer.a from this package.
