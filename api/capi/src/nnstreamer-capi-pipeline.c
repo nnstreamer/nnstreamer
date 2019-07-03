@@ -438,7 +438,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
 {
   ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
-  GstState state, pending;
+  GstState state;
 
   if (p == NULL)
     return ML_ERROR_INVALID_PARAMETER;
@@ -446,7 +446,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   g_mutex_lock (&p->lock);
 
   /* if it's PLAYING, PAUSE it. */
-  scret = gst_element_get_state (p->element, &state, &pending, 10000000UL);     /* 10ms */
+  scret = gst_element_get_state (p->element, &state, NULL, 10 * GST_MSECOND);     /* 10ms */
   if (scret != GST_STATE_CHANGE_FAILURE && state == GST_STATE_PLAYING) {
     /* Pause the pipeline if it's Playing */
     scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
@@ -488,7 +488,6 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
 {
   ml_pipeline *p = pipe;
   GstState _state;
-  GstState pending;
   GstStateChangeReturn scret;
 
   if (p == NULL || state == NULL)
@@ -497,7 +496,7 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   *state = ML_PIPELINE_STATE_UNKNOWN;
 
   g_mutex_lock (&p->lock);
-  scret = gst_element_get_state (p->element, &_state, &pending, 100000UL);      /* Do it within 100us! */
+  scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND);      /* Do it within 1ms! */
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
