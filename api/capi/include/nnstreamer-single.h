@@ -49,6 +49,8 @@ typedef void *ml_single_h;
  *************/
 /**
  * @brief Opens an ML model and returns the instance as a handle.
+ * @details Even if the model has flexible input data dimensions,
+ *          input data frames of an instance of a model should share the same dimension.
  * @since_tizen 5.5
  * @param[out] single This is the model handle opened. Users are required to close
  *                   the given instance with ml_single_close().
@@ -70,8 +72,6 @@ typedef void *ml_single_h;
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  *
- * @details Even if the model has flexible input data dimensions,
- *          input data frames of an instance of a model should share the same dimension.
  */
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
 
@@ -87,6 +87,8 @@ int ml_single_close (ml_single_h single);
 
 /**
  * @brief Invokes the model with the given input data.
+ * @details Even if the model has flexible input data dimensions,
+ *          input data frames of an instance of a model should share the same dimension.
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
@@ -97,19 +99,17 @@ int ml_single_close (ml_single_h single);
  * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
- * @details Even if the model has flexible input data dimensions,
- *          input data frames of an instance of a model should share the same dimension.
  */
-int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h *output);
+int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h *output);
 
 /*************
  * UTILITIES *
  *************/
 
 /**
- * @brief Gets the type (tensor dimension, type, name and so on) of required input data for the given model.
+ * @brief Gets the information (tensor dimension, type, name and so on) of required input data for the given model.
  * @details Note that a model may not have such information if its input type is flexible.
- *          Besides, names of tensors may be not available while dimensions and types are available.
+ *          The name of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
  * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
@@ -120,9 +120,9 @@ int ml_single_inference (ml_single_h single, const ml_tensors_data_h input, ml_t
 int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
 
 /**
- * @brief Gets the type (tensor dimension, type, name and so on) of output data for the given model.
+ * @brief Gets the information (tensor dimension, type, name and so on) of output data for the given model.
  * @details Note that a model may not have such information if its output type is flexible and output type is not determined statically.
- *          Besides, names of tensors may be not available while dimensions and types are available.
+ *          The name of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
  * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().

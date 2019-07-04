@@ -822,7 +822,7 @@ unlock_return:
  * @brief Close a src node (more info in nnstreamer.h)
  */
 int
-ml_pipeline_src_put_handle (ml_pipeline_src_h h)
+ml_pipeline_src_release_handle (ml_pipeline_src_h h)
 {
   handle_init (src, src, h);
 
@@ -1022,7 +1022,7 @@ unlock_return:
  * @brief Close the given switch handle (more info in nnstreamer.h)
  */
 int
-ml_pipeline_switch_put_handle (ml_pipeline_switch_h h)
+ml_pipeline_switch_release_handle (ml_pipeline_switch_h h)
 {
   handle_init (switch, swtc, h);
 
@@ -1241,7 +1241,7 @@ unlock_return:
  * @brief Close the given valve handle (more info in nnstreamer.h)
  */
 int
-ml_pipeline_valve_put_handle (ml_pipeline_valve_h h)
+ml_pipeline_valve_release_handle (ml_pipeline_valve_h h)
 {
   handle_init (valve, valve, h);
 
