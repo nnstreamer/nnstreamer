@@ -169,7 +169,6 @@ typedef enum {
 
 /**
  * @brief Enumeration for pipeline state.
- * @since_tizen 5.5
  * @details Refer to https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html.
  *          The state diagram of pipeline looks like this, assuming that there are no errors.
  *
@@ -188,6 +187,7 @@ typedef enum {
  *               V                          |                      |
  *          [ PLAYING ] --------------------+----------------------+
  *
+ * @since_tizen 5.5
  */
 typedef enum {
   ML_PIPELINE_STATE_UNKNOWN				= 0, /**< Unknown state. Maybe not constructed? */
@@ -198,7 +198,7 @@ typedef enum {
 } ml_pipeline_state_e;
 
 /**
- * @brief Enumeration for switch types
+ * @brief Enumeration for switch types.
  * @details This designates different GStreamer filters, "GstInputSelector"/"GetOutputSelector".
  * @since_tizen 5.5
  */
@@ -208,14 +208,14 @@ typedef enum {
 } ml_pipeline_switch_e;
 
 /**
- * @brief Callback for sink element of NNStreamer pipelines (pipeline's output)
+ * @brief Callback for sink element of NNStreamer pipelines (pipeline's output).
  * @details If an application wants to accept data outputs of an NNStreamer stream, use this callback to get data from the stream. Note that the buffer may be deallocated after the return and this is synchronously called. Thus, if you need the data afterwards, copy the data to another buffer and return fast. Do not spend too much time in the callback. It is recommended to use very small tensors at sinks.
  * @since_tizen 5.5
  * @remarks The @a data can be used only in the callback. To use outside, make a copy.
  * @remarks The @a info can be used only in the callback. To use outside, make a copy.
  * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[out] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
- * @param[in,out] user_data User Application's Private Data.
+ * @param[out] user_data User application's private data.
  */
 typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data);
 
@@ -223,7 +223,7 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
  ** NNStreamer Pipeline Construction (gst-parse)   **
  ****************************************************/
 /**
- * @brief Constructs the pipeline (GStreamer + NNStreamer)
+ * @brief Constructs the pipeline (GStreamer + NNStreamer).
  * @details Use this function to create gst_parse_launch compatible NNStreamer pipelines.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a pipe handle must be released using ml_pipeline_destroy().
@@ -237,7 +237,7 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
 int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h *pipe);
 
 /**
- * @brief Destroys the pipeline
+ * @brief Destroys the pipeline.
  * @details Use this function to destroy the pipeline constructed with ml_pipeline_construct().
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be destroyed.
@@ -249,7 +249,7 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h *pipe
 int ml_pipeline_destroy (ml_pipeline_h pipe);
 
 /**
- * @brief Gets the state of pipeline
+ * @brief Gets the state of pipeline.
  * @details Gets the state of the pipeline handle returned by ml_pipeline_construct().
  * @since_tizen 5.5
  * @param[in] pipe The pipeline handle.
@@ -265,7 +265,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  ** NNStreamer Pipeline Start/Stop Control         **
  ****************************************************/
 /**
- * @brief Starts the pipeline
+ * @brief Starts the pipeline.
  * @details The pipeline handle returned by ml_pipeline_construct() is started.
  *          Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
@@ -278,7 +278,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
 int ml_pipeline_start (ml_pipeline_h pipe);
 
 /**
- * @brief Stops the pipeline
+ * @brief Stops the pipeline.
  * @details The pipeline handle returned by ml_pipeline_construct() is stopped.
  *          Note that this is asynchronous function. State might be "pending".
  * @since_tizen 5.5
@@ -294,7 +294,7 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  ** NNStreamer Pipeline Sink/Src Control           **
  ****************************************************/
 /**
- * @brief Registers a callback for sink (tensor_sink) of NNStreamer pipelines.
+ * @brief Registers a callback for sink node of NNStreamer pipelines.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a sink_handle handle must be unregistered using ml_pipeline_sink_unregister().
  * @param[in] pipe The pipeline to be attached with a sink node.
@@ -310,9 +310,9 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
 int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pipeline_sink_cb cb, void *user_data, ml_pipeline_sink_h *sink_handle);
 
 /**
- * @brief Unregisters a callback for sink (tensor_sink) of NNStreamer pipelines.
+ * @brief Unregisters a callback for sink node of NNStreamer pipelines.
  * @since_tizen 5.5
- * @param[in] sink_handle The sink handle to be unregistered (destroyed)
+ * @param[in] sink_handle The sink handle to be unregistered.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
@@ -322,7 +322,7 @@ int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
 /**
  * @brief Gets a handle to operate as a src node of NNStreamer pipelines.
  * @since_tizen 5.5
- * @remarks If the function succeeds, @a src_handle handle must be released using ml_pipeline_src_put_handle().
+ * @remarks If the function succeeds, @a src_handle handle must be released using ml_pipeline_src_release_handle().
  * @param[in] pipe The pipeline to be attached with a src node.
  * @param[in] src_name The name of src node, described with ml_pipeline_construct().
  * @param[out] src_handle The src handle.
@@ -335,17 +335,18 @@ int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
 int ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name, ml_pipeline_src_h *src_handle);
 
 /**
- * @brief Closes the given handle of a src node of NNStreamer pipelines.
+ * @brief Releases the given src handle.
  * @since_tizen 5.5
- * @param[in] src_handle The src handle to be closed.
+ * @param[in] src_handle The src handle to be released.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_pipeline_src_put_handle (ml_pipeline_src_h src_handle);
+int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
 
 /**
  * @brief Adds an input data frame.
+ * @since_tizen 5.5
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
  * @param[in] data The handle of input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
  * @param[in] policy The policy of buf deallocation.
@@ -379,29 +380,32 @@ int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_i
  * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of NNStreamer pipelines.
  * @details Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-input-selector.html for input selectors.
  *          Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
- * @remarks If the function succeeds, @a switch_handle handle must be released using ml_pipeline_switch_put_handle().
+ * @since_tizen 5.5
+ * @remarks If the function succeeds, @a switch_handle handle must be released using ml_pipeline_switch_release_handle().
  * @param[in] pipe The pipeline to be managed.
- * @param[in] switch_name The name of switch (InputSelector/OutputSelector)
- * @param[out] type The type of the switch. If NULL, it is ignored.
+ * @param[in] switch_name The name of switch (InputSelector/OutputSelector).
+ * @param[out] switch_type The type of the switch. If NULL, it is ignored.
  * @param[out] switch_handle The switch handle.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name, ml_pipeline_switch_e *type, ml_pipeline_switch_h *switch_handle);
+int ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name, ml_pipeline_switch_e *switch_type, ml_pipeline_switch_h *switch_handle);
 
 /**
- * @brief Closes the given switch handle.
- * @param[in] switch_handle The handle to be closed.
+ * @brief Releases the given switch handle.
+ * @since_tizen 5.5
+ * @param[in] switch_handle The handle to be released.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_pipeline_switch_put_handle (ml_pipeline_switch_h switch_handle);
+int ml_pipeline_switch_release_handle (ml_pipeline_switch_h switch_handle);
 
 /**
  * @brief Controls the switch with the given handle to select input/output nodes(pads).
- * @param[in] switch_handle The switch handle returned by ml_pipeline_switch_get_handle()
+ * @since_tizen 5.5
+ * @param[in] switch_handle The switch handle returned by ml_pipeline_switch_get_handle().
  * @param[in] pad_name The name of the chosen pad to be activated. Use ml_pipeline_switch_get_pad_list() to list the available pad names.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
@@ -411,7 +415,8 @@ int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *p
 
 /**
  * @brief Gets the pad names of a switch.
- * @param[in] switch_handle The switch handle returned by ml_pipeline_switch_get_handle()
+ * @since_tizen 5.5
+ * @param[in] switch_handle The switch handle returned by ml_pipeline_switch_get_handle().
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
@@ -423,9 +428,10 @@ int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char **
 /**
  * @brief Gets a handle to operate a "GstValve" node of NNStreamer pipelines.
  * @details Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
- * @remarks If the function succeeds, @a valve_handle handle must be released using ml_pipeline_valve_put_handle().
+ * @since_tizen 5.5
+ * @remarks If the function succeeds, @a valve_handle handle must be released using ml_pipeline_valve_release_handle().
  * @param[in] pipe The pipeline to be managed.
- * @param[in] valve_name The name of valve (Valve)
+ * @param[in] valve_name The name of valve (Valve).
  * @param[out] valve_handle The valve handle.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
@@ -434,18 +440,20 @@ int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char **
 int ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name, ml_pipeline_valve_h *valve_handle);
 
 /**
- * @brief Closes the given valve handle.
- * @param[in] valve_handle The handle to be closed.
+ * @brief Releases the given valve handle.
+ * @since_tizen 5.5
+ * @param[in] valve_handle The handle to be released.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_pipeline_valve_put_handle (ml_pipeline_valve_h valve_handle);
+int ml_pipeline_valve_release_handle (ml_pipeline_valve_h valve_handle);
 
 /**
  * @brief Controls the valve with the given handle.
- * @param[in] valve_handle The valve handle returned by ml_pipeline_valve_get_handle()
- * @param[in] open @c true to open(let the flow pass), @c false to close (drop & stop the flow)
+ * @since_tizen 5.5
+ * @param[in] valve_handle The valve handle returned by ml_pipeline_valve_get_handle().
+ * @param[in] open @c true to open(let the flow pass), @c false to close (drop & stop the flow).
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
@@ -640,8 +648,8 @@ int ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @since_tizen 5.5
  * @param[in] data The handle of tensors data.
  * @param[in] index The index of the tensor.
- * @param[out] raw_data Raw tensor data to be copied.
- * @param[out] data_size Byte size of raw data.
+ * @param[in] raw_data Raw tensor data to be copied.
+ * @param[in] data_size Byte size of raw data.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.

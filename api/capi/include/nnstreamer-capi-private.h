@@ -151,7 +151,7 @@ typedef struct _ml_pipeline_element {
 
 /**
  * @brief Internal private representation of pipeline handle.
- * @detail This should not be exposed to applications
+ * @details This should not be exposed to applications
  */
 struct _ml_pipeline {
   GstElement *element;    /**< The pipeline itself (GstPipeline) */
@@ -161,7 +161,7 @@ struct _ml_pipeline {
 
 /**
  * @brief Internal private representation of sink handle of GstTensorSink and GstAppSink
- * @detail This represents a single instance of callback registration. This should not be exposed to applications.
+ * @details This represents a single instance of callback registration. This should not be exposed to applications.
  */
 typedef struct _ml_pipeline_sink {
   ml_pipeline *pipe; /**< The pipeline, which is the owner of this ml_pipeline_sink */
@@ -173,7 +173,7 @@ typedef struct _ml_pipeline_sink {
 
 /**
  * @brief Internal private representation of src handle of GstAppSrc
- * @detail This represents a single instance of registration. This should not be exposed to applications.
+ * @details This represents a single instance of registration. This should not be exposed to applications.
  */
 typedef struct _ml_pipeline_src {
   ml_pipeline *pipe;
@@ -183,7 +183,7 @@ typedef struct _ml_pipeline_src {
 
 /**
  * @brief Internal private representation of switch handle (GstInputSelector, GstOutputSelector)
- * @detail This represents a single instance of registration. This should not be exposed to applications.
+ * @details This represents a single instance of registration. This should not be exposed to applications.
  */
 typedef struct _ml_pipeline_switch {
   ml_pipeline *pipe;
@@ -193,7 +193,7 @@ typedef struct _ml_pipeline_switch {
 
 /**
  * @brief Internal private representation of valve handle (GstValve)
- * @detail This represents a single instance of registration. This should not be exposed to applications.
+ * @details This represents a single instance of registration. This should not be exposed to applications.
  */
 typedef struct _ml_pipeline_valve {
   ml_pipeline *pipe;

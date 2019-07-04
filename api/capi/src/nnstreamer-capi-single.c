@@ -342,7 +342,7 @@ ml_single_close (ml_single_h single)
  * @brief Invokes the model with the given input data.
  */
 int
-ml_single_inference (ml_single_h single,
+ml_single_invoke (ml_single_h single,
     const ml_tensors_data_h input, ml_tensors_data_h * output)
 {
   ml_single *single_h;

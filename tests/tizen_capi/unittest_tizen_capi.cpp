@@ -215,7 +215,7 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_valve_set_open (valve1, true); /* open */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_valve_put_handle (valve1); /* release valve handle */
+  status = ml_pipeline_valve_release_handle (valve1); /* release valve handle */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (50000); /* 50ms. Let a few frames flow. */
@@ -620,7 +620,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (50000); /* 50ms. Wait a bit. */
 
-  status = ml_pipeline_src_put_handle (srchandle);
+  status = ml_pipeline_src_release_handle (srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_src_get_handle (handle, "srcx", &srchandle);
@@ -660,7 +660,7 @@ TEST (nnstreamer_capi_src, dummy_01)
     g_usleep (50000); /* 50ms. Wait a bit. */
   }
 
-  status = ml_pipeline_src_put_handle (srchandle);
+  status = ml_pipeline_src_release_handle (srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_usleep (50000); /* Wait for the pipeline to flush all */
@@ -769,7 +769,7 @@ TEST (nnstreamer_capi_src, failure_03)
   status = ml_pipeline_src_input_data (srchandle, NULL, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = ml_pipeline_src_put_handle (srchandle);
+  status = ml_pipeline_src_release_handle (srchandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_stop (handle);
@@ -842,7 +842,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   status = ml_pipeline_sink_unregister (sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_switch_put_handle (switchhandle);
+  status = ml_pipeline_switch_release_handle (switchhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
@@ -928,7 +928,7 @@ TEST (nnstreamer_capi_switch, dummy_02)
   status = ml_pipeline_sink_unregister (sinkhandle1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_switch_put_handle (switchhandle);
+  status = ml_pipeline_switch_release_handle (switchhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
@@ -997,7 +997,7 @@ TEST (nnstreamer_capi_switch, failure_01)
   status = ml_pipeline_switch_select (switchhandle, "wrongpadname");
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = ml_pipeline_switch_put_handle (switchhandle);
+  status = ml_pipeline_switch_release_handle (switchhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
@@ -1109,7 +1109,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_single_inference (single, input, &output);
+  status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
@@ -1179,7 +1179,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_single_inference (single, input, &output);
+  status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
@@ -1263,7 +1263,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
     ((float *) data_ptr)[i] = f32;
   }
 
-  status = ml_single_inference (single, input, &output);
+  status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
@@ -1412,7 +1412,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   status = ml_tensors_data_set_tensor_data (input, 0, contents, len);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_single_inference (single, input, &output);
+  status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
