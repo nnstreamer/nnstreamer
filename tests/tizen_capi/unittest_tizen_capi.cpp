@@ -423,7 +423,7 @@ TEST (nnstreamer_capi_sink, dummy_02)
   guint *count_sink;
 
   /* pipeline with appsink */
-  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! appsink name=sinkx");
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
   *count_sink = 0;

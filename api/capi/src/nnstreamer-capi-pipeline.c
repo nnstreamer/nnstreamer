@@ -370,36 +370,34 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
 
             name = gst_element_get_name (elem);
             if (name != NULL) {
-              ml_pipeline_element *e = NULL;
+              ml_pipeline_element_e element_type = ML_PIPELINE_ELEMENT_UNKNOWN;
 
               if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (tensor_sink))) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_SINK);
+                element_type = ML_PIPELINE_ELEMENT_SINK;
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SRC)) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_APP_SRC);
+                element_type = ML_PIPELINE_ELEMENT_APP_SRC;
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SINK)) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_APP_SINK);
+                element_type = ML_PIPELINE_ELEMENT_APP_SINK;
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (valve))) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_VALVE);
+                element_type = ML_PIPELINE_ELEMENT_VALVE;
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (inputs))) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_SWITCH_INPUT);
+                element_type = ML_PIPELINE_ELEMENT_SWITCH_INPUT;
               } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
                       gst_element_factory_get_element_type (outputs))) {
-                e = construct_element (elem, pipe_h, name,
-                    ML_PIPELINE_ELEMENT_SWITCH_OUTPUT);
+                element_type = ML_PIPELINE_ELEMENT_SWITCH_OUTPUT;
               } else {
                 /** @todo CRITICAL HANDLE THIS! */
               }
 
-              if (e != NULL)
+              if (element_type != ML_PIPELINE_ELEMENT_UNKNOWN) {
+                ml_pipeline_element *e;
+
+                e = construct_element (elem, pipe_h, name, element_type);
                 g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
+              }
 
               g_free (name);
             }
@@ -859,14 +857,14 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     ml_loge ("The tensor size is invalid. It should be 1 ~ %u; where it is %u",
         ML_TENSOR_SIZE_LIMIT, _data->num_tensors);
     ret = ML_ERROR_INVALID_PARAMETER;
-    goto unlock_return;
+    goto destroy_data;
   }
 
   ret = ml_pipeline_src_parse_tensors_info (elem);
 
   if (ret != ML_ERROR_NONE) {
     ml_logw ("The pipeline is not ready to accept inputs. The input is ignored.");
-    goto unlock_return;
+    goto destroy_data;
   }
 
   if (elem->tensors_info.num_tensors != _data->num_tensors) {
@@ -875,7 +873,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
         elem->name, elem->tensors_info.num_tensors, _data->num_tensors);
 
     ret = ML_ERROR_INVALID_PARAMETER;
-    goto unlock_return;
+    goto destroy_data;
   }
 
   for (i = 0; i < elem->tensors_info.num_tensors; i++) {
@@ -887,7 +885,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
           i, _data->tensors[i].size, sz);
 
       ret = ML_ERROR_INVALID_PARAMETER;
-      goto unlock_return;
+      goto destroy_data;
     }
   }
 
@@ -905,12 +903,24 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   /* Push the data! */
   gret = gst_app_src_push_buffer (GST_APP_SRC (elem->element), buffer);
 
+  /* Free data ptr if buffer policy is auto-free */
+  if (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) {
+    g_free (_data);
+    _data = NULL;
+  }
+
   if (gret == GST_FLOW_FLUSHING) {
     ml_logw ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
     ret = ML_ERROR_TRY_AGAIN;
   } else if (gret == GST_FLOW_EOS) {
     ml_logw ("THe pipeline is in EOS state. The input is ignored.");
     ret = ML_ERROR_STREAMS_PIPE;
+  }
+
+destroy_data:
+  if (_data != NULL && policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) {
+    /* Free data handle */
+    ml_tensors_data_destroy (data);
   }
 
   handle_exit (h);

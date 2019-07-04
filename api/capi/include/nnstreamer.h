@@ -349,6 +349,7 @@ int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
  * @since_tizen 5.5
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
  * @param[in] data The handle of input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
+ *                 This function takes ownership of the data if @a policy is #ML_PIPELINE_BUF_POLICY_AUTO_FREE.
  * @param[in] policy The policy of buf deallocation.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
