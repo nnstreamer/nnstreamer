@@ -155,6 +155,10 @@ typedef struct _ml_pipeline_element {
  */
 struct _ml_pipeline {
   GstElement *element;    /**< The pipeline itself (GstPipeline) */
+  GstBus *bus;            /**< The bus of the pipeline */
+  gulong signal_msg;      /**< The message signal (connected to bus) */
+  ml_pipeline_state_cb cb;
+  void *pdata;
   GMutex lock;            /**< Lock for pipeline operations */
   GHashTable *namednodes; /**< hash table of "element"s. */
 };
