@@ -265,6 +265,40 @@ cb_appsink_new_sample (GstElement * e, gpointer user_data)
 }
 
 /**
+ * @brief Callback for bus message.
+ */
+static void
+cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
+{
+  ml_pipeline *pipe_h;
+
+  pipe_h = (ml_pipeline *) user_data;
+
+  if (pipe_h == NULL)
+    return;
+
+  switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_STATE_CHANGED:
+      if (GST_MESSAGE_SRC (message) == GST_OBJECT_CAST (pipe_h->element)) {
+        GstState old_state, new_state;
+
+        gst_message_parse_state_changed (message, &old_state, &new_state, NULL);
+
+        ml_logd ("The pipeline state changed from %s to %s.",
+            gst_element_state_get_name (old_state),
+            gst_element_state_get_name (new_state));
+
+        if (pipe_h->cb) {
+          pipe_h->cb (new_state, pipe_h->pdata);
+        }
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+/**
  * @brief Private function for ml_pipeline_destroy, cleaning up nodes in namednodes
  */
 static void
@@ -299,7 +333,8 @@ cleanup_node (gpointer data)
  * @brief Construct the pipeline (more info in nnstreamer.h)
  */
 int
-ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
+ml_pipeline_construct (const char *pipeline_description,
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
 {
   GError *err = NULL;
   GstElement *pipeline;
@@ -343,6 +378,18 @@ ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h * pipe)
   g_assert (GST_IS_PIPELINE (pipeline));
   pipe_h->element = pipeline;
   g_mutex_init (&pipe_h->lock);
+
+  /* bus and message callback */
+  pipe_h->bus = gst_element_get_bus (pipeline);
+  g_assert (pipe_h->bus);
+
+  gst_bus_enable_sync_message_emission (pipe_h->bus);
+  pipe_h->signal_msg = g_signal_connect (pipe_h->bus, "sync-message",
+      G_CALLBACK (cb_bus_sync_message), pipe_h);
+
+  pipe_h->cb = cb;
+  pipe_h->pdata = user_data;
+
   g_mutex_lock (&pipe_h->lock);
 
   pipe_h->namednodes =
@@ -458,6 +505,9 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   g_mutex_unlock (&p->lock);
   g_usleep (50000);             /* do 50ms sleep until we have it implemented. Let them complete. And hope they don't call start(). */
   g_mutex_lock (&p->lock);
+
+  g_signal_handler_disconnect (p->bus, p->signal_msg);
+  gst_object_unref (p->bus);
 
   /** Destroy registered callback handles */
   g_hash_table_remove_all (p->namednodes);

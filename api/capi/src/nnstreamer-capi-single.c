@@ -216,7 +216,7 @@ ml_single_open (ml_single_h * single, const char *model,
       return ML_ERROR_NOT_SUPPORTED;
   }
 
-  status = ml_pipeline_construct (pipeline_desc, &pipe);
+  status = ml_pipeline_construct (pipeline_desc, NULL, NULL, &pipe);
   g_free (pipeline_desc);
   if (status != ML_ERROR_NONE) {
     /* Failed to construct pipeline. */

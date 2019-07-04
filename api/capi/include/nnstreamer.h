@@ -219,6 +219,15 @@ typedef enum {
  */
 typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data);
 
+/**
+ * @brief Callback for the change of pipeline state.
+ * @details If an application wants to get the change of pipeline state, use this callback. This callback can be registered when constructing the pipeline using ml_pipeline_construct(). Do not spend too much time in the callback.
+ * @since_tizen 5.5
+ * @param[out] state The new state of the pipeline.
+ * @param[out] user_data User application's private data.
+ */
+typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data);
+
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
  ****************************************************/
@@ -228,13 +237,15 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a pipe handle must be released using ml_pipeline_destroy().
  * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
+ * @param[in] cb The function to be called when the pipeline state is changed. You may set NULL if it's not required.
+ * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
  * @param[out] pipe The NNStreamer pipeline handler from the given description.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  */
-int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_h *pipe);
+int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h *pipe);
 
 /**
  * @brief Destroys the pipeline.
@@ -265,9 +276,10 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  ** NNStreamer Pipeline Start/Stop Control         **
  ****************************************************/
 /**
- * @brief Starts the pipeline.
+ * @brief Starts the pipeline, asynchronously.
  * @details The pipeline handle returned by ml_pipeline_construct() is started.
  *          Note that this is asynchronous function. State might be "pending".
+ *          If you need to get the changed state, add a callback while constructing a pipeline with ml_pipeline_construct().
  * @since_tizen 5.5
  * @param[in] pipe The pipeline handle.
  * @return @c 0 on success. Otherwise a negative error value.
@@ -278,9 +290,10 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
 int ml_pipeline_start (ml_pipeline_h pipe);
 
 /**
- * @brief Stops the pipeline.
+ * @brief Stops the pipeline, asynchronously.
  * @details The pipeline handle returned by ml_pipeline_construct() is stopped.
  *          Note that this is asynchronous function. State might be "pending".
+ *          If you need to get the changed state, add a callback while constructing a pipeline with ml_pipeline_construct().
  * @since_tizen 5.5
  * @param[in] pipe The pipeline to be stopped.
  * @return @c 0 on success. Otherwise a negative error value.
