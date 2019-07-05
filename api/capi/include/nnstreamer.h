@@ -236,6 +236,8 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @details Use this function to create gst_parse_launch compatible NNStreamer pipelines.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a pipe handle must be released using ml_pipeline_destroy().
+ * @remarks http://tizen.org/privilege/mediastorage is needed if @a pipeline_description is relevant to media storage.
+ * @remarks http://tizen.org/privilege/externalstorage is needed if @a pipeline_description is relevant to external storage.
  * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
  * @param[in] cb The function to be called when the pipeline state is changed. You may set NULL if it's not required.
  * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
