@@ -8,6 +8,7 @@ NNSTREAMER_VERSION  := 0.2.1
 
 NNSTREAMER_GST_HOME := $(NNSTREAMER_ROOT)/gst/nnstreamer
 NNSTREAMER_EXT_HOME := $(NNSTREAMER_ROOT)/ext/nnstreamer
+NNSTREAMER_CAPI_HOME := $(NNSTREAMER_ROOT)/api/capi
 
 # nnstreamer common headers
 NNSTREAMER_INCLUDES := \
@@ -37,6 +38,15 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_source/tensor_src_iio.c \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c
+
+# nnstreamer c-api
+NNSTREAMER_CAPI_INCLUDES := \
+    $(NNSTREAMER_CAPI_HOME)/include
+
+NNSTREAMER_CAPI_SRCS := \
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-pipeline.c \
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
 
 # filter tensorflow
 NNSTREAMER_FILTER_TF_SRCS := \
