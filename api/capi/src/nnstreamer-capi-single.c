@@ -362,6 +362,21 @@ ml_single_invoke (ml_single_h single,
   single_h = (ml_single *) single;
   in_data = (ml_tensors_data_s *) input;
 
+  /* Validate input data */
+  if (in_data->num_tensors != single_h->in_info.num_tensors) {
+    ml_loge ("The given param input is invalid, different number of memory blocks.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  for (i = 0; i < in_data->num_tensors; i++) {
+    size_t raw_size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
+
+    if (!in_data->tensors[i].tensor || in_data->tensors[i].size != raw_size) {
+      ml_loge ("The given param input is invalid, different size of memory block.");
+      return ML_ERROR_INVALID_PARAMETER;
+    }
+  }
+
   /* Allocate output buffer */
   status = ml_tensors_data_create (&single_h->out_info, output);
   if (status != ML_ERROR_NONE) {
