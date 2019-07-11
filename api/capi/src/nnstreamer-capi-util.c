@@ -761,6 +761,13 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
         goto done;
       }
       break;
+    case ML_NNFW_TYPE_NNFW:
+      {
+        /** @todo Need to check method for NNFW */
+        ml_logw ("NNFW is not supported.");
+        goto done;
+      }
+      break;
     default:
       break;
   }
