@@ -107,6 +107,7 @@ typedef enum {
   ML_NNFW_TYPE_CUSTOM_FILTER, /**< Custom filter (Independent shared object). */
   ML_NNFW_TYPE_TENSORFLOW_LITE, /**< Tensorflow-lite (.tflite). */
   ML_NNFW_TYPE_TENSORFLOW, /**< Tensorflow (.pb). */
+  ML_NNFW_TYPE_NNFW, /**< Neural Network Inference framework, which is developed by SR */
 } ml_nnfw_type_e;
 
 /**

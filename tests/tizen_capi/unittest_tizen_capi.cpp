@@ -1050,6 +1050,25 @@ TEST (nnstreamer_capi_switch, failure_01)
   g_free (pipeline);
 }
 
+/**
+ * @brief Test NNStreamer Utility for checking availability of NNFW
+ */
+TEST (nnstreamer_capi_util, availability_00)
+{
+  bool result;
+  int status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_AUTO, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_NPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+}
+
 #ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)

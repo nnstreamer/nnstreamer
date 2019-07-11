@@ -129,6 +129,11 @@ ml_single_open (ml_single_h * single, const char *model,
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
+    case ML_NNFW_TYPE_NNFW:
+      /** @todo Need to check method for NNFW */
+      ml_loge ("NNFW is not supported.");
+      status = ML_ERROR_NOT_SUPPORTED;
+      break;
     default:
       break;
   }
