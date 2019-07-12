@@ -420,8 +420,14 @@ class TFBuffer : public TensorBuffer {
   size_t len_;
 
 #if (TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION < 13)
+  explicit TFBuffer (void* data_ptr) : data_(data_ptr) {}
   void* data () const override { return data_; }
+#elif (TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13)
+  explicit TFBuffer (void* data_ptr) : TensorBuffer (data_ptr) {}
+#else
+#error This supports Tensorflow 1.x only.
 #endif
+
   size_t size () const override { return len_; }
   TensorBuffer* root_buffer () override { return this; }
   void FillAllocationDescription (AllocationDescription* proto) const override {
@@ -470,9 +476,8 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         }
 
         /* this input tensor should be UNREF */
-        buf = new TFBuffer;
+        buf = new TFBuffer (input[i].data);
         buf->len_ = input[i].size;
-        buf->data_ = input[i].data;
 
         in = TensorCApi::MakeTensor (
           dataType,
