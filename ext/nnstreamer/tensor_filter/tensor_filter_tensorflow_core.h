@@ -42,6 +42,7 @@
 #include <tensorflow/c/c_api.h>
 #include <tensorflow/c/c_api_internal.h>
 #include <tensorflow/core/public/session.h>
+#include <tensorflow/core/public/version.h>
 #pragma GCC diagnostic pop
 
 using namespace tensorflow;

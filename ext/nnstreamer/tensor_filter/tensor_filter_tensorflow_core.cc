@@ -419,7 +419,9 @@ class TFBuffer : public TensorBuffer {
   void* data_;
   size_t len_;
 
+#if (TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION < 13)
   void* data () const override { return data_; }
+#endif
   size_t size () const override { return len_; }
   TensorBuffer* root_buffer () override { return this; }
   void FillAllocationDescription (AllocationDescription* proto) const override {
