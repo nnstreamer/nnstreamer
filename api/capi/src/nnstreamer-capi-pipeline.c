@@ -327,6 +327,8 @@ cleanup_node (gpointer data)
 
   g_mutex_unlock (&e->lock);
   g_mutex_clear (&e->lock);
+
+  g_free (e);
 }
 
 /**
@@ -510,7 +512,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   gst_object_unref (p->bus);
 
   /** Destroy registered callback handles */
-  g_hash_table_remove_all (p->namednodes);
+  g_hash_table_destroy (p->namednodes);
 
   /** Stop (NULL State) the pipeline */
   scret = gst_element_set_state (p->element, GST_STATE_NULL);
