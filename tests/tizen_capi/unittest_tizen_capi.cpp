@@ -801,6 +801,7 @@ TEST (nnstreamer_capi_src, failure_03)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_tensors_data_create (info, &data);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* null data */
   status = ml_pipeline_src_input_data (srchandle, NULL, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
