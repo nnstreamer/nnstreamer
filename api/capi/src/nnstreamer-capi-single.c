@@ -151,9 +151,12 @@ ml_single_open (ml_single_h * single, const char *model,
   /* 2. Determine hw */
   /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
   status = ml_check_nnfw_availability (nnfw, hw, &available);
-  if (status != ML_ERROR_NONE || !available) {
-    ml_loge ("The given nnfw is not available.");
+  if (status != ML_ERROR_NONE)
     return status;
+
+  if (!available) {
+    ml_loge ("The given nnfw is not available.");
+    return ML_ERROR_NOT_SUPPORTED;
   }
 
   /* 3. Construct a pipeline */

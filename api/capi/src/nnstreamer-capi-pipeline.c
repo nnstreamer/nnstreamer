@@ -492,6 +492,13 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
 
   g_mutex_lock (&p->lock);
 
+  /* Before changing the state, remove all callbacks. */
+  p->cb = NULL;
+  g_signal_handler_disconnect (p->bus, p->signal_msg);
+  gst_object_unref (p->bus);
+
+  g_hash_table_remove_all (p->namednodes);
+
   /* if it's PLAYING, PAUSE it. */
   scret = gst_element_get_state (p->element, &state, NULL, 10 * GST_MSECOND);     /* 10ms */
   if (scret != GST_STATE_CHANGE_FAILURE && state == GST_STATE_PLAYING) {
@@ -508,11 +515,9 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   g_usleep (50000);             /* do 50ms sleep until we have it implemented. Let them complete. And hope they don't call start(). */
   g_mutex_lock (&p->lock);
 
-  g_signal_handler_disconnect (p->bus, p->signal_msg);
-  gst_object_unref (p->bus);
-
   /** Destroy registered callback handles */
   g_hash_table_destroy (p->namednodes);
+  p->namednodes = NULL;
 
   /** Stop (NULL State) the pipeline */
   scret = gst_element_set_state (p->element, GST_STATE_NULL);

@@ -73,7 +73,7 @@ typedef void *ml_single_h;
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
- *
+ * @retval #ML_ERROR_NOT_SUPPORTED Fail. The parameter is not available.
  */
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
 
