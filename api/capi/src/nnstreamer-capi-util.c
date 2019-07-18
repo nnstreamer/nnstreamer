@@ -397,7 +397,7 @@ ml_tensors_info_free (ml_tensors_info_s * info)
   if (!info)
     return;
 
-  for (i = 0; i < info->num_tensors; i++) {
+  for (i = 0; i < ML_TENSOR_SIZE_LIMIT; i++) {
     if (info->info[i].name) {
       g_free (info->info[i].name);
       info->info[i].name = NULL;
@@ -421,7 +421,7 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
 
   _data = (ml_tensors_data_s *) data;
 
-  for (i = 0; i < _data->num_tensors; i++) {
+  for (i = 0; i < ML_TENSOR_SIZE_LIMIT; i++) {
     if (_data->tensors[i].tensor) {
       g_free (_data->tensors[i].tensor);
       _data->tensors[i].tensor = NULL;
