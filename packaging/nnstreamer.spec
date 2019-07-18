@@ -2,6 +2,7 @@
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
+%define		tensorflow-support	0
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
@@ -52,7 +53,7 @@ BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
 BuildRequires: procps
 # for tensorflow
-%ifarch x86_64 aarch64
+%if 0%{?tensorflow-support}
 BuildRequires: protobuf-devel >= 3.4.0
 BuildRequires: tensorflow
 BuildRequires: tensorflow-devel
@@ -95,7 +96,7 @@ NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
 
 # for tensorflow
-%ifarch x86_64 aarch64
+%if 0%{?tensorflow-support}
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
 Requires:	nnstreamer = %{version}-%{release}
@@ -173,7 +174,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 
-%ifarch x86_64 aarch64
+%if 0%{?tensorflow-support}
 %define enable_tf true
 %else
 %define enable_tf false
@@ -273,7 +274,7 @@ popd
 %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow
-%ifarch x86_64 aarch64
+%if 0%{?tensorflow-support}
 %files tensorflow
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow.so
