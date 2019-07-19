@@ -34,13 +34,15 @@
 #include <string.h>
 #include <stdint.h>
 #include <glib.h>
-#include "font.h"
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 
 void init_pose (void) __attribute__ ((constructor));
 void finish_pose (void) __attribute__ ((destructor));
+
+/* font.c */
+extern uint8_t rasters[][13];
 
 #define POSE_SIZE                  14
 #define PIXEL_VALUE               (0xFFFFFFFF)  /* White 100% in RGBA */

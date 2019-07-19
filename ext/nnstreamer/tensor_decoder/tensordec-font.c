@@ -35,7 +35,7 @@
  * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
  */
 /**
- * @file font.h
+ * @file tensordec-font.c
  * @date 20 Nov 2018
  * @brief imported from font.c of https://courses.cs.washington.edu/courses/cse457/98a/tech/OpenGL/font.c
  *        and modified to support tensordec-boundingbox.c
@@ -44,9 +44,9 @@
  * @bug No known bugs.
  * @author Silicon Graphics Inc. (imported and modified by MyungJoo Ham <myungjoo.ham@samsung.com>)
  */
-#ifndef _NNSTREAMER_FONT_H_
-#define _NNSTREAMER_FONT_H_
+
 #include <stdint.h>
+
 /**
  * raster[ch][12] is the top pixels
  * raster[ch][0] is the bottom pixels
@@ -150,4 +150,4 @@ uint8_t rasters[][13] = {
 {0x00, 0x00, 0xf0, 0x18, 0x18, 0x18, 0x1c, 0x0f, 0x1c, 0x18, 0x18, 0x18, 0xf0},
 {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x8f, 0xf1, 0x60, 0x00, 0x00, 0x00}
 };
-#endif /* _NNSTREAMER_FONT_H_ */
+
