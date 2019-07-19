@@ -46,7 +46,8 @@ static_library('nnstreamer_decoder_image_labeling',
 
 # bounding boxes
 decoder_sub_bounding_boxes_sources = [
-  'tensordec-boundingbox.c'
+  'tensordec-boundingbox.c',
+  'tensordec-font.c'
 ]
 
 nnstreamer_decoder_bounding_boxes_sources = []
@@ -69,7 +70,8 @@ static_library('nnstreamer_decoder_bounding_boxes',
 
 # pose estimation
 decoder_sub_pose_estimation_sources = [
-  'tensordec-pose.c'
+  'tensordec-pose.c',
+  'tensordec-font.c'
 ]
 
 nnstreamer_decoder_pose_estimation_sources = []
