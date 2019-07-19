@@ -276,15 +276,18 @@ popd
 # for tensorflow
 %if 0%{?tensorflow-support}
 %files tensorflow
+%manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow.so
 %endif
 
 %files tensorflow-lite
+%manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
 %files -n nnstreamer-python2
+%manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
 %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
