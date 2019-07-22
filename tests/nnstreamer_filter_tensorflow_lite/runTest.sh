@@ -36,7 +36,7 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
 else
     ini_file="/etc/nnstreamer.ini"
     if [[ -f ${ini_file} ]]; then
-	path=$(grep "^filters" ${ini_path})
+	path=$(grep "^filters" ${ini_file})
 	key=${path%=*}
 	value=${path##*=}
 
