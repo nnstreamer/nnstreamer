@@ -59,10 +59,11 @@ else
 	    report
 	    exit
 	fi
-    fi
-    echo "Cannot identify nnstreamer.ini"
-    report
-    exit
+	else
+		echo "Cannot identify nnstreamer.ini"
+		report
+		exit
+	fi
 fi
 
 PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
