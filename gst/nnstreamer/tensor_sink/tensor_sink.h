@@ -61,7 +61,6 @@ struct _GstTensorSink
   gboolean emit_signal; /**< true to emit signal for new data, eos */
   guint signal_rate; /**< new data signals per second */
   GstClockTime last_render_time; /**< buffer rendered time */
-  GstCaps *in_caps; /**< received caps */
 };
 
 /**

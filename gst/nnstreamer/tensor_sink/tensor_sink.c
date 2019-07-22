@@ -115,20 +115,15 @@ static void gst_tensor_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_tensor_sink_dispose (GObject * object);
 static void gst_tensor_sink_finalize (GObject * object);
 
 /** GstBaseSink method implementation */
-static gboolean gst_tensor_sink_start (GstBaseSink * sink);
-static gboolean gst_tensor_sink_stop (GstBaseSink * sink);
 static gboolean gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event);
 static gboolean gst_tensor_sink_query (GstBaseSink * sink, GstQuery * query);
 static GstFlowReturn gst_tensor_sink_render (GstBaseSink * sink,
     GstBuffer * buffer);
 static GstFlowReturn gst_tensor_sink_render_list (GstBaseSink * sink,
     GstBufferList * buffer_list);
-static gboolean gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps);
-static GstCaps *gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter);
 
 /** internal functions */
 static void gst_tensor_sink_render_buffer (GstTensorSink * self,
@@ -167,7 +162,6 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   /** GObject methods */
   gobject_class->set_property = gst_tensor_sink_set_property;
   gobject_class->get_property = gst_tensor_sink_get_property;
-  gobject_class->dispose = gst_tensor_sink_dispose;
   gobject_class->finalize = gst_tensor_sink_finalize;
 
   /**
@@ -245,14 +239,10 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
   gst_element_class_add_static_pad_template (element_class, &sink_template);
 
   /** GstBaseSink methods */
-  bsink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_sink_start);
-  bsink_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_sink_stop);
   bsink_class->event = GST_DEBUG_FUNCPTR (gst_tensor_sink_event);
   bsink_class->query = GST_DEBUG_FUNCPTR (gst_tensor_sink_query);
   bsink_class->render = GST_DEBUG_FUNCPTR (gst_tensor_sink_render);
   bsink_class->render_list = GST_DEBUG_FUNCPTR (gst_tensor_sink_render_list);
-  bsink_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_sink_set_caps);
-  bsink_class->get_caps = GST_DEBUG_FUNCPTR (gst_tensor_sink_get_caps);
 }
 
 /**
@@ -272,7 +262,6 @@ gst_tensor_sink_init (GstTensorSink * self)
   self->emit_signal = DEFAULT_EMIT_SIGNAL;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
   self->last_render_time = GST_CLOCK_TIME_NONE;
-  self->in_caps = NULL;
 
   /** enable qos */
   gst_base_sink_set_qos_enabled (bsink, DEFAULT_QOS);
@@ -343,25 +332,6 @@ gst_tensor_sink_get_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief Function to drop all references.
- *
- * GObject method implementation.
- */
-static void
-gst_tensor_sink_dispose (GObject * object)
-{
-  GstTensorSink *self;
-
-  self = GST_TENSOR_SINK (object);
-
-  g_mutex_lock (&self->mutex);
-  gst_caps_replace (&self->in_caps, NULL);
-  g_mutex_unlock (&self->mutex);
-
-  G_OBJECT_CLASS (parent_class)->dispose (object);
-}
-
-/**
  * @brief Function to finalize instance.
  *
  * GObject method implementation.
@@ -376,30 +346,6 @@ gst_tensor_sink_finalize (GObject * object)
   g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
-}
-
-/**
- * @brief Start processing, called when state changed null to ready.
- *
- * GstBaseSink method implementation.
- */
-static gboolean
-gst_tensor_sink_start (GstBaseSink * sink)
-{
-  /** load and init resources */
-  return TRUE;
-}
-
-/**
- * @brief Stop processing, called when state changed ready to null.
- *
- * GstBaseSink method implementation.
- */
-static gboolean
-gst_tensor_sink_stop (GstBaseSink * sink)
-{
-  /** free resources */
-  return TRUE;
 }
 
 /**
@@ -513,68 +459,6 @@ gst_tensor_sink_render_list (GstBaseSink * sink, GstBufferList * buffer_list)
   }
 
   return GST_FLOW_OK;
-}
-
-/**
- * @brief Funtion for new caps.
- *
- * GstBaseSink method implementation.
- */
-static gboolean
-gst_tensor_sink_set_caps (GstBaseSink * sink, GstCaps * caps)
-{
-  GstTensorSink *self;
-
-  self = GST_TENSOR_SINK (sink);
-
-  g_mutex_lock (&self->mutex);
-  gst_caps_replace (&self->in_caps, caps);
-  g_mutex_unlock (&self->mutex);
-
-  if (DBG) {
-    guint caps_size, i;
-
-    caps_size = gst_caps_get_size (caps);
-    GST_DEBUG_OBJECT (self, "set caps, size is %d", caps_size);
-
-    for (i = 0; i < caps_size; i++) {
-      GstStructure *structure = gst_caps_get_structure (caps, i);
-      gchar *str = gst_structure_to_string (structure);
-
-      GST_DEBUG_OBJECT (self, "[%d] %s", i, str);
-      g_free (str);
-    }
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Funtion to return caps of subclass.
- *
- * GstBaseSink method implementation.
- */
-static GstCaps *
-gst_tensor_sink_get_caps (GstBaseSink * sink, GstCaps * filter)
-{
-  GstTensorSink *self;
-  GstCaps *caps;
-
-  self = GST_TENSOR_SINK (sink);
-
-  g_mutex_lock (&self->mutex);
-  caps = self->in_caps;
-
-  if (caps) {
-    if (filter) {
-      caps = gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
-    } else {
-      gst_caps_ref (caps);
-    }
-  }
-  g_mutex_unlock (&self->mutex);
-
-  return caps;
 }
 
 /**
