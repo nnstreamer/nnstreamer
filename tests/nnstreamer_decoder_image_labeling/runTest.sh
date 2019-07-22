@@ -59,10 +59,11 @@ else
 	    report
 	    exit
 	fi
-    fi
-    echo "Cannot identify nnstreamer.ini"
-    report
-    exit
+	else
+	    echo "Cannot identify nnstreamer.ini"
+	    report
+	    exit
+	fi
 fi
 
 # Decoding 'orange' tests
