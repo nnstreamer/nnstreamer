@@ -36,24 +36,18 @@
 #include <fstream>
 #include <algorithm>
 #include <vector>
+#include <map>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
 #include <tensorflow/c/c_api.h>
-#include <tensorflow/c/c_api_internal.h>
-#include <tensorflow/core/public/session.h>
-#include <tensorflow/core/public/version.h>
-#pragma GCC diagnostic pop
-
-using namespace tensorflow;
 
 /**
  * @brief	Internal data structure for tensorflow
  */
 typedef struct
 {
-  DataType type;
-  TensorShape shape;
+  TF_DataType type;
+  int rank;
+  std::vector < std::int64_t > dims;
 } tf_tensor_info_s;
 
 /**
@@ -68,33 +62,31 @@ public:
   TFCore (const char * _model_path);
    ~TFCore ();
 
-  int init (const GstTensorFilterProperties * prop, const gboolean tf_mem_optmz);
+  int init (const GstTensorFilterProperties * prop);
   int loadModel ();
-  const char* getModelPath();
+  const char *getModelPath ();
+
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
 
-  static std::map <void*, Tensor> outputTensorMap;
+  static std::map < void *, TF_Tensor * >outputTensorMap;
 
 private:
 
   const char *model_path;
-  gboolean mem_optmz;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors from user input */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors from user input */
 
-  std::vector <tf_tensor_info_s> input_tensor_info;
-  std::vector <string> output_tensor_names;
-  bool configured; /**< True if the model is successfully loaded */
+  std::vector < tf_tensor_info_s > input_tensor_info; /* hold information for TF */
 
-  Session *session;
+  TF_Graph *graph;
+  TF_Session *session;
 
-  tensor_type getTensorTypeFromTF (DataType tfType);
-  gboolean getTensorTypeToTF_Capi (tensor_type tType, TF_DataType * tf_type);
-  int validateInputTensor (const GraphDef &graph_def);
-  int validateOutputTensor (const std::vector <Tensor> &outputs);
+  tensor_type getTensorTypeFromTF (TF_DataType tfType);
+  TF_DataType getTensorTypeToTF (tensor_type tType);
+  int validateTensor (const GstTensorsInfo * tensorInfo, int is_input);
 };
 
 /**
@@ -104,7 +96,7 @@ extern "C"
 {
 #endif
 
-  void *tf_core_new (const char *_model_path);
+  void *tf_core_new (const char * _model_path);
   void tf_core_delete (void * tf);
   int tf_core_init (void * tf, const GstTensorFilterProperties * prop,
       const gboolean tf_mem_optmz);
@@ -119,4 +111,4 @@ extern "C"
 }
 #endif
 
-#endif /* TENSOR_FILTER_TENSORFLOW_CORE_H */
+#endif                          /* TENSOR_FILTER_TENSORFLOW_CORE_H */
