@@ -1,3 +1,18 @@
+/*
+ * NNStreamer Android API
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Library General Public License for more details.
+ */
+
 package com.samsung.android.nnstreamer;
 
 import android.support.annotation.NonNull;
@@ -220,7 +235,7 @@ public final class Pipeline implements AutoCloseable {
     }
 
     /**
-     * Controls the switch to select input/output nodes(pads).
+     * Controls the switch to select input/output nodes (pads).
      *
      * @param name The name of switch node
      * @param pad  The name of the chosen pad to be activated
@@ -246,7 +261,7 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Controls the valve.
-     * Set the flag true to open(let the flow pass), false to close(drop & stop the flow).
+     * Set the flag true to open (let the flow pass), false to close (drop & stop the flow).
      *
      * @param name The name of valve node
      * @param open The flag to control the flow
