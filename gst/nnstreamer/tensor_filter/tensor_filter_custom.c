@@ -245,6 +245,7 @@ static GstTensorFilterFramework NNS_support_custom = {
   .name = filter_subplugin_custom,
   .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
   .allocate_in_invoke = FALSE,  /* GstTensorFilter allocates output buffers */
+  .run_without_model = FALSE,   /* custom needs a so file */
   .invoke_NN = custom_invoke,
 
   /* We need to disable getI/O-dim or setI-dim with the first call */
