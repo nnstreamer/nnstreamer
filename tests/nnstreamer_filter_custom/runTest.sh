@@ -22,7 +22,7 @@ PATH_TO_PLUGIN="../../build"
 
 # Test for opencv installed, enable OPENCV test if opencv is found
 TEST_OPENCV="NO"
-ldconfig -p | grep opencv > /dev/null 2>&1
+/sbin/ldconfig -p | grep opencv > /dev/null 2>&1
 if [[ "$?" == 0 ]]
 then
   TEST_OPENCV="YES"
