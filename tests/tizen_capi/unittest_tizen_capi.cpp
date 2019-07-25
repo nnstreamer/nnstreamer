@@ -861,9 +861,11 @@ TEST (nnstreamer_capi_switch, dummy_01)
     while ((name = node_list[idx]) != NULL) {
       EXPECT_TRUE (g_str_equal (name, "sink_0") || g_str_equal (name, "sink_1"));
       idx++;
+      g_free (name);
     }
 
     EXPECT_EQ (idx, 2U);
+    g_free (node_list);
   }
 
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
@@ -945,9 +947,11 @@ TEST (nnstreamer_capi_switch, dummy_02)
     while ((name = node_list[idx]) != NULL) {
       EXPECT_TRUE (g_str_equal (name, "src_0") || g_str_equal (name, "src_1"));
       idx++;
+      g_free (name);
     }
 
     EXPECT_EQ (idx, 2U);
+    g_free (node_list);
   }
 
   status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, count_sink0, &sinkhandle0);
