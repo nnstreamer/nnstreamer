@@ -1,4 +1,19 @@
 /**
+ * NNStreamer Android API
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Library General Public License for more details.
+ */
+
+/**
  * @file	nnstreamer-native-api.c
  * @date	10 July 2019
  * @brief	Native code for NNStreamer API
@@ -6,85 +21,7 @@
  * @bug		No known bugs except for NYI items
  */
 
-#include <jni.h>
-#include <android/log.h>
-
-#include <gst/gst.h>
-
-#include "nnstreamer.h"
-#include "nnstreamer-single.h"
-#include "nnstreamer-capi-private.h"
-
-#ifndef DBG
-#define DBG FALSE
-#endif
-
-#define TAG "NNStreamer-native"
-
-#define nns_logi(...) \
-    __android_log_print (ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-
-#define nns_logw(...) \
-    __android_log_print (ANDROID_LOG_WARN, TAG, __VA_ARGS__)
-
-#define nns_loge(...) \
-    __android_log_print (ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-
-#define nns_logd(...) \
-    __android_log_print (ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
-
-#if (DBG)
-#define print_log nns_logd
-#else
-#define print_log(...)
-#endif
-
-#if GLIB_SIZEOF_VOID_P == 8
-#define CAST_TO_LONG(p) (jlong)(p)
-#define CAST_TO_TYPE(l,type) (type)(l)
-#else
-#define CAST_TO_LONG(p) (jlong)(jint)(p)
-#define CAST_TO_TYPE(l,type) (type)(jint)(l)
-#endif
-
-#define NNS_PIPE_TYPE_PIPELINE "pipeline"
-#define NNS_PIPE_TYPE_SINGLE "single"
-
-#define NNS_ELEMENT_TYPE_SRC "src"
-#define NNS_ELEMENT_TYPE_SINK "sink"
-#define NNS_ELEMENT_TYPE_VALVE "valve"
-#define NNS_ELEMENT_TYPE_SWITCH_IN "switch_in"
-#define NNS_ELEMENT_TYPE_SWITCH_OUT "switch_out"
-
-/**
- * @brief Struct for constructed pipeline.
- */
-typedef struct
-{
-  gchar *pipeline_type;
-  gpointer pipeline_handle;
-  GHashTable *element_handles;
-  GMutex lock;
-
-  JavaVM *jvm;
-  jint version;
-  pthread_key_t jni_env;
-
-  jobject instance;
-  jclass cls_tensors_data;
-  jclass cls_tensors_info;
-} pipeline_info_s;
-
-/**
- * @brief Struct for element data in pipeline.
- */
-typedef struct
-{
-  gchar *name;
-  gchar *type;
-  gpointer handle;
-  pipeline_info_s *pipe_info;
-} element_data_s;
+#include "nnstreamer-native.h"
 
 /**
  * @brief Attach thread with Java VM.
@@ -114,7 +51,7 @@ nns_attach_current_thread (pipeline_info_s * pipe_info)
 /**
  * @brief Get JNI environment.
  */
-static JNIEnv *
+JNIEnv *
 nns_get_jni_env (pipeline_info_s * pipe_info)
 {
   JNIEnv *env;
@@ -132,7 +69,7 @@ nns_get_jni_env (pipeline_info_s * pipe_info)
 /**
  * @brief Free element handle pointer.
  */
-static void
+void
 nns_free_element_data (gpointer data)
 {
   element_data_s *item = (element_data_s *) data;
@@ -149,7 +86,8 @@ nns_free_element_data (gpointer data)
       ml_pipeline_valve_release_handle ((ml_pipeline_valve_h) item->handle);
     } else {
       nns_logw ("Given element type %s is unknown.", item->type);
-      g_free (item->handle);
+      if (item->handle)
+        g_free (item->handle);
     }
 
     g_free (item->name);
@@ -161,7 +99,7 @@ nns_free_element_data (gpointer data)
 /**
  * @brief Construct pipeline info.
  */
-static gpointer
+gpointer
 nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gchar * type)
 {
   pipeline_info_s *pipe_info;
@@ -195,7 +133,7 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gcha
 /**
  * @brief Destroy pipeline info.
  */
-static void
+void
 nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
 {
   g_assert (pipe_info);
@@ -227,7 +165,7 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
 /**
  * @brief Get element handle of given name.
  */
-static gpointer
+gpointer
 nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name)
 {
   element_data_s *item;
@@ -245,7 +183,7 @@ nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name)
 /**
  * @brief Remove element handle of given name.
  */
-static gboolean
+gboolean
 nns_remove_element_handle (pipeline_info_s * pipe_info, const gchar * name)
 {
   gboolean ret;
@@ -263,7 +201,7 @@ nns_remove_element_handle (pipeline_info_s * pipe_info, const gchar * name)
 /**
  * @brief Add new element handle of given name and type.
  */
-static gboolean
+gboolean
 nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
     element_data_s * item)
 {
@@ -282,7 +220,7 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
 /**
  * @brief Convert tensors data to TensorsData object.
  */
-static gboolean
+gboolean
 nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     ml_tensors_data_s * data, jobject * result)
 {
@@ -318,7 +256,7 @@ done:
 /**
  * @brief Parse tensors data from TensorsData object.
  */
-static gboolean
+gboolean
 nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     jobject obj_data, ml_tensors_data_s * data)
 {
@@ -367,7 +305,7 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
 /**
  * @brief Convert tensors info to TensorsInfo object.
  */
-static gboolean
+gboolean
 nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     ml_tensors_info_s * info, jobject * result)
 {
@@ -420,7 +358,7 @@ done:
 /**
  * @brief Parse tensors info from TensorsInfo object.
  */
-static gboolean
+gboolean
 nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     jobject obj_info, ml_tensors_info_s * info)
 {
@@ -491,770 +429,6 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
   (*env)->DeleteLocalRef (env, cls_arraylist);
   (*env)->DeleteLocalRef (env, obj_arraylist);
   return TRUE;
-}
-
-/**
- * @brief Pipeline state change callback.
- */
-static void
-nns_pipeline_state_cb (ml_pipeline_state_e state, void *user_data)
-{
-  pipeline_info_s *pipe_info;
-
-  pipe_info = (pipeline_info_s *) user_data;
-
-  JNIEnv *env = nns_get_jni_env (pipe_info);
-  if (env == NULL) {
-    nns_logw ("Cannot get jni env in the state callback.");
-    return;
-  }
-
-  jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-  jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "stateChanged", "(I)V");
-  jint new_state = (jint) state;
-
-  (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, new_state);
-
-  if ((*env)->ExceptionCheck (env)) {
-    nns_loge ("Failed to call the callback method.");
-    (*env)->ExceptionClear (env);
-  }
-
-  (*env)->DeleteLocalRef (env, cls_pipeline);
-}
-
-/**
- * @brief New data callback for sink node.
- */
-static void
-nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
-{
-  element_data_s *cb_data;
-  pipeline_info_s *pipe_info;
-  ml_tensors_data_s *out_data;
-  ml_tensors_info_s *out_info;
-
-  cb_data = (element_data_s *) user_data;
-  pipe_info = cb_data->pipe_info;
-  out_data = (ml_tensors_data_s *) data;
-  out_info = (ml_tensors_info_s *) info;
-
-  print_log ("Received new data from %s (total %d tensors)",
-      cb_data->name, out_data->num_tensors);
-
-  JNIEnv *env = nns_get_jni_env (pipe_info);
-  if (env == NULL) {
-    nns_logw ("Cannot get jni env in the sink callback.");
-    return;
-  }
-
-  jobject obj_data, obj_info;
-
-  obj_data = obj_info = NULL;
-  if (nns_convert_tensors_data (pipe_info, env, out_data, &obj_data) &&
-      nns_convert_tensors_info (pipe_info, env, out_info, &obj_info)) {
-    /* method for sink callback */
-    jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-    jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
-        "(Ljava/lang/String;Lcom/samsung/android/nnstreamer/TensorsData;Lcom/samsung/android/nnstreamer/TensorsInfo;)V");
-    jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
-
-    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name, obj_data, obj_info);
-
-    if ((*env)->ExceptionCheck (env)) {
-      nns_loge ("Failed to call the callback method.");
-      (*env)->ExceptionClear (env);
-    }
-
-    (*env)->DeleteLocalRef (env, sink_name);
-    (*env)->DeleteLocalRef (env, cls_pipeline);
-  } else {
-    nns_loge ("Failed to convert the result to data object.");
-  }
-
-  if (obj_data)
-    (*env)->DeleteLocalRef (env, obj_data);
-  if (obj_info)
-    (*env)->DeleteLocalRef (env, obj_info);
-}
-
-/**
- * @brief Get sink handle.
- */
-static void *
-nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
-{
-  ml_pipeline_sink_h handle;
-  ml_pipeline_h pipe;
-  int status;
-
-  g_assert (pipe_info);
-  pipe = pipe_info->pipeline_handle;
-
-  handle = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
-  if (handle == NULL) {
-    /* get sink handle and register to table */
-    element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
-
-    status = ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb, item, &handle);
-    if (status != ML_ERROR_NONE) {
-      nns_loge ("Failed to get sink node %s.", element_name);
-      g_free (item);
-      return NULL;
-    }
-
-    item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_SINK);
-    item->handle = handle;
-    item->pipe_info = pipe_info;
-
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
-      nns_loge ("Failed to add sink node %s.", element_name);
-      nns_free_element_data (item);
-      return NULL;
-    }
-  }
-
-  return handle;
-}
-
-/**
- * @brief Get src handle.
- */
-static void *
-nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
-{
-  ml_pipeline_src_h handle;
-  ml_pipeline_h pipe;
-  int status;
-
-  g_assert (pipe_info);
-  pipe = pipe_info->pipeline_handle;
-
-  handle = (ml_pipeline_src_h) nns_get_element_handle (pipe_info, element_name);
-  if (handle == NULL) {
-    /* get src handle and register to table */
-    status = ml_pipeline_src_get_handle (pipe, element_name, &handle);
-    if (status != ML_ERROR_NONE) {
-      nns_loge ("Failed to get src node %s.", element_name);
-      return NULL;
-    }
-
-    element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
-
-    item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_SRC);
-    item->handle = handle;
-    item->pipe_info = pipe_info;
-
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
-      nns_loge ("Failed to add src node %s.", element_name);
-      nns_free_element_data (item);
-      return NULL;
-    }
-  }
-
-  return handle;
-}
-
-/**
- * @brief Get switch handle.
- */
-static void *
-nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
-{
-  ml_pipeline_switch_h handle;
-  ml_pipeline_switch_e switch_type;
-  ml_pipeline_h pipe;
-  int status;
-
-  g_assert (pipe_info);
-  pipe = pipe_info->pipeline_handle;
-
-  handle = (ml_pipeline_switch_h) nns_get_element_handle (pipe_info, element_name);
-  if (handle == NULL) {
-    /* get switch handle and register to table */
-    status = ml_pipeline_switch_get_handle (pipe, element_name, &switch_type, &handle);
-    if (status != ML_ERROR_NONE) {
-      nns_loge ("Failed to get switch %s.", element_name);
-      return NULL;
-    }
-
-    element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
-
-    item->name = g_strdup (element_name);
-    if (switch_type == ML_PIPELINE_SWITCH_INPUT_SELECTOR)
-      item->type = g_strdup (NNS_ELEMENT_TYPE_SWITCH_IN);
-    else
-      item->type = g_strdup (NNS_ELEMENT_TYPE_SWITCH_OUT);
-    item->handle = handle;
-    item->pipe_info = pipe_info;
-
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
-      nns_loge ("Failed to add switch %s.", element_name);
-      nns_free_element_data (item);
-      return NULL;
-    }
-  }
-
-  return handle;
-}
-
-/**
- * @brief Get valve handle.
- */
-static void *
-nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
-{
-  ml_pipeline_valve_h handle;
-  ml_pipeline_h pipe;
-  int status;
-
-  g_assert (pipe_info);
-  pipe = pipe_info->pipeline_handle;
-
-  handle = (ml_pipeline_valve_h) nns_get_element_handle (pipe_info, element_name);
-  if (handle == NULL) {
-    /* get valve handle and register to table */
-    status = ml_pipeline_valve_get_handle (pipe, element_name, &handle);
-    if (status != ML_ERROR_NONE) {
-      nns_loge ("Failed to get valve %s.", element_name);
-      return NULL;
-    }
-
-    element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
-
-    item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_VALVE);
-    item->handle = handle;
-    item->pipe_info = pipe_info;
-
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
-      nns_loge ("Failed to add valve %s.", element_name);
-      nns_free_element_data (item);
-      return NULL;
-    }
-  }
-
-  return handle;
-}
-
-/**
- * @brief Native method for single-shot API.
- */
-jlong
-Java_com_samsung_android_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
-    jstring model, jobject in, jobject out)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_single_h single;
-  ml_tensors_info_h in_info, out_info;
-  int status;
-  const char *model_info = (*env)->GetStringUTFChars (env, model, NULL);
-
-  single = in_info = out_info = NULL;
-
-  if (in) {
-    ml_tensors_info_create (&in_info);
-    nns_parse_tensors_info (pipe_info, env, in, (ml_tensors_info_s *) in_info);
-  }
-
-  if (out) {
-    ml_tensors_info_create (&out_info);
-    nns_parse_tensors_info (pipe_info, env, out, (ml_tensors_info_s *) out_info);
-  }
-
-  /* supposed tensorflow-lite only for android */
-  status = ml_single_open (&single, model_info, in_info, out_info,
-      ML_NNFW_TYPE_ANY, ML_NNFW_HW_AUTO);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to create the pipeline.");
-    goto done;
-  }
-
-  pipe_info = nns_construct_pipe_info (env, thiz, single, NNS_PIPE_TYPE_SINGLE);
-
-done:
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
-
-  (*env)->ReleaseStringUTFChars (env, model, model_info);
-  return CAST_TO_LONG (pipe_info);
-}
-
-/**
- * @brief Native method for single-shot API.
- */
-void
-Java_com_samsung_android_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  nns_destroy_pipe_info (pipe_info, env);
-}
-
-/**
- * @brief Native method for single-shot API.
- */
-jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
-    jlong handle, jobject in)
-{
-  pipeline_info_s *pipe_info;
-  ml_single_h single;
-  ml_tensors_data_s *input, *output;
-  int status;
-  jobject result = NULL;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  single = pipe_info->pipeline_handle;
-  output = NULL;
-
-  input = g_new0 (ml_tensors_data_s, 1);
-  if (!input) {
-    nns_loge ("Failed to allocate memory for input data.");
-    goto done;
-  }
-
-  if (!nns_parse_tensors_data (pipe_info, env, in, input)) {
-    nns_loge ("Failed to parse input data.");
-    goto done;
-  }
-
-  status = ml_single_invoke (single, input, (ml_tensors_data_h *) &output);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to get the result from pipeline.");
-    goto done;
-  }
-
-  if (!nns_convert_tensors_data (pipe_info, env, output, &result)) {
-    nns_loge ("Failed to convert the result to data.");
-    result = NULL;
-  }
-
-done:
-  ml_tensors_data_destroy ((ml_tensors_data_h) input);
-  ml_tensors_data_destroy ((ml_tensors_data_h) output);
-  return result;
-}
-
-/**
- * @brief Native method for single-shot API.
- */
-jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeGetInputInfo (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info;
-  ml_single_h single;
-  ml_tensors_info_h info;
-  int status;
-  jobject result = NULL;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  single = pipe_info->pipeline_handle;
-
-  status = ml_single_get_input_info (single, &info);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to get input info.");
-    goto done;
-  }
-
-  if (!nns_convert_tensors_info (pipe_info, env, info, &result)) {
-    nns_loge ("Failed to convert input info.");
-    result = NULL;
-  }
-
-done:
-  ml_tensors_info_destroy (info);
-  return result;
-}
-
-/**
- * @brief Native method for single-shot API.
- */
-jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info;
-  ml_single_h single;
-  ml_tensors_info_h info;
-  int status;
-  jobject result = NULL;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  single = pipe_info->pipeline_handle;
-
-  status = ml_single_get_output_info (single, &info);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to get output info.");
-    goto done;
-  }
-
-  if (!nns_convert_tensors_info (pipe_info, env, info, &result)) {
-    nns_loge ("Failed to convert output info.");
-    result = NULL;
-  }
-
-done:
-  ml_tensors_info_destroy (info);
-  return result;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jlong
-Java_com_samsung_android_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz,
-    jstring description, jboolean add_state_cb)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_h pipe;
-  int status;
-  const char *pipeline = (*env)->GetStringUTFChars (env, description, NULL);
-
-  print_log ("Pipeline: %s", pipeline);
-  pipe_info = nns_construct_pipe_info (env, thiz, NULL, NNS_PIPE_TYPE_PIPELINE);
-
-  if (add_state_cb)
-    status = ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info, &pipe);
-  else
-    status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
-
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to create the pipeline.");
-    nns_destroy_pipe_info (pipe_info, env);
-    pipe_info = NULL;
-  } else {
-    pipe_info->pipeline_handle = pipe;
-  }
-
-  (*env)->ReleaseStringUTFChars (env, description, pipeline);
-  return CAST_TO_LONG (pipe_info);
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-void
-Java_com_samsung_android_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info = NULL;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  nns_destroy_pipe_info (pipe_info, env);
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_h pipe;
-  int status;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  pipe = pipe_info->pipeline_handle;
-
-  status = ml_pipeline_start (pipe);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to start the pipeline.");
-    return JNI_FALSE;
-  }
-
-  return JNI_TRUE;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_h pipe;
-  int status;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  pipe = pipe_info->pipeline_handle;
-
-  status = ml_pipeline_stop (pipe);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to stop the pipeline.");
-    return JNI_FALSE;
-  }
-
-  return JNI_TRUE;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jint
-Java_com_samsung_android_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
-    jlong handle)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_h pipe;
-  ml_pipeline_state_e state;
-  int status;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-  pipe = pipe_info->pipeline_handle;
-
-  status = ml_pipeline_get_state (pipe, &state);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to get the pipeline state.");
-    state = ML_PIPELINE_STATE_UNKNOWN;
-  }
-
-  return (jint) state;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jobject in)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_src_h src;
-  ml_tensors_data_s *input = NULL;
-  int status;
-  jboolean res = JNI_FALSE;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  src = (ml_pipeline_src_h) nns_get_src_handle (pipe_info, element_name);
-  if (src == NULL) {
-    goto done;
-  }
-
-  input = g_new0 (ml_tensors_data_s, 1);
-  if (!input) {
-    nns_loge ("Failed to allocate memory for input data.");
-    goto done;
-  }
-
-  if (!nns_parse_tensors_data (pipe_info, env, in, input)) {
-    nns_loge ("Failed to parse input data.");
-    ml_tensors_data_destroy ((ml_tensors_data_h) input);
-    goto done;
-  }
-
-  status = ml_pipeline_src_input_data (src, (ml_tensors_data_h) input,
-      ML_PIPELINE_BUF_POLICY_AUTO_FREE);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to input tensors data.");
-    goto done;
-  }
-
-  res = JNI_TRUE;
-
-done:
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  return res;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jobjectArray
-Java_com_samsung_android_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_switch_h node;
-  int status;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-  char **pad_list = NULL;
-  guint i, total = 0;
-  jobjectArray result = NULL;
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  node = (ml_pipeline_switch_h) nns_get_switch_handle (pipe_info, element_name);
-  if (node == NULL) {
-    goto done;
-  }
-
-  status = ml_pipeline_switch_get_pad_list (node, &pad_list);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to get the pad list of switch %s.", element_name);
-    goto done;
-  }
-
-  /* set string array */
-  if (pad_list) {
-    jclass cls_string = (*env)->FindClass (env, "java/lang/String");
-
-    while (pad_list[total] != NULL)
-      total++;
-
-    result = (*env)->NewObjectArray (env, total, cls_string, (*env)->NewStringUTF (env, ""));
-    if (result == NULL) {
-      nns_loge ("Failed to allocate string array.");
-      goto done;
-    }
-
-    for (i = 0; i < total; i++) {
-      (*env)->SetObjectArrayElement (env, result, i, (*env)->NewStringUTF (env, pad_list[i]));
-      g_free (pad_list[i]);
-    }
-
-    g_free (pad_list);
-    pad_list = NULL;
-
-    (*env)->DeleteLocalRef (env, cls_string);
-  }
-
-done:
-  /* free pad list */
-  if (pad_list) {
-    i = 0;
-    while (pad_list[i] != NULL) {
-      g_free (pad_list[i]);
-    }
-    g_free (pad_list);
-  }
-
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  return result;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jstring pad)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_switch_h node;
-  int status;
-  jboolean res = JNI_FALSE;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-  const char *pad_name = (*env)->GetStringUTFChars (env, pad, NULL);
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  node = (ml_pipeline_switch_h) nns_get_switch_handle (pipe_info, element_name);
-  if (node == NULL) {
-    goto done;
-  }
-
-  status = ml_pipeline_switch_select (node, pad_name);
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to select switch pad %s.", pad_name);
-    goto done;
-  }
-
-  res = JNI_TRUE;
-
-done:
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  (*env)->ReleaseStringUTFChars (env, pad, pad_name);
-  return res;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jboolean open)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_valve_h node;
-  int status;
-  jboolean res = JNI_FALSE;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  node = (ml_pipeline_valve_h) nns_get_valve_handle (pipe_info, element_name);
-  if (node == NULL) {
-    goto done;
-  }
-
-  status = ml_pipeline_valve_set_open (node, (open == JNI_TRUE));
-  if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to control valve %s.", element_name);
-    goto done;
-  }
-
-  res = JNI_TRUE;
-
-done:
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  return res;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_sink_h sink;
-  jboolean res = JNI_FALSE;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  sink = (ml_pipeline_sink_h) nns_get_sink_handle (pipe_info, element_name);
-  if (sink == NULL) {
-    goto done;
-  }
-
-  res = JNI_TRUE;
-
-done:
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  return res;
-}
-
-/**
- * @brief Native method for pipeline API.
- */
-jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
-{
-  pipeline_info_s *pipe_info = NULL;
-  ml_pipeline_sink_h sink;
-  jboolean res = JNI_FALSE;
-  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
-
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
-
-  /* get handle from table */
-  sink = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
-  if (sink) {
-    nns_remove_element_handle (pipe_info, element_name);
-    res = JNI_TRUE;
-  }
-
-  (*env)->ReleaseStringUTFChars (env, name, element_name);
-  return res;
 }
 
 /**
