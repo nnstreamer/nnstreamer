@@ -38,7 +38,7 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
 else
     ini_file="/etc/nnstreamer.ini"
     if [[ -f ${ini_file} ]]; then
-	path=$(grep "^filters" ${ini_path})
+	path=$(grep "^filters" ${ini_file})
 	key=${path%=*}
 	value=${path##*=}
 
@@ -61,10 +61,11 @@ else
 	    report
 	    exit
 	fi
-    fi
-    echo "Cannot identify nnstreamer.ini"
-    report
-    exit
+	else
+		echo "Cannot identify nnstreamer.ini"
+		report
+		exit
+	fi
 fi
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
