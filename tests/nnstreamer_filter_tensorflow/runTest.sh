@@ -36,7 +36,7 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
 else
     ini_file="/etc/nnstreamer.ini"
     if [[ -f ${ini_file} ]]; then
-	path=$(grep "^filters" ${ini_path})
+	path=$(grep "^filters" ${ini_file})
 	key=${path%=*}
 	value=${path##*=}
 
@@ -59,10 +59,11 @@ else
 	    report
 	    exit
 	fi
-    fi
-    echo "Cannot identify nnstreamer.ini"
-    report
-    exit
+	else
+		echo "Cannot identify nnstreamer.ini"
+		report
+		exit
+	fi
 fi
 
 # Test with mnist model
