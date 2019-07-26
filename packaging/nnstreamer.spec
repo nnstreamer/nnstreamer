@@ -64,6 +64,7 @@ BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 %if %{with tizen}
+BuildRequires: pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
 BuildRequires:	gst-plugins-bad-devel

@@ -65,6 +65,8 @@ ml_single_open (ml_single_h * single, const char *model,
   bool available = false;
   bool valid = false;
 
+  check_feature_state ();
+
   /* Validate the params */
   if (!single) {
     ml_loge ("The given param, single is invalid.");
@@ -327,6 +329,8 @@ ml_single_close (ml_single_h single)
   ml_single *single_h;
   int status;
 
+  check_feature_state ();
+
   if (!single) {
     ml_loge ("The given param, single is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
@@ -372,6 +376,8 @@ ml_single_invoke (ml_single_h single,
   GstMapInfo mem_info;
   GstFlowReturn ret;
   int i, status = ML_ERROR_NONE;
+
+  check_feature_state ();
 
   if (!single || !input || !output) {
     ml_loge ("The given param is invalid.");
@@ -463,6 +469,8 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
   gchar *val;
   guint rank;
 
+  check_feature_state ();
+
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -513,6 +521,8 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
   GstTensorsInfo gst_info;
   gchar *val;
   guint rank;
+
+  check_feature_state ();
 
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;

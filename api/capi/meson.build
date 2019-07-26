@@ -36,6 +36,7 @@ if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
   tizen_deps = [
     dependency('capi-base-common'),
+    dependency('capi-system-info'),
     dependency('dlog')
   ]
 else

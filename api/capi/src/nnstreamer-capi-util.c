@@ -27,6 +27,13 @@
 #include "nnstreamer.h"
 #include "nnstreamer-capi-private.h"
 
+#if defined(__TIZEN__)
+  #include <system_info.h>
+#endif
+
+/** -1: Not checked yet, 0: Not supported, 1: Supported */
+static int feature_enabled = -1;
+
 /**
  * @brief Allocates a tensors information handle with default value.
  */
@@ -34,6 +41,8 @@ int
 ml_tensors_info_create (ml_tensors_info_h * info)
 {
   ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
 
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
@@ -51,6 +60,8 @@ int
 ml_tensors_info_destroy (ml_tensors_info_h info)
 {
   ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
 
   tensors_info = (ml_tensors_info_s *) info;
 
@@ -119,6 +130,8 @@ ml_tensors_info_validate (const ml_tensors_info_h info, bool * valid)
   ml_tensors_info_s *tensors_info;
   guint i;
 
+  check_feature_state ();
+
   if (!valid)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -150,6 +163,8 @@ ml_tensors_info_set_count (ml_tensors_info_h info, unsigned int count)
 {
   ml_tensors_info_s *tensors_info;
 
+  check_feature_state ();
+
   if (!info || count > ML_TENSOR_SIZE_LIMIT)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -166,6 +181,8 @@ int
 ml_tensors_info_get_count (ml_tensors_info_h info, unsigned int *count)
 {
   ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
 
   if (!info || !count)
     return ML_ERROR_INVALID_PARAMETER;
@@ -184,6 +201,8 @@ ml_tensors_info_set_tensor_name (ml_tensors_info_h info,
     unsigned int index, const char *name)
 {
   ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
 
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
@@ -213,6 +232,8 @@ ml_tensors_info_get_tensor_name (ml_tensors_info_h info,
 {
   ml_tensors_info_s *tensors_info;
 
+  check_feature_state ();
+
   if (!info || !name)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -234,6 +255,8 @@ ml_tensors_info_set_tensor_type (ml_tensors_info_h info,
     unsigned int index, const ml_tensor_type_e type)
 {
   ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
 
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
@@ -257,6 +280,8 @@ ml_tensors_info_get_tensor_type (ml_tensors_info_h info,
 {
   ml_tensors_info_s *tensors_info;
 
+  check_feature_state ();
+
   if (!info || !type)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -279,6 +304,8 @@ ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info,
 {
   ml_tensors_info_s *tensors_info;
   guint i;
+
+  check_feature_state ();
 
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
@@ -304,6 +331,8 @@ ml_tensors_info_get_tensor_dimension (ml_tensors_info_h info,
 {
   ml_tensors_info_s *tensors_info;
   guint i;
+
+  check_feature_state ();
 
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
@@ -416,6 +445,8 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
   ml_tensors_data_s *_data;
   guint i;
 
+  check_feature_state ();
+
   if (!data)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -442,6 +473,8 @@ ml_tensors_data_create (const ml_tensors_info_h info,
   ml_tensors_data_s *_data;
   ml_tensors_info_s *tensors_info;
   gint i;
+
+  check_feature_state ();
 
   if (!info || !data)
     return ML_ERROR_INVALID_PARAMETER;
@@ -486,6 +519,8 @@ ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index,
 {
   ml_tensors_data_s *_data;
 
+  check_feature_state ();
+
   if (!data)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -508,6 +543,8 @@ ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
     const void *raw_data, const size_t data_size)
 {
   ml_tensors_data_s *_data;
+
+  check_feature_state ();
 
   if (!data)
     return ML_ERROR_INVALID_PARAMETER;
@@ -532,6 +569,8 @@ ml_tensors_info_clone (ml_tensors_info_h dest, const ml_tensors_info_h src)
 {
   ml_tensors_info_s *dest_info, *src_info;
   guint i, j;
+
+  check_feature_state ();
 
   dest_info = (ml_tensors_info_s *) dest;
   src_info = (ml_tensors_info_s *) src;
@@ -742,6 +781,8 @@ int
 ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     bool * available)
 {
+  check_feature_state ();
+
   if (!available)
     return ML_ERROR_INVALID_PARAMETER;
 
@@ -775,5 +816,52 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   *available = true;
 
 done:
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Checks whether machine_learning.inference feature is enabled or not.
+ */
+int ml_get_feature_enabled (void)
+{
+#if defined(__TIZEN__)
+  if (0 == feature_enabled) {
+    ml_loge ("machine_learning.inference NOT supported");
+    return ML_ERROR_NOT_SUPPORTED;
+  } else if (-1 == feature_enabled) {
+    bool ml_inf_supported = false;
+    if (0 == system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported)) {
+      if (false == ml_inf_supported) {
+        ml_loge ("machine_learning.inference NOT supported");
+        ml_set_feature_status (0);
+        return ML_ERROR_NOT_SUPPORTED;
+      }
+
+      ml_set_feature_status (1);
+    } else {
+      ml_loge ("failed to get feature value of machine_learning.inference");
+      return ML_ERROR_NOT_SUPPORTED;
+    }
+  }
+#endif
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Set the feature status of machine_learning.inference.
+ */
+int ml_set_feature_status (int status)
+{
+  GMutex mutex;
+  g_mutex_init (&mutex);
+  g_mutex_lock (&mutex);
+
+  /** Update feature status
+   *   -1: Not checked yet, 0: Not supported, 1: Supported
+  */
+  feature_enabled = status;
+
+  g_mutex_unlock (&mutex);
+  g_mutex_clear (&mutex);
   return ML_ERROR_NONE;
 }

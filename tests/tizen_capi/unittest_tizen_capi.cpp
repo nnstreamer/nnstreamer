@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
+#include <nnstreamer-capi-private.h>
 
 /**
  * @brief Struct to check the pipeline state changes.
@@ -1616,6 +1617,8 @@ int
 main (int argc, char **argv)
 {
   testing::InitGoogleTest (&argc, argv);
+
+  ml_set_feature_status(1);
 
   return RUN_ALL_TESTS ();
 }

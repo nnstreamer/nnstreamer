@@ -33,6 +33,12 @@
 
 #define TAG_NAME "nnstreamer-capi"
 
+#define ML_INF_FEATURE_PATH "tizen.org/feature/machine_learning.inference"
+
+#define check_feature_state() \
+  if (ML_ERROR_NONE != ml_get_feature_enabled()) \
+    return ML_ERROR_NOT_SUPPORTED;
+
 #if defined(__TIZEN__)
   #include <dlog.h>
 
@@ -241,6 +247,17 @@ void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_in
  * @brief Gets caps from tensors info.
  */
 GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
+
+/**
+ * @brief Checks whether machine_learning.inference feature is enabled or not.
+ */
+int ml_get_feature_enabled (void);
+
+/**
+ * @brief Set the feature status of machine_learning.inference.
+ * This is only used for Unit test.
+ */
+int ml_set_feature_status (int status);
 
 #ifdef __cplusplus
 }
