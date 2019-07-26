@@ -71,9 +71,9 @@ typedef void *ml_single_h;
  *               Set #ML_NNFW_HW_ANY if it does not matter.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
- * @retval #ML_ERROR_NOT_SUPPORTED Fail. The parameter is not available.
  */
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
 
@@ -83,6 +83,7 @@ int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_inf
  * @param[in] single The model handle to be closed.
  * @return @c 0 on success. otherwise a negative error value
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
  */
 int ml_single_close (ml_single_h single);
@@ -97,6 +98,7 @@ int ml_single_close (ml_single_h single);
  * @param[out] output The allocated output buffer. The caller is responsible for freeing the output buffer with ml_tensors_data_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
@@ -117,6 +119,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
@@ -130,6 +133,7 @@ int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
  * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
  * @return @c 0 on success. otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_get_output_info (ml_single_h single, ml_tensors_info_h *info);
