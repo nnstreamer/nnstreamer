@@ -242,6 +242,7 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @param[out] pipe The NNStreamer pipeline handler from the given description.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  */
@@ -254,6 +255,7 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_c
  * @param[in] pipe The pipeline to be destroyed.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
  */
@@ -267,6 +269,7 @@ int ml_pipeline_destroy (ml_pipeline_h pipe);
  * @param[out] state The pipeline state.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to get state from the pipeline.
  */
@@ -284,6 +287,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @param[in] pipe The pipeline handle.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  */
@@ -298,6 +302,7 @@ int ml_pipeline_start (ml_pipeline_h pipe);
  * @param[in] pipe The pipeline to be stopped.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to stop the pipeline.
  */
@@ -317,6 +322,7 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @param[out] sink_handle The sink handle.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  */
@@ -328,6 +334,7 @@ int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pip
  * @param[in] sink_handle The sink handle to be unregistered.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
@@ -341,6 +348,7 @@ int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
  * @param[out] src_handle The src handle.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Fail to get SRC element.
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
@@ -353,6 +361,7 @@ int ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name, ml_pip
  * @param[in] src_handle The src handle to be released.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
@@ -366,6 +375,7 @@ int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
  * @param[in] policy The policy of buf deallocation.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
@@ -380,6 +390,7 @@ int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h 
  * @param[out] info The handle of tensors information.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
@@ -402,6 +413,7 @@ int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_i
  * @param[out] switch_handle The switch handle.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name, ml_pipeline_switch_e *switch_type, ml_pipeline_switch_h *switch_handle);
@@ -412,6 +424,7 @@ int ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name, 
  * @param[in] switch_handle The handle to be released.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_switch_release_handle (ml_pipeline_switch_h switch_handle);
@@ -423,6 +436,7 @@ int ml_pipeline_switch_release_handle (ml_pipeline_switch_h switch_handle);
  * @param[in] pad_name The name of the chosen pad to be activated. Use ml_pipeline_switch_get_pad_list() to list the available pad names.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *pad_name);
@@ -434,6 +448,7 @@ int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *p
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The element is not both input and output switch (Internal data inconsistency).
  */
@@ -449,6 +464,7 @@ int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char **
  * @param[out] valve_handle The valve handle.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name, ml_pipeline_valve_h *valve_handle);
@@ -459,6 +475,7 @@ int ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name, ml
  * @param[in] valve_handle The handle to be released.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_valve_release_handle (ml_pipeline_valve_h valve_handle);
@@ -470,6 +487,7 @@ int ml_pipeline_valve_release_handle (ml_pipeline_valve_h valve_handle);
  * @param[in] open @c true to open(let the flow pass), @c false to close (drop & stop the flow).
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
@@ -483,6 +501,7 @@ int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
  * @param[out] info The handle of tensors information.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_create (ml_tensors_info_h *info);
@@ -493,6 +512,7 @@ int ml_tensors_info_create (ml_tensors_info_h *info);
  * @param[in] info The handle of tensors information.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_destroy (ml_tensors_info_h info);
@@ -505,6 +525,7 @@ int ml_tensors_info_destroy (ml_tensors_info_h info);
  * @param[out] valid @c true if it's valid, @c false if if it's invalid.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_validate (const ml_tensors_info_h info, bool *valid);
@@ -516,6 +537,7 @@ int ml_tensors_info_validate (const ml_tensors_info_h info, bool *valid);
  * @param[in] src The tensors information to be copied.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_clone (ml_tensors_info_h dest, const ml_tensors_info_h src);
@@ -527,6 +549,7 @@ int ml_tensors_info_clone (ml_tensors_info_h dest, const ml_tensors_info_h src);
  * @param[in] count The number of tensors.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_set_count (ml_tensors_info_h info, unsigned int count);
@@ -538,6 +561,7 @@ int ml_tensors_info_set_count (ml_tensors_info_h info, unsigned int count);
  * @param[out] count The number of tensors.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_get_count (ml_tensors_info_h info, unsigned int *count);
@@ -550,6 +574,7 @@ int ml_tensors_info_get_count (ml_tensors_info_h info, unsigned int *count);
  * @param[in] name The tensor name to be set.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_set_tensor_name (ml_tensors_info_h info, unsigned int index, const char *name);
@@ -562,6 +587,7 @@ int ml_tensors_info_set_tensor_name (ml_tensors_info_h info, unsigned int index,
  * @param[out] name The tensor name.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_get_tensor_name (ml_tensors_info_h info, unsigned int index, char **name);
@@ -574,6 +600,7 @@ int ml_tensors_info_get_tensor_name (ml_tensors_info_h info, unsigned int index,
  * @param[in] type The tensor type to be set.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_set_tensor_type (ml_tensors_info_h info, unsigned int index, const ml_tensor_type_e type);
@@ -586,6 +613,7 @@ int ml_tensors_info_set_tensor_type (ml_tensors_info_h info, unsigned int index,
  * @param[out] type The tensor type.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_get_tensor_type (ml_tensors_info_h info, unsigned int index, ml_tensor_type_e *type);
@@ -598,6 +626,7 @@ int ml_tensors_info_get_tensor_type (ml_tensors_info_h info, unsigned int index,
  * @param[in] dimension The tensor dimension to be set.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info, unsigned int index, const ml_tensor_dimension dimension);
@@ -610,6 +639,7 @@ int ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info, unsigned int i
  * @param[out] dimension The tensor dimension.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_get_tensor_dimension (ml_tensors_info_h info, unsigned int index, ml_tensor_dimension dimension);
@@ -629,6 +659,7 @@ size_t ml_tensors_info_get_size (const ml_tensors_info_h info);
  * @param[out] data The handle of tensors data. The caller is responsible for freeing the allocated data with ml_tensors_data_destroy().
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to allocate new memory.
  */
@@ -640,6 +671,7 @@ int ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h *dat
  * @param[in] data The handle of tensors data.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_data_destroy (ml_tensors_data_h data);
@@ -653,6 +685,7 @@ int ml_tensors_data_destroy (ml_tensors_data_h data);
  * @param[out] data_size Byte size of tensor data.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index, void **raw_data, size_t *data_size);
@@ -666,6 +699,7 @@ int ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @param[in] data_size Byte size of raw data.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index, const void *raw_data, const size_t data_size);
@@ -681,6 +715,7 @@ int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @param[out] available @c true if it's available, @c false if if it's not available.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful and the environments are available.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
