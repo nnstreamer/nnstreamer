@@ -250,11 +250,18 @@ public class MainActivity extends Activity {
         try {
             SingleShot single = new SingleShot(model);
 
+            Log.d(TAG, "Get input tensors info");
+            TensorsInfo inInfo = single.getInputInfo();
+            printTensorsInfo(inInfo);
+
+            Log.d(TAG, "Get output tensors info");
+            TensorsInfo outInfo = single.getOutputInfo();
+            printTensorsInfo(outInfo);
+
             /* single-shot invoke */
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(ByteBuffer.allocateDirect(3 * 224 * 224));
+                TensorsData in = TensorsData.allocate(inInfo);
 
                 Log.d(TAG, "Try to invoke data " + (i + 1));
 
@@ -263,12 +270,6 @@ public class MainActivity extends Activity {
 
                 Thread.sleep(50);
             }
-
-            Log.d(TAG, "Get input tensors info");
-            printTensorsInfo(single.getInputInfo());
-
-            Log.d(TAG, "Get output tensors info");
-            printTensorsInfo(single.getOutputInfo());
 
             single.close();
         } catch (Exception e) {
@@ -339,7 +340,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
                 TensorsData in = new TensorsData();
-                in.addTensorData(ByteBuffer.allocateDirect(3 * 224 * 224));
+                in.addTensorData(TensorsData.allocateByteBuffer(3 * 224 * 224));
 
                 Log.d(TAG, "Push input data " + (i + 1));
 
@@ -401,7 +402,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
                 TensorsData in = new TensorsData();
-                in.addTensorData(ByteBuffer.allocateDirect(3 * 100 * 100));
+                in.addTensorData(TensorsData.allocateByteBuffer(3 * 100 * 100));
 
                 Log.d(TAG, "Push input data " + (i + 1));
 
@@ -472,7 +473,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
                 TensorsData in = new TensorsData();
-                in.addTensorData(ByteBuffer.allocateDirect(3 * 100 * 100));
+                in.addTensorData(TensorsData.allocateByteBuffer(3 * 100 * 100));
 
                 Log.d(TAG, "Push input data " + (i + 1));
 

@@ -165,7 +165,7 @@ public final class SingleShot implements AutoCloseable {
 
     @Override
     public void close() {
-        if (mHandle > 0) {
+        if (mHandle != 0) {
             nativeClose(mHandle);
             mHandle = 0;
         }

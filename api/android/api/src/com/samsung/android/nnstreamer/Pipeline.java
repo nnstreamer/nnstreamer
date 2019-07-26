@@ -376,7 +376,7 @@ public final class Pipeline implements AutoCloseable {
             mStateCallback = null;
         }
 
-        if (mHandle > 0) {
+        if (mHandle != 0) {
             nativeDestroy(mHandle);
             mHandle = 0;
         }
