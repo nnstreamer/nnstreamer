@@ -138,19 +138,20 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
 {
   g_assert (pipe_info);
 
+  g_mutex_lock (&pipe_info->lock);
+  g_hash_table_destroy (pipe_info->element_handles);
+  pipe_info->element_handles = NULL;
+  g_mutex_unlock (&pipe_info->lock);
+
   if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_PIPELINE)) {
     ml_pipeline_destroy (pipe_info->pipeline_handle);
   } else if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_SINGLE)) {
     ml_single_close (pipe_info->pipeline_handle);
   } else {
     nns_logw ("Given pipe type %s is unknown.", pipe_info->pipeline_type);
-    g_free (pipe_info->pipeline_handle);
+    if (pipe_info->pipeline_handle)
+      g_free (pipe_info->pipeline_handle);
   }
-
-  g_mutex_lock (&pipe_info->lock);
-  g_hash_table_destroy (pipe_info->element_handles);
-  pipe_info->element_handles = NULL;
-  g_mutex_unlock (&pipe_info->lock);
 
   g_mutex_clear (&pipe_info->lock);
 
@@ -232,7 +233,7 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
 
   /* method to generate tensors data */
   jmethodID mid_init = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "<init>", "()V");
-  jmethodID mid_add = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "addTensorData", "(Ljava/lang/Object;)V");
+  jmethodID mid_add = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "addTensorData", "([B)V");
 
   jobject obj_data = (*env)->NewObject (env, pipe_info->cls_tensors_data, mid_init);
   if (!obj_data) {
@@ -241,11 +242,13 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   }
 
   for (i = 0; i < data->num_tensors; i++) {
-    jobject item = (*env)->NewDirectByteBuffer (env, data->tensors[i].tensor,
-        (jlong) data->tensors[i].size);
+    jsize buffer_size = (jsize) data->tensors[i].size;
+    jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
 
-    (*env)->CallVoidMethod (env, obj_data, mid_add, item);
-    (*env)->DeleteLocalRef (env, item);
+    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size, (jbyte *) data->tensors[i].tensor);
+
+    (*env)->CallVoidMethod (env, obj_data, mid_add, buffer);
+    (*env)->DeleteLocalRef (env, buffer);
   }
 
 done:
@@ -287,6 +290,12 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor_data);
 
       data->tensors[i].tensor = g_malloc (data_size);
+      if (!data->tensors[i].tensor) {
+        nns_loge ("Failed to allocate memory %zd, data index %d.", data_size, i);
+        (*env)->DeleteLocalRef (env, tensor_data);
+        goto failed;
+      }
+
       memcpy (data->tensors[i].tensor, data_ptr, data_size);
       data->tensors[i].size = data_size;
 
@@ -300,6 +309,19 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   (*env)->DeleteLocalRef (env, cls_arraylist);
   (*env)->DeleteLocalRef (env, obj_arraylist);
   return TRUE;
+
+failed:
+  for (i = 0; i < data->num_tensors; i++) {
+    if (data->tensors[i].tensor) {
+      g_free (data->tensors[i].tensor);
+      data->tensors[i].tensor = NULL;
+    }
+
+    data->tensors[i].size = 0;
+  }
+
+  data->num_tensors = 0;
+  return FALSE;
 }
 
 /**
