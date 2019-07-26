@@ -59,10 +59,11 @@ else
 	    report
 	    exit
 	fi
+    else
+		echo "Cannot identify nnstreamer.ini"
+		report
+		exit
     fi
-    echo "Cannot identify nnstreamer.ini"
-    report
-    exit
 fi
 
 # Test with Classifier model
