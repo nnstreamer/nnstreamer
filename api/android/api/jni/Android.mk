@@ -34,10 +34,11 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := nnstreamer-native
 LOCAL_SRC_FILES := nnstreamer-native-api.c \
+    nnstreamer-native-customfilter.c \
     nnstreamer-native-pipeline.c \
     nnstreamer-native-singleshot.c
 LOCAL_CFLAGS += -O2 -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_C_INCLUDES := $(NNSTREAMER_CAPI_INCLUDES)
+LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(NNSTREAMER_CAPI_INCLUDES)
 LOCAL_STATIC_LIBRARIES := nnstreamer tensorflow-lite cpufeatures
 LOCAL_SHARED_LIBRARIES := gstreamer_android
 LOCAL_LDLIBS := -llog -landroid

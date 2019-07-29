@@ -32,6 +32,7 @@
 #include "nnstreamer.h"
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 #ifndef DBG
 #define DBG FALSE
@@ -67,6 +68,7 @@
 
 #define NNS_PIPE_TYPE_PIPELINE "pipeline"
 #define NNS_PIPE_TYPE_SINGLE "single"
+#define NNS_PIPE_TYPE_CUSTOM "custom-filter"
 
 #define NNS_ELEMENT_TYPE_SRC "src"
 #define NNS_ELEMENT_TYPE_SINK "sink"

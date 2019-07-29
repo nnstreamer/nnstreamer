@@ -10,6 +10,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
+import com.samsung.android.nnstreamer.CustomFilter;
 import com.samsung.android.nnstreamer.NNStreamer;
 import com.samsung.android.nnstreamer.Pipeline;
 import com.samsung.android.nnstreamer.SingleShot;
@@ -146,7 +147,7 @@ public class MainActivity extends Activity {
                     return;
                 }
 
-                int option = (exampleRun % 5);
+                int option = (exampleRun % 6);
 
                 if (option == 1) {
                     Log.d(TAG, "==== Run pipeline example with state callback ====");
@@ -160,6 +161,9 @@ public class MainActivity extends Activity {
                 } else if (option == 4) {
                     Log.d(TAG, "==== Run pipeline example with switch ====");
                     runPipeSwitch();
+                } else if (option == 5) {
+                    Log.d(TAG, "==== Run pipeline example with custom filter ====");
+                    runPipeCustomFilter();
                 } else {
                     Log.d(TAG, "==== Run single-shot example ====");
                     runSingle();
@@ -494,6 +498,148 @@ public class MainActivity extends Activity {
             }
 
             pipe.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG, e.getMessage());
+            isFailed = true;
+        }
+    }
+
+    /**
+     * Example to run pipeline with custom filter.
+     */
+    private void runPipeCustomFilter() {
+        try {
+            /* register custom-filter (passthrough) */
+            CustomFilter customPassthrough = CustomFilter.registerCustomFilter("custom-passthrough",
+                    new CustomFilter.CustomFilterCallback() {
+                @Override
+                public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
+                    Log.d(TAG, "Received info callback in custom-passthrough");
+                    return inInfo;
+                }
+
+                @Override
+                public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
+                    Log.d(TAG, "Received invoke callback in custom-passthrough");
+                    return inData;
+                }
+            });
+
+            /* register custom-filter (convert data type to float) */
+            CustomFilter customConvert = CustomFilter.registerCustomFilter("custom-convert",
+                    new CustomFilter.CustomFilterCallback() {
+                @Override
+                public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
+                    Log.d(TAG, "Received info callback in custom-convert");
+
+                    TensorsInfo out = inInfo;
+                    out.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
+
+                    return out;
+                }
+
+                @Override
+                public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
+                    Log.d(TAG, "Received invoke callback in custom-convert");
+
+                    ByteBuffer input = inData.getTensorData(0);
+                    ByteBuffer output = TensorsData.allocateByteBuffer(4 * 10);
+
+                    for (int i = 0; i < 10; i++) {
+                        float value = (float) input.getInt(i * 4);
+                        output.putFloat(i * 4, value);
+                    }
+
+                    TensorsData out = new TensorsData();
+                    out.addTensorData(output);
+
+                    return out;
+                }
+            });
+
+            /* register custom-filter (add constant) */
+            CustomFilter customAdd = CustomFilter.registerCustomFilter("custom-add",
+                    new CustomFilter.CustomFilterCallback() {
+                @Override
+                public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
+                    Log.d(TAG, "Received info callback in custom-add");
+                    return inInfo;
+                }
+
+                @Override
+                public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
+                    Log.d(TAG, "Received invoke callback in custom-add");
+
+                    ByteBuffer input = inData.getTensorData(0);
+                    ByteBuffer output = TensorsData.allocateByteBuffer(4 * 10);
+
+                    for (int i = 0; i < 10; i++) {
+                        float value = input.getFloat(i * 4);
+
+                        /* add constant */
+                        value += 1.5;
+                        output.putFloat(i * 4, value);
+                    }
+
+                    TensorsData out = new TensorsData();
+                    out.addTensorData(output);
+
+                    return out;
+                }
+            });
+
+            String desc = "appsrc name=srcx ! other/tensor,dimension=(string)10:1:1:1,type=(string)int32,framerate=(fraction)0/1 ! " +
+                    "tensor_filter framework=" + customPassthrough.getName() + " ! " +
+                    "tensor_filter framework=" + customConvert.getName() + " ! " +
+                    "tensor_filter framework=" + customAdd.getName() + " ! " +
+                    "tensor_sink name=sinkx";
+
+            Pipeline pipe = new Pipeline(desc);
+
+            /* register sink callback */
+            pipe.setSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                int received = 0;
+
+                @Override
+                public void onNewDataReceived(TensorsData data, TensorsInfo info) {
+                    Log.d(TAG, "Received new data callback at sinkx " + (++received));
+
+                    printTensorsInfo(info);
+                    printTensorsData(data);
+
+                    ByteBuffer output = data.getTensorData(0);
+
+                    for (int i = 0; i < 10; i++) {
+                        Log.d(TAG, "Received data: index " + i + " value " + output.getFloat(i * 4));
+                    }
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 15; i++) {
+                ByteBuffer input = TensorsData.allocateByteBuffer(4 * 10);
+
+                for (int j = 0; j < 10; j++) {
+                    input.putInt(j * 4, j);
+                }
+
+                TensorsData in = new TensorsData();
+                in.addTensorData(input);
+
+                pipe.inputData("srcx", in);
+                Thread.sleep(50);
+            }
+
+            pipe.close();
+
+            /* close custom-filter */
+            customPassthrough.close();
+            customConvert.close();
+            customAdd.close();
         } catch (Exception e) {
             e.printStackTrace();
             Log.e(TAG, e.getMessage());
