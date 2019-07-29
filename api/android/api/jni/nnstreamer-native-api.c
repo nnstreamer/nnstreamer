@@ -147,6 +147,11 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
     ml_pipeline_destroy (pipe_info->pipeline_handle);
   } else if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_SINGLE)) {
     ml_single_close (pipe_info->pipeline_handle);
+  } else if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_CUSTOM)) {
+    /**
+     * Do nothing here (no handle to close).
+     * The handle is filter-framework and it will be closed in customfilter-destroy function.
+     */
   } else {
     nns_logw ("Given pipe type %s is unknown.", pipe_info->pipeline_type);
     if (pipe_info->pipeline_handle)
