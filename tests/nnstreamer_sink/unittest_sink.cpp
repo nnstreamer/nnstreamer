@@ -13,7 +13,9 @@
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
-#include <tensor_common.h>
+
+#include "tensor_common.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 /**
  * @brief Macro for debug mode.
@@ -94,6 +96,7 @@ typedef enum
   TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
   TEST_TYPE_CUSTOM_TENSORS, /**< pipeline for tensors with passthrough custom filter */
   TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter using custom filter */
+  TEST_TYPE_CUSTOM_PASSTHROUGH, /**< pipeline to test custom passthrough without so file */
   TEST_TYPE_NEGO_FAILED, /**< pipeline to test caps negotiation */
   TEST_TYPE_VIDEO_RGB_SPLIT, /**< pipeline to test tensor_split */
   TEST_TYPE_VIDEO_RGB_AGGR_1, /**< pipeline to test tensor_aggregator (change dimension index 3 : 1 > 10)*/
@@ -739,6 +742,14 @@ _setup_pipeline (TestOption & option)
           ("audiotestsrc num-buffers=%d samplesperbuffer=200 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! "
           "tensor_converter frames-per-tensor=200 ! tensor_filter framework=custom model=%s/libnnscustom_drop_buffer.so ! tensor_sink name=test_sink",
 	   option.num_buffers, custom_dir? custom_dir :"./tests");
+      break;
+    case TEST_TYPE_CUSTOM_PASSTHROUGH:
+      /* video 160x120 RGB, passthrough custom filter without so file */
+      str_pipeline =
+          g_strdup_printf
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          "tensor_converter ! tensor_filter framework=custom-passthrough ! tensor_sink name=test_sink",
+	   option.num_buffers);
       break;
     case TEST_TYPE_NEGO_FAILED:
       /** caps negotiation failed */
@@ -3144,6 +3155,95 @@ TEST (tensor_stream_test, custom_filter_drop_buffer)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework.
+ */
+static int
+test_custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  guint i, num;
+
+  num = prop->input_meta.num_tensors;
+
+  for (i = 0; i < num; i++) {
+    g_assert (input[i].size == output[i].size);
+    memcpy (output[i].data, input[i].data, input[i].size);
+  }
+
+  return 0;
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework.
+ */
+static int
+test_custom_setdim (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  gst_tensors_info_copy (out_info, in_info);
+  return 0;
+}
+
+/**
+ * @brief Test for passthrough custom filter without model.
+ */
+TEST (tensor_stream_test, custom_filter_passthrough)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_PASSTHROUGH };
+
+  /* register custom filter */
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->name = g_strdup ("custom-passthrough");
+  fw->run_without_model = TRUE;
+  fw->invoke_NN = test_custom_invoke;
+  fw->setInputDimension = test_custom_setdim;
+
+  EXPECT_TRUE (nnstreamer_filter_probe (fw));
+
+  /* construct pipeline for test */
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /* check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /* check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120);
+
+  /* check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /* check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /* check tensor config for video */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+
+  /* unregister custom filter */
+  nnstreamer_filter_exit (fw->name);
+  g_free (fw->name);
+  g_free (fw);
 }
 
 /**
