@@ -27,6 +27,10 @@
 #include "tensor_typedef.h"
 #include <gst/gst.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Decoder definitions for different semantics of tensors
  *        This allows developers to create their own decoders.
@@ -81,5 +85,9 @@ nnstreamer_decoder_exit (const char *name);
  */
 extern const GstTensorDecoderDef *
 nnstreamer_decoder_find (const char *name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __NNS_PLUGIN_API_DECODER_H__ */
