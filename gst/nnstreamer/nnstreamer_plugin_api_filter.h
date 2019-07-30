@@ -26,6 +26,10 @@
 
 #include "tensor_typedef.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
@@ -161,5 +165,9 @@ nnstreamer_filter_exit (const char *name);
  */
 extern const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __NNS_PLUGIN_API_FILTER_H__ */
