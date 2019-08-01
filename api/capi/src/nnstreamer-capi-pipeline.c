@@ -39,6 +39,7 @@
   ml_pipeline *p; \
   ml_pipeline_element *elem; \
   int ret = ML_ERROR_NONE; \
+  check_feature_state (); \
   if ((h) == NULL) { \
     ml_loge ("The given handle is invalid"); \
     return ML_ERROR_INVALID_PARAMETER; \
@@ -733,8 +734,6 @@ ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
 {
   handle_init (sink, sink, h);
 
-  check_feature_state ();
-
   if (elem->handle_id > 0) {
     g_signal_handler_disconnect (elem->element, elem->handle_id);
     elem->handle_id = 0;
@@ -897,8 +896,6 @@ ml_pipeline_src_release_handle (ml_pipeline_src_h h)
 {
   handle_init (src, src, h);
 
-  check_feature_state ();
-
   elem->handles = g_list_remove (elem->handles, src);
   g_free (src);
 
@@ -920,8 +917,6 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   unsigned int i;
 
   handle_init (src, src, h);
-
-  check_feature_state ();
 
   _data = (ml_tensors_data_s *) data;
   if (!_data) {
@@ -1011,8 +1006,6 @@ ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h,
     ml_tensors_info_h * info)
 {
   handle_init (src, src, h);
-
-  check_feature_state ();
 
   if (info == NULL) {
     ret = ML_ERROR_INVALID_PARAMETER;
@@ -1117,8 +1110,6 @@ ml_pipeline_switch_release_handle (ml_pipeline_switch_h h)
 {
   handle_init (switch, swtc, h);
 
-  check_feature_state ();
-
   elem->handles = g_list_remove (elem->handles, swtc);
   g_free (swtc);
 
@@ -1135,8 +1126,6 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   gchar *active_name;
 
   handle_init (switch, swtc, h);
-
-  check_feature_state ();
 
   if (pad_name == NULL) {
     ml_loge ("The second argument, pad name, is not valid.");
@@ -1190,8 +1179,6 @@ ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
   int counter = 0;
 
   handle_init (switch, swtc, h);
-
-  check_feature_state ();
 
   if (list == NULL) {
     ml_loge ("The second argument, list, is not valid.");
@@ -1344,8 +1331,6 @@ ml_pipeline_valve_release_handle (ml_pipeline_valve_h h)
 {
   handle_init (valve, valve, h);
 
-  check_feature_state ();
-
   elem->handles = g_list_remove (elem->handles, valve);
   g_free (valve);
 
@@ -1360,8 +1345,6 @@ ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
 {
   gboolean drop = FALSE;
   handle_init (valve, valve, h);
-
-  check_feature_state ();
 
   g_object_get (G_OBJECT (elem->element), "drop", &drop, NULL);
 
