@@ -31,8 +31,32 @@
   #include <system_info.h>
 #endif
 
-/** -1: Not checked yet, 0: Not supported, 1: Supported */
-static int feature_enabled = -1;
+/**
+ * @brief Internal struct to control tizen feature support (machine_learning.inference).
+ * -1: Not checked yet, 0: Not supported, 1: Supported
+ */
+typedef struct
+{
+  GMutex mutex;
+  int feature_status;
+} feature_info_s;
+
+static feature_info_s *feature_info = NULL;
+
+/**
+ * @brief Internal function to initialize feature status.
+ */
+static void
+ml_initialize_feature_status (void)
+{
+  if (feature_info == NULL) {
+    feature_info = g_new0 (feature_info_s, 1);
+    g_assert (feature_info);
+
+    g_mutex_init (&feature_info->mutex);
+    feature_info->feature_status = -1;
+  }
+}
 
 /**
  * @brief Allocates a tensors information handle with default value.
@@ -401,6 +425,9 @@ ml_tensors_info_get_size (const ml_tensors_info_h info)
   ml_tensors_info_s *tensors_info;
   size_t tensor_size;
   gint i;
+
+  if (ML_ERROR_NONE != ml_get_feature_enabled())
+    return 0;
 
   tensors_info = (ml_tensors_info_s *) info;
 
@@ -822,25 +849,36 @@ done:
 /**
  * @brief Checks whether machine_learning.inference feature is enabled or not.
  */
-int ml_get_feature_enabled (void)
+int
+ml_get_feature_enabled (void)
 {
+  ml_initialize_feature_status ();
+
 #if defined(__TIZEN__)
-  if (0 == feature_enabled) {
-    ml_loge ("machine_learning.inference NOT supported");
-    return ML_ERROR_NOT_SUPPORTED;
-  } else if (-1 == feature_enabled) {
-    bool ml_inf_supported = false;
-    if (0 == system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported)) {
-      if (false == ml_inf_supported) {
-        ml_loge ("machine_learning.inference NOT supported");
-        ml_set_feature_status (0);
+  {
+    int feature_enabled;
+
+    g_mutex_lock (&feature_info->mutex);
+    feature_enabled = feature_info->feature_status;
+    g_mutex_unlock (&feature_info->mutex);
+
+    if (0 == feature_enabled) {
+      ml_loge ("machine_learning.inference NOT supported");
+      return ML_ERROR_NOT_SUPPORTED;
+    } else if (-1 == feature_enabled) {
+      bool ml_inf_supported = false;
+      if (0 == system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported)) {
+        if (false == ml_inf_supported) {
+          ml_loge ("machine_learning.inference NOT supported");
+          ml_set_feature_status (0);
+          return ML_ERROR_NOT_SUPPORTED;
+        }
+
+        ml_set_feature_status (1);
+      } else {
+        ml_loge ("failed to get feature value of machine_learning.inference");
         return ML_ERROR_NOT_SUPPORTED;
       }
-
-      ml_set_feature_status (1);
-    } else {
-      ml_loge ("failed to get feature value of machine_learning.inference");
-      return ML_ERROR_NOT_SUPPORTED;
     }
   }
 #endif
@@ -850,18 +888,18 @@ int ml_get_feature_enabled (void)
 /**
  * @brief Set the feature status of machine_learning.inference.
  */
-int ml_set_feature_status (int status)
+int
+ml_set_feature_status (int status)
 {
-  GMutex mutex;
-  g_mutex_init (&mutex);
-  g_mutex_lock (&mutex);
+  ml_initialize_feature_status ();
+  g_mutex_lock (&feature_info->mutex);
 
-  /** Update feature status
-   *   -1: Not checked yet, 0: Not supported, 1: Supported
-  */
-  feature_enabled = status;
+  /**
+   * Update feature status
+   * -1: Not checked yet, 0: Not supported, 1: Supported
+   */
+  feature_info->feature_status = status;
 
-  g_mutex_unlock (&mutex);
-  g_mutex_clear (&mutex);
+  g_mutex_unlock (&feature_info->mutex);
   return ML_ERROR_NONE;
 }
