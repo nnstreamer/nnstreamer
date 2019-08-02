@@ -304,6 +304,10 @@ ml_single_open (ml_single_h * single, const char *model,
   gst_app_sink_set_caps (GST_APP_SINK (appsink), caps);
   gst_caps_unref (caps);
 
+  /* set max buffer in appsink (default unlimited) and drop old buffer */
+  gst_app_sink_set_max_buffers (GST_APP_SINK (appsink), 1);
+  gst_app_sink_set_drop (GST_APP_SINK (appsink), TRUE);
+
   /* 6. Start pipeline */
   status = ml_pipeline_start (pipe);
   if (status != ML_ERROR_NONE) {
@@ -385,6 +389,7 @@ ml_single_invoke (ml_single_h single,
 
   single_h = (ml_single *) single;
   in_data = (ml_tensors_data_s *) input;
+  *output = NULL;
 
   /* Validate input data */
   if (in_data->num_tensors != single_h->in_info.num_tensors) {
@@ -401,16 +406,6 @@ ml_single_invoke (ml_single_h single,
     }
   }
 
-  /* Allocate output buffer */
-  status = ml_tensors_data_create (&single_h->out_info, output);
-  if (status != ML_ERROR_NONE) {
-    ml_loge ("Failed to allocate the memory block.");
-    *output = NULL;
-    return status;
-  }
-
-  result = (ml_tensors_data_s *) (*output);
-
   /* Push input buffer */
   buffer = gst_buffer_new ();
 
@@ -424,6 +419,7 @@ ml_single_invoke (ml_single_h single,
   ret = gst_app_src_push_buffer (GST_APP_SRC (single_h->src), buffer);
   if (ret != GST_FLOW_OK) {
     ml_loge ("Cannot push a buffer into source element.");
+    gst_buffer_unref (buffer);
     return ML_ERROR_STREAMS_PIPE;
   }
 
@@ -440,6 +436,17 @@ ml_single_invoke (ml_single_h single,
     ml_loge ("Failed to get the result from sink element.");
     return ML_ERROR_TIMED_OUT;
   }
+
+  /* Allocate output buffer */
+  status = ml_tensors_data_create (&single_h->out_info, output);
+  if (status != ML_ERROR_NONE) {
+    ml_loge ("Failed to allocate the memory block.");
+    gst_sample_unref (sample);
+    *output = NULL;
+    return status;
+  }
+
+  result = (ml_tensors_data_s *) (*output);
 
   /* Copy the result */
   buffer = gst_sample_get_buffer (sample);
