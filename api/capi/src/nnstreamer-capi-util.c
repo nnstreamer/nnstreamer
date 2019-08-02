@@ -548,7 +548,7 @@ ml_tensors_data_get_tensor_data (ml_tensors_data_h data, unsigned int index,
 
   check_feature_state ();
 
-  if (!data)
+  if (!data || !raw_data || !data_size)
     return ML_ERROR_INVALID_PARAMETER;
 
   _data = (ml_tensors_data_s *) data;
@@ -573,7 +573,7 @@ ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
 
   check_feature_state ();
 
-  if (!data)
+  if (!data || !raw_data)
     return ML_ERROR_INVALID_PARAMETER;
 
   _data = (ml_tensors_data_s *) data;
