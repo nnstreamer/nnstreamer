@@ -1713,6 +1713,70 @@ TEST (nnstreamer_capi_singleshot, failure_01_n)
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Testcase with timeout.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_timeout)
+{
+  ml_single_h single;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* set timeout 5 ms */
+  status = ml_single_set_timeout (single, 5);
+  /* test timeout if supported (gstreamer ver >= 1.10) */
+  if (status == ML_ERROR_NONE) {
+    ml_tensors_info_h in_info;
+    ml_tensors_data_h input, output;
+    ml_tensor_dimension in_dim;
+
+    ml_tensors_info_create (&in_info);
+
+    in_dim[0] = 3;
+    in_dim[1] = 224;
+    in_dim[2] = 224;
+    in_dim[3] = 1;
+    ml_tensors_info_set_count (in_info, 1);
+    ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+    ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+    input = output = NULL;
+
+    /* generate dummy data */
+    status = ml_tensors_data_create (in_info, &input);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (input != NULL);
+
+    status = ml_single_invoke (single, input, &output);
+    EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
+    EXPECT_TRUE (output == NULL);
+
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+  }
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**

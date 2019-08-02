@@ -93,7 +93,7 @@ int ml_single_close (ml_single_h single);
  * @brief Invokes the model with the given input data.
  * @details Even if the model has flexible input data dimensions,
  *          input data frames of an instance of a model should share the same dimension.
- *          Note that this has a timeout of 3 seconds.
+ *          Note that this has a default timeout of 3 seconds. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
@@ -139,6 +139,18 @@ int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_get_output_info (ml_single_h single, ml_tensors_info_h *info);
+
+/**
+ * @brief Sets the maximum amount of time to wait for an output, in milliseconds.
+ * @since_tizen 5.5
+ * @param[in] single The model handle.
+ * @param[in] timeout The time to wait for an output.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ */
+int ml_single_set_timeout (ml_single_h single, unsigned int timeout);
 
 /**
  * @}

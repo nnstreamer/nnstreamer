@@ -31,6 +31,16 @@
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
 
+#undef ML_SINGLE_SUPPORT_TIMEOUT
+#if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
+#define ML_SINGLE_SUPPORT_TIMEOUT
+#endif
+
+/**
+ * @brief Default time to wait for an output in appsink (3 seconds).
+ */
+#define SINGLE_DEFAULT_TIMEOUT 3000
+
 typedef struct
 {
   ml_pipeline_h pipe;
@@ -41,6 +51,8 @@ typedef struct
 
   ml_tensors_info_s in_info;
   ml_tensors_info_s out_info;
+
+  guint timeout; /* milliseconds */
 } ml_single;
 
 /**
@@ -256,6 +268,7 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->src = appsrc;
   single_h->sink = appsink;
   single_h->filter = filter;
+  single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
   ml_tensors_info_initialize (&single_h->in_info);
   ml_tensors_info_initialize (&single_h->out_info);
 
@@ -424,10 +437,10 @@ ml_single_invoke (ml_single_h single,
   }
 
   /* Try to get the result */
-#if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
+#ifdef ML_SINGLE_SUPPORT_TIMEOUT
   /* gst_app_sink_try_pull_sample() is available at gstreamer-1.10 */
   sample =
-      gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND * 3);
+      gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_MSECOND * single_h->timeout);
 #else
   sample = gst_app_sink_pull_sample (GST_APP_SINK (single_h->sink));
 #endif
@@ -567,4 +580,27 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
   ml_tensors_info_copy_from_gst (output_info, &gst_info);
   gst_tensors_info_free (&gst_info);
   return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the maximum amount of time to wait for an output, in milliseconds.
+ */
+int
+ml_single_set_timeout (ml_single_h single, unsigned int timeout)
+{
+#ifdef ML_SINGLE_SUPPORT_TIMEOUT
+  ml_single *single_h;
+
+  check_feature_state ();
+
+  if (!single || timeout == 0)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  single_h = (ml_single *) single;
+
+  single_h->timeout = (guint) timeout;
+  return ML_ERROR_NONE;
+#else
+  return ML_ERROR_NOT_SUPPORTED;
+#endif
 }
