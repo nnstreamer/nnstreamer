@@ -418,29 +418,39 @@ ml_tensor_info_get_size (const ml_tensor_info_s * info)
 }
 
 /**
- * @brief Gets the byte size of the given tensors info.
+ * @brief Gets the byte size of the given handle of tensors information.
  */
-size_t
-ml_tensors_info_get_size (const ml_tensors_info_h info)
+int
+ml_tensors_info_get_tensor_size (ml_tensors_info_h info,
+    int index, size_t *data_size)
 {
   ml_tensors_info_s *tensors_info;
-  size_t tensor_size;
-  gint i;
 
-  if (ML_ERROR_NONE != ml_get_feature_enabled())
-    return 0;
+  check_feature_state ();
+
+  if (!info || !data_size)
+    return ML_ERROR_INVALID_PARAMETER;
 
   tensors_info = (ml_tensors_info_s *) info;
 
-  if (!tensors_info)
-    return 0;
+  /* init 0 */
+  *data_size = 0;
 
-  tensor_size = 0;
-  for (i = 0; i < tensors_info->num_tensors; i++) {
-    tensor_size += ml_tensor_info_get_size (&tensors_info->info[i]);
+  if (index < 0) {
+    guint i;
+
+    /* get total byte size */
+    for (i = 0; i < tensors_info->num_tensors; i++) {
+      *data_size += ml_tensor_info_get_size (&tensors_info->info[i]);
+    }
+  } else {
+    if (tensors_info->num_tensors <= index)
+      return ML_ERROR_INVALID_PARAMETER;
+
+    *data_size = ml_tensor_info_get_size (&tensors_info->info[index]);
   }
 
-  return tensor_size;
+  return ML_ERROR_NONE;
 }
 
 /**
