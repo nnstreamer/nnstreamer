@@ -700,12 +700,18 @@ int ml_tensors_info_set_tensor_dimension (ml_tensors_info_h info, unsigned int i
 int ml_tensors_info_get_tensor_dimension (ml_tensors_info_h info, unsigned int index, ml_tensor_dimension dimension);
 
 /**
- * @brief Gets the byte size of the given tensors type.
+ * @brief Gets the byte size of the given handle of tensors information.
+ * @details If an application needs to get the total byte size of tensors, set the @a index '-1'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @since_tizen 5.5
- * @param[in] info The tensors' information handle.
- * @return @c >= 0 on success with byte size.
+ * @param[in] info The handle of tensors information.
+ * @param[in] index The index of the tensor.
+ * @param[out] data_size The byte size of tensor data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-size_t ml_tensors_info_get_size (const ml_tensors_info_h info);
+int ml_tensors_info_get_tensor_size (ml_tensors_info_h info, int index, size_t *data_size);
 
 /**
  * @brief Creates a tensor data frame with the given tensors information.

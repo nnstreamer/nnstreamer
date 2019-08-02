@@ -1077,6 +1077,107 @@ TEST (nnstreamer_capi_util, availability_00)
   EXPECT_EQ (result, false);
 }
 
+/**
+ * @brief Test NNStreamer Utility for checking tensors info handle
+ */
+TEST (nnstreamer_capi_util, tensors_info)
+{
+  ml_tensors_info_h info;
+  ml_tensor_dimension in_dim, out_dim;
+  ml_tensor_type_e out_type;
+  gchar *out_name;
+  size_t data_size;
+  int status;
+
+  status = ml_tensors_info_create (&info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  in_dim[0] = 3;
+  in_dim[1] = 300;
+  in_dim[2] = 300;
+  in_dim[3] = 1;
+
+  /* add tensor info */
+  status = ml_tensors_info_set_count (info, 2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, in_dim);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_set_tensor_type (info, 1, ML_TENSOR_TYPE_FLOAT64);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 1, in_dim);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_name (info, 1, "tensor-name-test");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_set_tensor_type (info, 2, ML_TENSOR_TYPE_UINT64);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  status = ml_tensors_info_set_tensor_dimension (info, 2, in_dim);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* get tensor info */
+  status = ml_tensors_info_get_tensor_type (info, 0, &out_type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (out_type, ML_TENSOR_TYPE_UINT8);
+
+  status = ml_tensors_info_get_tensor_dimension (info, 0, out_dim);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (out_dim[0], 3U);
+  EXPECT_EQ (out_dim[1], 300U);
+  EXPECT_EQ (out_dim[2], 300U);
+  EXPECT_EQ (out_dim[3], 1U);
+
+  status = ml_tensors_info_get_tensor_name (info, 0, &out_name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (out_name == NULL);
+
+  status = ml_tensors_info_get_tensor_type (info, 1, &out_type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (out_type, ML_TENSOR_TYPE_FLOAT64);
+
+  status = ml_tensors_info_get_tensor_dimension (info, 1, out_dim);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (out_dim[0], 3U);
+  EXPECT_EQ (out_dim[1], 300U);
+  EXPECT_EQ (out_dim[2], 300U);
+  EXPECT_EQ (out_dim[3], 1U);
+
+  status = ml_tensors_info_get_tensor_name (info, 1, &out_name);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (out_name && g_str_equal (out_name, "tensor-name-test"));
+
+  status = ml_tensors_info_get_tensor_type (info, 2, &out_type);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_get_tensor_dimension (info, 2, out_dim);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_get_tensor_name (info, 2, &out_name);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* get tensor size */
+  status = ml_tensors_info_get_tensor_size (info, 0, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (data_size == (3 * 300 * 300));
+
+  status = ml_tensors_info_get_tensor_size (info, 1, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (data_size == (3 * 300 * 300 * 8));
+
+  status = ml_tensors_info_get_tensor_size (info, -1, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (data_size == ((3 * 300 * 300) + (3 * 300 * 300 * 8)));
+
+  status = ml_tensors_info_get_tensor_size (info, 2, &data_size);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
 #ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
@@ -1423,7 +1524,9 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
   ASSERT_TRUE (g_file_get_contents (test_file, &contents, &len, NULL));
-  ASSERT_TRUE (len == ml_tensors_info_get_size (in_info));
+  status = ml_tensors_info_get_tensor_size (in_info, 0, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_TRUE (len == data_size);
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
