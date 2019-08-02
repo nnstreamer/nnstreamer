@@ -92,6 +92,7 @@ int ml_single_close (ml_single_h single);
  * @brief Invokes the model with the given input data.
  * @details Even if the model has flexible input data dimensions,
  *          input data frames of an instance of a model should share the same dimension.
+ *          Note that this has a timeout of 3 seconds.
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
