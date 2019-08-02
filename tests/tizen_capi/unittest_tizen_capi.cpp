@@ -105,7 +105,7 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms. Let a few frames flow. */
+  g_usleep (150000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
@@ -141,7 +141,7 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms. Let a few frames flow. */
+  g_usleep (150000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
@@ -184,7 +184,7 @@ TEST (nnstreamer_capi_valve, test01)
   gchar *file1 = g_build_path ("/", dir, "valve1", NULL);
   gchar *pipeline =
       g_strdup_printf
-      ("videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=60/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
+      ("videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=10/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
       file1);
   GStatBuf buf;
 
@@ -211,7 +211,7 @@ TEST (nnstreamer_capi_valve, test01)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
+  g_usleep (150000); /* 150ms. Let a few frames flow. */
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -228,7 +228,7 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_valve_release_handle (valve1); /* release valve handle */
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (50000); /* 50ms. Let a few frames flow. */
+  g_usleep (500000); /* 500ms. Let a few frames flow. (10Hz x 0.5s --> 5)*/
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -238,8 +238,9 @@ TEST (nnstreamer_capi_valve, test01)
 
   status = g_lstat (file1, &buf);
   EXPECT_EQ (status, 0);
-  EXPECT_GE (buf.st_size, 2048); /* At least two frames during 50ms */
-  EXPECT_LE (buf.st_size, 4096); /* At most four frames during 50ms */
+  EXPECT_GE (buf.st_size, 2048); /* At least two frames during 500ms */
+  EXPECT_LE (buf.st_size, 6144); /* At most six frames during 500ms */
+  EXPECT_EQ (buf.st_size % 1024, 0); /* It should be divided by 1024 */
 
   g_free (fullpath);
   g_free (file1);
