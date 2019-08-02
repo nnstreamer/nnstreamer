@@ -678,6 +678,7 @@ int ml_tensors_data_destroy (ml_tensors_data_h data);
 
 /**
  * @brief Gets a tensor data of given handle.
+ * @details This returns the pointer of memory block in the handle. Do not deallocate the returned tensor data.
  * @since_tizen 5.5
  * @param[in] data The handle of tensors data.
  * @param[in] index The index of the tensor.
