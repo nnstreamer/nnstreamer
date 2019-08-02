@@ -342,7 +342,7 @@ ml_pipeline_construct (const char *pipeline_description,
   GError *err = NULL;
   GstElement *pipeline;
   GstIterator *it = NULL;
-  int ret = ML_ERROR_NONE;
+  int status = ML_ERROR_NONE;
 
   ml_pipeline *pipe_h;
 
@@ -406,10 +406,6 @@ ml_pipeline_construct (const char *pipeline_description,
     GValue item = G_VALUE_INIT;
     GObject *obj;
     gchar *name;
-    GstElementFactory *tensor_sink = gst_element_factory_find ("tensor_sink");
-    GstElementFactory *valve = gst_element_factory_find ("valve");
-    GstElementFactory *inputs = gst_element_factory_find ("input-selector");
-    GstElementFactory *outputs = gst_element_factory_find ("output-selector");
 
     /* Fill in the hashtable, "namednodes" with named Elements */
     while (!done) {
@@ -419,26 +415,34 @@ ml_pipeline_construct (const char *pipeline_description,
 
           if (GST_IS_ELEMENT (obj)) {
             GstElement *elem = GST_ELEMENT (obj);
+            GstPluginFeature *feature =
+                GST_PLUGIN_FEATURE (gst_element_get_factory (elem));
+            const gchar *plugin_name =
+                gst_plugin_feature_get_plugin_name (feature);
+            const gchar *element_name = gst_plugin_feature_get_name (feature);
+
+            /* validate the availability of the plugin */
+            if (ml_check_plugin_availability (plugin_name, element_name) != ML_ERROR_NONE) {
+              status = ML_ERROR_NOT_SUPPORTED;
+              done = TRUE;
+              break;
+            }
 
             name = gst_element_get_name (elem);
             if (name != NULL) {
               ml_pipeline_element_e element_type = ML_PIPELINE_ELEMENT_UNKNOWN;
 
-              if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
-                      gst_element_factory_get_element_type (tensor_sink))) {
+              if (g_str_equal (element_name, "tensor_sink")) {
                 element_type = ML_PIPELINE_ELEMENT_SINK;
-              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SRC)) {
+              } else if (g_str_equal (element_name, "appsrc")) {
                 element_type = ML_PIPELINE_ELEMENT_APP_SRC;
-              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem, GST_TYPE_APP_SINK)) {
+              } else if (g_str_equal (element_name, "appsink")) {
                 element_type = ML_PIPELINE_ELEMENT_APP_SINK;
-              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
-                      gst_element_factory_get_element_type (valve))) {
+              } else if (g_str_equal (element_name, "valve")) {
                 element_type = ML_PIPELINE_ELEMENT_VALVE;
-              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
-                      gst_element_factory_get_element_type (inputs))) {
+              } else if (g_str_equal (element_name, "input-selector")) {
                 element_type = ML_PIPELINE_ELEMENT_SWITCH_INPUT;
-              } else if (G_TYPE_CHECK_INSTANCE_TYPE (elem,
-                      gst_element_factory_get_element_type (outputs))) {
+              } else if (g_str_equal (element_name, "output-selector")) {
                 element_type = ML_PIPELINE_ELEMENT_SWITCH_OUTPUT;
               } else {
                 /** @todo CRITICAL HANDLE THIS! */
@@ -469,15 +473,17 @@ ml_pipeline_construct (const char *pipeline_description,
     g_value_unset (&item);
     /** @todo CRITICAL check the validity of elem=item registered in e */
     gst_iterator_free (it);
-
-    g_object_unref (tensor_sink);
-    g_object_unref (valve);
-    g_object_unref (inputs);
-    g_object_unref (outputs);
   }
 
   g_mutex_unlock (&pipe_h->lock);
-  return ret;
+
+  if (status != ML_ERROR_NONE) {
+    /* failed to construct the pipeline */
+    ml_pipeline_destroy (*pipe);
+    *pipe = NULL;
+  }
+
+  return status;
 }
 
 /**

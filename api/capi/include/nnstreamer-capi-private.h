@@ -261,6 +261,11 @@ int ml_get_feature_enabled (void);
  */
 int ml_set_feature_status (int status);
 
+/**
+ * @brief Checks the availability of the plugin.
+ */
+int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

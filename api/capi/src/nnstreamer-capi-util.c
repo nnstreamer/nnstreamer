@@ -925,3 +925,23 @@ ml_set_feature_status (int status)
   g_mutex_unlock (&feature_info->mutex);
   return ML_ERROR_NONE;
 }
+
+/**
+ * @brief Checks the availability of the plugin.
+ */
+int
+ml_check_plugin_availability (const char *plugin_name, const char *element_name)
+{
+#ifdef __TIZEN__
+  if (!plugin_name || !element_name) {
+    ml_loge ("The name is invalid, failed to check the availability.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  /**
+   * @todo check white-list of available plugins
+   * e.g, plugin name 'nnstreamer', element name 'tensor_converter'
+   */
+#endif /* __TIZEN__ */
+  return ML_ERROR_NONE;
+}
