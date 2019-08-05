@@ -23,6 +23,14 @@
 
 #include "nnstreamer-native.h"
 
+/* nnstreamer plugins and sub-plugins declaration */
+GST_PLUGIN_STATIC_DECLARE (nnstreamer);
+extern void init_filter_tflite (void);
+extern void init_dv (void);
+extern void init_bb (void);
+extern void init_il (void);
+extern void init_pose (void);
+
 /**
  * @brief Attach thread with Java VM.
  */
