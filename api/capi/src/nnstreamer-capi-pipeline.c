@@ -290,7 +290,8 @@ cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
             gst_element_state_get_name (new_state));
 
         if (pipe_h->cb) {
-          pipe_h->cb (new_state, pipe_h->pdata);
+          ml_pipeline_state_e ml_state = (ml_pipeline_state_e) new_state;
+          pipe_h->cb (ml_state, pipe_h->pdata);
         }
       }
       break;
@@ -564,7 +565,7 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   if (scret == GST_STATE_CHANGE_FAILURE)
     return ML_ERROR_STREAMS_PIPE;
 
-  *state = _state;
+  *state = (ml_pipeline_state_e) _state;
   return ML_ERROR_NONE;
 }
 

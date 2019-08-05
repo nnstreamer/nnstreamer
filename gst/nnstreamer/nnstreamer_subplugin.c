@@ -74,9 +74,10 @@ get_subplugin (subpluginType type, const char *name)
 
   if (data == NULL) {
     /** Search and register if found with the conf */
-    const gchar *fullpath = nnsconf_get_fullpath (name, type);
+    nnsconf_type_path conf_type = (nnsconf_type_path) type;
+    const gchar *fullpath = nnsconf_get_fullpath (name, conf_type);
 
-    if (!nnsconf_validate_file (type, fullpath))
+    if (!nnsconf_validate_file (conf_type, fullpath))
       goto error;               /* No Such Thing !!! */
 
     G_UNLOCK (splock);
