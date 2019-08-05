@@ -165,6 +165,27 @@ public final class TensorsInfo implements AutoCloseable {
     }
 
     /**
+     * Calculates the byte size of tensor data.
+     *
+     * @param index The index of the tensor information in the list
+     *
+     * @return The byte size of tensor
+     *
+     * @throws IndexOutOfBoundsException if the given index is invalid
+     * @throws IllegalStateException if data type or dimension is invalid
+     */
+    public int getTensorSize(int index) {
+        checkIndexBounds(index);
+
+        int size = mInfoList.get(index).getSize();
+        if (size <= 0) {
+            throw new IllegalStateException("Unknown data type or invalid dimension");
+        }
+
+        return size;
+    }
+
+    /**
      * Internal method to check the index.
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
@@ -241,6 +262,40 @@ public final class TensorsInfo implements AutoCloseable {
 
         public int[] getDimension() {
             return this.dimension;
+        }
+
+        public int getSize() {
+            int size = 0;
+
+            switch (this.type) {
+                case NNStreamer.TENSOR_TYPE_INT32:
+                case NNStreamer.TENSOR_TYPE_UINT32:
+                case NNStreamer.TENSOR_TYPE_FLOAT32:
+                    size = 4;
+                    break;
+                case NNStreamer.TENSOR_TYPE_INT16:
+                case NNStreamer.TENSOR_TYPE_UINT16:
+                    size = 2;
+                    break;
+                case NNStreamer.TENSOR_TYPE_INT8:
+                case NNStreamer.TENSOR_TYPE_UINT8:
+                    size = 1;
+                    break;
+                case NNStreamer.TENSOR_TYPE_FLOAT64:
+                case NNStreamer.TENSOR_TYPE_INT64:
+                case NNStreamer.TENSOR_TYPE_UINT64:
+                    size = 8;
+                    break;
+                default:
+                    /* unknown type */
+                    break;
+            }
+
+            for (int i = 0; i < NNStreamer.TENSOR_RANK_LIMIT; i++) {
+                size *= this.dimension[i];
+            }
+
+            return size;
         }
     }
 }
