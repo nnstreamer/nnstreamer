@@ -60,39 +60,7 @@ public final class TensorsData implements AutoCloseable {
         int count = info.getTensorsCount();
 
         for (int i = 0; i < count; i++) {
-            int type = info.getTesorType(i);
-            int[] dimension = info.getTesorDimension(i);
-
-            int size = 0;
-
-            switch (type) {
-                case NNStreamer.TENSOR_TYPE_INT32:
-                case NNStreamer.TENSOR_TYPE_UINT32:
-                case NNStreamer.TENSOR_TYPE_FLOAT32:
-                    size = 4;
-                    break;
-                case NNStreamer.TENSOR_TYPE_INT16:
-                case NNStreamer.TENSOR_TYPE_UINT16:
-                    size = 2;
-                    break;
-                case NNStreamer.TENSOR_TYPE_INT8:
-                case NNStreamer.TENSOR_TYPE_UINT8:
-                    size = 1;
-                    break;
-                case NNStreamer.TENSOR_TYPE_FLOAT64:
-                case NNStreamer.TENSOR_TYPE_INT64:
-                case NNStreamer.TENSOR_TYPE_UINT64:
-                    size = 8;
-                    break;
-                default:
-                    /* unknown type */
-                    break;
-            }
-
-            for (int j = 0; j < NNStreamer.TENSOR_RANK_LIMIT; j++) {
-                size *= dimension[j];
-            }
-
+            int size = info.getTensorSize(i);
             data.addTensorData(allocateByteBuffer(size));
         }
 
