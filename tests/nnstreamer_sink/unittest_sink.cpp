@@ -1186,7 +1186,7 @@ TEST (tensor_sink_test, signal_rate)
 /**
  * @brief Test for caps negotiation failed.
  */
-TEST (tensor_sink_test, caps_error)
+TEST (tensor_sink_test, caps_error_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_NEGO_FAILED };

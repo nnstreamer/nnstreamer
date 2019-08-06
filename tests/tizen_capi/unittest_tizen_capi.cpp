@@ -68,7 +68,7 @@ TEST (nnstreamer_capi_construct_destruct, dummy_03)
 /**
  * @brief Test NNStreamer pipeline construct with non-existent filter
  */
-TEST (nnstreamer_capi_construct_destruct, failed_01)
+TEST (nnstreamer_capi_construct_destruct, failure_01_n)
 {
   const char *pipeline = "nonexistsrc ! fakesink";
   ml_pipeline_h handle;
@@ -79,7 +79,7 @@ TEST (nnstreamer_capi_construct_destruct, failed_01)
 /**
  * @brief Test NNStreamer pipeline construct with erroneous pipeline
  */
-TEST (nnstreamer_capi_construct_destruct, failed_02)
+TEST (nnstreamer_capi_construct_destruct, failure_02_n)
 {
   const char *pipeline = "videotestsrc num_buffers=2 ! audioconvert ! fakesink";
   ml_pipeline_h handle;
@@ -251,7 +251,7 @@ TEST (nnstreamer_capi_valve, test01)
  * @brief Test NNStreamer pipeline valve
  * @detail Failure case to handle valve element with invalid param.
  */
-TEST (nnstreamer_capi_valve, failure_01)
+TEST (nnstreamer_capi_valve, failure_01_n)
 {
   ml_pipeline_h handle;
   ml_pipeline_valve_h valve_h;
@@ -505,7 +505,7 @@ TEST (nnstreamer_capi_sink, dummy_02)
  * @brief Test NNStreamer pipeline sink
  * @detail Failure case to register callback with invalid param.
  */
-TEST (nnstreamer_capi_sink, failure_01)
+TEST (nnstreamer_capi_sink, failure_01_n)
 {
   ml_pipeline_h handle;
   ml_pipeline_sink_h sinkhandle;
@@ -732,7 +732,7 @@ TEST (nnstreamer_capi_src, dummy_01)
  * @brief Test NNStreamer pipeline src
  * @detail Failure case when pipeline is NULL.
  */
-TEST (nnstreamer_capi_src, failure_01)
+TEST (nnstreamer_capi_src, failure_01_n)
 {
   int status;
   ml_pipeline_src_h srchandle;
@@ -745,7 +745,7 @@ TEST (nnstreamer_capi_src, failure_01)
  * @brief Test NNStreamer pipeline src
  * @detail Failure case when the name of source node is wrong.
  */
-TEST (nnstreamer_capi_src, failure_02)
+TEST (nnstreamer_capi_src, failure_02_n)
 {
   const char *pipeline = "appsrc is-live=true name=mysource ! valve name=valvex ! filesink";
   ml_pipeline_h handle;
@@ -782,7 +782,7 @@ TEST (nnstreamer_capi_src, failure_02)
  * @brief Test NNStreamer pipeline src
  * @detail Failure case when the number of tensors is 0 or bigger than ML_TENSOR_SIZE_LIMIT;
  */
-TEST (nnstreamer_capi_src, failure_03)
+TEST (nnstreamer_capi_src, failure_03_n)
 {
   const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! tensor_sink";
   ml_pipeline_h handle;
@@ -997,7 +997,7 @@ TEST (nnstreamer_capi_switch, dummy_02)
  * @brief Test NNStreamer pipeline switch
  * @detail Failure case to handle input-selector element with invalid param.
  */
-TEST (nnstreamer_capi_switch, failure_01)
+TEST (nnstreamer_capi_switch, failure_01_n)
 {
   ml_pipeline_h handle;
   ml_pipeline_switch_h switchhandle;
@@ -1059,6 +1059,7 @@ TEST (nnstreamer_capi_switch, failure_01)
 
 /**
  * @brief Test NNStreamer Utility for checking availability of NNFW
+ * @todo After adding sub-plugin for NNFW, this testcase should be fixed.
  */
 TEST (nnstreamer_capi_util, availability_00)
 {
@@ -1526,7 +1527,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Failure case with invalid param.
  */
-TEST (nnstreamer_capi_singleshot, failure_01)
+TEST (nnstreamer_capi_singleshot, failure_01_n)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
@@ -1617,9 +1618,16 @@ TEST (nnstreamer_capi_singleshot, failure_01)
 int
 main (int argc, char **argv)
 {
+  int result;
+
   testing::InitGoogleTest (&argc, argv);
 
-  ml_set_feature_status(1);
+  /* ignore tizen feature status while running the testcases */
+  ml_set_feature_status (1);
 
-  return RUN_ALL_TESTS ();
+  result = RUN_ALL_TESTS ();
+
+  ml_set_feature_status (-1);
+
+  return result;
 }

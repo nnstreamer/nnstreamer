@@ -23,15 +23,30 @@
 /**
  * @brief Test for int32 type string.
  */
+TEST (common_get_tensor_type, failure_n)
+{
+  EXPECT_EQ (gst_tensor_get_type (""), _NNS_END);
+  EXPECT_EQ (gst_tensor_get_type (NULL), _NNS_END);
+}
+
+/**
+ * @brief Test for int32 type string.
+ */
 TEST (common_get_tensor_type, int32)
 {
   EXPECT_EQ (gst_tensor_get_type ("int32"), _NNS_INT32);
   EXPECT_EQ (gst_tensor_get_type ("INT32"), _NNS_INT32);
   EXPECT_EQ (gst_tensor_get_type ("iNt32"), _NNS_INT32);
   EXPECT_EQ (gst_tensor_get_type ("InT32"), _NNS_INT32);
+}
+
+/**
+ * @brief Test for int32 type string.
+ */
+TEST (common_get_tensor_type, int32_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("InT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int3"), _NNS_END);
-  EXPECT_EQ (gst_tensor_get_type (""), _NNS_END);
 }
 
 /**
@@ -43,6 +58,13 @@ TEST (common_get_tensor_type, int16)
   EXPECT_EQ (gst_tensor_get_type ("INT16"), _NNS_INT16);
   EXPECT_EQ (gst_tensor_get_type ("iNt16"), _NNS_INT16);
   EXPECT_EQ (gst_tensor_get_type ("InT16"), _NNS_INT16);
+}
+
+/**
+ * @brief Test for int16 type string.
+ */
+TEST (common_get_tensor_type, int16_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("InT162"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int1"), _NNS_END);
 }
@@ -56,6 +78,13 @@ TEST (common_get_tensor_type, int8)
   EXPECT_EQ (gst_tensor_get_type ("INT8"), _NNS_INT8);
   EXPECT_EQ (gst_tensor_get_type ("iNt8"), _NNS_INT8);
   EXPECT_EQ (gst_tensor_get_type ("InT8"), _NNS_INT8);
+}
+
+/**
+ * @brief Test for int8 type string.
+ */
+TEST (common_get_tensor_type, int8_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("InT82"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int3"), _NNS_END);
 }
@@ -69,6 +98,13 @@ TEST (common_get_tensor_type, uint32)
   EXPECT_EQ (gst_tensor_get_type ("UINT32"), _NNS_UINT32);
   EXPECT_EQ (gst_tensor_get_type ("uiNt32"), _NNS_UINT32);
   EXPECT_EQ (gst_tensor_get_type ("UInT32"), _NNS_UINT32);
+}
+
+/**
+ * @brief Test for uint32 type string.
+ */
+TEST (common_get_tensor_type, uint32_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("UInT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint3"), _NNS_END);
 }
@@ -82,6 +118,13 @@ TEST (common_get_tensor_type, uint16)
   EXPECT_EQ (gst_tensor_get_type ("UINT16"), _NNS_UINT16);
   EXPECT_EQ (gst_tensor_get_type ("uiNt16"), _NNS_UINT16);
   EXPECT_EQ (gst_tensor_get_type ("UInT16"), _NNS_UINT16);
+}
+
+/**
+ * @brief Test for uint16 type string.
+ */
+TEST (common_get_tensor_type, uint16_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("UInT162"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint1"), _NNS_END);
 }
@@ -95,6 +138,13 @@ TEST (common_get_tensor_type, uint8)
   EXPECT_EQ (gst_tensor_get_type ("UINT8"), _NNS_UINT8);
   EXPECT_EQ (gst_tensor_get_type ("uiNt8"), _NNS_UINT8);
   EXPECT_EQ (gst_tensor_get_type ("UInT8"), _NNS_UINT8);
+}
+
+/**
+ * @brief Test for uint8 type string.
+ */
+TEST (common_get_tensor_type, uint8_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("UInT82"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint3"), _NNS_END);
 }
@@ -108,6 +158,13 @@ TEST (common_get_tensor_type, float32)
   EXPECT_EQ (gst_tensor_get_type ("FLOAT32"), _NNS_FLOAT32);
   EXPECT_EQ (gst_tensor_get_type ("float32"), _NNS_FLOAT32);
   EXPECT_EQ (gst_tensor_get_type ("FloaT32"), _NNS_FLOAT32);
+}
+
+/**
+ * @brief Test for float32 type string.
+ */
+TEST (common_get_tensor_type, float32_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("FloaT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("float3"), _NNS_END);
 }
@@ -121,6 +178,13 @@ TEST (common_get_tensor_type, float64)
   EXPECT_EQ (gst_tensor_get_type ("FLOAT64"), _NNS_FLOAT64);
   EXPECT_EQ (gst_tensor_get_type ("float64"), _NNS_FLOAT64);
   EXPECT_EQ (gst_tensor_get_type ("FloaT64"), _NNS_FLOAT64);
+}
+
+/**
+ * @brief Test for float64 type string.
+ */
+TEST (common_get_tensor_type, float64_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("FloaT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("float6"), _NNS_END);
 }
@@ -134,6 +198,13 @@ TEST (common_get_tensor_type, int64)
   EXPECT_EQ (gst_tensor_get_type ("INT64"), _NNS_INT64);
   EXPECT_EQ (gst_tensor_get_type ("iNt64"), _NNS_INT64);
   EXPECT_EQ (gst_tensor_get_type ("InT64"), _NNS_INT64);
+}
+
+/**
+ * @brief Test for int64 type string.
+ */
+TEST (common_get_tensor_type, int64_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("InT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int6"), _NNS_END);
 }
@@ -147,6 +218,13 @@ TEST (common_get_tensor_type, uint64)
   EXPECT_EQ (gst_tensor_get_type ("UINT64"), _NNS_UINT64);
   EXPECT_EQ (gst_tensor_get_type ("uiNt64"), _NNS_UINT64);
   EXPECT_EQ (gst_tensor_get_type ("UInT64"), _NNS_UINT64);
+}
+
+/**
+ * @brief Test for uint64 type string.
+ */
+TEST (common_get_tensor_type, uint64_n)
+{
   EXPECT_EQ (gst_tensor_get_type ("UInT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint6"), _NNS_END);
 }
@@ -167,6 +245,7 @@ TEST (common_find_key_strv, key_index)
 
   EXPECT_EQ (find_key_strv (teststrv, "abcde"), 0);
   EXPECT_EQ (find_key_strv (teststrv, "ABCDE"), 0);
+  EXPECT_EQ (find_key_strv (teststrv, "ABCDEF"), 1);
   EXPECT_EQ (find_key_strv (teststrv, "1234"), 2);
   EXPECT_EQ (find_key_strv (teststrv, "tester"), 4);
   EXPECT_EQ (find_key_strv (teststrv, "abcabcd"), -1);
@@ -495,7 +574,6 @@ TEST (conf_custom, env_str_01)
   EXPECT_EQ (g_mkdir (dirf, 0755), 0);
   EXPECT_EQ (g_mkdir (dircf, 0755), 0);
   EXPECT_EQ (g_mkdir (dird, 0755), 0);
-
 
   FILE *fp = g_fopen (filename, "w");
   const gchar *fn;

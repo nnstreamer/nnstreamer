@@ -30,13 +30,13 @@ fi
 convertBMP2PNG
 
 # Fail Test : Negotiation Error (dimension)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:100:100:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence01_%1d.log" F0 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:100:100:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence01_%1d.log" 0F_n 0 1 $PERFORMANCE
 
 # Fail Test : Negotiation Error (type)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)float32,framerate=(fraction)30/1\" ! multifilesink location=testsequence01_%1d.log" F1 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)float32,framerate=(fraction)30/1\" ! multifilesink location=testsequence01_%1d.log" 1F_n 0 1 $PERFORMANCE
 
 # Fail Test : Negotiation Error (MimeType)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensors,num_tensors=1,framerate=(fraction)30/1,types=(string)uint8,dimensions=(string)3:16:16:1\" ! multifilesink location=testsequence01_%1d.log" F2 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensors,num_tensors=1,framerate=(fraction)30/1,types=(string)uint8,dimensions=(string)3:16:16:1\" ! multifilesink location=testsequence01_%1d.log" 2F_n 0 1 $PERFORMANCE
 
 # The first gst buffer at tensor_reposrc is dummy.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence01_%1d.log" 1 0 0 $PERFORMANCE
