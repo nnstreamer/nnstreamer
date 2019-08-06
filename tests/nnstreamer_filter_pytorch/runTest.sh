@@ -5,13 +5,12 @@
 ## @date May 7th 2019
 ## @brief SSAT Test Cases for NNStreamer pytorch plugin
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -26,46 +25,45 @@ PATH_TO_IMAGE="img/9.png"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-	check=$(ls ${ini_path} | grep pytorch.so)
-	if [[ ! $check ]]; then
-	    echo "Cannot find pytorch shared lib"
-	    report
-	    exit
-	fi
+        check=$(ls ${ini_path} | grep pytorch.so)
+        if [[ ! $check ]]; then
+            echo "Cannot find pytorch shared lib"
+            report
+            exit
+        fi
     else
-	echo "Cannot find ${ini_path}"
+        echo "Cannot find ${ini_path}"
     fi
 else
     ini_file="/etc/nnstreamer.ini"
     if [[ -f ${ini_file} ]]; then
-	path=$(grep "^filters" ${ini_file})
-	key=${path%=*}
-	value=${path##*=}
+        path=$(grep "^filters" ${ini_file})
+        key=${path%=*}
+        value=${path##*=}
 
-	if [[ $key != "filters" ]]
-	then
-	    echo "String Error"
-	    report
-	    exit
-	fi
+        if [[ $key != "filters" ]]; then
+            echo "String Error"
+            report
+            exit
+        fi
 
-	if [[ -d ${value} ]]; then
-	    check=$(ls ${value} | grep pytorch.so)
-	    if [[ ! $check ]]; then
-		echo "Cannot find pytorch shared lib"
-		report
-		exit
-	    fi
-	else
-	    echo "Cannot file ${value}"
-	    report
-	    exit
-	fi
-	else
-		echo "Cannot identify nnstreamer.ini"
-		report
-		exit
-	fi
+        if [[ -d ${value} ]]; then
+            check=$(ls ${value} | grep pytorch.so)
+            if [[ ! $check ]]; then
+                echo "Cannot find pytorch shared lib"
+                report
+                exit
+            fi
+        else
+            echo "Cannot file ${value}"
+            report
+            exit
+        fi
+    else
+        echo "Cannot identify nnstreamer.ini"
+        report
+        exit
+    fi
 fi
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE

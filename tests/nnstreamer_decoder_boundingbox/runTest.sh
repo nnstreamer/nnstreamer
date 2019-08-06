@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 

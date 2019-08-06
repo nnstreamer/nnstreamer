@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -20,19 +19,17 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python ../nnstreamer_converter/generateGoldenTestResult.py 12
-  sopath=$1
+    echo "Test Case Generation Started"
+    python ../nnstreamer_converter/generateGoldenTestResult.py 12
+    sopath=$1
 fi
 convertBMP2PNG
 
-if [[ -z "${UNITTEST_DIR// }" ]]
-then
+if [[ -z "${UNITTEST_DIR// /}" ]]; then
     TESTBINDIR="../../build/tests/"
 else
     TESTBINDIR="${UNITTEST_DIR}"
@@ -50,6 +47,5 @@ callCompareTest testsequence_7.golden tensorsequence01_7.log 1-7 "Compare 1-7" 1
 callCompareTest testsequence_8.golden tensorsequence01_8.log 1-8 "Compare 1-8" 1 0
 callCompareTest testsequence_9.golden tensorsequence01_9.log 1-9 "Compare 1-9" 1 0
 callCompareTest testsequence_10.golden tensorsequence01_10.log 1-10 "Compare 1-10" 1 0
-
 
 report
