@@ -60,21 +60,21 @@ do_test GRAY8 642 480 2-6
 
 # @TODO Change this when YUV becomes supported by tensor_converter
 # Fail Test: YUV is given
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=YUV,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=YUV ! tensor_converter silent=TRUE ! filesink location=\"test.yuv.fail.log\" sync=true" 5-F 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=YUV,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=YUV ! tensor_converter silent=TRUE ! filesink location=\"test.yuv.fail.log\" sync=true" 5F_n 0 1 $PERFORMANCE
 
 # Fail Test: Unknown property is given
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter silent=TRUE whatthehell=isthis ! filesink location=\"test.yuv.fail.log\" sync=true" 6-F 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter silent=TRUE whatthehell=isthis ! filesink location=\"test.yuv.fail.log\" sync=true" 6F_n 0 1 $PERFORMANCE
 
 # audio format S16LE, 8k sample rate, samples per buffer 8000
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S16LE,rate=8000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s16le.log\" sync=true t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 7-1
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S16LE,rate=8000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio8k.s16le.log\" sync=true t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 7-1 0 0 $PERFORMANCE
 callCompareTest test.audio8k.s16le.origin.log test.audio8k.s16le.log 7-2 "Audio8k-s16le Golden Test" 0 0
 
 # audio format U8, 16k sample rate, samples per buffer 8000
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U8,rate=16000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k.u8.log\" sync=true t. ! queue ! filesink location=\"test.audio16k.u8.origin.log\" sync=true" 7-3
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U8,rate=16000 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k.u8.log\" sync=true t. ! queue ! filesink location=\"test.audio16k.u8.origin.log\" sync=true" 7-3 0 0 $PERFORMANCE
 callCompareTest test.audio16k.u8.origin.log test.audio16k.u8.log 7-4 "Audio16k-u8 Golden Test" 0 0
 
 # audio format U16LE, 16k sample rate, 2 channels, samples per buffer 8000
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=2 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k2c.u16le.log\" sync=true t. ! queue ! filesink location=\"test.audio16k2c.u16le.origin.log\" sync=true" 7-5
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=2 ! tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! filesink location=\"test.audio16k2c.u16le.log\" sync=true t. ! queue ! filesink location=\"test.audio16k2c.u16le.origin.log\" sync=true" 7-5 0 0 $PERFORMANCE
 callCompareTest test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 7-6 "Audio16k2c-u16le Golden Test" 0 0
 
 # audio format S32LE, 8k sample rate, samples per buffer 8000

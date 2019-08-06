@@ -45,7 +45,7 @@ testResult $? 2 "Golden test comparison" 0 1
 
 # Fail Test: Unknown data type is given
 # uint8 -> uint128
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=uint128 ! filesink location=\"testcase02-F.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase02-F.direct.log\" sync=true" 2-F 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=uint128 ! filesink location=\"testcase02-F.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase02-F.direct.log\" sync=true" 2F_n 0 1 $PERFORMANCE
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=int8 ! filesink location=\"testcase03.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase03.direct.log\" sync=true" 3 0 0 $PERFORMANCE
 # uint8 -> int8

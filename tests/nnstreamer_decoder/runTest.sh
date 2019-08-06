@@ -54,6 +54,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 callCompareTest testcase3.con.log testcase3.dec.log 3 "Compare for case 3" 0 0
 
 ## Trigger "decoder not configured"
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc ! tensor_converter ! tensor_decoder mode=direct_video ! video/mpeg ! fakesink" 4 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc ! tensor_converter ! tensor_decoder mode=direct_video ! video/mpeg ! fakesink" 4F_n 0 1 $PERFORMANCE
 
 report

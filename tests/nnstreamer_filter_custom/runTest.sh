@@ -86,7 +86,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 python checkScaledTensor.py testcase06.direct.log 640 480 testcase06.scaled.log 320 240 3
 testResult $? 6 "Golden test comparison" 0 1
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"1280X960\" ! filesink location=\"testcase07.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase07.direct.log\" sync=true" 6 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"1280X960\" ! filesink location=\"testcase07.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase07.direct.log\" sync=true" 7 0 0 $PERFORMANCE
 python checkScaledTensor.py testcase07.direct.log 640 480 testcase07.scaled.log 1280 960 3
 testResult $? 7 "Golden test comparison" 0 1
 
