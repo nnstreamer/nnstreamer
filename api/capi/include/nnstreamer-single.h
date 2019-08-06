@@ -22,7 +22,7 @@
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  *
- * @details This is targetting Tizen 5.5 M2.
+ * @details This is targeting Tizen 5.5 M2.
  */
 
 #ifndef __TIZEN_MACHINELEARNING_NNSTREAMER_SINGLE_H__
@@ -85,7 +85,7 @@ int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_inf
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid (Pipeline is not negotiated yet.)
  */
 int ml_single_close (ml_single_h single);
 
