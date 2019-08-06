@@ -856,6 +856,7 @@ ml_get_feature_enabled (void)
 
 #if defined(__TIZEN__)
   {
+    int ret;
     int feature_enabled;
 
     g_mutex_lock (&feature_info->mutex);
@@ -867,7 +868,8 @@ ml_get_feature_enabled (void)
       return ML_ERROR_NOT_SUPPORTED;
     } else if (-1 == feature_enabled) {
       bool ml_inf_supported = false;
-      if (0 == system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported)) {
+      ret = system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported);
+      if (0 == ret) {
         if (false == ml_inf_supported) {
           ml_loge ("machine_learning.inference NOT supported");
           ml_set_feature_status (0);
@@ -876,8 +878,28 @@ ml_get_feature_enabled (void)
 
         ml_set_feature_status (1);
       } else {
-        ml_loge ("failed to get feature value of machine_learning.inference");
-        return ML_ERROR_NOT_SUPPORTED;
+        switch (ret) {
+          case SYSTEM_INFO_ERROR_INVALID_PARAMETER:
+            ml_loge ("failed to get feature value because feature key is not vaild");
+            ret = ML_ERROR_NOT_SUPPORTED;
+            break;
+
+          case SYSTEM_INFO_ERROR_IO_ERROR:
+            ml_loge ("failed to get feature value because of input/output error");
+            ret = ML_ERROR_NOT_SUPPORTED;
+            break;
+
+          case SYSTEM_INFO_ERROR_PERMISSION_DENIED:
+            ml_loge ("failed to get feature value because of permission denied");
+            ret = ML_ERROR_PERMISSION_DENIED;
+            break;
+
+          default:
+            ml_loge ("failed to get feature value because of unknown error");
+            ret = ML_ERROR_NOT_SUPPORTED;
+            break;
+        }
+        return ret;
       }
     }
   }

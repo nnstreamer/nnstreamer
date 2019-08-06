@@ -36,8 +36,9 @@
 #define ML_INF_FEATURE_PATH "tizen.org/feature/machine_learning.inference"
 
 #define check_feature_state() \
-  if (ML_ERROR_NONE != ml_get_feature_enabled()) \
-    return ML_ERROR_NOT_SUPPORTED;
+  int feature_ret = ml_get_feature_enabled(); \
+  if (ML_ERROR_NONE != feature_ret) \
+    return feature_ret;
 
 #if defined(__TIZEN__)
   #include <dlog.h>
