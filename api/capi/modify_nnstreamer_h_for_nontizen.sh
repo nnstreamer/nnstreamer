@@ -7,5 +7,6 @@ sed -i "s|#include <tizen_error.h>|#include <errno.h>\n\
 #define TIZEN_ERROR_TRY_AGAIN (-EAGAIN)\n\
 #define TIZEN_ERROR_UNKNOWN (-1073741824LL)\n\
 #define TIZEN_ERROR_TIMED_OUT (TIZEN_ERROR_UNKNOWN + 1)\n\
-#define TIZEN_ERROR_NOT_SUPPORTED (TIZEN_ERROR_UNKNOWN + 2)\
+#define TIZEN_ERROR_NOT_SUPPORTED (TIZEN_ERROR_UNKNOWN + 2)\n\
+#define TIZEN_ERROR_PERMISSION_DENIED (-EACCES)\
 |" include/nnstreamer.h
