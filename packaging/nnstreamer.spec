@@ -206,6 +206,15 @@ ninja -C build %{?_smp_mflags}
 %install
 DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
 
+pushd %{buildroot}%{_libdir}
+ln -sf %{gstlibdir}/libnnstreamer.so libnnstreamer.so
+popd
+
+mkdir -p %{buildroot}%{python_sitelib}
+pushd %{buildroot}%{python_sitelib}
+ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python.so
+popd
+
 %if 0%{?testcoverage}
 ##
 # The included directories are:
@@ -252,19 +261,9 @@ mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
-%post
-pushd %{_libdir}
-ln -s %{gstlibdir}/libnnstreamer.so libnnstreamer.so
-popd
-/sbin/ldconfig
-
-%post -n nnstreamer-python2
-ln -s %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so %{python_sitelib}/nnstreamer_python.so
+%post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
-pushd %{_libdir}
-rm libnnstreamer.so
-popd
 
 %files
 %manifest nnstreamer.manifest
@@ -272,6 +271,7 @@ popd
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
 %{gstlibdir}/*.so
+%{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow
@@ -292,6 +292,7 @@ popd
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
 %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
+%{python_sitelib}/nnstreamer_python.so
 
 %files devel
 %{_includedir}/nnstreamer/tensor_typedef.h
