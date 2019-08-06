@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -20,14 +19,13 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python ../nnstreamer_converter/generateGoldenTestResult.py 9
-  sopath=$1
+    echo "Test Case Generation Started"
+    python ../nnstreamer_converter/generateGoldenTestResult.py 9
+    sopath=$1
 fi
 convertBMP2PNG
 
@@ -178,7 +176,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mo
         tensor_converter ! tensor_mux1.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
         tensor_converter ! tensor_mux1.sink_1" 18 0 0 $PERFORMANCE
-
 
 callCompareTest testsynch18_0.golden testsynch18_0.log 18-1 "Compare 18-1" 1 0
 callCompareTest testsynch18_1.golden testsynch18_1.log 18-2 "Compare 18-2" 1 0

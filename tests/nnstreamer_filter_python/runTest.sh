@@ -6,12 +6,12 @@
 ## @brief SSAT Test Cases for NNStreamer
 ##
 
-if [[ "$SSATAPILOADED" != "1" ]];then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -21,22 +21,22 @@ testInit $1
 PATH_TO_PLUGIN="../../build"
 # Check python libraies are built
 if [[ -d $PATH_TO_PLUGIN ]]; then
-  ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
-  if [[ -d ${ini_path} ]]; then
-    check=$(ls ${ini_path} | grep python2.so)
-    if [[ ! $check ]]; then
-      echo "Cannot find python shared lib"
-      report
-      exit
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
+    if [[ -d ${ini_path} ]]; then
+        check=$(ls ${ini_path} | grep python2.so)
+        if [[ ! $check ]]; then
+            echo "Cannot find python shared lib"
+            report
+            exit
+        fi
+    else
+        echo "Cannot find ${ini_path}"
+        report exit
     fi
-  else
-    echo "Cannot find ${ini_path}"
-    report exit
-  fi
 else
-  echo "No build directory"
-  report
-  exit
+    echo "No build directory"
+    report
+    exit
 fi
 
 FRAMEWORK="python2"

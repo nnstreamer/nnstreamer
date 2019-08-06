@@ -21,22 +21,17 @@
 ##                       +-------+    +--------+    +-------+  -->out_%1d.log
 ##
 
-
-
-
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 testInit $1 # You may replace this with Test Group Name
 
-if [[ -z "${CUSTOMLIB_DIR// }" ]]
-then
+if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
     LSTM_DIR="../../build/nnstreamer_example/custom_example_LSTM"
 else
     LSTM_DIR="${CUSTOMLIB_DIR}"

@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -20,15 +19,14 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python ../nnstreamer_converter/generateGoldenTestResult.py 9
-  python generateTest.py
-  sopath=$1
+    echo "Test Case Generation Started"
+    python ../nnstreamer_converter/generateGoldenTestResult.py 9
+    python generateTest.py
+    sopath=$1
 fi
 convertBMP2PNG
 
@@ -59,7 +57,6 @@ callCompareTest testcase03.golden testcase03.log 6 "Compare 6" 1 0
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=2 ! filesink location=testcase04.log multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_1 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_2 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_3" 7 0 0 $PERFORMANCE
 
 callCompareTest testcase03.golden testcase03.log 7 "Compare 7" 1 0
-
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=0 ! filesink location=channel.log filesrc location=channel_00.dat blocksize=60000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:50:100:1 input-type=float32 ! merge.sink_0 filesrc location=channel_01.dat blocksize=40000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=2:50:100:1 input-type=float32 ! merge.sink_1 filesrc location=channel_02.dat blocksize=80000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=4:50:100:1 input-type=float32 ! merge.sink_2" 8 0 0 $PERFORMANCE
 

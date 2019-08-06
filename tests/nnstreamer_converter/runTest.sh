@@ -5,27 +5,25 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python generateGoldenTestResult.py
-  sopath=$1
+    echo "Test Case Generation Started"
+    python generateGoldenTestResult.py
+    sopath=$1
 fi
 convertBMP2PNG
 
@@ -47,10 +45,10 @@ callCompareTest testcase01.gray8.golden test.gray8.log 1-3 "Gray8 Golden Test" 1
 ## @param $2 Width
 ## @param $3 Height
 ## @param $4 Test Case Number
-function do_test {
-	gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.log\" sync=true" ${4} 0 0 $PERFORMANCE
+function do_test() {
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=testcase02_${1}_${2}x${3}.png ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=${1},width=${2},height=${3},framerate=0/1 ! tensor_converter silent=TRUE ! filesink location=\"testcase02_${1}_${2}x${3}.log\" sync=true" ${4} 0 0 $PERFORMANCE
 
-	callCompareTest testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.log ${4} "PNG Golden Testing ${4}" 1 0
+    callCompareTest testcase02_${1}_${2}x${3}.golden testcase02_${1}_${2}x${3}.log ${4} "PNG Golden Testing ${4}" 1 0
 }
 
 do_test BGRx 640 480 2-1

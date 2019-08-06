@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -20,14 +19,13 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python ../nnstreamer_converter/generateGoldenTestResult.py 8
-  sopath=$1
+    echo "Test Case Generation Started"
+    python ../nnstreamer_converter/generateGoldenTestResult.py 8
+    sopath=$1
 fi
 convertBMP2PNG
 

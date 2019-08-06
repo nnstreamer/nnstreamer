@@ -5,13 +5,12 @@
 ## @date Nov 01 2018
 ## @brief SSAT Test Cases for NNStreamer
 ##
-if [[ "$SSATAPILOADED" != "1" ]]
-then
-	SILENT=0
-	INDEPENDENT=1
-	search="ssat-api.sh"
-	source $search
-	printf "${Blue}Independent Mode${NC}
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}
 "
 fi
 
@@ -20,14 +19,13 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 
-if [ "$SKIPGEN" == "YES" ]
-then
-  echo "Test Case Generation Skipped"
-  sopath=$2
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
 else
-  echo "Test Case Generation Started"
-  python ../nnstreamer_converter/generateGoldenTestResult.py 10
-  sopath=$1
+    echo "Test Case Generation Started"
+    python ../nnstreamer_converter/generateGoldenTestResult.py 10
+    sopath=$1
 fi
 convertBMP2PNG
 
@@ -45,7 +43,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux
 callCompareTest testcase.golden demux03_0.log 3_0 "Golden Test 3-0" 1 0
 callCompareTest testcase.golden demux03_1.log 3_1 "Golden Test 3-1" 1 0
 callCompareTest testcase.golden demux03_2.log 3_2 "Golden Test 3-2" 1 0
-
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux name=demux multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 demux.src_0 ! queue ! filesink location=demux04.log" 4 0 0 $PERFORMANCE
 
@@ -78,7 +75,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux
 callCompareTest testcase.golden demux09_0.log 9_0 "Golden Test 9-0" 1 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux name=demux tensorpick=1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_3 demux. ! queue ! filesink location=demux10_0.log" 10 0 0 $PERFORMANCE
-callCompareTest testcase_stream.golden demux10_0.log 10_0  "Golden Test 10-0" 1 0
+callCompareTest testcase_stream.golden demux10_0.log 10_0 "Golden Test 10-0" 1 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux name=demux tensorpick=2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_2 multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_3 demux. ! queue ! filesink location=demux11_0.log" 11 0 0 $PERFORMANCE
 callCompareTest testcase_stream.golden demux11_0.log 11_0 "Golden Test 11-0" 1 0
