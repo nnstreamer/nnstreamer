@@ -26,11 +26,10 @@
 #include <string.h>
 #include <gst/app/app.h>
 
-#include <nnstreamer/nnstreamer_plugin_api.h>
-
 #include "nnstreamer.h"         /* Uses NNStreamer/Pipeline C-API */
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
+#include "nnstreamer_plugin_api.h"
 
 typedef struct
 {

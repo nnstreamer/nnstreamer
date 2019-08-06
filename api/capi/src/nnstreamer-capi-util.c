@@ -21,11 +21,11 @@
  */
 
 #include <string.h>
-#include <nnstreamer/nnstreamer_plugin_api.h>
-#include <nnstreamer/nnstreamer_plugin_api_filter.h>
 
 #include "nnstreamer.h"
 #include "nnstreamer-capi-private.h"
+#include "nnstreamer_plugin_api.h"
+#include "nnstreamer_plugin_api_filter.h"
 
 #if defined(__TIZEN__)
   #include <system_info.h>

@@ -26,13 +26,12 @@
 #include <glib-object.h>        /* Get GType from GObject Instances */
 #include <gmodule.h>
 
-#include <nnstreamer/tensor_typedef.h>
-#include <nnstreamer/nnstreamer_plugin_api.h>
-
 #include <gst/gstbuffer.h>
 #include <gst/app/app.h>        /* To push data to pipeline */
 
 #include "nnstreamer-capi-private.h"
+#include "tensor_typedef.h"
+#include "nnstreamer_plugin_api.h"
 
 #define handle_init(type, name, h) \
   ml_pipeline_##type *name= (h); \
