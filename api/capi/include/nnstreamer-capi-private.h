@@ -27,9 +27,8 @@
 #include <glib.h>
 #include <gst/gst.h>
 
-#include <nnstreamer/tensor_typedef.h>
-
 #include "nnstreamer.h"
+#include "tensor_typedef.h"
 
 #define TAG_NAME "nnstreamer-capi"
 
