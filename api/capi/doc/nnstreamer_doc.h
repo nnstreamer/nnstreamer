@@ -86,7 +86,7 @@
  *
  * @section CAPI_ML_NNSTREAMER_SINGLE_FEATURE Related Features
  * This function is related with the following features:\n
-    - http://tizen.org/feature/machine_learning\n
+ *  - http://tizen.org/feature/machine_learning\n
  *  - http://tizen.org/feature/machine_learning.inference\n
  *
  * It is recommended to probe features in your application for reliability.\n

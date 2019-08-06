@@ -237,14 +237,14 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @remarks If the function succeeds, @a pipe handle must be released using ml_pipeline_destroy().
  * @remarks http://tizen.org/privilege/mediastorage is needed if @a pipeline_description is relevant to media storage.
  * @remarks http://tizen.org/privilege/externalstorage is needed if @a pipeline_description is relevant to external storage.
- * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
+ * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (https://github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
  * @param[in] cb The function to be called when the pipeline state is changed. You may set NULL if it's not required.
  * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
  * @param[out] pipe The NNStreamer pipeline handler from the given description.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the privilege to access to the media storage or external storage.
  */
@@ -258,7 +258,7 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_c
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
  */
 int ml_pipeline_destroy (ml_pipeline_h pipe);
@@ -272,7 +272,7 @@ int ml_pipeline_destroy (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to get state from the pipeline.
  */
 int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
@@ -290,7 +290,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  */
 int ml_pipeline_start (ml_pipeline_h pipe);
@@ -305,7 +305,7 @@ int ml_pipeline_start (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to stop the pipeline.
  */
 int ml_pipeline_stop (ml_pipeline_h pipe);
@@ -325,7 +325,7 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (pipe is NULL, sink_name is not found, or sink_name has an invalid type.)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated, sink_name is not found, or sink_name has an invalid type.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  */
 int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pipeline_sink_cb cb, void *user_data, ml_pipeline_sink_h *sink_handle);
