@@ -477,6 +477,11 @@ ml_pipeline_construct (const char *pipeline_description,
 
   g_mutex_unlock (&pipe_h->lock);
 
+  /* set pipeline state to PAUSED */
+  if (status == ML_ERROR_NONE) {
+    status = ml_pipeline_stop (*pipe);
+  }
+
   if (status != ML_ERROR_NONE) {
     /* failed to construct the pipeline */
     ml_pipeline_destroy (*pipe);
