@@ -531,8 +531,7 @@ tf_core_delete (void * tf)
  * @return 0 if OK. non-zero if error.
  */
 int
-tf_core_init (void * tf, const GstTensorFilterProperties * prop,
-  const gboolean tf_mem_optmz)
+tf_core_init (void * tf, const GstTensorFilterProperties * prop)
 {
   TFCore *c = (TFCore *) tf;
   return c->init (prop);

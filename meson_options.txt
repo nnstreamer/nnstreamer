@@ -2,7 +2,6 @@ option('enable-test', type: 'boolean', value: true)
 option('install-test', type: 'boolean', value: false)
 option('enable-tensorflow-lite', type: 'boolean', value: true)
 option('enable-tensorflow', type: 'boolean', value: true)
-option('enable-tensorflow-mem-optmz', type: 'boolean', value: true)
 option('enable-caffe2', type: 'boolean', value: true)
 option('enable-pytorch', type: 'boolean', value: true)
 option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value, can be specified at run time
