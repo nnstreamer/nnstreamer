@@ -19,7 +19,7 @@ There are three features as following:
 - Debugging
 - Profiling(in progress)
 
-If you are interested in the tool technolog to optimize the your application using NNStremaer, Please refer to the below issue. 
+If you are interested in the tool technology to optimize your application using NNStremaer, please refer to the below issues.
 * https://github.com/nnsuite/nnstreamer/issues/132
 
 
