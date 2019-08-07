@@ -98,8 +98,7 @@ extern "C"
 
   void *tf_core_new (const char * _model_path);
   void tf_core_delete (void * tf);
-  int tf_core_init (void * tf, const GstTensorFilterProperties * prop,
-      const gboolean tf_mem_optmz);
+  int tf_core_init (void * tf, const GstTensorFilterProperties * prop);
   const char *tf_core_getModelPath (void * tf);
   int tf_core_getInputDim (void * tf, GstTensorsInfo * info);
   int tf_core_getOutputDim (void * tf, GstTensorsInfo * info);

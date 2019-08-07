@@ -251,7 +251,6 @@ nnstreamer_install_conf.merge_from(nnstreamer_conf)
 
 nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
 nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
-nnstreamer_install_conf.set('TF_MEM_OPTMZ', get_option('enable-tensorflow-mem-optmz'))
 nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
 
 # Install .ini
