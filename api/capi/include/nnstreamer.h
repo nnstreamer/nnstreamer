@@ -231,6 +231,9 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the privilege to access to the media storage or external storage.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_UNKNOWN or #ML_PIPELINE_STATE_NULL.
+ * @post The pipeline state will be #ML_PIPELINE_STATE_PAUSED in the same thread.
  */
 int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h *pipe);
 
@@ -244,6 +247,9 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_c
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_PLAYING or #ML_PIPELINE_STATE_PAUSED.
+ * @post The pipeline state will be #ML_PIPELINE_STATE_NULL.
  */
 int ml_pipeline_destroy (ml_pipeline_h pipe);
 
@@ -276,6 +282,9 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
+ * @post The pipeline state will be #ML_PIPELINE_STATE_PLAYING.
  */
 int ml_pipeline_start (ml_pipeline_h pipe);
 
@@ -291,6 +300,9 @@ int ml_pipeline_start (ml_pipeline_h pipe);
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to stop the pipeline.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_PLAYING.
+ * @post The pipeline state will be #ML_PIPELINE_STATE_PAUSED.
  */
 int ml_pipeline_stop (ml_pipeline_h pipe);
 
@@ -311,6 +323,8 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated, sink_name is not found, or sink_name has an invalid type.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
  */
 int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pipeline_sink_cb cb, void *user_data, ml_pipeline_sink_h *sink_handle);
 
@@ -322,6 +336,8 @@ int ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name, ml_pip
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ *
+ * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
  */
 int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
 
