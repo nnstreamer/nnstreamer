@@ -25,12 +25,15 @@ warning_flags = [
   '-Wformat-nonliteral',
   '-Wformat-security',
   '-Winit-self',
-  '-Wmissing-include-dirs',
   '-Waddress',
   '-Wno-multichar',
   '-Wvla',
   '-Wpointer-arith'
 ]
+# Work around the issue related to gtest cflags
+if meson.version().version_compare('<0.46')
+  warning_flags += '-Wmissing-include-dirs'
+endif
 
 warning_c_flags = [
   '-Wmissing-declarations',
