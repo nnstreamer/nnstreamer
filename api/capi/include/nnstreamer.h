@@ -168,7 +168,7 @@ typedef enum {
 
 /**
  * @brief Enumeration for pipeline state.
- * @details The pipeline state is described on @ref CAPI_MEDIA_RECORDER_MODULE_PIPELINE_STATE_DIAGRAM.
+ * @details The pipeline state is described on @ref CAPI_ML_NNSTREAMER_PIPELINE_STATE_DIAGRAM.
  * Refer to https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html.
  * @since_tizen 5.5
  */
@@ -228,7 +228,7 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the privilege to access to the media storage or external storage.
  *
@@ -245,7 +245,7 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_c
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (Not negotiated?)
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PLAYING or #ML_PIPELINE_STATE_PAUSED.
@@ -262,7 +262,7 @@ int ml_pipeline_destroy (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to get state from the pipeline.
  */
 int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
@@ -280,7 +280,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (NPipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
@@ -298,7 +298,7 @@ int ml_pipeline_start (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated?)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to stop the pipeline.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PLAYING.
@@ -379,7 +379,7 @@ int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
+ * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
 int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h data, ml_pipeline_buf_policy_e policy);
@@ -394,7 +394,7 @@ int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h 
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. Not negotiated?
+ * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
 int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_info_h *info);
@@ -446,6 +446,7 @@ int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *p
 /**
  * @brief Gets the pad names of a switch.
  * @since_tizen 5.5
+ * @remarks If the function succeeds, @a list and its contents should be released using g_free(). Refer the below sample code.
  * @param[in] switch_handle The switch handle returned by ml_pipeline_switch_get_handle().
  * @param[out] list NULL terminated array of char*. The caller must free each string (char*) in the list and free the list itself.
  * @return @c 0 on success. Otherwise a negative error value.
@@ -453,6 +454,58 @@ int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *p
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The element is not both input and output switch (Internal data inconsistency).
+ *
+ * Here is an example of the usage:
+ * @code
+ * int status;
+ * gchar *pipeline;
+ * ml_pipeline_h handle;
+ * ml_pipeline_switch_e switch_type;
+ * ml_pipeline_switch_h switch_handle;
+ * gchar **node_list = NULL;
+ *
+ * // pipeline description
+ * pipeline = g_strdup ("videotestsrc is-live=true ! videoconvert ! tensor_converter ! output-selector name=outs "
+ *     "outs.src_0 ! tensor_sink name=sink0 async=false "
+ *     "outs.src_1 ! tensor_sink name=sink1 async=false");
+ *
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * status = ml_pipeline_switch_get_handle (handle, "outs", &switch_type, &switch_handle);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * status = ml_pipeline_switch_get_pad_list (switch_handle, &node_list);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * if (node_list) {
+ *   gchar *name = NULL;
+ *   guint idx = 0;
+ *
+ *   while ((name = node_list[idx++]) != NULL) {
+ *     // node name is 'src_0' or 'src_1'
+ *
+ *     // release name
+ *     g_free (name);
+ *   }
+ *   // release list of switch pads
+ *   g_free (node_list);
+ * }
+ *
+ * error:
+ * ml_pipeline_switch_release_handle (switch_handle);
+ * ml_pipeline_destroy (handle);
+ * g_free (pipeline);
+ * @endcode
  */
 int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char ***list);
 
