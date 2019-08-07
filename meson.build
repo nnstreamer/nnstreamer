@@ -229,7 +229,6 @@ if get_option('enable-test')
 
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
-  nnstreamer_test_conf.set('TF_MEM_OPTMZ', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
 
   # meson 0.50 supports install argument in configure_file()
