@@ -43,6 +43,9 @@
  *
  *  Note that this function set is supposed to be thread-safe.
  *
+ * @subsection CAPI_ML_NNSTREAMER_PIPELINE_STATE_DIAGRAM Pipeline State Diagram
+ * @image html capi_nnstreamer_pipeline_state.jpg "Figure1. Pipeline State" width=12cm
+ *
  * @section CAPI_ML_NNSTREAMER_PIPELINE_FEATURE Related Features
  * This function is related with the following features:\n
  *  - http://tizen.org/feature/machine_learning\n

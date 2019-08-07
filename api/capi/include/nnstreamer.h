@@ -168,24 +168,8 @@ typedef enum {
 
 /**
  * @brief Enumeration for pipeline state.
- * @details Refer to https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html.
- *          The state diagram of pipeline looks like this, assuming that there are no errors.
- *
- *          [ UNKNOWN ] "new null object"
- *               | "ml_pipeline_construct" starts
- *               V
- *          [  NULL   ] <------------------------------------------+
- *               | "ml_pipeline_construct" creates                |
- *               V                                                 |
- *          [  READY  ]                                            |
- *               | "ml_pipeline_construct' completes              | "ml_pipeline_destroy"
- *               V                                                 |
- *          [         ] ------------------------------------------>|
- *          [  PAUSED ] <-------------------+                      |
- *               | "ml_pipeline_start"     | "ml_pipeline_stop"  |
- *               V                          |                      |
- *          [ PLAYING ] --------------------+----------------------+
- *
+ * @details The pipeline state is described on @ref CAPI_MEDIA_RECORDER_MODULE_PIPELINE_STATE_DIAGRAM.
+ * Refer to https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html.
  * @since_tizen 5.5
  */
 typedef enum {
