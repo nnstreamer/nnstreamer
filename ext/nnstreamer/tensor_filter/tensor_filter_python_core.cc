@@ -80,7 +80,10 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
 
   /** Add current/directory path to sys.path */
   PyObject *sys_module = PyImport_ImportModule("sys");
+  g_assert(sys_module);
+
   PyObject *sys_path = PyObject_GetAttrString(sys_module, "path");
+  g_assert(sys_path);
 
   PyList_Append(sys_path, PyUnicode_FromString("."));
   PyList_Append(sys_path, PyUnicode_FromString(script_path.substr(0, last_idx).c_str()));
@@ -293,7 +296,7 @@ PYCore::getInputTensorDim (GstTensorsInfo * info)
 
   PyObject *result = PyObject_CallMethod(core_obj, (char*) "getInputDim", NULL);
   if (result) {
-    parseOutputTensors(result, info);
+    res = parseOutputTensors(result, info);
     Py_XDECREF(result);
   } else { 
     Py_ERRMSG("Fail to call 'getInputDim'");
@@ -322,7 +325,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo * info)
 
   PyObject *result = PyObject_CallMethod(core_obj, (char*) "getOutputDim", NULL);
   if (result) {
-    parseOutputTensors(result, info);
+    res = parseOutputTensors(result, info);
     Py_XDECREF(result);
   } else { 
     Py_ERRMSG("Fail to call 'getOutputDim'");
@@ -374,8 +377,9 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
   Py_XDECREF (param);
 
   if (result) {
-    parseOutputTensors(result, out_info);
-    outputTensorMeta.num_tensors = out_info->num_tensors;
+    res = parseOutputTensors(result, out_info);
+    if (res == 0)
+      outputTensorMeta.num_tensors = out_info->num_tensors;
     Py_XDECREF(result);
   } else { 
     Py_ERRMSG("Fail to call 'setInputDim'");
@@ -419,12 +423,16 @@ PYCore::PyTensorShape_New (const GstTensorInfo* info)
  * @brief parse the invoke result to feed output tensors
  * @param[result] Python object retunred by invoke
  * @param[info] info Structure for output tensor info
- * @return None
+ * @return 0 if no error, otherwise negative errno
  */
-void
+int
 PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
 {
+  if (PyList_Size(result) < 0)
+    return -1;
+
   info->num_tensors = PyList_Size(result);
+
   for (int i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem(result, (Py_ssize_t) i); 
@@ -445,6 +453,8 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
     Py_XDECREF (shape_dims);
     Py_XDECREF (shape_type);
   }
+
+  return 0;
 }
 
 /**
