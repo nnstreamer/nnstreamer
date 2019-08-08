@@ -15,3 +15,5 @@ option('enable-symbolic-link', type: 'boolean', value: true)
 option('enable-capi', type: 'boolean', value: false)
 option('enable-python', type: 'boolean', value: true)
 option('enable-tizen', type: 'boolean', value: false)
+option('enable-element-restriction', type: 'boolean', value: false) # true to restrict gst-elements in api
+option('restricted-elements', type: 'string', value: '')
