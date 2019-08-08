@@ -21,12 +21,14 @@ neural network developers to manage stream pipelines and their filters easily an
 | Arch   | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto |
 | :-- | -- | -- | -- | -- | -- |
 |     | 5.5 | 16.04/18.04 | 7.0/N | 7.0/N | TBD |
-| arm | Available  | Available  | Ready | WIP | WIP |
-| arm64 | Available  | Available  | Ready | WIP | Planned |
-| x64 | Available  | Available  | N/A  | N/A  | N/A |
+| arm | Available  | Available  | Ready | Ready | Ready |
+| arm64 | Available  | Available  | Ready | Ready | Planned |
+| x64 | Available  | Available  | Ready  | Ready | Ready |
 | x86 | Available  | N/A  | N/A  | N/A  | N/A |
+|     | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   |   |   |
 
-- Ready: CI system ensures build-ability and unit-testing. However, we do not have automated release & deployment system for this instance.
+- Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
+- Available: binary packages are released and deployed automatically and periodically along with CI tests.
 - Daily Release: [(WIP)](https://github.com/nnsuite/TAOS-CI/issues/452)
 
 
