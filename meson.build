@@ -108,14 +108,17 @@ protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 # Orc
 have_orcc = false
 
-orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: false)
-orcc = find_program('orcc', required: false)
-if orc_dep.found() and orcc.found()
-  have_orcc = true
-  orcc_args = [orcc, '--include', 'glib.h']
-  add_project_arguments('-DHAVE_ORC=1', language: ['c', 'cpp'])
+if get_option('enable-orc')
+  orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: true)
+  orcc = find_program('orcc', required: true)
+  if orc_dep.found() and orcc.found()
+    have_orcc = true
+    orcc_args = [orcc, '--include', 'glib.h']
+    add_project_arguments('-DHAVE_ORC=1', language: ['c', 'cpp'])
+  else
+    error('Cannot find orc library')
+  endif
 else
-  message('Cannot find orc library')
   add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
