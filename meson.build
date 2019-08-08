@@ -236,6 +236,7 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
+  nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
 
   # meson 0.50 supports install argument in configure_file()
   if get_option('install-test')
@@ -257,6 +258,17 @@ nnstreamer_install_conf.merge_from(nnstreamer_conf)
 nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
 nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
 nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
+
+# Element restriction
+restriction_config = ''
+
+if get_option('enable-element-restriction')
+  restriction_config = '''[element-restriction]
+enable_element_restriction=True
+restricted_elements=''' + get_option('restricted-elements')
+endif
+
+nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)
 
 # Install .ini
 configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',

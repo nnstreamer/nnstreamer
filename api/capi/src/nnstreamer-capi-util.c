@@ -26,6 +26,7 @@
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
+#include "nnstreamer_conf.h"
 
 #if defined(__TIZEN__)
   #include <system_info.h>
@@ -932,16 +933,43 @@ ml_set_feature_status (int status)
 int
 ml_check_plugin_availability (const char *plugin_name, const char *element_name)
 {
-#ifdef __TIZEN__
+  static gboolean list_loaded = FALSE;
+  static gchar **restricted_elements = NULL;
+
   if (!plugin_name || !element_name) {
     ml_loge ("The name is invalid, failed to check the availability.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  /**
-   * @todo check white-list of available plugins
-   * e.g, plugin name 'nnstreamer', element name 'tensor_converter'
-   */
-#endif /* __TIZEN__ */
+  if (!list_loaded) {
+    gboolean restricted;
+
+    restricted = nnsconf_get_custom_value_bool ("element-restriction", "enable_element_restriction", FALSE);
+    if (restricted) {
+      gchar *elements;
+
+      /* check white-list of available plugins */
+      elements = nnsconf_get_custom_value_string ("element-restriction", "restricted_elements");
+      if (elements) {
+        restricted_elements = g_strsplit_set (elements, " ,;", -1);
+        g_free (elements);
+      }
+    }
+
+    list_loaded = TRUE;
+  }
+
+  /* nnstreamer elements */
+  if (g_str_equal (plugin_name, "nnstreamer") &&
+      g_str_has_prefix (element_name, "tensor_")) {
+    return ML_ERROR_NONE;
+  }
+
+  if (restricted_elements &&
+      find_key_strv ((const gchar **) restricted_elements, element_name) < 0) {
+    ml_logw ("The element %s is restricted.", element_name);
+    return ML_ERROR_NOT_SUPPORTED;
+  }
+
   return ML_ERROR_NONE;
 }
