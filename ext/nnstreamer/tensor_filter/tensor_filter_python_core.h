@@ -72,7 +72,7 @@ public:
   int setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
 
-  void parseOutputTensors(PyObject* result, GstTensorsInfo * info);
+  int parseOutputTensors(PyObject* result, GstTensorsInfo * info);
 
   /** @brief Return callback type */
   cb_type getCbType () { return callback_type; }
