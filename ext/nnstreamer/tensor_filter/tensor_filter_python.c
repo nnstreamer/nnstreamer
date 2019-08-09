@@ -55,7 +55,7 @@ struct _py_data
 };
 typedef struct _py_data py_data;
 
-static GstTensorFilterFramework *NNS_support_python;
+static GstTensorFilterFramework NNS_support_python;
 
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
@@ -191,14 +191,14 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     /** check methods in python script */
     switch (py_core_getCbType (py->py_private_data)) {
       case CB_SETDIM:
-        NNS_support_python->getInputDimension = NULL;
-        NNS_support_python->getOutputDimension = NULL;
-        NNS_support_python->setInputDimension = &py_setInputDim;
+        NNS_support_python.getInputDimension = NULL;
+        NNS_support_python.getOutputDimension = NULL;
+        NNS_support_python.setInputDimension = &py_setInputDim;
         break;
       case CB_GETDIM:
-        NNS_support_python->getInputDimension = &py_getInputDim;
-        NNS_support_python->getOutputDimension = &py_getOutputDim;
-        NNS_support_python->setInputDimension = NULL;
+        NNS_support_python.getInputDimension = &py_getInputDim;
+        NNS_support_python.getOutputDimension = &py_getOutputDim;
+        NNS_support_python.setInputDimension = NULL;
         break;
       default:
         g_printerr ("Wrong callback type");
@@ -229,7 +229,7 @@ static gchar filter_subplugin_python[] = "python3";
 static gchar filter_subplugin_python[] = "python2";
 #endif
 
-GstTensorFilterFramework _NNS_support_python = {
+static GstTensorFilterFramework NNS_support_python = {
   .name = filter_subplugin_python,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
@@ -247,13 +247,12 @@ GstTensorFilterFramework _NNS_support_python = {
 void
 init_filter_py (void)
 {
-  NNS_support_python = &_NNS_support_python;
-  nnstreamer_filter_probe (NNS_support_python);
+  nnstreamer_filter_probe (&NNS_support_python);
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_py (void)
 {
-  nnstreamer_filter_exit (NNS_support_python->name);
+  nnstreamer_filter_exit (NNS_support_python.name);
 }
