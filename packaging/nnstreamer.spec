@@ -181,7 +181,7 @@ mkdir -p build
 %define enable_tf false
 %endif
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false -Denable-caffe2=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false -Denable-caffe2=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true build -Denable-nnfw=false
 
 ninja -C build %{?_smp_mflags}
 

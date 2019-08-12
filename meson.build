@@ -211,6 +211,12 @@ if get_option('enable-tizen')
   add_project_arguments('-D__TIZEN__=1', language: ['c', 'cpp'])
 endif
 
+# nnfw
+if get_option('enable-nnfw')
+    add_project_arguments('-DENABLE_NNFW=1', language: ['c', 'cpp'])
+endif
+
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 

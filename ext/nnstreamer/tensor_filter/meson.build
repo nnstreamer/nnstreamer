@@ -41,6 +41,15 @@ if get_option('enable-tensorflow-lite')
 
   nnstreamer_filter_tflite_deps = [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
+  if get_option('enable-nnfw')
+    nnapi_lib = dependency('nnfw', required: true)
+    if nnapi_lib.found()
+      nnstreamer_filter_tflite_deps += nnapi_lib
+    else
+      error('Cannot find nnfw')
+    endif
+  endif
+
   shared_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
     cpp_args: ['-Wno-sign-compare'],
