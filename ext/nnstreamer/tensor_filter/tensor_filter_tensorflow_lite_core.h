@@ -34,6 +34,10 @@
 #include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
+#ifdef ENABLE_NNFW
+#include "tflite/ext/nnapi_delegate.h"
+#endif
+
 /**
  * @brief	ring cache structure
  */
@@ -62,6 +66,10 @@ private:
 
   std::unique_ptr <tflite::Interpreter> interpreter;
   std::unique_ptr <tflite::FlatBufferModel> model;
+
+#ifdef ENABLE_NNFW
+  std::unique_ptr <nnfw::tflite::NNAPIDelegate> nnfw_delegate;
+#endif
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);

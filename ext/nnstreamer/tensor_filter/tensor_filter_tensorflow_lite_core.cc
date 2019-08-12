@@ -129,8 +129,19 @@ TFLiteCore::loadModel ()
       return -2;
     }
 
-    /* Set inference path of tensorflow-lite */
-    interpreter->UseNNAPI (use_nnapi);
+    interpreter->UseNNAPI(use_nnapi);
+
+#ifdef ENABLE_NNFW
+    if(use_nnapi){
+      nnfw_delegate.reset(new ::nnfw::tflite::NNAPIDelegate);
+      if(nnfw_delegate->BuildGraph(interpreter.get()) != kTfLiteOk){
+	GST_ERROR("Fail to BuildGraph");
+	return -3;
+      }
+    }
+#endif
+
+    g_message ("interpreter->UseNNAPI: %d" , use_nnapi);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
@@ -330,10 +341,24 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     tensors_idx.push_back (tensor_idx);
   }
 
+#ifdef ENABLE_NNFW
+  if(use_nnapi){
+    if(nnfw_delegate->Invoke(interpreter.get()) != kTfLiteOk){
+      GST_ERROR ("Failed to invoke");
+      return -3;
+    }
+  }else{
+    if (interpreter->Invoke () != kTfLiteOk) {
+      GST_ERROR ("Failed to invoke");
+      return -3;
+    }
+  }
+#else
   if (interpreter->Invoke () != kTfLiteOk) {
     GST_ERROR ("Failed to invoke");
     return -3;
   }
+#endif
 
   /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
   int tensorSize = tensors_idx.size ();
