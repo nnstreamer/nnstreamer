@@ -20,6 +20,7 @@ export GST_PLUGIN_PATH=${ROOT_DIR}/build/gst/nnstreamer
 export NNSTREAMER_CONF=${ROOT_DIR}/build/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_decoder
+export PYTHONIOENCODING=utf-8
 
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 arm64),)
 enable_tf=true
