@@ -331,5 +331,18 @@ gst_tensor_get_type_string (tensor_type type);
 extern gint
 find_key_strv (const gchar ** strv, const gchar * key);
 
+/**
+ * @brief Replaces string.
+ * This function deallocates the input source string.
+ * @param[in] source The input string. This will be freed when returning the replaced string.
+ * @param[in] what The string to search for.
+ * @param[in] to The string to be replaced.
+ * @param[in] delimiters The characters which specify the place to split the string. Set NULL to replace all matched string.
+ * @param[out] count The count of replaced. Set NULL if it is unnecessary.
+ * @return Newly allocated string. The returned string should be freed with g_free().
+ */
+extern gchar *
+replace_string (gchar * source, const gchar * what, const gchar * to, const gchar * delimiters, guint * count);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

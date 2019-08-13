@@ -531,6 +531,64 @@ TEST (common_tensors_info_string, names)
 }
 
 /**
+ * @brief Test to replace string.
+ */
+TEST (common_string_util, replace_str_01)
+{
+  gchar *result;
+  guint changed;
+
+  result = g_strdup ("sourceelement ! parser ! converter ! format ! converter ! format ! converter ! sink");
+
+  result = replace_string (result, "sourceelement", "src", NULL, &changed);
+  EXPECT_EQ (changed, 1U);
+  EXPECT_TRUE (g_str_equal (result, "src ! parser ! converter ! format ! converter ! format ! converter ! sink"));
+
+  result = replace_string (result, "format", "fmt", NULL, &changed);
+  EXPECT_EQ (changed, 2U);
+  EXPECT_TRUE (g_str_equal (result, "src ! parser ! converter ! fmt ! converter ! fmt ! converter ! sink"));
+
+  result = replace_string (result, "converter", "conv", NULL, &changed);
+  EXPECT_EQ (changed, 3U);
+  EXPECT_TRUE (g_str_equal (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink"));
+
+  result = replace_string (result, "invalidname", "invalid", NULL, &changed);
+  EXPECT_EQ (changed, 0U);
+  EXPECT_TRUE (g_str_equal (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink"));
+
+  g_free (result);
+}
+
+/**
+ * @brief Test to replace string.
+ */
+TEST (common_string_util, replace_str_02)
+{
+  gchar *result;
+  guint changed;
+
+  result = g_strdup ("source! parser ! sources ! mysource ! source ! format !source! conv source");
+
+  result = replace_string (result, "source", "src", " !", &changed);
+  EXPECT_EQ (changed, 4U);
+  EXPECT_TRUE (g_str_equal (result, "src! parser ! sources ! mysource ! src ! format !src! conv src"));
+
+  result = replace_string (result, "src", "mysource", "! ", &changed);
+  EXPECT_EQ (changed, 4U);
+  EXPECT_TRUE (g_str_equal (result, "mysource! parser ! sources ! mysource ! mysource ! format !mysource! conv mysource"));
+
+  result = replace_string (result, "source", "src", NULL, &changed);
+  EXPECT_EQ (changed, 6U);
+  EXPECT_TRUE (g_str_equal (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc"));
+
+  result = replace_string (result, "mysrc", "src", ";", &changed);
+  EXPECT_EQ (changed, 0U);
+  EXPECT_TRUE (g_str_equal (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc"));
+
+  g_free (result);
+}
+
+/**
  * @brief Create null files
  */
 static gchar *create_null_file (const gchar *dir, const gchar *file)

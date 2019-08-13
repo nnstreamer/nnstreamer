@@ -1053,6 +1053,85 @@ find_key_strv (const gchar ** strv, const gchar * key)
   return -1;                    /* Not Found */
 }
 
+/**
+ * @brief Replaces string.
+ * This function deallocates the input source string.
+ * @param[in] source The input string. This will be freed when returning the replaced string.
+ * @param[in] what The string to search for.
+ * @param[in] to The string to be replaced.
+ * @param[in] delimiters The characters which specify the place to split the string. Set NULL to replace all matched string.
+ * @param[out] count The count of replaced. Set NULL if it is unnecessary.
+ * @return Newly allocated string. The returned string should be freed with g_free().
+ */
+gchar *
+replace_string (gchar * source, const gchar * what, const gchar * to,
+    const gchar * delimiters, guint * count)
+{
+  GString *builder;
+  gchar *start, *pos, *result;
+  guint changed = 0;
+  gsize len;
+
+  g_return_val_if_fail (source, NULL);
+  g_return_val_if_fail (what && to, source);
+
+  len = strlen (what);
+  start = source;
+
+  builder = g_string_new (NULL);
+  while ((pos = g_strstr_len (start, -1, what)) != NULL) {
+    gboolean skip = FALSE;
+
+    if (delimiters) {
+      const gchar *s;
+      gchar *prev, *next;
+      gboolean prev_split, next_split;
+
+      prev = next = NULL;
+      prev_split = next_split = FALSE;
+
+      if (pos != source)
+        prev = pos - 1;
+      if (*(pos + len) != '\0')
+        next = pos + len;
+
+      for (s = delimiters; *s != '\0'; ++s) {
+        if (!prev || *s == *prev)
+          prev_split = TRUE;
+        if (!next || *s == *next)
+          next_split = TRUE;
+        if (prev_split && next_split)
+          break;
+      }
+
+      if (!prev_split || !next_split)
+        skip = TRUE;
+    }
+
+    builder = g_string_append_len (builder, start, pos - start);
+
+    /* replace string if found */
+    if (skip)
+      builder = g_string_append_len (builder, pos, len);
+    else
+      builder = g_string_append (builder, to);
+
+    start = pos + len;
+    if (!skip)
+      changed++;
+  }
+
+  /* append remains */
+  builder = g_string_append (builder, start);
+  result = g_string_free (builder, FALSE);
+
+  if (count)
+    *count = changed;
+
+  g_free (source);
+  return result;
+}
+
 static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_NOSYNC] = "nosync",
   [SYNC_SLOWEST] = "slowest",
