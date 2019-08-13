@@ -64,6 +64,9 @@ BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 %if %{with tizen}
+BuildRequires:	pkgconfig(mm-resource-manager)
+BuildRequires:	pkgconfig(mm-camcorder)
+BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)

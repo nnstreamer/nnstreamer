@@ -23,6 +23,46 @@ typedef struct
   gboolean playing;
 } TestPipeState;
 
+#if defined (__TIZEN__)
+/**
+ * @brief Test NNStreamer pipeline construct with Tizen cam
+ * @details Failure case to check permission (camera privilege)
+ */
+TEST (nnstreamer_capi_construct_destruct, tizen_cam_fail_01_n)
+{
+  ml_pipeline_h handle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup_printf ("%s ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240 ! tensor_converter ! tensor_sink",
+      ML_TIZEN_CAM_VIDEO_SRC);
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_PERMISSION_DENIED);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline construct with Tizen cam
+ * @details Failure case to check permission (camera privilege)
+ */
+TEST (nnstreamer_capi_construct_destruct, tizen_cam_fail_02_n)
+{
+  ml_pipeline_h handle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup_printf ("%s ! audioconvert ! audio/x-raw,format=S16LE,rate=16000 ! tensor_converter ! tensor_sink",
+      ML_TIZEN_CAM_AUDIO_SRC);
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_PERMISSION_DENIED);
+
+  g_free (pipeline);
+}
+#endif /* __TIZEN__ */
+
 /**
  * @brief Test NNStreamer pipeline construct & destruct
  */
@@ -1818,11 +1858,11 @@ main (int argc, char **argv)
   testing::InitGoogleTest (&argc, argv);
 
   /* ignore tizen feature status while running the testcases */
-  ml_set_feature_status (1);
+  set_feature_state (1);
 
   result = RUN_ALL_TESTS ();
 
-  ml_set_feature_status (-1);
+  set_feature_state (-1);
 
   return result;
 }

@@ -23,9 +23,6 @@
 
 #include <string.h>
 #include <glib.h>
-#include <glib-object.h>        /* Get GType from GObject Instances */
-#include <gmodule.h>
-
 #include <gst/gstbuffer.h>
 #include <gst/app/app.h>        /* To push data to pipeline */
 
@@ -333,6 +330,52 @@ cleanup_node (gpointer data)
 }
 
 /**
+ * @brief Private function to release the pipeline resources
+ */
+static void
+cleanup_resource (gpointer data)
+{
+  pipeline_resource_s *res = data;
+
+  /* check resource type and free data */
+  if (g_str_has_prefix (res->type, "tizen")) {
+    release_tizen_resource (res->handle, res->type);
+  }
+
+  g_free (res->type);
+  g_free (res);
+}
+
+/**
+ * @brief Converts predefined element in pipeline description.
+ */
+static int
+convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result)
+{
+  gchar *converted;
+  int status = ML_ERROR_NONE;
+
+  g_return_val_if_fail (pipe, ML_ERROR_INVALID_PARAMETER);
+  g_return_val_if_fail (description && result, ML_ERROR_INVALID_PARAMETER);
+
+  /* init null */
+  *result = NULL;
+
+  converted = g_strdup (description);
+
+  /* convert pre-defined element for Tizen */
+  status = convert_tizen_element (pipe, &converted);
+
+  if (status == ML_ERROR_NONE) {
+    *result = converted;
+  } else {
+    g_free (converted);
+  }
+
+  return status;
+}
+
+/**
  * @brief Construct the pipeline (more info in nnstreamer.h)
  */
 int
@@ -342,6 +385,7 @@ ml_pipeline_construct (const char *pipeline_description,
   GError *err = NULL;
   GstElement *pipeline;
   GstIterator *it = NULL;
+  gchar *description = NULL;
   int status = ML_ERROR_NONE;
 
   ml_pipeline *pipe_h;
@@ -376,7 +420,17 @@ ml_pipeline_construct (const char *pipeline_description,
   pipe_h->namednodes =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
 
-  pipeline = gst_parse_launch (pipeline_description, &err);
+  pipe_h->resources =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_resource);
+
+  /* convert predefined element and launch the pipeline */
+  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description);
+  if (status != ML_ERROR_NONE)
+    goto failed;
+
+  pipeline = gst_parse_launch (description, &err);
+  g_free (description);
+
   if (pipeline == NULL || err) {
     if (err) {
       ml_loge ("Cannot parse and launch the given pipeline = [%s], %s",
@@ -531,6 +585,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   }
 
   g_hash_table_remove_all (p->namednodes);
+  g_hash_table_remove_all (p->resources);
 
   if (p->element) {
     /* Pause the pipeline if it's playing */
@@ -562,9 +617,10 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
     gst_object_unref (p->element);
   }
 
-  /* Destroy registered callback handles */
+  /* Destroy registered callback handles and resources */
   g_hash_table_destroy (p->namednodes);
-  p->namednodes = NULL;
+  g_hash_table_destroy (p->resources);
+  p->namednodes = p->resources = NULL;
 
   g_mutex_unlock (&p->lock);
   g_mutex_clear (&p->lock);
@@ -612,6 +668,7 @@ ml_pipeline_start (ml_pipeline_h pipe)
 {
   ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
+  int status = ML_ERROR_NONE;
 
   check_feature_state ();
 
@@ -619,13 +676,30 @@ ml_pipeline_start (ml_pipeline_h pipe)
     return ML_ERROR_INVALID_PARAMETER;
 
   g_mutex_lock (&p->lock);
+
+  /* check the resources when starting the pipeline */
+  if (g_hash_table_size (p->resources)) {
+    GHashTableIter iter;
+    gpointer key, value;
+
+    /* iterate all handle and acquire res if released */
+    g_hash_table_iter_init (&iter, p->resources);
+    while (g_hash_table_iter_next (&iter, &key, &value)) {
+      if (g_str_has_prefix (key, "tizen")) {
+        status = get_tizen_resource (pipe, key);
+        if (status != ML_ERROR_NONE)
+          goto done;
+      }
+    }
+  }
+
   scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
-  g_mutex_unlock (&p->lock);
-
   if (scret == GST_STATE_CHANGE_FAILURE)
-    return ML_ERROR_STREAMS_PIPE;
+    status = ML_ERROR_STREAMS_PIPE;
 
-  return ML_ERROR_NONE;
+done:
+  g_mutex_unlock (&p->lock);
+  return status;
 }
 
 /**

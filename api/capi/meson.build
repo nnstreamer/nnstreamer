@@ -27,6 +27,10 @@ capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipe
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
 
+if get_option('enable-tizen')
+  capi_main += join_paths('src', 'nnstreamer-capi-tizen.c')
+endif
+
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
@@ -36,6 +40,9 @@ tizen_deps = []
 if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
   tizen_deps = [
+    dependency('mm-resource-manager'),
+    dependency('mm-camcorder'),
+    dependency('capi-privacy-privilege-manager'),
     dependency('capi-base-common'),
     dependency('capi-system-info'),
     dependency('dlog')
@@ -79,6 +86,10 @@ capi_single_new_main = []
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single-new.c')
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
+
+if get_option('enable-tizen')
+  capi_single_new_main += join_paths('src', 'nnstreamer-capi-tizen.c')
+endif
 
 nnstreamer_capi_single_new_lib = shared_library ('capi-nnstreamer-single-new',
   capi_single_new_main,

@@ -28,37 +28,6 @@
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
 
-#if defined(__TIZEN__)
-  #include <system_info.h>
-#endif
-
-/**
- * @brief Internal struct to control tizen feature support (machine_learning.inference).
- * -1: Not checked yet, 0: Not supported, 1: Supported
- */
-typedef struct
-{
-  GMutex mutex;
-  int feature_status;
-} feature_info_s;
-
-static feature_info_s *feature_info = NULL;
-
-/**
- * @brief Internal function to initialize feature status.
- */
-static void
-ml_initialize_feature_status (void)
-{
-  if (feature_info == NULL) {
-    feature_info = g_new0 (feature_info_s, 1);
-    g_assert (feature_info);
-
-    g_mutex_init (&feature_info->mutex);
-    feature_info->feature_status = -1;
-  }
-}
-
 /**
  * @brief Allocates a tensors information handle with default value.
  */
@@ -854,86 +823,6 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   *available = true;
 
 done:
-  return ML_ERROR_NONE;
-}
-
-/**
- * @brief Checks whether machine_learning.inference feature is enabled or not.
- */
-int
-ml_get_feature_enabled (void)
-{
-  ml_initialize_feature_status ();
-
-#if defined(__TIZEN__)
-  {
-    int ret;
-    int feature_enabled;
-
-    g_mutex_lock (&feature_info->mutex);
-    feature_enabled = feature_info->feature_status;
-    g_mutex_unlock (&feature_info->mutex);
-
-    if (0 == feature_enabled) {
-      ml_loge ("machine_learning.inference NOT supported");
-      return ML_ERROR_NOT_SUPPORTED;
-    } else if (-1 == feature_enabled) {
-      bool ml_inf_supported = false;
-      ret = system_info_get_platform_bool(ML_INF_FEATURE_PATH, &ml_inf_supported);
-      if (0 == ret) {
-        if (false == ml_inf_supported) {
-          ml_loge ("machine_learning.inference NOT supported");
-          ml_set_feature_status (0);
-          return ML_ERROR_NOT_SUPPORTED;
-        }
-
-        ml_set_feature_status (1);
-      } else {
-        switch (ret) {
-          case SYSTEM_INFO_ERROR_INVALID_PARAMETER:
-            ml_loge ("failed to get feature value because feature key is not vaild");
-            ret = ML_ERROR_NOT_SUPPORTED;
-            break;
-
-          case SYSTEM_INFO_ERROR_IO_ERROR:
-            ml_loge ("failed to get feature value because of input/output error");
-            ret = ML_ERROR_NOT_SUPPORTED;
-            break;
-
-          case SYSTEM_INFO_ERROR_PERMISSION_DENIED:
-            ml_loge ("failed to get feature value because of permission denied");
-            ret = ML_ERROR_PERMISSION_DENIED;
-            break;
-
-          default:
-            ml_loge ("failed to get feature value because of unknown error");
-            ret = ML_ERROR_NOT_SUPPORTED;
-            break;
-        }
-        return ret;
-      }
-    }
-  }
-#endif
-  return ML_ERROR_NONE;
-}
-
-/**
- * @brief Set the feature status of machine_learning.inference.
- */
-int
-ml_set_feature_status (int status)
-{
-  ml_initialize_feature_status ();
-  g_mutex_lock (&feature_info->mutex);
-
-  /**
-   * Update feature status
-   * -1: Not checked yet, 0: Not supported, 1: Supported
-   */
-  feature_info->feature_status = status;
-
-  g_mutex_unlock (&feature_info->mutex);
   return ML_ERROR_NONE;
 }
 

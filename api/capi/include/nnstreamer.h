@@ -39,6 +39,22 @@ extern "C" {
  */
 
 /**
+ * @brief The virtual name to set the video source of camcorder in Tizen.
+ * @details If an application needs to access the camcorder to construct the pipeline, set the virtual name as a video source element.
+ *          Note that you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.
+ * @since_tizen 5.5
+ */
+#define ML_TIZEN_CAM_VIDEO_SRC "tizencamvideosrc"
+
+/**
+ * @brief The virtual name to set the audio source of camcorder in Tizen.
+ * @details If an application needs to access the camcorder to construct the pipeline, set the virtual name as an audio source element.
+ *          Note that you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.
+ * @since_tizen 5.5
+ */
+#define ML_TIZEN_CAM_AUDIO_SRC "tizencamaudiosrc"
+
+/**
  * @brief The maximum rank that NNStreamer supports with Tizen APIs.
  * @since_tizen 5.5
  */
