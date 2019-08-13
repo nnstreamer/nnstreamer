@@ -22,7 +22,7 @@ export NNSTREAMER_FILTERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_decoder
 export PYTHONIOENCODING=utf-8
 
-ifneq ($(filter $(DEB_HOST_ARCH),amd64 arm64),)
+ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
 enable_tf=true
 else
 enable_tf=false
