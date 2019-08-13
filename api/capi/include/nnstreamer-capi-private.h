@@ -30,16 +30,28 @@
 #include "nnstreamer.h"
 #include "tensor_typedef.h"
 
-#define TAG_NAME "nnstreamer-capi"
-
-#define ML_INF_FEATURE_PATH "tizen.org/feature/machine_learning.inference"
-
+/* Tizen ML feature */
+#if defined (__TIZEN__)
 #define check_feature_state() \
   do { \
-    int feature_ret = ml_get_feature_enabled(); \
+    int feature_ret = ml_tizen_get_feature_enabled (); \
     if (ML_ERROR_NONE != feature_ret) \
       return feature_ret; \
   } while (0);
+
+#define set_feature_state(...) ml_tizen_set_feature_state(__VA_ARGS__)
+#define convert_tizen_element(...) ml_tizen_convert_element(__VA_ARGS__)
+#define get_tizen_resource(...) ml_tizen_get_resource(__VA_ARGS__)
+#define release_tizen_resource(...) ml_tizen_release_resource(__VA_ARGS__)
+#else
+#define check_feature_state()
+#define set_feature_state(...)
+#define convert_tizen_element(...) ML_ERROR_NONE
+#define get_tizen_resource(...) ML_ERROR_NONE
+#define release_tizen_resource(...)
+#endif
+
+#define TAG_NAME "nnstreamer-capi"
 
 #if defined(__TIZEN__)
   #include <dlog.h>
@@ -166,6 +178,14 @@ typedef struct {
 } pipeline_state_cb_s;
 
 /**
+ * @brief Internal data structure for the resource.
+ */
+typedef struct {
+  gchar *type; /**< resource type */
+  gpointer handle; /**< pointer to resource handle */
+} pipeline_resource_s;
+
+/**
  * @brief Internal private representation of pipeline handle.
  * @details This should not be exposed to applications
  */
@@ -175,6 +195,7 @@ struct _ml_pipeline {
   gulong signal_msg;      /**< The message signal (connected to bus) */
   GMutex lock;            /**< Lock for pipeline operations */
   GHashTable *namednodes; /**< hash table of "element"s. */
+  GHashTable *resources;  /**< hash table of resources to construct the pipeline */
   pipeline_state_cb_s state_cb; /**< Callback to notify the change of pipeline state */
 };
 
@@ -258,20 +279,37 @@ void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_in
 GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
 
 /**
+ * @brief Checks the availability of the plugin.
+ */
+int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
+
+#if defined (__TIZEN__)
+/**
  * @brief Checks whether machine_learning.inference feature is enabled or not.
  */
-int ml_get_feature_enabled (void);
+int ml_tizen_get_feature_enabled (void);
 
 /**
  * @brief Set the feature status of machine_learning.inference.
  * This is only used for Unit test.
  */
-int ml_set_feature_status (int status);
+int ml_tizen_set_feature_state (int state);
 
 /**
- * @brief Checks the availability of the plugin.
+ * @brief Releases the resource handle of Tizen.
  */
-int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
+void ml_tizen_release_resource (gpointer handle, const gchar * res_type);
+
+/**
+ * @brief Gets the resource handle of Tizen.
+ */
+int ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type);
+
+/**
+ * @brief Converts predefined element for Tizen.
+ */
+int ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result);
+#endif
 
 #ifdef __cplusplus
 }
