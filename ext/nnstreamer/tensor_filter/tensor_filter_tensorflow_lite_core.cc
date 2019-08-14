@@ -41,10 +41,15 @@
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char * _model_path)
+TFLiteCore::TFLiteCore (const char * _model_path, nnapi_hw hw)
 {
   model_path = _model_path;
-  use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
+  if(hw == NNAPI_UNKNOWN){
+    use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
+  } else {
+    use_nnapi = TRUE;
+    accel = hw;
+  }
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -381,9 +386,9 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
  * @return	TFLiteCore class
  */
 void *
-tflite_core_new (const char * _model_path)
+tflite_core_new (const char * _model_path, nnapi_hw hw)
 {
-  return new TFLiteCore (_model_path);
+  return new TFLiteCore (_model_path, hw);
 }
 
 /**
