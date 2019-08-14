@@ -18,7 +18,7 @@ libpng_dep = dependency('libpng', required: false)
 if libpng_dep.found()
   b2p = executable('bmp2png',
     'bmp2png.c',
-    dependencies: [libpng_dep],
+    dependencies: [libpng_dep, glib_dep],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
