@@ -30,6 +30,17 @@
 #include <string.h>
 
 #include "tensor_filter_tensorflow_lite_core.h"
+#include "tensor_common.h"
+
+/**
+ * @brief nnapi hw type string
+ */
+static const char *nnapi_hw_string[] = {
+  [NNAPI_CPU] = "cpu",
+  [NNAPI_GPU] = "gpu",
+  [NNAPI_NPU] = "npu",
+  [NNAPI_UNKNOWN] = "unknown"
+};
 
 void init_filter_tflite (void) __attribute__ ((constructor));
 void fini_filter_tflite (void) __attribute__ ((destructor));
@@ -58,6 +69,17 @@ tflite_close (const GstTensorFilterProperties * prop, void **private_data)
 }
 
 /**
+ * @brief return nnapi_hw type
+ */
+static nnapi_hw
+get_nnapi_hw_type (const gchar * str)
+{
+  gint index = 0;
+  index = find_key_strv (nnapi_hw_string, str);
+  return (index < 0) ? NNAPI_UNKNOWN : index;
+}
+
+/**
  * @brief Load tensorflow lite modelfile
  * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
@@ -70,6 +92,18 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     void **private_data)
 {
   tflite_data *tf;
+  nnapi_hw hw = NNAPI_UNKNOWN;
+  if (prop->nnapi) {
+    gchar **strv = NULL;
+    strv = g_strsplit (prop->nnapi, ":", 2);
+    if (!g_strcmp0 (strv[0], "true") && g_strv_length (strv) >= 2) {
+      hw = get_nnapi_hw_type (strv[1]);
+    } else if (!g_strcmp0 (strv[0], "true") && g_strv_length (strv) == 1) {
+      /** defalut hw for nnapi is CPU */
+      hw = NNAPI_CPU;
+    }
+  }
+
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     tf = *private_data;
@@ -82,7 +116,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
   }
   tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
   *private_data = tf;
-  tf->tflite_private_data = tflite_core_new (prop->model_file);
+  tf->tflite_private_data = tflite_core_new (prop->model_file, hw);
   if (tf->tflite_private_data) {
     if (tflite_core_init (tf->tflite_private_data)) {
       g_printerr ("failed to initialize the object: Tensorflow-lite");

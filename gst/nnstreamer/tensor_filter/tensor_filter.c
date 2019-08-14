@@ -109,6 +109,8 @@
 
 #define g_free_const(x) g_free((void*)(long)(x))
 
+#define REGEX_NNAPI_OPTION "(^(true|false)$|^(true|false)([:]?(cpu|gpu|npu)))"
+
 /**
  * @brief Validate filter sub-plugin's data.
  */
@@ -186,7 +188,8 @@ enum
   PROP_OUTPUTTYPE,
   PROP_OUTPUTNAME,
   PROP_CUSTOM,
-  PROP_SUBPLUGINS
+  PROP_SUBPLUGINS,
+  PROP_NNAPI
 };
 
 /**
@@ -342,7 +345,9 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
       g_param_spec_string ("sub-plugins", "Sub-plugins",
           "Registrable sub-plugins list", "",
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
-
+  g_object_class_install_property (gobject_class, PROP_NNAPI,
+      g_param_spec_string ("nnapi", "NNAPI",
+          "Enable Neural Newtorks API ?", "", G_PARAM_READWRITE));
   gst_element_class_set_details_simple (gstelement_class,
       "Tensor_Filter",
       "Converter/Filter/Tensor",
@@ -394,6 +399,7 @@ gst_tensor_filter_init (GstTensorFilter * self)
   prop->input_configured = FALSE;
   prop->output_configured = FALSE;
   prop->model_file = NULL;
+  prop->nnapi = NULL;
   prop->custom_properties = NULL;
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_info_init (&prop->output_meta);
@@ -749,6 +755,17 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
       prop->custom_properties = g_value_dup_string (value);
       silent_debug ("Custom Option = %s\n", prop->custom_properties);
       break;
+    case PROP_NNAPI:
+      prop->nnapi = g_value_dup_string (value);
+      if (!g_regex_match_simple (REGEX_NNAPI_OPTION, prop->nnapi, 0, 0)) {
+        gchar *name = gst_object_get_name ((GstObject *) object);
+        g_critical
+            ("%s: nnapi: \'%s\' is not valid string: it should be in the form of BOOL:ACCELLERATOR or BOOL with a regex, "
+            REGEX_NNAPI_OPTION "\n", name, prop->nnapi);
+        g_free (name);
+        break;
+      }
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -887,6 +904,9 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
       g_value_take_string (value, g_string_free (subplugins, FALSE));
       break;
     }
+    case PROP_NNAPI:
+      g_value_set_string (value, prop->nnapi);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;

@@ -31,6 +31,18 @@ extern "C" {
 #endif
 
 /**
+ * @brief nnapi hw properties.
+ */
+typedef enum
+{
+  NNAPI_CPU = 0,
+  NNAPI_GPU = 1,
+  NNAPI_NPU = 2,
+
+  NNAPI_UNKNOWN
+} nnapi_hw;
+
+/**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
@@ -50,6 +62,8 @@ typedef struct _GstTensorFilterProperties
   GstTensorsInfo output_meta; /**< configured output tensor info */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
+  const char *nnapi;
+
 } GstTensorFilterProperties;
 
 /**
