@@ -427,7 +427,7 @@ ml_single_invoke (ml_single_h single,
 #if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
   /* gst_app_sink_try_pull_sample() is available at gstreamer-1.10 */
   sample =
-      gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND * 3);
+      gst_app_sink_try_pull_sample (GST_APP_SINK (single_h->sink), GST_SECOND * 5);
 #else
   sample = gst_app_sink_pull_sample (GST_APP_SINK (single_h->sink));
 #endif
