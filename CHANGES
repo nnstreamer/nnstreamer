@@ -1,3 +1,14 @@
+0.2.0 -> 0.3.0:
+	- Tizen Public C-API Single/Pipeline RC1 Fixed for 5.5 M2
+	- Tizen Public C-API RC2 features included (pipeline whitelist, aliasing)
+	- Tizen Public C#-API Single/Pipeline RC1.
+	- Android Java-API and build infrastructure. Ready for JCenter release.
+	- Tensorflow-lite / NNAPI tested & fixed
+	- Tensorflow 1.13 compatibility fix (1.09 kept supported)
+	- Caffe2/PyTorch support
+	- Movidius support
+	- This is effectively 1.0-RC1
+
 0.1.2 -> 0.2.0:
 	- A lot of security issues and bugs fixed (for Tizen 5.5 M1 release)
 	- Tizen Public C-API Pipeline for 5.5 M1
