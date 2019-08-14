@@ -200,6 +200,7 @@ main (int argc, char *argv[])
   size_t size;
   char byte;
   char header[26];              /** gen24bBMP.py gives you 24B headered bmp file */
+  size_t len;
   int ret;
   char *pngfilename;
   int strn;
@@ -287,8 +288,9 @@ main (int argc, char *argv[])
   }
   fclose (bmpF);
 
-  pngfilename = calloc (strlen (argv[1]) + 1, sizeof (char));
-  strncpy (pngfilename, argv[1], strlen (argv[1]) + 1);
+  len = strlen (argv[1]) + 1;
+  pngfilename = calloc (len, sizeof (char));
+  strncpy (pngfilename, argv[1], len);
 
   /** Assume the last 4 characters are ".bmp" */
   strncpy (pngfilename + strlen (argv[1]) - 4, ".png", 5);
