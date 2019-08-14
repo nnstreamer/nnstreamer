@@ -1,3 +1,9 @@
+nnstreamer (0.3.0.0) unstable xenial bionic; urgency=medium
+
+  * 0.3.0 Release. 0.2.1 becomes 0.3.0 as a lot of features are included for commercialization.
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 14 Aug 2019 13:39:00 +0900
+
 nnstreamer (0.2.1.0) unstable xenial bionic; urgency=medium
 
   * 0.2.1 RC Development Started
