@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <glib.h>
 
 typedef enum
 {
@@ -200,7 +201,6 @@ main (int argc, char *argv[])
   size_t size;
   char byte;
   char header[26];              /** gen24bBMP.py gives you 24B headered bmp file */
-  size_t len;
   int ret;
   char *pngfilename;
   int strn;
@@ -288,9 +288,7 @@ main (int argc, char *argv[])
   }
   fclose (bmpF);
 
-  len = strlen (argv[1]) + 1;
-  pngfilename = calloc (len, sizeof (char));
-  strncpy (pngfilename, argv[1], len);
+  pngfilename = g_strdup (argv[1]);
 
   /** Assume the last 4 characters are ".bmp" */
   strncpy (pngfilename + strlen (argv[1]) - 4, ".png", 5);
