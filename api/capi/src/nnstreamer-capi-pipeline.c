@@ -288,9 +288,9 @@ cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
             gst_element_state_get_name (old_state),
             gst_element_state_get_name (new_state));
 
-        if (pipe_h->cb) {
+        if (pipe_h->state_cb.cb) {
           ml_pipeline_state_e ml_state = (ml_pipeline_state_e) new_state;
-          pipe_h->cb (ml_state, pipe_h->pdata);
+          pipe_h->state_cb.cb (ml_state, pipe_h->state_cb.user_data);
         }
       }
       break;
@@ -348,7 +348,7 @@ ml_pipeline_construct (const char *pipeline_description,
 
   check_feature_state ();
 
-  if (pipe == NULL)
+  if (!pipe || !pipeline_description)
     return ML_ERROR_INVALID_PARAMETER;
 
   /* init null */
@@ -357,32 +357,46 @@ ml_pipeline_construct (const char *pipeline_description,
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
       ml_loge ("GStreamer has the following error: %s", err->message);
-      g_error_free (err);
+      g_clear_error (&err);
     } else {
       ml_loge ("Cannot initialize GStreamer. Unknown reason.");
     }
     return ML_ERROR_STREAMS_PIPE;
   }
 
+  /* prepare pipeline handle */
+  pipe_h = g_new0 (ml_pipeline, 1);
+  if (!pipe_h) {
+    ml_loge ("Failed to allocate handle for pipeline.");
+    return ML_ERROR_STREAMS_PIPE;
+  }
+
+  g_mutex_init (&pipe_h->lock);
+
+  pipe_h->namednodes =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
+
   pipeline = gst_parse_launch (pipeline_description, &err);
   if (pipeline == NULL || err) {
     if (err) {
       ml_loge ("Cannot parse and launch the given pipeline = [%s], %s",
           pipeline_description, err->message);
-      g_error_free (err);
+      g_clear_error (&err);
     } else {
       ml_loge
           ("Cannot parse and launch the given pipeline = [%s], unknown reason",
           pipeline_description);
     }
-    return ML_ERROR_STREAMS_PIPE;
+
+    if (pipeline)
+      gst_object_unref (pipeline);
+
+    status = ML_ERROR_STREAMS_PIPE;
+    goto failed;
   }
 
-  pipe_h = g_new0 (ml_pipeline, 1);
-  *pipe = pipe_h;
   g_assert (GST_IS_PIPELINE (pipeline));
   pipe_h->element = pipeline;
-  g_mutex_init (&pipe_h->lock);
 
   /* bus and message callback */
   pipe_h->bus = gst_element_get_bus (pipeline);
@@ -392,13 +406,12 @@ ml_pipeline_construct (const char *pipeline_description,
   pipe_h->signal_msg = g_signal_connect (pipe_h->bus, "sync-message",
       G_CALLBACK (cb_bus_sync_message), pipe_h);
 
-  pipe_h->cb = cb;
-  pipe_h->pdata = user_data;
+  /* state change callback */
+  pipe_h->state_cb.cb = cb;
+  pipe_h->state_cb.user_data = user_data;
 
+  /* iterate elements and prepare element handle */
   g_mutex_lock (&pipe_h->lock);
-
-  pipe_h->namednodes =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
 
   it = gst_bin_iterate_elements (GST_BIN (pipeline));
   if (it != NULL) {
@@ -479,13 +492,15 @@ ml_pipeline_construct (const char *pipeline_description,
 
   /* set pipeline state to PAUSED */
   if (status == ML_ERROR_NONE) {
-    status = ml_pipeline_stop (*pipe);
+    status = ml_pipeline_stop ((ml_pipeline_h) pipe_h);
   }
 
+failed:
   if (status != ML_ERROR_NONE) {
     /* failed to construct the pipeline */
-    ml_pipeline_destroy (*pipe);
-    *pipe = NULL;
+    ml_pipeline_destroy ((ml_pipeline_h) pipe_h);
+  } else {
+    *pipe = pipe_h;
   }
 
   return status;
@@ -509,40 +524,47 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   g_mutex_lock (&p->lock);
 
   /* Before changing the state, remove all callbacks. */
-  p->cb = NULL;
-  g_signal_handler_disconnect (p->bus, p->signal_msg);
-  gst_object_unref (p->bus);
+  p->state_cb.cb = NULL;
+  if (p->bus) {
+    g_signal_handler_disconnect (p->bus, p->signal_msg);
+    gst_object_unref (p->bus);
+  }
 
   g_hash_table_remove_all (p->namednodes);
 
-  /* if it's PLAYING, PAUSE it. */
-  scret = gst_element_get_state (p->element, &state, NULL, 10 * GST_MSECOND);     /* 10ms */
-  if (scret != GST_STATE_CHANGE_FAILURE && state == GST_STATE_PLAYING) {
-    /* Pause the pipeline if it's Playing */
-    scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
-    if (scret == GST_STATE_CHANGE_FAILURE) {
+  if (p->element) {
+    /* Pause the pipeline if it's playing */
+    scret = gst_element_get_state (p->element, &state, NULL, 10 * GST_MSECOND); /* 10ms */
+    if (scret != GST_STATE_CHANGE_FAILURE && state == GST_STATE_PLAYING) {
+      scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
+      if (scret == GST_STATE_CHANGE_FAILURE) {
+        g_mutex_unlock (&p->lock);
+        return ML_ERROR_STREAMS_PIPE;
+      }
+    }
+
+    /** @todo Ensure all callbacks are gone. (kill'em all!) THIS IS CRITICAL! */
+    g_mutex_unlock (&p->lock);
+    /**
+     * Do 50ms sleep until we have it implemented.
+     * Let them complete. And hope they don't call start().
+     */
+    g_usleep (50000);
+    g_mutex_lock (&p->lock);
+
+    /* Stop (NULL State) the pipeline */
+    scret = gst_element_set_state (p->element, GST_STATE_NULL);
+    if (scret != GST_STATE_CHANGE_SUCCESS) {
       g_mutex_unlock (&p->lock);
       return ML_ERROR_STREAMS_PIPE;
     }
+
+    gst_object_unref (p->element);
   }
 
-  /** @todo Ensure all callbacks are gone. (kill'em all!) THIS IS CRITICAL! */
-  g_mutex_unlock (&p->lock);
-  g_usleep (50000);             /* do 50ms sleep until we have it implemented. Let them complete. And hope they don't call start(). */
-  g_mutex_lock (&p->lock);
-
-  /** Destroy registered callback handles */
+  /* Destroy registered callback handles */
   g_hash_table_destroy (p->namednodes);
   p->namednodes = NULL;
-
-  /** Stop (NULL State) the pipeline */
-  scret = gst_element_set_state (p->element, GST_STATE_NULL);
-  if (scret != GST_STATE_CHANGE_SUCCESS) {
-    g_mutex_unlock (&p->lock);
-    return ML_ERROR_STREAMS_PIPE;
-  }
-
-  gst_object_unref (p->element);
 
   g_mutex_unlock (&p->lock);
   g_mutex_clear (&p->lock);
@@ -569,7 +591,7 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   *state = ML_PIPELINE_STATE_UNKNOWN;
 
   g_mutex_lock (&p->lock);
-  scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND);      /* Do it within 1ms! */
+  scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND); /* Do it within 1ms! */
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
