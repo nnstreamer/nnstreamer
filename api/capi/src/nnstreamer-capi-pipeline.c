@@ -757,34 +757,6 @@ ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
 }
 
 /**
- * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h,
- *        "Free"
- */
-static void
-ml_buf_policy_cb_free (gpointer data)
-{
-  g_free (data);
-}
-
-/**
- * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h.
- *        "Do Nothing"
- */
-static void
-ml_buf_policy_cb_nop (gpointer data)
-{
-  /* DO NOTHING! */
-}
-
-/**
- * @brief Implementation of policies decalred by ml_pipeline_buf_policy_e in nnstreamer.h.
- */
-static const GDestroyNotify ml_buf_policy[ML_PIPELINE_BUF_POLICY_MAX] = {
-  [ML_PIPELINE_BUF_POLICY_AUTO_FREE] = ml_buf_policy_cb_free,
-  [ML_PIPELINE_BUF_POLICY_DO_NOT_FREE] = ml_buf_policy_cb_nop,
-};
-
-/**
  * @brief Parse tensors info of src element.
  */
 static int
@@ -920,7 +892,6 @@ int
 ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     ml_pipeline_buf_policy_e policy)
 {
-  /** @todo NYI */
   GstBuffer *buffer;
   GstMemory *mem;
   GstFlowReturn gret;
@@ -977,9 +948,10 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   for (i = 0; i < _data->num_tensors; i++) {
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
         _data->tensors[i].tensor, _data->tensors[i].size, 0,
-        _data->tensors[i].size, _data->tensors[i].tensor, ml_buf_policy[policy]);
-    gst_buffer_append_memory (buffer, mem);
+        _data->tensors[i].size, _data->tensors[i].tensor,
+        (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) ? g_free : NULL);
 
+    gst_buffer_append_memory (buffer, mem);
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
   }
 
