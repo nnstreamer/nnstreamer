@@ -78,7 +78,7 @@ ml_single_open (ml_single_h * single, const char *model,
   if (FALSE == gst_init_check (NULL, NULL, &err)) {
     if (err) {
       ml_loge ("GStreamer has the following error: %s", err->message);
-      g_error_free (err);
+      g_clear_error (&err);
     } else {
       ml_loge ("Cannot initialize GStreamer. Unknown reason.");
     }

@@ -158,6 +158,14 @@ typedef struct _ml_pipeline_element {
 } ml_pipeline_element;
 
 /**
+ * @brief Internal data structure for the pipeline state callback.
+ */
+typedef struct {
+  ml_pipeline_state_cb cb; /**< Callback to notify the change of pipeline state */
+  void *user_data; /**< The user data passed when calling the state change callback */
+} pipeline_state_cb_s;
+
+/**
  * @brief Internal private representation of pipeline handle.
  * @details This should not be exposed to applications
  */
@@ -165,10 +173,9 @@ struct _ml_pipeline {
   GstElement *element;    /**< The pipeline itself (GstPipeline) */
   GstBus *bus;            /**< The bus of the pipeline */
   gulong signal_msg;      /**< The message signal (connected to bus) */
-  ml_pipeline_state_cb cb;
-  void *pdata;
   GMutex lock;            /**< Lock for pipeline operations */
   GHashTable *namednodes; /**< hash table of "element"s. */
+  pipeline_state_cb_s state_cb; /**< Callback to notify the change of pipeline state */
 };
 
 /**
