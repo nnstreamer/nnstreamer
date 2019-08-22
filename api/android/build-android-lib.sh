@@ -10,6 +10,9 @@
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
 
+# Set target ABI (default 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
+nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
+
 # Function to check if a package is installed
 function check_package() {
     which "$1" 2>/dev/null || {
@@ -20,6 +23,7 @@ function check_package() {
 
 # Check required packages
 check_package svn
+check_package sed
 
 # Android SDK (Set your own path)
 [ -z "$ANDROID_HOME" ] && echo "Need to set ANDROID_HOME." && exit 1
@@ -60,6 +64,8 @@ tar xJf ./ext-files/tensorflow-lite_arm64.tar.xz -C ./api/jni
 tar xJf ./ext-files/tensorflow-lite_armv7.tar.xz -C ./api/jni
 tar xJf ./ext-files/tensorflow-lite_x86.tar.xz -C ./api/jni
 tar xJf ./ext-files/tensorflow-lite_x86_64.tar.xz -C ./api/jni
+
+sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
 
 echo "Starting gradle build for Android library."
 ./gradlew api:assembleRelease
