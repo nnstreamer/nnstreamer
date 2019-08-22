@@ -13,6 +13,9 @@
 # Set target ABI (default 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
 nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
 
+# Set tensorflow-lite version (available: 1.9 and 1.13)
+nnstreamer_tf_lite_ver=1.13
+
 # Function to check if a package is installed
 function check_package() {
     which "$1" 2>/dev/null || {
@@ -59,11 +62,7 @@ svn --force export https://github.com/nnsuite/nnstreamer-android-resource/trunk/
 
 pushd ./build_android_lib
 
-tar xJf ./ext-files/ext-files.tar.xz -C ./api
-tar xJf ./ext-files/tensorflow-lite_arm64.tar.xz -C ./api/jni
-tar xJf ./ext-files/tensorflow-lite_armv7.tar.xz -C ./api/jni
-tar xJf ./ext-files/tensorflow-lite_x86.tar.xz -C ./api/jni
-tar xJf ./ext-files/tensorflow-lite_x86_64.tar.xz -C ./api/jni
+tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/jni
 
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
 
