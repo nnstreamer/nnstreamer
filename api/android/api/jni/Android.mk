@@ -19,7 +19,6 @@ endif
 #------------------------------------------------------
 # external libs
 #------------------------------------------------------
-#include $(LOCAL_PATH)/Android-tensorflow-lite.mk
 include $(LOCAL_PATH)/Android-tensorflow-lite-prebuilt.mk
 
 #------------------------------------------------------
