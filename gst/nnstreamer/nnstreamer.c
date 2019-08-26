@@ -57,7 +57,9 @@
 #include "tensor_repo/tensor_reposink.h"
 #include "tensor_repo/tensor_reposrc.h"
 #include "tensor_sink/tensor_sink.h"
+#if defined(__gnu_linux__) && !defined(__ANDROID__)
 #include "tensor_source/tensor_src_iio.h"
+#endif /* __gnu_linux__ && !__ANDROID__ */
 #include "tensor_split/gsttensorsplit.h"
 #include "tensor_transform/tensor_transform.h"
 
@@ -85,9 +87,11 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, reposink, REPOSINK);
   NNSTREAMER_INIT (plugin, reposrc, REPOSRC);
   NNSTREAMER_INIT (plugin, sink, SINK);
-  NNSTREAMER_INIT (plugin, src_iio, SRC_IIO);
   NNSTREAMER_INIT (plugin, split, SPLIT);
   NNSTREAMER_INIT (plugin, transform, TRANSFORM);
+#if defined(__gnu_linux__) && !defined(__ANDROID__)
+  NNSTREAMER_INIT (plugin, src_iio, SRC_IIO);
+#endif /* __gnu_linux__ && !__ANDROID__ */
   return TRUE;
 }
 
