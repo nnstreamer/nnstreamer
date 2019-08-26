@@ -84,14 +84,16 @@ if gtest_dep.found()
   test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
 
   # Run unittest_src_iio
-  unittest_src_iio = executable('unittest_src_iio',
-    join_paths('nnstreamer_source', 'unittest_src_iio.cpp'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
+  if build_platform != 'macos'
+    unittest_src_iio = executable('unittest_src_iio',
+      join_paths('nnstreamer_source', 'unittest_src_iio.cpp'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
 
-  test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
+    test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
+  endif
 endif
 
 # Tizen C-API

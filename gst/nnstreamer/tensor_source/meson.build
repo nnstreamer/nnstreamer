@@ -3,5 +3,7 @@ tensor_src_sources = [
 ]
 
 foreach s : tensor_src_sources
-  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
+  if build_platform != 'macos'
+    nnstreamer_sources += join_paths(meson.current_source_dir(), s)
+  endif
 endforeach
