@@ -17,6 +17,21 @@ add_project_arguments('-DVERSION="' + meson.project_version() + '"', language: [
 
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
+build_platform = ''
+
+if get_option('enable-tizen')
+  # Pass __TIZEN__ to the compiler
+  add_project_arguments('-D__TIZEN__=1', language: ['c', 'cpp'])
+  build_platform = 'tizen'
+elif not meson.is_cross_build()
+  if cc.get_id() == 'clang' and cxx.get_id() == 'clang'
+    if build_machine.system() == 'darwin'
+      # Pass __MACOS__ to the compiler
+      add_project_arguments('-D__MACOS__=1', language: ['c', 'cpp'])
+      build_platform = 'macos'
+    endif
+  endif
+endif
 
 warning_flags = [
   '-Wredundant-decls',
