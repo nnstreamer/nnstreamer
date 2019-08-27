@@ -43,6 +43,16 @@ G_BEGIN_DECLS
 #define NNSTREAMER_SYS_ROOT_PATH_PREFIX "/"
 #endif /* G_OS_WIN32 */
 
+/**
+ * Hard-coded system-dependent file extension string of shared
+ * (dynamic loadable) object
+ */
+#ifdef __MACOS__
+#define NNSTREAMER_SO_FILE_EXTENSION	".dylib"
+#else
+#define NNSTREAMER_SO_FILE_EXTENSION	".so"
+#endif
+
 /* Env-var names */
 #define NNSTREAMER_ENVVAR_CONF_FILE     "NNSTREAMER_CONF"
 #define NNSTREAMER_ENVVAR_FILTERS       "NNSTREAMER_FILTERS"
