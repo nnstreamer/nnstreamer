@@ -125,14 +125,14 @@ _validate_file (nnsconf_type_path type, const gchar * fullpath)
 }
 
 /**
- * @brief Private function to fill in ".so list" with fullpath-filenames in a directory.
+ * @brief Private function to fill in ".so/.dylib list" with fullpath-filenames in a directory.
  * @param[in] type conf type to scan.
  * @param[in] dir Directory to be searched.
  * @param[in/out] listF The fullpath list to be updated.
  * @param[in/out] listB The basename list to be updated.
  * @param[in/out] counter increased by the number of appended elements.
  * @return True if successfully updated.
- * @todo This assumes .so for all sub plugins. Support Windows/Mac/iOS!
+ * @todo This assumes .so/.dylib for all sub plugins. Support Windows!
  */
 static gboolean
 _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
@@ -146,9 +146,9 @@ _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
     return FALSE;
 
   while (NULL != (name = g_dir_read_name (gdir))) {
-    /* check file prefix for given type, handle .so only. */
+    /* check file prefix for given type, currently handle .so and .dylib. */
     if (g_str_has_prefix (name, subplugin_prefixes[type]) &&
-        g_str_has_suffix (name, ".so")) {
+        g_str_has_suffix (name, NNSTREAMER_SO_FILE_EXTENSION)) {
       fullpath = g_build_filename (dir, name, NULL);
 
       if (_validate_file (type, fullpath)) {
@@ -381,7 +381,8 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 
   nnsconf_loadconf (FALSE);
 
-  filename = g_strconcat (subplugin_prefixes[type], subpluginname, ".so", NULL);
+  filename = g_strconcat (subplugin_prefixes[type], subpluginname,
+      NNSTREAMER_SO_FILE_EXTENSION, NULL);
   ret = nnsconf_get_fullpath_from_file (filename, type);
 
   g_free (filename);
