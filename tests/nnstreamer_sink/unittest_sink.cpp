@@ -24,6 +24,12 @@
 #define DBG FALSE
 #endif
 
+#ifdef __MACOS__
+#define SO_EXT  "dylib"
+#else
+#define SO_EXT  "so"
+#endif /* __MACOS__ */
+
 /**
  * @brief Macro for debug message.
  */
@@ -722,26 +728,26 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.so ! tensor_sink name=test_sink",
-	   option.num_buffers, custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough");
+          "tensor_converter ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s ! tensor_sink name=test_sink",
+	        option.num_buffers, custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough", SO_EXT);
       break;
     case TEST_TYPE_CUSTOM_TENSORS:
       /** other/tensors with tensormux, passthrough custom filter */
       str_pipeline =
           g_strdup_printf
-          ("tensor_mux name=mux ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.so ! tensor_sink name=test_sink "
+          ("tensor_mux name=mux ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s ! tensor_sink name=test_sink "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
-	   custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough" , option.num_buffers, option.num_buffers, option.num_buffers);
+	        custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough" , SO_EXT, option.num_buffers, option.num_buffers, option.num_buffers);
       break;
     case TEST_TYPE_CUSTOM_BUF_DROP:
       /* audio stream to test buffer-drop using custom filter */
       str_pipeline =
           g_strdup_printf
           ("audiotestsrc num-buffers=%d samplesperbuffer=200 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! "
-          "tensor_converter frames-per-tensor=200 ! tensor_filter framework=custom model=%s/libnnscustom_drop_buffer.so ! tensor_sink name=test_sink",
-	   option.num_buffers, custom_dir? custom_dir :"./tests");
+          "tensor_converter frames-per-tensor=200 ! tensor_filter framework=custom model=%s/libnnscustom_drop_buffer.%s ! tensor_sink name=test_sink",
+	        option.num_buffers, custom_dir? custom_dir :"./tests", SO_EXT);
       break;
     case TEST_TYPE_CUSTOM_PASSTHROUGH:
       /* video 160x120 RGB, passthrough custom filter without so file */
@@ -821,65 +827,65 @@ _setup_pipeline (TestOption & option)
       /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests",  option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	        option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MUX_PARALLEL_2:
       /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests", option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_mux sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	        option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MUX_PARALLEL_3:
       /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests",  option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_mux sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	        option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests",  SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MUX_PARALLEL_4:
       /** 4x4 tensor stream, different FPS, tensor_mux them @ basepad*/
       /** @todo Because of the bug mentioned in #739, this is not registered as gtest case, yet */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=1:1000000000 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests",  option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_mux sync_mode=basepad sync_option=1:1000000000 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MERGE_PARALLEL_1:
       /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests", option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_merge mode=linear option=3 sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	        option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MERGE_PARALLEL_2:
       /** 4x4 tensor stream, different FPS, tensor_merge them @ basepad*/
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests", option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MERGE_PARALLEL_3:
       /** 4x4 tensor stream, different FPS, tensor_merge them @ basepad*/
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_0 "
-          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.so ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
-	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", option.num_buffers * 25, custom_dir? custom_dir : "./tests", custom_dir? custom_dir : "./tests", option.tmpfile);
+          ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
+          "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
+          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+	   option.num_buffers * 10, custom_dir? custom_dir : "./tests", SO_EXT, option.num_buffers * 25, custom_dir? custom_dir : "./tests", SO_EXT, custom_dir? custom_dir : "./tests", SO_EXT, option.tmpfile);
       break;
     /** @todo Add tensor_mux policy = more policies! */
     case TEST_TYPE_DECODER_PROPERTY:
@@ -2936,6 +2942,7 @@ TEST (tensor_stream_test, filter_properties_1)
   GstElement *filter;
   gboolean silent, res_silent;
   gchar *str = NULL;
+  gchar *model = NULL;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -2952,8 +2959,10 @@ TEST (tensor_stream_test, filter_properties_1)
 
   /* model */
   g_object_get (filter, "model", &str, NULL);
-  EXPECT_TRUE (g_str_has_suffix (str, "libnnstreamer_customfilter_passthrough_variable.so"));
+  model = g_strdup_printf ("libnnstreamer_customfilter_passthrough_variable.%s", SO_EXT);
+  EXPECT_TRUE (g_str_has_suffix (str, model));
   g_free (str);
+  g_free (model);
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
@@ -3031,6 +3040,7 @@ TEST (tensor_stream_test, filter_properties_2)
   GstElement *filter;
   gboolean silent, res_silent;
   gchar *str = NULL;
+  gchar *model = NULL;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -3047,8 +3057,10 @@ TEST (tensor_stream_test, filter_properties_2)
 
   /* model */
   g_object_get (filter, "model", &str, NULL);
-  EXPECT_TRUE (g_str_has_suffix (str, "libnnstreamer_customfilter_passthrough_variable.so"));
+  model = g_strdup_printf ("libnnstreamer_customfilter_passthrough_variable.%s", SO_EXT);
+  EXPECT_TRUE (g_str_has_suffix (str, model));
   g_free (str);
+  g_free (model);
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
