@@ -610,12 +610,18 @@ TEST (conf_custom, env_str_01)
 
   fclose (fp);
 
-  gchar *f1 = create_null_file (dirf, "libnnstreamer_filter_fantastic.so");
-  gchar *f2 = create_null_file (dirf, "libnnstreamer_filter_neuralnetwork.so");
-  gchar *f3 = create_null_file (dird, "libnnstreamer_decoder_omg.so");
-  gchar *f4 = create_null_file (dird, "libnnstreamer_decoder_wthisgoingon.so");
-  gchar *f5 = create_null_file (dircf, "custom_mechanism.so");
-  gchar *f6 = create_null_file (dircf, "fastfaster.so");
+  gchar *f1 = create_null_file (dirf, "libnnstreamer_filter_fantastic"
+      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f2 = create_null_file (dirf, "libnnstreamer_filter_neuralnetwork"
+      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f3 = create_null_file (dird, "libnnstreamer_decoder_omg"
+      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f4 = create_null_file (dird, "libnnstreamer_decoder_wthisgoingon"
+      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f5 = create_null_file (dircf, "custom_mechanism"
+      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f6 = create_null_file (dircf, "fastfaster"
+      NNSTREAMER_SO_FILE_EXTENSION);
 
   EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_CONF", filename, TRUE));
   EXPECT_TRUE (nnsconf_loadconf (TRUE) == TRUE);
