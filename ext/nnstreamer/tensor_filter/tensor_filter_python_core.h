@@ -29,7 +29,6 @@
 #include <numpy/arrayobject.h>
 
 #include <glib.h>
-#include <gst/gst.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <pthread.h>
