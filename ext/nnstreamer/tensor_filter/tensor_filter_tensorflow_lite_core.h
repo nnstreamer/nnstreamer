@@ -24,7 +24,6 @@
 #define TENSOR_FILTER_TENSORFLOW_LITE_CORE_H
 
 #include <glib.h>
-#include <gst/gst.h>
 
 #include "nnstreamer_plugin_api_filter.h"
 

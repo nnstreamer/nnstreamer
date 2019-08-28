@@ -25,7 +25,6 @@
 
 
 #include <glib.h>
-#include <gst/gst.h>
 
 #include "nnstreamer_plugin_api_filter.h"
 

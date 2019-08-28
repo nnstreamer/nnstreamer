@@ -16,7 +16,7 @@
 /**
  * @file   tensor_filter_pytorch_core.cc
  * @author Parichay Kapoor <pk.kapoor@samsung.com>
- * @date	 24 April 2019
+ * @date   24 April 2019
  * @brief  connection with pytorch libraries
  * @bug    No known bugs except for NYI items
  */
@@ -74,7 +74,7 @@ TorchCore::init (const GstTensorFilterProperties * prop,
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
 
   if (loadModel ()) {
-    GST_ERROR ("Failed to load model\n");
+    g_critical ("Failed to load model\n");
     return -1;
   }
   return 0;
@@ -209,14 +209,14 @@ TorchCore::validateOutputTensor (const at::Tensor output)
   auto tensor_shape = output.sizes ();
 
   if (tensor_shape[0] != 0 && outputTensorMeta.num_tensors != tensor_shape[0]) {
-    GST_ERROR ("Invalid output meta: different size");
+    g_critical ("Invalid output meta: different size");
     return -1;
   }
 
   if (tensor_shape[0] == 0) {
     tensor_type otype = getTensorTypeFromTorch (output.scalar_type ());
     if (outputTensorMeta.info[0].type != otype) {
-      GST_ERROR ("Invalid output meta: different type");
+      g_critical ("Invalid output meta: different type");
       return -2;
     }
     goto done;
@@ -239,12 +239,12 @@ TorchCore::validateOutputTensor (const at::Tensor output)
     }
 
     if (outputTensorMeta.info[i].type != otype) {
-      GST_ERROR ("Invalid output meta: different type");
+      g_critical ("Invalid output meta: different type");
       return -2;
     }
 
     if (num_gst_tensor != num_torch_tensor) {
-      GST_ERROR ("Invalid output meta: different element size");
+      g_critical ("Invalid output meta: different element size");
       return -3;
     }
   }

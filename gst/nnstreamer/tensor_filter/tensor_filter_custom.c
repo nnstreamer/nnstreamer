@@ -26,7 +26,6 @@
  *
  */
 
-#include <gst/gst.h>
 #include <glib.h>
 #include <dlfcn.h>
 
@@ -92,7 +91,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
       *((NNStreamer_custom_class **) dlsym (ptr->handle, "NNStreamer_custom"));
   dlsym_error = dlerror ();
   if (dlsym_error) {
-    GST_ERROR ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
+    g_critical ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
     dlclose (ptr->handle);
     g_free (ptr);
     *private_data = NULL;

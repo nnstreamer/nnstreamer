@@ -71,15 +71,15 @@ int
 TFLiteCore::init ()
 {
   if (loadModel ()) {
-    GST_ERROR ("Failed to load model\n");
+    g_critical ("Failed to load model\n");
     return -1;
   }
   if (setInputTensorProp ()) {
-    GST_ERROR ("Failed to initialize input tensor\n");
+    g_critical ("Failed to initialize input tensor\n");
     return -2;
   }
   if (setOutputTensorProp ()) {
-    GST_ERROR ("Failed to initialize output tensor\n");
+    g_critical ("Failed to initialize output tensor\n");
     return -3;
   }
   return 0;
@@ -135,7 +135,7 @@ TFLiteCore::loadModel ()
     if(use_nnapi){
       nnfw_delegate.reset(new ::nnfw::tflite::NNAPIDelegate);
       if(nnfw_delegate->BuildGraph(interpreter.get()) != kTfLiteOk){
-	GST_ERROR("Fail to BuildGraph");
+	g_critical("Fail to BuildGraph");
 	return -3;
       }
     }
@@ -210,7 +210,7 @@ TFLiteCore::setInputTensorProp ()
 
   for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (input_idx_list[i], inputTensorMeta.info[i].dimension)) {
-      GST_ERROR ("failed to get the dimension of input tensors");
+      g_critical ("failed to get the dimension of input tensors");
       return -1;
     }
     inputTensorMeta.info[i].type =
@@ -239,7 +239,7 @@ TFLiteCore::setOutputTensorProp ()
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     if (getTensorDim (output_idx_list[i], outputTensorMeta.info[i].dimension)) {
-      GST_ERROR ("failed to get the dimension of output tensors");
+      g_critical ("failed to get the dimension of output tensors");
       return -1;
     }
     outputTensorMeta.info[i].type =
@@ -344,18 +344,18 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 #ifdef ENABLE_NNFW
   if(use_nnapi){
     if(nnfw_delegate->Invoke(interpreter.get()) != kTfLiteOk){
-      GST_ERROR ("Failed to invoke");
+      g_critical ("Failed to invoke");
       return -3;
     }
   }else{
     if (interpreter->Invoke () != kTfLiteOk) {
-      GST_ERROR ("Failed to invoke");
+      g_critical ("Failed to invoke");
       return -3;
     }
   }
 #else
   if (interpreter->Invoke () != kTfLiteOk) {
-    GST_ERROR ("Failed to invoke");
+    g_critical ("Failed to invoke");
     return -3;
   }
 #endif

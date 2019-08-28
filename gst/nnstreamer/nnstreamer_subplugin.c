@@ -26,7 +26,6 @@
 #include <dlfcn.h>
 #include <glib.h>
 #include <gmodule.h>
-#include <gst/gstinfo.h>
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
@@ -86,7 +85,7 @@ get_subplugin (subpluginType type, const char *name)
     dlerror ();
     handle = dlopen (fullpath, RTLD_NOW);
     if (NULL == handle) {
-      GST_ERROR ("Cannot dlopen %s (%s) with error %s.", name, fullpath,
+      g_critical ("Cannot dlopen %s (%s) with error %s.", name, fullpath,
           dlerror ());
       return NULL;
     }
@@ -96,7 +95,7 @@ get_subplugin (subpluginType type, const char *name)
     /* If a subplugin's constructor has called register_subplugin, skip the rest */
     data = g_hash_table_lookup (table, name);
     if (data == NULL) {
-      GST_ERROR
+      g_critical
           ("nnstreamer_subplugin of %s (%s) is broken. It does not call register_subplugin with its init function.",
           name, fullpath);
       goto error_handle;
@@ -146,7 +145,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
 
     if (data) {
       /* already exists */
-      GST_ERROR ("Subplugin %s is already registered.", name);
+      g_critical ("Subplugin %s is already registered.", name);
       return FALSE;
     }
   }
