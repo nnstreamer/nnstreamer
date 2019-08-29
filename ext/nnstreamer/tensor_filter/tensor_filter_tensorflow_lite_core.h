@@ -81,6 +81,16 @@ private:
 extern "C"
 {
 #endif
+/**
+ * @brief nnapi hw type string
+ */
+  static const char *nnapi_hw_string[] = {
+    [NNAPI_CPU] = "cpu",
+    [NNAPI_GPU] = "gpu",
+    [NNAPI_NPU] = "npu",
+    [NNAPI_UNKNOWN] = "unknown",
+    NULL
+  };
 
   void *tflite_core_new (const char *_model_path, nnapi_hw hw);
   void tflite_core_delete (void * tflite);
