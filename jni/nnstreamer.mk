@@ -36,7 +36,6 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposink.c \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposrc.c \
     $(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
-    $(NNSTREAMER_GST_HOME)/tensor_source/tensor_src_iio.c \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c
 
