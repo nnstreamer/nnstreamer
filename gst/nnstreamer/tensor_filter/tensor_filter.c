@@ -887,16 +887,17 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
 
       if (total > 0) {
         const gchar *prefix_str;
-        gsize prefix, len;
+        gsize prefix, extension, len;
 
         prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_FILTERS);
         prefix = strlen (prefix_str);
+        extension = strlen (NNSTREAMER_SO_FILE_EXTENSION);
 
         for (i = 0; i < total; ++i) {
           g_string_append (subplugins, ",");
 
-          /* supposed .so files only */
-          len = strlen (sinfo.names[i]) - prefix - 3;
+          /* remove file extension */
+          len = strlen (sinfo.names[i]) - prefix - extension;
           g_string_append_len (subplugins, sinfo.names[i] + prefix, len);
         }
       }
