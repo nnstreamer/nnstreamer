@@ -18,6 +18,22 @@ if meson.project_name() != 'nnstreamer'
 endif
 
 
+inc = include_directories('include')
+nninc = include_directories('../../gst')
+
+# Create dependency for tensor_filter_single for single-shot capi
+tensor_filter_single_lib = shared_library ('tensor_filter_single_lib',
+  join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c'),
+  dependencies: [glib_dep, gobject_dep],
+  include_directories: [inc, nninc],
+  install: false,
+  version: meson.project_version(),
+)
+
+tensor_filter_single_dep = declare_dependency(link_with: tensor_filter_single_lib,
+  include_directories: [inc],
+)
+
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
@@ -26,9 +42,6 @@ capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-sing
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
-
-inc = include_directories('include')
-nninc = include_directories('../../gst')
 
 tizen_deps = []
 
@@ -48,7 +61,7 @@ else
 endif
 
 capi_deps = [
-  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
+  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps, tensor_filter_single_dep
 ]
 
 nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
