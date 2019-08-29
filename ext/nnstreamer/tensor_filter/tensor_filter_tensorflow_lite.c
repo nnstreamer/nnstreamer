@@ -32,17 +32,6 @@
 #include "tensor_filter_tensorflow_lite_core.h"
 #include "tensor_common.h"
 
-/**
- * @brief nnapi hw type string
- */
-static const char *nnapi_hw_string[] = {
-  [NNAPI_CPU] = "cpu",
-  [NNAPI_GPU] = "gpu",
-  [NNAPI_NPU] = "npu",
-  [NNAPI_UNKNOWN] = "unknown",
-  NULL
-};
-
 void init_filter_tflite (void) __attribute__ ((constructor));
 void fini_filter_tflite (void) __attribute__ ((destructor));
 

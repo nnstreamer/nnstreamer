@@ -35,6 +35,7 @@
 #define DBG FALSE
 #endif
 
+
 /**
  * @brief	TFLiteCore creator
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
@@ -145,8 +146,7 @@ TFLiteCore::loadModel ()
       }
     }
 #endif
-
-    g_message ("interpreter->UseNNAPI: %d" , use_nnapi);
+     g_message ("interpreter->UseNNAPI( %s : %s )" , use_nnapi?"true":"false", nnapi_hw_string[accel]);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
