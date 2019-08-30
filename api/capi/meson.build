@@ -24,7 +24,7 @@ nninc = include_directories('../../gst')
 # Create dependency for tensor_filter_single for single-shot capi
 tensor_filter_single_lib = shared_library ('tensor_filter_single_lib',
   join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c'),
-  dependencies: [glib_dep, gobject_dep],
+  dependencies: [nnstreamer_dep, glib_dep, gobject_dep, gst_dep],
   include_directories: [inc, nninc],
   install: false,
   version: meson.project_version(),
