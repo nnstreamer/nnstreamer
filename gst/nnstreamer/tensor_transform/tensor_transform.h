@@ -16,7 +16,7 @@
  *
  */
 /**
- * @file	tensor_transform.c
+ * @file	tensor_transform.h
  * @date	10 Jul 2018
  * @brief	GStreamer plugin to transform tensor dimension or type
  * @see		https://github.com/nnsuite/nnstreamer
