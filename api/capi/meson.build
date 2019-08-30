@@ -20,19 +20,7 @@ endif
 
 inc = include_directories('include')
 nninc = include_directories('../../gst')
-
-# Create dependency for tensor_filter_single for single-shot capi
-tensor_filter_single_lib = shared_library ('tensor_filter_single_lib',
-  join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c'),
-  dependencies: [nnstreamer_dep, glib_dep, gobject_dep, gst_dep],
-  include_directories: [inc, nninc],
-  install: false,
-  version: meson.project_version(),
-)
-
-tensor_filter_single_dep = declare_dependency(link_with: tensor_filter_single_lib,
-  include_directories: [inc],
-)
+capi_inc = [inc, nninc]
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
@@ -61,16 +49,13 @@ else
 endif
 
 capi_deps = [
-  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps, tensor_filter_single_dep
+  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
 ]
 
 nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
   capi_main,
   dependencies: capi_deps,
-  include_directories: [
-    inc,
-    nninc
-  ],
+  include_directories: capi_inc,
   install: true,
   version: meson.project_version(),
   install_dir: nnstreamer_libdir,
@@ -78,23 +63,51 @@ nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
 static_library ('capi-nnstreamer',
   capi_main,
   dependencies: capi_deps,
-  include_directories: [
-    inc,
-    nninc
-  ],
+  include_directories: capi_inc,
   install: true,
   install_dir: nnstreamer_libdir,
 )
 
 nnstreamer_capi_dep = declare_dependency(link_with: nnstreamer_capi_lib,
   dependencies: capi_deps,
-  include_directories: [
-    inc,
-    nninc
-  ]
+  include_directories: capi_inc,
+)
+
+# New single-shot c-api
+
+capi_single_new_main = []
+capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
+capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single-new.c')
+capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
+
+nnstreamer_capi_single_new_lib = shared_library ('capi-nnstreamer-single-new',
+  capi_single_new_main,
+  dependencies: capi_deps,
+  include_directories: capi_inc,
+  install: true,
+  version: meson.project_version(),
+  install_dir: nnstreamer_libdir,
+)
+static_library ('capi-nnstreamer-single-new',
+  capi_single_new_main,
+  dependencies: capi_deps,
+  include_directories: capi_inc,
+  install: true,
+  install_dir: nnstreamer_libdir,
+)
+
+nnstreamer_capi_single_new_dep = declare_dependency(
+  link_with: nnstreamer_capi_single_new_lib,
+  dependencies: capi_deps,
+  include_directories: capi_inc,
 )
 
 configure_file(input: 'capi-nnstreamer.pc.in', output: 'capi-nnstreamer.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_conf
+)
+
+configure_file(input: 'capi-nnstreamer-single-new.pc.in', output: 'capi-nnstreamer-single-new.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_conf
 )
