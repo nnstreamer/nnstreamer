@@ -156,6 +156,20 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer = %{version}-%{release}
 %description -n capi-nnstreamer-devel
 Developmental kit for Tizen Native NNStreamer API.
+
+%package -n capi-nnstreamer-single-new
+Summary:	Tizen Native new single-shot API for NNStreamer
+Group:		Multimedia/Framework
+Requires:	%{name} = %{version}-%{release}
+%description -n capi-nnstreamer-single-new
+Tizen Native new single-shot API wrapper for NNStreamer.
+You can construct a data stream pipeline with neural networks easily.
+
+%package -n capi-nnstreamer-single-new-devel
+Summary:	Tizen Native API Devel Kit for NNStreamer
+Group:		Multimedia/Framework
+%description -n capi-nnstreamer-single-new-devel
+Developmental kit for Tizen Native new single-shot NNStreamer API.
 %define api -Denable-capi=true
 %else
 %define api -Denable-capi=false
@@ -328,6 +342,18 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 %{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.a
+
+%files -n capi-nnstreamer-single-new
+%manifest capi-nnstreamer.manifest
+%license LICENSE
+%{_libdir}/libcapi-nnstreamer-single-new.so.*
+
+%files -n capi-nnstreamer-single-new-devel
+%{_includedir}/nnstreamer/nnstreamer.h
+%{_includedir}/nnstreamer/nnstreamer-single.h
+%{_libdir}/pkgconfig/capi-nnstreamer-single-new.pc
+%{_libdir}/libcapi-nnstreamer-single-new.so
+%{_libdir}/libcapi-nnstreamer-single-new.a
 %endif
 
 %changelog
