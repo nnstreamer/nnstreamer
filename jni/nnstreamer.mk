@@ -29,6 +29,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
     $(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
     $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
