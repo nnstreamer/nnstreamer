@@ -48,8 +48,8 @@ TFLiteCore::TFLiteCore (const char * _model_path, nnapi_hw hw)
     use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
   } else {
     use_nnapi = TRUE;
-    accel = hw;
   }
+  accel = hw;
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
