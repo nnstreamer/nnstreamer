@@ -212,6 +212,7 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
     ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
+    ./tests/tizen_capi/unittest_tizen_capi_single_new --gst-plugin-path="xml:unittest_tizen_capi_single_new.xml"
     popd
     pushd tests
     ssat -n

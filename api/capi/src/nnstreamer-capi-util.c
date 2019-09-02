@@ -503,9 +503,10 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
 
 /**
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
+ * @note Memory for data buffer is not allocated.
  */
 int
-ml_tensors_data_create (const ml_tensors_info_h info,
+ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
     ml_tensors_data_h * data)
 {
   ml_tensors_data_s *_data;
@@ -529,6 +530,30 @@ ml_tensors_data_create (const ml_tensors_info_h info,
   _data->num_tensors = tensors_info->num_tensors;
   for (i = 0; i < _data->num_tensors; i++) {
     _data->tensors[i].size = ml_tensor_info_get_size (&tensors_info->info[i]);
+    _data->tensors[i].tensor = NULL;
+  }
+
+  *data = _data;
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
+ */
+int
+ml_tensors_data_create (const ml_tensors_info_h info,
+    ml_tensors_data_h * data)
+{
+  gint status;
+  ml_tensors_data_s *_data = NULL;
+  gint i;
+
+  status = ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) &_data);
+
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  for (i = 0; i < _data->num_tensors; i++) {
     _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
     if (_data->tensors[i].tensor == NULL)
       goto failed;

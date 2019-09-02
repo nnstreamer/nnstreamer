@@ -273,6 +273,14 @@ int ml_set_feature_status (int status);
  */
 int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
 
+/**
+ * @brief Creates a tensor data frame wihout buffer with the given tensors information.
+ * @param[in] info The handle of tensors information for the allocation.
+ * @param[out] data The handle of tensors data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+int ml_tensors_data_create_no_alloc (const ml_tensors_info_h info, ml_tensors_data_h *data);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
