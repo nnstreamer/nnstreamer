@@ -192,11 +192,11 @@ ninja -C build %{?_smp_mflags}
     export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
     export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
     export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-    ./tests/unittest_common
-    ./tests/unittest_sink --gst-plugin-path=.
-    ./tests/unittest_plugins --gst-plugin-path=.
-    ./tests/unittest_src_iio --gst-plugin-path=.
-    ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=.
+    ./tests/unittest_common --gtest_output="xml:unittest_common.xml"
+    ./tests/unittest_sink --gst-plugin-path=. --gtest_output="xml:unittest_sink.xml"
+    ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
+    ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
+    ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
     popd
     pushd tests
     ssat -n
