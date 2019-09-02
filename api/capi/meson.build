@@ -81,8 +81,8 @@ nnstreamer_capi_dep = declare_dependency(link_with: nnstreamer_capi_lib,
 )
 
 # New single-shot c-api
-
 capi_single_new_main = []
+capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single-new.c')
 capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')

@@ -311,6 +311,14 @@ int ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type);
 int ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result);
 #endif
 
+/**
+ * @brief Creates a tensor data frame wihout buffer with the given tensors information.
+ * @param[in] info The handle of tensors information for the allocation.
+ * @param[out] data The handle of tensors data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+int ml_tensors_data_create_no_alloc (const ml_tensors_info_h info, ml_tensors_data_h *data);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
