@@ -1433,6 +1433,99 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @note Measure the loading time and total time for the run
+ */
+TEST (nnstreamer_capi_singleshot, benchmark_time)
+{
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim, out_dim;
+  int status, count;
+  unsigned long open_duration=0, invoke_duration=0, close_duration=0;
+  gint64 start, end;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  out_dim[0] = 1001;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
+
+  input = output = NULL;
+
+  /* generate dummy data */
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (input != NULL);
+
+  /** Initial run to warm up the cache */
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  count = 1;
+  for (int i=0; i<count; i++) {
+    start = g_get_real_time();
+    status = ml_single_open (&single, test_model, in_info, out_info,
+        ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+    end = g_get_real_time();
+    open_duration += end - start;
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    start = g_get_real_time();
+    status = ml_single_invoke (single, input, &output);
+    end = g_get_real_time();
+    invoke_duration += end - start;
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (output != NULL);
+
+    start = g_get_real_time();
+    status = ml_single_close (single);
+    end = g_get_real_time();
+    close_duration = end - start;
+    EXPECT_EQ (status, ML_ERROR_NONE);
+  }
+
+  g_warning ("Time to open single = %f us", (open_duration * 1.0)/count);
+  g_warning ("Time to invoke single = %f us", (invoke_duration * 1.0)/count);
+  g_warning ("Time to close single = %f us", (close_duration * 1.0)/count);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+}
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
