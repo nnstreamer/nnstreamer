@@ -67,21 +67,24 @@ tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/jni
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
 
 echo "Starting gradle build for Android library."
+nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
+
+# Build Android library.
 ./gradlew api:assembleRelease
 
-popd
-
 # Check if build procedure is done.
-nnstreamer_android_api_lib=./build_android_lib/api/build/outputs/aar/api-release.aar
-result_directory=android_lib
-
 if [[ -e $nnstreamer_android_api_lib ]]; then
+    result_directory=android_lib
+    today=$(date '+%Y-%m-%d')
+
     echo "Build procedure is done, copy NNStreamer library to $result_directory directory."
-    mkdir -p $result_directory
-    cp $nnstreamer_android_api_lib ./$result_directory/nnstreamer-api-$(date '+%Y-%m-%d').aar
+    mkdir -p ../$result_directory
+    cp $nnstreamer_android_api_lib ../$result_directory/nnstreamer-api-$today.aar
 else
     echo "Failed to build NNStreamer library."
 fi
+
+popd
 
 # Remove build directory
 rm -rf build_android_lib
