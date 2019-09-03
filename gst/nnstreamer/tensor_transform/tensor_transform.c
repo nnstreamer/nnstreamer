@@ -121,7 +121,7 @@ enum
 
 static const gchar *gst_tensor_transform_stand_string[] = {
   [STAND_DEFAULT] = "default",
-  [STAND_END] = "error"
+  [STAND_END] = NULL
 };
 
 static const gchar *gst_tensor_transform_operator_string[] = {
@@ -129,7 +129,7 @@ static const gchar *gst_tensor_transform_operator_string[] = {
   [GTT_OP_ADD] = "add",
   [GTT_OP_MUL] = "mul",
   [GTT_OP_DIV] = "div",
-  [GTT_OP_UNKNOWN] = "unknown"
+  [GTT_OP_UNKNOWN] = NULL
 };
 
 /**

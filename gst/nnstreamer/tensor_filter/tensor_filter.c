@@ -525,28 +525,16 @@ gst_tensors_parse_modelpaths_string (GstTensorFilterProperties * prop,
  * @return output buffer size
  */
 static gsize
-gst_tensor_filter_out_size (GstTensorFilter * self, gint index)
+gst_tensor_filter_get_output_size (GstTensorFilter * self, guint index)
 {
   GstTensorsInfo *info;
-  guint i;
-  gsize out_size = 0;
 
   g_assert (self->configured);
 
   info = &self->prop.output_meta;
+  g_assert (index < info->num_tensors);
 
-  if (index < 0) {
-    /** calculate all output tensors */
-    for (i = 0; i < info->num_tensors; i++) {
-      out_size += gst_tensor_info_get_size (&info->info[i]);
-    }
-  } else {
-    g_assert (index < info->num_tensors);
-
-    out_size = gst_tensor_info_get_size (&info->info[index]);
-  }
-
-  return out_size;
+  return gst_tensor_info_get_size (&info->info[index]);
 }
 
 /**
@@ -929,7 +917,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-  gint i, ret;
+  guint i;
+  gint ret;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   prop = &self->prop;
@@ -966,7 +955,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     out_tensors[i].data = NULL;
-    out_tensors[i].size = gst_tensor_filter_out_size (self, i);
+    out_tensors[i].size = gst_tensor_filter_get_output_size (self, i);
     out_tensors[i].type = prop->output_meta.info[i].type;
 
     /* allocate memory if allocate_in_invoke is FALSE */
