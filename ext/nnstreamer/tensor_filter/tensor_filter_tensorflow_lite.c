@@ -39,7 +39,8 @@ static const char *nnapi_hw_string[] = {
   [NNAPI_CPU] = "cpu",
   [NNAPI_GPU] = "gpu",
   [NNAPI_NPU] = "npu",
-  [NNAPI_UNKNOWN] = "unknown"
+  [NNAPI_UNKNOWN] = "unknown",
+  NULL
 };
 
 void init_filter_tflite (void) __attribute__ ((constructor));
