@@ -28,6 +28,7 @@
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
+#include "nnstreamer_conf.h"
 
 #undef ML_SINGLE_SUPPORT_TIMEOUT
 #if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
@@ -116,6 +117,12 @@ ml_single_open (ml_single_h * single, const char *model,
     }
   }
 
+  if (!model || !g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
+    ml_loge ("The given param, model path [%s] is invalid.",
+        GST_STR_NULL (model));
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
   /* 1. Determine nnfw */
   /* Check file extention. */
   path_down = g_ascii_strdown (model, -1);
@@ -134,7 +141,7 @@ ml_single_open (ml_single_h * single, const char *model,
       }
       break;
     case ML_NNFW_TYPE_CUSTOM_FILTER:
-      if (!g_str_has_suffix (path_down, ".so")) {
+      if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
         ml_loge ("The given model [%s] has invalid extension.", model);
         status = ML_ERROR_INVALID_PARAMETER;
       }
@@ -163,12 +170,6 @@ ml_single_open (ml_single_h * single, const char *model,
   g_free (path_down);
   if (status != ML_ERROR_NONE)
     return status;
-
-  if (!g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid.",
-        GST_STR_NULL (model));
-    return ML_ERROR_INVALID_PARAMETER;
-  }
 
   /* 2. Determine hw */
   /** @todo Now the param hw is ignored. (Supposed CPU only) Support others later. */
