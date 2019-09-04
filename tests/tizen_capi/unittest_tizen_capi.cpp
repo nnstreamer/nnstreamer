@@ -1928,6 +1928,11 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
     EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
     EXPECT_TRUE (output == NULL);
 
+    /* check the old buffer is dropped */
+    status = ml_single_invoke (single, input, &output);
+    EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
+    EXPECT_TRUE (output == NULL);
+
     ml_tensors_data_destroy (output);
     ml_tensors_data_destroy (input);
     ml_tensors_info_destroy (in_info);
