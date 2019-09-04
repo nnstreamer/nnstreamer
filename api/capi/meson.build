@@ -48,9 +48,12 @@ if (get_option('enable-tizen'))
     dependency('dlog')
   ]
 else
-  r = run_command('./modify_nnstreamer_h_for_nontizen.sh')
+  r = run_command('patch', '-R', '--dry-run', '-sfp1', '-i', patch_file)
   if (r.returncode() != 0)
-    message('Non-Tizen mode support failed')
+    r = run_command('patch', '-p1', '-i', patch_file)
+    if (r.returncode() != 0)
+      message('Non-Tizen mode support failed')
+    endif
   endif
   message('CAPI is in non-Tizen mode')
 endif
