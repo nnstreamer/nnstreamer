@@ -87,6 +87,18 @@ TEST (nnstreamer_capi_construct_destruct, failure_02_n)
   EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
 }
 
+#define wait_for_start(handle, state, status) \
+do {\
+  int counter = 0;\
+  while ((state == ML_PIPELINE_STATE_PAUSED || \
+          state == ML_PIPELINE_STATE_READY) && counter < 20) {\
+    g_usleep (50000);\
+    counter ++;\
+    status = ml_pipeline_get_state (handle, &state);\
+    EXPECT_EQ (status, ML_ERROR_NONE);\
+  }\
+} while (0)\
+
 /**
  * @brief Test NNStreamer pipeline construct & destruct
  */
@@ -105,9 +117,10 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (150000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
+  g_usleep (50000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
   status = ml_pipeline_stop (handle);
@@ -141,9 +154,10 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (150000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
+  g_usleep (50000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
   status = ml_pipeline_stop (handle);
@@ -206,12 +220,13 @@ TEST (nnstreamer_capi_valve, test01)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  g_usleep (50000); /* 50ms. Wait for the pipeline stgart. */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (150000); /* 150ms. Let a few frames flow. */
+  wait_for_start (handle, state, status);
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -289,6 +304,7 @@ TEST (nnstreamer_capi_valve, failure_01_n)
   g_free (pipeline);
 }
 
+G_LOCK_DEFINE_STATIC(callback_lock);
 /**
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
@@ -306,6 +322,7 @@ test_sink_callback_dm01 (const ml_tensors_data_h data,
   if (fp == NULL)
     return;
 
+  G_LOCK(callback_lock);
   ml_tensors_info_get_count (info, &num);
 
   for (i = 0; i < num; i++) {
@@ -313,6 +330,7 @@ test_sink_callback_dm01 (const ml_tensors_data_h data,
     if (status == ML_ERROR_NONE)
       fwrite (data_ptr, data_size, 1, fp);
   }
+  G_UNLOCK(callback_lock);
 
   fclose (fp);
 }
@@ -326,7 +344,9 @@ test_sink_callback_count (const ml_tensors_data_h data,
 {
   guint *count = (guint *) user_data;
 
+  G_LOCK(callback_lock);
   *count = *count + 1;
+  G_UNLOCK(callback_lock);
 }
 
 /**
@@ -337,6 +357,7 @@ test_pipe_state_callback (ml_pipeline_state_e state, void *user_data)
 {
   TestPipeState *pipe_state;
 
+  G_LOCK(callback_lock);
   pipe_state = (TestPipeState *) user_data;
 
   switch (state) {
@@ -349,6 +370,7 @@ test_pipe_state_callback (ml_pipeline_state_e state, void *user_data)
     default:
       break;
   }
+  G_UNLOCK(callback_lock);
 }
 
 /**
@@ -831,6 +853,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   ml_pipeline_switch_h switchhandle;
   ml_pipeline_sink_h sinkhandle;
   ml_pipeline_switch_e type;
+  ml_pipeline_state_e state;
   gchar *pipeline;
   int status;
   guint *count_sink;
@@ -839,7 +862,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+      "videotestsrc num-buffers=3 is-live=true ! videoconvert ! ins.sink_1");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
   *count_sink = 0;
@@ -878,6 +901,11 @@ TEST (nnstreamer_capi_switch, dummy_01)
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_usleep (50000);
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  wait_for_start (handle, state, status);
 
   g_usleep (300000); /* 300ms. Let a few frames flow. */
 
