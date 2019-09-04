@@ -228,6 +228,9 @@ if get_option('enable-nnfw')
   add_project_arguments('-DENABLE_NNFW=1', language: ['c', 'cpp'])
 endif
 
+# Patch for non-tizen build
+patch_file = join_paths(meson.current_source_dir(), 'packaging', 'non_tizen_build.patch')
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 

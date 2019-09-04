@@ -72,7 +72,9 @@ echo "Start to build NNStreamer library for Android."
 
 # Modify header for Android
 cd $NNSTREAMER_ROOT/api/capi
-./modify_nnstreamer_h_for_nontizen.sh
+if ! patch -R --dry-run -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch; then
+  patch -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
+fi
 cd $NNSTREAMER_ROOT
 
 # Make directory to build NNStreamer library
@@ -136,4 +138,3 @@ popd
 
 # Remove build directory
 rm -rf build_android_lib
-
