@@ -51,8 +51,73 @@ typedef struct
   ml_tensors_info_s in_info;
   ml_tensors_info_s out_info;
 
-  guint timeout; /* milliseconds */
+  GMutex lock; /**< Lock for internal values */
+  gboolean clear_previous_buffer; /**< Previous buffer was timed out, need to clear old buffer */
+  gboolean is_valid; /**< True if the single handle is valid */
+  guint timeout; /**< Timeout in milliseconds */
 } ml_single;
+
+/**
+ * @brief Gets the tensors info from tensor-filter.
+ */
+static void
+ml_single_get_tensors_info_from_filter (GstElement * filter, gboolean is_input,
+    ml_tensors_info_h * info)
+{
+  ml_tensors_info_s *input_info;
+  GstTensorsInfo gst_info;
+  gchar *val;
+  guint rank;
+  gchar *prop_prefix, *prop_name;
+
+  if (is_input)
+    prop_prefix = g_strdup ("input");
+  else
+    prop_prefix = g_strdup ("output");
+
+  /* allocate handle for tensors info */
+  ml_tensors_info_create (info);
+  input_info = (ml_tensors_info_s *) (*info);
+
+  gst_tensors_info_init (&gst_info);
+
+  /* get dimensions */
+  prop_name = g_strdup_printf ("%s", prop_prefix);
+  g_object_get (filter, prop_name, &val, NULL);
+  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
+  g_free (val);
+  g_free (prop_name);
+
+  /* set the number of tensors */
+  gst_info.num_tensors = rank;
+
+  /* get types */
+  prop_name = g_strdup_printf ("%s%s", prop_prefix, "type");
+  g_object_get (filter, prop_name, &val, NULL);
+  rank = gst_tensors_info_parse_types_string (&gst_info, val);
+  g_free (val);
+  g_free (prop_name);
+
+  if (gst_info.num_tensors != rank) {
+    ml_logw ("Invalid state, tensor type is mismatched in filter.");
+  }
+
+  /* get names */
+  prop_name = g_strdup_printf ("%s%s", prop_prefix, "name");
+  g_object_get (filter, prop_name, &val, NULL);
+  rank = gst_tensors_info_parse_names_string (&gst_info, val);
+  g_free (val);
+  g_free (prop_name);
+
+  if (gst_info.num_tensors != rank) {
+    ml_logw ("Invalid state, tensor name is mismatched in filter.");
+  }
+
+  ml_tensors_info_copy_from_gst (input_info, &gst_info);
+  gst_tensors_info_free (&gst_info);
+
+  g_free (prop_prefix);
+}
 
 /**
  * @brief Opens an ML model and returns the instance as a handle.
@@ -135,6 +200,9 @@ ml_single_open (ml_single_h * single, const char *model,
       } else if (g_str_has_suffix (path_down, ".pb")) {
         ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
         nnfw = ML_NNFW_TYPE_TENSORFLOW;
+      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
+        ml_logi ("The given model [%s] is supposed a custom filter model.", model);
+        nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
       } else {
         ml_loge ("The given model [%s] has unknown extension.", model);
         status = ML_ERROR_INVALID_PARAMETER;
@@ -268,8 +336,11 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->sink = appsink;
   single_h->filter = filter;
   single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
+  single_h->clear_previous_buffer = FALSE;
+  single_h->is_valid = FALSE;
   ml_tensors_info_initialize (&single_h->in_info);
   ml_tensors_info_initialize (&single_h->out_info);
+  g_mutex_init (&single_h->lock);
 
   /* 5. Set in/out caps and metadata */
   if (in_tensors_info) {
@@ -278,13 +349,14 @@ ml_single_open (ml_single_h * single, const char *model,
   } else {
     ml_tensors_info_h in_info;
 
-    ml_single_get_input_info (single_h, &in_info);
+    ml_single_get_tensors_info_from_filter (filter, TRUE, &in_info);
     ml_tensors_info_clone (&single_h->in_info, in_info);
     ml_tensors_info_destroy (in_info);
 
     status = ml_tensors_info_validate (&single_h->in_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("Failed to get the input tensor info.");
+      ml_loge ("The input tensor info is invalid.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
 
@@ -300,13 +372,14 @@ ml_single_open (ml_single_h * single, const char *model,
   } else {
     ml_tensors_info_h out_info;
 
-    ml_single_get_output_info (single_h, &out_info);
+    ml_single_get_tensors_info_from_filter (filter, FALSE, &out_info);
     ml_tensors_info_clone (&single_h->out_info, out_info);
     ml_tensors_info_destroy (out_info);
 
     status = ml_tensors_info_validate (&single_h->out_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("Failed to get the output tensor info.");
+      ml_loge ("The output tensor info is invalid.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
 
@@ -327,11 +400,17 @@ ml_single_open (ml_single_h * single, const char *model,
     goto error;
   }
 
-  *single = single_h;
-  return ML_ERROR_NONE;
+  g_mutex_lock (&single_h->lock);
+  single_h->is_valid = TRUE;
+  g_mutex_unlock (&single_h->lock);
 
 error:
-  ml_single_close (single_h);
+  if (status != ML_ERROR_NONE) {
+    ml_single_close (single_h);
+  } else {
+    *single = single_h;
+  }
+
   return status;
 }
 
@@ -352,6 +431,9 @@ ml_single_close (ml_single_h single)
   }
 
   single_h = (ml_single *) single;
+  g_mutex_lock (&single_h->lock);
+
+  single_h->is_valid = FALSE;
 
   if (single_h->src) {
     gst_object_unref (single_h->src);
@@ -372,6 +454,10 @@ ml_single_close (ml_single_h single)
   ml_tensors_info_free (&single_h->out_info);
 
   status = ml_pipeline_destroy (single_h->pipe);
+
+  g_mutex_unlock (&single_h->lock);
+  g_mutex_clear (&single_h->lock);
+
   g_free (single_h);
   return status;
 }
@@ -385,7 +471,7 @@ ml_single_invoke (ml_single_h single,
 {
   ml_single *single_h;
   ml_tensors_data_s *in_data, *result;
-  GstSample *sample;
+  GstSample *sample = NULL;
   GstBuffer *buffer;
   GstMemory *mem;
   GstMapInfo mem_info;
@@ -400,13 +486,22 @@ ml_single_invoke (ml_single_h single,
   }
 
   single_h = (ml_single *) single;
+  g_mutex_lock (&single_h->lock);
+
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
+
+  if (!single_h->is_valid) {
+    ml_loge ("The single handle is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto done;
+  }
 
   /* Validate input data */
   if (in_data->num_tensors != single_h->in_info.num_tensors) {
     ml_loge ("The given param input is invalid, different number of memory blocks.");
-    return ML_ERROR_INVALID_PARAMETER;
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto done;
   }
 
   for (i = 0; i < in_data->num_tensors; i++) {
@@ -414,9 +509,25 @@ ml_single_invoke (ml_single_h single,
 
     if (!in_data->tensors[i].tensor || in_data->tensors[i].size != raw_size) {
       ml_loge ("The given param input is invalid, different size of memory block.");
-      return ML_ERROR_INVALID_PARAMETER;
+      status = ML_ERROR_INVALID_PARAMETER;
+      goto done;
     }
   }
+
+#ifdef ML_SINGLE_SUPPORT_TIMEOUT
+  /* Try to clear old buffer in appsink before pushing the buffer */
+  if (single_h->clear_previous_buffer) {
+    ml_logw ("Previous buffer was timed out, try to clear old data.");
+
+    sample = gst_app_sink_pull_sample (GST_APP_SINK (single_h->sink));
+    if (sample) {
+      gst_sample_unref (sample);
+      sample = NULL;
+    }
+
+    single_h->clear_previous_buffer = FALSE;
+  }
+#endif
 
   /* Push input buffer */
   buffer = gst_buffer_new ();
@@ -432,7 +543,8 @@ ml_single_invoke (ml_single_h single,
   if (ret != GST_FLOW_OK) {
     ml_loge ("Cannot push a buffer into source element.");
     gst_buffer_unref (buffer);
-    return ML_ERROR_STREAMS_PIPE;
+    status = ML_ERROR_STREAMS_PIPE;
+    goto done;
   }
 
   /* Try to get the result */
@@ -446,16 +558,16 @@ ml_single_invoke (ml_single_h single,
 
   if (!sample) {
     ml_loge ("Failed to get the result from sink element.");
-    return ML_ERROR_TIMED_OUT;
+    single_h->clear_previous_buffer = TRUE;
+    status = ML_ERROR_TIMED_OUT;
+    goto done;
   }
 
   /* Allocate output buffer */
   status = ml_tensors_data_create (&single_h->out_info, output);
   if (status != ML_ERROR_NONE) {
     ml_loge ("Failed to allocate the memory block.");
-    gst_sample_unref (sample);
-    *output = NULL;
-    return status;
+    goto done;
   }
 
   result = (ml_tensors_data_s *) (*output);
@@ -471,8 +583,41 @@ ml_single_invoke (ml_single_h single,
     gst_memory_unmap (mem, &mem_info);
   }
 
-  gst_sample_unref (sample);
-  return ML_ERROR_NONE;
+done:
+  if (sample)
+    gst_sample_unref (sample);
+
+  g_mutex_unlock (&single_h->lock);
+  return status;
+}
+
+/**
+ * @brief Gets the tensors info for the given handle.
+ */
+static int
+ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
+    ml_tensors_info_h * info)
+{
+  ml_single *single_h;
+  int status = ML_ERROR_NONE;
+
+  check_feature_state ();
+
+  if (!single || !info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  single_h = (ml_single *) single;
+  g_mutex_lock (&single_h->lock);
+
+  if (!single_h->is_valid) {
+    ml_loge ("The single handle is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+  } else {
+    ml_single_get_tensors_info_from_filter (single_h->filter, is_input, info);
+  }
+
+  g_mutex_unlock (&single_h->lock);
+  return status;
 }
 
 /**
@@ -481,51 +626,7 @@ ml_single_invoke (ml_single_h single,
 int
 ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
 {
-  ml_single *single_h;
-  ml_tensors_info_s *input_info;
-  GstTensorsInfo gst_info;
-  gchar *val;
-  guint rank;
-
-  check_feature_state ();
-
-  if (!single || !info)
-    return ML_ERROR_INVALID_PARAMETER;
-
-  single_h = (ml_single *) single;
-
-  /* allocate handle for tensors info */
-  ml_tensors_info_create (info);
-  input_info = (ml_tensors_info_s *) (*info);
-
-  gst_tensors_info_init (&gst_info);
-
-  g_object_get (single_h->filter, "input", &val, NULL);
-  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
-  g_free (val);
-
-  /* set the number of tensors */
-  gst_info.num_tensors = rank;
-
-  g_object_get (single_h->filter, "inputtype", &val, NULL);
-  rank = gst_tensors_info_parse_types_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, input tensor type is mismatched in filter.");
-  }
-
-  g_object_get (single_h->filter, "inputname", &val, NULL);
-  rank = gst_tensors_info_parse_names_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, input tensor name is mismatched in filter.");
-  }
-
-  ml_tensors_info_copy_from_gst (input_info, &gst_info);
-  gst_tensors_info_free (&gst_info);
-  return ML_ERROR_NONE;
+  return ml_single_get_tensors_info (single, TRUE, info);
 }
 
 /**
@@ -534,51 +635,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
 int
 ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
 {
-  ml_single *single_h;
-  ml_tensors_info_s *output_info;
-  GstTensorsInfo gst_info;
-  gchar *val;
-  guint rank;
-
-  check_feature_state ();
-
-  if (!single || !info)
-    return ML_ERROR_INVALID_PARAMETER;
-
-  single_h = (ml_single *) single;
-
-  /* allocate handle for tensors info */
-  ml_tensors_info_create (info);
-  output_info = (ml_tensors_info_s *) (*info);
-
-  gst_tensors_info_init (&gst_info);
-
-  g_object_get (single_h->filter, "output", &val, NULL);
-  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
-  g_free (val);
-
-  /* set the number of tensors */
-  gst_info.num_tensors = rank;
-
-  g_object_get (single_h->filter, "outputtype", &val, NULL);
-  rank = gst_tensors_info_parse_types_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, output tensor type is mismatched in filter.");
-  }
-
-  g_object_get (single_h->filter, "outputname", &val, NULL);
-  gst_tensors_info_parse_names_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, output tensor name is mismatched in filter.");
-  }
-
-  ml_tensors_info_copy_from_gst (output_info, &gst_info);
-  gst_tensors_info_free (&gst_info);
-  return ML_ERROR_NONE;
+  return ml_single_get_tensors_info (single, FALSE, info);
 }
 
 /**
@@ -589,6 +646,7 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
 {
 #ifdef ML_SINGLE_SUPPORT_TIMEOUT
   ml_single *single_h;
+  int status = ML_ERROR_NONE;
 
   check_feature_state ();
 
@@ -596,9 +654,17 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
     return ML_ERROR_INVALID_PARAMETER;
 
   single_h = (ml_single *) single;
+  g_mutex_lock (&single_h->lock);
 
-  single_h->timeout = (guint) timeout;
-  return ML_ERROR_NONE;
+  if (single_h->is_valid) {
+    single_h->timeout = (guint) timeout;
+  } else {
+    ml_loge ("The single handle is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+  }
+
+  g_mutex_unlock (&single_h->lock);
+  return status;
 #else
   return ML_ERROR_NOT_SUPPORTED;
 #endif
