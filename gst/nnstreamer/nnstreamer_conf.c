@@ -115,7 +115,7 @@ static gboolean
 _validate_file (nnsconf_type_path type, const gchar * fullpath)
 {
   /* ignore directory */
-  if (!g_file_test (fullpath, G_FILE_TEST_IS_REGULAR))
+  if (!fullpath || !g_file_test (fullpath, G_FILE_TEST_IS_REGULAR))
     return FALSE;
   /* ignore symbol link file */
   if (!conf.enable_symlink && g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
