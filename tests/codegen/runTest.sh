@@ -14,6 +14,10 @@ if [[ "$SSATAPILOADED" != "1" ]]; then
 "
 fi
 
+if [ -z ${SO_EXT} ]; then
+    SO_EXT="so"
+fi
+
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
@@ -46,7 +50,7 @@ EOF
     PKG_CONFIG_PATH=.:$PKG_CONFIG_PATH meson build${1} && ninja -C build${1}
     testResult $? TC${1}C "Build codegen result of TC1 (${2}/${3} case)" 0 1
 
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=10 ! videoconvert ! videoscale ! video/x-raw,width=224,height=224,format=RGB ! tensor_converter ! tensor_filter framework=custom model=\"build${1}/libtc${1}.so\" ! fakesink" TC${1}R "Run gst-launch for TC${1}" 0 0 $PERFORMANCE
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=10 ! videoconvert ! videoscale ! video/x-raw,width=224,height=224,format=RGB ! tensor_converter ! tensor_filter framework=custom model=\"build${1}/libtc${1}.${SO_EXT}\" ! fakesink" TC${1}R "Run gst-launch for TC${1}" 0 0 $PERFORMANCE
 }
 
 do_test 01 y y
