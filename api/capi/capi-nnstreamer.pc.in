@@ -10,5 +10,5 @@ Name: tizen-api-nnstreamer
 Description: NNStreamer API for Tizen
 Version: @VERSION@
 Requires:
-Libs: -L${libdir}
-Cflags: -I${includedir}
+Libs: -L${libdir} -lcapi-nnstreamer
+Cflags: -I${includedir}/nnstreamer
