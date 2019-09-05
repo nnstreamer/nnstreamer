@@ -1,4 +1,5 @@
 apply plugin: 'com.android.library'
+// add plugin (bintray)
 
 android {
     compileSdkVersion 28
