@@ -534,7 +534,9 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
     GString *names = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      g_string_append (names, info->info[i].name);
+      if (info->info[i].name) {
+        g_string_append (names, info->info[i].name);
+      }
 
       if (i < info->num_tensors - 1) {
         g_string_append (names, ",");
