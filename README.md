@@ -64,8 +64,9 @@ Note that this project has just started and many of the components are in design
 In [Component Description](Documentation/component-description.md) page, we describe nnstreamer components of the following three categories: data type definitions, gstreamer elements (plugins), and other misc components.
 
 ## Getting Started
-For more details, please access the following manual.
-* Press [Here](Documentation/getting-started.md)
+For more details, please access the following manuals.
+* For Linux-like systems such as Tizen, Debian, and Ubuntu, press [Here](Documentation/getting-started.md)
+* For macOS systems, press [Here](Documentation/getting-started-macos.md)
 
 ## Usage Examples
 - [Example apps](https://github.com/nnsuite/nnstreamer-example) (stable)
