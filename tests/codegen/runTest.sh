@@ -18,6 +18,11 @@ if [ -z ${SO_EXT} ]; then
     SO_EXT="so"
 fi
 
+# For macOS support
+if [[ ${SO_EXT} == 'dylib' ]]; then
+    EXTRA_PKG_CONFIG=/usr/local/opt/libffi/lib/pkgconfig
+fi
+
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
@@ -47,7 +52,7 @@ EOF
     testResult $? TC${1} "CodeGen of ${2}/${3} case" 0 1
 
     rm -rf build${1}
-    PKG_CONFIG_PATH=.:$PKG_CONFIG_PATH meson build${1} && ninja -C build${1}
+    PKG_CONFIG_PATH=.:$EXTRA_PKG_CONFIG:$PKG_CONFIG_PATH meson build${1} && ninja -C build${1}
     testResult $? TC${1}C "Build codegen result of TC1 (${2}/${3} case)" 0 1
 
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=10 ! videoconvert ! videoscale ! video/x-raw,width=224,height=224,format=RGB ! tensor_converter ! tensor_filter framework=custom model=\"build${1}/libtc${1}.${SO_EXT}\" ! fakesink" TC${1}R "Run gst-launch for TC${1}" 0 0 $PERFORMANCE
