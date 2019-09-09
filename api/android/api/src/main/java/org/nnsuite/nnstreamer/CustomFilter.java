@@ -13,7 +13,7 @@
  * Library General Public License for more details.
  */
 
-package com.samsung.android.nnstreamer;
+package org.nnsuite.nnstreamer;
 
 import android.support.annotation.NonNull;
 

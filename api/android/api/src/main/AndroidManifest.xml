@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.samsung.android.nnstreamer" >
+    package="org.nnsuite.nnstreamer" >
 
     <uses-feature android:glEsVersion="0x00020000"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

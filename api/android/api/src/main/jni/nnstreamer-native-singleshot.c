@@ -27,7 +27,7 @@
  * @brief Native method for single-shot API.
  */
 jlong
-Java_com_samsung_android_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
     jstring model, jobject in, jobject out)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -70,7 +70,7 @@ done:
  * @brief Native method for single-shot API.
  */
 void
-Java_com_samsung_android_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info;
@@ -84,7 +84,7 @@ Java_com_samsung_android_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobjec
  * @brief Native method for single-shot API.
  */
 jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
     jlong handle, jobject in)
 {
   pipeline_info_s *pipe_info;
@@ -129,7 +129,7 @@ done:
  * @brief Native method for single-shot API.
  */
 jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeGetInputInfo (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_SingleShot_nativeGetInputInfo (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info;
@@ -161,7 +161,7 @@ done:
  * @brief Native method for single-shot API.
  */
 jobject
-Java_com_samsung_android_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info;
