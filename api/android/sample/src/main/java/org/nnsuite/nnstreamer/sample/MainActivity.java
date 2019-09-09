@@ -1,4 +1,4 @@
-package com.samsung.android.nnstreamer.sample;
+package org.nnsuite.nnstreamer.sample;
 
 import android.Manifest;
 import android.app.Activity;
@@ -10,12 +10,12 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
-import com.samsung.android.nnstreamer.CustomFilter;
-import com.samsung.android.nnstreamer.NNStreamer;
-import com.samsung.android.nnstreamer.Pipeline;
-import com.samsung.android.nnstreamer.SingleShot;
-import com.samsung.android.nnstreamer.TensorsData;
-import com.samsung.android.nnstreamer.TensorsInfo;
+import org.nnsuite.nnstreamer.CustomFilter;
+import org.nnsuite.nnstreamer.NNStreamer;
+import org.nnsuite.nnstreamer.Pipeline;
+import org.nnsuite.nnstreamer.SingleShot;
+import org.nnsuite.nnstreamer.TensorsData;
+import org.nnsuite.nnstreamer.TensorsInfo;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -137,7 +137,7 @@ public class MainActivity extends Activity {
             @Override
             public void onFinish() {
                 /* run the examples repeatedly */
-                if (exampleRun > 15) {
+                if (exampleRun > 5) {
                     Log.d(TAG, "Stop timer to run example");
 
                     if (isFailed) {

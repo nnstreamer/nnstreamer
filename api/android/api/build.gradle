@@ -30,7 +30,11 @@ android {
                 if (nnsRoot == null)
                     throw new GradleException('NNSTREAMER_ROOT must be set, or "nnstreamerRoot" must be defined in your gradle.properties')
 
-                arguments "NDK_APPLICATION_MK=jni/Application.mk", "GSTREAMER_JAVA_SRC_DIR=src", "GSTREAMER_ROOT_ANDROID=$gstRoot", "GSTREAMER_ASSETS_DIR=src/assets", "NNSTREAMER_ROOT=$nnsRoot"
+                arguments "NDK_APPLICATION_MK=src/main/jni/Application.mk",
+                          "GSTREAMER_JAVA_SRC_DIR=src/main/java",
+                          "GSTREAMER_ROOT_ANDROID=$gstRoot",
+                          "GSTREAMER_ASSETS_DIR=src/main/assets",
+                          "NNSTREAMER_ROOT=$nnsRoot"
 
                 targets "nnstreamer-native"
 
@@ -42,22 +46,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            sourceSets {
-                main {
-                    manifest.srcFile 'AndroidManifest.xml'
-                    java.srcDirs = ['src']
-                    resources.srcDirs = ['src']
-                    aidl.srcDirs = ['src']
-                    renderscript.srcDirs = ['src']
-                    res.srcDirs = ['res']
-                    assets.srcDirs = ['assets']
-                }
-            }
         }
     }
     externalNativeBuild {
         ndkBuild {
-            path 'jni/Android.mk'
+            path 'src/main/jni/Android.mk'
         }
     }
     productFlavors {

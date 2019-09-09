@@ -62,7 +62,7 @@ svn --force export https://github.com/nnsuite/nnstreamer-android-resource/trunk/
 
 pushd ./build_android_lib
 
-tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/jni
+tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
 
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
 
@@ -70,7 +70,7 @@ echo "Starting gradle build for Android library."
 nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
 
 # Build Android library.
-./gradlew api:assembleRelease
+./gradlew api:build
 
 # Check if build procedure is done.
 if [[ -e $nnstreamer_android_api_lib ]]; then

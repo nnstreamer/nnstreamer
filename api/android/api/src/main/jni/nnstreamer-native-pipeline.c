@@ -86,7 +86,9 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, vo
     /* method for sink callback */
     jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
     jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
-        "(Ljava/lang/String;Lcom/samsung/android/nnstreamer/TensorsData;Lcom/samsung/android/nnstreamer/TensorsInfo;)V");
+        "(Ljava/lang/String;"
+        "Lorg/nnsuite/nnstreamer/TensorsData;"
+        "Lorg/nnsuite/nnstreamer/TensorsInfo;)V");
     jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
 
     (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name, obj_data, obj_info);
@@ -277,7 +279,7 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
  * @brief Native method for pipeline API.
  */
 jlong
-Java_com_samsung_android_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz,
     jstring description, jboolean add_state_cb)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -309,7 +311,7 @@ Java_com_samsung_android_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobj
  * @brief Native method for pipeline API.
  */
 void
-Java_com_samsung_android_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -323,7 +325,7 @@ Java_com_samsung_android_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobjec
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -346,7 +348,7 @@ Java_com_samsung_android_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject 
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -369,7 +371,7 @@ Java_com_samsung_android_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject t
  * @brief Native method for pipeline API.
  */
 jint
-Java_com_samsung_android_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -393,7 +395,7 @@ Java_com_samsung_android_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobje
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz,
     jlong handle, jstring name, jobject in)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -440,7 +442,7 @@ done:
  * @brief Native method for pipeline API.
  */
 jobjectArray
-Java_com_samsung_android_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject thiz,
     jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -506,7 +508,7 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env, jobject thiz,
     jlong handle, jstring name, jstring pad)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -541,7 +543,7 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env, jobject thiz,
     jlong handle, jstring name, jboolean open)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -574,7 +576,7 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env, jobject thiz,
     jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -600,7 +602,7 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env, jobject thiz,
     jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;

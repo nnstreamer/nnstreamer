@@ -127,11 +127,11 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gcha
   pipe_info->version = (*env)->GetVersion (env);
   pipe_info->instance = (*env)->NewGlobalRef (env, thiz);
 
-  jclass cls_data = (*env)->FindClass (env, "com/samsung/android/nnstreamer/TensorsData");
+  jclass cls_data = (*env)->FindClass (env, "org/nnsuite/nnstreamer/TensorsData");
   pipe_info->cls_tensors_data = (*env)->NewGlobalRef (env, cls_data);
   (*env)->DeleteLocalRef (env, cls_data);
 
-  jclass cls_info = (*env)->FindClass (env, "com/samsung/android/nnstreamer/TensorsInfo");
+  jclass cls_info = (*env)->FindClass (env, "org/nnsuite/nnstreamer/TensorsInfo");
   pipe_info->cls_tensors_info = (*env)->NewGlobalRef (env, cls_info);
   (*env)->DeleteLocalRef (env, cls_info);
 
@@ -470,7 +470,7 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
  * @brief Native method to initialize NNStreamer.
  */
 jboolean
-Java_com_samsung_android_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
     jobject context)
 {
   nns_logi ("Called native initialize.");
@@ -499,7 +499,7 @@ Java_com_samsung_android_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, j
  * @brief Native method to get the version string of NNStreamer and GStreamer.
  */
 jstring
-Java_com_samsung_android_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env, jclass clazz)
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env, jclass clazz)
 {
   gchar *gst_ver = gst_version_string ();
   gchar *version_str = g_strdup_printf ("NNStreamer %s, %s", VERSION, gst_ver);

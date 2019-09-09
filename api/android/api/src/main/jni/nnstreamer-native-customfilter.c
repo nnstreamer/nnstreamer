@@ -100,10 +100,10 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
 
   jclass cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
   jmethodID mid_invoke = (*env)->GetMethodID (env, cls_custom, "invoke",
-      "(Lcom/samsung/android/nnstreamer/TensorsData;"
-      "Lcom/samsung/android/nnstreamer/TensorsInfo;"
-      "Lcom/samsung/android/nnstreamer/TensorsInfo;)"
-      "Lcom/samsung/android/nnstreamer/TensorsData;");
+      "(Lorg/nnsuite/nnstreamer/TensorsData;"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;)"
+      "Lorg/nnsuite/nnstreamer/TensorsData;");
 
   obj_out_data = (*env)->CallObjectMethod (env, pipe_info->instance, mid_invoke,
       obj_in_data, obj_in_info, obj_out_info);
@@ -188,7 +188,8 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
 
   jclass cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
   jmethodID mid_info = (*env)->GetMethodID (env, cls_custom, "getOutputInfo",
-      "(Lcom/samsung/android/nnstreamer/TensorsInfo;)Lcom/samsung/android/nnstreamer/TensorsInfo;");
+      "(Lorg/nnsuite/nnstreamer/TensorsInfo;)"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;");
 
   obj_out_info = (*env)->CallObjectMethod (env, pipe_info->instance, mid_info, obj_in_info);
   if (!obj_out_info || !nns_parse_tensors_info (pipe_info, env, obj_out_info, out)) {
@@ -218,7 +219,7 @@ done:
  * @brief Native method for custom filter.
  */
 jlong
-Java_com_samsung_android_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject thiz,
     jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -274,7 +275,7 @@ done:
  * @brief Native method for custom filter.
  */
 void
-Java_com_samsung_android_nnstreamer_CustomFilter_nativeDestroy (JNIEnv * env, jobject thiz,
+Java_org_nnsuite_nnstreamer_CustomFilter_nativeDestroy (JNIEnv * env, jobject thiz,
     jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;

@@ -13,7 +13,7 @@
  * Library General Public License for more details.
  */
 
-package com.samsung.android.nnstreamer;
+package org.nnsuite.nnstreamer;
 
 import android.content.Context;
 
@@ -133,11 +133,11 @@ public final class NNStreamer {
         try {
             System.loadLibrary("nnstreamer-native");
             GStreamer.init(context);
-            return nativeInitialize(context);
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
         }
+
+        return nativeInitialize(context);
     }
 
     /**
