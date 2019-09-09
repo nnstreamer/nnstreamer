@@ -171,6 +171,7 @@ You can construct a data stream pipeline with neural networks easily.
 %package -n capi-nnstreamer-single-new-devel
 Summary:	Tizen Native API Devel Kit for NNStreamer
 Group:		Multimedia/Framework
+Requires:	capi-nnstreamer-single-new = %{version}-%{release}
 %description -n capi-nnstreamer-single-new-devel
 Developmental kit for Tizen Native new single-shot NNStreamer API.
 %define api -Denable-capi=true
