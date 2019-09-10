@@ -39,6 +39,7 @@ public final class SingleShot implements AutoCloseable {
     private native TensorsData nativeInvoke(long handle, TensorsData in);
     private native TensorsInfo nativeGetInputInfo(long handle);
     private native TensorsInfo nativeGetOutputInfo(long handle);
+    private native boolean nativeSetTimeout(long handle, int timeout);
 
     /**
      * Creates a new <code>SingleShot</code> instance with the given model.
@@ -84,6 +85,10 @@ public final class SingleShot implements AutoCloseable {
      * Invokes the model with the given input data.
      * Even if the model has flexible input data dimensions,
      * input data frames of an instance of a model should share the same dimension.
+     *
+     * Note that this has a default timeout of 3 seconds.
+     * If an application wants to change the time to wait for an output,
+     * set the timeout using {@link #setTimeout(int)}.
      *
      * @param in The input data to be inferred (a single frame, tensor/tensors)
      *
@@ -141,6 +146,26 @@ public final class SingleShot implements AutoCloseable {
         }
 
         return info;
+    }
+
+    /**
+     * Sets the maximum amount of time to wait for an output, in milliseconds.
+     *
+     * @param timeout The time to wait for an output
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException if failed to set the timeout
+     */
+    public void setTimeout(int timeout) {
+        checkPipelineHandle();
+
+        if (timeout <= 0) {
+            throw new IllegalArgumentException("The param timeout is invalid");
+        }
+
+        if (!nativeSetTimeout(mHandle, timeout)) {
+            throw new IllegalStateException("Failed to set the timeout");
+        }
     }
 
     /**
