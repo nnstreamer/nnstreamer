@@ -262,6 +262,9 @@ public class MainActivity extends Activity {
             TensorsInfo outInfo = single.getOutputInfo();
             printTensorsInfo(outInfo);
 
+            /* set timeout (1 second) */
+            single.setTimeout(1000);
+
             /* single-shot invoke */
             for (int i = 0; i < 15; i++) {
                 /* dummy input */

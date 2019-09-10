@@ -188,3 +188,27 @@ done:
   ml_tensors_info_destroy (info);
   return result;
 }
+
+/**
+ * @brief Native method for single-shot API.
+ */
+jboolean
+Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env, jobject thiz,
+    jlong handle, jint timeout)
+{
+  pipeline_info_s *pipe_info;
+  ml_single_h single;
+  int status;
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  single = pipe_info->pipeline_handle;
+
+  status = ml_single_set_timeout (single, (unsigned int) timeout);
+  if (status != ML_ERROR_NONE) {
+    nns_loge ("Failed to set the timeout.");
+    return JNI_FALSE;
+  }
+
+  nns_logi ("Successfully set the timeout, %d milliseconds.", timeout);
+  return JNI_TRUE;
+}
