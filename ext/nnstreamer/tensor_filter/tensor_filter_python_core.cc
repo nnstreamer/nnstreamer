@@ -48,8 +48,8 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
    */
   gchar libname[32];
 
-  g_snprintf (libname, sizeof(libname), 
-#if PY_VERSION_HEX >= 0x03000000 
+  g_snprintf (libname, sizeof(libname),
+#if PY_VERSION_HEX >= 0x03000000
               "libpython%d.%dm.so.1.0",
 #else
               "libpython%d.%d.so.1.0",
@@ -94,7 +94,7 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule("nnstreamer_python");
   g_assert(api_module);
-  shape_cls = PyObject_GetAttrString(api_module, "TensorShape"); 
+  shape_cls = PyObject_GetAttrString(api_module, "TensorShape");
   g_assert(shape_cls);
   Py_XDECREF(api_module);
 
@@ -179,7 +179,7 @@ PYCore::loadScript ()
         while (*(args++) != NULL) argc++;
 
         g_assert(argc > 0);
-          
+
         py_args = PyTuple_New(argc);
 
         for (int i = 0; i < argc; i++)
@@ -189,14 +189,14 @@ PYCore::loadScript ()
 
         Py_XDECREF(py_args);
         g_strfreev(g_args);
-      } else 
+      } else
         core_obj = PyObject_CallObject(cls, NULL);
 
       if (core_obj) {
         /** check whther either setInputDim or getInputDim/getOutputDim are defined */
         if (PyObject_HasAttrString(core_obj, (char*) "setInputDim"))
           callback_type = CB_SETDIM;
-        else if (PyObject_HasAttrString(core_obj, (char*) "getInputDim") && 
+        else if (PyObject_HasAttrString(core_obj, (char*) "getInputDim") &&
                  PyObject_HasAttrString(core_obj, (char*) "getOutputDim"))
           callback_type = CB_GETDIM;
         else
@@ -224,7 +224,7 @@ PYCore::loadScript ()
   gint64 stop_time = g_get_real_time ();
   g_message ("Script is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
-  
+
   return 0;
 }
 
@@ -273,7 +273,7 @@ PYCore::checkTensorSize (GstTensorMemory *output, PyArrayObject *array)
 
   size_t total_size = PyArray_ITEMSIZE(array);
 
-  for (int i = 0; i < PyArray_NDIM(array); i++) 
+  for (int i = 0; i < PyArray_NDIM(array); i++)
     total_size *= PyArray_DIM(array, i);
 
   return (output->size == total_size);
@@ -298,7 +298,7 @@ PYCore::getInputTensorDim (GstTensorsInfo * info)
   if (result) {
     res = parseOutputTensors(result, info);
     Py_XDECREF(result);
-  } else { 
+  } else {
     Py_ERRMSG("Fail to call 'getInputDim'");
     res = -1;
   }
@@ -318,7 +318,7 @@ int
 PYCore::getOutputTensorDim (GstTensorsInfo * info)
 {
   int res = 0;
-  
+
   g_assert (info);
 
   Py_LOCK();
@@ -327,7 +327,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo * info)
   if (result) {
     res = parseOutputTensors(result, info);
     Py_XDECREF(result);
-  } else { 
+  } else {
     Py_ERRMSG("Fail to call 'getOutputDim'");
     res = -1;
   }
@@ -362,7 +362,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
   for (int i = 0; i < in_info->num_tensors; i++) {
     PyObject *shape = PyTensorShape_New (&in_info->info[i]);
     assert (shape);
-    
+
     PyList_Append(param, shape);
   }
 
@@ -381,7 +381,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
     if (res == 0)
       outputTensorMeta.num_tensors = out_info->num_tensors;
     Py_XDECREF(result);
-  } else { 
+  } else {
     Py_ERRMSG("Fail to call 'setInputDim'");
     res = -1;
   }
@@ -396,7 +396,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
  * @param info : the tensor info
  * @return created object
  */
-PyObject* 
+PyObject*
 PYCore::PyTensorShape_New (const GstTensorInfo* info)
 {
   PyObject *args = PyTuple_New(2);
@@ -407,12 +407,12 @@ PYCore::PyTensorShape_New (const GstTensorInfo* info)
   g_assert(dims);
   g_assert(type);
 
-  for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) 
+  for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     PyList_Append(dims, PyLong_FromLong((uint64_t) info->dimension[i]));
 
   PyTuple_SetItem(args, 0, dims);
   PyTuple_SetItem(args, 1, type);
- 
+
   PyObject *obj = PyObject_CallObject(shape_cls, args);
   g_assert(obj);
 
@@ -435,7 +435,7 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
 
   for (int i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
-    PyObject *tensor_shape = PyList_GetItem(result, (Py_ssize_t) i); 
+    PyObject *tensor_shape = PyList_GetItem(result, (Py_ssize_t) i);
     g_assert(tensor_shape);
 
     PyObject *shape_dims = PyObject_CallMethod(tensor_shape, (char*) "getDims", NULL);
@@ -447,7 +447,7 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
     /** convert numpy type to tensor type */
     info->info[i].type = getTensorType((NPY_TYPES)(((PyArray_Descr*) shape_type)->type_num));
     for (int j = 0; j < PyList_Size(shape_dims); j++)
-      info->info[i].dimension[j] = 
+      info->info[i].dimension[j] =
         (uint32_t) PyLong_AsLong(PyList_GetItem(shape_dims, (Py_ssize_t) j));
 
     Py_XDECREF (shape_dims);
@@ -495,8 +495,8 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject* output_array = (PyArrayObject*) PyList_GetItem(result, (Py_ssize_t) i);
       /** type/size checking */
-      if (checkTensorType(&output[i], output_array) && 
-          checkTensorSize(&output[i], output_array)) { 
+      if (checkTensorType(&output[i], output_array) &&
+          checkTensorSize(&output[i], output_array)) {
         /** obtain the pointer to the buffer for the output array */
         output[i].data = PyArray_DATA(output_array);
         Py_XINCREF(output_array);

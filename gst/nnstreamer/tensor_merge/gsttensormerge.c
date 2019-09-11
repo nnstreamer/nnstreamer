@@ -107,8 +107,8 @@ static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
     );
 
-static gboolean gst_tensor_merge_handle_src_event (GstPad * pad,
-    GstObject * parent, GstEvent * event);
+static gboolean gst_tensor_merge_src_event (GstPad * pad, GstObject * parent,
+    GstEvent * event);
 static GstPad *gst_tensor_merge_request_new_pad (GstElement * element,
     GstPadTemplate * templ, const gchar * name, const GstCaps * caps);
 static GstStateChangeReturn gst_tensor_merge_change_state (GstElement * element,
@@ -199,8 +199,7 @@ gst_tensor_merge_init (GstTensorMerge * tensor_merge)
   tensor_merge->srcpad =
       gst_pad_new_from_template (gst_element_class_get_pad_template (klass,
           "src"), "src");
-  gst_pad_set_event_function (tensor_merge->srcpad,
-      gst_tensor_merge_handle_src_event);
+  gst_pad_set_event_function (tensor_merge->srcpad, gst_tensor_merge_src_event);
 
   gst_element_add_pad (GST_ELEMENT (tensor_merge), tensor_merge->srcpad);
 
@@ -331,13 +330,13 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
  * @brief src event vmethod
  */
 static gboolean
-gst_tensor_merge_handle_src_event (GstPad * pad, GstObject * parent,
-    GstEvent * event)
+gst_tensor_merge_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
-  GstEventType type;
-  type = event ? GST_EVENT_TYPE (event) : GST_EVENT_UNKNOWN;
-  switch (type) {
+  g_return_val_if_fail (event != NULL, FALSE);
+
+  switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_SEEK:
+      gst_event_unref (event);
       return FALSE;
     default:
       break;
@@ -353,19 +352,17 @@ static gboolean
 gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
     GstEvent * event, GstTensorMerge * tensor_merge)
 {
-  gboolean ret;
+  g_return_val_if_fail (event != NULL, FALSE);
+
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_FLUSH_STOP:
-    {
       tensor_merge->need_segment = TRUE;
       break;
-    }
     default:
       break;
   }
 
-  ret = gst_collect_pads_event_default (pads, data, event, FALSE);
-  return ret;
+  return gst_collect_pads_event_default (pads, data, event, FALSE);
 }
 
 /**
