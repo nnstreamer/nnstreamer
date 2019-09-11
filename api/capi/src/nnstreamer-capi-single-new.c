@@ -219,7 +219,7 @@ ml_single_check_nnfw (const char *model, ml_nnfw_type_e * nnfw)
       } else if (g_str_has_suffix (path_down, ".pb")) {
         ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
         *nnfw = ML_NNFW_TYPE_TENSORFLOW;
-      } else if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
+      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
         ml_logi ("The given model [%s] is supposed a custom filter model.",
             model);
         *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
@@ -411,13 +411,17 @@ ml_single_open (ml_single_h * single, const char *model,
   } else {
     ml_tensors_info_h in_info;
 
-    status = ML_ERROR_INVALID_PARAMETER;
-    if (!klass->input_configured (single_h->filter))
+    if (!klass->input_configured (single_h->filter)) {
+      ml_loge ("Failed to configure input info in filter.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
+    }
 
     status = ml_single_get_input_info (single_h, &in_info);
-    if (status != ML_ERROR_NONE)
+    if (status != ML_ERROR_NONE) {
+      ml_loge ("Failed to get the input tensor info.");
       goto error;
+    }
 
     status = ml_tensors_info_clone (&single_h->in_info, in_info);
     ml_tensors_info_destroy (in_info);
@@ -426,11 +430,11 @@ ml_single_open (ml_single_h * single, const char *model,
 
     status = ml_tensors_info_validate (&single_h->in_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("Failed to get the input tensor info.");
+      ml_loge ("The input tensor info is invalid.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
   }
-
 
   if (out_tensors_info) {
     /** set the tensors info here */
@@ -446,13 +450,17 @@ ml_single_open (ml_single_h * single, const char *model,
   } else {
     ml_tensors_info_h out_info;
 
-    status = ML_ERROR_INVALID_PARAMETER;
-    if (!klass->output_configured (single_h->filter))
+    if (!klass->output_configured (single_h->filter)) {
+      ml_loge ("Failed to configure output info in filter.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
+    }
 
     status = ml_single_get_output_info (single_h, &out_info);
-    if (status != ML_ERROR_NONE)
+    if (status != ML_ERROR_NONE) {
+      ml_loge ("Failed to get the output tensor info.");
       goto error;
+    }
 
     status = ml_tensors_info_clone (&single_h->out_info, out_info);
     ml_tensors_info_destroy (out_info);
@@ -461,7 +469,8 @@ ml_single_open (ml_single_h * single, const char *model,
 
     status = ml_tensors_info_validate (&single_h->out_info, &valid);
     if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("Failed to get the output tensor info.");
+      ml_loge ("The output tensor info is invalid.");
+      status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
   }
