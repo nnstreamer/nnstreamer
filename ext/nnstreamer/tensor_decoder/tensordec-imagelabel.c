@@ -49,6 +49,25 @@ typedef struct
   guint max_word_length; /**< The max size of labels */
 } ImageLabelData;
 
+/**
+ * @brief Free the allocated lables
+ */
+static void
+_free_labels (ImageLabelData * data)
+{
+  guint i;
+
+  if (data->labels) {
+    for (i = 0; i < data->total_labels; i++)
+      g_free (data->labels[i]);
+    g_free (data->labels);
+  }
+
+  data->labels = NULL;
+  data->total_labels = 0;
+  data->max_word_length = 0;
+}
+
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 il_init (void **pdata)
@@ -63,12 +82,9 @@ static void
 il_exit (void **pdata)
 {
   ImageLabelData *data = *pdata;
-  if (data->labels) {
-    int i;
-    for (i = 0; i < data->total_labels; i++)
-      g_free (data->labels[i]);
-    g_free (data->labels);
-  }
+
+  _free_labels (data);
+
   if (data->label_path)
     g_free (data->label_path);
 
@@ -89,14 +105,7 @@ loadImageLabels (ImageLabelData * data)
   guint i, len;
 
   /* Clean up previously configured data first */
-  if (data->labels) {
-    for (i = 0; i < data->total_labels; i++)
-      g_free (data->labels[i]);
-    g_free (data->labels);
-  }
-  data->labels = NULL;
-  data->total_labels = 0;
-  data->max_word_length = 0;
+  _free_labels (data);
 
   /* Read file contents */
   if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {

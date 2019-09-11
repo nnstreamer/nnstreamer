@@ -148,6 +148,25 @@ _init_modes (bounding_boxes * bdata)
   return TRUE;
 }
 
+/**
+ * @brief Free the allocated lables
+ */
+static void
+_free_labels (bounding_boxes * data)
+{
+  guint i;
+
+  if (data->labels) {
+    for (i = 0; i < data->total_labels; i++)
+      g_free (data->labels[i]);
+    g_free (data->labels);
+  }
+
+  data->labels = NULL;
+  data->total_labels = 0;
+  data->max_word_length = 0;
+}
+
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 bb_init (void **pdata)
@@ -207,12 +226,8 @@ bb_exit (void **pdata)
 {
   bounding_boxes *bdata = *pdata;
 
-  if (bdata->labels) {
-    int i;
-    for (i = 0; i < bdata->total_labels; i++)
-      g_free (bdata->labels[i]);
-    g_free (bdata->labels);
-  }
+  _free_labels (bdata);
+
   if (bdata->label_path)
     g_free (bdata->label_path);
   _exit_modes (bdata);
@@ -234,14 +249,7 @@ loadImageLabels (bounding_boxes * data)
   guint i, len;
 
   /* Clean up previously configured data first */
-  if (data->labels) {
-    for (i = 0; i < data->total_labels; i++)
-      g_free (data->labels[i]);
-    g_free (data->labels);
-  }
-  data->labels = NULL;
-  data->total_labels = 0;
-  data->max_word_length = 0;
+  _free_labels (data);
 
   /* Read file contents */
   if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {

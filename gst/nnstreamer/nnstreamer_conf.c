@@ -166,6 +166,39 @@ _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
 }
 
 /**
+ * @brief Private function to get sub-plugins list with type.
+ */
+static gboolean
+_get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
+    gchar *** filepath)
+{
+  gchar **vstr, **vstrFull;
+
+  switch (type) {
+    case NNSCONF_PATH_FILTERS:
+      vstr = conf.basenameFILTERS;
+      vstrFull = conf.filesFILTERS;
+      break;
+    case NNSCONF_PATH_DECODERS:
+      vstr = conf.basenameDECODERS;
+      vstrFull = conf.filesDECODERS;
+      break;
+    case NNSCONF_PATH_CUSTOM_FILTERS:
+      vstr = conf.basenameCUSTOM_FILTERS;
+      vstrFull = conf.filesCUSTOM_FILTERS;
+      break;
+    default:
+      /* unknown type */
+      g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
+      return FALSE;
+  }
+
+  *basename = vstr;
+  *filepath = vstrFull;
+  return TRUE;
+}
+
+/**
  * @brief Data structure for _g_list_foreach_vstr_helper
  */
 typedef struct
@@ -341,22 +374,8 @@ nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type)
   gchar **vstr, **vstrFull;
   guint i;
 
-  switch (type) {
-    case NNSCONF_PATH_FILTERS:
-      vstr = conf.basenameFILTERS;
-      vstrFull = conf.filesFILTERS;
-      break;
-    case NNSCONF_PATH_DECODERS:
-      vstr = conf.basenameDECODERS;
-      vstrFull = conf.filesDECODERS;
-      break;
-    case NNSCONF_PATH_CUSTOM_FILTERS:
-      vstr = conf.basenameCUSTOM_FILTERS;
-      vstrFull = conf.filesCUSTOM_FILTERS;
-      break;
-    default:
-      return NULL;
-  }
+  if (!_get_subplugin_with_type (type, &vstr, &vstrFull))
+    return NULL;
 
   if (vstr == NULL)
     return NULL;
@@ -426,23 +445,8 @@ nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info)
 
   nnsconf_loadconf (FALSE);
 
-  switch (type) {
-    case NNSCONF_PATH_FILTERS:
-      vstr = conf.basenameFILTERS;
-      vstrFull = conf.filesFILTERS;
-      break;
-    case NNSCONF_PATH_DECODERS:
-      vstr = conf.basenameDECODERS;
-      vstrFull = conf.filesDECODERS;
-      break;
-    case NNSCONF_PATH_CUSTOM_FILTERS:
-      vstr = conf.basenameCUSTOM_FILTERS;
-      vstrFull = conf.filesCUSTOM_FILTERS;
-      break;
-    default:
-      g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
-      return 0;
-  }
+  if (!_get_subplugin_with_type (type, &vstr, &vstrFull))
+    return 0;
 
   info->names = vstr;
   info->paths = vstrFull;

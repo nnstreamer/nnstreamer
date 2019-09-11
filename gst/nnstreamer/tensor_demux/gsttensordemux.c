@@ -248,7 +248,7 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
       gst_tensor_demux_parse_caps (tensor_demux, caps);
-      return gst_pad_event_default (pad, parent, event);
+      break;
     }
     case GST_EVENT_EOS:
       if (!tensor_demux->srcpads) {
@@ -257,13 +257,13 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
             ("Got EOS before adding any pads"));
         gst_event_unref (event);
         return FALSE;
-      } else {
-        return gst_pad_event_default (pad, parent, event);
       }
       break;
     default:
-      return gst_pad_event_default (pad, parent, event);
+      break;
   }
+
+  return gst_pad_event_default (pad, parent, event);
 }
 
 /**
