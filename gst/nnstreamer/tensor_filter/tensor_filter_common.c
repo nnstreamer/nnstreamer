@@ -29,10 +29,37 @@
 
 #include "tensor_filter_common.h"
 
+#define REGEX_NNAPI_OPTION "(^(true|false)$|^(true|false)([:]?(cpu|gpu|npu)))"
+
+/**
+ * @brief Free memory
+ */
+#define g_free_const(x) g_free((void*)(long)(x))
+
+/**
+ * @brief GstTensorFilter properties.
+ */
+enum
+{
+  PROP_0,
+  PROP_SILENT,
+  PROP_FRAMEWORK,
+  PROP_MODEL,
+  PROP_INPUT,
+  PROP_INPUTTYPE,
+  PROP_INPUTNAME,
+  PROP_OUTPUT,
+  PROP_OUTPUTTYPE,
+  PROP_OUTPUTNAME,
+  PROP_CUSTOM,
+  PROP_SUBPLUGINS,
+  PROP_NNAPI
+};
+
 /**
  * @brief Validate filter sub-plugin's data.
  */
-gboolean
+static gboolean
 nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
 {
   if (!tfsp || !tfsp->name) {
@@ -87,14 +114,13 @@ nnstreamer_filter_find (const char *name)
   return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 }
 
-
 /**
  * @brief Parse the string of model
  * @param[out] prop Struct containing the properties of the object
  * @param[in] model_files the prediction model paths
  * @return number of parsed model path
  */
-guint
+static guint
 gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
     const gchar * model_files)
 {
@@ -281,20 +307,292 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
 }
 
 /**
- * @brief Get the properties for tensor_filter
- * @param[in] prop Struct containing the properties of the object
+ * @brief Initialize the properties for tensor-filter.
+ */
+void
+gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
+{
+  GstTensorFilterProperties *prop;
+
+  prop = &priv->prop;
+
+  /* init NNFW properties */
+  prop->fwname = NULL;
+  prop->fw_opened = FALSE;
+  prop->input_configured = FALSE;
+  prop->output_configured = FALSE;
+  prop->model_file = NULL;
+  prop->nnapi = NULL;
+  prop->custom_properties = NULL;
+  gst_tensors_info_init (&prop->input_meta);
+  gst_tensors_info_init (&prop->output_meta);
+
+  /* init internal properties */
+  priv->fw = NULL;
+  priv->privateData = NULL;
+  priv->silent = TRUE;
+  priv->configured = FALSE;
+  gst_tensors_config_init (&priv->in_config);
+  gst_tensors_config_init (&priv->out_config);
+}
+
+/**
+ * @brief Free the properties for tensor-filter.
+ */
+void
+gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
+{
+  GstTensorFilterProperties *prop;
+
+  prop = &priv->prop;
+
+  g_free_const (prop->fwname);
+  g_free_const (prop->model_file);
+  g_free_const (prop->custom_properties);
+
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+
+  gst_tensors_info_free (&priv->in_config.info);
+  gst_tensors_info_free (&priv->out_config.info);
+}
+
+/**
+ * @brief Set the properties for tensor_filter
+ * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
  */
 gboolean
-gst_tensor_filter_common_get_property (GstTensorFilterProperties * prop,
-    guint prop_id, GValue * value, GParamSpec * pspec)
+gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
+    guint prop_id, const GValue * value, GParamSpec * pspec)
 {
-  gboolean ret = TRUE;
+  GstTensorFilterProperties *prop;
+
+  prop = &priv->prop;
 
   switch (prop_id) {
+    case PROP_SILENT:
+      priv->silent = g_value_get_boolean (value);
+      break;
+    case PROP_FRAMEWORK:
+    {
+      const gchar *fw_name = g_value_get_string (value);
+      const GstTensorFilterFramework *fw;
+
+      if (priv->fw != NULL) {
+        /* close old framework */
+        gst_tensor_filter_common_close_fw (priv);
+      }
+
+      g_debug ("Framework = %s\n", fw_name);
+
+      fw = nnstreamer_filter_find (fw_name);
+
+      /* See if mandatory methods are filled in */
+      if (nnstreamer_filter_validate (fw)) {
+        priv->fw = fw;
+        prop->fwname = g_strdup (fw_name);
+      } else {
+        g_warning ("Cannot identify the given neural network framework, %s\n",
+            fw_name);
+      }
+      break;
+    }
+    case PROP_MODEL:
+    {
+      const gchar *model_files = g_value_get_string (value);
+      guint model_num;
+
+      if (prop->model_file) {
+        gst_tensor_filter_common_close_fw (priv);
+        g_free_const (prop->model_file);
+        prop->model_file = NULL;
+      }
+
+      if (prop->model_file_sub) {
+        gst_tensor_filter_common_close_fw (priv);
+        g_free_const (prop->model_file_sub);
+        prop->model_file_sub = NULL;
+      }
+
+      /* Once configures, it cannot be changed in runtime */
+      g_assert (model_files);
+      model_num = gst_tensor_filter_parse_modelpaths_string (prop, model_files);
+      if (model_num == 1) {
+        if (!g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR))
+          g_critical ("Cannot find the model file: %s\n", prop->model_file);
+      } else if (model_num == 2) {
+        if (!g_file_test (prop->model_file_sub, G_FILE_TEST_IS_REGULAR))
+          g_critical ("Cannot find the init model file: %s\n",
+              prop->model_file_sub);
+        if (!g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR))
+          g_critical ("Cannot find the pred model file: %s\n",
+              prop->model_file);
+      } else if (model_num > 2) {
+        /** @todo if the new NN framework requires more than 2 model files, this area will be implemented */
+        g_critical
+            ("There is no NN framework that requires model files more than 2. Current Input model files are :%d\n",
+            model_num);
+      } else {
+        g_critical ("Set model file path first\n");
+      }
+      break;
+    }
+    case PROP_INPUT:
+      g_assert (!prop->input_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_dims;
+
+        num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
+            g_value_get_string (value));
+
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_dims) {
+          g_warning
+              ("Invalid input-dim, given param does not match with old value.");
+        }
+
+        prop->input_meta.num_tensors = num_dims;
+      }
+      break;
+    case PROP_OUTPUT:
+      g_assert (!prop->output_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_dims;
+
+        num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
+            g_value_get_string (value));
+
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_dims) {
+          g_warning
+              ("Invalid output-dim, given param does not match with old value.");
+        }
+
+        prop->output_meta.num_tensors = num_dims;
+      }
+      break;
+    case PROP_INPUTTYPE:
+      g_assert (!prop->input_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_types;
+
+        num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
+            g_value_get_string (value));
+
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_types) {
+          g_warning
+              ("Invalid input-type, given param does not match with old value.");
+        }
+
+        prop->input_meta.num_tensors = num_types;
+      }
+      break;
+    case PROP_OUTPUTTYPE:
+      g_assert (!prop->output_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_types;
+
+        num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
+            g_value_get_string (value));
+
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_types) {
+          g_warning
+              ("Invalid output-type, given param does not match with old value.");
+        }
+
+        prop->output_meta.num_tensors = num_types;
+      }
+      break;
+    case PROP_INPUTNAME:
+      /* INPUTNAME is required by tensorflow to designate the order of tensors */
+      g_assert (!prop->input_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_names;
+
+        num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
+            g_value_get_string (value));
+
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_names) {
+          g_warning
+              ("Invalid input-name, given param does not match with old value.");
+        }
+
+        prop->input_meta.num_tensors = num_names;
+      }
+      break;
+    case PROP_OUTPUTNAME:
+      /* OUTPUTNAME is required by tensorflow to designate the order of tensors */
+      g_assert (!prop->output_configured && value);
+      /* Once configures, it cannot be changed in runtime */
+      {
+        guint num_names;
+
+        num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
+            g_value_get_string (value));
+
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_names) {
+          g_warning
+              ("Invalid output-name, given param does not match with old value.");
+        }
+
+        prop->output_meta.num_tensors = num_names;
+      }
+      break;
+    case PROP_CUSTOM:
+      /* In case updated custom properties in runtime! */
+      g_free_const (prop->custom_properties);
+      prop->custom_properties = g_value_dup_string (value);
+      g_debug ("Custom Option = %s\n", prop->custom_properties);
+      break;
+    case PROP_NNAPI:
+      prop->nnapi = g_value_dup_string (value);
+      if (!g_regex_match_simple (REGEX_NNAPI_OPTION, prop->nnapi, 0, 0)) {
+        g_critical
+            ("nnapi: \'%s\' is not valid string: it should be in the form of BOOL:ACCELLERATOR or BOOL with a regex, "
+            REGEX_NNAPI_OPTION "\n", prop->nnapi);
+        break;
+      }
+      break;
+    default:
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Get the properties for tensor_filter
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] prop_id Id for the property
+ * @param[in] value Container to return the asked property
+ * @param[in] pspec Metadata to specify the parameter
+ * @return TRUE if prop_id is value, else FALSE
+ */
+gboolean
+gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
+    guint prop_id, GValue * value, GParamSpec * pspec)
+{
+  GstTensorFilterProperties *prop;
+
+  prop = &priv->prop;
+
+  switch (prop_id) {
+    case PROP_SILENT:
+      g_value_set_boolean (value, priv->silent);
+      break;
     case PROP_FRAMEWORK:
       g_value_set_string (value, prop->fwname);
       break;
@@ -413,9 +711,43 @@ gst_tensor_filter_common_get_property (GstTensorFilterProperties * prop,
       g_value_set_string (value, prop->nnapi);
       break;
     default:
-      ret = FALSE;
-      break;
+      /* unknown property */
+      return FALSE;
   }
 
-  return ret;
+  return TRUE;
+}
+
+/**
+ * @brief Open NN framework.
+ */
+void
+gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
+{
+  if (!priv->prop.fw_opened && priv->fw) {
+    if (priv->fw->open) {
+      if (priv->fw->open (&priv->prop, &priv->privateData) == 0)
+        priv->prop.fw_opened = TRUE;
+    } else {
+      priv->prop.fw_opened = TRUE;
+    }
+  }
+}
+
+/**
+ * @brief Close NN framework.
+ */
+void
+gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
+{
+  if (priv->prop.fw_opened) {
+    if (priv->fw && priv->fw->close) {
+      priv->fw->close (&priv->prop, &priv->privateData);
+    }
+    priv->prop.fw_opened = FALSE;
+    g_free_const (priv->prop.fwname);
+    priv->prop.fwname = NULL;
+    priv->fw = NULL;
+    priv->privateData = NULL;
+  }
 }

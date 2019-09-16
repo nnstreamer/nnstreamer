@@ -25,53 +25,25 @@
 #ifndef __G_TENSOR_FILTER_COMMON_H__
 #define __G_TENSOR_FILTER_COMMON_H__
 
-#include <glib-object.h>
-
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 /**
- * @brief Free memory
+ * @brief Structure definition for common tensor-filter properties.
  */
-#define g_free_const(x) g_free((void*)(long)(x))
-
-/**
- * @brief GstTensorFilter properties.
- */
-enum
+typedef struct _GstTensorFilterPrivate
 {
-  PROP_0,
-  PROP_SILENT,
-  PROP_FRAMEWORK,
-  PROP_MODEL,
-  PROP_INPUT,
-  PROP_INPUTTYPE,
-  PROP_INPUTNAME,
-  PROP_OUTPUT,
-  PROP_OUTPUTTYPE,
-  PROP_OUTPUTNAME,
-  PROP_CUSTOM,
-  PROP_SUBPLUGINS,
-  PROP_NNAPI
-};
+  void *privateData; /**< NNFW plugin's private data is stored here */
+  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
+  const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
-/**
- * @brief Validate filter sub-plugin's data.
- */
-extern gboolean
-nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp);
-
-/**
- * @brief Parse the string of model
- * @param[out] prop Struct containing the properties of the object
- * @param[in] model_files the prediction model paths
- * @return number of parsed model path
- * @todo Create a struct list to save multiple model files with key, value pair
- */
-extern guint
-gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
-    const gchar * model_files);
+  /* internal properties for tensor-filter */
+  gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
+  gboolean configured; /**< True if already successfully configured tensor metadata */
+  GstTensorsConfig in_config; /**< input tensor info */
+  GstTensorsConfig out_config; /**< output tensor info */
+} GstTensorFilterPrivate;
 
 /**
  * @brief Printout the comparison results of two tensors.
@@ -83,7 +55,6 @@ extern void
 gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     GstTensorsInfo * info2);
 
-
 /**
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
@@ -91,17 +62,52 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
 extern void
 gst_tensor_filter_install_properties (GObjectClass * gobject_class);
 
+/**
+ * @brief Initialize the properties for tensor-filter.
+ */
+extern void
+gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv);
 
 /**
- * @brief Get the properties for tensor_filter
- * @param[in] prop Struct containing the properties of the object
+ * @brief Free the properties for tensor-filter.
+ */
+extern void
+gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
+
+/**
+ * @brief Set the properties for tensor_filter
+ * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
  */
 extern gboolean
-gst_tensor_filter_common_get_property (GstTensorFilterProperties *prop,
-    guint prop_id, GValue *value, GParamSpec *pspec);
+gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
+    guint prop_id, const GValue * value, GParamSpec * pspec);
+
+/**
+ * @brief Get the properties for tensor_filter
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] prop_id Id for the property
+ * @param[in] value Container to return the asked property
+ * @param[in] pspec Metadata to specify the parameter
+ * @return TRUE if prop_id is value, else FALSE
+ */
+extern gboolean
+gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
+    guint prop_id, GValue * value, GParamSpec * pspec);
+
+/**
+ * @brief Open NN framework.
+ */
+extern void
+gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
+
+/**
+ * @brief Close NN framework.
+ */
+extern void
+gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */

@@ -28,8 +28,7 @@
 #include <stdint.h>
 #include <glib-object.h>
 
-#include <nnstreamer/nnstreamer_subplugin.h>
-#include <nnstreamer/nnstreamer_plugin_api_filter.h>
+#include <nnstreamer/tensor_filter/tensor_filter_common.h>
 
 G_BEGIN_DECLS
 #define G_TYPE_TENSOR_FILTER_SINGLE \
@@ -54,15 +53,7 @@ struct _GTensorFilterSingle
 {
   GObject element;     /**< This is the parent object */
 
-  void *privateData; /**< NNFW plugin's private data is stored here */
-  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
-  const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
-
-  /* internal properties for tensor_filter_single */
-  gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
-  gboolean started; /**< filter has been started */
-  GstTensorsConfig in_config; /**< input tensor info */
-  GstTensorsConfig out_config; /**< output tensor info */
+  GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
 };
 
 /**
