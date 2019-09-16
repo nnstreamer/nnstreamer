@@ -29,7 +29,6 @@
 #ifndef __GST_TENSOR_FILTER_H__
 #define __GST_TENSOR_FILTER_H__
 
-#include <stdint.h>
 #include <gst/gst.h>
 #include <gst/gstinfo.h>
 #include <gst/base/gstbasetransform.h>
@@ -37,6 +36,7 @@
 #include "tensor_common.h"
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_plugin_api_filter.h"
+#include "tensor_filter_common.h"
 
 G_BEGIN_DECLS
 
@@ -62,25 +62,8 @@ struct _GstTensorFilter
 {
   GstBaseTransform element;     /**< This is the parent object */
 
-  void *privateData; /**< NNFW plugin's private data is stored here */
-  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
-  const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
-
-  /* internal properties for tensor-filter */
-  gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
-  gboolean configured; /**< True if already successfully configured tensor metadata */
-  GstTensorsConfig in_config; /**< input tensor info */
-  GstTensorsConfig out_config; /**< output tensor info */
+  GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
 };
-
-/**
- * @brief Location of GstTensorFilter from privateData
- * @param p the "privateData" pointer of GstTensorFilter
- * @return the pointer to GstTensorFilter containing p as privateData
- */
-#define GstTensorFilter_of_privateData(p) ({ \
-    const void **__mptr = (const void **)(p); \
-    (GstTensorFilter *)( (char *)__mptr - offsetof(GstTensorFilter, privateData) );})
 
 /**
  * @brief GstTensorFilterClass inherits GstBaseTransformClass.
