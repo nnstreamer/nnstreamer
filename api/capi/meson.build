@@ -59,7 +59,7 @@ capi_deps = [
   nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
 ]
 
-nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
+shared_library ('capi-nnstreamer',
   capi_main,
   dependencies: capi_deps,
   include_directories: capi_inc,
@@ -67,7 +67,7 @@ nnstreamer_capi_lib = shared_library ('capi-nnstreamer',
   version: meson.project_version(),
   install_dir: nnstreamer_libdir,
 )
-static_library ('capi-nnstreamer',
+nnstreamer_capi_lib = static_library ('capi-nnstreamer',
   capi_main,
   dependencies: capi_deps,
   include_directories: capi_inc,
@@ -91,7 +91,7 @@ if get_option('enable-tizen')
   capi_single_new_main += join_paths('src', 'nnstreamer-capi-tizen.c')
 endif
 
-nnstreamer_capi_single_new_lib = shared_library ('capi-nnstreamer-single-new',
+shared_library ('capi-nnstreamer-single-new',
   capi_single_new_main,
   dependencies: capi_deps,
   include_directories: capi_inc,
@@ -99,7 +99,7 @@ nnstreamer_capi_single_new_lib = shared_library ('capi-nnstreamer-single-new',
   version: meson.project_version(),
   install_dir: nnstreamer_libdir,
 )
-static_library ('capi-nnstreamer-single-new',
+nnstreamer_capi_single_new_lib = static_library ('capi-nnstreamer-single-new',
   capi_single_new_main,
   dependencies: capi_deps,
   include_directories: capi_inc,
