@@ -1876,6 +1876,91 @@ TEST (nnstreamer_capi_singleshot, failure_01_n)
 }
 
 /**
+ * @brief Structure containing values to run single shot
+ */
+typedef struct {
+  gchar *test_model;
+  guint num_runs;
+  guint timeout;
+  guint min_time_to_run;
+  gboolean expect;
+  ml_single_h *single;
+} single_shot_thread_data;
+
+/**
+ * @brief Open and run on single shot API with provided data
+ */
+void * single_shot_loop_test (void * arg)
+{
+  guint i;
+  int status = ML_ERROR_NONE;
+  ml_single_h single;
+  single_shot_thread_data *ss_data = (single_shot_thread_data *) arg;
+
+  status = ml_single_open (&single, ss_data->test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  if (ss_data->expect)
+    EXPECT_EQ (status, ML_ERROR_NONE);
+  ss_data->single = &single;
+
+  /* set timeout */
+  if (ss_data->timeout != 0) {
+    status = ml_single_set_timeout (single, ss_data->timeout);
+    if (ss_data->expect)
+      EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+    if (status == ML_ERROR_NOT_SUPPORTED)
+      ss_data->timeout = 0;
+  }
+
+  ml_tensors_info_h in_info;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim;
+
+  ml_tensors_info_create (&in_info);
+
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  input = output = NULL;
+
+  /* generate dummy data */
+  status = ml_tensors_data_create (in_info, &input);
+  if (ss_data->expect) {
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (input != NULL);
+  }
+
+  for (i=0; i<ss_data->num_runs; i++) {
+    status = ml_single_invoke (single, input, &output);
+    if (ss_data->expect) {
+      if (ss_data->timeout != 0 && ss_data->timeout < ss_data->min_time_to_run) {
+        EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
+        EXPECT_TRUE (output == NULL);
+      } else {
+        EXPECT_EQ (status, ML_ERROR_NONE);
+        EXPECT_TRUE (output != NULL);
+      }
+    }
+    output = NULL;
+  }
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+
+  status = ml_single_close (single);
+  if (ss_data->expect)
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+  return NULL;
+}
+
+/**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Testcase with timeout.
  */
@@ -1933,6 +2018,13 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
     EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
     EXPECT_TRUE (output == NULL);
 
+    /* set timeout 5 s */
+    status = ml_single_set_timeout (single, 5000);
+
+    status = ml_single_invoke (single, input, &output);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (output != NULL);
+
     ml_tensors_data_destroy (output);
     ml_tensors_data_destroy (input);
     ml_tensors_info_destroy (in_info);
@@ -1943,6 +2035,109 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
 
   g_free (test_model);
 }
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Testcase with multiple runs in parallel. Some of the
+ *         running instances will timeout, however others will not.
+ */
+TEST (nnstreamer_capi_singleshot, parallel_runs)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+  const gint num_threads = 3;
+  const gint num_cases = 3;
+  pthread_t thread[num_threads * num_cases];
+  single_shot_thread_data ss_data[num_cases];
+  guint i, j;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  for (i=0; i<num_cases; i++) {
+    ss_data[i].test_model = test_model;
+    ss_data[i].num_runs = 10;
+    ss_data[i].min_time_to_run = 10;    /** 10 msec */
+    ss_data[i].expect = TRUE;
+  }
+
+  /** Default timeout runs */
+  ss_data[0].timeout = 0;
+  /** small timeout runs */
+  ss_data[1].timeout = 5;
+  /** large timeout runs */
+  ss_data[2].timeout = 10000;
+
+  /**
+   * make thread running things in background, each with different timeout,
+   * some fails, some runs, all opens pipelines by themselves in parallel
+   */
+  for (j=0; j<num_cases; j++) {
+    for (i=0; i<num_threads; i++) {
+      pthread_create (&thread[i+j * num_threads], NULL, single_shot_loop_test,
+          (void *) &ss_data[j]);
+    }
+  }
+
+  for (i=0; i<num_threads * num_cases; i++) {
+    pthread_join(thread[i], NULL);
+  }
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Close the single handle while running. This test shuuld not crash.
+ *         This closes the single handle twice, while opens it once
+ */
+TEST (nnstreamer_capi_singleshot, close_while_running)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+  pthread_t thread;
+  single_shot_thread_data ss_data;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ss_data.test_model = test_model;
+  ss_data.num_runs = 10;
+  ss_data.min_time_to_run = 10;    /** 10 msec */
+  ss_data.expect = FALSE;
+  ss_data.timeout = 3000;
+  ss_data.single = NULL;
+
+  pthread_create (&thread, NULL, single_shot_loop_test, (void *) &ss_data);
+
+  /** Start the thread and let the code start */
+  g_usleep (100000);    /** 100 msec */
+
+  /**
+   * Call single API functions while its running. One run takes 100ms on average.
+   * So, these calls would in the middle of running and should not crash
+   * However, their status can be of failure, if the thread is closed earlier
+   */
+  if (ss_data.single) {
+    ml_single_set_timeout (*ss_data.single, ss_data.timeout);
+    ml_single_close (*ss_data.single);
+  }
+
+  pthread_join(thread, NULL);
+
+  g_free (test_model);
+}
+
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
