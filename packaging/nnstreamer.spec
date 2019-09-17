@@ -179,6 +179,22 @@ Developmental kit for Tizen Native new single-shot NNStreamer API.
 %define api -Denable-capi=false
 %endif
 
+# Element restriction in Tizen
+%if %{with tizen}
+%define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc fimcconvert'
+
+%define restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
+%else
+%define restriction -Denable-element-restriction=false
+%endif
+
+# Support tensorflow
+%if 0%{?tensorflow-support}
+%define enable_tf -Denable-tensorflow=true
+%else
+%define enable_tf -Denable-tensorflow=false
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -194,13 +210,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 
-%if 0%{?tensorflow-support}
-%define enable_tf true
-%else
-%define enable_tf false
-%endif
-
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true -Denable-tensorflow=%{enable_tf} -Denable-pytorch=false -Denable-caffe2=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true %{restriction} build
 
 ninja -C build %{?_smp_mflags}
 
