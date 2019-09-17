@@ -28,7 +28,6 @@
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
-#include "nnstreamer_conf.h"
 
 #undef ML_SINGLE_SUPPORT_TIMEOUT
 #if (GST_VERSION_MAJOR > 1 || (GST_VERSION_MAJOR == 1 && GST_VERSION_MINOR >= 10))
@@ -130,6 +129,78 @@ ml_single_get_tensors_info_from_filter (GstElement * filter, gboolean is_input,
 }
 
 /**
+ * @brief Internal static function to get the string of tensor-filter properties.
+ * The returned string should be freed using g_free().
+ */
+static gchar *
+ml_single_get_filter_option_string (gboolean is_input,
+    ml_tensors_info_s * tensors_info)
+{
+  GstTensorsInfo gst_info;
+  gchar *str_prefix, *str_dim, *str_type, *str_name;
+  gchar *option;
+
+  ml_tensors_info_copy_from_ml (&gst_info, tensors_info);
+
+  if (is_input)
+    str_prefix = g_strdup ("input");
+  else
+    str_prefix = g_strdup ("output");
+
+  str_dim = gst_tensors_info_get_dimensions_string (&gst_info);
+  str_type = gst_tensors_info_get_types_string (&gst_info);
+  str_name = gst_tensors_info_get_names_string (&gst_info);
+
+  option = g_strdup_printf ("%s=%s %stype=%s %sname=%s",
+      str_prefix, str_dim, str_prefix, str_type, str_prefix, str_name);
+
+  g_free (str_prefix);
+  g_free (str_dim);
+  g_free (str_type);
+  g_free (str_name);
+  gst_tensors_info_free (&gst_info);
+
+  return option;
+}
+
+/**
+ * @brief Internal static function to set tensors info in the handle.
+ */
+static gboolean
+ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
+    ml_tensors_info_s * tensors_info)
+{
+  ml_single *single_h;
+  ml_tensors_info_s *dest;
+  bool valid = false;
+
+  single_h = (ml_single *) single;
+
+  if (is_input)
+    dest = &single_h->in_info;
+  else
+    dest = &single_h->out_info;
+
+  if (tensors_info) {
+    /* clone given tensors info */
+    ml_tensors_info_clone (dest, tensors_info);
+  } else {
+    ml_tensors_info_h info;
+
+    ml_single_get_tensors_info_from_filter (single_h->filter, is_input, &info);
+    ml_tensors_info_clone (dest, info);
+    ml_tensors_info_destroy (info);
+  }
+
+  if (!ml_tensors_info_is_valid (dest, valid)) {
+    /* invalid tensors info */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Opens an ML model and returns the instance as a handle.
  */
 int
@@ -142,10 +213,8 @@ ml_single_open (ml_single_h * single, const char *model,
   ml_pipeline *pipe_h;
   GstElement *appsrc, *appsink, *filter;
   GstCaps *caps;
-  GError *err = NULL;
   int status = ML_ERROR_NONE;
   gchar *pipeline_desc = NULL;
-  gchar *path_down;
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   bool available = false;
   bool valid = false;
@@ -161,92 +230,26 @@ ml_single_open (ml_single_h * single, const char *model,
   /* init null */
   *single = NULL;
 
-  if (FALSE == gst_init_check (NULL, NULL, &err)) {
-    if (err) {
-      ml_loge ("GStreamer has the following error: %s", err->message);
-      g_clear_error (&err);
-    } else {
-      ml_loge ("Cannot initialize GStreamer. Unknown reason.");
-    }
-    return ML_ERROR_STREAMS_PIPE;
-  }
+  if ((status = ml_initialize_gstreamer ()) != ML_ERROR_NONE)
+    return status;
 
   in_tensors_info = (ml_tensors_info_s *) input_info;
   out_tensors_info = (ml_tensors_info_s *) output_info;
 
-  if (input_info) {
-    /* Validate input tensor info. */
-    if (ml_tensors_info_validate (input_info, &valid) != ML_ERROR_NONE ||
-        valid == false) {
-      ml_loge ("The given param, input tensor info is invalid.");
-      return ML_ERROR_INVALID_PARAMETER;
-    }
+  /* Validate input tensor info. */
+  if (input_info && !ml_tensors_info_is_valid (input_info, valid)) {
+    ml_loge ("The given param, input tensor info is invalid.");
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (output_info) {
-    /* Validate output tensor info. */
-    if (ml_tensors_info_validate (output_info, &valid) != ML_ERROR_NONE ||
-        valid == false) {
-      ml_loge ("The given param, output tensor info is invalid.");
-      return ML_ERROR_INVALID_PARAMETER;
-    }
-  }
-
-  if (!model || !g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid.",
-        GST_STR_NULL (model));
+  /* Validate output tensor info. */
+  if (output_info && !ml_tensors_info_is_valid (output_info, valid)) {
+    ml_loge ("The given param, output tensor info is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* 1. Determine nnfw */
-  /* Check file extention. */
-  path_down = g_ascii_strdown (model, -1);
-
-  switch (nnfw) {
-    case ML_NNFW_TYPE_ANY:
-      if (g_str_has_suffix (path_down, ".tflite")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model);
-        nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-      } else if (g_str_has_suffix (path_down, ".pb")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
-        nnfw = ML_NNFW_TYPE_TENSORFLOW;
-      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_logi ("The given model [%s] is supposed a custom filter model.", model);
-        nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
-      } else {
-        ml_loge ("The given model [%s] has unknown extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW:
-      if (!g_str_has_suffix (path_down, ".pb")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_NNFW:
-      /** @todo Need to check method for NNFW */
-      ml_loge ("NNFW is not supported.");
-      status = ML_ERROR_NOT_SUPPORTED;
-      break;
-    default:
-      break;
-  }
-
-  g_free (path_down);
-  if (status != ML_ERROR_NONE)
+  if ((status = ml_validate_model_file (model, &nnfw)) != ML_ERROR_NONE)
     return status;
 
   /* 2. Determine hw */
@@ -278,32 +281,10 @@ ml_single_open (ml_single_h * single, const char *model,
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
       if (in_tensors_info && out_tensors_info) {
-        GstTensorsInfo in_info, out_info;
-        gchar *str_dim, *str_type, *str_name;
         gchar *in_option, *out_option;
 
-        ml_tensors_info_copy_from_ml (&in_info, in_tensors_info);
-        ml_tensors_info_copy_from_ml (&out_info, out_tensors_info);
-
-        /* Set input option */
-        str_dim = gst_tensors_info_get_dimensions_string (&in_info);
-        str_type = gst_tensors_info_get_types_string (&in_info);
-        str_name = gst_tensors_info_get_names_string (&in_info);
-        in_option = g_strdup_printf ("input=%s inputtype=%s inputname=%s",
-            str_dim, str_type, str_name);
-        g_free (str_dim);
-        g_free (str_type);
-        g_free (str_name);
-
-        /* Set output option */
-        str_dim = gst_tensors_info_get_dimensions_string (&out_info);
-        str_type = gst_tensors_info_get_types_string (&out_info);
-        str_name = gst_tensors_info_get_names_string (&out_info);
-        out_option = g_strdup_printf ("output=%s outputtype=%s outputname=%s",
-            str_dim, str_type, str_name);
-        g_free (str_dim);
-        g_free (str_type);
-        g_free (str_name);
+        in_option = ml_single_get_filter_option_string (TRUE, in_tensors_info);
+        out_option = ml_single_get_filter_option_string (FALSE, out_tensors_info);
 
         pipeline_desc =
             g_strdup_printf
@@ -312,8 +293,6 @@ ml_single_open (ml_single_h * single, const char *model,
 
         g_free (in_option);
         g_free (out_option);
-        gst_tensors_info_free (&in_info);
-        gst_tensors_info_free (&out_info);
       } else {
         ml_loge ("To run the pipeline with tensorflow model, input and output information should be initialized.");
         return ML_ERROR_INVALID_PARAMETER;
@@ -353,49 +332,23 @@ ml_single_open (ml_single_h * single, const char *model,
   g_mutex_init (&single_h->lock);
 
   /* 5. Set in/out caps and metadata */
-  if (in_tensors_info) {
-    caps = ml_tensors_info_get_caps (in_tensors_info);
-    ml_tensors_info_clone (&single_h->in_info, in_tensors_info);
-  } else {
-    ml_tensors_info_h in_info;
-
-    ml_single_get_tensors_info_from_filter (filter, TRUE, &in_info);
-    ml_tensors_info_clone (&single_h->in_info, in_info);
-    ml_tensors_info_destroy (in_info);
-
-    status = ml_tensors_info_validate (&single_h->in_info, &valid);
-    if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("The input tensor info is invalid.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
-
-    caps = ml_tensors_info_get_caps (&single_h->in_info);
+  if (!ml_single_set_info_in_handle (single_h, TRUE, in_tensors_info)) {
+    ml_loge ("The input tensor info is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto error;
   }
 
+  caps = ml_tensors_info_get_caps (&single_h->in_info);
   gst_app_src_set_caps (GST_APP_SRC (appsrc), caps);
   gst_caps_unref (caps);
 
-  if (out_tensors_info) {
-    caps = ml_tensors_info_get_caps (out_tensors_info);
-    ml_tensors_info_clone (&single_h->out_info, out_tensors_info);
-  } else {
-    ml_tensors_info_h out_info;
-
-    ml_single_get_tensors_info_from_filter (filter, FALSE, &out_info);
-    ml_tensors_info_clone (&single_h->out_info, out_info);
-    ml_tensors_info_destroy (out_info);
-
-    status = ml_tensors_info_validate (&single_h->out_info, &valid);
-    if (status != ML_ERROR_NONE || valid == false) {
-      ml_loge ("The output tensor info is invalid.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
-
-    caps = ml_tensors_info_get_caps (&single_h->out_info);
+  if (!ml_single_set_info_in_handle (single_h, FALSE, out_tensors_info)) {
+    ml_loge ("The output tensor info is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto error;
   }
 
+  caps = ml_tensors_info_get_caps (&single_h->out_info);
   gst_app_sink_set_caps (GST_APP_SINK (appsink), caps);
   gst_caps_unref (caps);
 

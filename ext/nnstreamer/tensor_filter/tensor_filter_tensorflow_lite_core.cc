@@ -146,7 +146,8 @@ TFLiteCore::loadModel ()
       }
     }
 #endif
-     g_message ("interpreter->UseNNAPI( %s : %s )" , use_nnapi?"true":"false", nnapi_hw_string[accel]);
+    if (use_nnapi)
+      g_info ("interpreter->UseNNAPI(%s)", nnapi_hw_string[accel]);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
