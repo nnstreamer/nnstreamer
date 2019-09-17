@@ -31,7 +31,6 @@
 #include <glib.h>
 #include <string.h>
 #include <dlfcn.h>
-#include <pthread.h>
 #include <structmember.h>
 
 #include "nnstreamer_plugin_api_filter.h"
@@ -76,9 +75,9 @@ public:
   /** @brief Return callback type */
   cb_type getCbType () { return callback_type; }
   /** @brief Lock python-related actions */
-  void Py_LOCK() { pthread_mutex_lock(&py_mutex); }
+  void Py_LOCK() { g_mutex_lock (&py_mutex); }
   /** @brief Unlock python-related actions */
-  void Py_UNLOCK() { pthread_mutex_unlock(&py_mutex); }
+  void Py_UNLOCK() { g_mutex_unlock (&py_mutex); }
 
   PyObject* PyTensorShape_New (const GstTensorInfo *info);
 
@@ -100,7 +99,7 @@ private:
 
   PyObject* core_obj;
   PyObject* shape_cls;
-  pthread_mutex_t py_mutex;
+  GMutex py_mutex;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
