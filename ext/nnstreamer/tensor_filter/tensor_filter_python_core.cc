@@ -106,7 +106,7 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   configured = false;
 
   /** to prevent concurrent Python C-API calls */
-  pthread_mutex_init(&py_mutex, NULL);
+  g_mutex_init (&py_mutex);
 }
 
 /**
@@ -127,6 +127,7 @@ PYCore::~PYCore ()
   Py_Finalize();
 
   dlclose(handle);
+  g_mutex_clear (&py_mutex);
 }
 
 /**
