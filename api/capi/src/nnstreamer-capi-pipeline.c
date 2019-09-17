@@ -398,15 +398,8 @@ ml_pipeline_construct (const char *pipeline_description,
   /* init null */
   *pipe = NULL;
 
-  if (FALSE == gst_init_check (NULL, NULL, &err)) {
-    if (err) {
-      ml_loge ("GStreamer has the following error: %s", err->message);
-      g_clear_error (&err);
-    } else {
-      ml_loge ("Cannot initialize GStreamer. Unknown reason.");
-    }
-    return ML_ERROR_STREAMS_PIPE;
-  }
+  if ((status = ml_initialize_gstreamer ()) != ML_ERROR_NONE)
+    return status;
 
   /* prepare pipeline handle */
   pipe_h = g_new0 (ml_pipeline, 1);

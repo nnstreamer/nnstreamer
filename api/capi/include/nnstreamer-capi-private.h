@@ -242,6 +242,12 @@ typedef struct _ml_pipeline_valve {
 } ml_pipeline_valve;
 
 /**
+ * @brief Macro to check the tensors info is valid.
+ * @since_tizen 5.5
+ */
+#define ml_tensors_info_is_valid(i,v) (ml_tensors_info_validate ((i), &(v)) == ML_ERROR_NONE && (v))
+
+/**
  * @brief Gets the byte size of the given tensor info.
  */
 size_t ml_tensor_info_get_size (const ml_tensor_info_s *info);
@@ -279,6 +285,31 @@ void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_in
 GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
 
 /**
+ * @brief Creates a tensor data frame wihout buffer with the given tensors information.
+ * @param[in] info The handle of tensors information for the allocation.
+ * @param[out] data The handle of tensors data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+int ml_tensors_data_create_no_alloc (const ml_tensors_info_h info, ml_tensors_data_h *data);
+
+/**
+ * @brief Initializes the GStreamer library. This is internal function.
+ */
+int ml_initialize_gstreamer (void);
+
+/**
+ * @brief Validates the nnfw model file.
+ * @since_tizen 5.5
+ * @param[in] model The path of model file.
+ * @param[in/out] nnfw The type of NNFW.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw);
+
+/**
  * @brief Checks the availability of the plugin.
  */
 int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
@@ -310,14 +341,6 @@ int ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type);
  */
 int ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result);
 #endif
-
-/**
- * @brief Creates a tensor data frame wihout buffer with the given tensors information.
- * @param[in] info The handle of tensors information for the allocation.
- * @param[out] data The handle of tensors data.
- * @return @c 0 on success. Otherwise a negative error value.
- */
-int ml_tensors_data_create_no_alloc (const ml_tensors_info_h info, ml_tensors_data_h *data);
 
 #ifdef __cplusplus
 }

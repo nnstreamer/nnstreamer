@@ -807,6 +807,104 @@ ml_tensors_info_get_caps (const ml_tensors_info_s * info)
 }
 
 /**
+ * @brief Initializes the GStreamer library. This is internal function.
+ */
+int
+ml_initialize_gstreamer (void)
+{
+  GError *err = NULL;
+
+  if (!gst_init_check (NULL, NULL, &err)) {
+    if (err) {
+      ml_loge ("GStreamer has the following error: %s", err->message);
+      g_clear_error (&err);
+    } else {
+      ml_loge ("Cannot initialize GStreamer. Unknown reason.");
+    }
+
+    return ML_ERROR_STREAMS_PIPE;
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Validates the nnfw model file.
+ * @since_tizen 5.5
+ * @param[in] model The path of model file.
+ * @param[in/out] nnfw The type of NNFW.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int
+ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
+{
+  gchar *path_down;
+  int status = ML_ERROR_NONE;
+
+  if (!model || !g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
+    ml_loge ("The given param, model path [%s] is invalid.",
+        GST_STR_NULL (model));
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!nnfw)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* Check file extention. */
+  path_down = g_ascii_strdown (model, -1);
+
+  switch (*nnfw) {
+    case ML_NNFW_TYPE_ANY:
+      if (g_str_has_suffix (path_down, ".tflite")) {
+        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model);
+        *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+      } else if (g_str_has_suffix (path_down, ".pb")) {
+        ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
+        *nnfw = ML_NNFW_TYPE_TENSORFLOW;
+      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
+        ml_logi ("The given model [%s] is supposed a custom filter model.", model);
+        *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
+      } else {
+        ml_loge ("The given model [%s] has unknown extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TYPE_CUSTOM_FILTER:
+      if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TYPE_TENSORFLOW_LITE:
+      if (!g_str_has_suffix (path_down, ".tflite")) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TYPE_TENSORFLOW:
+      if (!g_str_has_suffix (path_down, ".pb")) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
+    case ML_NNFW_TYPE_NNFW:
+      /** @todo Need to check method for NNFW */
+      ml_loge ("NNFW is not supported.");
+      status = ML_ERROR_NOT_SUPPORTED;
+      break;
+    default:
+      status = ML_ERROR_INVALID_PARAMETER;
+      break;
+  }
+
+  g_free (path_down);
+  return status;
+}
+
+/**
  * @brief Checks the availability of the given execution environments.
  */
 int

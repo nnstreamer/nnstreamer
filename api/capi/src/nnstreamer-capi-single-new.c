@@ -28,8 +28,6 @@
 #include <nnstreamer-single.h>
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer_plugin_api.h>
-#include <nnstreamer/nnstreamer_conf.h>
-#include <nnstreamer/tensor_filter/tensor_filter.h>
 
 #include "tensor_filter_single.h"
 
@@ -204,74 +202,6 @@ ml_single_set_inout_tensors_info (GObject * object,
 }
 
 /**
- * @brief Check the availability of the nnfw type and model
- */
-static int
-ml_single_check_nnfw (const char *model, ml_nnfw_type_e * nnfw)
-{
-  gchar *path_down;
-  int status = ML_ERROR_NONE;
-
-  if (!g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid.",
-        GST_STR_NULL (model));
-    return ML_ERROR_INVALID_PARAMETER;
-  }
-
-  /* Check file extention. */
-  path_down = g_ascii_strdown (model, -1);
-
-  switch (*nnfw) {
-    case ML_NNFW_TYPE_ANY:
-      if (g_str_has_suffix (path_down, ".tflite")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.",
-            model);
-        *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-      } else if (g_str_has_suffix (path_down, ".pb")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
-        *nnfw = ML_NNFW_TYPE_TENSORFLOW;
-      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_logi ("The given model [%s] is supposed a custom filter model.",
-            model);
-        *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
-      } else {
-        ml_loge ("The given model [%s] has unknown extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW:
-      if (!g_str_has_suffix (path_down, ".pb")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_NNFW:
-      /** @todo Need to check method for NNFW */
-      ml_loge ("NNFW is not supported.");
-      status = ML_ERROR_NOT_SUPPORTED;
-      break;
-    default:
-      break;
-  }
-
-  g_free (path_down);
-
-  return status;
-}
-
-/**
  * @brief Opens an ML model and returns the instance as a handle.
  */
 int
@@ -301,28 +231,22 @@ ml_single_open (ml_single_h * single, const char *model,
   in_tensors_info = (ml_tensors_info_s *) input_info;
   out_tensors_info = (ml_tensors_info_s *) output_info;
 
-  if (input_info) {
-    /* Validate input tensor info. */
-    if (ml_tensors_info_validate (input_info, &valid) != ML_ERROR_NONE ||
-        valid == false) {
-      ml_loge ("The given param, input tensor info is invalid.");
-      return ML_ERROR_INVALID_PARAMETER;
-    }
+  /* Validate input tensor info. */
+  if (input_info && !ml_tensors_info_is_valid (input_info, valid)) {
+    ml_loge ("The given param, input tensor info is invalid.");
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (output_info) {
-    /* Validate output tensor info. */
-    if (ml_tensors_info_validate (output_info, &valid) != ML_ERROR_NONE ||
-        valid == false) {
-      ml_loge ("The given param, output tensor info is invalid.");
-      return ML_ERROR_INVALID_PARAMETER;
-    }
+  /* Validate output tensor info. */
+  if (output_info && !ml_tensors_info_is_valid (output_info, valid)) {
+    ml_loge ("The given param, output tensor info is invalid.");
+    return ML_ERROR_INVALID_PARAMETER;
   }
 
   /**
    * 1. Determine nnfw
    */
-  if ((status = ml_single_check_nnfw (model, &nnfw)) != ML_ERROR_NONE)
+  if ((status = ml_validate_model_file (model, &nnfw)) != ML_ERROR_NONE)
     return status;
 
   /**
@@ -441,8 +365,7 @@ ml_single_open (ml_single_h * single, const char *model,
     if (status != ML_ERROR_NONE)
       goto error;
 
-    status = ml_tensors_info_validate (&single_h->in_info, &valid);
-    if (status != ML_ERROR_NONE || valid == false) {
+    if (!ml_tensors_info_is_valid (&single_h->in_info, valid)) {
       ml_loge ("The input tensor info is invalid.");
       status = ML_ERROR_INVALID_PARAMETER;
       goto error;
@@ -480,8 +403,7 @@ ml_single_open (ml_single_h * single, const char *model,
     if (status != ML_ERROR_NONE)
       goto error;
 
-    status = ml_tensors_info_validate (&single_h->out_info, &valid);
-    if (status != ML_ERROR_NONE || valid == false) {
+    if (!ml_tensors_info_is_valid (&single_h->out_info, valid)) {
       ml_loge ("The output tensor info is invalid.");
       status = ML_ERROR_INVALID_PARAMETER;
       goto error;
