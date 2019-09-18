@@ -141,7 +141,8 @@ TEST (test_tensor_transform, properties)
 
   g_object_set (transform, "silent", !default_silent, NULL);
   g_object_get (transform, "silent", &res_silent, NULL);
-  EXPECT_EQ (!default_silent, res_silent);
+  /** expect FALSE, which is !default_silent */
+  EXPECT_FALSE (res_silent);
 
   /**
    * If HAVE_ORC is set, default acceleration is TRUE.
@@ -153,7 +154,8 @@ TEST (test_tensor_transform, properties)
 #ifdef HAVE_ORC
   g_object_set (transform, "acceleration", !default_accl, NULL);
   g_object_get (transform, "acceleration", &accl, NULL);
-  EXPECT_EQ (!default_accl, accl);
+  /** expect FALSE, which is !default_accl */
+  EXPECT_FALSE (accl);
 #endif
 
   /** We do not need to test setting properties for 'mode' and 'option' */
