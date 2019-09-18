@@ -2,7 +2,7 @@
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
-%define		tensorflow-support	0
+%define		tensorflow_support	0
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
@@ -53,7 +53,7 @@ BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
 BuildRequires: procps
 # for tensorflow
-%if 0%{?tensorflow-support}
+%if 0%{?tensorflow_support}
 BuildRequires: protobuf-devel >= 3.4.0
 BuildRequires: tensorflow
 BuildRequires: tensorflow-devel
@@ -90,17 +90,12 @@ BuildRequires:	pkgconfig(orc-0.4)
 %global __debug_install_post %{nil}
 %endif
 
-%package unittest-coverage
-Summary:	NNStreamer UnitTest Coverage Analysis Result
-%description unittest-coverage
-HTML pages of lcov results of NNStreamer generated during rpmbuild
-
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
 
 # for tensorflow
-%if 0%{?tensorflow-support}
+%if 0%{?tensorflow_support}
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
 Requires:	nnstreamer = %{version}-%{release}
@@ -142,6 +137,12 @@ Requires:	nnstreamer = %{version}-%{release}
 Example custom tensor_filter subplugins and
 plugins created for test purpose.
 
+%if 0%{?testcoverage}
+%package unittest-coverage
+Summary:	NNStreamer UnitTest Coverage Analysis Result
+%description unittest-coverage
+HTML pages of lcov results of NNStreamer generated during rpmbuild
+%endif
 
 %%%% THIS IS FOR TIZEN ONLY! %%%%
 %if %{with tizen}
@@ -174,22 +175,25 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer-single-new = %{version}-%{release}
 %description -n capi-nnstreamer-single-new-devel
 Developmental kit for Tizen Native new single-shot NNStreamer API.
-%define api -Denable-capi=true
-%else
-%define api -Denable-capi=false
 %endif
 
-# Element restriction in Tizen
+# Define build options
 %if %{with tizen}
+%define enable_tizen -Denable-tizen=true
+%define enable_api -Denable-capi=true
+
+# Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc fimcconvert'
 
 %define restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
 %else
+%define enable_tizen -Denable-tizen=false
+%define enable_api -Denable-capi=false
 %define restriction -Denable-element-restriction=false
 %endif
 
 # Support tensorflow
-%if 0%{?tensorflow-support}
+%if 0%{?tensorflow_support}
 %define enable_tf -Denable-tensorflow=true
 %else
 %define enable_tf -Denable-tensorflow=false
@@ -210,7 +214,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false %{api} -Denable-env-var=false -Denable-symbolic-link=false -Denable-tizen=true %{restriction} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false %{enable_api} %{enable_tizen} %{restriction} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -226,7 +230,7 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
     ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
-    ./tests/tizen_capi/unittest_tizen_capi_single_new --gst-plugin-path="xml:unittest_tizen_capi_single_new.xml"
+    ./tests/tizen_capi/unittest_tizen_capi_single_new --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi_single_new.xml"
     popd
     pushd tests
     ssat -n
@@ -249,6 +253,7 @@ popd
 ##
 # The included directories are:
 #
+# api: nnstreamer api
 # gst: the nnstreamer elements
 # nnstreamer_example: custom plugin examples
 # common: common libraries for gst (elements)
@@ -268,10 +273,10 @@ popd
     TZ='Asia/Seoul'; export TZ
     $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext %testtarget
 
-# Get commit info
+    # Get commit info
     VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
 
-# Create human readable unit test coverate report web page
+    # Create human readable unit test coverage report web page.
     # Create null gcda files if gcov didn't create it because there is completely no unit test for them.
     find . -name "*.gcno" -exec sh -c 'touch -a "${1%.gcno}.gcda"' _ {} \;
     # Remove gcda for meaningless file (CMake's autogenerated)
@@ -305,7 +310,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow
-%if 0%{?tensorflow-support}
+%if 0%{?tensorflow_support}
 %files tensorflow
 %manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
