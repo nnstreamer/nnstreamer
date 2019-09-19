@@ -230,6 +230,16 @@ endif
 
 # Patch for non-tizen build
 patch_file = join_paths(meson.current_source_dir(), 'packaging', 'non_tizen_build.patch')
+if (not get_option('enable-tizen')) and get_option('enable-capi')
+  r = run_command('patch', '-R', '--dry-run', '-sfp1', '-i', patch_file)
+  if (r.returncode() != 0)
+    r = run_command('patch', '-p1', '-i', patch_file)
+    if (r.returncode() != 0)
+      message('Non-Tizen mode support failed')
+    endif
+  endif
+  message('CAPI is in non-Tizen mode')
+endif
 
 # Build nnstreamer (common, plugins)
 subdir('gst')

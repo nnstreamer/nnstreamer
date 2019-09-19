@@ -1,7 +1,7 @@
-diff --git a/include/nnstreamer.h b/include/nnstreamer.h
+diff --git a/api/capi/include/nnstreamer.h b/api/capi/include/nnstreamer.h
 index a18a066..ab1808c 100644
---- a/include/nnstreamer.h
-+++ b/include/nnstreamer.h
+--- a/api/capi/include/nnstreamer.h
++++ b/api/capi/include/nnstreamer.h
 @@ -28,7 +28,15 @@
  #include <stdbool.h>
 
