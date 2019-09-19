@@ -1890,7 +1890,8 @@ typedef struct {
 /**
  * @brief Open and run on single shot API with provided data
  */
-void * single_shot_loop_test (void * arg)
+static void *
+single_shot_loop_test (void *arg)
 {
   guint i;
   int status = ML_ERROR_NONE;
