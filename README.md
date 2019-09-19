@@ -66,8 +66,8 @@ In [Component Description](Documentation/component-description.md) page, we desc
 
 ## Getting Started
 For more details, please access the following manuals.
-* For Linux-like systems such as Tizen, Debian, and Ubuntu, press [Here](Documentation/getting-started.md)
-* For macOS systems, press [Here](Documentation/getting-started-macos.md)
+* For Linux-like systems such as Tizen, Debian, and Ubuntu, press [here](Documentation/getting-started.md)
+* For macOS systems, press [here](Documentation/getting-started-macos.md)
 
 ## Usage Examples
 - [Example apps](https://github.com/nnsuite/nnstreamer-example) (stable)
