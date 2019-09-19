@@ -48,9 +48,12 @@ G_LOCK_DEFINE_STATIC (magic);
 
 /**
  * @brief Get valid handle after magic verification
- * @note Magic lock is acquired after this
+ * @note handle's mutex (single_h->mutex) is acquired after this
+ * @param[out] single_h The handle properly casted: (ml_single *).
+ * @param[in] single The handle to be validated: (void *).
+ * @param[in] reset Set TRUE if the handle is to be reset (magic = 0).
  */
-#define ML_SINGLE_GET_VALID_HANDLE(single_h, single) do { \
+#define ML_SINGLE_GET_VALID_HANDLE_LOCKED(single_h, single, reset) do { \
   G_LOCK (magic); \
   single_h = (ml_single *) single; \
   if (single_h->magic != ML_SINGLE_MAGIC) { \
@@ -58,7 +61,18 @@ G_LOCK_DEFINE_STATIC (magic);
     G_UNLOCK (magic); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
+  if (reset) \
+    single_h->magic = 0; \
+  g_mutex_lock (&single_h->lock); \
+  G_UNLOCK (magic); \
 } while (0)
+
+/**
+ * @brief This is for the symmetricity with ML_SINGLE_GET_VALID_HANDLE_LOCKED
+ * @param[in] single_h The casted handle (ml_single *).
+ */
+#define ML_SINGLE_HANDLE_UNLOCK(single_h) \
+  g_mutex_unlock (&single_h->lock);
 
 /**
  * @brief Default time to wait for an output in appsink (3 seconds).
@@ -405,11 +419,7 @@ ml_single_close (ml_single_h single)
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  single_h->magic = 0;
-
-  g_mutex_lock (&single_h->lock);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 1);
 
   if (single_h->src) {
     gst_object_unref (single_h->src);
@@ -431,7 +441,7 @@ ml_single_close (ml_single_h single)
 
   status = ml_pipeline_destroy (single_h->pipe);
 
-  g_mutex_unlock (&single_h->lock);
+  ML_SINGLE_HANDLE_UNLOCK(single_h);
   g_mutex_clear (&single_h->lock);
 
   g_free (single_h);
@@ -461,9 +471,7 @@ ml_single_invoke (ml_single_h single,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  g_mutex_lock (&single_h->lock);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
@@ -562,7 +570,7 @@ done:
   if (sample)
     gst_sample_unref (sample);
 
-  g_mutex_unlock (&single_h->lock);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 }
 
@@ -581,13 +589,11 @@ ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  g_mutex_lock (&single_h->lock);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   ml_single_get_tensors_info_from_filter (single_h->filter, is_input, info);
 
-  g_mutex_unlock (&single_h->lock);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 }
 
@@ -624,13 +630,11 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
   if (!single || timeout == 0)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  g_mutex_lock (&single_h->lock);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   single_h->timeout = (guint) timeout;
 
-  g_mutex_unlock (&single_h->lock);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 #else
   return ML_ERROR_NOT_SUPPORTED;
