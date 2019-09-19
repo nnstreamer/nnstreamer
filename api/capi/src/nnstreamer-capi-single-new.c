@@ -56,9 +56,12 @@ G_LOCK_DEFINE_STATIC (magic);
 
 /**
  * @brief Get valid handle after magic verification
- * @note Magic lock is acquired after this
+ * @note handle's mutex (single_h->mutex) is acquired after this
+ * @param[out] single_h The handle properly casted: (ml_single *).
+ * @param[in] single The handle to be validated: (void *).
+ * @param[in] reset Set TRUE if the handle is to be reset (magic = 0).
  */
-#define ML_SINGLE_GET_VALID_HANDLE(single_h, single) do { \
+#define ML_SINGLE_GET_VALID_HANDLE_LOCKED(single_h, single, reset) do { \
   G_LOCK (magic); \
   single_h = (ml_single *) single; \
   if (single_h->magic != ML_SINGLE_MAGIC) { \
@@ -66,7 +69,18 @@ G_LOCK_DEFINE_STATIC (magic);
     G_UNLOCK (magic); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
+  if (reset) \
+    single_h->magic = 0; \
+  pthread_mutex_lock (&single_h->mutex); \
+  G_UNLOCK (magic); \
 } while (0)
+
+/**
+ * @brief This is for the symmetricity with ML_SINGLE_GET_VALID_HANDLE_LOCKED
+ * @param[in] single_h The casted handle (ml_single *).
+ */
+#define ML_SINGLE_HANDLE_UNLOCK(single_h) \
+  pthread_mutex_unlock (&single_h->mutex);
 
 /* ML single api data structure for handle */
 typedef struct
@@ -461,15 +475,12 @@ ml_single_close (ml_single_h single)
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  single_h->magic = 0;
-
-  pthread_mutex_lock (&single_h->mutex);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 1);
 
   single_h->join = TRUE;
   pthread_cond_broadcast (&single_h->cond);
-  pthread_mutex_unlock (&single_h->mutex);
+
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   pthread_join (single_h->thread, NULL);
 
   /** locking ensures correctness with parallel calls on close */
@@ -509,9 +520,7 @@ ml_single_invoke (ml_single_h single,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  pthread_mutex_lock (&single_h->mutex);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
@@ -569,7 +578,7 @@ ml_single_invoke (ml_single_h single,
     status = ML_ERROR_INVALID_PARAMETER;
 
 exit:
-  pthread_mutex_unlock (&single_h->mutex);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 }
 
@@ -591,9 +600,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  pthread_mutex_lock (&single_h->mutex);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   /* allocate handle for tensors info */
   ml_tensors_info_create (info);
@@ -624,7 +631,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
     ml_logw ("Invalid state, input tensor name is mismatched in filter.");
   }
 
-  pthread_mutex_unlock (&single_h->mutex);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
 
   ml_tensors_info_copy_from_gst (input_info, &gst_info);
   gst_tensors_info_free (&gst_info);
@@ -649,9 +656,7 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  pthread_mutex_lock (&single_h->mutex);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   /* allocate handle for tensors info */
   ml_tensors_info_create (info);
@@ -682,7 +687,7 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
     ml_logw ("Invalid state, output tensor name is mismatched in filter.");
   }
 
-  pthread_mutex_unlock (&single_h->mutex);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
 
   ml_tensors_info_copy_from_gst (output_info, &gst_info);
   gst_tensors_info_free (&gst_info);
@@ -702,12 +707,10 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
   if (!single || timeout == 0)
     return ML_ERROR_INVALID_PARAMETER;
 
-  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
-  pthread_mutex_lock (&single_h->mutex);
-  G_UNLOCK (magic);
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
   MSEC_TO_TIMESPEC (single_h->timeout, timeout);
-  pthread_mutex_unlock (&single_h->mutex);
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
 
   return ML_ERROR_NONE;
 }
