@@ -36,10 +36,26 @@
 
 #define ML_SINGLE_MAGIC 0xfeedfeed
 
-/** verify the magic number for ml_single obj */
-#define ML_SINGLE_MAGIC_CHECK(arg) do { \
-  if (arg->magic != ML_SINGLE_MAGIC) { \
+/**
+ * @brief Global lock for single shot API
+ * @detail This lock ensures that ml_single_close is thread safe. All other API
+ *         functions use the mutex from the single handle. However for close,
+ *         single handle mutex cannot be used as single handle is destroyed at
+ *         close
+ * @note This mutex is automatically initialized as it is statically declared
+ */
+G_LOCK_DEFINE_STATIC (magic);
+
+/**
+ * @brief Get valid handle after magic verification
+ * @note Magic lock is acquired after this
+ */
+#define ML_SINGLE_GET_VALID_HANDLE(single_h, single) do { \
+  G_LOCK (magic); \
+  single_h = (ml_single *) single; \
+  if (single_h->magic != ML_SINGLE_MAGIC) { \
     ml_loge ("The given param, single is invalid."); \
+    G_UNLOCK (magic); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
 } while (0)
@@ -389,11 +405,11 @@ ml_single_close (ml_single_h single)
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  single_h = (ml_single *) single;
-  ML_SINGLE_MAGIC_CHECK (single_h);
-
+  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
   single_h->magic = 0;
+
   g_mutex_lock (&single_h->lock);
+  G_UNLOCK (magic);
 
   if (single_h->src) {
     gst_object_unref (single_h->src);
@@ -445,9 +461,9 @@ ml_single_invoke (ml_single_h single,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  single_h = (ml_single *) single;
-  ML_SINGLE_MAGIC_CHECK (single_h);
+  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
   g_mutex_lock (&single_h->lock);
+  G_UNLOCK (magic);
 
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
@@ -565,9 +581,9 @@ ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  single_h = (ml_single *) single;
-  ML_SINGLE_MAGIC_CHECK (single_h);
+  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
   g_mutex_lock (&single_h->lock);
+  G_UNLOCK (magic);
 
   ml_single_get_tensors_info_from_filter (single_h->filter, is_input, info);
 
@@ -608,9 +624,9 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
   if (!single || timeout == 0)
     return ML_ERROR_INVALID_PARAMETER;
 
-  single_h = (ml_single *) single;
-  ML_SINGLE_MAGIC_CHECK (single_h);
+  ML_SINGLE_GET_VALID_HANDLE (single_h, single);
   g_mutex_lock (&single_h->lock);
+  G_UNLOCK (magic);
 
   single_h->timeout = (guint) timeout;
 
