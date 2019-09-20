@@ -1940,7 +1940,8 @@ single_shot_loop_test (void *arg)
     status = ml_single_invoke (single, input, &output);
     if (ss_data->expect) {
       if (ss_data->timeout != 0 && ss_data->timeout < ss_data->min_time_to_run) {
-        EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
+        EXPECT_TRUE (status == ML_ERROR_TIMED_OUT ||
+            status == ML_ERROR_TRY_AGAIN);
         EXPECT_TRUE (output == NULL);
       } else {
         EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2016,11 +2017,14 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
 
     /* check the old buffer is dropped */
     status = ml_single_invoke (single, input, &output);
-    EXPECT_EQ (status, ML_ERROR_TIMED_OUT);
+    /* try_again implies that previous invoke hasn't finished yet */
+    EXPECT_TRUE (status == ML_ERROR_TIMED_OUT || status == ML_ERROR_TRY_AGAIN);
     EXPECT_TRUE (output == NULL);
 
     /* set timeout 5 s */
     status = ml_single_set_timeout (single, 5000);
+    /* clear out previous buffers */
+    g_usleep (1000000);    /** 1 sec */
 
     status = ml_single_invoke (single, input, &output);
     EXPECT_EQ (status, ML_ERROR_NONE);
