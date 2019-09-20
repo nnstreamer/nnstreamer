@@ -22,9 +22,6 @@
  * @bug No known bugs except for NYI items
  */
 
-#include <string.h>
-#include <pthread.h>
-
 #include <nnstreamer-single.h>
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer_plugin_api.h>
@@ -48,12 +45,6 @@
  */
 G_LOCK_DEFINE_STATIC (magic);
 
-/** Convert time in millisecond to timespec format */
-#define MSEC_TO_TIMESPEC(ts, msec) do { \
-  (ts).tv_sec = (msec) / 1000; \
-  (ts).tv_nsec = ((msec) % 1000) * 1000000; \
-} while (0)
-
 /**
  * @brief Get valid handle after magic verification
  * @note handle's mutex (single_h->mutex) is acquired after this
@@ -71,7 +62,7 @@ G_LOCK_DEFINE_STATIC (magic);
   } \
   if (reset) \
     single_h->magic = 0; \
-  pthread_mutex_lock (&single_h->mutex); \
+  g_mutex_lock (&single_h->mutex); \
   G_UNLOCK (magic); \
 } while (0)
 
@@ -79,8 +70,7 @@ G_LOCK_DEFINE_STATIC (magic);
  * @brief This is for the symmetricity with ML_SINGLE_GET_VALID_HANDLE_LOCKED
  * @param[in] single_h The casted handle (ml_single *).
  */
-#define ML_SINGLE_HANDLE_UNLOCK(single_h) \
-  pthread_mutex_unlock (&single_h->mutex);
+#define ML_SINGLE_HANDLE_UNLOCK(single_h) g_mutex_unlock (&single_h->mutex);
 
 /* ML single api data structure for handle */
 typedef struct
@@ -90,12 +80,12 @@ typedef struct
   ml_tensors_info_s out_info;   /**< info about output */
   guint magic;                  /**< code to verify valid handle */
 
-  pthread_t thread;             /**< thread for invoking */
-  pthread_mutex_t mutex;        /**< mutex for synchronization */
-  pthread_cond_t cond;          /**< condition for synchronization */
+  GThread *thread;              /**< thread for invoking */
+  GMutex mutex;                 /**< mutex for synchronization */
+  GCond cond;                   /**< condition for synchronization */
   ml_tensors_data_h input;      /**< input received from user */
   ml_tensors_data_h *output;    /**< output to be sent back to user */
-  struct timespec timeout;      /**< timeout for invoking */
+  guint timeout;                /**< timeout for invoking */
   gboolean data_ready;          /**< data is ready to be processed */
   gboolean join;                /**< thread should be joined */
   int status;                   /**< status of processing */
@@ -116,7 +106,7 @@ invoke_thread (void *arg)
 
   single_h = (ml_single *) arg;
 
-  pthread_mutex_lock (&single_h->mutex);
+  g_mutex_lock (&single_h->mutex);
 
   /** get the tensor_filter element */
   klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
@@ -129,7 +119,7 @@ invoke_thread (void *arg)
 
     /** wait for data */
     while (single_h->data_ready != TRUE) {
-      pthread_cond_wait (&single_h->cond, &single_h->mutex);
+      g_cond_wait (&single_h->cond, &single_h->mutex);
       if (single_h->join == TRUE)
         goto exit;
     }
@@ -151,16 +141,16 @@ invoke_thread (void *arg)
           ml_tensor_info_get_size (&single_h->out_info.info[i]);
       out_tensors[i].type = single_h->out_info.info[i].type;
     }
-    pthread_mutex_unlock (&single_h->mutex);
+    g_mutex_unlock (&single_h->mutex);
 
     /** invoke the thread */
     if (klass->invoke (single_h->filter, in_tensors, out_tensors) == FALSE) {
       status = ML_ERROR_INVALID_PARAMETER;
-      pthread_mutex_lock (&single_h->mutex);
+      g_mutex_lock (&single_h->mutex);
       goto wait_for_next;
     }
 
-    pthread_mutex_lock (&single_h->mutex);
+    g_mutex_lock (&single_h->mutex);
     /** Allocate output buffer */
     if (single_h->data_ready == TRUE) {
       status = ml_tensors_data_create_no_alloc (&single_h->out_info,
@@ -182,12 +172,12 @@ invoke_thread (void *arg)
   wait_for_next:
     single_h->status = status;
     single_h->data_ready = FALSE;
-    pthread_cond_broadcast (&single_h->cond);
+    g_cond_broadcast (&single_h->cond);
   }
 
 exit:
   single_h->data_ready = FALSE;
-  pthread_mutex_unlock (&single_h->mutex);
+  g_mutex_unlock (&single_h->mutex);
   return NULL;
 }
 
@@ -246,6 +236,7 @@ ml_single_open (ml_single_h * single, const char *model,
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   bool available = false;
   bool valid = false;
+  GError * error;
 
   check_feature_state ();
 
@@ -300,7 +291,7 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->magic = ML_SINGLE_MAGIC;
 
   single_h->filter = g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
-  MSEC_TO_TIMESPEC (single_h->timeout, SINGLE_DEFAULT_TIMEOUT);
+  single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
   if (single_h->filter == NULL) {
     status = ML_ERROR_INVALID_PARAMETER;
     goto error;
@@ -440,14 +431,16 @@ ml_single_open (ml_single_h * single, const char *model,
     }
   }
 
-  pthread_mutex_init (&single_h->mutex, NULL);
-  pthread_cond_init (&single_h->cond, NULL);
+  g_mutex_init (&single_h->mutex);
+  g_cond_init (&single_h->cond);
   single_h->data_ready = FALSE;
   single_h->join = FALSE;
 
-  if (pthread_create (&single_h->thread, NULL, invoke_thread,
-          (void *) single_h) < 0) {
-    ml_loge ("Failed to create the invoke thread.");
+  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h,
+      &error);
+  if (single_h->thread == NULL) {
+    ml_loge ("Failed to create the invoke thread, error: %s.", error->message);
+    g_clear_error (&error);
     status = ML_ERROR_UNKNOWN;
     goto error;
   }
@@ -478,10 +471,10 @@ ml_single_close (ml_single_h single)
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 1);
 
   single_h->join = TRUE;
-  pthread_cond_broadcast (&single_h->cond);
+  g_cond_broadcast (&single_h->cond);
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
-  pthread_join (single_h->thread, NULL);
+  g_thread_join (single_h->thread);
 
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
@@ -496,6 +489,9 @@ ml_single_close (ml_single_h single)
   ml_tensors_info_free (&single_h->in_info);
   ml_tensors_info_free (&single_h->out_info);
 
+  g_cond_clear (&single_h->cond);
+  g_mutex_clear (&single_h->mutex);
+
   g_free (single_h);
   return ML_ERROR_NONE;
 }
@@ -509,9 +505,8 @@ ml_single_invoke (ml_single_h single,
 {
   ml_single *single_h;
   ml_tensors_data_s *in_data;
-  struct timespec ts;
+  gint64 end_time;
   int i, status = ML_ERROR_NONE;
-  int err;
 
   check_feature_state ();
 
@@ -559,23 +554,17 @@ ml_single_invoke (ml_single_h single,
   single_h->output = output;
   single_h->data_ready = TRUE;
 
-  clock_gettime (CLOCK_REALTIME, &ts);
-  ts.tv_nsec += single_h->timeout.tv_nsec;
-  ts.tv_sec += single_h->timeout.tv_sec;
+  end_time = g_get_monotonic_time () +
+    single_h->timeout * G_TIME_SPAN_MILLISECOND;
 
-  pthread_cond_broadcast (&single_h->cond);
-  err = pthread_cond_timedwait (&single_h->cond, &single_h->mutex, &ts);
-
-  if (err == 0)
+  g_cond_broadcast (&single_h->cond);
+  if (g_cond_wait_until (&single_h->cond, &single_h->mutex, end_time)) {
     status = single_h->status;
-  else if (err == ETIMEDOUT) {
+  } else {
     status = ML_ERROR_TIMED_OUT;
     /** This is set to notify invoke_thread to not process if timedout */
     single_h->data_ready = FALSE;
-  } else if (err == EPERM)
-    status = ML_ERROR_PERMISSION_DENIED;
-  else
-    status = ML_ERROR_INVALID_PARAMETER;
+  }
 
 exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
@@ -709,8 +698,8 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
-  MSEC_TO_TIMESPEC (single_h->timeout, timeout);
-  ML_SINGLE_HANDLE_UNLOCK (single_h);
+  single_h->timeout = (guint) timeout;
 
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
   return ML_ERROR_NONE;
 }
