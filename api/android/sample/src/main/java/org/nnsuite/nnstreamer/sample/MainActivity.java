@@ -212,11 +212,11 @@ public class MainActivity extends Activity {
 
         Log.d(TAG, "The number of tensors in info: " + num);
         for (int i = 0; i < num; i++) {
-            int[] dim = info.getTesorDimension(i);
+            int[] dim = info.getTensorDimension(i);
 
             Log.d(TAG, "Info index " + i +
-                    " name: " + info.getTesorName(0) +
-                    " type: " + info.getTesorType(0) +
+                    " name: " + info.getTensorName(0) +
+                    " type: " + info.getTensorType(0) +
                     " dim: " + dim[0] + ":" + dim[1] + ":" + dim[2] + ":" + dim[3]);
         }
     }
