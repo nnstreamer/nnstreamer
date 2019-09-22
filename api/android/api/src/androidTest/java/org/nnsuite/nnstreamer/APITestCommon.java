@@ -9,6 +9,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import static org.junit.Assert.*;
 
@@ -50,6 +52,24 @@ public class APITestCommon {
         }
 
         return model;
+    }
+
+    /**
+     * Verifies the byte buffer is direct buffer with native order.
+     *
+     * @param buffer   The byte buffer
+     * @param expected The expected capacity
+     *
+     * @return True if the byte buffer is valid.
+     */
+    public static boolean isValidBuffer(ByteBuffer buffer, int expected) {
+        if (buffer != null && buffer.isDirect() && buffer.order() == ByteOrder.nativeOrder()) {
+            int capacity = buffer.capacity();
+
+            return (capacity == expected);
+        }
+
+        return false;
     }
 
     @Test

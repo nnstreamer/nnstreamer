@@ -107,13 +107,13 @@ public class CustomFilter implements AutoCloseable {
             throw new IllegalArgumentException("The param callback is null");
         }
 
-        mName = name;
-        mCallback = callback;
-
         mHandle = nativeInitialize(name);
         if (mHandle == 0) {
             throw new IllegalStateException("Failed to initialize custom-filter " + name);
         }
+
+        mName = name;
+        mCallback = callback;
     }
 
     /**
