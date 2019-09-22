@@ -103,7 +103,7 @@ public final class TensorsInfo implements AutoCloseable {
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
      */
-    public String getTesorName(int index) {
+    public String getTensorName(int index) {
         checkIndexBounds(index);
         return mInfoList.get(index).getName();
     }
@@ -131,7 +131,7 @@ public final class TensorsInfo implements AutoCloseable {
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
      */
-    public int getTesorType(int index) {
+    public int getTensorType(int index) {
         checkIndexBounds(index);
         return mInfoList.get(index).getType();
     }
@@ -159,7 +159,7 @@ public final class TensorsInfo implements AutoCloseable {
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
      */
-    public int[] getTesorDimension(int index) {
+    public int[] getTensorDimension(int index) {
         checkIndexBounds(index);
         return mInfoList.get(index).getDimension();
     }
