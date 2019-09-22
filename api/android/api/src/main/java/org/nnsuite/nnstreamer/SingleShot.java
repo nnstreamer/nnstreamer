@@ -69,8 +69,8 @@ public final class SingleShot implements AutoCloseable {
      * @throws IllegalStateException if failed to construct the pipeline
      */
     public SingleShot(@NonNull File model, @Nullable TensorsInfo in, @Nullable TensorsInfo out) {
-        if (model == null) {
-            throw new IllegalArgumentException("The param model is null");
+        if (model == null || !model.exists()) {
+            throw new IllegalArgumentException("The param model is invalid");
         }
 
         String path = model.getAbsolutePath();

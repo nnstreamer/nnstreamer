@@ -35,11 +35,11 @@ public final class TensorsData implements AutoCloseable {
      * @return The new byte buffer
      */
     public static ByteBuffer allocateByteBuffer(int size) {
-        ByteBuffer buffer = ByteBuffer.allocateDirect(size);
+        if (size <= 0) {
+            throw new IllegalArgumentException("The param size is invalid");
+        }
 
-        buffer.order(ByteOrder.nativeOrder());
-
-        return buffer;
+        return ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder());
     }
 
     /**

@@ -26,6 +26,9 @@ import org.freedesktop.gstreamer.GStreamer;
  * NNStreamer is a set of GStreamer plugins that allow GStreamer developers to adopt neural network models easily and efficiently
  * and neural network developers to manage stream pipelines and their filters easily and efficiently.<br>
  * <br>
+ * Note that, to open a machine learning model in the storage,
+ * the permission <code>Manifest.permission.READ_EXTERNAL_STORAGE</code> is required before constructing the pipeline.
+ * <br>
  * See <a href="https://github.com/nnsuite/nnstreamer">https://github.com/nnsuite/nnstreamer</a> for the details.
  */
 public final class NNStreamer {
