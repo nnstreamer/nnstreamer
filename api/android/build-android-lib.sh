@@ -16,6 +16,9 @@ nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
 # Set tensorflow-lite version (available: 1.9 and 1.13)
 nnstreamer_tf_lite_ver=1.13
 
+# Run unittest after build procedure is done
+run_unittest='no'
+
 # Variables to release library (GROUP:ARTIFACT:VERSION)
 release_bintray='no'
 
@@ -30,6 +33,8 @@ for arg in "$@"; do
         bintray_user_name=${arg#*=};;
         --bintray_user_key=*)
         bintray_user_key=${arg#*=};;
+        --run_unittest=*)
+        run_unittest=${arg#*=};;
     esac
 done
 
@@ -52,6 +57,7 @@ function check_package() {
 check_package svn
 check_package sed
 check_package patch
+check_package zip
 
 # Android SDK (Set your own path)
 [ -z "$ANDROID_HOME" ] && echo "Need to set ANDROID_HOME." && exit 1
@@ -70,18 +76,18 @@ echo "GStreamer binaries: $GSTREAMER_ROOT_ANDROID"
 echo "NNStreamer root directory: $NNSTREAMER_ROOT"
 
 echo "Start to build NNStreamer library for Android."
+pushd $NNSTREAMER_ROOT
 
 # Modify header for Android
-cd $NNSTREAMER_ROOT
 if ! patch -R --dry-run -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch; then
-  patch -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
+    patch -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
 fi
 
 # Make directory to build NNStreamer library
 mkdir -p build_android_lib
 
 # Copy the files (native and java to build Android library) to build directory
-cp -r $NNSTREAMER_ROOT/api/android/* ./build_android_lib
+cp -r ./api/android/* ./build_android_lib
 
 # Get the prebuilt libraries and build-script
 svn --force export https://github.com/nnsuite/nnstreamer-android-resource/trunk/android_api ./build_android_lib
@@ -90,6 +96,7 @@ pushd ./build_android_lib
 
 tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
 
+# Update target ABI
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
 
 # Add dependency for release
@@ -112,12 +119,13 @@ publish {\n\
 fi
 
 echo "Starting gradle build for Android library."
-nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
 
 # Build Android library.
 ./gradlew api:build
 
 # Check if build procedure is done.
+nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
+
 if [[ -e $nnstreamer_android_api_lib ]]; then
     result_directory=android_lib
     today=$(date '+%Y-%m-%d')
@@ -127,8 +135,16 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     cp $nnstreamer_android_api_lib ../$result_directory/nnstreamer-api-$today.aar
 
     if [[ $release_bintray == 'yes' ]]; then
-        echo "Upload NNStreamer library to Bintray"
+        echo "Upload NNStreamer library to Bintray."
         ./gradlew api:bintrayUpload -PbintrayUser=$bintray_user_name -PbintrayKey=$bintray_user_key -PdryRun=false
+    fi
+
+    if [[ $run_unittest == 'yes' ]]; then
+        echo "Run instrumented test."
+        ./gradlew api:connectedCheck
+
+        zip -r nnstreamer-api-unittest-$today.zip api/build/reports
+        cp nnstreamer-api-unittest-$today.zip ../$result_directory
     fi
 else
     echo "Failed to build NNStreamer library."
@@ -141,3 +157,5 @@ rm -rf build_android_lib
 
 # Clean the applied patches
 patch -R -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
+
+popd
