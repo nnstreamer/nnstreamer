@@ -31,7 +31,12 @@ if [[ "$SSATAPILOADED" != "1" ]]; then
 fi
 testInit $1 # You may replace this with Test Group Name
 
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+PATH_TO_PLUGIN="../../build"
+if [ ! -d "${PATH_TO_PLUGIN}" ]; then
+    CUSTOMLIB_DIR=${CUSTOMLIB_DIR:="/usr/lib/nnstreamer/customfilters"}
+fi
+
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     LSTM_DIR="../../build/nnstreamer_example/custom_example_LSTM"
 else
     LSTM_DIR="${CUSTOMLIB_DIR}"
