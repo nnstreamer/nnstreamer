@@ -43,8 +43,12 @@ convertBMP2PNG
 # Test gst availability. (0)
 gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! filesink location=\"testcase02.apitest.log\" sync=true" 0 0 0 $PERFORMANCE
 
+if [ ! -d "${PATH_TO_PLUGIN}" ]; then
+    CUSTOMLIB_DIR=${CUSTOMLIB_DIR:="/usr/lib/nnstreamer/customfilters"}
+fi
+
 # Test constant passthrough custom filter (1, 2)
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.${SO_EXT}"
 else
     PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_passthrough.${SO_EXT}"
@@ -59,7 +63,8 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 callCompareTest testcase02.direct.log testcase02.passthrough.log 2 "Compare 2" 0 0
 
 # Test variable-dim passthrough custom filter (3, 4)
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     PATH_TO_MODEL_V="../../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.${SO_EXT}"
 else
     PATH_TO_MODEL_V="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_passthrough_variable.${SO_EXT}"
@@ -80,7 +85,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tee name=t ! 
 callCompareTest testcase04.tensors.direct.log testcase04.tensors.passthrough.log 4-4 "Compare 4-4" 0 0
 
 # Test scaler (5, 6, 7)
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     PATH_TO_MODEL_S="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler.${SO_EXT}"
 else
     PATH_TO_MODEL_S="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_scaler.${SO_EXT}"
@@ -97,7 +102,7 @@ python checkScaledTensor.py testcase07.direct.log 640 480 testcase07.scaled.log 
 testResult $? 7 "Golden test comparison" 0 1
 
 # Test average (8)
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.${SO_EXT}"
 else
     PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_average.${SO_EXT}"
@@ -112,7 +117,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"8x8\" ! filesink location=\"testcase10.average.log\" sync=true t. ! queue ! filesink location=\"testcase10.direct.log\" sync=true" 10 0 0 $PERFORMANCE
 
 # Test scaler + in-invoke allocator (11)
-if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+if [[ -z "${CUSTOMLIB_DIR}" ]]; then
     PATH_TO_MODEL_SI="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler_allocator.${SO_EXT}"
 else
     PATH_TO_MODEL_SI="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_scaler_allocator.${SO_EXT}"
@@ -125,7 +130,7 @@ testResult $? 11 "Golden test comparison" 0 1
 # OpenCV Test
 # Test scaler using OpenCV (12, 13, 14)
 if [ "$TEST_OPENCV" == "YES" ]; then
-    if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+    if [[ -z "${CUSTOMLIB_DIR}" ]]; then
         PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_opencv/libnnstreamer_customfilter_opencv_scaler.${SO_EXT}"
     else
         PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_scaler.${SO_EXT}"
@@ -148,7 +153,7 @@ if [ "$TEST_OPENCV" == "YES" ]; then
 
     # Test average using OpenCV (15)
     # custom version
-    if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+    if [[ -z "${CUSTOMLIB_DIR}" ]]; then
         PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.${SO_EXT}"
     else
         PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_average.${SO_EXT}"
@@ -156,7 +161,7 @@ if [ "$TEST_OPENCV" == "YES" ]; then
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_A}\" ! filesink location=\"testcase15.average.log\" sync=true" 15 0 0 $PERFORMANCE
 
     # OpenCV version
-    if [[ -z "${CUSTOMLIB_DIR// /}" ]]; then
+    if [[ -z "${CUSTOMLIB_DIR}" ]]; then
         PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_opencv/libnnstreamer_customfilter_opencv_average.${SO_EXT}"
     else
         PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_average.${SO_EXT}"
