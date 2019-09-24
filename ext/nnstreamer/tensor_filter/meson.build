@@ -1,3 +1,39 @@
+if get_option('enable-nnfw-runtime')
+  filter_sub_nnfw_sources = ['tensor_filter_nnfw.c']
+
+  nnstreamer_filter_nnfw_sources = []
+  foreach s : filter_sub_nnfw_sources
+    nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnfw_dep = dependency('nnfw', required: false)
+  add_args = ''
+  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep]
+
+  if nnfw_dep.found()
+    nnstreamer_filter_nnfw_deps += nnfw_dep
+  else
+    # Until nnfw supports pkg-config, we need to do this primitively.
+    add_args = '-lnnfw-dev'
+  endif
+
+
+  shared_library('nnstreamer_filter_nnfw',
+    nnstreamer_filter_nnfw_sources,
+    dependencies: nnstreamer_filter_nnfw_deps,
+    c_args : add_args,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+  static_library('nnstreamer_filter_nnfw',
+    nnstreamer_filter_nnfw_sources,
+    dependencies: nnstreamer_filter_nnfw_deps,
+    c_args : add_args,
+    install: false,
+    install_dir: filter_subplugin_install_dir
+  )
+endif
+
 if get_option('enable-tensorflow')
   filter_sub_tf_sources = [
     'tensor_filter_tensorflow.c',

@@ -226,6 +226,8 @@ endif
 # nnfw ( details in https://review.tizen.org/gerrit/p/platform/core/ml/nnfw )
 if get_option('enable-nnfw')
   add_project_arguments('-DENABLE_NNFW=1', language: ['c', 'cpp'])
+  # For tf-lite/nnapi, enable-nnfw allows to use nnfw as a backend.
+  # This also enables nnfw as a subplugin for Tizen.
 endif
 
 # Patch for non-tizen build
