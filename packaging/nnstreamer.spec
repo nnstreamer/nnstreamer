@@ -3,6 +3,7 @@
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 %define		tensorflow_support	0
+%define		enable_nnfw	1
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
@@ -63,6 +64,9 @@ BuildRequires: tensorflow-devel
 BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
+
+%define		enable_nnfw_runtime	-Denable-nnfw-runtime=false
+%define		enable_nnfw_r	0
 %if %{with tizen}
 BuildRequires:	pkgconfig(mm-resource-manager)
 BuildRequires:	pkgconfig(mm-camcorder)
@@ -72,6 +76,16 @@ BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
 BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	gst-plugins-base-devel
+
+%if 0%{?enable_nnfw}
+%ifarch %arm aarch64
+# Tizen 5.5 M2+ support nn-runtime (nnfw)
+# As of 2019-09-24, unfortunately, nnfw does not support pkg-config
+BuildRequires:  nnfw-devel
+%define		enable_nnfw_runtime	-Denable-nnfw-runtime=true
+%define		enable_nnfw_r	1
+%endif
+%endif
 %endif
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
@@ -113,6 +127,12 @@ Requires:	nnstreamer = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
+
+%package nnfw
+Summary:	NNStreamer Tizen-nnfw runtime support
+Requires:	nnfw
+%description nnfw
+NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 
 %package -n nnstreamer-python2
 Summary:  NNStreamer Python Custom Filter Support
@@ -214,7 +234,7 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false %{enable_api} %{enable_tizen} %{restriction} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false %{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -321,6 +341,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
+
+%if 0%{?enable_nnfw_r}
+%files nnfw
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
+%endif
 
 %files -n nnstreamer-python2
 %manifest capi-nnstreamer.manifest
