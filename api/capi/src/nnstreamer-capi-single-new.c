@@ -694,7 +694,7 @@ ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
   }
 
   g_object_get (single_h->filter, "outputname", &val, NULL);
-  gst_tensors_info_parse_names_string (&gst_info, val);
+  rank = gst_tensors_info_parse_names_string (&gst_info, val);
   g_free (val);
 
   if (gst_info.num_tensors != rank) {
