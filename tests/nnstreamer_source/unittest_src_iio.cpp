@@ -142,7 +142,7 @@ make_iio_dev_structure (int num)
   const gchar *_tmp_dir = g_get_tmp_dir ();
   const gchar *_dirname = "nnst-src-XXXXXX";
 
-  iio_dev_dir_struct *iio_dev = g_new (iio_dev_dir_struct, 1);
+  iio_dev_dir_struct *iio_dev = g_new0 (iio_dev_dir_struct, 1);
   iio_dev->base_dir = g_build_filename (_tmp_dir, _dirname, NULL);
   iio_dev->base_dir = g_mkdtemp_full (iio_dev->base_dir, 0777);
   EXPECT_EQ (safe_rmdir (iio_dev->base_dir), 0);
@@ -216,6 +216,8 @@ make_iio_dev_structure (int num)
       g_build_filename (iio_dev->dev_dir, device_folder_name, NULL);
 
   iio_dev->log_file = NULL;
+  iio_dev->dev_device_dir_fd = -1;
+  iio_dev->dev_device_dir_fd_read = -1;
 
   PREV_IIO_DEV_DIR = IIO_DEV_DIR;
   IIO_DEV_DIR = g_strdup (iio_dev->dev_dir);
@@ -772,8 +774,10 @@ destroy_dev_dir (const iio_dev_dir_struct * iio_dev)
   status += safe_rmdir (iio_dev->bus_dir);
   status += safe_rmdir (iio_dev->sys_dir);
 
-  close (iio_dev->dev_device_dir_fd);
-  close (iio_dev->dev_device_dir_fd_read);
+  if (iio_dev->dev_device_dir_fd >= 0)
+    close (iio_dev->dev_device_dir_fd);
+  if (iio_dev->dev_device_dir_fd_read >= 0)
+    close (iio_dev->dev_device_dir_fd_read);
   status += safe_remove (iio_dev->dev_device_dir);
   status += safe_rmdir (iio_dev->dev_dir);
   if (iio_dev->log_file != NULL) {
