@@ -29,10 +29,12 @@ else
 fi
 convertBMP2PNG
 
-if [[ -z "${UNITTEST_DIR// /}" ]]; then
-    TESTBINDIR="../../build/tests/"
-else
+if [[ ! -z "${UNITTEST_DIR}" ]]; then
     TESTBINDIR="${UNITTEST_DIR}"
+elif [ ! -d "${PATH_TO_PLUGIN}" ] && [ ! -d "${UNITTEST_DIR}" ]; then
+    TESTBINDIR="/usr/lib/nnstreamer/unittest"
+else
+    TESTBINDIR="../../build/tests"
 fi
 
 ${TESTBINDIR}/unittest_repo --gst-plugin-path=../../build
