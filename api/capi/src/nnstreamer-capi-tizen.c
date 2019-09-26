@@ -128,6 +128,11 @@ typedef struct
 #define TIZEN_PRIVILEGE_CAMERA "http://tizen.org/privilege/camera"
 
 /**
+ * @brief Tizen Privilege Recoder (See https://www.tizen.org/privilege)
+ */
+#define TIZEN_PRIVILEGE_RECODER "http://tizen.org/privilege/recorder"
+
+/**
  * @brief Internal struct to control tizen feature support (machine_learning.inference).
  * -1: Not checked yet, 0: Not supported, 1: Supported
  */
@@ -680,9 +685,16 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result)
 
   /* replace src element */
   if (video_src || audio_src) {
-    status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA);
-    if (status != ML_ERROR_NONE)
+    /* check privilege first */
+    if (video_src &&
+        (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) != ML_ERROR_NONE) {
       goto mm_error;
+    }
+
+    if (audio_src &&
+        (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) != ML_ERROR_NONE) {
+      goto mm_error;
+    }
 
     /* read ini, type CONFIGURE_TYPE_MAIN */
     err = _mmcamcorder_conf_get_info (0, (char *) MMFW_CONFIG_MAIN_FILE, &cam_conf);
