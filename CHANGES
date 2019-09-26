@@ -1,3 +1,14 @@
+0.3.0 -> 1.0.0:
+	- Tizen Public C-API (Single & Pipeline) Reviewed and Confirmed!
+	- Tizen Public C#-API (Single) Reviewed and Confirmed!
+	- Tested with Tizen Studio.
+	- Official API test suites released via Tizen.
+	- Android Java-API released via JCenter for Android Studio users.
+	- Passed Quality Assurance. (code quality, stability, security, compliance, and so on)
+		- Fixed a lot of minor bugs in the course.
+	- Support macOS
+	- Fixed regressions related with ROS and Yocto support.
+
 0.2.0 -> 0.3.0:
 	- Tizen Public C-API Single/Pipeline RC1 Fixed for 5.5 M2
 	- Tizen Public C-API RC2 features included (pipeline whitelist, aliasing)
