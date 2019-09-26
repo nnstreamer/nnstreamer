@@ -540,13 +540,18 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
     signchar = 's';
     switch (idx % (iio_dev->num_scan_elements / 2)) {
       case 0:
+        /** big endian and signed */
         break;
       case 1:
+        /** little endian and unsigned (missing break is intended) */
         endianchar = 'l';
+        /* fallthrough */
       case 2:
+        /** big endian and unsigned */
         signchar = 'u';
         break;
       case 3:
+        /** little endian and signed */
         endianchar = 'l';
         break;
     }

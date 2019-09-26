@@ -681,13 +681,15 @@ gst_tensor_src_iio_get_float_from_file (const gchar * dirname,
 {
   gchar *filename, *filepath, *file_contents = NULL;
 
+  errno = 0;
   filename = g_strdup_printf ("%s%s", name, suffix);
   filepath = g_build_filename (dirname, filename, NULL);
 
   if (!g_file_get_contents (filepath, &file_contents, NULL, NULL)) {
     GST_INFO ("Unable to retrieve data from file %s.", filename);
   } else {
-    if (!sscanf (file_contents, "%f", value)) {
+    *value = (gfloat) g_ascii_strtod (file_contents, NULL);
+    if (errno != 0) {
       GST_ERROR ("Error in parsing float.");
       goto failure;
     }
@@ -711,48 +713,82 @@ failure:
  * @param[in] contents Contains type unparsed information to be set
  * @return True if info was successfully set, false is info is not be parsed
  *         correctly
+ * @detail The format for the contents is expected to be of format
+ *         [be|le]:[s|u]bits/storagebits[>>shift]
  */
 static gboolean
 gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
     const gchar * contents)
 {
   gchar endianchar = '\0', signchar = '\0';
-  gint arguments_filled;
-  gboolean ret = TRUE;
-  arguments_filled =
-      sscanf (contents, "%ce:%c%u/%u>>%u", &endianchar, &signchar,
-      &prop->used_bits, &prop->storage_bits, &prop->shift);
-  if (prop->storage_bits > 0) {
-    prop->storage_bytes = ((prop->storage_bits - 1) >> 3) + 1;
-  } else {
-    GST_WARNING ("Storage bits are 0 for channel %s.", prop->name);
-    prop->storage_bytes = 0;
-  }
+  gchar *start, *end;
+  guint base = 10;
+  errno = 0;
 
-  prop->mask = G_MAXUINT64 >> (64 - prop->used_bits);
-
-  /** checks to verify device channel type settings */
-  g_return_val_if_fail (arguments_filled == 5, FALSE);
-  g_return_val_if_fail (prop->storage_bytes <= 8, FALSE);
-  g_return_val_if_fail (prop->storage_bits >= prop->used_bits, FALSE);
-  g_return_val_if_fail (prop->storage_bits > prop->shift, FALSE);
-
+  /** check endian */
+  endianchar = contents[0];
   if (endianchar == 'b') {
     prop->big_endian = TRUE;
   } else if (endianchar == 'l') {
     prop->big_endian = FALSE;
   } else {
-    ret = FALSE;
+    goto exit_fail;
   }
+
+  /** verify static parts of the contents */
+  g_return_val_if_fail (contents[1] == 'e', FALSE);
+  g_return_val_if_fail (contents[2] == ':', FALSE);
+
+  /** check sign */
+  signchar = contents[3];
   if (signchar == 's') {
     prop->is_signed = TRUE;
   } else if (signchar == 'u') {
     prop->is_signed = FALSE;
   } else {
-    ret = FALSE;
+    goto exit_fail;
   }
 
-  return ret;
+  /** used bits */
+  start = (gchar *) contents + 4;
+  prop->used_bits = (guint) g_ascii_strtoull (start, &end, base);
+  if (errno != 0) {
+    goto exit_fail;
+  }
+  /** verify static parts of the contents */
+  g_return_val_if_fail (end[0] == '/', FALSE);
+  prop->mask = G_MAXUINT64 >> (64 - prop->used_bits);
+
+  /** storage bits */
+  start = &end[1];
+  prop->storage_bits = (guint) g_ascii_strtoull (start, &end, base);
+  if (errno != 0) {
+    goto exit_fail;
+  }
+  /** verify static parts of the contents */
+  g_return_val_if_fail (end[0] == '>', FALSE);
+  g_return_val_if_fail (end[1] == '>', FALSE);
+  g_return_val_if_fail (prop->storage_bits >= prop->used_bits, FALSE);
+
+  if (prop->storage_bits > 0) {
+    prop->storage_bytes = ((prop->storage_bits - 1) >> 3) + 1;
+    g_return_val_if_fail (prop->storage_bytes <= 8, FALSE);
+  } else {
+    GST_WARNING ("Storage bits are 0 for channel %s.", prop->name);
+    prop->storage_bytes = 0;
+  }
+
+  start = &end[2];
+  prop->shift = (guint) g_ascii_strtoull (start, &end, base);
+  if (errno != 0) {
+    goto exit_fail;
+  }
+  g_return_val_if_fail (prop->storage_bits > prop->shift, FALSE);
+
+  return TRUE;
+
+exit_fail:
+  return FALSE;
 }
 
 /**
