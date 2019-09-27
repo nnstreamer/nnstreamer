@@ -9,16 +9,21 @@
 # @author Parichay Kapoor <pk.kapoor@samsung.com>
 
 import sys
+import os
+import struct
+import string
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from gen24bBMP import convert_to_bytes
 
 # Read the bytes from the file
 def readbyte (filename):
-  with open(filename, 'r') as f:
-    readbyte = f.read()
-  return readbyte
+    with open(filename, 'rb') as f:
+      readbyte = f.read()
+    return readbyte
 
 # Verify that the output of test case verifies the filename of the input
 onehot = readbyte(sys.argv[1])
-onehot = [str(ord(x)) for x in onehot]
+onehot = [convert_to_bytes(x) for x in onehot]
 idx = onehot.index(max(onehot))
 
 label = str(idx)

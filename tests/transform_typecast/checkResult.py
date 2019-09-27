@@ -22,8 +22,8 @@ def testTypeCast (fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typeb
 
   if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
     return 10
-  num = lena / typeasize
-  if num != (lenb / typebsize):
+  num = lena // typeasize
+  if num != (lenb // typebsize):
     return 11
   limitb = 2 ** (8 * typebsize)
   maskb = limitb - 1
@@ -50,7 +50,7 @@ def testTypeCast (fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typeb
   return 0
 
 def readfile (filename):
-  F = open(filename, 'r')
+  F = open(filename, 'rb')
   readfile = F.read()
   F.close
   return readfile

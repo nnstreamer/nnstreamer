@@ -9,10 +9,15 @@
 # @author HyoungJoo Ahn <hello.ahn@samsung.com>
 
 import sys
+import os
+import struct
+import string
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from gen24bBMP import convert_to_bytes
 
 
 def readbyte (filename):
-  F = open(filename, 'r')
+  F = open(filename, 'rb')
   readbyte = F.read()
   F.close()
   return readbyte
@@ -25,7 +30,7 @@ def readlabel (filename):
   return line
 
 onehot = readbyte(sys.argv[1])
-onehot = [str(ord(x)) for x in onehot]
+onehot = [convert_to_bytes(x) for x in onehot]
 idx = onehot.index(max(onehot))
 
 label_list = readlabel(sys.argv[2])
