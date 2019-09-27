@@ -14,6 +14,24 @@ from struct import pack
 import random
 import sys
 
+##
+# @brief Convert given data to bytes
+# @param[in] data The data to be converted to bytes array
+# @return bytes converted from the data
+
+def convert_to_bytes(data):
+    """
+    Convert given data to bytes
+
+    @param  data: The data to be converted to bytes
+    @rtype      : bytes
+    @return     : bytes converted from the data
+    """
+
+    if isinstance(data, bytes):
+        return data
+    else:
+        return pack("<B", data)
 
 ##
 # @brief Save bitmap "data" to "filename"
@@ -34,9 +52,9 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = 3 * (w + width * h)
-                graphics += data[pos+2]
-                graphics += data[pos+1]
-                graphics += data[pos]
+                graphics += convert_to_bytes(data[pos + 2])
+                graphics += convert_to_bytes(data[pos + 1])
+                graphics += convert_to_bytes(data[pos])
             for x in range(0, (width * 3) % 4):
                 graphics += pack('<B', 0)
     elif colorspace == 'BGRx':
@@ -46,9 +64,9 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
-                graphics += data[pos]
-                graphics += data[pos+1]
-                graphics += data[pos+2]
+                graphics += convert_to_bytes(data[pos])
+                graphics += convert_to_bytes(data[pos + 1])
+                graphics += convert_to_bytes(data[pos + 2])
             for x in range(0, (width * 3) % 4):
                 graphics += pack('<B', 0)
     elif colorspace == 'GRAY8':
@@ -58,7 +76,7 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
-                graphics += data[pos]
+                graphics += convert_to_bytes(data[pos])
             for x in range(0, (width * 3) % 4):
                 graphics += pack('<B', 0)
     else:

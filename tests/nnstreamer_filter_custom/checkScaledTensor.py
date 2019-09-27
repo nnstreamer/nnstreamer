@@ -30,8 +30,8 @@ def compare (data1, width1, height1, data2, width2, height2, innerdim):
     for y in range(0, height2):
       for x in range(0, width2):
         for c in range(0, innerdim):
-          ix = x * width1 / width2
-          iy = y * height1 / height2
+          ix = x * width1 // width2
+          iy = y * height1 // height2
           if data1[count + c + ix * innerdim + iy * width1 * innerdim] != data2[count2 + c + x * innerdim + y * width2 * innerdim]:
             print("At "+str(x)+","+str(y))
             return 5
@@ -45,7 +45,7 @@ def compare (data1, width1, height1, data2, width2, height2, innerdim):
   return 0
 
 def readfile (filename):
-  F = open(filename, 'r')
+  F = open(filename, 'rb')
   readfile = F.read()
   F.close()
   return readfile

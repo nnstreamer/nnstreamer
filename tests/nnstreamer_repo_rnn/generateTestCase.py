@@ -17,6 +17,10 @@ from __future__ import print_function
 import sys
 import os
 import array as arr
+import struct
+import string
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from gen24bBMP import convert_to_bytes
 
 def location(c, w, h):
     return c+4*(w+4*h)
@@ -46,31 +50,32 @@ def genFrame(seq, out):
     for h in range(0,4):
         w=0
         for i in range(0,4):
-            out[location(i,w,h)]=frame[location(i,w,h)]
+            out[location(i,w,h)] = frame[location(i,w,h)]
         for w in range(1,3):
             for c in range(0,4):
                 sum = frame[location(0,w,h)]
                 sum += out[location(0,w,h)]
-                out[location(0,w,h)] = sum/2
+                out[location(0,w,h)] = sum // 2
         w=3
         for i in range(0,4):
             out[location(i,w,h)] = out[location(i,w,h)]
 
-    return frame.tostring(), out
+    return frame, out
 
 filename = "video_4x4xBGRx.xraw"
-f = open(filename, "w")
+f = open(filename, "wb")
 
 out = arr.array('B',[0]*64)
 
 for seq in range(0, 10):
     outfilename = "rnn.golden"
-    string, out=genFrame(seq,out)
+    frame, out = genFrame(seq,out)
+
     if(seq == 9):
         with open(outfilename,'wb') as file:
             file.write(out.tostring())
 
-    f.write(string)
+    f.write(frame)
 
 f.close()
 

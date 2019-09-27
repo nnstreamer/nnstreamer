@@ -18,10 +18,10 @@ import sys
 def testDimchgFirstDimGoHigher(dataA, dataB, dim1, repeatblocksize, elementsize):
   if (len(dataA) != len(dataB)):
     return 1
-  loop = len(dataA) / repeatblocksize
+  loop = len(dataA) // repeatblocksize
   if ((loop * repeatblocksize) != len(dataA)):
     return 2
-  ncpy = repeatblocksize / dim1 / elementsize
+  ncpy = repeatblocksize // dim1 // elementsize
   if ((ncpy * dim1 * elementsize) != repeatblocksize):
     return 3
   for x in range(0, loop):
@@ -33,7 +33,7 @@ def testDimchgFirstDimGoHigher(dataA, dataB, dim1, repeatblocksize, elementsize)
           return 4
 
 def readfile (filename):
-  F = open(filename, 'r')
+  F = open(filename, 'rb')
   readfile = F.read()
   F.close
   return readfile
