@@ -86,6 +86,7 @@ public class APITestPipeline {
         try (Pipeline pipe = new Pipeline(desc, null)) {
             Thread.sleep(100);
             assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, pipe.getState());
+            Thread.sleep(100);
         } catch (Exception e) {
             fail();
         }
@@ -119,6 +120,7 @@ public class APITestPipeline {
             Thread.sleep(300);
 
             assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, mPipelineState);
+            Thread.sleep(100);
         } catch (Exception e) {
             fail();
         }
@@ -141,6 +143,7 @@ public class APITestPipeline {
             Thread.sleep(300);
 
             assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, pipe.getState());
+            Thread.sleep(100);
         } catch (Exception e) {
             fail();
         }
