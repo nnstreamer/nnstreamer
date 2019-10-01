@@ -138,7 +138,7 @@ invoke_thread (void *arg)
     for (i = 0; i < in_data->num_tensors; i++) {
       in_tensors[i].data = in_data->tensors[i].tensor;
       in_tensors[i].size = in_data->tensors[i].size;
-      in_tensors[i].type = single_h->in_info.info[i].type;
+      in_tensors[i].type = (tensor_type) single_h->in_info.info[i].type;
     }
 
     /** Setup output buffer */
@@ -147,7 +147,7 @@ invoke_thread (void *arg)
       out_tensors[i].data = NULL;
       out_tensors[i].size =
           ml_tensor_info_get_size (&single_h->out_info.info[i]);
-      out_tensors[i].type = single_h->out_info.info[i].type;
+      out_tensors[i].type = (tensor_type) single_h->out_info.info[i].type;
     }
     g_mutex_unlock (&single_h->mutex);
 
