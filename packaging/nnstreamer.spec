@@ -286,7 +286,7 @@ popd
     # Generate report
     lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
     # Exclude generated files (Orc)
-    lcov -r unittest.info "*/*-orc.*" "*/tests/*" -o unittest-filtered.info
+    lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/meson*/*" -o unittest-filtered.info
     # Visualize the report
     genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
 %endif
