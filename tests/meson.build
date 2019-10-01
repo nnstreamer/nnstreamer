@@ -101,6 +101,10 @@ if get_option('enable-capi')
   subdir('tizen_capi')
 endif
 
+if get_option('enable-nnfw-runtime')
+  subdir('tizen_nnfw_runtime')
+endif
+
 # Install Unittest
 if get_option('install-test')
   install_data('gen24bBMP.py', install_dir: join_paths(unittest_install_dir,'tests'))
