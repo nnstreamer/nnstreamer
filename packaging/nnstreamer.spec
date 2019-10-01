@@ -251,6 +251,9 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
     ./tests/tizen_capi/unittest_tizen_capi_single_new --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi_single_new.xml"
+%if 0%{?enable_nnfw_r}
+    ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
+%endif
     popd
     pushd tests
     ssat -n

@@ -7,31 +7,28 @@ if get_option('enable-nnfw-runtime')
   endforeach
 
   nnfw_dep = dependency('nnfw', required: false)
-  add_args = ''
-  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep]
-
-  if nnfw_dep.found()
-    nnstreamer_filter_nnfw_deps += nnfw_dep
-  else
+  if not nnfw_dep.found()
     # Until nnfw supports pkg-config, we need to do this primitively.
-    add_args = '-lnnfw-dev'
+    nnfw_dep = cc.find_library('nnfw-dev')
   endif
+  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, nnfw_dep]
 
 
-  shared_library('nnstreamer_filter_nnfw',
+  nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
-    c_args : add_args,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
   static_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
-    c_args : add_args,
     install: false,
     install_dir: filter_subplugin_install_dir
   )
+
+  nnfw_plugin_dep = declare_dependency(link_with: nnfw_plugin_lib,
+    dependencies: nnstreamer_filter_nnfw_deps)
 endif
 
 if get_option('enable-tensorflow')
