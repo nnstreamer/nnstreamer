@@ -565,6 +565,19 @@ ml_pipeline_construct (const char *pipeline_description,
   return construct_pipeline_internal (pipeline_description, cb, user_data, pipe, FALSE);
 }
 
+#if defined (__TIZEN__)
+/**
+ * @brief Construct the pipeline (Tizen internal, see nnstreamer-tizen-internal.h)
+ */
+int
+ml_pipeline_construct_internal (const char *pipeline_description,
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
+{
+  /* Tizen internal pipeline construction */
+  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe, TRUE);
+}
+#endif /* __TIZEN__ */
+
 /**
  * @brief Destroy the pipeline (more info in nnstreamer.h)
  */

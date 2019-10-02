@@ -195,6 +195,13 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer-single-new = %{version}-%{release}
 %description -n capi-nnstreamer-single-new-devel
 Developmental kit for Tizen Native new single-shot NNStreamer API.
+
+%package -n nnstreamer-tizen-internal-capi-devel
+Summary:	Tizen internal API to construct the pipeline
+Group:		Multimedia/Framework
+Requires:	capi-nnstreamer-devel = %{version}-%{release}
+%description -n nnstreamer-tizen-internal-capi-devel
+Tizen internal API to construct the pipeline without the permissions.
 %endif
 
 # Define build options
@@ -408,6 +415,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer-single-new.pc
 %{_libdir}/libcapi-nnstreamer-single-new.a
+
+%files -n nnstreamer-tizen-internal-capi-devel
+%{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 %endif
 
 %changelog

@@ -32,6 +32,8 @@
 
 /* Tizen ML feature */
 #if defined (__TIZEN__)
+#include "nnstreamer-tizen-internal.h"
+
 #define check_feature_state() \
   do { \
     int feature_ret = ml_tizen_get_feature_enabled (); \
