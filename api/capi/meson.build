@@ -34,11 +34,19 @@ endif
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
+if get_option('enable-tizen')
+  # header for Tizen internal API
+  capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-tizen-internal.h')
+endif
 
-tizen_deps = []
+# Dependencies
+capi_deps = [
+  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep
+]
 
 if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
+
   tizen_deps = [
     dependency('mm-resource-manager'),
     dependency('mm-camcorder'),
@@ -47,11 +55,9 @@ if (get_option('enable-tizen'))
     dependency('capi-system-info'),
     dependency('dlog')
   ]
-endif
 
-capi_deps = [
-  nnstreamer_dep, glib_dep, gst_dep, gst_app_dep, tizen_deps
-]
+  capi_deps += tizen_deps
+endif
 
 shared_library ('capi-nnstreamer',
   capi_main,
