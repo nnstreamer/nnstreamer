@@ -35,6 +35,8 @@ for arg in "$@"; do
         bintray_user_key=${arg#*=};;
         --run_unittest=*)
         run_unittest=${arg#*=};;
+        --result_directory=*)
+        result_directory=${arg#*=};;
     esac
 done
 
@@ -126,13 +128,17 @@ echo "Starting gradle build for Android library."
 # Check if build procedure is done.
 nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
 
+result=1
 if [[ -e $nnstreamer_android_api_lib ]]; then
-    result_directory=android_lib
+    if [[ -z $result_directory ]]; then
+        result_directory=../android_lib
+    fi
     today=$(date '+%Y-%m-%d')
+    result=0
 
     echo "Build procedure is done, copy NNStreamer library to $result_directory directory."
-    mkdir -p ../$result_directory
-    cp $nnstreamer_android_api_lib ../$result_directory/nnstreamer-api-$today.aar
+    mkdir -p $result_directory
+    cp $nnstreamer_android_api_lib $result_directory/nnstreamer-api-$today.aar
 
     if [[ $release_bintray == 'yes' ]]; then
         echo "Upload NNStreamer library to Bintray."
@@ -144,7 +150,7 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
         ./gradlew api:connectedCheck
 
         zip -r nnstreamer-api-unittest-$today.zip api/build/reports
-        cp nnstreamer-api-unittest-$today.zip ../$result_directory
+        cp nnstreamer-api-unittest-$today.zip $result_directory
     fi
 else
     echo "Failed to build NNStreamer library."
@@ -159,3 +165,6 @@ rm -rf build_android_lib
 patch -R -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
 
 popd
+
+# exit with success/failure status
+exit $result
