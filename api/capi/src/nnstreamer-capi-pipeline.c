@@ -350,7 +350,7 @@ cleanup_resource (gpointer data)
  * @brief Converts predefined element in pipeline description.
  */
 static int
-convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result)
+convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result, gboolean is_internal)
 {
   gchar *converted;
   int status = ML_ERROR_NONE;
@@ -364,7 +364,7 @@ convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result)
   converted = g_strdup (description);
 
   /* convert pre-defined element for Tizen */
-  status = convert_tizen_element (pipe, &converted);
+  status = convert_tizen_element (pipe, &converted, is_internal);
 
   if (status == ML_ERROR_NONE) {
     *result = converted;
@@ -376,11 +376,12 @@ convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result)
 }
 
 /**
- * @brief Construct the pipeline (more info in nnstreamer.h)
+ * @brief Internal function to construct the pipeline.
+ * If is_internal is true, this will ignore the permission in Tizen.
  */
-int
-ml_pipeline_construct (const char *pipeline_description,
-    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
+static int
+construct_pipeline_internal (const char *pipeline_description,
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe, gboolean is_internal)
 {
   GError *err = NULL;
   GstElement *pipeline;
@@ -417,7 +418,7 @@ ml_pipeline_construct (const char *pipeline_description,
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_resource);
 
   /* convert predefined element and launch the pipeline */
-  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description);
+  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description, is_internal);
   if (status != ML_ERROR_NONE)
     goto failed;
 
@@ -551,6 +552,17 @@ failed:
   }
 
   return status;
+}
+
+/**
+ * @brief Construct the pipeline (more info in nnstreamer.h)
+ */
+int
+ml_pipeline_construct (const char *pipeline_description,
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
+{
+  /* not an internal pipeline construction */
+  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe, FALSE);
 }
 
 /**
