@@ -670,7 +670,7 @@ ml_tizen_mm_replace_element (camera_conf * conf, gint category,
  * @brief Converts predefined mmfw element.
  */
 static int
-ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result)
+ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
 {
   gchar *converted;
   gchar *video_src, *audio_src;
@@ -686,14 +686,17 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result)
   /* replace src element */
   if (video_src || audio_src) {
     /* check privilege first */
-    if (video_src &&
-        (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) != ML_ERROR_NONE) {
-      goto mm_error;
-    }
+    if (!is_internal) {
+      /* ignore permission when runs as internal mode */
+      if (video_src &&
+          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) != ML_ERROR_NONE) {
+        goto mm_error;
+      }
 
-    if (audio_src &&
-        (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) != ML_ERROR_NONE) {
-      goto mm_error;
+      if (audio_src &&
+          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) != ML_ERROR_NONE) {
+        goto mm_error;
+      }
     }
 
     /* read ini, type CONFIGURE_TYPE_MAIN */
@@ -771,12 +774,12 @@ ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type)
  * @brief Converts predefined element for Tizen.
  */
 int
-ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result)
+ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
 {
   int status;
 
   /* convert predefined element of mulitmedia fw */
-  status = ml_tizen_mm_convert_element (pipe, result);
+  status = ml_tizen_mm_convert_element (pipe, result, is_internal);
 
   return status;
 }

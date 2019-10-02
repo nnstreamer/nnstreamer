@@ -339,7 +339,7 @@ int ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type);
 /**
  * @brief Converts predefined element for Tizen.
  */
-int ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result);
+int ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal);
 #endif
 
 #ifdef __cplusplus
