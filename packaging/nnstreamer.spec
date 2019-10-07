@@ -272,6 +272,11 @@ pushd %{buildroot}%{python_sitelib}
 ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python.so
 popd
 
+# Hotfix: Support backward compatibility
+pushd %{buildroot}%{_libdir}
+ln -sf %{_libdir}/libcapi-nnstreamer.so libcapi-nnstreamer.so.0
+popd
+
 %if 0%{?testcoverage}
 ##
 # The included directories are:
@@ -384,25 +389,24 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n capi-nnstreamer
 %manifest capi-nnstreamer.manifest
 %license LICENSE
+%{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.so.*
 
 %files -n capi-nnstreamer-devel
 %{_includedir}/nnstreamer/nnstreamer.h
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
-%{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.a
 
 %files -n capi-nnstreamer-single-new
 %manifest capi-nnstreamer.manifest
 %license LICENSE
-%{_libdir}/libcapi-nnstreamer-single-new.so.*
+%{_libdir}/libcapi-nnstreamer-single-new.so
 
 %files -n capi-nnstreamer-single-new-devel
 %{_includedir}/nnstreamer/nnstreamer.h
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer-single-new.pc
-%{_libdir}/libcapi-nnstreamer-single-new.so
 %{_libdir}/libcapi-nnstreamer-single-new.a
 %endif
 
