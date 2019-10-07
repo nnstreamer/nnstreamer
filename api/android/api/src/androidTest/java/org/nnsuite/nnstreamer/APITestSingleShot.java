@@ -75,8 +75,11 @@ public class APITestSingleShot {
         try {
             TensorsInfo info = mSingle.getInputInfo();
 
+            /* let's ignore timeout (set 10 sec) */
+            mSingle.setTimeout(10000);
+
             /* single-shot invoke */
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 600; i++) {
                 /* dummy input */
                 TensorsData in = TensorsData.allocate(info);
                 TensorsData out = mSingle.invoke(in);
@@ -85,7 +88,7 @@ public class APITestSingleShot {
                 assertEquals(1, out.getTensorsCount());
                 assertEquals(1001, out.getTensorData(0).capacity());
 
-                Thread.sleep(50);
+                Thread.sleep(30);
             }
         } catch (Exception e) {
             fail();
