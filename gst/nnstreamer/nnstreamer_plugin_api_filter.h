@@ -100,7 +100,7 @@ typedef struct _GstTensorFilterFramework
        * @param[in] prop read-only property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[out] info structure of tensor info (return value)
-       * @return the size of input tensors
+       * @return 0 if OK. non-zero if error.
        */
 
   int (*getOutputDimension) (const GstTensorFilterProperties * prop,
@@ -112,7 +112,7 @@ typedef struct _GstTensorFilterFramework
        * @param[in] prop read-only property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[out] info structure of tensor info (return value)
-       * @return the size of output tensors
+       * @return 0 if OK. non-zero if error.
        */
 
   int (*setInputDimension) (const GstTensorFilterProperties * prop,

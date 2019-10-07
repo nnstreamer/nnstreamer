@@ -726,7 +726,8 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 {
   if (!priv->prop.fw_opened && priv->fw) {
     if (priv->fw->open) {
-      if (priv->fw->open (&priv->prop, &priv->privateData) == 0)
+      /* 0 if successfully loaded. 1 if skipped (already loaded). */
+      if (priv->fw->open (&priv->prop, &priv->privateData) >= 0)
         priv->prop.fw_opened = TRUE;
     } else {
       priv->prop.fw_opened = TRUE;
