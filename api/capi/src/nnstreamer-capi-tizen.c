@@ -696,6 +696,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result,
   camera_conf *cam_conf = NULL;
   int status = ML_ERROR_STREAMS_PIPE;
   int err;
+  gchar *ini_name;
 
   converted = *result;
 
@@ -723,9 +724,9 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result,
     }
 
     /* read ini, type CONFIGURE_TYPE_MAIN */
-    err =
-        _mmcamcorder_conf_get_info (0, (char *) MMFW_CONFIG_MAIN_FILE,
-        &cam_conf);
+    ini_name = g_strdup (MMFW_CONFIG_MAIN_FILE);
+    err = _mmcamcorder_conf_get_info (0, ini_name, &cam_conf);
+    g_free (ini_name);
     if (err != MM_ERROR_NONE || !cam_conf) {
       ml_loge ("Failed to load conf %s.", MMFW_CONFIG_MAIN_FILE);
       goto mm_error;
