@@ -292,6 +292,43 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testInputBuffer() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.setSinkCallback("sinkx", mSinkCb);
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer repeatedly */
+            for (int i = 0; i < 2048; i++) {
+                /* dummy input */
+                TensorsData in = new TensorsData();
+                in.addTensorData(TensorsData.allocateByteBuffer(200));
+
+                pipe.inputData("srcx", in);
+                Thread.sleep(20);
+            }
+
+            /* sleep 300 to pass input buffers to sink */
+            Thread.sleep(300);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testInputInvalidName() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +

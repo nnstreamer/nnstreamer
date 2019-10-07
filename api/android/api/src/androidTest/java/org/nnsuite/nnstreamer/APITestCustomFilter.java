@@ -23,6 +23,28 @@ public class APITestCustomFilter {
     private CustomFilter mCustomConvert;
     private CustomFilter mCustomAdd;
 
+    private Pipeline.NewDataCallback mSinkCb = new Pipeline.NewDataCallback() {
+        @Override
+        public void onNewDataReceived(TensorsData data, TensorsInfo info) {
+            if (data == null || data.getTensorsCount() != 1 ||
+                info == null || info.getTensorsCount() != 1) {
+                mInvalidState = true;
+            } else {
+                ByteBuffer output = data.getTensorData(0);
+
+                for (int i = 0; i < 10; i++) {
+                    float expected = i + 1.5f;
+
+                    if (expected != output.getFloat(i * 4)) {
+                        mInvalidState = true;
+                    }
+                }
+            }
+
+            mReceived++;
+        }
+    };
+
     private void registerCustomFilters() {
         try {
             /* register custom-filter (passthrough) */
@@ -143,27 +165,7 @@ public class APITestCustomFilter {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", new Pipeline.NewDataCallback() {
-                @Override
-                public void onNewDataReceived(TensorsData data, TensorsInfo info) {
-                    if (data == null || data.getTensorsCount() != 1 ||
-                        info == null || info.getTensorsCount() != 1) {
-                        mInvalidState = true;
-                    } else {
-                        ByteBuffer output = data.getTensorData(0);
-
-                        for (int i = 0; i < 10; i++) {
-                            float expected = i + 1.5f;
-
-                            if (expected != output.getFloat(i * 4)) {
-                                mInvalidState = true;
-                            }
-                        }
-                    }
-
-                    mReceived++;
-                }
-            });
+            pipe.setSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
@@ -189,6 +191,51 @@ public class APITestCustomFilter {
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertEquals(15, mReceived);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testInputBuffer() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)10:1:1:1,type=(string)int32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=" + mCustomPassthrough.getName() + " ! " +
+                "tensor_filter framework=" + mCustomConvert.getName() + " ! " +
+                "tensor_filter framework=" + mCustomAdd.getName() + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.setSinkCallback("sinkx", mSinkCb);
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer repeatedly */
+            for (int i = 0; i < 2048; i++) {
+                ByteBuffer input = TensorsData.allocateByteBuffer(4 * 10);
+
+                for (int j = 0; j < 10; j++) {
+                    input.putInt(j * 4, j);
+                }
+
+                TensorsData in = new TensorsData();
+                in.addTensorData(input);
+
+                pipe.inputData("srcx", in);
+                Thread.sleep(20);
+            }
+
+            /* sleep 300 to pass input buffers to sink */
+            Thread.sleep(300);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
         } catch (Exception e) {
             fail();
         }
