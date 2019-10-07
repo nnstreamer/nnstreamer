@@ -91,13 +91,14 @@ typedef struct _camera_conf
 #define MMFW_CONFIG_MAIN_FILE "mmfw_camcorder.ini"
 
 extern int
-_mmcamcorder_conf_get_info (int type, char *ConfFile, camera_conf ** configure_info);
+_mmcamcorder_conf_get_info (int type, char *ConfFile,
+    camera_conf ** configure_info);
 
-extern void
-_mmcamcorder_conf_release_info (camera_conf ** configure_info);
+extern void _mmcamcorder_conf_release_info (camera_conf ** configure_info);
 
 extern int
-_mmcamcorder_conf_get_element (camera_conf * configure_info, int category, char *name, type_element ** element);
+_mmcamcorder_conf_get_element (camera_conf * configure_info, int category,
+    char *name, type_element ** element);
 
 extern int
 _mmcamcorder_conf_get_value_element_name (type_element * element, char **value);
@@ -198,7 +199,8 @@ ml_tizen_get_feature_enabled (void)
     return ML_ERROR_NOT_SUPPORTED;
   } else if (-1 == feature_enabled) {
     bool ml_inf_supported = false;
-    ret = system_info_get_platform_bool (ML_INF_FEATURE_PATH, &ml_inf_supported);
+    ret =
+        system_info_get_platform_bool (ML_INF_FEATURE_PATH, &ml_inf_supported);
     if (0 == ret) {
       if (false == ml_inf_supported) {
         ml_loge ("machine_learning.inference NOT supported");
@@ -210,7 +212,8 @@ ml_tizen_get_feature_enabled (void)
     } else {
       switch (ret) {
         case SYSTEM_INFO_ERROR_INVALID_PARAMETER:
-          ml_loge ("failed to get feature value because feature key is not vaild");
+          ml_loge
+              ("failed to get feature value because feature key is not vaild");
           ret = ML_ERROR_NOT_SUPPORTED;
           break;
 
@@ -334,7 +337,8 @@ ml_tizen_mm_res_release_cb (mm_resource_manager_h rm,
   p = (ml_pipeline *) user_data;
   g_mutex_lock (&p->lock);
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res) {
     /* rm handle is not registered or removed */
     goto done;
@@ -357,7 +361,9 @@ ml_tizen_mm_res_release_cb (mm_resource_manager_h rm,
     if (res_key) {
       pipeline_resource_s *mm_res;
 
-      mm_res = (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles, res_key);
+      mm_res =
+          (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles,
+          res_key);
       if (mm_res && mm_res->handle) {
         mm_resource_manager_mark_for_release (mm_handle->rm_h, mm_res->handle);
         mm_resource_manager_commit (mm_handle->rm_h);
@@ -392,7 +398,8 @@ ml_tizen_mm_res_status_cb (mm_resource_manager_h rm,
   p = (ml_pipeline *) user_data;
   g_mutex_lock (&p->lock);
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res) {
     /* rm handle is not registered or removed */
     goto done;
@@ -507,7 +514,8 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe)
 
   p = (ml_pipeline *) pipe;
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
 
   /* register new resource handle of tizen mmfw */
   if (!res) {
@@ -554,7 +562,8 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
 
   p = (ml_pipeline *) pipe;
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res)
     goto rm_error;
 
@@ -576,7 +585,9 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
       goto rm_error;
 
     /* add state change callback */
-    err = mm_resource_manager_set_status_cb (rm_h, ml_tizen_mm_res_status_cb, pipe);
+    err =
+        mm_resource_manager_set_status_cb (rm_h, ml_tizen_mm_res_status_cb,
+        pipe);
     if (err != MM_RESOURCE_MANAGER_ERROR_NONE) {
       mm_resource_manager_destroy (rm_h);
       goto rm_error;
@@ -600,7 +611,9 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
 
         type = ml_tizen_mm_res_get_type (mm_res->type);
         if (type != MM_RESOURCE_MANAGER_RES_TYPE_MAX) {
-          status = ml_tizen_mm_res_get_handle (mm_handle->rm_h, type, &mm_res->handle);
+          status =
+              ml_tizen_mm_res_get_handle (mm_handle->rm_h, type,
+              &mm_res->handle);
           if (status != ML_ERROR_NONE)
             goto rm_error;
         }
@@ -611,19 +624,24 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
     if (res_key) {
       pipeline_resource_s *mm_res;
 
-      mm_res = (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles, res_key);
+      mm_res =
+          (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles,
+          res_key);
       if (!mm_res) {
         mm_res = g_new0 (pipeline_resource_s, 1);
         g_assert (mm_res);
 
         mm_res->type = g_strdup (res_key);
-        g_hash_table_insert (mm_handle->res_handles, g_strdup (res_key), mm_res);
+        g_hash_table_insert (mm_handle->res_handles, g_strdup (res_key),
+            mm_res);
       }
 
       g_free (res_key);
 
       if (!mm_res->handle) {
-        status = ml_tizen_mm_res_get_handle (mm_handle->rm_h, res_type, &mm_res->handle);
+        status =
+            ml_tizen_mm_res_get_handle (mm_handle->rm_h, res_type,
+            &mm_res->handle);
         if (status != ML_ERROR_NONE)
           goto rm_error;
       }
@@ -670,7 +688,8 @@ ml_tizen_mm_replace_element (camera_conf * conf, gint category,
  * @brief Converts predefined mmfw element.
  */
 static int
-ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
+ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result,
+    gboolean is_internal)
 {
   gchar *converted;
   gchar *video_src, *audio_src;
@@ -689,18 +708,24 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     if (!is_internal) {
       /* ignore permission when runs as internal mode */
       if (video_src &&
-          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) != ML_ERROR_NONE) {
+          (status =
+              ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) !=
+          ML_ERROR_NONE) {
         goto mm_error;
       }
 
       if (audio_src &&
-          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) != ML_ERROR_NONE) {
+          (status =
+              ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) !=
+          ML_ERROR_NONE) {
         goto mm_error;
       }
     }
 
     /* read ini, type CONFIGURE_TYPE_MAIN */
-    err = _mmcamcorder_conf_get_info (0, (char *) MMFW_CONFIG_MAIN_FILE, &cam_conf);
+    err =
+        _mmcamcorder_conf_get_info (0, (char *) MMFW_CONFIG_MAIN_FILE,
+        &cam_conf);
     if (err != MM_ERROR_NONE || !cam_conf) {
       ml_loge ("Failed to load conf %s.", MMFW_CONFIG_MAIN_FILE);
       goto mm_error;
@@ -728,7 +753,8 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
       goto mm_error;
 
     /* get the camera resource using mm resource manager */
-    status = ml_tizen_mm_res_acquire (pipe, MM_RESOURCE_MANAGER_RES_TYPE_CAMERA);
+    status =
+        ml_tizen_mm_res_acquire (pipe, MM_RESOURCE_MANAGER_RES_TYPE_CAMERA);
     if (status != ML_ERROR_NONE)
       goto mm_error;
   }
@@ -774,7 +800,8 @@ ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type)
  * @brief Converts predefined element for Tizen.
  */
 int
-ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
+ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result,
+    gboolean is_internal)
 {
   int status;
 
