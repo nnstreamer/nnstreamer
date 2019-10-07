@@ -128,7 +128,7 @@ static int
 tflite_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int ret = tflite_loadModelFile (prop, private_data);
-  g_assert (ret == 0);       /** This must be called only once */
+  g_assert (ret >= 0);       /** This must be called only once */
   return ret;
 }
 

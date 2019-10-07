@@ -105,7 +105,7 @@ static int
 tf_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int retval = tf_loadModelFile (prop, private_data);
-  g_assert (retval == 0);       /** This must be called only once */
+  g_assert (retval >= 0);       /** This must be called only once */
   return retval;
 }
 
