@@ -44,7 +44,7 @@
  */
 typedef struct _type_int
 {
-  char *name;
+  const char *name;
   int value;
 } type_int;
 
@@ -53,8 +53,8 @@ typedef struct _type_int
  */
 typedef struct _type_string
 {
-  char *name;
-  char *value;
+  const char *name;
+  const char *value;
 } type_string;
 
 /**
@@ -62,8 +62,8 @@ typedef struct _type_string
  */
 typedef struct _type_element
 {
-  char *name;
-  char *element_name;
+  const char *name;
+  const char *element_name;
   type_int **value_int;
   int count_int;
   type_string **value_string;
@@ -73,11 +73,11 @@ typedef struct _type_element
 /**
  * @brief Structure to parse ini file for mmfw elements.
  */
-typedef struct _conf_info
+typedef struct _conf_detail
 {
   int count;
   void **detail_info;
-} conf_info;
+} conf_detail;
 
 /**
  * @brief Structure to parse ini file for mmfw elements.
@@ -85,22 +85,22 @@ typedef struct _conf_info
 typedef struct _camera_conf
 {
   int type;
-  conf_info **info;
+  conf_detail **info;
 } camera_conf;
 
 #define MMFW_CONFIG_MAIN_FILE "mmfw_camcorder.ini"
 
 extern int
-_mmcamcorder_conf_get_info (int type, char *ConfFile, camera_conf ** configure_info);
+_mmcamcorder_conf_get_info (MMHandleType handle, int type, const char *ConfFile, camera_conf ** configure_info);
 
 extern void
-_mmcamcorder_conf_release_info (camera_conf ** configure_info);
+_mmcamcorder_conf_release_info (MMHandleType handle, camera_conf ** configure_info);
 
 extern int
-_mmcamcorder_conf_get_element (camera_conf * configure_info, int category, char *name, type_element ** element);
+_mmcamcorder_conf_get_element (MMHandleType handle, camera_conf * configure_info, int category, const char *name, type_element ** element);
 
 extern int
-_mmcamcorder_conf_get_value_element_name (type_element * element, char **value);
+_mmcamcorder_conf_get_value_element_name (type_element * element, const char **value);
 
 /**
  * @brief Internal structure for tizen mm framework.
@@ -641,14 +641,14 @@ rm_error:
  * @brief Gets element name from mm conf and replaces element.
  */
 static int
-ml_tizen_mm_replace_element (camera_conf * conf, gint category,
+ml_tizen_mm_replace_element (MMHandleType * handle, camera_conf * conf, gint category,
     const gchar * name, const gchar * what, gchar ** description)
 {
   type_element *element = NULL;
-  gchar *src_name = NULL;
+  const gchar *src_name = NULL;
   guint changed = 0;
 
-  _mmcamcorder_conf_get_element (conf, category, (char *) name, &element);
+  _mmcamcorder_conf_get_element (handle, conf, category, name, &element);
   _mmcamcorder_conf_get_value_element_name (element, &src_name);
 
   if (!src_name) {
@@ -674,6 +674,8 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 {
   gchar *converted;
   gchar *video_src, *audio_src;
+  MMHandleType hcam = NULL;
+  MMCamPreset cam_info;
   camera_conf *cam_conf = NULL;
   int status = ML_ERROR_STREAMS_PIPE;
   int err;
@@ -699,8 +701,16 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
       }
     }
 
+    /* create camcoder handle (primary camera) */
+    cam_info.videodev_type = MM_VIDEO_DEVICE_CAMERA0;
+
+    if ((err = mm_camcorder_create (&hcam, &cam_info)) != MM_ERROR_NONE) {
+      ml_loge ("Fail to call mm_camcorder_create = %x\n", err);
+      goto mm_error;
+    }
+
     /* read ini, type CONFIGURE_TYPE_MAIN */
-    err = _mmcamcorder_conf_get_info (0, (char *) MMFW_CONFIG_MAIN_FILE, &cam_conf);
+    err = _mmcamcorder_conf_get_info (hcam, 0, MMFW_CONFIG_MAIN_FILE, &cam_conf);
     if (err != MM_ERROR_NONE || !cam_conf) {
       ml_loge ("Failed to load conf %s.", MMFW_CONFIG_MAIN_FILE);
       goto mm_error;
@@ -708,7 +718,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 
     if (video_src) {
       /* category CONFIGURE_CATEGORY_MAIN_VIDEO_INPUT */
-      status = ml_tizen_mm_replace_element (cam_conf, 1, "VideosrcElement",
+      status = ml_tizen_mm_replace_element (hcam, cam_conf, 1, "VideosrcElement",
           ML_TIZEN_CAM_VIDEO_SRC, &converted);
       if (status != ML_ERROR_NONE)
         goto mm_error;
@@ -716,7 +726,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 
     if (audio_src) {
       /* category CONFIGURE_CATEGORY_MAIN_AUDIO_INPUT */
-      status = ml_tizen_mm_replace_element (cam_conf, 2, "AudiosrcElement",
+      status = ml_tizen_mm_replace_element (hcam, cam_conf, 2, "AudiosrcElement",
           ML_TIZEN_CAM_AUDIO_SRC, &converted);
       if (status != ML_ERROR_NONE)
         goto mm_error;
@@ -738,7 +748,10 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 
 mm_error:
   if (cam_conf)
-    _mmcamcorder_conf_release_info (&cam_conf);
+    _mmcamcorder_conf_release_info (hcam, &cam_conf);
+
+  if (hcam)
+    mm_camcorder_destroy (hcam);
 
   return status;
 }
