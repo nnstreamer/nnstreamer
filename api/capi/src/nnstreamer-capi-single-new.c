@@ -72,6 +72,15 @@ G_LOCK_DEFINE_STATIC (magic);
  */
 #define ML_SINGLE_HANDLE_UNLOCK(single_h) g_mutex_unlock (&single_h->mutex);
 
+/** define string names for input/output */
+#define INPUT_STR "input"
+#define OUTPUT_STR "output"
+#define TYPE_STR "type"
+#define NAME_STR "name"
+
+/** concat string from #define */
+#define CONCAT_MACRO_STR(STR1,STR2) STR1 STR2
+
 /** States for invoke thread */
 typedef enum {
   IDLE = 0,           /**< ready to accept next input */
@@ -199,16 +208,87 @@ exit:
 }
 
 /**
+ * @brief Gets the tensors info from tensor-filter.
+ */
+static void
+ml_single_get_tensors_info_from_filter (GTensorFilterSingle * filter, gboolean is_input,
+    ml_tensors_info_h * info)
+{
+  ml_tensors_info_s *input_info;
+  GstTensorsInfo gst_info;
+  gchar *val;
+  guint rank;
+  const gchar *prop_prefix, *prop_name, *prop_type;
+
+  if (is_input) {
+    prop_prefix = INPUT_STR;
+    prop_type = CONCAT_MACRO_STR (INPUT_STR, TYPE_STR);
+    prop_name = CONCAT_MACRO_STR (INPUT_STR, NAME_STR);
+  } else {
+    prop_prefix = OUTPUT_STR;
+    prop_type = CONCAT_MACRO_STR (OUTPUT_STR, TYPE_STR);
+    prop_name = CONCAT_MACRO_STR (OUTPUT_STR, NAME_STR);
+  }
+
+  /* allocate handle for tensors info */
+  ml_tensors_info_create (info);
+  input_info = (ml_tensors_info_s *) (*info);
+
+  ml_tensors_info_initialize (input_info);
+  gst_tensors_info_init (&gst_info);
+
+  /* get dimensions */
+  g_object_get (filter, prop_prefix, &val, NULL);
+  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
+  g_free (val);
+
+  /* set the number of tensors */
+  gst_info.num_tensors = rank;
+
+  /* get types */
+  g_object_get (filter, prop_type, &val, NULL);
+  rank = gst_tensors_info_parse_types_string (&gst_info, val);
+  g_free (val);
+
+  if (gst_info.num_tensors != rank) {
+    ml_logw ("Invalid state, tensor type is mismatched in filter.");
+  }
+
+  /* get names */
+  g_object_get (filter, prop_name, &val, NULL);
+  rank = gst_tensors_info_parse_names_string (&gst_info, val);
+  g_free (val);
+
+  if (gst_info.num_tensors != rank) {
+    ml_logw ("Invalid state, tensor name is mismatched in filter.");
+  }
+
+  ml_tensors_info_copy_from_gst (input_info, &gst_info);
+  gst_tensors_info_free (&gst_info);
+}
+
+/**
  * @brief Set the info for input/output tensors
  */
 static int
 ml_single_set_inout_tensors_info (GObject * object,
-    const gchar * prefix, ml_tensors_info_s * tensors_info)
+    const gboolean is_input, ml_tensors_info_s * tensors_info)
 {
   int status = ML_ERROR_NONE;
   GstTensorsInfo info;
   gchar *str_dim, *str_type, *str_name;
-  gchar *str_type_name, *str_name_name;
+  const gchar *str_type_name, *str_name_name;
+  const gchar *prefix;
+
+  if (is_input) {
+    prefix = INPUT_STR;
+    str_type_name = CONCAT_MACRO_STR (INPUT_STR, TYPE_STR);
+    str_name_name = CONCAT_MACRO_STR (INPUT_STR, NAME_STR);
+  } else {
+    prefix = OUTPUT_STR;
+    str_type_name = CONCAT_MACRO_STR (OUTPUT_STR, TYPE_STR);
+    str_name_name = CONCAT_MACRO_STR (OUTPUT_STR, NAME_STR);
+  }
 
   ml_tensors_info_copy_from_ml (&info, tensors_info);
 
@@ -217,9 +297,6 @@ ml_single_set_inout_tensors_info (GObject * object,
   str_type = gst_tensors_info_get_types_string (&info);
   str_name = gst_tensors_info_get_names_string (&info);
 
-  str_type_name = g_strdup_printf ("%s%s", prefix, "type");
-  str_name_name = g_strdup_printf ("%s%s", prefix, "name");
-
   if (!str_dim || !str_type || !str_name || !str_type_name || !str_name_name) {
     status = ML_ERROR_INVALID_PARAMETER;
   } else {
@@ -227,8 +304,6 @@ ml_single_set_inout_tensors_info (GObject * object,
         str_name_name, str_name, NULL);
   }
 
-  g_free (str_type_name);
-  g_free (str_name_name);
   g_free (str_dim);
   g_free (str_type);
   g_free (str_name);
@@ -236,6 +311,55 @@ ml_single_set_inout_tensors_info (GObject * object,
   gst_tensors_info_free (&info);
 
   return status;
+}
+
+/**
+ * @brief Internal static function to set tensors info in the handle.
+ */
+static gboolean
+ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
+    ml_tensors_info_s * tensors_info)
+{
+  ml_single *single_h;
+  ml_tensors_info_s *dest;
+  bool valid = false;
+  gboolean configured = false;
+  GTensorFilterSingleClass *klass;
+  GObject * filter_obj;
+
+  single_h = (ml_single *) single;
+  filter_obj = G_OBJECT (single_h->filter);
+  klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
+  if (!klass) {
+    return FALSE;
+  }
+
+  if (is_input) {
+    dest = &single_h->in_info;
+    configured = klass->input_configured (single_h->filter);
+  } else {
+    dest = &single_h->out_info;
+    configured = klass->output_configured (single_h->filter);
+  }
+
+  if (tensors_info) {
+    if (!configured)
+      ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
+    ml_tensors_info_clone (dest, tensors_info);
+  } else {
+    ml_tensors_info_h info;
+
+    ml_single_get_tensors_info_from_filter (single_h->filter, is_input, &info);
+    ml_tensors_info_clone (dest, info);
+    ml_tensors_info_destroy (info);
+  }
+
+  if (!ml_tensors_info_is_valid (dest, valid)) {
+    /* invalid tensors info */
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -330,12 +454,12 @@ ml_single_open (ml_single_h * single, const char *model,
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
       if (in_tensors_info && out_tensors_info) {
-        status = ml_single_set_inout_tensors_info (filter_obj, "input",
+        status = ml_single_set_inout_tensors_info (filter_obj, TRUE,
             in_tensors_info);
         if (status != ML_ERROR_NONE)
           goto error;
 
-        status = ml_single_set_inout_tensors_info (filter_obj, "output",
+        status = ml_single_set_inout_tensors_info (filter_obj, FALSE,
             out_tensors_info);
         if (status != ML_ERROR_NONE)
           goto error;
@@ -372,80 +496,16 @@ ml_single_open (ml_single_h * single, const char *model,
   }
 
   /* 6. Set in/out configs and metadata */
-  if (in_tensors_info) {
-    /** set the tensors info here */
-    if (!klass->input_configured (single_h->filter)) {
-      status = ml_single_set_inout_tensors_info (filter_obj, "input",
-          in_tensors_info);
-      if (status != ML_ERROR_NONE)
-        goto error;
-    }
-    status = ml_tensors_info_clone (&single_h->in_info, in_tensors_info);
-    if (status != ML_ERROR_NONE)
-      goto error;
-  } else {
-    ml_tensors_info_h in_info;
-
-    if (!klass->input_configured (single_h->filter)) {
-      ml_loge ("Failed to configure input info in filter.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
-
-    status = ml_single_get_input_info (single_h, &in_info);
-    if (status != ML_ERROR_NONE) {
-      ml_loge ("Failed to get the input tensor info.");
-      goto error;
-    }
-
-    status = ml_tensors_info_clone (&single_h->in_info, in_info);
-    ml_tensors_info_destroy (in_info);
-    if (status != ML_ERROR_NONE)
-      goto error;
-
-    if (!ml_tensors_info_is_valid (&single_h->in_info, valid)) {
-      ml_loge ("The input tensor info is invalid.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
+  if (!ml_single_set_info_in_handle (single_h, TRUE, in_tensors_info)) {
+    ml_loge ("The input tensor info is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto error;
   }
 
-  if (out_tensors_info) {
-    /** set the tensors info here */
-    if (!klass->output_configured (single_h->filter)) {
-      status = ml_single_set_inout_tensors_info (filter_obj, "output",
-          out_tensors_info);
-      if (status != ML_ERROR_NONE)
-        goto error;
-    }
-    status = ml_tensors_info_clone (&single_h->out_info, out_tensors_info);
-    if (status != ML_ERROR_NONE)
-      goto error;
-  } else {
-    ml_tensors_info_h out_info;
-
-    if (!klass->output_configured (single_h->filter)) {
-      ml_loge ("Failed to configure output info in filter.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
-
-    status = ml_single_get_output_info (single_h, &out_info);
-    if (status != ML_ERROR_NONE) {
-      ml_loge ("Failed to get the output tensor info.");
-      goto error;
-    }
-
-    status = ml_tensors_info_clone (&single_h->out_info, out_info);
-    ml_tensors_info_destroy (out_info);
-    if (status != ML_ERROR_NONE)
-      goto error;
-
-    if (!ml_tensors_info_is_valid (&single_h->out_info, valid)) {
-      ml_loge ("The output tensor info is invalid.");
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto error;
-    }
+  if (!ml_single_set_info_in_handle (single_h, FALSE, out_tensors_info)) {
+    ml_loge ("The output tensor info is invalid.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto error;
   }
 
   g_mutex_init (&single_h->mutex);
@@ -597,17 +657,14 @@ exit:
 }
 
 /**
- * @brief Gets the type of required input data for the given handle.
- * @note type = (tensor dimension, type, name and so on)
+ * @brief Gets the tensors info for the given handle.
  */
-int
-ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
+static int
+ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
+    ml_tensors_info_h * info)
 {
   ml_single *single_h;
-  ml_tensors_info_s *input_info;
-  GstTensorsInfo gst_info;
-  gchar *val;
-  guint rank;
+  int status = ML_ERROR_NONE;
 
   check_feature_state ();
 
@@ -616,40 +673,20 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
-  /* allocate handle for tensors info */
-  ml_tensors_info_create (info);
-  input_info = (ml_tensors_info_s *) (*info);
-
-  gst_tensors_info_init (&gst_info);
-
-  g_object_get (single_h->filter, "input", &val, NULL);
-  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
-  g_free (val);
-
-  /* set the number of tensors */
-  gst_info.num_tensors = rank;
-
-  g_object_get (single_h->filter, "inputtype", &val, NULL);
-  rank = gst_tensors_info_parse_types_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, input tensor type is mismatched in filter.");
-  }
-
-  g_object_get (single_h->filter, "inputname", &val, NULL);
-  rank = gst_tensors_info_parse_names_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, input tensor name is mismatched in filter.");
-  }
+  ml_single_get_tensors_info_from_filter (single_h->filter, is_input, info);
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
+  return status;
+}
 
-  ml_tensors_info_copy_from_gst (input_info, &gst_info);
-  gst_tensors_info_free (&gst_info);
-  return ML_ERROR_NONE;
+/**
+ * @brief Gets the type of required input data for the given handle.
+ * @note type = (tensor dimension, type, name and so on)
+ */
+int
+ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
+{
+  return ml_single_get_tensors_info (single, TRUE, info);
 }
 
 /**
@@ -659,53 +696,7 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
 int
 ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
 {
-  ml_single *single_h;
-  ml_tensors_info_s *output_info;
-  GstTensorsInfo gst_info;
-  gchar *val;
-  guint rank;
-
-  check_feature_state ();
-
-  if (!single || !info)
-    return ML_ERROR_INVALID_PARAMETER;
-
-  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
-
-  /* allocate handle for tensors info */
-  ml_tensors_info_create (info);
-  output_info = (ml_tensors_info_s *) (*info);
-
-  gst_tensors_info_init (&gst_info);
-
-  g_object_get (single_h->filter, "output", &val, NULL);
-  rank = gst_tensors_info_parse_dimensions_string (&gst_info, val);
-  g_free (val);
-
-  /* set the number of tensors */
-  gst_info.num_tensors = rank;
-
-  g_object_get (single_h->filter, "outputtype", &val, NULL);
-  rank = gst_tensors_info_parse_types_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, output tensor type is mismatched in filter.");
-  }
-
-  g_object_get (single_h->filter, "outputname", &val, NULL);
-  rank = gst_tensors_info_parse_names_string (&gst_info, val);
-  g_free (val);
-
-  if (gst_info.num_tensors != rank) {
-    ml_logw ("Invalid state, output tensor name is mismatched in filter.");
-  }
-
-  ML_SINGLE_HANDLE_UNLOCK (single_h);
-
-  ml_tensors_info_copy_from_gst (output_info, &gst_info);
-  gst_tensors_info_free (&gst_info);
-  return ML_ERROR_NONE;
+  return ml_single_get_tensors_info (single, FALSE, info);
 }
 
 /**
