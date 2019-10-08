@@ -83,21 +83,30 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
 {
   tflite_data *tf;
   nnapi_hw hw = NNAPI_UNKNOWN;
+
   if (prop->nnapi) {
     gchar **strv = NULL;
+    guint len;
+
     strv = g_strsplit (prop->nnapi, ":", 2);
-    if (!g_strcmp0 (strv[0], "true") && g_strv_length (strv) >= 2) {
-      hw = get_nnapi_hw_type (strv[1]);
-    } else if (!g_strcmp0 (strv[0], "true") && g_strv_length (strv) == 1) {
-      /** defalut hw for nnapi is CPU */
-      hw = NNAPI_CPU;
+    len = g_strv_length (strv);
+
+    if (!g_ascii_strcasecmp (strv[0], "true")) {
+      if (len >= 2) {
+        hw = get_nnapi_hw_type (strv[1]);
+      } else {
+        /** defalut hw for nnapi is CPU */
+        hw = NNAPI_CPU;
+      }
     }
+
+    g_strfreev (strv);
   }
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     tf = *private_data;
-    if (strcmp (prop->model_file,
+    if (g_strcmp0 (prop->model_file,
             tflite_core_getModelPath (tf->tflite_private_data))) {
       tflite_close (prop, private_data);
     } else {
