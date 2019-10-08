@@ -23,6 +23,7 @@
  */
 
 #include <string.h>
+#include <regex.h>
 #include <glib.h>
 
 #include "nnstreamer_conf.h"
@@ -73,19 +74,21 @@ _parse_bool_string (const gchar * strval, gboolean def)
 {
   gboolean res = def;
 
+  regex_t reg_true, reg_false;
+  regcomp (&reg_true, "^([1ty]|on).*", REG_EXTENDED | REG_ICASE | REG_NOSUB);
+  regcomp (&reg_false, "^([0fn]|of).*", REG_EXTENDED | REG_ICASE | REG_NOSUB);
+
   if (strval) {
     /* 1/0, true/false, t/f, yes/no, on/off. case incensitive. */
-    if (strval[0] == '1' || strval[0] == 't' || strval[0] == 'T' ||
-        strval[0] == 'y' || strval[0] == 'Y' ||
-        !g_ascii_strncasecmp ("on", strval, 2)) {
+    if (!regexec (&reg_true, strval, 0, 0, 0)) {
       res = TRUE;
-    } else if (strval[0] == '0' || strval[0] == 'f' || strval[0] == 'F' ||
-        strval[0] == 'n' || strval[0] == 'N' ||
-        !g_ascii_strncasecmp ("of", strval, 2)) {
+    } else if (!regexec (&reg_false, strval, 0, 0, 0)) {
       res = FALSE;
     }
   }
 
+  regfree (&reg_true);
+  regfree (&reg_false);
   return res;
 }
 
