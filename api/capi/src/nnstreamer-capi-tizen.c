@@ -672,7 +672,6 @@ ml_tizen_mm_replace_element (MMHandleType * handle, camera_conf * conf, gint cat
 static int
 ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
 {
-  gchar *converted;
   gchar *video_src, *audio_src;
   MMHandleType hcam = NULL;
   MMCamPreset cam_info;
@@ -680,10 +679,8 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
   int status = ML_ERROR_STREAMS_PIPE;
   int err;
 
-  converted = *result;
-
-  video_src = g_strstr_len (converted, -1, ML_TIZEN_CAM_VIDEO_SRC);
-  audio_src = g_strstr_len (converted, -1, ML_TIZEN_CAM_AUDIO_SRC);
+  video_src = g_strstr_len (*result, -1, ML_TIZEN_CAM_VIDEO_SRC);
+  audio_src = g_strstr_len (*result, -1, ML_TIZEN_CAM_AUDIO_SRC);
 
   /* replace src element */
   if (video_src || audio_src) {
@@ -719,7 +716,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     if (video_src) {
       /* category CONFIGURE_CATEGORY_MAIN_VIDEO_INPUT */
       status = ml_tizen_mm_replace_element (hcam, cam_conf, 1, "VideosrcElement",
-          ML_TIZEN_CAM_VIDEO_SRC, &converted);
+          ML_TIZEN_CAM_VIDEO_SRC, result);
       if (status != ML_ERROR_NONE)
         goto mm_error;
     }
@@ -727,7 +724,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     if (audio_src) {
       /* category CONFIGURE_CATEGORY_MAIN_AUDIO_INPUT */
       status = ml_tizen_mm_replace_element (hcam, cam_conf, 2, "AudiosrcElement",
-          ML_TIZEN_CAM_AUDIO_SRC, &converted);
+          ML_TIZEN_CAM_AUDIO_SRC, result);
       if (status != ML_ERROR_NONE)
         goto mm_error;
     }

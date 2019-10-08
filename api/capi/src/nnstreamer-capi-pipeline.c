@@ -367,6 +367,7 @@ convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result,
   status = convert_tizen_element (pipe, &converted, is_internal);
 
   if (status == ML_ERROR_NONE) {
+    ml_logd ("Converted pipeline: %s", converted);
     *result = converted;
   } else {
     g_free (converted);
