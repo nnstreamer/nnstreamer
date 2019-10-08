@@ -961,7 +961,7 @@ gst_tensor_get_element_size (tensor_type type)
 tensor_type
 gst_tensor_get_type (const gchar * typestr)
 {
-  gsize len;
+  gsize size, len;
   gchar *type_string;
   tensor_type type = _NNS_END;
 
@@ -979,45 +979,50 @@ gst_tensor_get_type (const gchar * typestr)
     return _NNS_END;
   }
 
-  if (type_string[0] == 'u' || type_string[0] == 'U') {
-    /**
-     * Let's believe the developer and the following three letters are "int"
-     * (case insensitive)
-     */
-    if (len == 6) {             /* uint16, uint32 */
-      if (type_string[4] == '1' && type_string[5] == '6')
-        type = _NNS_UINT16;
-      else if (type_string[4] == '3' && type_string[5] == '2')
-        type = _NNS_UINT32;
-      else if (type_string[4] == '6' && type_string[5] == '4')
-        type = _NNS_UINT64;
-    } else if (len == 5) {      /* uint8 */
-      if (type_string[4] == '8')
+  if (g_regex_match_simple ("^uint(8|16|32|64)$",
+          type_string, G_REGEX_CASELESS, 0)) {
+    size = g_ascii_strtoull (&type_string[4], NULL, 10);
+
+    switch (size) {
+      case 8:
         type = _NNS_UINT8;
+        break;
+      case 16:
+        type = _NNS_UINT16;
+        break;
+      case 32:
+        type = _NNS_UINT32;
+        break;
+      case 64:
+        type = _NNS_UINT64;
     }
-  } else if (type_string[0] == 'i' || type_string[0] == 'I') {
-    /**
-     * Let's believe the developer and the following two letters are "nt"
-     * (case insensitive)
-     */
-    if (len == 5) {             /* int16, int32 */
-      if (type_string[3] == '1' && type_string[4] == '6')
-        type = _NNS_INT16;
-      else if (type_string[3] == '3' && type_string[4] == '2')
-        type = _NNS_INT32;
-      else if (type_string[3] == '6' && type_string[4] == '4')
-        type = _NNS_INT64;
-    } else if (len == 4) {      /* int8 */
-      if (type_string[3] == '8')
+  } else if (g_regex_match_simple ("^int(8|16|32|64)$",
+                 type_string, G_REGEX_CASELESS, 0)) {
+    size = g_ascii_strtoull (&type_string[3], NULL, 10);
+
+    switch (size) {
+      case 8:
         type = _NNS_INT8;
+        break;
+      case 16:
+        type = _NNS_INT16;
+        break;
+      case 32:
+        type = _NNS_INT32;
+        break;
+      case 64:
+        type = _NNS_INT64;
     }
-  } else if (type_string[0] == 'f' || type_string[0] == 'F') {
-    /* Let's assume that the following 4 letters are "loat" */
-    if (len == 7) {
-      if (type_string[5] == '6' && type_string[6] == '4')
-        type = _NNS_FLOAT64;
-      else if (type_string[5] == '3' && type_string[6] == '2')
+  } else if (g_regex_match_simple ("^float(32|64)$",
+                 type_string, G_REGEX_CASELESS, 0)) {
+    size = g_ascii_strtoull (&type_string[5], NULL, 10);
+
+    switch (size) {
+      case 32:
         type = _NNS_FLOAT32;
+        break;
+      case 64:
+        type = _NNS_FLOAT64;
     }
   }
 
