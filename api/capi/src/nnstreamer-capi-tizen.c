@@ -326,11 +326,8 @@ ml_tizen_mm_res_release_cb (mm_resource_manager_h rm,
   ml_pipeline *p;
   pipeline_resource_s *res;
   tizen_mm_handle_s *mm_handle;
-  mm_resource_manager_res_info_s res_info;
-  int err;
 
   g_return_val_if_fail (user_data, FALSE);
-
   p = (ml_pipeline *) user_data;
   g_mutex_lock (&p->lock);
 
@@ -348,28 +345,7 @@ ml_tizen_mm_res_release_cb (mm_resource_manager_h rm,
 
   /* pause pipeline */
   gst_element_set_state (p->element, GST_STATE_PAUSED);
-
-  /* release resource handle */
-  err = mm_resource_manager_get_resource_info (rm, resource_h, &res_info);
-  if (err == MM_RESOURCE_MANAGER_ERROR_NONE) {
-    gchar *res_key = ml_tizen_mm_res_get_key_string (res_info.type);
-
-    if (res_key) {
-      pipeline_resource_s *mm_res;
-
-      mm_res = (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles, res_key);
-      if (mm_res && mm_res->handle) {
-        mm_resource_manager_mark_for_release (mm_handle->rm_h, mm_res->handle);
-        mm_resource_manager_commit (mm_handle->rm_h);
-        mm_res->handle = NULL;
-      }
-
-      g_free (res_key);
-    }
-  } else {
-    ml_loge ("Failed to get resource info in release callback.");
-    mm_handle->invalid = TRUE;
-  }
+  mm_handle->invalid = TRUE;
 
 done:
   g_mutex_unlock (&p->lock);
