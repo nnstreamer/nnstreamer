@@ -44,6 +44,27 @@ struct _Tflite_data
 };
 typedef struct _Tflite_data tflite_data;
 
+/**
+ * @brief nnapi hw type string
+ */
+static const char *nnapi_hw_string[] = {
+  [NNAPI_CPU] = "cpu",
+  [NNAPI_GPU] = "gpu",
+  [NNAPI_NPU] = "npu",
+  [NNAPI_UNKNOWN] = "unknown",
+  NULL
+};
+
+/**
+ * @brief return nnapi_hw type
+ */
+static nnapi_hw
+get_nnapi_hw_type (const gchar * str)
+{
+  gint index = 0;
+  index = find_key_strv (nnapi_hw_string, str);
+  return (index < 0) ? NNAPI_UNKNOWN : index;
+}
 
 /**
  * @brief Free privateData and move on.
@@ -56,17 +77,6 @@ tflite_close (const GstTensorFilterProperties * prop, void **private_data)
   tflite_core_delete (tf->tflite_private_data);
   g_free (tf);
   *private_data = NULL;
-}
-
-/**
- * @brief return nnapi_hw type
- */
-static nnapi_hw
-get_nnapi_hw_type (const gchar * str)
-{
-  gint index = 0;
-  index = find_key_strv (nnapi_hw_string, str);
-  return (index < 0) ? NNAPI_UNKNOWN : index;
 }
 
 /**
@@ -98,6 +108,8 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
         /** defalut hw for nnapi is CPU */
         hw = NNAPI_CPU;
       }
+
+      g_info ("NNAPI HW type: %s", nnapi_hw_string[hw]);
     }
 
     g_strfreev (strv);
