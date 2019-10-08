@@ -138,16 +138,14 @@ TFLiteCore::loadModel ()
     interpreter->UseNNAPI(use_nnapi);
 
 #ifdef ENABLE_NNFW
-    if(use_nnapi){
-      nnfw_delegate.reset(new ::nnfw::tflite::NNAPIDelegate);
-      if(nnfw_delegate->BuildGraph(interpreter.get()) != kTfLiteOk){
-	g_critical("Fail to BuildGraph");
-	return -3;
+    if (use_nnapi) {
+      nnfw_delegate.reset (new ::nnfw::tflite::NNAPIDelegate);
+      if (nnfw_delegate->BuildGraph (interpreter.get()) != kTfLiteOk) {
+        g_critical ("Fail to BuildGraph");
+        return -3;
       }
     }
 #endif
-    if (use_nnapi)
-      g_info ("interpreter->UseNNAPI(%s)", nnapi_hw_string[accel]);
 
     /** set allocation type to dynamic for in/out tensors */
     int tensor_idx;
@@ -328,6 +326,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   std::vector <int> tensors_idx;
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
+  TfLiteStatus status;
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->outputs ()[i];
@@ -348,23 +347,11 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
 #ifdef ENABLE_NNFW
-  if(use_nnapi){
-    if(nnfw_delegate->Invoke(interpreter.get()) != kTfLiteOk){
-      g_critical ("Failed to invoke");
-      return -3;
-    }
-  }else{
-    if (interpreter->Invoke () != kTfLiteOk) {
-      g_critical ("Failed to invoke");
-      return -3;
-    }
-  }
-#else
-  if (interpreter->Invoke () != kTfLiteOk) {
-    g_critical ("Failed to invoke");
-    return -3;
-  }
+  if (use_nnapi)
+    status = nnfw_delegate->Invoke (interpreter.get());
+  else
 #endif
+    status = interpreter->Invoke ();
 
   /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
   int tensorSize = tensors_idx.size ();
@@ -377,6 +364,11 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
       (stop_time - start_time));
 #endif
+
+  if (status != kTfLiteOk) {
+    g_critical ("Failed to invoke");
+    return -1;
+  }
 
   return 0;
 }
