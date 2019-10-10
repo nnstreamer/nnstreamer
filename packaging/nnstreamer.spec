@@ -68,6 +68,7 @@ BuildRequires: lcov
 %define		enable_nnfw_runtime	-Denable-nnfw-runtime=false
 %define		enable_nnfw_r	0
 %if %{with tizen}
+BuildRequires:	pkgconfig(dpm)
 BuildRequires:	pkgconfig(mm-resource-manager)
 BuildRequires:	pkgconfig(mm-camcorder)
 BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
