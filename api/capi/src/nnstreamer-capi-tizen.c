@@ -28,6 +28,7 @@
 #include <glib.h>
 
 #include <system_info.h>
+#include <restriction.h> /* device policy manager */
 #include <privacy_privilege_manager.h>
 #include <mm_resource_manager.h>
 #include <mm_camcorder.h>
@@ -109,6 +110,10 @@ typedef struct
 {
   gboolean invalid; /**< flag to indicate rm handle is valid */
   mm_resource_manager_h rm_h; /**< rm handle */
+  device_policy_manager_h dpm_h; /**< dpm handle */
+  int dpm_cb_id; /**< dpm callback id */
+  gboolean has_video_src; /**< pipeline includes video src */
+  gboolean has_audio_src; /**< pipeline includes audio src */
   GHashTable *res_handles; /**< hash table of resource handles */
 } tizen_mm_handle_s;
 
@@ -257,6 +262,60 @@ ml_tizen_check_privilege (const gchar * privilege)
   }
 
   return status;
+}
+
+/**
+ * @brief Function to check device policy.
+ */
+static int
+ml_tizen_check_dpm_restriction (device_policy_manager_h dpm_handle, int type)
+{
+  int err = DPM_ERROR_NOT_PERMITTED;
+  int dpm_is_allowed = 0;
+
+  switch (type) {
+    case 1: /* camera */
+      err = dpm_restriction_get_camera_state (dpm_handle, &dpm_is_allowed);
+      break;
+    case 2: /* mic */
+      err = dpm_restriction_get_microphone_state (dpm_handle, &dpm_is_allowed);
+      break;
+    default:
+      /* unknown type */
+      break;
+  }
+
+  if (err != DPM_ERROR_NONE || dpm_is_allowed != 1) {
+    ml_loge ("Failed, device policy is not allowed.");
+    return ML_ERROR_PERMISSION_DENIED;
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Callback to be called when device policy is changed.
+ */
+static void
+ml_tizen_dpm_policy_changed_cb (const char *name, const char *state, void *user_data)
+{
+  ml_pipeline *p;
+
+  g_return_if_fail (state);
+  g_return_if_fail (user_data);
+
+  p = (ml_pipeline *) user_data;
+
+  if (g_ascii_strcasecmp (state, "disallowed") == 0) {
+    g_mutex_lock (&p->lock);
+
+    /* pause the pipeline */
+    gst_element_set_state (p->element, GST_STATE_PAUSED);
+
+    g_mutex_unlock (&p->lock);
+  }
+
+  return;
 }
 
 /**
@@ -465,6 +524,16 @@ ml_tizen_mm_res_release (gpointer handle, gboolean destroy)
   mm_handle->invalid = FALSE;
 
   if (destroy) {
+    if (mm_handle->dpm_h) {
+      if (mm_handle->dpm_cb_id > 0) {
+        dpm_remove_policy_changed_cb (mm_handle->dpm_h, mm_handle->dpm_cb_id);
+        mm_handle->dpm_cb_id = 0;
+      }
+
+      dpm_manager_destroy (mm_handle->dpm_h);
+      mm_handle->dpm_h = NULL;
+    }
+
     g_hash_table_remove_all (mm_handle->res_handles);
     g_free (mm_handle);
   }
@@ -474,11 +543,11 @@ ml_tizen_mm_res_release (gpointer handle, gboolean destroy)
  * @brief Function to initialize mm resource manager.
  */
 static int
-ml_tizen_mm_res_initialize (ml_pipeline_h pipe)
+ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean has_audio_src)
 {
   ml_pipeline *p;
   pipeline_resource_s *res;
-  tizen_mm_handle_s *mm_handle;
+  tizen_mm_handle_s *mm_handle = NULL;
   int status = ML_ERROR_STREAMS_PIPE;
 
   p = (ml_pipeline *) pipe;
@@ -488,8 +557,10 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe)
   /* register new resource handle of tizen mmfw */
   if (!res) {
     res = g_new0 (pipeline_resource_s, 1);
-    if (!res)
+    if (!res) {
+      ml_loge ("Failed to allocate pipeline resource handle.");
       goto rm_error;
+    }
 
     res->type = g_strdup (TIZEN_RES_MM);
     g_hash_table_insert (p->resources, g_strdup (TIZEN_RES_MM), res);
@@ -498,19 +569,38 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe)
   mm_handle = (tizen_mm_handle_s *) res->handle;
   if (!mm_handle) {
     mm_handle = g_new0 (tizen_mm_handle_s, 1);
-    if (!mm_handle)
+    if (!mm_handle) {
+      ml_loge ("Failed to allocate media resource handle.");
       goto rm_error;
+    }
 
     mm_handle->res_handles =
         g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+    /* device policy manager */
+    mm_handle->dpm_h = dpm_manager_create ();
+    if (dpm_add_policy_changed_cb (mm_handle->dpm_h, "camera",
+        ml_tizen_dpm_policy_changed_cb, pipe, &mm_handle->dpm_cb_id) != DPM_ERROR_NONE) {
+      ml_loge ("Failed to add device policy callback.");
+      status = ML_ERROR_PERMISSION_DENIED;
+      goto rm_error;
+    }
 
     /* set mm handle */
     res->handle = mm_handle;
   }
 
+  mm_handle->has_video_src = has_video_src;
+  mm_handle->has_audio_src = has_audio_src;
   status = ML_ERROR_NONE;
 
 rm_error:
+  if (status != ML_ERROR_NONE) {
+    /* failed to initialize mm handle */
+    if (mm_handle)
+      ml_tizen_mm_res_release (mm_handle, TRUE);
+  }
+
   return status;
 }
 
@@ -537,6 +627,17 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
   mm_handle = (tizen_mm_handle_s *) res->handle;
   if (!mm_handle)
     goto rm_error;
+
+  /* check dpm state */
+  if (mm_handle->has_video_src &&
+      (status = ml_tizen_check_dpm_restriction (mm_handle->dpm_h, 1)) != ML_ERROR_NONE) {
+    goto rm_error;
+  }
+
+  if (mm_handle->has_audio_src &&
+      (status = ml_tizen_check_dpm_restriction (mm_handle->dpm_h, 2)) != ML_ERROR_NONE) {
+    goto rm_error;
+  }
 
   /* check invalid handle */
   if (mm_handle->invalid)
@@ -675,7 +776,12 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     }
 
     /* create camcoder handle (primary camera) */
-    cam_info.videodev_type = MM_VIDEO_DEVICE_CAMERA0;
+    if (video_src) {
+      cam_info.videodev_type = MM_VIDEO_DEVICE_CAMERA0;
+    } else {
+      /* no camera */
+      cam_info.videodev_type = MM_VIDEO_DEVICE_NONE;
+    }
 
     if ((err = mm_camcorder_create (&hcam, &cam_info)) != MM_ERROR_NONE) {
       ml_loge ("Fail to call mm_camcorder_create = %x\n", err);
@@ -706,7 +812,7 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     }
 
     /* initialize rm handle */
-    status = ml_tizen_mm_res_initialize (pipe);
+    status = ml_tizen_mm_res_initialize (pipe, (video_src != NULL), (audio_src != NULL));
     if (status != ML_ERROR_NONE)
       goto mm_error;
 

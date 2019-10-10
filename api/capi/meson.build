@@ -48,6 +48,7 @@ if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
 
   tizen_deps = [
+    dependency('dpm'),
     dependency('mm-resource-manager'),
     dependency('mm-camcorder'),
     dependency('capi-privacy-privilege-manager'),

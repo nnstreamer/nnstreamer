@@ -634,6 +634,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
     }
 
     gst_object_unref (p->element);
+    p->element = NULL;
   }
 
   /* Destroy registered callback handles and resources */
