@@ -26,6 +26,7 @@
  * @todo Check if nnfw supports dynamic input dimension. (if so, we need to supply setInputDim)
  * @todo Decide whether to let nnfw allocate output buffers or we will feed output buffers to nnfw.
  * @todo NYI: configuring backends
+ * @todo NYI: support quant8,bool type
  *
  */
 
@@ -141,6 +142,114 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = NULL;
 }
 
+
+/**
+ * @brief Convert from nnfw type to gst tensor type
+ * @param[in] nnfw_type type given in nnfw format
+ * @param[out] type container to receive type in gst tensor format
+ * @return 0 on sucess, errno on error
+ */
+static int
+nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
+{
+  int err = 0;
+
+  switch (nnfw_type) {
+    case NNFW_TYPE_TENSOR_FLOAT32:
+      *type = _NNS_FLOAT32;
+      break;
+    case NNFW_TYPE_TENSOR_INT32:
+      *type = _NNS_INT32;
+      break;
+    default:
+      *type = _NNS_END;
+      err = -EINVAL;
+  }
+
+  return err;
+}
+
+
+/**
+ * @brief Copy nnfw format info of tensor to gst format info
+ * @param[in] nnfw_info info give in gst format
+ * @param[out] gst_info info container to receive tensor info in gst format
+ * @return 0 on success, errno on failure
+ */
+static int
+nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
+    GstTensorInfo * gst_info)
+{
+  guint idx;
+  int status;
+
+  g_return_val_if_fail (gst_info != NULL, -EINVAL);
+  g_return_val_if_fail (nnfw_info != NULL, -EINVAL);
+
+  if (nnfw_info->rank > NNS_TENSOR_RANK_LIMIT)
+    return -ERANGE;
+
+  gst_info->name = NULL;
+  if ((status = nnfw_tensor_type_to_gst (nnfw_info->dtype, &gst_info->type)) < 0)
+    return status;
+
+  for (idx = 0; idx < nnfw_info->rank; idx ++)
+    *(gst_info->dimension + idx) = nnfw_info->dims[idx];
+
+  for (idx = nnfw_info->rank; idx < NNS_TENSOR_RANK_LIMIT; idx ++)
+    *(gst_info->dimension + idx) = 1;
+
+  return 0;
+}
+
+/**
+ * @brief get nnfw tensor info in gst format info format from private data
+ * @param[in] pdata private data for nnfw opened instance
+ * @param[in] is_input to get info about input/output
+ * @param[out] info info of tensors give in gst format
+ * @return 0 on success, errno on failure
+ */
+static int
+nnfw_tensors_info_get (const nnfw_pdata *pdata, const gboolean is_input,
+    GstTensorsInfo * info)
+{
+  NNFW_STATUS status;
+  struct nnfw_tensorinfo nnfw_info_t;
+  int err;
+  guint idx;
+
+  g_return_val_if_fail (info != NULL, -EINVAL);
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
+  g_return_val_if_fail (pdata->session != NULL, -EINVAL);
+
+  /** First get number of outputs */
+  if (is_input)
+    status = nnfw_input_size (pdata->session, &info->num_tensors);
+  else
+    status = nnfw_output_size (pdata->session, &info->num_tensors);
+  if (status != NNFW_STATUS_NO_ERROR)
+    return -EPERM;
+
+  if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT)
+    return -ERANGE;
+
+  /** Now fill each outputs */
+  for (idx = 0; idx < info->num_tensors; idx ++) {
+    if (is_input)
+      status = nnfw_input_tensorinfo (pdata->session, idx, &nnfw_info_t);
+    else
+      status = nnfw_output_tensorinfo (pdata->session, idx, &nnfw_info_t);
+    if (status != NNFW_STATUS_NO_ERROR)
+      return -EINVAL;
+
+    err = nnfw_tensor_info_copy (&nnfw_info_t, &info->info[idx]);
+    if (err < 0)
+      return err;
+  }
+
+  return 0;
+}
+
 /**
  * @brief The standard tensor_filter callback
  */
@@ -148,7 +257,15 @@ static int
 nnfw_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
-  return 0;
+  nnfw_pdata *pdata;
+  int err = 0;
+
+  g_return_val_if_fail (private_data != NULL, -EINVAL);
+
+  pdata = (nnfw_pdata *) *private_data;
+  err = nnfw_tensors_info_get (pdata, TRUE, info);
+
+  return err;
 }
 
 /**
@@ -158,7 +275,15 @@ static int
 nnfw_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
-  return 0;
+  nnfw_pdata *pdata;
+  int err = 0;
+
+  g_return_val_if_fail (private_data != NULL, -EINVAL);
+
+  pdata = (nnfw_pdata *) *private_data;
+  err = nnfw_tensors_info_get (pdata, FALSE, info);
+
+  return err;
 }
 
 /**
