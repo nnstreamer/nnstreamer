@@ -287,6 +287,79 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Convert from nnfw type to gst tensor type
+ * @param[in] type type given in gst format
+ * @param[out] nnfw_type container to receive type in nnfw tensor format
+ * @return 0 on sucess, negative errno on error
+ */
+static int
+nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
+{
+  int err = 0;
+
+  switch (type) {
+    case _NNS_FLOAT32:
+      *nnfw_type = NNFW_TYPE_TENSOR_FLOAT32;
+      break;
+    case _NNS_INT32:
+      *nnfw_type = NNFW_TYPE_TENSOR_INT32;
+      break;
+    default:
+      err = -EINVAL;
+  }
+
+  return err;
+}
+
+/**
+ * @brief Set tensor memory information in nnfw for input/output
+ * @param[in] prop Tensor-filter properties for this nnfw
+ * @param[in] pdata nnfw private data
+ * @param[in] mem Tensor memory containing input/output information
+ * @param[in] is_input given memory is for input or output
+ * @return 0 on sucess, negative errno on error
+ */
+static int nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
+    const nnfw_pdata * pdata, const GstTensorMemory * mem,
+    const gboolean is_input)
+{
+  NNFW_TYPE nnfw_type;
+  NNFW_STATUS nnfw_status;
+  int err = 0;
+  guint idx;
+  unsigned int num_tensors;
+
+  g_return_val_if_fail (prop != NULL, -EINVAL);
+  g_return_val_if_fail (mem != NULL, -EINVAL);
+  g_return_val_if_fail (pdata->session != NULL, -EPERM);
+
+  if (is_input) {
+    g_return_val_if_fail (prop->input_configured == TRUE, -EPERM);
+    num_tensors = prop->input_meta.num_tensors;
+  } else {
+    g_return_val_if_fail (prop->output_configured == TRUE, -EPERM);
+    num_tensors = prop->output_meta.num_tensors;
+  }
+
+  for (idx = 0; idx < num_tensors; idx ++) {
+    err = nnfw_tensor_type_from_gst (mem[idx].type, &nnfw_type);
+    if (err != 0)
+      return err;
+
+    if (is_input)
+      nnfw_status = nnfw_set_input (pdata->session, idx, nnfw_type,
+        mem[idx].data, mem[idx].size);
+    else
+      nnfw_status = nnfw_set_output (pdata->session, idx, nnfw_type,
+        mem[idx].data, mem[idx].size);
+    if (nnfw_status != NNFW_STATUS_NO_ERROR)
+      return -EINVAL;
+  }
+
+  return err;
+}
+
+/**
  * @brief The standard tensor_filter callback
  */
 static int
@@ -294,7 +367,26 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
     void **private_data, const GstTensorMemory * input,
     GstTensorMemory * output)
 {
-  return 0;
+  nnfw_pdata *pdata;
+  int err = 0;
+  NNFW_STATUS nnfw_status;
+
+  g_return_val_if_fail (private_data != NULL, -EINVAL);
+  pdata = (nnfw_pdata *) *private_data;
+
+  err = nnfw_tensor_memory_set (prop, pdata, input, TRUE);
+  if (err < 0)
+    return err;
+
+  err = nnfw_tensor_memory_set (prop, pdata, output, FALSE);
+  if (err < 0)
+    return err;
+
+  nnfw_status = nnfw_run (pdata->session);
+  if (nnfw_status != NNFW_STATUS_NO_ERROR)
+    err = -EINVAL;
+
+  return err;
 }
 
 static gchar filter_subplugin_nnfw[] = "nnfw";
