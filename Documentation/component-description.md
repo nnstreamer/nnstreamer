@@ -44,6 +44,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - PyTorch (stable)
   - Movidius-X NCS2 (stable)
   - Other NNFW TBD (keras, caffe, Exynos-NPU, edge-TPU, Qualcomm-SNPE, ...)
+  - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
 - [tensor\_sink](../gst/nnstreamer/tensor_sink) (stable)
 - [tensor\_transform](../gst/nnstreamer/tensor_transform) (stable)
   - Supported features
