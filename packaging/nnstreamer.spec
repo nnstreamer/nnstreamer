@@ -281,7 +281,7 @@ popd
 
 # Hotfix: Support backward compatibility
 pushd %{buildroot}%{_libdir}
-ln -sf %{_libdir}/libcapi-nnstreamer.so libcapi-nnstreamer.so.0
+ln -sf ./libcapi-nnstreamer.so libcapi-nnstreamer.so.0
 popd
 
 %if 0%{?testcoverage}
