@@ -156,3 +156,5 @@ Generates .rpm packages:
 $ gbs build
 ```
 ```gbs build``` will execute unit testing as well unlike cmake build.
+
+- (Writing Tizen Native Apps with nnstreamer / ML APIs)[writing-tizen-native-apps.md]
