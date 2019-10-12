@@ -379,7 +379,7 @@ bb_setOption (void **pdata, int opNum, const char *param)
     bounding_box_modes previous = bdata->mode;
     bdata->mode = find_key_strv (bb_modes, param);
 
-    if (NULL == param || *param == '\0' || bdata->mode < 0) {
+    if (NULL == param || *param == '\0') {
       GST_ERROR ("Please set the valid mode at option1");
       return FALSE;
     }
