@@ -1076,7 +1076,7 @@ TEST (test_tensor_src_iio, \
   dev0 = make_full_device (data_value, data_bits, FALSE, SKIP); \
   ASSERT_NE (dev0, nullptr); \
   /** setup */ \
-  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10); \
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10); \
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL); \
   parse_launch =  g_strdup_printf ( \
       "%s device=%s silent=FALSE ! multifilesink location=%s", \
@@ -1196,7 +1196,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   ASSERT_NE (dev0, nullptr);
   /** setup */
   num_scan_elements = dev0->num_scan_elements;
-  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
@@ -1322,7 +1322,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   dev0 = make_full_device (data_value, data_bits);
   ASSERT_NE (dev0, nullptr);
   /** setup */
-  samp_freq = g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
@@ -1428,7 +1428,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   ASSERT_NE (dev0, nullptr);
   /** setup */
   num_scan_elements = dev0->num_scan_elements;
-  samp_freq = g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf

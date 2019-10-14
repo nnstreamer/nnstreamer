@@ -602,7 +602,8 @@ gst_tensor_src_iio_get_id_by_name (const gchar * dir_name, const gchar * name,
     if (g_str_has_prefix (dir_entry->d_name, prefix) &&
         g_ascii_isdigit (dir_entry->d_name[strlen (prefix)])) {
 
-      id = g_ascii_strtoll (dir_entry->d_name + strlen (prefix), NULL, 10);
+      id = (gint) g_ascii_strtoll (dir_entry->d_name + strlen (prefix), NULL,
+          10);
       filename =
           g_build_filename (dir_name, dir_entry->d_name, NAME_FILE, NULL);
 
@@ -914,7 +915,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       }
       g_free (filename);
 
-      value = g_ascii_strtoull (file_contents, NULL, 10);
+      value = (guint) g_ascii_strtoull (file_contents, NULL, 10);
       g_free (file_contents);
       if (value == 1) {
         channel_prop->enabled = TRUE;
@@ -941,7 +942,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
       }
       g_free (filename);
 
-      value = g_ascii_strtoull (file_contents, NULL, 10);
+      value = (guint) g_ascii_strtoull (file_contents, NULL, 10);
       g_free (file_contents);
       channel_prop->index = value;
 
@@ -1068,7 +1069,7 @@ gst_tensor_src_iio_get_available_frequency (const gchar * base_dir,
    * else verify the frequency received from user is supported by the device
    */
   if (frequency == 0) {
-    ret = g_ascii_strtoull (freq_list[0], NULL, 10);
+    ret = g_ascii_strtoll (freq_list[0], NULL, 10);
   } else {
     for (i = 0; i < num; i++) {
       val = g_ascii_strtoull (freq_list[i], NULL, 10);
@@ -1178,7 +1179,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         strv = g_strsplit_set (param, ",;", -1);
         num = g_strv_length (strv);
         for (i = 0; i < num; i++) {
-          val = g_ascii_strtoull (strv[i], &endptr, 10);
+          val = g_ascii_strtoll (strv[i], &endptr, 10);
           if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
                   && val == 0)) {
             GST_ERROR_OBJECT (self, "Cannot parse received custom channels %s",
@@ -1865,7 +1866,8 @@ gst_tensor_src_iio_setup_device_buffer (GstTensorSrcIIO * self)
   if (!g_file_get_contents (filename, &file_contents, &length, NULL)) {
     GST_WARNING_OBJECT (self, "Unable to read default buffer capacity.");
   } else if (file_contents != NULL && length > 0) {
-    self->default_buffer_capacity = g_ascii_strtoull (file_contents, NULL, 10);
+    self->default_buffer_capacity =
+        (guint) g_ascii_strtoull (file_contents, NULL, 10);
   }
   g_free (file_contents);
   g_free (filename);

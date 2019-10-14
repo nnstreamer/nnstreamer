@@ -981,7 +981,7 @@ gst_tensor_get_type (const gchar * typestr)
 
   if (g_regex_match_simple ("^uint(8|16|32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
-    size = g_ascii_strtoull (&type_string[4], NULL, 10);
+    size = (gsize) g_ascii_strtoull (&type_string[4], NULL, 10);
 
     switch (size) {
       case 8:
@@ -998,7 +998,7 @@ gst_tensor_get_type (const gchar * typestr)
     }
   } else if (g_regex_match_simple ("^int(8|16|32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
-    size = g_ascii_strtoull (&type_string[3], NULL, 10);
+    size = (gsize) g_ascii_strtoull (&type_string[3], NULL, 10);
 
     switch (size) {
       case 8:
@@ -1015,7 +1015,7 @@ gst_tensor_get_type (const gchar * typestr)
     }
   } else if (g_regex_match_simple ("^float(32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
-    size = g_ascii_strtoull (&type_string[5], NULL, 10);
+    size = (gsize) g_ascii_strtoull (&type_string[5], NULL, 10);
 
     switch (size) {
       case 32:
@@ -1195,12 +1195,12 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
 
       strv = g_strsplit (sync->option, ":", 2);
       if (strv[0] != NULL)
-        sink_id = g_ascii_strtoull (strv[0], NULL, 10);
+        sink_id = (guint) g_ascii_strtoull (strv[0], NULL, 10);
       else
         sink_id = 0;
 
       if (strv[1] != NULL)
-        duration = g_ascii_strtoull (strv[1], NULL, 10);
+        duration = (guint) g_ascii_strtoull (strv[1], NULL, 10);
       else
         duration = G_MAXINT;
 
