@@ -561,14 +561,31 @@ ml_single_invoke (ml_single_h single,
     mem = gst_buffer_peek_memory (buffer, i);
     gst_memory_map (mem, &mem_info, GST_MAP_READ);
 
-    memcpy (result->tensors[i].tensor, mem_info.data, mem_info.size);
+    /* validate the output size */
+    if (mem_info.size <= result->tensors[i].size) {
+      memcpy (result->tensors[i].tensor, mem_info.data, mem_info.size);
+    } else {
+      /* invalid output size */
+      status = ML_ERROR_STREAMS_PIPE;
+    }
 
     gst_memory_unmap (mem, &mem_info);
+
+    if (status != ML_ERROR_NONE)
+      break;
   }
 
 done:
   if (sample)
     gst_sample_unref (sample);
+
+  /* free allocated data if error occurs */
+  if (status != ML_ERROR_NONE) {
+    if (*output != NULL) {
+      ml_tensors_data_destroy (*output);
+      *output = NULL;
+    }
+  }
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
