@@ -747,8 +747,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       strv = g_strsplit (filter->option, ":", 2);
 
-      filter->data_dimchg.from = g_ascii_strtoull (strv[0], NULL, 10);
-      filter->data_dimchg.to = g_ascii_strtoull (strv[1], NULL, 10);
+      filter->data_dimchg.from = (int) g_ascii_strtoll (strv[0], NULL, 10);
+      filter->data_dimchg.to = (int) g_ascii_strtoll (strv[1], NULL, 10);
       filter->loaded = TRUE;
       g_strfreev (strv);
       break;
@@ -900,7 +900,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
       for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
         filter->data_transpose.trans_order[i] =
-            g_ascii_strtoull (strv[i], NULL, 10);
+            (uint8_t) g_ascii_strtoull (strv[i], NULL, 10);
       }
 
       filter->loaded = TRUE;
