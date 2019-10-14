@@ -1234,7 +1234,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   g_object_get (G_OBJECT (elem->element), "active-pad", &active_pad, NULL);
   active_name = gst_pad_get_name (active_pad);
 
-  if (!g_strcmp0 (pad_name, active_name)) {
+  if (g_strcmp0 (pad_name, active_name) == 0) {
     ml_logi ("Switch is called, but there is no effective changes: %s->%s.",
         active_name, pad_name);
     g_free (active_name);

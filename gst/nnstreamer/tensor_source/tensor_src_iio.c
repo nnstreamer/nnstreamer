@@ -613,7 +613,7 @@ gst_tensor_src_iio_get_id_by_name (const gchar * dir_name, const gchar * name,
       }
       g_free (filename);
 
-      if (!g_strcmp0 (file_contents, name)) {
+      if (g_strcmp0 (file_contents, name) == 0) {
         ret = id;
         g_free (file_contents);
         break;
@@ -1369,7 +1369,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
       g_error_free (error);
       goto error_free_filename;
     } else {
-      if (!g_strcmp0 (contents, file_contents)) {
+      if (g_strcmp0 (contents, file_contents) == 0) {
         ret = TRUE;
       }
       g_free (file_contents);

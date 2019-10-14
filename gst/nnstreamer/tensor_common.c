@@ -1052,7 +1052,7 @@ find_key_strv (const gchar ** strv, const gchar * key)
 
   g_assert (strv != NULL);
   while (strv[cursor]) {
-    if (!g_ascii_strcasecmp (strv[cursor], key))
+    if (g_ascii_strcasecmp (strv[cursor], key) == 0)
       return cursor;
     cursor++;
   }

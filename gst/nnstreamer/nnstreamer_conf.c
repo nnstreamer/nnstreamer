@@ -383,7 +383,7 @@ nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type)
   i = 0;
   while (vstr[i] != NULL) {
     /** @todo To support Windows, use case insensitive if it's Windows */
-    if (!g_strcmp0 (file2find, vstr[i]))
+    if (g_strcmp0 (file2find, vstr[i]) == 0)
       return vstrFull[i];
     i++;
   };

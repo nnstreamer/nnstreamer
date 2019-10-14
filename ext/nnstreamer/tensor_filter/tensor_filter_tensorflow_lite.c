@@ -101,7 +101,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     strv = g_strsplit (prop->nnapi, ":", 2);
     len = g_strv_length (strv);
 
-    if (!g_ascii_strcasecmp (strv[0], "true")) {
+    if (g_ascii_strcasecmp (strv[0], "true") == 0) {
       if (len >= 2) {
         hw = get_nnapi_hw_type (strv[1]);
       } else {
@@ -119,7 +119,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     tf = *private_data;
     if (g_strcmp0 (prop->model_file,
-            tflite_core_getModelPath (tf->tflite_private_data))) {
+            tflite_core_getModelPath (tf->tflite_private_data)) != 0) {
       tflite_close (prop, private_data);
     } else {
       return 1;
