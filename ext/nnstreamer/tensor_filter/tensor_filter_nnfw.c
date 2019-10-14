@@ -62,7 +62,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     pdata = *private_data;
-    if (g_strcmp0 (prop->model_file, pdata->model_path)) {
+    if (g_strcmp0 (prop->model_file, pdata->model_path) != 0) {
       nnfw_close (prop, private_data);  /* "reopen" */
     } else {
       return 1;

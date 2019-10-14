@@ -245,7 +245,7 @@ gst_tensor_merge_get_mode (const gchar * str)
 {
   int i;
   for (i = 0; i < GTT_END; i++) {
-    if (!g_ascii_strcasecmp (gst_tensor_merge_mode_string[i], str))
+    if (g_ascii_strcasecmp (gst_tensor_merge_mode_string[i], str) == 0)
       return i;
   }
   return GTT_END;

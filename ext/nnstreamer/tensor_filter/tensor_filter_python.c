@@ -171,7 +171,7 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     py = *private_data;
-    if (g_strcmp0 (prop->model_file, py_core_getScriptPath (py->py_private_data))) {
+    if (g_strcmp0 (prop->model_file, py_core_getScriptPath (py->py_private_data)) != 0) {
       py_close (prop, private_data);
     } else {
       return 1;

@@ -73,7 +73,7 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     tf = *private_data;
-    if (g_strcmp0 (prop->model_file, tf_core_getModelPath (tf->tf_private_data))) {
+    if (g_strcmp0 (prop->model_file, tf_core_getModelPath (tf->tf_private_data)) != 0) {
       tf_close (prop, private_data);
     } else {
       return 1;

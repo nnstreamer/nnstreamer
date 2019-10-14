@@ -74,7 +74,7 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
   if (*private_data != NULL) {
     torch = *private_data;
     if (g_strcmp0 (prop->model_file,
-            torch_core_getModelPath (torch->torch_private_data))) {
+            torch_core_getModelPath (torch->torch_private_data)) != 0) {
       torch_close (prop, private_data);
     } else {
       return 1;
