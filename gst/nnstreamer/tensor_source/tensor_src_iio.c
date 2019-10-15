@@ -1158,11 +1158,11 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     case PROP_CHANNELS:
     {
       const gchar *param = g_value_get_string (value);
-      if (!g_ascii_strncasecmp (param, CHANNELS_ENABLED_ALL_CHAR,
-              strlen (CHANNELS_ENABLED_ALL_CHAR))) {
+      if (g_ascii_strncasecmp (param, CHANNELS_ENABLED_ALL_CHAR,
+              strlen (CHANNELS_ENABLED_ALL_CHAR)) == 0) {
         self->channels_enabled = CHANNELS_ENABLED_ALL;
-      } else if (!g_ascii_strncasecmp (param, CHANNELS_ENABLED_AUTO_CHAR,
-              strlen (CHANNELS_ENABLED_AUTO_CHAR))) {
+      } else if (g_ascii_strncasecmp (param, CHANNELS_ENABLED_AUTO_CHAR,
+              strlen (CHANNELS_ENABLED_AUTO_CHAR)) == 0) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
       } else {
         gint i, num;
@@ -1917,32 +1917,33 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   self = GST_TENSOR_SRC_IIO_CAST (src);
 
   /** no support one shot mode for now */
-  if (!g_ascii_strncasecmp (self->mode, MODE_ONE_SHOT, strlen (MODE_ONE_SHOT))) {
+  if (g_ascii_strncasecmp (self->mode, MODE_ONE_SHOT,
+          strlen (MODE_ONE_SHOT)) == 0) {
     GST_ERROR_OBJECT (self, "One-shot mode not yet supported.");
     goto error_return;
   }
 
-  if (!(gst_tensor_src_iio_setup_device_properties (self))) {
+  if (FALSE == gst_tensor_src_iio_setup_device_properties (self)) {
     GST_ERROR_OBJECT (self, "Error setting up IIO device.");
     goto error_return;
   }
 
-  if (!(gst_tensor_src_iio_setup_trigger_properties (self))) {
+  if (FALSE == gst_tensor_src_iio_setup_trigger_properties (self)) {
     GST_ERROR_OBJECT (self, "Error setting up IIO trigger for device.");
     goto error_device_free;
   }
 
-  if (!(gst_tensor_src_iio_setup_sampling_frequency (self))) {
+  if (FALSE == gst_tensor_src_iio_setup_sampling_frequency (self)) {
     GST_ERROR_OBJECT (self, "Error setting up sampling frequency for device.");
     goto error_trigger_free;
   }
 
-  if (!(gst_tensor_src_iio_setup_scan_channels (self))) {
+  if (FALSE == gst_tensor_src_iio_setup_scan_channels (self)) {
     GST_ERROR_OBJECT (self, "Error setting up scan channels for device.");
     goto error_trigger_free;
   }
 
-  if (!(gst_tensor_src_iio_setup_device_buffer (self))) {
+  if (FALSE == gst_tensor_src_iio_setup_device_buffer (self)) {
     GST_ERROR_OBJECT (self, "Error setting up data buffer for device.");
     goto error_config_free;
   }
