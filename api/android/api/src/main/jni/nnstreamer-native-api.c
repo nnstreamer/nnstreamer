@@ -506,6 +506,8 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env, jclass cl
 
   jstring version = (*env)->NewStringUTF (env, version_str);
 
+  nns_logi ("%s, GLib %d.%d.%d", version_str, GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
+
   g_free (gst_ver);
   g_free (version_str);
   return version;
