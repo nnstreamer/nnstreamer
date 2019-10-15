@@ -519,8 +519,12 @@ ml_tensors_data_create (const ml_tensors_info_h info,
 
   status = ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) &_data);
 
-  if (status != ML_ERROR_NONE)
+  if (status != ML_ERROR_NONE) {
     return status;
+  }
+  if (!_data) {
+    return ML_ERROR_STREAMS_PIPE;
+  }
 
   for (i = 0; i < _data->num_tensors; i++) {
     _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
@@ -532,11 +536,10 @@ ml_tensors_data_create (const ml_tensors_info_h info,
   return ML_ERROR_NONE;
 
 failed:
-  if (_data) {
-    for (i = 0; i < _data->num_tensors; i++) {
-      g_free (_data->tensors[i].tensor);
-    }
+  for (i = 0; i < _data->num_tensors; i++) {
+    g_free (_data->tensors[i].tensor);
   }
+  g_free (_data);
 
   ml_loge ("Failed to allocate the memory block.");
   return ML_ERROR_STREAMS_PIPE;
