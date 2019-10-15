@@ -268,3 +268,15 @@ if get_option('enable-movidius-ncsdk2')
     )
   endif
 endif
+
+if get_option('enable-cppfilter')
+  shared_library('nnstreamer_filter_cpp',
+    ['tensor_filter_cpp.cc'],
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+  install_headers(['tensor_filter_cpp.h'],
+    subdir: 'nnstreamer'
+  )
+endif

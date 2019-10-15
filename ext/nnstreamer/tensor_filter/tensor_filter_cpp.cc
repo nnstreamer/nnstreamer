@@ -25,27 +25,28 @@
  *       If you want to write an OpenCV custom filter for nnstreamer, this is a good choice.
  *
  */
-#include <glib.h>
+#include <errno.h>
 #include <string.h>
+#include <glib.h>
 
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
+
+#include "tensor_filter_cpp.h"
 
 void init_filter_cpp (void) __attribute__ ((constructor));
 void fini_filter_cpp (void) __attribute__ ((destructor));
 
 #define loadClass(name, ptr) \
-  class tensor_filter_cpp *name = *(ptr); \
+  class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
   g_assert (*(ptr)); \
-  g_assert (name->validity == 0xdeafdead);
+  g_assert (name->isValid());
 
 /**
  * @brief Class constructor
  */
-tensor_filter_cpp::tensor_filter_cpp(const char *name)
+tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name))
 {
-  validity = 0xdeafdead;
-  this->name = g_strdup(name);
 }
 
 /**
@@ -53,7 +54,15 @@ tensor_filter_cpp::tensor_filter_cpp(const char *name)
  */
 tensor_filter_cpp::~tensor_filter_cpp()
 {
-  g_free(name);
+  g_free((gpointer) name);
+}
+
+/**
+ * @brief Check if the given object (this) is valid.
+ */
+bool tensor_filter_cpp::isValid()
+{
+  return this->validity == 0xdeafdead;
 }
 
 /**
@@ -68,7 +77,7 @@ static int cpp_getInputDim (const GstTensorFilterProperties *prop, void **privat
 /**
  * @brief Standard tensor_filter callback
  */
-static int cpp_getOuputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+static int cpp_getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
   loadClass(cpp, private_data);
   return cpp->getOutputDim (info);
@@ -98,16 +107,17 @@ static int cpp_invoke (const GstTensorFilterProperties *prop, void **private_dat
 static int cpp_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   /** @todo: load the class with the given name (either file path or registered name) */
-  return 0;
+  /** @todo: configure values of NNS_support_cpp (allocate_in_invoke) */
+  return -EPERM; /** NYI */
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-static int cpp_close (const GstTensorFilterProperties *prop, void **private_data)
+static void cpp_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   /** @todo Implement This! NYI! */
-  return 0;
+  g_assert(false); /** NYI */
 }
 
 static gchar filter_subplugin_cpp[] = "cpp";
@@ -116,6 +126,7 @@ static GstTensorFilterFramework NNS_support_cpp = {
   .name = filter_subplugin_cpp,
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = FALSE,
+  .run_without_model = FALSE,
   .invoke_NN = cpp_invoke,
   .getInputDimension = cpp_getInputDim,
   .getOutputDimension = cpp_getOutputDim,

@@ -205,6 +205,19 @@ Requires:	capi-nnstreamer-devel = %{version}-%{release}
 Tizen internal API to construct the pipeline without the permissions.
 %endif
 
+%package cpp
+Summary:	NNStreamer Custom Plugin Support for C++ Classes
+Requires:	nnstreamer = %{version}-%{release}
+%description cpp
+With this package, you may use C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
+
+%package cpp-devel
+Summary:	NNStreamer Custom Plugin Development Support for C++ Classes
+Requires:	nnstreamer-cpp = %{version}-%{release}
+%description cpp-devel
+With this package, you may write C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
+Note that there is no .pc file for this package because nnstreamer.pc file may be used for developing this.
+
 # Define build options
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true
@@ -233,6 +246,7 @@ cp %{SOURCE1001} .
 %if %{with tizen}
 cp %{SOURCE1002} .
 %endif
+cp %{SOURCE1001} ./nnstreamer-cpp.manifest
 
 %build
 %if 0%{?testcoverage}
@@ -420,6 +434,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 %endif
+
+%files cpp
+%manifest nnstreamer-cpp.manifest
+%license LICENSE
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
+
+%files cpp-devel
+%{_includedir}/nnstreamer/tensor_filter_cpp.h
 
 %changelog
 * Thu Sep 26 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
