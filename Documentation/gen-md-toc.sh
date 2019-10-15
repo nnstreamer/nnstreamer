@@ -137,7 +137,7 @@ gh_toc_get_filename() {
 }
 
 #
-# Options hendlers
+# Options handlers
 #
 gh_toc_app() {
     local app_name="gh-md-toc"
