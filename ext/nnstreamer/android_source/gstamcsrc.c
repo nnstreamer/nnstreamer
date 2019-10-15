@@ -26,10 +26,10 @@
 /**
  * SECTION:element-amcsrc
  *
- * #amcsrc extends #gstpushsrc source element to reuse the preprocessing capability of 
- * Android's standard MMFW (i.e., StageFright). It feeds the decoded frames from 
+ * #amcsrc extends #gstpushsrc source element to reuse the preprocessing capability of
+ * Android's standard MMFW (i.e., StageFright). It feeds the decoded frames from
  * Android MediaCodec (AMC) into a gstreamer pipeline.
- * 
+ *
  * Note that it's recommended to use this element within Android JNI applications.
  *
  * <refsect2>
@@ -106,7 +106,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 struct _GstAMCSrcPrivate
 {
   GMutex mutex;
-  GstDataQueue *outbound_queue; 
+  GstDataQueue *outbound_queue;
 
   /** media file info */
   gchar *filename;
@@ -165,7 +165,7 @@ static gboolean gst_amc_src_unlock_stop (GstBaseSrc * src);
 static GstFlowReturn gst_amc_src_create (GstPushSrc * src, GstBuffer ** buf);
 
 /** GstElement method implementation */
-static GstStateChangeReturn gst_amc_src_change_state (GstElement * element, 
+static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
     GstStateChange transition);
 
 /**
@@ -180,7 +180,7 @@ typedef enum
 /**
  * @brief enum for codec message
  */
-typedef enum 
+typedef enum
 {
   MSG_0,
   MSG_CODEC_BUFFER,
@@ -204,7 +204,7 @@ typedef struct
 
 /**
  * @brief callback for increasing the refcount in a wrapped buffer
- * @param[in] a wrapped buffer 
+ * @param[in] a wrapped buffer
  */
 static GstWrappedBuf *
 gst_wrapped_buf_ref (GstWrappedBuf * self)
@@ -221,7 +221,7 @@ gst_wrapped_buf_ref (GstWrappedBuf * self)
 
 /**
  * @brief callback for decreasing the refcount in a wrapped buffer
- * @param[in] a wrapped buffer 
+ * @param[in] a wrapped buffer
  */
 static void
 gst_wrapped_buf_unref (GstWrappedBuf * self)
@@ -270,7 +270,7 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
   /** property-related init */
   gobject_class->set_property = gst_amc_src_set_property;
   gobject_class->get_property = gst_amc_src_get_property;
-  
+
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "File Location",
         "Location of the media file to play", NULL,
@@ -310,10 +310,10 @@ gst_amc_src_codec_config (GstAMCSrc *self)
 
   priv->ex = AMediaExtractor_new();
   err = AMediaExtractor_setDataSourceFd(priv->ex, priv->fd, priv->pos, priv->size);
-  
+
   /** it's safe to close fd after setDataSourceFd() */
   close (priv->fd);
-  
+
   if (err != AMEDIA_OK) {
     LOGE ("Error setting data source.");
     return FALSE;
@@ -326,7 +326,7 @@ gst_amc_src_codec_config (GstAMCSrc *self)
     AMediaFormat *format = AMediaExtractor_getTrackFormat(priv->ex, i);
     const char *mime;
     if (AMediaFormat_getString(format, AMEDIAFORMAT_KEY_MIME, &mime)) {
-      if (!strncmp(mime, "video/", 6)) {
+      if (g_ascii_strncasecmp (mime, "video/", 6) == 0) {
         /** Use this video track */
         LOGI ("Video track found: %s", AMediaFormat_toString(format));
 
@@ -345,11 +345,11 @@ gst_amc_src_codec_config (GstAMCSrc *self)
         AMediaCodec_configure(priv->codec, format, NULL /** surface */, NULL /** crypto */, 0);
         AMediaExtractor_selectTrack(priv->ex, i);
         AMediaFormat_delete(format);
-        
+
         return TRUE;
       }
-    } else 
-      LOGE ("No mime type"); 
+    } else
+      LOGE ("No mime type");
 
     AMediaFormat_delete(format);
   }
@@ -367,9 +367,9 @@ static gboolean gst_amc_src_media_open (GstAMCSrc *self)
 
   if (priv->filename == NULL || priv->filename[0] == '\0')
     goto error;
-  
+
   LOGI ("opening file %s", priv->filename);
-  
+
   priv->fd = open (priv->filename, O_RDONLY | O_BINARY, 0);
   if (priv->fd < 0) {
     LOGE ("Error: gst_open() failed");
@@ -391,7 +391,7 @@ static gboolean gst_amc_src_media_open (GstAMCSrc *self)
 
   if (S_ISREG (stat_results.st_mode))
     priv->is_regular = TRUE;
-  
+
   {
     off_t res = lseek (priv->fd, 0, SEEK_END);
 
@@ -469,7 +469,7 @@ gst_amc_src_set_property (GObject * object, guint prop_id,
  * @brief get amcsrc properties
  */
 static void
-gst_amc_src_get_property (GObject * object, guint prop_id, 
+gst_amc_src_get_property (GObject * object, guint prop_id,
     GValue *value, GParamSpec * pspec)
 {
   GstAMCSrc *self = GST_AMC_SRC (object);
@@ -580,7 +580,7 @@ gst_amc_src_create (GstPushSrc * src, GstBuffer ** buffer)
  * @brief change state function for this element
  * each trainsition sends the corresponding message to a looper
  */
-static GstStateChangeReturn gst_amc_src_change_state (GstElement * element, 
+static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
     GstStateChange transition)
 {
   GstAMCSrc *self;
@@ -589,7 +589,7 @@ static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
   gchar *dirname = NULL;
 
   self = GST_AMC_SRC (element);
-  priv  = GST_AMC_SRC_GET_PRIVATE (self); 
+  priv  = GST_AMC_SRC_GET_PRIVATE (self);
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -741,14 +741,14 @@ check_codec_buf (GstAMCSrc *self)
       if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) {
         LOGI("output EOS");
         priv->sawOutputEOS = TRUE;
-      } 
+      }
 
       presentation_time = info.presentationTimeUs * 1000;
-      if (priv->renderstart < 0) 
+      if (priv->renderstart < 0)
         priv->renderstart = systemnanotime() - presentation_time;
-      
+
       delay = (priv->renderstart + presentation_time) - systemnanotime();
-      if (delay > 0) 
+      if (delay > 0)
         usleep(delay / 1000);
 
       if (info.size > 0) {
@@ -762,7 +762,7 @@ check_codec_buf (GstAMCSrc *self)
         AMediaCodec_releaseOutputBuffer(priv->codec, buf_idx, 0);
 
       if (priv->renderonce) {
-        priv->renderonce = FALSE;    
+        priv->renderonce = FALSE;
         return;
       }
     } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
@@ -780,7 +780,7 @@ check_codec_buf (GstAMCSrc *self)
 
   /** unless it reaches to EOS, check buffers again */
   if (!priv->sawInputEOS || !priv->sawOutputEOS)
-    Looper_post (priv->looper, MSG_CODEC_BUFFER, self, FALSE); 
+    Looper_post (priv->looper, MSG_CODEC_BUFFER, self, FALSE);
 }
 
 /**
@@ -933,7 +933,7 @@ gst_amc_src_init (GstAMCSrc * self)
 
   priv->width = 0;
   priv->height = 0;
-  priv->framerate = 0; 
+  priv->framerate = 0;
   priv->duration = 0;
 
   g_mutex_init (&priv->mutex);
