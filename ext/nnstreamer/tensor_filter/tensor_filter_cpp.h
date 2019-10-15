@@ -49,20 +49,31 @@ class tensor_filter_cpp {
 
   public:
     tensor_filter_cpp(const char *modelName); /**< modelName is the model property of tensor_filter, which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
-    ~tensor_filter_cpp();
+    virtual ~tensor_filter_cpp();
 
     /** C++ plugin writers need to fill {getInput/Output} inclusive-or {setInput} */
     virtual int getInputDim(GstTensorsInfo *info) = 0;
     virtual int getOutputDim(GstTensorsInfo *info) = 0;
 
-    virtual int setIutputDim(const GstTensorsInfo *in, GstTensorsInfo *out) = 0;
+    virtual int setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out) = 0;
 
-    bool allocate_before_invoke; /**< TRUE, if you want nnstreamer to preallocate output buffers before calling invoke */
     virtual int invoke(const GstTensorMemory *in, GstTensorMemory *out) = 0;
 
-    /** API */
-    static int tensor_filter_cpp_register (class tensor_filter_cpp *filter) final; /**< Register a C++ custom filter with this API if you want to register it at runtime. (or at the constructor of a shared object if you want to load it dynamically.) This should be invoked before initialized (constructed) by tensor_filter at run-time. */
+    virtual bool isAllocatedBeforeInvoke() = 0;
+      /**< return true if you want nnstreamer to preallocate output buffers
+           before calling invoke. This value should be configured at the
+           constructor and cannot be changed afterwards.
+           This should not change its return values. */
 
+    /** API. Do not override. */
+    static int tensor_filter_cpp_register(class tensor_filter_cpp *filter);
+      /**< Register a C++ custom filter with this API if you want to register
+           it at runtime or at the constructor of a shared object if you want
+           to load it dynamically. This should be invoked before initialized
+           (constructed) by tensor_filter at run-time. */
+
+    /** Internal Functions. Do not override. */
+    bool isValid();
 };
 
 #endif /* __cplusplus */

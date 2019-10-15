@@ -55,6 +55,20 @@ Depends: nnstreamer, python3, python3-numpy, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Python Custom Filter Support (3.x)
  This Package allows nnstreamer to support python custom filters
 
+Package: nnstreamer-cpp
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer CPP Filter Subplugin Support
+ This package allows nnstreamer to support custom filters of C++ classes
+
+Package: nnsreamer-cpp-dev
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer-cpp, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer CPP Filter Subplugin Development Support
+ This package allows developers to write custom filters of C++ classes
+
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same
