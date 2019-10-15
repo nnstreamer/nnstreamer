@@ -83,11 +83,11 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - [Implementation](../api/capi) (stable, since Tizen 5.5 M2)
 - C#-API (.NET)
   - Main target is Tizen, but supports other OS as well.
-  - [Implementation](https://github.com/Samsung/TizenFX/pull/940) (to be released for Tizen 5.5 M2)
+  - [Implementation](https://github.com/Samsung/TizenFX/tree/master/src/Tizen.MachineLearning.Inference) (to be released for Tizen 5.5 M2)
 - JAVA-API (Android)
-  - [Android sample app](../api/android/sample/src) uses JAVA APIs to implement Android-nnstreamer apps.
-  - We will soon deploy nnstreamer via JCenter: org.nnsuite.nnstreamer
-  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app)), are developed before NNStreamer Java API. They use GStreamer JAVA API.
+  - [Android sample app](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
+  - We will soon deploy NNStreamer via JCenter: org.nnsuite.nnstreamer
+  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 
 # Other Components
 - CI ([@AWS](http://nnsuite.mooo.com/nnstreamer/ci/taos)) (stable): Up and Running.
@@ -100,8 +100,8 @@ Note that test elements in /tests/ are not elements for applications. They exist
 - [Test cases](../tests/): Mandatory unit test cases required to pass for each PR.
   - Used [SSAT](https://github.com/nnsuite/SSAT).
   - Each element and feature is required to register its testcases at [test case directory](../tests/)
-- Examples: Example gstreamer applications using nnstreamer and example sub-plugins for nnstreamer. The binaries from this directory is not supposed to be packaged with the main binary package.
-  - [Example gstreamer applications](https://github.com/nnsuite/nnstreamer-example)
+- Examples: Example GStreamer applications using NNStreamer and example sub-plugins for NNStreamer. The binaries from this directory is not supposed to be packaged with the main binary package.
+  - [Example GStreamer applications](https://github.com/nnsuite/nnstreamer-example)
   - [Example sub-plugins](../nnstreamer_example)
 - Packaing for Distros / SW-Platform Compatibility.
   - [Tizen](../packaging) (stable): RPM packaging for Tizen 5.0+. It is expected to be compatible with other RPM-based distros; however, it is not tested or guaranteed.

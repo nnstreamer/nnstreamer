@@ -18,7 +18,7 @@ $ sudo apt install nnstreamer
 
 ### Clean build with pdebuild (Ubuntu 16.04/18.04)
 
-Use the nnstreamer PPA to resolve additional build-dependnecies (tensorflow/tensorflow-lite).
+Use the nnstreamer PPA to resolve additional build-dependencies (tensorflow/tensorflow-lite).
 
 Install build tools if needed:
 ```bash
@@ -35,13 +35,13 @@ $ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
 $ sudo pbuilder create
 ```
 
-Run pdebuild to build and get the package
+Run pdebuild to build and get the package.
 ```bash
 $ pdebuild
 $ ls -al /var/cache/pbuilder/result/*.deb
 ```
 
-Refer to [PbuilderHowto](https://wiki.ubuntu.com/PbuilderHowto) for more about pdebuild
+Refer to [PbuilderHowto](https://wiki.ubuntu.com/PbuilderHowto) for more about pdebuild.
 
 
 
@@ -85,7 +85,7 @@ ARCH := $(shell uname -m | sed -e 's/i[3-8]86/x86_32/')
 
 ***Build .deb packages***
 
-Installing required depencencies:
+Installing required dependencies:
 
 ```bash
 $ for i in ssat tensorflow nnstreamer; do \
@@ -139,7 +139,7 @@ $ ninja -C build install
 ```
 
 - Installed nnstreamer plugins to ```{prefix}/{libdir}/gstreamer-1.0```
-- Installed subplugins and libraires to ```{prefix}/{libdir}```
+- Installed subplugins and libraries to ```{prefix}/{libdir}```
 - Installed common header files to ```{prefix}/{includedir}```
 
 
@@ -157,4 +157,4 @@ $ gbs build
 ```
 ```gbs build``` will execute unit testing as well unlike cmake build.
 
-- (Writing Tizen Native Apps with nnstreamer / ML APIs)[writing-tizen-native-apps.md]
+- [Writing Tizen Native Apps with NNStreamer / ML APIs](writing-tizen-native-apps.md)

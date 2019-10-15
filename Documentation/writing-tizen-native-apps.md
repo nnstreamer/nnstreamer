@@ -1,14 +1,14 @@
 # Writing a Tizen Native App
 
-This document guides how to write a Tizen Native (C/C++) app with nnstreamer APIs (Tizen Machine-Learning Inference API Set).
+This document guides how to write a Tizen Native (C/C++) app with NNStreamer APIs (Tizen Machine-Learning Inference API Set).
 
 ## About the Tizen ML-Inference API Sets
 
 There are two API sets as of Tizen 5.5 M2, Machine-Learning Inference: "Pipeline" and "Single".
 
-With **Pipeline** API set, you can construct a GStreamer pipeline with nnstreamer elements and gstreamer elements in the "whitelist". GStreamer plugins not listed in the "whitelist" is not supported by Pipelie APIs. Note that an alias element, ```tizencamvideosrc``` (or ML_TIZEN_CAM_VIDEO_SRC macro), denotes a video camera source, which may vary per device; in other words, you don't need to worry whether it's ```v4l2src``` or ```camsrc``` or whatsoever. For the list of whitelist elements, refer to the Tizen API doc or ```/etc/nnstreamer.ini```.
+With **Pipeline** API set, you can construct a GStreamer pipeline with NNStreamer elements and GStreamer elements in the "whitelist". GStreamer plugins not listed in the "whitelist" are not supported by Pipeline APIs. Note that an alias element, ```tizencamvideosrc``` (or ML_TIZEN_CAM_VIDEO_SRC macro), denotes a video camera source, which may vary per device; in other words, you don't need to worry whether it's ```v4l2src``` or ```camsrc``` or whatsoever. For the list of whitelist elements, refer to the Tizen API doc or ```/etc/nnstreamer.ini```.
 
-With **Single** API set, you can invoke a neural network model with a input tensor/tensors without constructing a full pipeline.
+With **Single** API set, you can invoke a neural network model with an input tensor/tensors without constructing a full pipeline.
 
 ## General Flow / Single
 
@@ -24,7 +24,7 @@ Note that set_timeout API allows you to set timeout for invoke function.
 
 ## General Flow / Pipeline
 
-It allows the flexibility to consturct a stream pipeline with complex topology including multiple neural networks and frameworks, different pre/post-processors, data and path manipulators, and various input and output nodes. This is far more rich featured compared to Single API; however, the developer is required to understand GStreamer pipelines. For GStreamer pipelines in general, please refer to GStreamer documents.
+It allows the flexibility to construct a stream pipeline with complex topology including multiple neural networks and frameworks, different pre/post-processors, data and path manipulators, and various input and output nodes. This is far more rich featured compared to Single API; however, the developer is required to understand GStreamer pipelines. For GStreamer pipelines in general, please refer to GStreamer documents.
 
 1. Construct a pipeline (ml\_pipeline\_construct) and get a pipeline handle.
 
@@ -42,7 +42,7 @@ This allows you to provide a function (callback), which is invoked whenever an o
 
 ### State Callbacks (ml\_pipeline\_state\_cb)
 
-This allows you to provide a function (callback), which is invoked whenever the states of the constructed pipeline change.
+This allows you to provide a function (callback), which is invoked whenever the state of the constructed pipeline is changed.
 
 ### Source Handle
 
@@ -65,22 +65,20 @@ You may investigate the data types/dimensions/names or get performance-related d
 
 The elements that can be included in the pipeline (with construct API) are limited by the whitelist (defined by ```/etc/nnstreamer.ini```).
 
-However, with an internal API, allowed to platform binaries only (.rpm. not .tpk), the whitelist policy doesn't apply. The package, ```nnstreamer-tizen-internal-capi-devel```, provides internal APIs; use it with BuildRequires from your platform package .spec file.
+However, with an internal API, allowed to platform binaries only (.rpm. not .tpk), the whitelist policy does not apply. The package, ```nnstreamer-tizen-internal-capi-devel```, provides internal APIs; use it with BuildRequires from your platform package .spec file.
 
 
 # Tizen Sample Native Apps
 
 ## Single
 
-A simple sample Tizen app with Single APIs is at (nnstreamer-example.git, "SingleSample")[https://github.com/nnsuite/nnstreamer-example/tree/master/Tizen.native/SingleSample]
+A simple sample Tizen app with Single APIs is at nnstreamer-example.git, [SingleSample](https://github.com/nnsuite/nnstreamer-example/tree/master/Tizen.native/SingleSample).
 
 ## Pipeline
 
-A simple sample Tizen app with Pipeline APIs is at (nnstreamer-example.git, "Application")[https://github.com/nnsuite/nnstreamer-example/tree/master/Tizen.native/Application]
+A simple sample Tizen app with Pipeline APIs is at nnstreamer-example.git, [PipelineSample](https://github.com/nnsuite/nnstreamer-example/tree/master/Tizen.native/PipelineSample).
 
 
 # Tizen ML API Documentation
 
-The official Tizen ML API Documentation will be available after the release of Tizen 5.5. Before the release you may create doxygen documents created from /api/capi/include and /api/capi/doc
-
-
+The official Tizen ML API Documentation will be available after the release of Tizen 5.5. Before the release, you may create doxygen documents created from [api/capi/include](../api/capi/include) and [api/capi/doc](../api/capi/doc).

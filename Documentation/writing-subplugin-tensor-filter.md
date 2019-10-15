@@ -1,12 +1,12 @@
 # Writing a subplugin for NNStreamer's tensor\_filter
 
-You can support a new neural-network framework (e.g., Tensorflow and Caffe) or a new nerual-network hardware accelerator with its own software interface (e.g., openVINO for NCS and some python library for edge-TPU) by writing a tensor\_filter subplugin.
+You can support a new neural-network framework (e.g., Tensorflow and Caffe) or a new neural-network hardware accelerator with its own software interface (e.g., openVINO for NCS and some python library for edge-TPU) by writing a tensor\_filter subplugin.
 
 It is called "**subplugin**" because it is a plugin for a GStreamer plugin, ```tensor_filter```.
 
 
 
-## Quick Guide on writing a tensor\_filter subplugin for a new framework/hardware.
+## Quick guide on writing a tensor\_filter subplugin for a new framework/hardware.
 
 You can start writing a ```tensor_filter``` subplugin easily by using code-template/generator from nnstreamer-example.git. It is in ```/templates/tensor_filter_subplugin``` of ```nnstreamer-example.git```. The following is how to start writing a subplugin with the template for Tizen devices (5.5 M2 +). In this example, the target subplugin name is ```example```.
 
@@ -55,7 +55,7 @@ NNStreamer plugins and libraries are licensed as LGPL. Thus subplugins and appli
 
 ### Dependencies / Libraries
 
-As you can see in packaging/*.spec and meson.build of the template, ```nnstreamer-dev``` is the only mandatory dependency. Anyway. of course, you need to add dependencies for your own library/hardware usages.
+As you can see in packaging/*.spec and meson.build of the template, ```nnstreamer-dev``` is the only mandatory dependency. Anyway, of course, you need to add dependencies for your own library/hardware usages.
 
 In order to provide callbacks required by ```tensor_filter```, you need to include ```nnstreamer_plugin_api_filter.h```, which is supplied with ```nnstreamer-dev``` package (in Tizen or Ubuntu).
 
@@ -65,15 +65,15 @@ In order to provide callbacks required by ```tensor_filter```, you need to inclu
 The default ```tensor_filter``` subplugin path is ```/usr/lib/nnstreamer/filters/```. It can be modified by configuring ```/etc/nnstreamer.ini```.
 
 
-### Flexsible/Dynamic Input/Output Tensor Dimension
+### Flexible/Dynamic Input/Output Tensor Dimension
 
-Although the given template code supports static input/output tensor dimension (a single neural network model is supposed to have a single set of input/output tensor/tensors dimensions), nnstreamer's ```tensor_filter``` itself supports dynamic input/output tensor/tensors dimensions; output dimensions may be determined by input dimensions, which is determined at run-time.
+Although the given template code supports static input/output tensor dimension (a single neural network model is supposed to have a single set of input/output tensor/tensors dimensions), NNStreamer's ```tensor_filter``` itself supports dynamic input/output tensor/tensors dimensions; output dimensions may be determined by input dimensions, which is determined at run-time.
 
 In order to support this, you need to supply an additional callback, ```setInputDimension``` defined in ```GstTensorFilterFramework``` of ```nnstreamer_plugin_api_filter.h```.
 
 
 ### Writing one from scratch
 
-In normal usage cases, a subplugin exists as a shared library loaded dynamically (dlopen) by yet another shared library, ```tensor_filter```. By registering a ```tensor_filter``` object (a struct instance of GstTensorFilterFramework) with an init function, nnstreamer recognize it with the given name. In the template code, it is registered with a function ```init_filter_${name}()```. For more information, refer to the Doxygen entries of GstTensorFilterFramework in the header file.
+In normal usage cases, a subplugin exists as a shared library loaded dynamically (dlopen) by yet another shared library, ```tensor_filter```. By registering a ```tensor_filter``` object (a struct instance of GstTensorFilterFramework) with an init function, NNStreamer recognizes it with the given name. In the template code, it is registered with a function ```init_filter_${name}()```. For more information, refer to the doxygen entries of GstTensorFilterFramework in the header file.
 
-For more information about the struct, refer to [Doxygen Doc on GstTensorFilterFramework](http://nnsuite.mooo.com/nnstreamer/html/struct__GstTensorFilterFramework.html)
+For more information about the struct, refer to [Doxygen Doc on GstTensorFilterFramework](http://nnsuite.mooo.com/nnstreamer/html/struct__GstTensorFilterFramework.html).

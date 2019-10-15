@@ -34,7 +34,7 @@
 
 # Case 2: gtest test cases (C/C++ unit test)
 
-If your code is not supposed to be tested via gstreamer CLI pipeline, but with a C/C++ native calls, you are supposed to use gtest framework.
+If your code is not supposed to be tested via GStreamer CLI pipeline, but with a C/C++ native calls, you are supposed to use gtest framework.
 
 Refer to ```nnstreamer.git/common/test/*``` to write your own gtest test cases.
 
