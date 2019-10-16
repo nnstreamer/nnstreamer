@@ -2,19 +2,19 @@
 Doxygen: Generate documentation from source code
 =================================================
 
-Doxygen is the de facto regular tool for generating documentation from annotated C++ sources, however, it additionally supports different well-known programming languages akin to C, objective-C, C#, Hypertext Preprocessor, Java, Python, IDL (Corba, Microsoft, and UNO/OpenOffice flavors), Fortran, VHDL and Tcl.
+Doxygen is the de facto standard tool for generating documentation from annotated C++ sources, but it also supports other popular programming languages such as C, Objective-C, C#, PHP, Java, Python, IDL (Corba, Microsoft, and UNO/OpenOffice flavors), Fortran, VHDL, Tcl, and to some extent D.
 
 # Install doxygen & graphviz
-* If you want to run [Doxygen](http://www.stack.nl/~dimitri/doxygen/) to
+* If you want to run [Doxygen](http://www.doxygen.nl/) to
   produce documentation from your code comments, then in addition do the following:
-  * Install [Doxygen](http://www.stack.nl/~dimitri/doxygen/) using the
-    instructions on its web site. For reference, The LLVM web site is using Doxygen 1.7.6.1
+  * Install [Doxygen](http://www.doxygen.nl/) using the
+    instructions on its web site. For reference, the LLVM web site is using Doxygen 1.7.6.1,
     however the 1.8 series added support for Markdown formatting. We would like
     to use Markdown in our comments ASAP, so use the latest version of Doxygen.
     ```
     $ sudo apt-get install doxygen
     ```
-  * Install [graphviz](http://graphviz.org/) using instructions on their
+  * Install [Graphviz](http://graphviz.org/) using instructions on their
     site. The current version no longer modifies your path, so you should
     manually modify your path so that it includes "dot".
     ```
@@ -27,7 +27,7 @@ Doxygen is the de facto regular tool for generating documentation from annotated
     ```
     # for src app
     $ cd ./gst
-    $ doxygen ../Doxyfile.prj # from https://github.com/nnsuite/TAOS-CI/blob/tizen/ci/Doxyfile.prj
+    $ doxygen ../Doxyfile.prj # from https://github.com/nnsuite/TAOS-CI/blob/master/ci/Doxyfile.prj
 
     # launch with the browser to view the results
     $ chromium-browser ./html/index.html
@@ -40,12 +40,14 @@ Each file needs to begin with the `@file` command stating the name of the file. 
 
 ### Comments for Functions and Data Structures
 
-Before each function, data structure, and macro you should put a comment block giving at least a brief description using the `@brief` command. A brief description will suffice for your data structures but for your macros and functions you will need to use a few more commands. After your description, you should use the `@param` command to describe all of the parameters to your function. These descriptions should be followed by a description of the return value using the `@return` command. Note: When we say "each" function, that is not a strong statement. You can leave out simple helper functions, like a max() macro, so you do not waste time.
+Before each function, data structure, and macro you should put a comment block giving at least a brief description using the `@brief` command. A brief description will suffice for your data structures but for your macros and functions you will need to use a few more commands. After your description, you should use the `@param` command to describe all of the parameters to your function. These descriptions should be followed by a description of the return value using the `@return` command.
+
+Note: When we say "each" function, that is not a strong statement. You can leave out simple helper functions, like a max() macro, so you do not waste time.
 
 # Case study
 
 ### Case study: C/C++
-- https://www.stack.nl/~dimitri/doxygen/manual/docblocks.html#cppblock
+- http://www.doxygen.nl/manual/docblocks.html#cppblock
 
 You have to use comments starting with ** and then the special command.
 
@@ -158,9 +160,10 @@ class ring_cache
 ```
 
 ### Case study: Python
-- https://www.stack.nl/~dimitri/doxygen/manual/docblocks.html#pythonblocks
+- http://www.doxygen.nl/manual/docblocks.html#pythonblocks
 
 You have to use comments starting with ## and then the special command.
+
 ```bash
 $ vi ./taos.py
 ##
@@ -224,6 +227,7 @@ def setValue(self, value):
 
 You have to use comments starting with ## and then the special command.
 Then, add @file and @brief tag to the top of each script file as follows.
+
 ```bash
 $ vi pr-worker.sh
 ##
@@ -257,7 +261,7 @@ work_gen
 
 ```
 
-Please, refer to http://www.stack.nl/~dimitri/doxygen/manual/commands.html for more details.
+Please, refer to http://www.doxygen.nl/manual/commands.html for more details.
 
 # How to generate the index page in HTML
 If the Doxygen tag @mainpage is placed in a comment block, the block is used to
@@ -306,6 +310,6 @@ EXTENSION_MAPPING = sh=C
 ```
 
 # References
-  * Getting started: http://www.stack.nl/~dimitri/doxygen/manual/starting.html
+  * Getting started: http://www.doxygen.nl/manual/starting.html
   * Case study (Linux kernel): https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/sched/core.c?h=v4.13-rc1#n4454
 
