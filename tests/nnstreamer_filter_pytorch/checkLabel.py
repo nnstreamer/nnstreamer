@@ -28,5 +28,5 @@ idx = onehot.index(max(onehot))
 
 label = str(idx)
 
-answer = sys.argv[2].split('/')[1].split('.')[0].strip()
+answer = sys.argv[2].split('/')[-1].split('.')[0].strip()
 exit(label != answer)
