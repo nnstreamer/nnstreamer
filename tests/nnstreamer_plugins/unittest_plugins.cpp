@@ -14,6 +14,7 @@
 #include <gst/check/gsttestclock.h>
 #include <gst/check/gstharness.h>
 #include <tensor_common.h>
+#include <nnstreamer_plugin_api_filter.h>
 
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
 
@@ -2848,6 +2849,142 @@ TEST (test_tensor_transform, orc_performance)
   g_free (data_float);
 }
 #endif /* HAVE_ORC */
+
+#ifdef ENABLE_TENSORFLOW_LITE
+#define wait_for_element_state(element,state) do { \
+  GstState cur_state = GST_STATE_VOID_PENDING; \
+  GstStateChangeReturn ret; \
+  gint counter = 0;\
+  ret = gst_element_set_state (element, state); \
+  EXPECT_TRUE (ret != GST_STATE_CHANGE_FAILURE); \
+  while (cur_state != state && counter < 20) { \
+    g_usleep (50000); \
+    counter++; \
+    ret = gst_element_get_state (element, &cur_state, NULL, 5 * GST_MSECOND); \
+    EXPECT_TRUE (ret != GST_STATE_CHANGE_FAILURE); \
+  } \
+  EXPECT_TRUE (cur_state == state); \
+  g_usleep (50000); \
+} while (0)
+
+/**
+ * @brief Test to re-open tf-lite model file in tensor-filter.
+ */
+TEST (test_tensor_filter, reopen_tflite_01_p)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  gsize in_size, out_size;
+  GstTensorConfig config;
+  gchar *str_launch_line, *prop_string;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  h = gst_harness_new_empty ();
+  ASSERT_TRUE (h != NULL);
+
+  str_launch_line = g_strdup_printf ("tensor_filter framework=tensorflow-lite model=%s", test_model);
+  gst_harness_add_parse (h,  str_launch_line);
+  g_free (str_launch_line);
+
+  /* input tensor info */
+  config.info.type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+
+  /* playing state */
+  wait_for_element_state (h->element, GST_STATE_PLAYING);
+
+  /* paused state */
+  wait_for_element_state (h->element, GST_STATE_PAUSED);
+
+  /* set same model file */
+  gst_harness_set (h, "tensor_filter", "framework", "tensorflow-lite", "model", test_model, NULL);
+
+  /* playing state */
+  wait_for_element_state (h->element, GST_STATE_PLAYING);
+
+  /* get properties */
+  gst_harness_get (h, "tensor_filter", "framework", &prop_string, NULL);
+  EXPECT_TRUE (g_str_equal (prop_string, "tensorflow-lite"));
+  g_free (prop_string);
+
+  gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
+  EXPECT_TRUE (g_str_equal (prop_string, test_model));
+  g_free (prop_string);
+
+  /* push buffer (dummy input RGB 224x224, output 1001) */
+  in_size = 3 * 224 * 224;
+  out_size = 1001;
+
+  in_buf = gst_harness_create_buffer (h, in_size);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), out_size);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+  g_free (test_model);
+}
+
+/**
+ * @brief Test to re-open tf-lite model file directly with nnfw struct.
+ */
+TEST (test_tensor_filter, reopen_tflite_02_p)
+{
+  const gchar fw_name[] = "tensorflow-lite";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_file = test_model;
+
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
+  /* open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) == 0);
+
+  /* re-open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) > 0);
+
+  /* close tf-lite model */
+  fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+}
+#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Main function for unit test.
