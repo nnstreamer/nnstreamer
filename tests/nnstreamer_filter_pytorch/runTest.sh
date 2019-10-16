@@ -20,7 +20,7 @@ testInit $1
 # Test constant passthrough custom filter (1, 2)
 PATH_TO_PLUGIN="../../build"
 PATH_TO_MODEL="../test_models/models/pytorch_lenet5.pt"
-PATH_TO_IMAGE="img/9.png"
+PATH_TO_IMAGE="../test_models/data/9.png"
 
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
