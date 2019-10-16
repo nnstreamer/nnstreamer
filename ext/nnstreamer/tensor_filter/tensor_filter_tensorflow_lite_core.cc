@@ -269,12 +269,12 @@ TFLiteCore::setOutputTensorProp ()
 int
 TFLiteCore::getTensorDim (int tensor_idx, tensor_dim dim)
 {
-  int len = interpreter->tensor (tensor_idx)->dims->size;
+  TfLiteIntArray *tensor_dims = interpreter->tensor (tensor_idx)->dims;
+  int len = tensor_dims->size;
   g_assert (len <= NNS_TENSOR_RANK_LIMIT);
 
   /* the order of dimension is reversed at CAPS negotiation */
-  std::reverse_copy (interpreter->tensor (tensor_idx)->dims->data,
-      interpreter->tensor (tensor_idx)->dims->data + len, dim);
+  std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
 
   /* fill the remnants with 1 */
   for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
