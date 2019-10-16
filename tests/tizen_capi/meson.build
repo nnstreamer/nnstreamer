@@ -7,7 +7,8 @@ tizen_apptest_deps = [
 unittest_tizen_capi = executable('unittest_tizen_capi',
   'unittest_tizen_capi.cpp',
   dependencies: [tizen_apptest_deps],
-  install: false
+  install: get_option('install-test'),
+  install_dir: unittest_install_dir
 )
 test('unittest_tizen_capi', unittest_tizen_capi, args: ['--gst-plugin-path=../..'])
 
@@ -20,6 +21,7 @@ tizen_apptest_deps = [
 unittest_tizen_capi_single_new = executable('unittest_tizen_capi_single_new',
   'unittest_tizen_capi.cpp',
   dependencies: [tizen_apptest_deps],
-  install: false
+  install: get_option('install-test'),
+  install_dir: unittest_install_dir
 )
 test('unittest_tizen_capi_single_new', unittest_tizen_capi_single_new, args: ['--gst-plugin-path=../..'])
