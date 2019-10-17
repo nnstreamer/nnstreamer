@@ -680,8 +680,8 @@ ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
 }
 
 /**
- * @brief Gets the type of required input data for the given handle.
- * @note type = (tensor dimension, type, name and so on)
+ * @brief Gets the information of required input data for the given handle.
+ * @note information = (tensor dimension, type, name and so on)
  */
 int
 ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
@@ -690,8 +690,8 @@ ml_single_get_input_info (ml_single_h single, ml_tensors_info_h * info)
 }
 
 /**
- * @brief Gets the type of required output data for the given handle.
- * @note type = (tensor dimension, type, name and so on)
+ * @brief Gets the information of output data for the given handle.
+ * @note information = (tensor dimension, type, name and so on)
  */
 int
 ml_single_get_output_info (ml_single_h single, ml_tensors_info_h * info)
@@ -718,4 +718,13 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
   return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
+ */
+int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
+{
+  /** TODO: Fill me */
+  return ML_ERROR_NOT_SUPPORTED;
 }
