@@ -44,7 +44,10 @@
     goto error; \
   }
 
-gchar *custom_dir;
+const gulong MSEC_PER_USEC = 1000;
+const gulong DEFAULT_JITTER = 0UL;
+gchar *custom_dir = NULL;
+gulong jitter = DEFAULT_JITTER;
 
 /**
  * @brief Current status.
@@ -1017,7 +1020,6 @@ TEST (tensor_sink_test, properties)
   /** GstBaseSink:max-lateness -1 (unlimited time) */
   g_object_get (g_test_data.sink, "max-lateness", &lateness, NULL);
   EXPECT_EQ (lateness, -1);
-
   lateness = 30 * GST_MSECOND;
   g_object_set (g_test_data.sink, "max-lateness", lateness, NULL);
   g_object_get (g_test_data.sink, "max-lateness", &res_lateness, NULL);
@@ -1057,6 +1059,7 @@ TEST (tensor_sink_test, signals)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1119,6 +1122,7 @@ TEST (tensor_sink_test, emit_signal)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1154,6 +1158,7 @@ TEST (tensor_sink_test, signal_rate)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1202,6 +1207,7 @@ TEST (tensor_sink_test, caps_error_n)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check error message */
@@ -1245,6 +1251,7 @@ TEST (tensor_sink_test, caps_tensors)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1309,6 +1316,7 @@ TEST (tensor_stream_test, video_rgb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1351,6 +1359,7 @@ TEST (tensor_stream_test, video_bgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1393,6 +1402,7 @@ TEST (tensor_stream_test, video_rgb_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1435,6 +1445,7 @@ TEST (tensor_stream_test, video_bgr_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1477,6 +1488,7 @@ TEST (tensor_stream_test, video_rgb_3f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1519,6 +1531,7 @@ TEST (tensor_stream_test, video_rgba)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1561,6 +1574,7 @@ TEST (tensor_stream_test, video_bgra)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1603,6 +1617,7 @@ TEST (tensor_stream_test, video_argb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1645,6 +1660,7 @@ TEST (tensor_stream_test, video_abgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1687,6 +1703,7 @@ TEST (tensor_stream_test, video_rgbx)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1729,6 +1746,7 @@ TEST (tensor_stream_test, video_xrgb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1771,6 +1789,7 @@ TEST (tensor_stream_test, video_xbgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1813,6 +1832,7 @@ TEST (tensor_stream_test, video_bgrx)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1855,6 +1875,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1897,6 +1918,7 @@ TEST (tensor_stream_test, video_gray8)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1939,6 +1961,7 @@ TEST (tensor_stream_test, video_gray8_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1981,6 +2004,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2023,6 +2047,7 @@ TEST (tensor_stream_test, audio_s8)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2065,6 +2090,7 @@ TEST (tensor_stream_test, audio_u8_100f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2107,6 +2133,7 @@ TEST (tensor_stream_test, audio_s16)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2149,6 +2176,7 @@ TEST (tensor_stream_test, audio_u16_1000f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2191,6 +2219,7 @@ TEST (tensor_stream_test, audio_s32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2233,6 +2262,7 @@ TEST (tensor_stream_test, audio_u32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2275,6 +2305,7 @@ TEST (tensor_stream_test, audio_f32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2317,6 +2348,7 @@ TEST (tensor_stream_test, audio_f64)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4620,14 +4652,30 @@ TEST (tensor_stream_test, tensor_decoder_property)
 int
 main (int argc, char **argv)
 {
+  gchar *jitter_cmd_arg = NULL;
+  const GOptionEntry main_entries[] = {
+    {"customdir", 'd', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &custom_dir,
+          "A directory containing custom sub-plugins to use this test",
+        "build/nnstreamer_example/custom_example_passthrough"},
+    {"jitter", 'j', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &jitter_cmd_arg,
+          "Jitter in ms between starting and stopping test pipelines",
+        "0 (default)"},
+    {NULL}
+  };
+  GError *error = NULL;
+  GOptionContext *optionctx;
   testing::InitGoogleTest (&argc, argv);
-  int optind;
-  for(optind = 1; optind < argc && argv[optind][0] == '-'; optind++){
-    switch(argv[optind][1]){
-    case 'd': custom_dir=g_strdup(argv[optind+1]); break;
-    default:
-      break;
-    }
+
+  optionctx = g_option_context_new (NULL);
+  g_option_context_add_main_entries (optionctx, main_entries, NULL);
+
+  if (!g_option_context_parse (optionctx, &argc, &argv, &error)) {
+    g_print ("option parsing failed: %s\n", error->message);
+  }
+
+  if (jitter_cmd_arg != NULL) {
+    jitter = (gulong) g_ascii_strtoull (jitter_cmd_arg, NULL, 10) *
+        MSEC_PER_USEC;
   }
 
   gst_init (&argc, &argv);
