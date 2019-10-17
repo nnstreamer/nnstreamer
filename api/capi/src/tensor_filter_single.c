@@ -77,9 +77,11 @@ static void g_tensor_filter_single_get_property (GObject * object,
 
 /* GTensorFilterSingle method implementations */
 static gboolean g_tensor_filter_single_invoke (GTensorFilterSingle * self,
-    GstTensorMemory * input, GstTensorMemory * output);
+    const GstTensorMemory * input, GstTensorMemory * output);
 static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
+static gboolean g_tensor_filter_set_input_info (GTensorFilterSingle * self,
+    const GstTensorsInfo * in_info);
 
 /* Private functions */
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
@@ -106,6 +108,7 @@ g_tensor_filter_single_class_init (GTensorFilterSingleClass * klass)
   klass->stop = g_tensor_filter_single_stop;
   klass->input_configured = g_tensor_filter_input_configured;
   klass->output_configured = g_tensor_filter_output_configured;
+  klass->set_input_info = g_tensor_filter_set_input_info;
 }
 
 /**
@@ -339,7 +342,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
  */
 static gboolean
 g_tensor_filter_single_invoke (GTensorFilterSingle * self,
-    GstTensorMemory * input, GstTensorMemory * output)
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   GstTensorFilterPrivate *priv;
   guint i;
@@ -378,4 +381,34 @@ error:
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
       g_free (output[i].data);
   return FALSE;
+}
+
+
+/**
+ * @brief Set input tensor information in the framework
+ * @param self "this" pointer
+ * @param in_info information on the input tensor
+ * @return TRUE if there is no error.
+ */
+static gboolean
+g_tensor_filter_set_input_info (GTensorFilterSingle * self,
+    const GstTensorsInfo * in_info)
+{
+  GstTensorFilterPrivate *priv;
+  GstTensorsInfo out_info;
+  int status;
+  gboolean ret = FALSE;
+
+  priv = &self->priv;
+  if (G_UNLIKELY (!priv->fw) || G_UNLIKELY (!priv->fw->setInputDimension))
+    return FALSE;
+
+  status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
+      in_info, &out_info);
+  if (status == 0) {
+    gst_tensors_info_copy(&priv->out_config.info, &out_info);
+    ret = TRUE;
+  }
+
+  return ret;
 }

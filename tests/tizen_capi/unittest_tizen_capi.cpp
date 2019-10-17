@@ -2211,6 +2211,55 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
   g_free (test_model);
 }
 
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Try setting dimensions for input tensor.
+ */
+TEST (nnstreamer_capi_singleshot, set_input_info_fail)
+{
+  int status;
+  ml_single_h single;
+  ml_tensors_info_h in_info;
+  ml_tensor_dimension in_dim;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_set_input_info (single, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_info_create (&in_info);
+  in_dim[0] = 3;
+  in_dim[1] = 4;
+  in_dim[2] = 4;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  /** mobilenet model does not support setting different input dimension */
+  status = ml_single_set_input_info (single, &in_info);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
+      status == ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
+
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
