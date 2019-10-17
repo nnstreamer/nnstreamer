@@ -31,6 +31,12 @@
 #define DBG FALSE
 #endif
 
+#if PY_VERSION_HEX < 0x03000000
+#define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.so.1.0"
+#else
+#define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.so.1.0"
+#endif
+
 std::map <void*, PyArrayObject*> PYCore::outputArrayMap;
 
 /**
@@ -46,15 +52,10 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
    * To fix import error of python extension modules
    * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
    */
-  gchar libname[32];
+  gchar libname[32] = { 0, };
 
-  g_snprintf (libname, sizeof(libname),
-#if PY_VERSION_HEX >= 0x03000000
-              "libpython%d.%dm.so.1.0",
-#else
-              "libpython%d.%d.so.1.0",
-#endif
-              PY_MAJOR_VERSION, PY_MINOR_VERSION);
+  g_snprintf (libname, sizeof (libname), PYCORE_LIB_NAME_FORMAT,
+      PY_MAJOR_VERSION, PY_MINOR_VERSION);
 
   handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
   g_assert(handle);
