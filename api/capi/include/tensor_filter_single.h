@@ -65,7 +65,8 @@ struct _GTensorFilterSingleClass
 
 
   /** Invoke the filter for execution. */
-  gboolean (*invoke) (GTensorFilterSingle * self, GstTensorMemory * input, GstTensorMemory * output);
+  gboolean (*invoke) (GTensorFilterSingle * self, const GstTensorMemory * input,
+      GstTensorMemory * output);
   /** Start the filter, must be called before invoke. */
   gboolean (*start) (GTensorFilterSingle * self);
   /** Stop the filter.*/
@@ -74,6 +75,9 @@ struct _GTensorFilterSingleClass
   gboolean (*input_configured) (GTensorFilterSingle * self);
   /** Check if the output is already configured */
   gboolean (*output_configured) (GTensorFilterSingle * self);
+  /** Set the info about the input tensor */
+  gboolean (*set_input_info) (GTensorFilterSingle * self,
+      const GstTensorsInfo * in_info);
 };
 
 /**

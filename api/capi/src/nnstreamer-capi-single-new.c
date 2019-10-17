@@ -95,6 +95,7 @@ typedef struct
   GTensorFilterSingle *filter;  /**< tensor filter element */
   ml_tensors_info_s in_info;    /**< info about input */
   ml_tensors_info_s out_info;   /**< info about output */
+  ml_nnfw_type_e nnfw;          /**< nnfw type for this filter */
   guint magic;                  /**< code to verify valid handle */
 
   GThread *thread;              /**< thread for invoking */
@@ -450,6 +451,7 @@ ml_single_open (ml_single_h * single, const char *model,
    * 3. Construct a pipeline
    * Set the pipeline desc with nnfw.
    */
+  single_h->nnfw = nnfw;
   switch (nnfw) {
     case ML_NNFW_TYPE_CUSTOM_FILTER:
       g_object_set (filter_obj, "framework", "custom", "model", model, NULL);
@@ -732,6 +734,27 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
  */
 int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
 {
-  /** TODO: Fill me */
-  return ML_ERROR_NOT_SUPPORTED;
+  ml_single *single_h;
+  GTensorFilterSingleClass *klass;
+  int status = ML_ERROR_NONE;
+
+  check_feature_state ();
+
+  if (!single)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
+
+  switch (single_h->nnfw) {
+    case ML_NNFW_TYPE_TENSORFLOW_LITE:
+      klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
+      if (klass->set_input_info (single_h->filter, info) == FALSE)
+        status = ML_ERROR_INVALID_PARAMETER;
+      break;
+    default:
+      status = ML_ERROR_NOT_SUPPORTED;
+  }
+
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
+  return status;
 }
