@@ -42,9 +42,9 @@ ml_tensors_info_create (ml_tensors_info_h * info)
     return ML_ERROR_INVALID_PARAMETER;
 
   *info = tensors_info = g_new0 (ml_tensors_info_s, 1);
-  ml_tensors_info_initialize (tensors_info);
 
-  return ML_ERROR_NONE;
+  /* init tensors info struct */
+  return ml_tensors_info_initialize (tensors_info);
 }
 
 /**

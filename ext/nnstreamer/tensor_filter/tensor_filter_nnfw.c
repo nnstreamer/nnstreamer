@@ -70,11 +70,11 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     }
   }
 
-  pdata = g_new0 (nnfw_pdata, 1);
-  if (pdata == NULL)
+  pdata = *private_data = g_new0 (nnfw_pdata, 1);
+  if (pdata == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
     return -ENOMEM;
-
-  *private_data = (void *) pdata;
+  }
 
   status = nnfw_create_session (&pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {

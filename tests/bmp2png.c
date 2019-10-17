@@ -142,11 +142,12 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
       PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
   /** Initialize rows of PNG. */
-
   row_pointers = png_malloc (png_ptr, bitmap->height * sizeof (png_byte *));
+  g_assert (row_pointers != NULL);
   for (y = 0; y < bitmap->height; y++) {
     png_byte *row =
         png_malloc (png_ptr, sizeof (uint8_t) * bitmap->width * pixel_size);
+    g_assert (row != NULL);
     row_pointers[y] = row;
     for (x = 0; x < bitmap->width; x++) {
       pixel_t *pixel = pixel_at (bitmap, x, y);

@@ -80,8 +80,12 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
     }
   }
 
-  tf = g_new0 (tf_data, 1); /** initialize tf Fill Zero! */
-  *private_data = tf;
+  tf = *private_data = g_new0 (tf_data, 1);
+  if (tf == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
   tf->tf_private_data = tf_core_new (prop->model_file);
 
   if (tf->tf_private_data) {

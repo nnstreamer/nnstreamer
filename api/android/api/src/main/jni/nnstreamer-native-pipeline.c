@@ -127,7 +127,10 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   if (handle == NULL) {
     /* get sink handle and register to table */
     element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
+    if (item == NULL) {
+      nns_loge ("Failed to allocate memory for sink handle data.");
+      return NULL;
+    }
 
     status = ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb, item, &handle);
     if (status != ML_ERROR_NONE) {
@@ -174,7 +177,11 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
+    if (item == NULL) {
+      nns_loge ("Failed to allocate memory for src handle data.");
+      ml_pipeline_src_release_handle (handle);
+      return NULL;
+    }
 
     item->name = g_strdup (element_name);
     item->type = g_strdup (NNS_ELEMENT_TYPE_SRC);
@@ -215,7 +222,11 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
+    if (item == NULL) {
+      nns_loge ("Failed to allocate memory for switch handle data.");
+      ml_pipeline_switch_release_handle (handle);
+      return NULL;
+    }
 
     item->name = g_strdup (element_name);
     if (switch_type == ML_PIPELINE_SWITCH_INPUT_SELECTOR)
@@ -258,7 +269,11 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     element_data_s *item = g_new0 (element_data_s, 1);
-    g_assert (item);
+    if (item == NULL) {
+      nns_loge ("Failed to allocate memory for valve handle data.");
+      ml_pipeline_valve_release_handle (handle);
+      return NULL;
+    }
 
     item->name = g_strdup (element_name);
     item->type = g_strdup (NNS_ELEMENT_TYPE_VALVE);
@@ -413,7 +428,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
   }
 
   input = g_new0 (ml_tensors_data_s, 1);
-  if (!input) {
+  if (input == NULL) {
     nns_loge ("Failed to allocate memory for input data.");
     goto done;
   }

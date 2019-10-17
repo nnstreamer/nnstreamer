@@ -47,6 +47,9 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
   guint i;
   int ret = -1;
 
+  in_data = out_data = NULL;
+  in_info = out_info = NULL;
+
   /* get pipe info and init */
   pipe_info = g_hash_table_lookup (g_customfilters, prop->fwname);
   g_return_val_if_fail (pipe_info, -1);
@@ -55,16 +58,28 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
   g_return_val_if_fail (env, -1);
 
   in_data = g_new0 (ml_tensors_data_s, 1);
-  g_assert (in_data);
+  if (in_data == NULL) {
+    nns_loge ("Failed to allocate memory for input tensors data.");
+    goto done;
+  }
 
   out_data = g_new0 (ml_tensors_data_s, 1);
-  g_assert (out_data);
+  if (out_data == NULL) {
+    nns_loge ("Failed to allocate memory for output tensors data.");
+    goto done;
+  }
 
   in_info = g_new0 (ml_tensors_info_s, 1);
-  g_assert (in_info);
+  if (in_info == NULL) {
+    nns_loge ("Failed to allocate memory for input tensors info.");
+    goto done;
+  }
 
   out_info = g_new0 (ml_tensors_info_s, 1);
-  g_assert (out_info);
+  if (out_info == NULL) {
+    nns_loge ("Failed to allocate memory for output tensors info.");
+    goto done;
+  }
 
   /* convert to c-api data type */
   in_data->num_tensors = prop->input_meta.num_tensors;
@@ -161,6 +176,8 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
   JNIEnv *env;
   int ret = -1;
 
+  in = out = NULL;
+
   /* get pipe info and init */
   pipe_info = g_hash_table_lookup (g_customfilters, prop->fwname);
   g_return_val_if_fail (pipe_info, -1);
@@ -169,10 +186,16 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
   g_return_val_if_fail (env, -1);
 
   in = g_new0 (ml_tensors_info_s, 1);
-  g_assert (in);
+  if (in == NULL) {
+    nns_loge ("Failed to allocate memory for input tensors info.");
+    goto done;
+  }
 
   out = g_new0 (ml_tensors_info_s, 1);
-  g_assert (out);
+  if (out == NULL) {
+    nns_loge ("Failed to allocate memory for output tensors info.");
+    goto done;
+  }
 
   /* convert to c-api data type */
   ml_tensors_info_copy_from_gst (in, in_info);
@@ -235,7 +258,7 @@ Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject
 
   /* prepare filter-framework */
   fw = g_new0 (GstTensorFilterFramework, 1);
-  if (!fw) {
+  if (fw == NULL) {
     nns_loge ("Failed to allocate memory for filter framework.");
     goto done;
   }

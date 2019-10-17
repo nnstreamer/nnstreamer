@@ -674,6 +674,7 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
   GST_BUFFER_PTS (buffer) = current_ts;
 
   wrapped_buf = g_new0 (GstWrappedBuf, 1);
+  g_assert (wrapped_buf != NULL);
   wrapped_buf->refcount = 1;
   wrapped_buf->amcsrc = g_object_ref (self);
   wrapped_buf->buf = buf;
@@ -688,6 +689,7 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
   gst_buffer_append_memory (buffer, mem);
 
   item = g_new0 (GstDataQueueItem, 1);
+  g_assert (item != NULL);
   item->object = GST_MINI_OBJECT (buffer);
   item->size = gst_buffer_get_size (buffer);
   item->visible = TRUE;

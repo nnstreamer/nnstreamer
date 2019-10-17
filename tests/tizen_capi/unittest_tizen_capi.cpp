@@ -564,9 +564,11 @@ TEST (nnstreamer_capi_sink, dummy_02)
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
   pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  ASSERT_TRUE (pipe_state != NULL);
 
   status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -620,6 +622,7 @@ TEST (nnstreamer_capi_sink, failure_01_n)
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
@@ -707,12 +710,14 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_TRUE (dir != NULL);
   for (i = 0; i < 10; i++) {
     uintarray1[i] = (uint8_t *) g_malloc (4);
+    ASSERT_TRUE (uintarray1[i] != NULL);
     uintarray1[i][0] = i + 4;
     uintarray1[i][1] = i + 1;
     uintarray1[i][2] = i + 3;
     uintarray1[i][3] = i + 2;
 
     uintarray2[i] = (uint8_t *) g_malloc (4);
+    ASSERT_TRUE (uintarray2[i] != NULL);
     uintarray2[i][0] = i + 3;
     uintarray2[i][1] = i + 2;
     uintarray2[i][2] = i + 1;
@@ -947,9 +952,11 @@ TEST (nnstreamer_capi_switch, dummy_01)
       "videotestsrc num-buffers=3 is-live=true ! videoconvert ! ins.sink_1");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
   pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  ASSERT_TRUE (pipe_state != NULL);
 
   status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1037,9 +1044,11 @@ TEST (nnstreamer_capi_switch, dummy_02)
       "outs.src_1 ! tensor_sink name=sink1 async=false");
 
   count_sink0 = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink0 != NULL);
   *count_sink0 = 0;
 
   count_sink1 = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink1 != NULL);
   *count_sink1 = 0;
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);

@@ -82,8 +82,12 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
       return 1;
     }
   }
-  cf2 = g_new0 (caffe2_data, 1); /** initialize cf2 Fill Zero! */
-  *private_data = cf2;
+  cf2 = *private_data = g_new0 (caffe2_data, 1);
+  if (cf2 == NULL) {
+    g_critical ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
   cf2->caffe2_private_data = caffe2_core_new (prop->model_file,
       prop->model_file_sub);
   if (cf2->caffe2_private_data) {

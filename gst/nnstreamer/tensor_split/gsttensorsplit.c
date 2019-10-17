@@ -294,6 +294,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
   }
 
   tensorpad = g_new0 (GstTensorPad, 1);
+  g_assert (tensorpad != NULL);
   GST_DEBUG_OBJECT (split, "createing pad: %d(%dth)", split->num_srcpads, nth);
 
   name = g_strdup_printf ("src_%u", split->num_srcpads);
@@ -588,6 +589,7 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
         p = g_strsplit_set (strv[i], ":", -1);
         num = g_strv_length (p);
         d = g_new0 (tensor_dim, 1);
+        g_assert (d != NULL);
         for (k = 0; k < num; k++) {
           (*d)[k] = g_ascii_strtod (p[k], NULL);
         }

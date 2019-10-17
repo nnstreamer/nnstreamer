@@ -691,7 +691,11 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
       mm_res = (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles, res_key);
       if (!mm_res) {
         mm_res = g_new0 (pipeline_resource_s, 1);
-        g_assert (mm_res);
+        if (mm_res == NULL) {
+          ml_loge ("Failed to allocate media resource data.");
+          g_free (res_key);
+          goto rm_error;
+        }
 
         mm_res->type = g_strdup (res_key);
         g_hash_table_insert (mm_handle->res_handles, g_strdup (res_key), mm_res);

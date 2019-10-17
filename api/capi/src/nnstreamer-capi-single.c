@@ -342,13 +342,17 @@ ml_single_open (ml_single_h * single, const char *model,
   }
 
   /* 4. Allocate */
+  single_h = g_new0 (ml_single, 1);
+  if (single_h == NULL) {
+    ml_loge ("Failed to allocate the single handle.");
+    ml_pipeline_destroy (pipe);
+    return ML_ERROR_STREAMS_PIPE;
+  }
+
   pipe_h = (ml_pipeline *) pipe;
   appsrc = gst_bin_get_by_name (GST_BIN (pipe_h->element), "srcx");
   appsink = gst_bin_get_by_name (GST_BIN (pipe_h->element), "sinkx");
   filter = gst_bin_get_by_name (GST_BIN (pipe_h->element), "filterx");
-
-  single_h = g_new0 (ml_single, 1);
-  g_assert (single_h);
 
   single_h->magic = ML_SINGLE_MAGIC;
   single_h->pipe = pipe;

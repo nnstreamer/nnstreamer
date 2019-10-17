@@ -244,11 +244,10 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
   lstF = g_slist_reverse (lstF);
   lstB = g_slist_reverse (lstB);
 
-  *fullpath_vstr = g_malloc_n (counter + 1, sizeof (gchar *));
-  *basename_vstr = g_malloc_n (counter + 1, sizeof (gchar *));
-
-  (*fullpath_vstr)[counter] = NULL;
-  (*basename_vstr)[counter] = NULL;
+  *fullpath_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
+  g_assert (*fullpath_vstr != NULL);
+  *basename_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
+  g_assert (*basename_vstr != NULL);
 
   vstrF.vstr = *fullpath_vstr;
   vstrB.vstr = *basename_vstr;

@@ -422,13 +422,20 @@ ml_single_open (ml_single_h * single, const char *model,
 
   if (!available) {
     ml_loge ("The given nnfw is not available.");
-    status = ML_ERROR_NOT_SUPPORTED;
-    return status;
+    return ML_ERROR_NOT_SUPPORTED;
   }
 
   /** Create ml_single object */
   single_h = g_new0 (ml_single, 1);
-  g_assert (single_h);
+  if (single_h == NULL) {
+    ml_loge ("Failed to allocate the single handle.");
+    /**
+     * @todo define error code (ML_ERROR_OUT_OF_MEMORY) for no-mem case in ml_error_e
+     * TIZEN_ERROR_OUT_OF_MEMORY = -ENOMEM
+     */
+    return ML_ERROR_UNKNOWN;
+  }
+
   single_h->magic = ML_SINGLE_MAGIC;
 
   single_h->filter = g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);

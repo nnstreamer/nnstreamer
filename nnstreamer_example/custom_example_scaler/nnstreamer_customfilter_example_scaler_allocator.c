@@ -139,7 +139,7 @@ pt_allocate_invoke (void *private_data,
   size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
 
   output[0].data = malloc (size);
-  assert (output[0].data);
+  assert (output[0].data != NULL);
 
   /* This assumes the limit is 4 */
   assert (NNS_TENSOR_RANK_LIMIT == 4);

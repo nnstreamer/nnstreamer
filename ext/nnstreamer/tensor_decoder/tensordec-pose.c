@@ -75,9 +75,13 @@ pose_init (void **pdata)
 {
   int i, j, k;
   pose_data *data;
-  *pdata = g_new0 (pose_data, 1);
 
-  data = *pdata;
+  data = *pdata = g_new0 (pose_data, 1);
+  if (data == NULL) {
+    GST_ERROR ("Failed to allocate memory for decoder subplugin.");
+    return FALSE;
+  }
+
   data->width = 0;
   data->height = 0;
   data->i_width = 0;
