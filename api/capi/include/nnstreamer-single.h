@@ -139,6 +139,19 @@ int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
 int ml_single_get_output_info (ml_single_h single, ml_tensors_info_h *info);
 
 /**
+ * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
+ * @details Note that a model/framework may not support setting such information.
+ * @param[in] single The model handle.
+ * @param[in] info The handle of input tensors information.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
+ *         Use ml_single_set_input_info/ml_single_get_output_info APIs instead for this framework.
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ */
+int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
+
+/**
  * @brief Sets the maximum amount of time to wait for an output, in milliseconds.
  * @since_tizen 5.5
  * @param[in] single The model handle.
