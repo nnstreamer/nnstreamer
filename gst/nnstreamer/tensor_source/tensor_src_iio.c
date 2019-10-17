@@ -893,7 +893,12 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
         continue;
       }
 
-      channel_prop = g_new (GstTensorSrcIIOChannelProperties, 1);
+      channel_prop = g_new0 (GstTensorSrcIIOChannelProperties, 1);
+      if (channel_prop == NULL) {
+        GST_ERROR_OBJECT (self, "Failed to allocate for channel property.");
+        goto error_cleanup_list;
+      }
+
       self->channels = g_list_prepend (self->channels, channel_prop);
 
       /** set the name and base_dir */
@@ -1355,7 +1360,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
     GST_ERROR_OBJECT (self, "Unable to write to file %s.\n", filename);
     goto error_close_file;
   }
-  if (fclose (fd)) {
+  if (fclose (fd) != 0) {
     GST_ERROR_OBJECT (self, "Unable to close file %s after write.\n", filename);
     goto error_free_filename;
   }
@@ -1381,7 +1386,9 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
   return ret;
 
 error_close_file:
-  fclose (fd);
+  if (fclose (fd) != 0) {
+    GST_ERROR_OBJECT (self, "Unable to close file %s.\n", filename);
+  }
 
 error_free_filename:
   g_free (filename);
@@ -1488,7 +1495,11 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
    * create a bigger array, insert info in it and
    * then merge tensors with same type+size
    */
-  info = g_new (GstTensorInfo, tensor_src_iio->num_channels_enabled);
+  info = g_new0 (GstTensorInfo, tensor_src_iio->num_channels_enabled);
+  if (info == NULL) {
+    GST_ERROR_OBJECT (tensor_src_iio, "Failed to allocate caps config data.");
+    return FALSE;
+  }
 
   /** compile tensor info data */
   for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
@@ -1888,6 +1899,11 @@ gst_tensor_src_iio_setup_device_buffer (GstTensorSrcIIO * self)
   g_free (device_name);
 
   self->buffer_data_fp = g_new (struct pollfd, 1);
+  if (self->buffer_data_fp == NULL) {
+    GST_ERROR_OBJECT (self, "Failed to allocate the file descriptor.");
+    goto error_return;
+  }
+
   self->buffer_data_fp->events = POLLIN;
   self->buffer_data_fp->fd = open (filename, O_RDONLY | O_NONBLOCK);
   if (self->buffer_data_fp->fd < 0) {
@@ -2431,6 +2447,10 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   /** memory to data from file */
   bytes_to_read = self->scan_size * self->buffer_capacity;
   raw_data_base = g_malloc (bytes_to_read);
+  if (raw_data_base == NULL) {
+    GST_ERROR_OBJECT (self, "Failed to allocate memory to read raw data.");
+    goto error_data_free;
+  }
 
   /** wait for the data to arrive */
   time_to_end = g_get_real_time () + self->poll_timeout * 1000;

@@ -151,7 +151,10 @@ register_subplugin (subpluginType type, const char *name, const void *data)
   }
 
   spdata = g_new (subpluginData, 1);
-  g_assert (spdata);
+  if (spdata == NULL) {
+    g_critical ("Failed to allocate memory for subplugin registration.");
+    return FALSE;
+  }
 
   spdata->name = g_strdup (name);
   spdata->data = data;

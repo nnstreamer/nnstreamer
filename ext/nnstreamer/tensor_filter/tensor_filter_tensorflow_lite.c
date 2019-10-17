@@ -125,8 +125,12 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
       return 1;
     }
   }
-  tf = g_new0 (tflite_data, 1); /** initialize tf Fill Zero! */
-  *private_data = tf;
+  tf = *private_data = g_new0 (tflite_data, 1);
+  if (tf == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
   tf->tflite_private_data = tflite_core_new (prop->model_file, hw);
   if (tf->tflite_private_data) {
     if (tflite_core_init (tf->tflite_private_data)) {

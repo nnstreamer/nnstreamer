@@ -2682,6 +2682,9 @@ TEST (test_tensor_transform, orc_performance)
   uint8_t *data_u8 = (uint8_t *) g_malloc0 (sizeof (uint8_t) * array_size);
   float *data_float = (float *) g_malloc0 (sizeof (float) * array_size);
 
+  ASSERT_TRUE (data_u8 != NULL);
+  ASSERT_TRUE (data_float != NULL);
+
   /* orc add u8 */
   start_ts = g_get_real_time ();
   nns_orc_add_c_u8 (data_u8, 2, array_size);

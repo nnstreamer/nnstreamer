@@ -143,6 +143,7 @@ make_iio_dev_structure (int num)
   const gchar *_dirname = "nnst-src-XXXXXX";
 
   iio_dev_dir_struct *iio_dev = g_new0 (iio_dev_dir_struct, 1);
+  g_assert (iio_dev != NULL);
   iio_dev->base_dir = g_build_filename (_tmp_dir, _dirname, NULL);
   iio_dev->base_dir = g_mkdtemp_full (iio_dev->base_dir, 0777);
   EXPECT_EQ (safe_rmdir (iio_dev->base_dir), 0);
@@ -602,6 +603,11 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
   }
 
   gchar *copied_scan_el_data = (gchar *) malloc (data_size * BUF_LENGTH);
+  if (copied_scan_el_data == NULL) {
+    g_free (scan_el_data);
+    return -1;
+  }
+
   for (int idx = 0; idx < BUF_LENGTH; idx++) {
     memcpy (copied_scan_el_data + data_size * idx, scan_el_data, data_size);
   }
@@ -1121,6 +1127,7 @@ TEST (test_tensor_src_iio, \
   ASSERT_GE (fd, 0); \
   bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements/SKIP; \
   data_buffer = (gchar *) malloc (bytes_to_read); \
+  ASSERT_TRUE (data_buffer != NULL); \
   bytes_read = read (fd, data_buffer, bytes_to_read); \
   EXPECT_EQ (bytes_read, bytes_to_read); \
   expect_val_mask = G_MAXUINT64 >> (64 - data_bits); \
@@ -1254,6 +1261,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
     ASSERT_GE (fd, 0);
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
     data_buffer = (gchar *) malloc (bytes_to_read);
+    ASSERT_TRUE (data_buffer != NULL);
     bytes_read = read (fd, data_buffer, bytes_to_read);
     EXPECT_EQ (bytes_read, bytes_to_read);
     expect_val_mask = G_MAXUINT64 >> (64 - data_bits);
@@ -1509,6 +1517,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
     ASSERT_GE (fd, 0);
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
     data_buffer = (gchar *) malloc (bytes_to_read);
+    ASSERT_TRUE (data_buffer != NULL);
     bytes_read = read (fd, data_buffer, bytes_to_read);
     EXPECT_EQ (bytes_read, bytes_to_read);
     expect_val_mask = G_MAXUINT64 >> (64 - data_bits);

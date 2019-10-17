@@ -211,7 +211,12 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
     return TRUE;
   }
 
-  data = g_new (GstTensorRepoData, 1);
+  data = g_new0 (GstTensorRepoData, 1);
+  if (data == NULL) {
+    GST_ERROR ("Failed to allocate memory for repo data.");
+    return FALSE;
+  }
+
   data->eos = FALSE;
   data->buffer = NULL;
   g_cond_init (&data->cond_push);

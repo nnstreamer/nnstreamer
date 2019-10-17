@@ -75,8 +75,11 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
     return -1;
   }
 
-  ptr = g_new0 (internal_data, 1);      /* Fill Zero! */
-  *private_data = ptr;
+  ptr = *private_data = g_new0 (internal_data, 1);
+  if (ptr == NULL) {
+    g_critical ("Failed to allocate memory for custom filter.");
+    return -1;
+  }
 
   /* Load .so if this is the first time for this instance. */
   ptr->handle = dlopen (prop->model_file, RTLD_NOW);

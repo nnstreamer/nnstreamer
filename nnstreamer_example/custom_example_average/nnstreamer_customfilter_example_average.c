@@ -84,6 +84,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
       sumtype *avg = (sumtype *) malloc(sizeof(sumtype) * prop->input_meta.info[0].dimension[0]); \
       type *iptr = (type *) input[0].data; \
       type *optr = (type *) output[0].data; \
+      assert (avg); \
       for (z = 0; z < prop->input_meta.info[0].dimension[3]; z++) { \
         for (y = 0; y < prop->input_meta.info[0].dimension[0]; y++) \
           avg[y] = 0; \

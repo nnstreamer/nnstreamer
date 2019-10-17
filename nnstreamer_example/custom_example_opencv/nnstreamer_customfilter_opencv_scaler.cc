@@ -44,7 +44,9 @@ typedef struct _pt_data
 static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
-  pt_data *data = g_new(pt_data, 1);
+  pt_data *data = g_new0 (pt_data, 1);
+  g_assert (data != NULL);
+
   data->out_width = 0;
   data->out_height = 0;
 
@@ -131,7 +133,9 @@ pt_allocate_invoke (void *private_data,
   in_size = gst_tensor_info_get_size (&prop->input_meta.info[0]);
   out_size = gst_tensor_info_get_size (&prop->output_meta.info[0]);
   buffer = g_malloc (in_size);
+  g_assert (buffer != NULL);
   output[0].data = g_malloc (out_size);
+  g_assert (output[0].data != NULL);
 
   /* Get Mat object from input tensor */
   memcpy (buffer, input[0].data, in_size);

@@ -113,7 +113,7 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gcha
   pipeline_info_s *pipe_info;
 
   pipe_info = g_new0 (pipeline_info_s, 1);
-  g_assert (pipe_info);
+  g_return_val_if_fail (pipe_info != NULL, NULL);
 
   pipe_info->pipeline_type = g_strdup (type);
   pipe_info->pipeline_handle = handle;
@@ -303,7 +303,7 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor_data);
 
       data->tensors[i].tensor = g_malloc (data_size);
-      if (!data->tensors[i].tensor) {
+      if (data->tensors[i].tensor == NULL) {
         nns_loge ("Failed to allocate memory %zd, data index %d.", data_size, i);
         (*env)->DeleteLocalRef (env, tensor_data);
         goto failed;

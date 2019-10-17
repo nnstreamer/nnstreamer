@@ -174,9 +174,13 @@ bb_init (void **pdata)
   /** @todo check if we need to ensure plugin_data is not yet allocated */
   bounding_boxes *bdata;
   int i, j, k;
-  *pdata = g_new0 (bounding_boxes, 1);
 
-  bdata = *pdata;
+  bdata = *pdata = g_new0 (bounding_boxes, 1);
+  if (bdata == NULL) {
+    GST_ERROR ("Failed to allocate memory for decoder subplugin.");
+    return FALSE;
+  }
+
   bdata->mode = BOUNDING_BOX_UNKNOWN;
   bdata->width = 0;
   bdata->height = 0;
@@ -262,6 +266,11 @@ loadImageLabels (bounding_boxes * data)
   labels = g_strsplit (contents, "\n", -1);
   data->total_labels = g_strv_length (labels);
   data->labels = g_new0 (char *, data->total_labels);
+  if (data->labels == NULL) {
+    GST_ERROR ("Failed to allocate memory for label data.");
+    data->total_labels = 0;
+    goto error;
+  }
 
   for (i = 0; i < data->total_labels; i++) {
     data->labels[i] = g_strdup (labels[i]);
@@ -272,11 +281,14 @@ loadImageLabels (bounding_boxes * data)
     }
   }
 
+error:
   g_strfreev (labels);
   g_free (contents);
 
-  GST_INFO ("Loaded image label file successfully. %u labels loaded.",
-      data->total_labels);
+  if (data->labels != NULL) {
+    GST_INFO ("Loaded image label file successfully. %u labels loaded.",
+        data->total_labels);
+  }
   return;
 }
 

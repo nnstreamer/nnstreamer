@@ -178,8 +178,12 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     }
   }
 
-  py = g_new0 (py_data, 1); /** initialize py Fill Zero! */
-  *private_data = py;
+  py = *private_data = g_new0 (py_data, 1);
+  if (py == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
   py->py_private_data = py_core_new (prop->model_file, prop->custom_properties);
 
   if (py->py_private_data) {

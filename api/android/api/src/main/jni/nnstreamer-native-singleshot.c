@@ -98,7 +98,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
   output = NULL;
 
   input = g_new0 (ml_tensors_data_s, 1);
-  if (!input) {
+  if (input == NULL) {
     nns_loge ("Failed to allocate memory for input data.");
     goto done;
   }

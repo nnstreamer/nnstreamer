@@ -84,8 +84,12 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
   torch_use_gpu = nnsconf_get_custom_value_bool ("pytorch", "enable_use_gpu",
       FALSE);
 
-  torch = g_new0 (torch_data, 1);
-  *private_data = torch;
+  torch = *private_data = g_new0 (torch_data, 1);
+  if (torch == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
   torch->torch_private_data = torch_core_new (prop->model_file);
 
   if (torch->torch_private_data) {

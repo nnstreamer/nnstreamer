@@ -71,6 +71,12 @@ construct_element (GstElement * e, ml_pipeline * p, const char *name,
     ml_pipeline_element_e t)
 {
   ml_pipeline_element *ret = g_new0 (ml_pipeline_element, 1);
+
+  if (ret == NULL) {
+    ml_loge ("Failed to allocate memory for the pipeline.");
+    return NULL;
+  }
+
   ret->element = e;
   ret->pipe = p;
   ret->name = g_strdup (name);
@@ -141,7 +147,10 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
 
   /* set tensor data */
   data = g_new0 (ml_tensors_data_s, 1);
-  g_assert (data);
+  if (data == NULL) {
+    ml_loge ("Failed to allocate memory for tensors data in sink callback.");
+    return;
+  }
 
   data->num_tensors = num_mems;
   for (i = 0; i < num_mems; i++) {
@@ -405,7 +414,7 @@ construct_pipeline_internal (const char *pipeline_description,
 
   /* prepare pipeline handle */
   pipe_h = g_new0 (ml_pipeline, 1);
-  if (!pipe_h) {
+  if (pipe_h == NULL) {
     ml_loge ("Failed to allocate handle for pipeline.");
     return ML_ERROR_STREAMS_PIPE;
   }
@@ -514,7 +523,13 @@ construct_pipeline_internal (const char *pipeline_description,
                 ml_pipeline_element *e;
 
                 e = construct_element (elem, pipe_h, name, element_type);
-                g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
+                if (e != NULL) {
+                  g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
+                } else {
+                  /* allocation failure */
+                  status = ML_ERROR_STREAMS_PIPE;
+                  done = TRUE;
+                }
               }
 
               g_free (name);
@@ -832,8 +847,12 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
     goto unlock_return;
   }
 
-  *h = g_new0 (ml_pipeline_sink, 1);
-  sink = *h;
+  sink = *h = g_new0 (ml_pipeline_sink, 1);
+  if (sink == NULL) {
+    ml_loge ("Failed to allocate the sink handle for %s.", sink_name);
+    ret = ML_ERROR_STREAMS_PIPE;
+    goto unlock_return;
+  }
 
   sink->pipe = p;
   sink->element = elem;
@@ -966,8 +985,12 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
     goto unlock_return;
   }
 
-  *h = g_new (ml_pipeline_src, 1);
-  src = *h;
+  src = *h = g_new0 (ml_pipeline_src, 1);
+  if (src == NULL) {
+    ml_loge ("Failed to allocate the src handle for %s.", src_name);
+    ret = ML_ERROR_STREAMS_PIPE;
+    goto unlock_return;
+  }
 
   src->pipe = p;
   src->element = elem;
@@ -1182,8 +1205,12 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
     goto unlock_return;
   }
 
-  *h = g_new0 (ml_pipeline_switch, 1);
-  swtc = *h;
+  swtc = *h = g_new0 (ml_pipeline_switch, 1);
+  if (swtc == NULL) {
+    ml_loge ("Failed to allocate the switch handle for %s.", switch_name);
+    ret = ML_ERROR_STREAMS_PIPE;
+    goto unlock_return;
+  }
 
   swtc->pipe = p;
   swtc->element = elem;
@@ -1331,6 +1358,11 @@ ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
     GList *l;
 
     *list = g_malloc0 (sizeof (char *) * (counter + 1));
+    if (*list == NULL) {
+      ml_loge ("Failed to allocate memory for pad list.");
+      ret = ML_ERROR_STREAMS_PIPE;
+      goto unlock_return;
+    }
 
     for (l = dllist; l != NULL; l = l->next) {
       (*list)[i] = l->data;     /* Allocated by gst_pad_get_name(). Caller has to free it */
@@ -1403,8 +1435,12 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
     goto unlock_return;
   }
 
-  *h = g_new0 (ml_pipeline_valve, 1);
-  valve = *h;
+  valve = *h = g_new0 (ml_pipeline_valve, 1);
+  if (valve == NULL) {
+    ml_loge ("Failed to allocate the valve handle for %s.", valve_name);
+    ret = ML_ERROR_STREAMS_PIPE;
+    goto unlock_return;
+  }
 
   valve->pipe = p;
   valve->element = elem;

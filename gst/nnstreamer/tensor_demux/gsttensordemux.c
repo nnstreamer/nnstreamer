@@ -327,6 +327,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   }
 
   tensorpad = g_new0 (GstTensorPad, 1);
+  g_assert (tensorpad != NULL);
   GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d(%dth)",
       tensor_demux->num_srcpads, nth);
 

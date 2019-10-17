@@ -417,10 +417,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     if (input_tensor_info[i].type == TF_STRING){
       size_t encoded_size = TF_StringEncodedSize (input[i].size);
       size_t total_size = 8 + encoded_size;
-      input_encoded = (char*) malloc (total_size);
-      for (int j =0; j < 8; ++j) {
-          input_encoded[j] = 0;
+
+      input_encoded = (char*) g_malloc0 (total_size);
+      if (input_encoded == NULL) {
+        g_critical ("Failed to allocate memory for input tensor.");
+        return -1;
       }
+
       TF_StringEncode (
         (char *)input[i].data,
         input[i].size,
