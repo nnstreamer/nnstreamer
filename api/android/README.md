@@ -9,7 +9,7 @@ We assume that you already have experienced Android application developments wit
    * Android Studio: Ubuntu version
    * Android SDK: Min version 24 (Nougat)
    * Android NDK: Use default ndk-bundle in Android Studio
-   * GStreamer: gstreamer-1.0-android-universal-1.16.0
+   * GStreamer: gstreamer-1.0-android-universal-1.16.1
 
 ## Build library
 
@@ -23,10 +23,10 @@ $ mkdir -p $HOME/android/gstreamer-1.0
 $ mkdir -p $HOME/android/workspace
 $
 $ vi ~/.bashrc
-# Environmet variables for developing a NNStreamer application
+# Environment variables for developing a NNStreamer application
 # $ANDROID_DEV_ROOT/gstreamer-1.0                # GStreamer binaries
 # $ANDROID_DEV_ROOT/tools/sdk                    # Android SDK root directory (default location: $HOME/Android/Sdk)
-# $ANDROID_DEV_ROOT/workspace/nnstreamer         # nnstreamer cloned git repository
+# $ANDROID_DEV_ROOT/workspace/nnstreamer         # NNStreamer cloned git repository
 #
 export JAVA_HOME=/opt/android-studio/jre            # JRE path in Android Studio
 export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
@@ -64,23 +64,16 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/
-$ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.0/gstreamer-1.0-android-universal-1.16.0.tar.xz
 $ mkdir gstreamer-1.0
 $ cd gstreamer-1.0
-$ tar xJf gstreamer-1.0-android-universal-1.16.0.tar.xz
+$ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.1/gstreamer-1.0-android-universal-1.16.1.tar.xz
+$ tar xJf gstreamer-1.0-android-universal-1.16.1.tar.xz
 ```
 
 Modify the gstreamer-1.0.mk file for NDK build to prevent build error.
 
 ```
 $GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.mk
-```
-
-- Remove ```-nostdlib++``` option.
-
-```
-# Remove '-nostdlib++' in GSTREAMER_ANDROID_CMD of the gstreamer-1.0.mk file for the ARM-based Android software stack.
-GSTREAMER_ANDROID_CMD := $(call libtool-link,$(TARGET_CXX) $(GLOBAL_LDFLAGS) $(TARGET_LDFLAGS) -shared ...
 ```
 
 - Add directory separator.
@@ -97,15 +90,11 @@ GSTREAMER_PLUGINS_WITH_CLASSES := $(strip \
             $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
             $(foreach plugin, $(GSTREAMER_PLUGINS), \
             $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)))))
-```
 
-- Set SYSROOT_GST_INC and SYSROOT_GST_LINK.
-
-```
-    ifdef SYSROOT_INC
-        SYSROOT_GST_INC := $(SYSROOT_INC)     # Add this line
-        SYSROOT_GST_LINK := $(SYSROOT_INC)    # Add this line
-        #$(call assert-defined, SYSROOT_LINK) # Block this line
+copyjavasource_$(TARGET_ARCH_ABI):
+    ...
+    $(hide)$(foreach file,$(GSTREAMER_PLUGINS_CLASSES), \
+        $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
 ```
 
 #### Download NNStreamer source code
