@@ -1,6 +1,9 @@
 # NNStreamer
 
-[![Gitter][gitter-image]][gitter-url] [![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html)
+[![Gitter][gitter-image]][gitter-url] [![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html) <a href="https://scan.coverity.com/projects/nnsuite-nnstreamer">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/19225/badge.svg"/>
+</a>
 
 Neural Network Support as Gstreamer Plugins.
 
