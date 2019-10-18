@@ -22,6 +22,7 @@
  */
 
 #include <unistd.h>
+#include <limits.h>
 #include <algorithm>
 
 #include <nnstreamer_plugin_api.h>
@@ -203,32 +204,44 @@ TFLiteCore::getTensorType (TfLiteType tfType)
 }
 
 /**
+ * @brief extract and store the information of given tensor list
+ * @param tensor_idx_list list of index of tensors in tflite interpreter
+ * @param[out] tensorMeta tensors to set the info into
+ * @return 0 if OK. non-zero if error.
+ */
+int
+TFLiteCore::setTensorProp (const std::vector<int> &tensor_idx_list,
+    GstTensorsInfo * tensorMeta)
+{
+  tensorMeta->num_tensors = tensor_idx_list.size ();
+
+  for (int i = 0; i < tensorMeta->num_tensors; ++i) {
+    if (getTensorDim (tensor_idx_list[i], tensorMeta->info[i].dimension)) {
+      g_critical ("failed to get the dimension of input tensors");
+      return -1;
+    }
+    tensorMeta->info[i].type =
+        getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
+
+#if (DBG)
+    gchar *dim_str =
+        gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
+    g_message ("tensorMeta[%d] >> type:%d, dim[%s]",
+        i, tensorMeta->info[i].type, dim_str);
+    g_free (dim_str);
+#endif
+  }
+  return 0;
+}
+
+/**
  * @brief extract and store the information of input tensors
  * @return 0 if OK. non-zero if error.
  */
 int
 TFLiteCore::setInputTensorProp ()
 {
-  auto input_idx_list = interpreter->inputs ();
-  inputTensorMeta.num_tensors = input_idx_list.size ();
-
-  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    if (getTensorDim (input_idx_list[i], inputTensorMeta.info[i].dimension)) {
-      g_critical ("failed to get the dimension of input tensors");
-      return -1;
-    }
-    inputTensorMeta.info[i].type =
-        getTensorType (interpreter->tensor (input_idx_list[i])->type);
-
-#if (DBG)
-    gchar *dim_str =
-        gst_tensor_get_dimension_string (inputTensorMeta.info[i].dimension);
-    g_message ("inputTensorMeta[%d] >> type:%d, dim[%s]",
-        i, inputTensorMeta.info[i].type, dim_str);
-    g_free (dim_str);
-#endif
-  }
-  return 0;
+  return setTensorProp (interpreter->inputs (), &inputTensorMeta);
 }
 
 /**
@@ -238,26 +251,7 @@ TFLiteCore::setInputTensorProp ()
 int
 TFLiteCore::setOutputTensorProp ()
 {
-  auto output_idx_list = interpreter->outputs ();
-  outputTensorMeta.num_tensors = output_idx_list.size ();
-
-  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    if (getTensorDim (output_idx_list[i], outputTensorMeta.info[i].dimension)) {
-      g_critical ("failed to get the dimension of output tensors");
-      return -1;
-    }
-    outputTensorMeta.info[i].type =
-        getTensorType (interpreter->tensor (output_idx_list[i])->type);
-
-#if (DBG)
-    gchar *dim_str =
-        gst_tensor_get_dimension_string (outputTensorMeta.info[i].dimension);
-    g_message ("outputTensorMeta[%d] >> type:%d, dim[%s]",
-        i, outputTensorMeta.info[i].type, dim_str);
-    g_free (dim_str);
-#endif
-  }
-  return 0;
+  return setTensorProp (interpreter->outputs (), &outputTensorMeta);
 }
 
 /**
@@ -307,6 +301,71 @@ int
 TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
 {
   gst_tensors_info_copy (info, &outputTensorMeta);
+  return 0;
+}
+
+/**
+ * @brief set the Dimension for Input Tensor.
+ * @param info Structure for input tensor info.
+ * @return 0 if OK. non-zero if error.
+ * @note rank can be changed dependent on the model
+ */
+int
+TFLiteCore::setInputTensorDim (const GstTensorsInfo * info)
+{
+  TfLiteStatus status;
+  const std::vector<int> &input_idx_list = interpreter->inputs ();
+
+  /** Cannot change the number of inputs */
+  if (info->num_tensors != input_idx_list.size ())
+    return -EINVAL;
+
+  for (int tensor_idx = 0; tensor_idx < info->num_tensors; ++tensor_idx) {
+    tensor_type tf_type;
+    const GstTensorInfo *tensor_info;
+    int input_rank;
+
+    tensor_info = &info->info[tensor_idx];
+
+    /** cannot change the type of input */
+    tf_type = getTensorType (
+        interpreter->tensor (input_idx_list[tensor_idx])->type);
+    if (tf_type != tensor_info->type)
+      return -EINVAL;
+
+    /**
+     * Given that the rank intended by the user cannot be exactly determined,
+     * iterate over all possible ranks starting from MAX rank to the actual rank
+     * of the dimension array. In case of none of these ranks work, return error
+     */
+    input_rank = gst_tensor_info_get_rank (&info->info[tensor_idx]);
+    for (int rank = NNS_TENSOR_RANK_LIMIT; rank >= input_rank; rank--) {
+			std::vector<int> dims(rank);
+      /* the order of dimension is reversed at CAPS negotiation */
+      for (int idx = 0; idx < rank; ++idx) {
+        /** check overflow when storing uint32_t in int container */
+        if (tensor_info->dimension[rank - idx - 1] > INT_MAX)
+          return -ERANGE;
+        dims[idx] = tensor_info->dimension[rank - idx - 1];
+      }
+
+      status = interpreter->ResizeInputTensor(input_idx_list[tensor_idx], dims);
+      if (status != kTfLiteOk)
+        continue;
+
+      break;
+    }
+
+    /** return error when none of the ranks worked */
+    if (status != kTfLiteOk)
+      return -EINVAL;
+
+  }
+
+  status = interpreter->AllocateTensors();
+  if (status != kTfLiteOk)
+    return -EINVAL;
+
   return 0;
 }
 
@@ -444,6 +503,59 @@ tflite_core_getOutputDim (void * tflite, GstTensorsInfo * info)
 {
   TFLiteCore *c = (TFLiteCore *) tflite;
   return c->getOutputTensorDim (info);
+}
+
+/**
+ * @brief set the Dimension of Input Tensor of model
+ * @param tflite the class object
+ * @param in_info Structure for Input tensor info.
+ * @param[out] out_info Structure for Output tensor info.
+ * @return 0 if OK. non-zero if error.
+ * @detail Output Tensor info is recalculated based on the set Input Tensor Info
+ */
+int
+tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
+    GstTensorsInfo * out_info)
+{
+  int status;
+  TFLiteCore *c = (TFLiteCore *) tflite;
+  GstTensorsInfo cur_in_info;
+
+  /** get current input tensor info for resetting */
+  status = c->getInputTensorDim (&cur_in_info);
+  if (status != 0)
+    return status;
+
+  /** set new input tensor info */
+  status = c->setInputTensorDim (in_info);
+  if (status != 0) {
+    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    return status;
+  }
+
+  /** get output tensor info to be returned */
+  status = c->getOutputTensorDim (out_info);
+  if (status != 0) {
+    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    return status;
+  }
+
+  /** update input tensor info */
+  if ((status = c->setInputTensorProp ()) != 0) {
+    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (c->setInputTensorProp () == 0);
+    return status;
+  }
+
+  /** update output tensor info */
+  if ((status = c->setOutputTensorProp ()) != 0) {
+    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (c->setInputTensorProp () == 0);
+    g_assert (c->setOutputTensorProp () == 0);
+    return status;
+  }
+
+  return 0;
 }
 
 /**

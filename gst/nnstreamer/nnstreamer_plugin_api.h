@@ -85,6 +85,13 @@ extern void
 gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src);
 
 /**
+ * @brief Get tensor rank
+ * @note Minimum rank is 1
+ */
+extern int
+gst_tensor_info_get_rank (const GstTensorInfo * info);
+
+/**
  * @brief Initialize the tensors info structure
  * @param info tensors info structure to be initialized
  */

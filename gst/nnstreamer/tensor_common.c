@@ -223,6 +223,24 @@ gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
 }
 
 /**
+ * @brief Get tensor rank
+ * @note Minimum rank is 1
+ */
+int
+gst_tensor_info_get_rank (const GstTensorInfo * info)
+{
+  int idx;
+
+  /** rank is at least 1 */
+  for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx > 0; idx--) {
+    if (info->dimension[idx] != 1)
+      break;
+  }
+
+  return idx + 1;
+}
+
+/**
  * @brief Initialize the tensors info structure
  * @param info tensors info structure to be initialized
  */
