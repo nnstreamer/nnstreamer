@@ -122,6 +122,7 @@ fi
 
 echo "Starting gradle build for Android library."
 
+chmod +x gradlew
 # Build Android library.
 ./gradlew api:build
 
