@@ -210,6 +210,23 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
   return tflite_core_getOutputDim (tf->tflite_private_data, info);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param in_info The dimesions and types of input tensors
+ * @param[out] out_info The dimesions and types of output tensors
+ */
+static int
+tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  tflite_data *tf;
+  tf = *private_data;
+  g_assert (*private_data);
+  return tflite_core_setInputDim (tf->tflite_private_data, in_info, out_info);
+}
+
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
@@ -219,6 +236,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
+  .setInputDimension = tflite_setInputDim,
   .open = tflite_open,
   .close = tflite_close,
 };

@@ -53,6 +53,7 @@ public:
   int setOutputTensorProp ();
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
+  int setInputTensorDim (const GstTensorsInfo * info);
   int invoke (const GstTensorMemory * input, GstTensorMemory * output);
 
 private:
@@ -73,6 +74,9 @@ private:
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
+
+  int setTensorProp (const std::vector<int> &tensor_idx_list,
+      GstTensorsInfo * tensorMeta);
 };
 
 /**
@@ -88,6 +92,8 @@ extern "C"
   const char *tflite_core_getModelPath (void * tflite);
   int tflite_core_getInputDim (void * tflite, GstTensorsInfo * info);
   int tflite_core_getOutputDim (void * tflite, GstTensorsInfo * info);
+  int tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
+      GstTensorsInfo * out_info);
   int tflite_core_invoke (void * tflite, const GstTensorMemory * input,
       GstTensorMemory * output);
 
