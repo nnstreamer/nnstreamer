@@ -1,4 +1,4 @@
-# Execute gbs with --define "testcoverage 1" in case that you must get unittest coverage statictics
+# Execute gbs with --define "testcoverage 1" in case that you must get unittest coverage statistics
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
