@@ -15,7 +15,7 @@
  *
  */
 /**
- * @file	tensordec-directvideo.c
+ * @file	tensordec-imagesegment.c
  * @date	19 Oct 2019
  * @brief	NNStreamer tensor-decoder subplugin, "image segment",
  *              which detects objects and paints their regions.
@@ -37,7 +37,7 @@
  *    |
  * videoscale
  *    |
- * imagefreeze -- tee ----------------------------------------------- compositor -- videoconvert -- autovideosink
+ * imagefreeze -- tee ----------------------------------------------- videomixer -- videoconvert -- autovideosink
  *                 |                                                       |
  *          tensor_converter -- tensor_transform -- tensor_filter -- tensor_decoder
  *
@@ -45,17 +45,15 @@
  * - Resize image into 257:257 at the first videoscale.
  * - Transfrom RGB value into float32 in range [0,1] at tensor_transform.
  * 
- * gst string pipeline:
  * gst-launch-1.0 -v \
- *     filesrc location=cat.png ! decodebin ! videoconvert ! videoscale ! imagefreeze !\
- *     video/x-raw,format=RGB,width=257,height=257,framerate=10/1 ! tee name=t \
- *     t. ! tensor_converter !\
- *     tensor_transform mode=arithmetic option=typecast:float32,add:0.0,div:255.0 !\
- *     tensor_filter framework=tensorflow-lite model=deeplabv3_257_mv_gpu.tflite !\
- *     tensor_decoder mode=image_segment option1=tflite-deeplab !\
- *     compositor name=mix sink_0::zorder=2 sink_1::zorder=1 !\
- *     videoconvert ! autovideosink \
- *     t. ! queue ! mix.
+ *    filesrc location=cat.png ! decodebin ! videoconvert ! videoscale ! imagefreeze !\
+ *    video/x-raw,format=RGB,width=257,height=257,framerate=10/1 ! tee name=t \
+ *    t. ! queue ! mix. \
+ *    t. ! queue ! tensor_converter !\
+ *    tensor_transform mode=arithmetic option=typecast:float32,add:0.0,div:255.0 !\
+ *    tensor_filter framework=tensorflow-lite model=deeplabv3_257_mv_gpu.tflite !\
+ *    tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. \
+ *    videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! videoconvert !  videoscale ! autovideosink \
  */
 
 #include <string.h>
@@ -69,6 +67,8 @@ void fini_is (void) __attribute__ ((destructor));
 
 #define RGBA_CHANNEL                   4
 #define TFLITE_DEEPLAB_TOTAL_LABELS    21
+
+const static float DETECTION_THRESHOLD = 0.5f;
 
 /**
  * @brief There can be different schemes for image segmentation
@@ -238,7 +238,27 @@ is_getTransformSize (void **pdata, const GstTensorsConfig * config,
 static void
 set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 {
+  uint32_t *frame = (uint32_t *) out_info->data;
+  uint32_t *pos;
+  int i, j;
+  const uint32_t label_color[21] = {
+    0xFF000040, 0xFF800000, 0xFFFFEFD5, 0xFF40E0D0, 0xFFFFA500,
+    0xFF00FF00, 0xFFDC143C, 0xFFF0F8FF, 0xFF008000, 0xFFEE82EE,
+    0xFF808080, 0xFF4169E1, 0xFF008080, 0xFFFF6347, 0xFF000000,
+    0xFFFF4500, 0xFFDA70D6, 0xFFEEE8AA, 0xFF98FB98, 0xFFAFEEEE,
+    0xFFFFF5EE
+  };
 
+  for (i = 0; i < idata->height; i++) {
+    for (j = 0; j < idata->width; j++) {
+      int label_idx = idata->segment_map[i][j];
+      g_assert (label_idx >= 0 && label_idx <= 20);
+      pos = &frame[i * idata->width + j];
+      if (label_idx == 0)
+        continue;               /*Do not set color for background */
+      *pos = label_color[label_idx];
+    }
+  }
 }
 
 
@@ -246,7 +266,33 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 static void
 set_label_index (image_segments * idata, void *data)
 {
+  float *prob_map = (float *) data;
+  int idx, i, j;
+  int max_idx;
+  float max_prob;
 
+  for (i = 0; i < idata->height; i++) {
+    memset (idata->segment_map[i], 0, idata->width * sizeof (guint));
+  }
+
+  for (i = 0; i < idata->height; i++) {
+    for (j = 0; j < idata->width; j++) {
+      max_idx = 0;
+      max_prob = prob_map[i * idata->width * TFLITE_DEEPLAB_TOTAL_LABELS
+          + j * TFLITE_DEEPLAB_TOTAL_LABELS];
+      for (idx = 1; idx < TFLITE_DEEPLAB_TOTAL_LABELS; idx++) {
+        float prob = prob_map[i * idata->width * TFLITE_DEEPLAB_TOTAL_LABELS
+            + j * TFLITE_DEEPLAB_TOTAL_LABELS + idx];
+        if (prob > max_prob) {
+          max_prob = prob;
+          max_idx = idx;
+        }
+      }
+      if (max_prob > DETECTION_THRESHOLD) {
+        idata->segment_map[i][j] = max_idx;
+      }
+    }
+  }
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
