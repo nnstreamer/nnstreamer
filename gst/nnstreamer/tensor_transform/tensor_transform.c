@@ -1474,36 +1474,36 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       out_info->type = in_info->type;
 
       if (direction == GST_PAD_SINK) {
-        int a = filter->data_dimchg.from;
-        int b = filter->data_dimchg.to;
+        int from = filter->data_dimchg.from;
+        int to = filter->data_dimchg.to;
 
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-          if ((i < a && i < b) || (i > a && i > b) || a == b) {
+          if ((i < from && i < to) || (i > from && i > to) || from == to) {
             out_info->dimension[i] = in_info->dimension[i];
-          } else if (i == b) {
-            out_info->dimension[i] = in_info->dimension[a];
-          } else if (a > b) {
-            g_assert (i > 0 && i > b);
+          } else if (i == to) {
+            out_info->dimension[i] = in_info->dimension[from];
+          } else if (from > to) {
+            g_assert (i > 0 && i > to);
             out_info->dimension[i] = in_info->dimension[i - 1];
           } else {
-            g_assert (i < b && i < (NNS_TENSOR_RANK_LIMIT - 1));
+            g_assert (i < to && i < (NNS_TENSOR_RANK_LIMIT - 1));
             out_info->dimension[i] = in_info->dimension[i + 1];
           }
         }
       } else {
-        int a = filter->data_dimchg.from;
-        int b = filter->data_dimchg.to;
+        int from = filter->data_dimchg.from;
+        int to = filter->data_dimchg.to;
 
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-          if ((i < a && i < b) || (i > a && i > b) || a == b) {
+          if ((i < from && i < to) || (i > from && i > to) || from == to) {
             out_info->dimension[i] = in_info->dimension[i];
-          } else if (i == a) {
-            out_info->dimension[i] = in_info->dimension[b];
-          } else if (a > b) {
-            g_assert (i < a && i < (NNS_TENSOR_RANK_LIMIT - 1));
+          } else if (i == from) {
+            out_info->dimension[i] = in_info->dimension[to];
+          } else if (from > to) {
+            g_assert (i < from && i < (NNS_TENSOR_RANK_LIMIT - 1));
             out_info->dimension[i] = in_info->dimension[i + 1];
           } else {
-            g_assert (i > 0 && i > a);
+            g_assert (i > 0 && i > from);
             out_info->dimension[i] = in_info->dimension[i - 1];
           }
         }
