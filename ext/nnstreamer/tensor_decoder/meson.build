@@ -91,3 +91,26 @@ static_library('nnstreamer_decoder_pose_estimation',
   install: true,
   install_dir: nnstreamer_libdir
 )
+
+# image segmentation
+decoder_sub_image_segment_sources = [
+  'tensordec-imagesegment.c',
+]
+
+nnstreamer_decoder_image_segment_sources = []
+foreach s : decoder_sub_image_segment_sources
+  nnstreamer_decoder_image_segment_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+shared_library('nnstreamer_decoder_image_segment',
+  nnstreamer_decoder_image_segment_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: false,
+  install_dir: decoder_subplugin_install_dir
+)
+static_library('nnstreamer_decoder_image_segment',
+  nnstreamer_decoder_image_segment_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: false,
+  install_dir: nnstreamer_libdir
+)
