@@ -46,8 +46,10 @@
 
 const gulong MSEC_PER_USEC = 1000;
 const gulong DEFAULT_JITTER = 0UL;
+const gulong DEFAULT_FPS = 30UL;
 gchar *custom_dir = NULL;
 gulong jitter = DEFAULT_JITTER;
+gulong fps = DEFAULT_FPS;
 
 /**
  * @brief Current status.
@@ -449,123 +451,123 @@ _setup_pipeline (TestOption & option)
       /** video 160x120 RGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_BGR:
       /** video 160x120 BGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGR,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGR,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_PADDING:
       /** video 162x120 RGB, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_BGR_PADDING:
       /** video 162x120 BGR, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGR,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGR,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_3F:
       /** video 160x120 RGB, 3 frames */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGBA:
       /** video 162x120 RGBA */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBA,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBA,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_BGRA:
       /** video 162x120 BGRA */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRA,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRA,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_ARGB:
       /** video 162x120 ARGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ARGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ARGB,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_ABGR:
       /** video 162x120 ABGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ABGR,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=ABGR,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGBx:
       /** video 162x120 RGBx */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBx,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=RGBx,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_xRGB:
       /** video 162x120 xRGB */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xRGB,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xRGB,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_xBGR:
       /** video 162x120 xBGR */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xBGR,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=xBGR,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_BGRx:
       /** video 162x120 BGRx */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRx,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=BGRx,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_BGRx_2F:
       /** video 160x120 BGRx, 2 frames */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRx,framerate=(fraction)%lu/1 ! "
           "tensor_converter frames-per-tensor=2 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_GRAY8:
       /** video 160x120 GRAY8 */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY8,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_GRAY8_PADDING:
       /** video 162x120 GRAY8, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
-          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)%lu/1 ! "
+          "tensor_converter ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_GRAY8_3F_PADDING:
       /** video 162x120 GRAY8, 3 frames, remove padding */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)%lu/1 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_AUDIO_S8:
       /** audio sample rate 16000 (8 bits, signed, little endian) */
@@ -730,9 +732,9 @@ _setup_pipeline (TestOption & option)
       /** video 160x120 RGB, passthrough custom filter */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s ! tensor_sink name=test_sink",
-	        option.num_buffers, custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough", SO_EXT);
+	        option.num_buffers, fps, custom_dir? custom_dir : "./nnstreamer_example/custom_example_passthrough", SO_EXT);
       break;
     case TEST_TYPE_CUSTOM_TENSORS:
       /** other/tensors with tensormux, passthrough custom filter */
@@ -756,51 +758,51 @@ _setup_pipeline (TestOption & option)
       /* video 160x120 RGB, passthrough custom filter without so file */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_filter framework=custom-passthrough ! tensor_sink name=test_sink",
-	   option.num_buffers);
+	   option.num_buffers, fps);
       break;
     case TEST_TYPE_NEGO_FAILED:
       /** caps negotiation failed */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
-          "videoconvert ! tensor_sink name=test_sink", option.num_buffers);
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+          "videoconvert ! tensor_sink name=test_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_SPLIT:
       /** video stream with tensor_split */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_split silent=TRUE name=split tensorseg=1:160:120,1:160:120,1:160:120 tensorpick=0,1,2 "
           "split.src_0 ! queue ! tensor_sink "
           "split.src_1 ! queue ! tensor_sink name=test_sink "
-          "split.src_2 ! queue ! tensor_sink", option.num_buffers);
+          "split.src_2 ! queue ! tensor_sink", option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_AGGR_1:
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=3 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_AGGR_2:
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=1 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_VIDEO_RGB_AGGR_3:
       /** video stream with tensor_aggregator */
       str_pipeline =
           g_strdup_printf
-          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! "
+          ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_aggregator frames-out=10 frames-dim=1 concat=false ! "
           "tensor_aggregator frames-in=10 frames-out=8 frames-flush=10 frames-dim=1 ! tensor_sink name=test_sink",
-          option.num_buffers);
+          option.num_buffers, fps);
       break;
     case TEST_TYPE_AUDIO_S16_AGGR:
       /** audio stream with tensor_aggregator, 4 buffers with 2000 frames */
@@ -1154,7 +1156,7 @@ TEST (tensor_sink_test, signal_rate)
   ASSERT_TRUE (_setup_pipeline (option));
 
   /** set signal-rate */
-  g_object_set (g_test_data.sink, "signal-rate", (guint) 15, NULL);
+  g_object_set (g_test_data.sink, "signal-rate", (guint) (fps / 2), NULL);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
@@ -1340,7 +1342,7 @@ TEST (tensor_stream_test, video_rgb)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1383,7 +1385,7 @@ TEST (tensor_stream_test, video_bgr)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1426,7 +1428,7 @@ TEST (tensor_stream_test, video_rgb_padding)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1469,7 +1471,7 @@ TEST (tensor_stream_test, video_bgr_padding)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1512,7 +1514,7 @@ TEST (tensor_stream_test, video_rgb_3f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 3U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1555,7 +1557,7 @@ TEST (tensor_stream_test, video_rgba)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1598,7 +1600,7 @@ TEST (tensor_stream_test, video_bgra)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1641,7 +1643,7 @@ TEST (tensor_stream_test, video_argb)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1684,7 +1686,7 @@ TEST (tensor_stream_test, video_abgr)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1727,7 +1729,7 @@ TEST (tensor_stream_test, video_rgbx)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1770,7 +1772,7 @@ TEST (tensor_stream_test, video_xrgb)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1813,7 +1815,7 @@ TEST (tensor_stream_test, video_xbgr)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1856,7 +1858,7 @@ TEST (tensor_stream_test, video_bgrx)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1899,7 +1901,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 2U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1942,7 +1944,7 @@ TEST (tensor_stream_test, video_gray8)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -1985,7 +1987,7 @@ TEST (tensor_stream_test, video_gray8_padding)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -2028,7 +2030,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 162U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 3U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -2865,7 +2867,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   /** check caps and config for tensor */
@@ -3278,7 +3280,7 @@ TEST (tensor_stream_test, custom_filter_passthrough)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -3940,7 +3942,7 @@ TEST (tensor_stream_test, video_split)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -3982,7 +3984,7 @@ TEST (tensor_stream_test, video_aggregate_1)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -4024,7 +4026,7 @@ TEST (tensor_stream_test, video_aggregate_2)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1600U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -4066,7 +4068,7 @@ TEST (tensor_stream_test, video_aggregate_3)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 64U * 8);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 48U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
@@ -4653,6 +4655,7 @@ int
 main (int argc, char **argv)
 {
   gchar *jitter_cmd_arg = NULL;
+  gchar *fps_cmd_arg = NULL;
   const GOptionEntry main_entries[] = {
     {"customdir", 'd', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &custom_dir,
           "A directory containing custom sub-plugins to use this test",
@@ -4660,6 +4663,9 @@ main (int argc, char **argv)
     {"jitter", 'j', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &jitter_cmd_arg,
           "Jitter in ms between starting and stopping test pipelines",
         "0 (default)"},
+    {"fps", 'f', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &fps_cmd_arg,
+          "Frames per second to run tests made of videotestsrc-based single pipeline",
+        "30 (default)"},
     {NULL}
   };
   GError *error = NULL;
@@ -4676,6 +4682,13 @@ main (int argc, char **argv)
   if (jitter_cmd_arg != NULL) {
     jitter = (gulong) g_ascii_strtoull (jitter_cmd_arg, NULL, 10) *
         MSEC_PER_USEC;
+  }
+
+  if (fps_cmd_arg != NULL) {
+    fps = (gulong) g_ascii_strtoull (fps_cmd_arg, NULL, 10);
+    if (fps == 0) {
+      fps = DEFAULT_FPS;
+    }
   }
 
   gst_init (&argc, &argv);
