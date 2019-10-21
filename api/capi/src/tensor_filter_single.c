@@ -81,7 +81,7 @@ static gboolean g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_set_input_info (GTensorFilterSingle * self,
-    const GstTensorsInfo * in_info);
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
 
 /* Private functions */
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
@@ -392,10 +392,9 @@ error:
  */
 static gboolean
 g_tensor_filter_set_input_info (GTensorFilterSingle * self,
-    const GstTensorsInfo * in_info)
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   GstTensorFilterPrivate *priv;
-  GstTensorsInfo out_info;
   int status;
   gboolean ret = FALSE;
 
@@ -404,9 +403,10 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     return FALSE;
 
   status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
-      in_info, &out_info);
+      in_info, out_info);
   if (status == 0) {
-    gst_tensors_info_copy(&priv->out_config.info, &out_info);
+    gst_tensors_info_copy(&priv->prop.input_meta, in_info);
+    gst_tensors_info_copy(&priv->prop.output_meta, out_info);
     ret = TRUE;
   }
 
