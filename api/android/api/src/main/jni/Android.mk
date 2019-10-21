@@ -17,6 +17,11 @@ $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
 
 #------------------------------------------------------
+# API build option
+#------------------------------------------------------
+NNSTREAMER_API_OPTION := all
+
+#------------------------------------------------------
 # external libs
 #------------------------------------------------------
 include $(LOCAL_PATH)/Android-tensorflow-lite-prebuilt.mk
@@ -44,23 +49,15 @@ LOCAL_LDLIBS := -llog -landroid
 
 include $(BUILD_SHARED_LIBRARY)
 
-GSTREAMER_NDK_BUILD_PATH  := $(GSTREAMER_ROOT)/share/gst-android/ndk-build/
-include $(GSTREAMER_NDK_BUILD_PATH)/plugins.mk
-# add necessary gstreamer plugins
-GSTREAMER_PLUGINS         := $(GSTREAMER_PLUGINS_CORE) \
-    $(GSTREAMER_PLUGINS_CODECS) \
-    $(GSTREAMER_PLUGINS_ENCODING) \
-    $(GSTREAMER_PLUGINS_PLAYBACK) \
-    $(GSTREAMER_PLUGINS_VIS) \
-    $(GSTREAMER_PLUGINS_SYS) \
-    $(GSTREAMER_PLUGINS_EFFECTS) \
-    $(GSTREAMER_PLUGINS_CAPTURE) \
-    $(GSTREAMER_PLUGINS_CODECS_GPL) \
-    $(GSTREAMER_PLUGINS_CODECS_RESTRICTED) \
-    $(GSTREAMER_PLUGINS_NET_RESTRICTED) \
-    $(GSTREAMER_PLUGINS_GES)
-GSTREAMER_EXTRA_DEPS      := gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-app-1.0 gobject-2.0
-GSTREAMER_EXTRA_LIBS      := -liconv -lcairo
+#------------------------------------------------------
+# gstreamer for android
+#------------------------------------------------------
+GSTREAMER_NDK_BUILD_PATH := $(GSTREAMER_ROOT)/share/gst-android/ndk-build/
+include $(LOCAL_PATH)/Android-gst-plugins.mk
+
+GSTREAMER_PLUGINS        := $(GST_REQUIRED_PLUGINS)
+GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS)
+GSTREAMER_EXTRA_LIBS     := $(GST_REQUIRED_LIBS)
 include $(GSTREAMER_NDK_BUILD_PATH)/gstreamer-1.0.mk
 
 $(call import-module, android/cpufeatures)

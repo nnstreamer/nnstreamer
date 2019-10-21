@@ -9,8 +9,18 @@
 # - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
+# Build options
+# --api_option (default 'all', 'core' to build with GStreamer core plugins)
+# --target_abi (default 'arm64, armv7')
+#
+# For example, to build library with core plugins for arm64
+# ./build-android-lib.sh --api_option=core --target_abi=arm64
+#
 
-# Set target ABI (default 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
+# API build option ('core' to build with GStreamer core plugins)
+nnstreamer_api_option=all
+
+# Set target ABI ('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
 nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
 
 # Set tensorflow-lite version (available: 1.9 and 1.13)
@@ -25,18 +35,37 @@ release_bintray='no'
 # Parse args
 for arg in "$@"; do
     case $arg in
+        --api_option=*)
+            nnstreamer_api_option=${arg#*=}
+            ;;
+        --target_abi=*)
+            target_abi=${arg#*=}
+            if [[ $target_abi == 'arm64' ]]; then
+                nnstreamer_target_abi="'arm64-v8a'"
+            elif [[ $target_abi == 'armv7' ]]; then
+                nnstreamer_target_abi="'armeabi-v7a'"
+            else
+                echo "Unknown target ABI." && exit 1
+            fi
+            ;;
         --release=*)
-        release_bintray=${arg#*=};;
+            release_bintray=${arg#*=}
+            ;;
         --release_version=*)
-        release_version=${arg#*=};;
+            release_version=${arg#*=}
+            ;;
         --bintray_user_name=*)
-        bintray_user_name=${arg#*=};;
+            bintray_user_name=${arg#*=}
+            ;;
         --bintray_user_key=*)
-        bintray_user_key=${arg#*=};;
+            bintray_user_key=${arg#*=}
+            ;;
         --run_unittest=*)
-        run_unittest=${arg#*=};;
+            run_unittest=${arg#*=}
+            ;;
         --result_directory=*)
-        result_directory=${arg#*=};;
+            result_directory=${arg#*=}
+            ;;
     esac
 done
 
@@ -100,6 +129,9 @@ tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/
 
 # Update target ABI
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
+
+# Update API build option
+sed -i "s|NNSTREAMER_API_OPTION := all|NNSTREAMER_API_OPTION := $nnstreamer_api_option|" api/src/main/jni/Android.mk
 
 # Add dependency for release
 if [[ $release_bintray == 'yes' ]]; then
