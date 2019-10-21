@@ -674,6 +674,7 @@ ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
 {
   ml_single *single_h;
   int status = ML_ERROR_NONE;
+  ml_tensors_info_s *input_info;
 
   check_feature_state ();
 
@@ -682,8 +683,22 @@ ml_single_get_tensors_info (ml_single_h single, gboolean is_input,
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
-  ml_single_get_tensors_info_from_filter (single_h->filter, is_input, info);
+  /* allocate handle for tensors info */
+  status = ml_tensors_info_create (info);
+  if (status != ML_ERROR_NONE)
+    goto exit;
 
+  input_info = (ml_tensors_info_s *) (*info);
+
+  if (is_input)
+    status = ml_tensors_info_clone (input_info, &single_h->in_info);
+  else
+    status = ml_tensors_info_clone (input_info, &single_h->out_info);
+
+  if (status != ML_ERROR_NONE)
+    ml_tensors_info_destroy (input_info);
+
+exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 }
