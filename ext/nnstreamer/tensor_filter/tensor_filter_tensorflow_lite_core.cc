@@ -537,13 +537,6 @@ tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
     return status;
   }
 
-  /** get output tensor info to be returned */
-  status = c->getOutputTensorDim (out_info);
-  if (status != 0) {
-    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
-    return status;
-  }
-
   /** update input tensor info */
   if ((status = c->setInputTensorProp ()) != 0) {
     g_assert (c->setInputTensorDim (&cur_in_info) == 0);
@@ -553,6 +546,15 @@ tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
 
   /** update output tensor info */
   if ((status = c->setOutputTensorProp ()) != 0) {
+    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (c->setInputTensorProp () == 0);
+    g_assert (c->setOutputTensorProp () == 0);
+    return status;
+  }
+
+  /** get output tensor info to be returned */
+  status = c->getOutputTensorDim (out_info);
+  if (status != 0) {
     g_assert (c->setInputTensorDim (&cur_in_info) == 0);
     g_assert (c->setInputTensorProp () == 0);
     g_assert (c->setOutputTensorProp () == 0);

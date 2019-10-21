@@ -77,7 +77,7 @@ struct _GTensorFilterSingleClass
   gboolean (*output_configured) (GTensorFilterSingle * self);
   /** Set the info about the input tensor */
   gboolean (*set_input_info) (GTensorFilterSingle * self,
-      const GstTensorsInfo * in_info);
+      const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
 };
 
 /**

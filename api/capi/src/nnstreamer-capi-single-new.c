@@ -752,24 +752,40 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
   ml_single *single_h;
   GTensorFilterSingleClass *klass;
   int status = ML_ERROR_NONE;
+  ml_tensors_info_s *in_info;
+  GstTensorsInfo gst_in_info, gst_out_info;
+  bool valid = false;
 
   check_feature_state ();
 
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
+  if (!ml_tensors_info_is_valid (info, valid))
+    return ML_ERROR_INVALID_PARAMETER;
+
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
+  in_info = (ml_tensors_info_s *) info;
   switch (single_h->nnfw) {
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
+      ml_tensors_info_copy_from_ml (&gst_in_info, in_info);
+
       klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-      if (klass == NULL || klass->set_input_info (single_h->filter, info) == FALSE)
+      if (klass == NULL || klass->set_input_info (
+            single_h->filter, &gst_in_info, &gst_out_info) == FALSE) {
         status = ML_ERROR_INVALID_PARAMETER;
+        goto exit;
+      }
+
+      ml_tensors_info_copy_from_gst (&single_h->in_info, &gst_in_info);
+      ml_tensors_info_copy_from_gst (&single_h->out_info, &gst_out_info);
       break;
     default:
       status = ML_ERROR_NOT_SUPPORTED;
   }
 
+exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
 }
