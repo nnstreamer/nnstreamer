@@ -105,12 +105,12 @@ endforeach
 shared_library('nnstreamer_decoder_image_segment',
   nnstreamer_decoder_image_segment_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  install: false,
+  install: true,
   install_dir: decoder_subplugin_install_dir
 )
 static_library('nnstreamer_decoder_image_segment',
   nnstreamer_decoder_image_segment_sources,
   dependencies: [nnstreamer_dep, glib_dep, gst_dep],
-  install: false,
+  install: true,
   install_dir: nnstreamer_libdir
 )
