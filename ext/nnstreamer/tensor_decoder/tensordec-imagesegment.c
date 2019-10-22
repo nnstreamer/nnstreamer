@@ -44,7 +44,7 @@
  * - Used model is deeplabv3_257_mv_gpu.tflite.
  * - Resize image into 257:257 at the first videoscale.
  * - Transfrom RGB value into float32 in range [0,1] at tensor_transform.
- * 
+ *
  * gst-launch-1.0 -v \
  *    filesrc location=cat.png ! decodebin ! videoconvert ! videoscale ! imagefreeze !\
  *    video/x-raw,format=RGB,width=257,height=257,framerate=10/1 ! tee name=t \
@@ -104,9 +104,13 @@ static int
 is_init (void **pdata)
 {
   image_segments *idata;
-  *pdata = g_new0 (image_segments, 1);
 
-  idata = *pdata;
+  idata = *pdata = g_new0 (image_segments, 1);
+  if (idata == NULL) {
+    GST_ERROR ("Failed to allocate memory for decoder subplugin.");
+    return FALSE;
+  }
+
   idata->mode = MODE_UNKNOWN;
   idata->width = 0;
   idata->height = 0;
@@ -177,15 +181,17 @@ _init_modes (image_segments * idata)
     int i;
 
     idata->segment_map = g_new0 (guint *, idata->height);
+    g_assert (idata->segment_map != NULL);
     for (i = 0; i < idata->height; i++) {
       idata->segment_map[i] = g_new0 (guint, idata->width);
+      g_assert (idata->segment_map[i] != NULL);
     }
   }
 }
 
-/** 
- * @brief tensordec-plugin's GstTensorDecoderDef callback 
- * 
+/**
+ * @brief tensordec-plugin's GstTensorDecoderDef callback
+ *
  * [DeeplabV3 model]
  * Just one tensor with [21(#labels):width:height:1], float32
  * Probability that each pixel is assumed to be labeled object.
@@ -206,7 +212,6 @@ is_getOutCaps (void **pdata, const GstTensorsConfig * config)
     if (idata->width == 0 || idata->height == 0) {
       idata->width = config->info.info[0].dimension[1];
       idata->height = config->info.info[0].dimension[2];
-      _init_modes (idata);
     }
   }
 
@@ -304,6 +309,11 @@ is_decode (void **pdata, const GstTensorsConfig * config,
   const size_t size = idata->width * idata->height * RGBA_CHANNEL;
   GstMapInfo out_info;
   GstMemory *out_mem;
+
+  /* init image segments if seg map is null */
+  if (idata->segment_map == NULL) {
+    _init_modes (idata);
+  }
 
   g_assert (outbuf);
   if (gst_buffer_get_size (outbuf) == 0) {
