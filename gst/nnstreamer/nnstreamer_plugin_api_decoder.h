@@ -40,26 +40,60 @@ typedef struct _GstTensorDecoderDef
   char *modename;
       /**< Unique decoder name. GST users choose decoders with mode="modename". */
   int (*init) (void **private_data);
-      /**< Object initialization for the decoder */
+      /**< Object initialization for the decoder.
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer. Normally, the sub-plugin may allocate the private_data with this function.
+       * @return TRUE if OK. FALSE if error.
+       */
   void (*exit) (void **private_data);
-      /**< Object destruction for the decoder */
+      /**< Object destruction for the decoder.
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer. Normally, the sub-plugin may free the private_data with this function.
+       */
   int (*setOption) (void **private_data, int opNum, const char *param);
-      /**< Process with the given options. It can be called repeatedly */
+      /**< Process with the given options. It can be called repeatedly.
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer.
+       * @param[in] opNum The index of the given options.
+       * @param[in] param The option string. A sub-plugin should parse the string to get the proper value.
+       * @return TRUE if OK. FALSE if error.
+       */
   GstCaps *(*getOutCaps) (void **private_data, const GstTensorsConfig *config);
-      /**< The caller should unref the returned GstCaps
-        * Current implementation supports single-tensor only.
-        * @todo WIP: support multi-tensor for input!!!
-        */
+      /**< The caller should unref the returned GstCaps.
+       * The sub-plugin should validate the information of input tensor and return proper media type.
+       * Note that the information of input tensor is not a fixed value and the pipeline may try different values during the cap negotiations.
+       * Do NOT allocate or fix internal data structure until decode is called.
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer.
+       * @param[in] config The structure of input tensor info.
+       * @return GstCaps object describing media type.
+       */
   GstFlowReturn (*decode) (void **private_data, const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);
-      /**< outbuf must be allocated but empty (gst_buffer_get_size (outbuf) == 0).
-        * Note that we support single-tensor (other/tensor) only!
-        * @todo WIP: support multi-tensor for input!!!
-        */
+      /**< The function to be called when the input tensor incomes into tensor_decoder.
+       * The sub-plugin should update the output buffer. outbuf must be allocated but empty (gst_buffer_get_size (outbuf) == 0).
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer.
+       * @param[in] config The structure of input tensor info.
+       * @param[in] input The array of input tensor data. The maximum array size of input data is NNS_TENSOR_SIZE_LIMIT.
+       * @param[out] outbuf A sub-plugin should update or append proper memory for the negotiated media type.
+       * @return GST_FLOW_OK if OK.
+       */
   size_t (*getTransformSize) (void **private_data, const GstTensorsConfig *config,
       GstCaps *caps, size_t size, GstCaps *othercaps,
       GstPadDirection direction);
-      /**< EXPERIMENTAL! @todo We are not ready to use this. This should be NULL or return 0 */
+      /**< Optional. The sub-plugin may calculate the size in bytes of a buffer.
+       * If this is NULL, tensor_decoder will pass the empty buffer and the sub-plugin should append the memory block when called decode.
+       * See GstBaseTransformClass::transform_size for the details.
+       *
+       * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer.
+       * @param[in] config The structure of input tensor info.
+       * @param[in] caps GstCaps object for the given direction.
+       * @param[in] size The size of a buffer for the given direction.
+       * @param[in] othercaps GstCaps object on the other pad for the given direction.
+       * @param[in] direction The direction of a pad. Normally this is GST_PAD_SINK.
+       * @return The size of a buffer.
+       */
 } GstTensorDecoderDef;
 
 /* extern functions for subplugin management, exist in tensor_decoder.c */
