@@ -87,6 +87,10 @@ NNSTREAMER_DECODER_PE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-pose.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
+# decoder image segment
+NNSTREAMER_DECODER_IS_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagesegment.c
+
 # common features
 NO_AUDIO := false
 
