@@ -30,6 +30,7 @@ extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);
 extern void init_pose (void);
+extern void init_is (void);
 
 /**
  * @brief Attach thread with Java VM.
@@ -491,6 +492,7 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass cl
   init_bb ();
   init_il ();
   init_pose ();
+  init_is ();
 
   return JNI_TRUE;
 }
