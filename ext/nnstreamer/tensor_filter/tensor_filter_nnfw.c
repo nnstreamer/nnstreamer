@@ -37,9 +37,19 @@
 
 #include <nnfw.h>
 
+/** backends supported by nnfw */
+#define NNFW_CPU_BACKEND  "cpu"
+#define NNFW_GPU_BACKEND  "acl_cl"
+#define NNFW_NEON_BACKEND "acl_neon"
+#define NNFW_SRCN_BACKEND  "srcn"
+#define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
+
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
 
+/**
+ * @brief private data structure for the nnfw framework
+ */
 typedef struct
 {
   nnfw_tensorinfo i_in;
@@ -81,6 +91,13 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     err = -EINVAL;
     g_printerr ("Cannot create nnfw-runtime session");
     goto unalloc_exit;
+  }
+
+  status = nnfw_set_default_backend(pdata->session, NNFW_DEFAULT_BACKEND);
+  if (status != NNFW_STATUS_NO_ERROR) {
+    err = -ENXIO;
+    g_printerr ("Cannot load the model file: %s", prop->model_file);
+    goto session_exit;
   }
 
   status = nnfw_load_model_from_file (pdata->session, prop->model_file);

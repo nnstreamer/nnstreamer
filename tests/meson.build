@@ -100,9 +100,9 @@ endif
 unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
 
 tensor_filter_ext_enabled = get_option('enable-tensorflow-lite') or \
-    get_option('enable-python') or  get_option('enable-tensorflow') or \
-    get_option('enable-pytorch') or get_option('enable-caffe2')
-
+    get_option('enable-python') or get_option('enable-tensorflow') or \
+    get_option('enable-pytorch') or get_option('enable-caffe2') or \
+    get_option('enable-nnfw-runtime')
 if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
