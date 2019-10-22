@@ -56,6 +56,7 @@ private:
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
   bool configured;
+  bool first_run;           /**< must be reset after setting input info */
 
   std::shared_ptr < torch::jit::script::Module > model;
 
