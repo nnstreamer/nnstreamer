@@ -353,7 +353,7 @@ meson_script = """
 project('{fname}', 'c',
   version: '1.0',
   license: ['LGPL'],
-  meson_version: '>=0.42.0',
+  meson_version: '>=0.50.0',
   default_options: [
     'warning_level=1',
   ]
