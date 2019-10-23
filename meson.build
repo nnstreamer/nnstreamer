@@ -4,7 +4,7 @@
 project('nnstreamer', 'c', 'cpp',
   version: '1.0.0',
   license: ['LGPL'],
-  meson_version: '>=0.42.0',
+  meson_version: '>=0.50.0',
   default_options: [
     'werror=true',
     'warning_level=1',
@@ -45,13 +45,10 @@ warning_flags = [
   '-Wvla',
   '-Wpointer-arith'
 ]
-# Work around the issue related to gtest cflags
-if meson.version().version_compare('<0.46')
-  warning_flags += '-Wmissing-include-dirs'
-endif
 
 warning_c_flags = [
   '-Wmissing-declarations',
+  '-Wmissing-include-dirs',
   '-Wmissing-prototypes',
   '-Wnested-externs',
   '-Waggregate-return',
@@ -270,17 +267,11 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
   nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
 
-  # meson 0.50 supports install argument in configure_file()
-  if get_option('install-test')
-    configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
-      install_dir: unittest_install_dir,
-      configuration: nnstreamer_test_conf
-    )
-  else
-    configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
-      configuration: nnstreamer_test_conf
-    )
-  endif
+  configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
+    install: get_option('install-test'),
+    install_dir: unittest_install_dir,
+    configuration: nnstreamer_test_conf
+  )
 endif
 
 # Set configuration to install .ini

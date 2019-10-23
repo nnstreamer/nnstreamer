@@ -31,7 +31,7 @@ Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
 BuildRequires:	glib2-devel
-BuildRequires:	meson
+BuildRequires:	meson >= 0.50.0
 
 # To run test cases, we need gst plugins
 BuildRequires:	gst-plugins-good
