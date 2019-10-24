@@ -18,9 +18,13 @@ if meson.project_name() != 'nnstreamer'
 endif
 
 
+capi_inc = []
+if not get_option('enable-tizen')
+  capi_inc += include_directories ('include/platform')
+endif
 inc = include_directories('include')
 nninc = include_directories('../../gst')
-capi_inc = [inc, nninc]
+capi_inc += [inc, nninc]
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
@@ -37,6 +41,8 @@ capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer
 if get_option('enable-tizen')
   # header for Tizen internal API
   capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-tizen-internal.h')
+else
+  capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'platform', 'tizen_error.h')
 endif
 
 # Dependencies
