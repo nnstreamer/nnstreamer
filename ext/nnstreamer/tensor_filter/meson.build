@@ -270,8 +270,15 @@ if get_option('enable-movidius-ncsdk2')
 endif
 
 if get_option('enable-cppfilter')
+  filter_sub_cpp_sources = ['tensor_filter_cpp.cc']
+
+  nnstreamer_filter_cpp_sources = []
+  foreach s : filter_sub_cpp_sources
+    nnstreamer_filter_cpp_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
   shared_library('nnstreamer_filter_cpp',
-    ['tensor_filter_cpp.cc'],
+    nnstreamer_filter_cpp_sources,
     dependencies: [glib_dep, gst_dep, nnstreamer_dep],
     install: true,
     install_dir: filter_subplugin_install_dir
