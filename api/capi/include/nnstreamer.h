@@ -27,7 +27,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-/* Apply modify_nnstreamer_h_for_nontizen.sh if you want to use in non-Tizen Linux machines */
 #include <tizen_error.h>
 
 #ifdef __cplusplus
