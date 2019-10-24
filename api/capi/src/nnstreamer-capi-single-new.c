@@ -763,7 +763,7 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
   switch (single_h->nnfw) {
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
       klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-      if (klass->set_input_info (single_h->filter, info) == FALSE)
+      if (klass == NULL || klass->set_input_info (single_h->filter, info) == FALSE)
         status = ML_ERROR_INVALID_PARAMETER;
       break;
     default:
