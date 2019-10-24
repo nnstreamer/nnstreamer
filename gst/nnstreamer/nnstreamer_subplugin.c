@@ -126,6 +126,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
   switch (type) {
     case NNS_SUBPLUGIN_FILTER:
     case NNS_SUBPLUGIN_DECODER:
+    case NNS_EASY_CUSTOM_FILTER:
       break;
     default:
       /* unknown sub-plugin type */

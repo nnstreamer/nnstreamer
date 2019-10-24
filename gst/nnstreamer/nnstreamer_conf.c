@@ -31,6 +31,7 @@ static const gchar *subplugin_prefixes[] = {
   [NNSCONF_PATH_FILTERS] = NNSTREAMER_PREFIX_FILTER,
   [NNSCONF_PATH_DECODERS] = NNSTREAMER_PREFIX_DECODER,
   [NNSCONF_PATH_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
+  [NNSCONF_PATH_EASY_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS, /**< Same as Custom Filters */
   [NNSCONF_PATH_END] = NULL
 };
 
@@ -184,6 +185,9 @@ _get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
       vstrFull = conf.filesDECODERS;
       break;
     case NNSCONF_PATH_CUSTOM_FILTERS:
+      /** follow through */
+    case NNSCONF_PATH_EASY_CUSTOM_FILTERS:
+      /* Both use the same paths */
       vstr = conf.basenameCUSTOM_FILTERS;
       vstrFull = conf.filesCUSTOM_FILTERS;
       break;

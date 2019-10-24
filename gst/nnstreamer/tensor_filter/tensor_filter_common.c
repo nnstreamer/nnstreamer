@@ -423,7 +423,10 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       model_num = gst_tensor_filter_parse_modelpaths_string (prop, model_files);
       if (model_num == 1) {
         if (!g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR))
-          g_critical ("Cannot find the model file: %s\n", prop->model_file);
+          g_critical ("Cannot find the model file: %s\n"
+              "Ignore this if you have specified name and the model is preloaded.\n"
+              "Note that this should be refactored.\n", prop->model_file);
+          /** @todo This mechanism should be refactored. */
       } else if (model_num == 2) {
         if (!g_file_test (prop->model_file_sub, G_FILE_TEST_IS_REGULAR))
           g_critical ("Cannot find the init model file: %s\n",
@@ -683,7 +686,8 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       subplugins = g_string_new (NULL);
 
       /* add custom */
-      g_string_append (subplugins, "custom");
+      /** @todo Let's not hardcode default subplugins */
+      g_string_append (subplugins, "custom,custom-easy");
 
       total = nnsconf_get_subplugin_info (NNSCONF_PATH_FILTERS, &sinfo);
 
