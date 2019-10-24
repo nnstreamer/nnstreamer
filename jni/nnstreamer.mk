@@ -42,6 +42,7 @@ NNSTREAMER_PLUGINS_SRCS := \
 
 # nnstreamer c-api
 NNSTREAMER_CAPI_INCLUDES := \
+    $(NNSTREAMER_CAPI_HOME)/include/platform \
     $(NNSTREAMER_CAPI_HOME)/include
 
 NNSTREAMER_CAPI_SRCS := \
