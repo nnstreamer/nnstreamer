@@ -33,8 +33,8 @@
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
 
-void init_filter_custom (void) __attribute__ ((constructor));
-void fini_filter_custom (void) __attribute__ ((destructor));
+static void init_filter_custom (void) __attribute__ ((constructor));
+static void fini_filter_custom (void) __attribute__ ((destructor));
 
 static GstTensorFilterFramework NNS_support_custom;
 
@@ -260,14 +260,14 @@ static GstTensorFilterFramework NNS_support_custom = {
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-void
+static void
 init_filter_custom (void)
 {
   nnstreamer_filter_probe (&NNS_support_custom);
 }
 
 /** @brief Destruct the subplugin */
-void
+static void
 fini_filter_custom (void)
 {
   nnstreamer_filter_exit (NNS_support_custom.name);

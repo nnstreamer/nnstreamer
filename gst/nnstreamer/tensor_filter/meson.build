@@ -1,7 +1,8 @@
 tensor_filter_sources = [
   'tensor_filter.c',
   'tensor_filter_common.c',
-  'tensor_filter_custom.c'
+  'tensor_filter_custom.c',
+  'tensor_filter_custom_easy.c'
 ]
 
 foreach s : tensor_filter_sources

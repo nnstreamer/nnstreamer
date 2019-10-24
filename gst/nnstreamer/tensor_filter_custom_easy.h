@@ -48,6 +48,7 @@
 #include "tensor_typedef.h"
 #include "tensor_filter_custom.h"
 
+G_BEGIN_DECLS
 /**
  * @brief Register the custom-easy tensor function.
  * @param[in] modelname The name of custom-easy tensor function.
@@ -58,8 +59,9 @@
  * @note NNS_custom_invoke defined in tensor_filter_custom.h
  *       Output buffers for func are preallocated.
  */
-int NNS_custom_easy_register (const char *modelname,
-    NNS_custom_invoke func, void *private_data,
-    const GstTensorsInfo *in_info, const GstTensorsInfo *out_info);
+extern int NNS_custom_easy_register (const char * modelname,
+    NNS_custom_invoke func, void *data,
+    const GstTensorsInfo * in_info, const GstTensorsInfo * out_info);
 
+G_END_DECLS
 #endif /*__NNS_TENSOR_FILTER_CUSTOM_EASY_H__*/
