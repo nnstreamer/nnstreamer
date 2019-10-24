@@ -87,7 +87,6 @@ function check_package() {
 # Check required packages
 check_package svn
 check_package sed
-check_package patch
 check_package zip
 
 # Android SDK (Set your own path)
@@ -108,11 +107,6 @@ echo "NNStreamer root directory: $NNSTREAMER_ROOT"
 
 echo "Start to build NNStreamer library for Android."
 pushd $NNSTREAMER_ROOT
-
-# Modify header for Android
-if ! patch -R --dry-run -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch; then
-    patch -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
-fi
 
 # Make directory to build NNStreamer library
 mkdir -p build_android_lib
@@ -193,9 +187,6 @@ popd
 
 # Remove build directory
 rm -rf build_android_lib
-
-# Clean the applied patches
-patch -R -sfp1 -i $NNSTREAMER_ROOT/packaging/non_tizen_build.patch
 
 popd
 
