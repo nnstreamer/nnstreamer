@@ -58,7 +58,7 @@ public:
 
 private:
 
-  const char *model_path;
+  char *model_path;
   bool use_nnapi;
   nnapi_hw accel;
 

@@ -50,7 +50,7 @@ public:
 
 private:
 
-  const char *model_path;
+  char *model_path;
   bool use_gpu;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */

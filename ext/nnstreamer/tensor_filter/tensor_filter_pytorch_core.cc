@@ -42,8 +42,10 @@
  */
 TorchCore::TorchCore (const char *_model_path)
 {
-  model_path = _model_path;
+  g_assert (_model_path != NULL);
+  model_path = g_strdup (_model_path);
   configured = false;
+  use_gpu = false;
   first_run = true;
 
   gst_tensors_info_init (&inputTensorMeta);
@@ -58,6 +60,7 @@ TorchCore::~TorchCore ()
 {
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
+  g_free (model_path);
 }
 
 /**

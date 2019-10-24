@@ -73,7 +73,7 @@ public:
 
 private:
 
-  const char *model_path;
+  char *model_path;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors from user input */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors from user input */

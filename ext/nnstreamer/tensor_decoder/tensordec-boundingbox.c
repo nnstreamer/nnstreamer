@@ -995,6 +995,9 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       default:
         g_assert (0);
     }
+  } else {
+    GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
+    return GST_FLOW_ERROR;
   }
 
   draw (&out_info, bdata, results);
