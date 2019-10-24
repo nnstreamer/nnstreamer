@@ -755,7 +755,7 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
 
   check_feature_state ();
 
-  if (!single)
+  if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
