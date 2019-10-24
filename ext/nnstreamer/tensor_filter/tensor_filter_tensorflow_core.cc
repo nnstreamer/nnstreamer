@@ -44,7 +44,10 @@ std::map <void*, TF_Tensor*> TFCore::outputTensorMap;
  */
 TFCore::TFCore (const char *_model_path)
 {
-  model_path = _model_path;
+  g_assert (_model_path != NULL);
+  model_path = g_strdup (_model_path);
+  graph = nullptr;
+  session = nullptr;
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -56,24 +59,29 @@ TFCore::TFCore (const char *_model_path)
  */
 TFCore::~TFCore ()
 {
-  TF_DeleteGraph (graph);
+  if (graph != nullptr)
+    TF_DeleteGraph (graph);
 
-  TF_Status* status = TF_NewStatus ();
-  TF_CloseSession (session, status);
-  if (TF_GetCode (status) != TF_OK) {
-    g_critical ("Error during session close!! - [Code: %d] %s",
-      TF_GetCode (status), TF_Message (status));
-  }
+  if (session != nullptr) {
+    TF_Status* status = TF_NewStatus ();
 
-  TF_DeleteSession (session, status);
-  if (TF_GetCode (status) != TF_OK) {
-    g_critical ("Error during session delete!! - [Code: %d] %s",
-      TF_GetCode (status), TF_Message (status));
+    TF_CloseSession (session, status);
+    if (TF_GetCode (status) != TF_OK) {
+      g_critical ("Error during session close!! - [Code: %d] %s",
+        TF_GetCode (status), TF_Message (status));
+    }
+
+    TF_DeleteSession (session, status);
+    if (TF_GetCode (status) != TF_OK) {
+      g_critical ("Error during session delete!! - [Code: %d] %s",
+        TF_GetCode (status), TF_Message (status));
+    }
+    TF_DeleteStatus (status);
   }
-  TF_DeleteStatus (status);
 
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
+  g_free (model_path);
 }
 
 /**
@@ -163,6 +171,8 @@ TFCore::loadModel ()
   buffer->data_deallocator = DeallocateBuffer;
 
   graph = TF_NewGraph ();
+  g_assert (graph != nullptr);
+
   TF_Status* status = TF_NewStatus ();
   TF_ImportGraphDefOptions* opts = TF_NewImportGraphDefOptions ();
 
@@ -178,7 +188,6 @@ TFCore::loadModel ()
     return -3;
   }
 
-  g_assert (graph != nullptr);
   TF_SessionOptions* options = TF_NewSessionOptions ();
   session = TF_NewSession (graph, options, status);
   TF_DeleteSessionOptions (options);
@@ -270,7 +279,8 @@ TFCore::getTensorTypeToTF (tensor_type tType)
       break;
   }
 
-  return TF_VARIANT; // there is no flag for INVALID
+  /* there is no flag for INVALID */
+  return TF_VARIANT;
 }
 
 /**
@@ -286,7 +296,7 @@ int
 TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
 {
   for (int i = 0; i < tensorInfo->num_tensors; i++) {
-    // set the name of tensor
+    /* set the name of tensor */
     TF_Operation *op = TF_GraphOperationByName (graph, tensorInfo->info[i].name);
 
     g_assert (op != nullptr);
@@ -329,7 +339,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
         return -2;
       }
 
-      // check the validity of dimension
+      /* check the validity of dimension */
       for (int d = 0; d < num_dims; ++d) {
         info_s.dims.push_back (
           static_cast<int64_t> (tensorInfo->info[i].dimension[num_dims - d - 1])
@@ -379,8 +389,15 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
  * @brief	the definition of a deallocator method
  */
 static void
-DeallocateTensor (void* data, std::size_t, void*) {
-  /* do nothing, the data will be free at the last of pipeline */
+DeallocateInputTensor (void *data, size_t len, void *arg)
+{
+  tf_tensor_info_s *info_s = (tf_tensor_info_s *) arg;
+
+  if (info_s && info_s->type == TF_STRING) {
+    /* free encoded string */
+    g_free (data);
+  }
+
   return;
 }
 
@@ -403,9 +420,9 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   std::vector<TF_Output> output_ops;
   std::vector<TF_Tensor*> output_tensors;
   TF_Status* status = TF_NewStatus ();
-  char *input_encoded = nullptr;
+  int ret = 0;
 
-  // create input tensor for the graph from `input`
+  /* create input tensor for the graph from `input` */
   for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
     TF_Tensor* in_tensor = nullptr;
     TF_Output input_op = {
@@ -418,10 +435,11 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
       size_t encoded_size = TF_StringEncodedSize (input[i].size);
       size_t total_size = 8 + encoded_size;
 
-      input_encoded = (char*) g_malloc0 (total_size);
+      char *input_encoded = (char*) g_malloc0 (total_size);
       if (input_encoded == NULL) {
         g_critical ("Failed to allocate memory for input tensor.");
-        return -1;
+        ret = -1;
+        goto failed;
       }
 
       TF_StringEncode (
@@ -429,12 +447,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         input[i].size,
         input_encoded+8,
         encoded_size,
-        status); // fills the rest of tensor data
+        status); /* fills the rest of tensor data */
       if (TF_GetCode (status) != TF_OK) {
         g_critical ("Error String Encoding!! - [Code: %d] %s",
           TF_GetCode (status), TF_Message (status));
-        TF_DeleteStatus (status);
-        return -1;
+        g_free (input_encoded);
+        ret = -1;
+        goto failed;
       }
       in_tensor = TF_NewTensor (
         input_tensor_info[i].type,
@@ -442,8 +461,8 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         0,
         input_encoded,
         total_size,
-        &DeallocateTensor,
-        nullptr);
+        &DeallocateInputTensor,
+        &input_tensor_info[i]);
     }
     else {
       in_tensor = TF_NewTensor (
@@ -452,13 +471,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
           input_tensor_info[i].rank,
           input[i].data,
           input[i].size,
-          DeallocateTensor, /* no deallocator */
-          nullptr);
+          DeallocateInputTensor,
+          &input_tensor_info[i]);
     }
     input_tensors.push_back (in_tensor);
   }
 
-  // create output tensor for the graph from `output`
+  /* create output tensor for the graph from `output` */
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
     TF_Output output_op = {
       TF_GraphOperationByName (graph, outputTensorMeta.info[i].name), 0
@@ -481,24 +500,23 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
                 status
                 );
 
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
-    TF_DeleteTensor (input_tensors[i]);
-    if (input_tensor_info[i].type == TF_STRING && input_encoded){
-      free (input_encoded);
-    }
-  }
-
   if (TF_GetCode (status) != TF_OK) {
     g_critical ("Error Running Session!! - [Code: %d] %s",
       TF_GetCode (status), TF_Message (status));
-    TF_DeleteStatus (status);
-    return -2;
+    ret = -2;
+    goto failed;
   }
 
   for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
     output[i].data = TF_TensorData (output_tensors[i]);
     outputTensorMap.insert (std::make_pair (output[i].data, output_tensors[i]));
   }
+
+failed:
+  for (int i = 0; i < input_tensors.size(); i++) {
+    TF_DeleteTensor (input_tensors[i]);
+  }
+
   TF_DeleteStatus (status);
 
 #if (DBG)
@@ -507,7 +525,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
       (stop_time - start_time));
 #endif
 
-  return 0;
+  return ret;
 }
 
 void *

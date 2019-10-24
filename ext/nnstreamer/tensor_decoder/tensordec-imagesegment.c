@@ -174,7 +174,7 @@ is_setOption (void **pdata, int op_num, const char *param)
 }
 
 /** @brief Initialize image_segments per mode */
-static void
+static gboolean
 _init_modes (image_segments * idata)
 {
   if (idata->mode == MODE_TFLITE_DEEPLAB) {
@@ -186,7 +186,12 @@ _init_modes (image_segments * idata)
       idata->segment_map[i] = g_new0 (guint, idata->width);
       g_assert (idata->segment_map[i] != NULL);
     }
+
+    return TRUE;
   }
+
+  GST_ERROR ("Failed to initialize, unknown mode %d.", idata->mode);
+  return FALSE;
 }
 
 /**
@@ -312,7 +317,8 @@ is_decode (void **pdata, const GstTensorsConfig * config,
 
   /* init image segments if seg map is null */
   if (idata->segment_map == NULL) {
-    _init_modes (idata);
+    if (!_init_modes (idata))
+      return GST_FLOW_ERROR;
   }
 
   g_assert (outbuf);

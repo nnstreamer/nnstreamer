@@ -44,8 +44,9 @@ std::map <char*, Tensor*> Caffe2Core::inputTensorMap;
  */
 Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
 {
-  pred_model_path = _model_path;
-  init_model_path = _model_path_sub;
+  g_assert (_model_path != NULL && _model_path_sub != NULL);
+  pred_model_path = g_strdup (_model_path);
+  init_model_path = g_strdup (_model_path_sub);
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -59,6 +60,8 @@ Caffe2Core::~Caffe2Core ()
 {
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
+  g_free (pred_model_path);
+  g_free (init_model_path);
 }
 
 /**

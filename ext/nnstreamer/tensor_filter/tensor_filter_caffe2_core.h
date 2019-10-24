@@ -53,8 +53,8 @@ public:
 
 private:
 
-  const char *init_model_path;
-  const char *pred_model_path;
+  char *init_model_path;
+  char *pred_model_path;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */

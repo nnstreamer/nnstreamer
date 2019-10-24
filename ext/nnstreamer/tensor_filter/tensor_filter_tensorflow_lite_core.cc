@@ -45,8 +45,12 @@
  */
 TFLiteCore::TFLiteCore (const char * _model_path, nnapi_hw hw)
 {
-  model_path = _model_path;
-  if(hw == NNAPI_UNKNOWN){
+  g_assert (_model_path != NULL);
+  model_path = g_strdup (_model_path);
+  interpreter = nullptr;
+  model = nullptr;
+
+  if (hw == NNAPI_UNKNOWN) {
     use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
   } else {
     use_nnapi = TRUE;

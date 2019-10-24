@@ -296,7 +296,7 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
     size = gst_tensor_info_get_size (&self->config.info.info[i]);
     mem = gst_allocator_alloc (NULL, size, NULL);
 
-    gst_memory_map (mem, &info, GST_MAP_WRITE);
+    g_assert (gst_memory_map (mem, &info, GST_MAP_WRITE));
     memset (info.data, 0, size);
     gst_memory_unmap (mem, &info);
 
