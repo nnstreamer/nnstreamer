@@ -21,6 +21,7 @@ Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
+Source1:	generate-tarball.sh
 Source1001:	nnstreamer.manifest
 %if %{with tizen}
 Source1002:	capi-nnstreamer.manifest
@@ -244,7 +245,11 @@ Note that there is no .pc file for this package because nnstreamer.pc file may b
 %setup -q
 cp %{SOURCE1001} .
 %if %{with tizen}
+pushd %{_sourcedir}
+sh %{SOURCE1} %{name} %{version}
+popd
 cp %{SOURCE1002} .
+rm -rf ./api/capi/include/platform
 %endif
 cp %{SOURCE1001} ./nnstreamer-cpp.manifest
 
