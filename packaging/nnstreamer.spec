@@ -183,21 +183,6 @@ Requires:	capi-nnstreamer = %{version}-%{release}
 %description -n capi-nnstreamer-devel
 Developmental kit for Tizen Native NNStreamer API.
 
-%package -n capi-nnstreamer-single-new
-Summary:	Tizen Native new single-shot API for NNStreamer
-Group:		Multimedia/Framework
-Requires:	%{name} = %{version}-%{release}
-%description -n capi-nnstreamer-single-new
-Tizen Native new single-shot API wrapper for NNStreamer.
-You can construct a data stream pipeline with neural networks easily.
-
-%package -n capi-nnstreamer-single-new-devel
-Summary:	Tizen Native API Devel Kit for NNStreamer
-Group:		Multimedia/Framework
-Requires:	capi-nnstreamer-single-new = %{version}-%{release}
-%description -n capi-nnstreamer-single-new-devel
-Developmental kit for Tizen Native new single-shot NNStreamer API.
-
 %package -n nnstreamer-tizen-internal-capi-devel
 Summary:	Tizen internal API to construct the pipeline
 Group:		Multimedia/Framework
@@ -277,7 +262,6 @@ ninja -C build %{?_smp_mflags}
     ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
     ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
-    ./tests/tizen_capi/unittest_tizen_capi_single_new --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi_single_new.xml"
 %if 0%{?enable_nnfw_r}
     ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
 %endif
@@ -424,17 +408,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 %{_libdir}/libcapi-nnstreamer.a
-
-%files -n capi-nnstreamer-single-new
-%manifest capi-nnstreamer.manifest
-%license LICENSE
-%{_libdir}/libcapi-nnstreamer-single-new.so
-
-%files -n capi-nnstreamer-single-new-devel
-%{_includedir}/nnstreamer/nnstreamer.h
-%{_includedir}/nnstreamer/nnstreamer-single.h
-%{_libdir}/pkgconfig/capi-nnstreamer-single-new.pc
-%{_libdir}/libcapi-nnstreamer-single-new.a
 
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
