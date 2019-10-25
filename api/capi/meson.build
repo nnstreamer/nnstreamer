@@ -30,6 +30,7 @@ capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
+capi_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
 
 if get_option('enable-tizen')
   capi_main += join_paths('src', 'nnstreamer-capi-tizen.c')
@@ -86,44 +87,7 @@ nnstreamer_capi_dep = declare_dependency(link_with: nnstreamer_capi_lib,
   include_directories: capi_inc,
 )
 
-# New single-shot c-api
-capi_single_new_main = []
-capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
-capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
-capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single-new.c')
-capi_single_new_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
-
-if get_option('enable-tizen')
-  capi_single_new_main += join_paths('src', 'nnstreamer-capi-tizen.c')
-endif
-
-shared_library ('capi-nnstreamer-single-new',
-  capi_single_new_main,
-  dependencies: capi_deps,
-  include_directories: capi_inc,
-  install: true,
-  install_dir: nnstreamer_libdir,
-)
-nnstreamer_capi_single_new_lib = static_library ('capi-nnstreamer-single-new',
-  capi_single_new_main,
-  dependencies: capi_deps,
-  include_directories: capi_inc,
-  install: true,
-  install_dir: nnstreamer_libdir,
-)
-
-nnstreamer_capi_single_new_dep = declare_dependency(
-  link_with: nnstreamer_capi_single_new_lib,
-  dependencies: capi_deps,
-  include_directories: capi_inc,
-)
-
 configure_file(input: 'capi-nnstreamer.pc.in', output: 'capi-nnstreamer.pc',
-  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
-  configuration: nnstreamer_conf
-)
-
-configure_file(input: 'capi-nnstreamer-single-new.pc.in', output: 'capi-nnstreamer-single-new.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_conf
 )

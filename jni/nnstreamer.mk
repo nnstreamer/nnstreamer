@@ -42,13 +42,15 @@ NNSTREAMER_PLUGINS_SRCS := \
 
 # nnstreamer c-api
 NNSTREAMER_CAPI_INCLUDES := \
+    $(NNSTREAMER_ROOT)/gst \
     $(NNSTREAMER_CAPI_HOME)/include/platform \
     $(NNSTREAMER_CAPI_HOME)/include
 
 NNSTREAMER_CAPI_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-pipeline.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
+    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
 
 # filter tensorflow
 NNSTREAMER_FILTER_TF_SRCS := \
