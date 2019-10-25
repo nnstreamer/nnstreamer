@@ -58,7 +58,7 @@ static int
 custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 {
   internal_data *ptr;
-  char *dlsym_error;
+  const char *dlsym_error;
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
