@@ -28,7 +28,7 @@ GST_REQUIRED_PLUGINS := $(GSTREAMER_PLUGINS_CORE) \
     $(GSTREAMER_PLUGINS_GES)
 GST_REQUIRED_DEPS := gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-app-1.0
 GST_REQUIRED_LIBS := -liconv
-else ifeq ($(NNSTREAMER_API_OPTION),core)
+else ifeq ($(NNSTREAMER_API_OPTION),lite)
 # Build with core plugins
 GST_REQUIRED_PLUGINS := $(GSTREAMER_PLUGINS_CORE)
 GST_REQUIRED_DEPS := gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-app-1.0

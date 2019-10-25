@@ -10,14 +10,14 @@
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
 # Build options
-# --api_option (default 'all', 'core' to build with GStreamer core plugins)
-# --target_abi (default 'arm64, armv7')
+# --api_option (default 'all', 'lite' to build with GStreamer core plugins)
+# --target_abi (default 'armv7, arm64')
 #
-# For example, to build library with core plugins for arm64
-# ./build-android-lib.sh --api_option=core --target_abi=arm64
+# For example, to build library with core plugins for arm64-v8a
+# ./build-android-lib.sh --api_option=lite --target_abi=arm64
 #
 
-# API build option ('core' to build with GStreamer core plugins)
+# API build option ('lite' to build with GStreamer core plugins)
 nnstreamer_api_option=all
 
 # Set target ABI ('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
@@ -40,10 +40,10 @@ for arg in "$@"; do
             ;;
         --target_abi=*)
             target_abi=${arg#*=}
-            if [[ $target_abi == 'arm64' ]]; then
-                nnstreamer_target_abi="'arm64-v8a'"
-            elif [[ $target_abi == 'armv7' ]]; then
+            if [[ $target_abi == 'armv7' ]]; then
                 nnstreamer_target_abi="'armeabi-v7a'"
+            elif [[ $target_abi == 'arm64' ]]; then
+                nnstreamer_target_abi="'arm64-v8a'"
             else
                 echo "Unknown target ABI." && exit 1
             fi
@@ -75,6 +75,19 @@ if [[ $release_bintray == 'yes' ]]; then
 
     echo "Release version: $release_version user: $bintray_user_name"
 fi
+
+# Set library name
+nnstreamer_lib_name="nnstreamer"
+
+if [[ $nnstreamer_api_option != 'all' ]]; then
+    nnstreamer_lib_name="$nnstreamer_lib_name-$nnstreamer_api_option"
+fi
+
+if [[ -n $target_abi ]]; then
+    nnstreamer_lib_name="$nnstreamer_lib_name-$target_abi"
+fi
+
+echo "NNStreamer library name: $nnstreamer_lib_name"
 
 # Function to check if a package is installed
 function check_package() {
@@ -137,7 +150,7 @@ publish {\n\
     userOrg = 'nnsuite'\n\
     repoName = 'nnstreamer'\n\
     groupId = 'org.nnsuite'\n\
-    artifactId = 'nnstreamer'\n\
+    artifactId = '$nnstreamer_lib_name'\n\
     publishVersion = '$release_version'\n\
     desc = 'NNStreamer API for Android'\n\
     website = 'https://github.com/nnsuite/nnstreamer'\n\
@@ -165,7 +178,7 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
 
     echo "Build procedure is done, copy NNStreamer library to $result_directory directory."
     mkdir -p $result_directory
-    cp $nnstreamer_android_api_lib $result_directory/nnstreamer-api-$today.aar
+    cp $nnstreamer_android_api_lib $result_directory/$nnstreamer_lib_name-$today.aar
 
     if [[ $release_bintray == 'yes' ]]; then
         echo "Upload NNStreamer library to Bintray."
@@ -176,8 +189,9 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
         echo "Run instrumented test."
         ./gradlew api:connectedCheck
 
-        zip -r nnstreamer-api-unittest-$today.zip api/build/reports
-        cp nnstreamer-api-unittest-$today.zip $result_directory
+        test_result="$nnstreamer_lib_name-test-$today.zip"
+        zip -r $test_result api/build/reports
+        cp $test_result $result_directory
     fi
 else
     echo "Failed to build NNStreamer library."
