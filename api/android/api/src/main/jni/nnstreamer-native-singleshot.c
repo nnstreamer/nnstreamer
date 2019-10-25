@@ -84,17 +84,19 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
  * @brief Native method for single-shot API.
  */
 jobject
-Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
-    jlong handle, jobject in)
+Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
+    jobject thiz, jlong handle, jobject obj_data, jobject obj_info)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
   ml_tensors_data_s *input, *output;
   int status;
   jobject result = NULL;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
   single = pipe_info->pipeline_handle;
+  in_info = out_info = NULL;
   output = NULL;
 
   input = g_new0 (ml_tensors_data_s, 1);
@@ -103,12 +105,26 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
     goto done;
   }
 
-  if (!nns_parse_tensors_data (pipe_info, env, in, input)) {
+  if (!nns_parse_tensors_data (pipe_info, env, obj_data, input)) {
     nns_loge ("Failed to parse input data.");
     goto done;
   }
 
-  status = ml_single_invoke (single, input, (ml_tensors_data_h *) &output);
+  if (obj_info) {
+    ml_tensors_info_create (&in_info);
+
+    if (!nns_parse_tensors_info (pipe_info, env, obj_info,
+          (ml_tensors_info_s *) in_info)) {
+      nns_loge ("Failed to parse input tensors info.");
+      goto done;
+    }
+
+    status = ml_single_invoke_dynamic (single, input, in_info,
+        (ml_tensors_data_h *) &output, &out_info);
+  } else {
+    status = ml_single_invoke (single, input, (ml_tensors_data_h *) &output);
+  }
+
   if (status != ML_ERROR_NONE) {
     nns_loge ("Failed to get the result from pipeline.");
     goto done;
@@ -122,6 +138,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env, jobject thiz,
 done:
   ml_tensors_data_destroy ((ml_tensors_data_h) input);
   ml_tensors_data_destroy ((ml_tensors_data_h) output);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
   return result;
 }
 
@@ -161,8 +179,8 @@ done:
  * @brief Native method for single-shot API.
  */
 jobject
-Java_org_nnsuite_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env, jobject thiz,
-    jlong handle)
+Java_org_nnsuite_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env,
+    jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -193,8 +211,8 @@ done:
  * @brief Native method for single-shot API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env, jobject thiz,
-    jlong handle, jint timeout)
+Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env,
+    jobject thiz, jlong handle, jint timeout)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -211,4 +229,39 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env, jobject t
 
   nns_logi ("Successfully set the timeout, %d milliseconds.", timeout);
   return JNI_TRUE;
+}
+
+/**
+ * @brief Native method for single-shot API.
+ */
+jboolean
+Java_org_nnsuite_nnstreamer_SingleShot_nativeSetInputInfo (JNIEnv * env,
+    jobject thiz, jlong handle, jobject in)
+{
+  pipeline_info_s *pipe_info;
+  ml_single_h single;
+  ml_tensors_info_h in_info = NULL;
+  jboolean ret = JNI_FALSE;
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  single = pipe_info->pipeline_handle;
+
+  if (ml_tensors_info_create (&in_info) != ML_ERROR_NONE)
+    return JNI_FALSE;
+
+  if (nns_parse_tensors_info (pipe_info, env, in,
+        (ml_tensors_info_s *) in_info) == FALSE)
+    goto done;
+
+  if (ml_single_set_input_info (single, in_info) != ML_ERROR_NONE) {
+    nns_loge ("Failed to set input info.");
+    goto done;
+  }
+
+  ret = JNI_TRUE;
+
+done:
+  ml_tensors_info_destroy (in_info);
+
+  return ret;
 }
