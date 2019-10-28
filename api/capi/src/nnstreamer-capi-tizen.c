@@ -559,6 +559,7 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean
     res = g_new0 (pipeline_resource_s, 1);
     if (!res) {
       ml_loge ("Failed to allocate pipeline resource handle.");
+      status = ML_ERROR_OUT_OF_MEMORY;
       goto rm_error;
     }
 
@@ -571,6 +572,7 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean
     mm_handle = g_new0 (tizen_mm_handle_s, 1);
     if (!mm_handle) {
       ml_loge ("Failed to allocate media resource handle.");
+      status = ML_ERROR_OUT_OF_MEMORY;
       goto rm_error;
     }
 
@@ -694,6 +696,7 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
         if (mm_res == NULL) {
           ml_loge ("Failed to allocate media resource data.");
           g_free (res_key);
+          status = ML_ERROR_OUT_OF_MEMORY;
           goto rm_error;
         }
 

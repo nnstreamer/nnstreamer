@@ -169,6 +169,7 @@ typedef enum {
   ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /**< Time out */
   ML_ERROR_NOT_SUPPORTED        = TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
   ML_ERROR_PERMISSION_DENIED    = TIZEN_ERROR_PERMISSION_DENIED, /**< Permission denied */
+  ML_ERROR_OUT_OF_MEMORY        = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory */
 } ml_error_e;
 
 /**
@@ -248,6 +249,7 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
  * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the required privilege to access to the media storage, external storage, microphone, or camera.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to construct the pipeline.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_UNKNOWN or #ML_PIPELINE_STATE_NULL.
  * @post The pipeline state will be #ML_PIPELINE_STATE_PAUSED in the same thread.
@@ -340,6 +342,7 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated, sink_name is not found, or sink_name has an invalid type.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
  */
@@ -371,6 +374,7 @@ int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Fail to get SRC element.
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name, ml_pipeline_src_h *src_handle);
 
@@ -434,6 +438,7 @@ int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_i
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name, ml_pipeline_switch_e *switch_type, ml_pipeline_switch_h *switch_handle);
 
@@ -471,6 +476,7 @@ int ml_pipeline_switch_select (ml_pipeline_switch_h switch_handle, const char *p
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE The element is not both input and output switch (Internal data inconsistency).
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  *
  * Here is an example of the usage:
  * @code
@@ -538,6 +544,7 @@ int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char **
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name, ml_pipeline_valve_h *valve_handle);
 
@@ -575,6 +582,7 @@ int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_tensors_info_create (ml_tensors_info_h *info);
 
@@ -740,6 +748,7 @@ int ml_tensors_info_get_tensor_size (ml_tensors_info_h info, int index, size_t *
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to allocate new memory.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h *data);
 

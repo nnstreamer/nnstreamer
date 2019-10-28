@@ -42,6 +42,10 @@ ml_tensors_info_create (ml_tensors_info_h * info)
     return ML_ERROR_INVALID_PARAMETER;
 
   *info = tensors_info = g_new0 (ml_tensors_info_s, 1);
+  if (tensors_info == NULL) {
+    ml_loge ("Failed to allocate the tensors info handle.");
+    return ML_ERROR_OUT_OF_MEMORY;
+  }
 
   /* init tensors info struct */
   return ml_tensors_info_initialize (tensors_info);
@@ -492,8 +496,8 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
 
   _data = g_new0 (ml_tensors_data_s, 1);
   if (!_data) {
-    ml_loge ("Failed to allocate the memory block.");
-    return ML_ERROR_STREAMS_PIPE;
+    ml_loge ("Failed to allocate the tensors data handle.");
+    return ML_ERROR_OUT_OF_MEMORY;
   }
 
   _data->num_tensors = tensors_info->num_tensors;
@@ -513,7 +517,7 @@ int
 ml_tensors_data_create (const ml_tensors_info_h info,
     ml_tensors_data_h * data)
 {
-  gint status;
+  gint status = ML_ERROR_STREAMS_PIPE;
   ml_tensors_data_s *_data = NULL;
   gint i;
 
@@ -528,8 +532,10 @@ ml_tensors_data_create (const ml_tensors_info_h info,
 
   for (i = 0; i < _data->num_tensors; i++) {
     _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
-    if (_data->tensors[i].tensor == NULL)
+    if (_data->tensors[i].tensor == NULL) {
+      status = ML_ERROR_OUT_OF_MEMORY;
       goto failed;
+    }
   }
 
   *data = _data;
@@ -542,7 +548,7 @@ failed:
   g_free (_data);
 
   ml_loge ("Failed to allocate the memory block.");
-  return ML_ERROR_STREAMS_PIPE;
+  return status;
 }
 
 /**

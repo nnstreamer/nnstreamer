@@ -346,7 +346,7 @@ ml_single_open (ml_single_h * single, const char *model,
   if (single_h == NULL) {
     ml_loge ("Failed to allocate the single handle.");
     ml_pipeline_destroy (pipe);
-    return ML_ERROR_STREAMS_PIPE;
+    return ML_ERROR_OUT_OF_MEMORY;
   }
 
   pipe_h = (ml_pipeline *) pipe;
