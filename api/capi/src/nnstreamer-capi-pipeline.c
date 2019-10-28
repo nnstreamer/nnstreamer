@@ -416,7 +416,7 @@ construct_pipeline_internal (const char *pipeline_description,
   pipe_h = g_new0 (ml_pipeline, 1);
   if (pipe_h == NULL) {
     ml_loge ("Failed to allocate handle for pipeline.");
-    return ML_ERROR_STREAMS_PIPE;
+    return ML_ERROR_OUT_OF_MEMORY;
   }
 
   g_mutex_init (&pipe_h->lock);
@@ -527,7 +527,7 @@ construct_pipeline_internal (const char *pipeline_description,
                   g_hash_table_insert (pipe_h->namednodes, g_strdup (name), e);
                 } else {
                   /* allocation failure */
-                  status = ML_ERROR_STREAMS_PIPE;
+                  status = ML_ERROR_OUT_OF_MEMORY;
                   done = TRUE;
                 }
               }
@@ -850,7 +850,7 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   sink = *h = g_new0 (ml_pipeline_sink, 1);
   if (sink == NULL) {
     ml_loge ("Failed to allocate the sink handle for %s.", sink_name);
-    ret = ML_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_OUT_OF_MEMORY;
     goto unlock_return;
   }
 
@@ -988,7 +988,7 @@ ml_pipeline_src_get_handle (ml_pipeline_h pipe, const char *src_name,
   src = *h = g_new0 (ml_pipeline_src, 1);
   if (src == NULL) {
     ml_loge ("Failed to allocate the src handle for %s.", src_name);
-    ret = ML_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_OUT_OF_MEMORY;
     goto unlock_return;
   }
 
@@ -1208,7 +1208,7 @@ ml_pipeline_switch_get_handle (ml_pipeline_h pipe, const char *switch_name,
   swtc = *h = g_new0 (ml_pipeline_switch, 1);
   if (swtc == NULL) {
     ml_loge ("Failed to allocate the switch handle for %s.", switch_name);
-    ret = ML_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_OUT_OF_MEMORY;
     goto unlock_return;
   }
 
@@ -1360,7 +1360,7 @@ ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
     *list = g_malloc0 (sizeof (char *) * (counter + 1));
     if (*list == NULL) {
       ml_loge ("Failed to allocate memory for pad list.");
-      ret = ML_ERROR_STREAMS_PIPE;
+      ret = ML_ERROR_OUT_OF_MEMORY;
       goto unlock_return;
     }
 
@@ -1438,7 +1438,7 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
   valve = *h = g_new0 (ml_pipeline_valve, 1);
   if (valve == NULL) {
     ml_loge ("Failed to allocate the valve handle for %s.", valve_name);
-    ret = ML_ERROR_STREAMS_PIPE;
+    ret = ML_ERROR_OUT_OF_MEMORY;
     goto unlock_return;
   }
 

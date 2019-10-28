@@ -430,11 +430,7 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h = g_new0 (ml_single, 1);
   if (single_h == NULL) {
     ml_loge ("Failed to allocate the single handle.");
-    /**
-     * @todo define error code (ML_ERROR_OUT_OF_MEMORY) for no-mem case in ml_error_e
-     * TIZEN_ERROR_OUT_OF_MEMORY = -ENOMEM
-     */
-    return ML_ERROR_UNKNOWN;
+    return ML_ERROR_OUT_OF_MEMORY;
   }
 
   single_h->magic = ML_SINGLE_MAGIC;

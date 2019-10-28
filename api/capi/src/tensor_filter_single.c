@@ -368,8 +368,10 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     /* allocate memory if allocate_in_invoke is FALSE */
     if (priv->fw->allocate_in_invoke == FALSE) {
       output[i].data = g_malloc (output[i].size);
-      if (!output[i].data)
+      if (!output[i].data) {
+        g_critical ("Failed to allocate the output tensor.");
         goto error;
+      }
     }
   }
 
