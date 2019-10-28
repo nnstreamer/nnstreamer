@@ -204,36 +204,30 @@ if get_option('enable-python')
   # Check python 2.7
   python2_dep = dependency('python-2.7', required: false)
   if python2_dep.found()
-    python2_incs = run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
+    python2_incs = []
+    python2_incs += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
+    python2_incs += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+    python2_incs += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
     if cc.has_header('numpy/arrayobject.h', args: python2_incs)
       have_python2 = true
     else
-      python2_pkg_incs = run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-      python2_pkg_incs += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-      message('Numpy is not found in the default python include path. Searching for site/dist-packages include path...')
-      if cc.has_header('numpy/arrayobject.h', args: python2_pkg_incs)
-        have_python2 = true
-      else
-        message('Numpy is not found in both paths. NNStreamer-Python2.7 is disabled.')
-      endif
+      warning('Found python2.7, but failed to find numpy.')
+      warning('Disable nnstreamer-python2.')
     endif
   endif
 
   # Check python 3.x
   python3_dep = dependency('python3', required: false)
   if python3_dep.found()
-    python3_incs = run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+    python3_incs = []
+    python3_incs += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+    python3_incs += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+    python3_incs += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
     if cc.has_header('numpy/arrayobject.h', args: python3_incs)
       have_python3 = true
     else
-      python3_pkg_incs = run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-      python3_pkg_incs += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-      message('Numpy is not found in the default python include path. Searching for site/dist-packages include path...')
-      if cc.has_header('numpy/arrayobject.h', args: python3_pkg_incs)
-        have_python3 = true
-      else
-        message('Numpy is not found in both paths. NNStreamer-Python3 is disabled.')
-      endif
+      warning('Found python3, but failed to find numpy.')
+      warning('Disable nnstreamer-python3.')
     endif
   endif
 endif
