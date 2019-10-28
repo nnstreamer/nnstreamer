@@ -12,7 +12,7 @@ Note that except for tensor\_decoder, which accepts data semantics from pipeline
 
 # Gstreamer Elements (Plugins)
 
-Note that "stable" does not mean that it is complete. It means that it has enough test cases and complies with the overall design; thus, "stable" features probably won't be modified extensively. Features marked "experimental" can be modified extensively due to its incomplete design and implementation or crudeness.
+Note that "stable" does not mean that it is complete. It means that it has enough test cases and complies with the overall design; thus, "stable" features probably won't be modified extensively. Features marked "experimental" can be modified extensively due to its incomplete design and implementation or crudeness. "Planned" is still in the works so it will be released soon.
 
 In this page, we focus on the status of each elements. For requirements and designs of each element, please refer to the README.md of the element.
 
