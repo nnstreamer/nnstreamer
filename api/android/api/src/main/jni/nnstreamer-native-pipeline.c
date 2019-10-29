@@ -140,7 +140,7 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_SINK);
+    item->type = NNS_ELEMENT_TYPE_SINK;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -184,7 +184,7 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_SRC);
+    item->type = NNS_ELEMENT_TYPE_SRC;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -230,9 +230,9 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 
     item->name = g_strdup (element_name);
     if (switch_type == ML_PIPELINE_SWITCH_INPUT_SELECTOR)
-      item->type = g_strdup (NNS_ELEMENT_TYPE_SWITCH_IN);
+      item->type = NNS_ELEMENT_TYPE_SWITCH_IN;
     else
-      item->type = g_strdup (NNS_ELEMENT_TYPE_SWITCH_OUT);
+      item->type = NNS_ELEMENT_TYPE_SWITCH_OUT;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -276,7 +276,7 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = g_strdup (NNS_ELEMENT_TYPE_VALVE);
+    item->type = NNS_ELEMENT_TYPE_VALVE;
     item->handle = handle;
     item->pipe_info = pipe_info;
 

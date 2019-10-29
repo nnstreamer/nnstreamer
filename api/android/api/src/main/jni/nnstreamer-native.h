@@ -66,22 +66,38 @@
 #define CAST_TO_TYPE(l,type) (type)(jint)(l)
 #endif
 
-#define NNS_PIPE_TYPE_PIPELINE "pipeline"
-#define NNS_PIPE_TYPE_SINGLE "single"
-#define NNS_PIPE_TYPE_CUSTOM "custom-filter"
+/**
+ * @brief Pipeline type in native pipe info.
+ */
+typedef enum
+{
+  NNS_PIPE_TYPE_PIPELINE = 0,
+  NNS_PIPE_TYPE_SINGLE,
+  NNS_PIPE_TYPE_CUSTOM,
 
-#define NNS_ELEMENT_TYPE_SRC "src"
-#define NNS_ELEMENT_TYPE_SINK "sink"
-#define NNS_ELEMENT_TYPE_VALVE "valve"
-#define NNS_ELEMENT_TYPE_SWITCH_IN "switch_in"
-#define NNS_ELEMENT_TYPE_SWITCH_OUT "switch_out"
+  NNS_PIPE_TYPE_UNKNOWN
+} nns_pipe_type_e;
+
+/**
+ * @brief Element type in native pipe info.
+ */
+typedef enum
+{
+  NNS_ELEMENT_TYPE_SRC = 0,
+  NNS_ELEMENT_TYPE_SINK,
+  NNS_ELEMENT_TYPE_VALVE,
+  NNS_ELEMENT_TYPE_SWITCH_IN,
+  NNS_ELEMENT_TYPE_SWITCH_OUT,
+
+  NNS_ELEMENT_TYPE_UNKNOWN
+} nns_element_type_e;
 
 /**
  * @brief Struct for constructed pipeline.
  */
 typedef struct
 {
-  gchar *pipeline_type;
+  nns_pipe_type_e pipeline_type;
   gpointer pipeline_handle;
   GHashTable *element_handles;
   GMutex lock;
@@ -101,7 +117,7 @@ typedef struct
 typedef struct
 {
   gchar *name;
-  gchar *type;
+  nns_element_type_e type;
   gpointer handle;
   pipeline_info_s *pipe_info;
 } element_data_s;
@@ -122,7 +138,7 @@ nns_free_element_data (gpointer data);
  * @brief Construct pipeline info.
  */
 extern gpointer
-nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gchar * type);
+nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, nns_pipe_type_e type);
 
 /**
  * @brief Destroy pipeline info.
