@@ -84,23 +84,28 @@ nns_free_element_data (gpointer data)
   element_data_s *item = (element_data_s *) data;
 
   if (item) {
-    if (g_str_equal (item->type, NNS_ELEMENT_TYPE_SRC)) {
-      ml_pipeline_src_release_handle ((ml_pipeline_src_h) item->handle);
-    } else if (g_str_equal (item->type, NNS_ELEMENT_TYPE_SINK)) {
-      ml_pipeline_sink_unregister ((ml_pipeline_sink_h) item->handle);
-    } else if (g_str_equal (item->type, NNS_ELEMENT_TYPE_SWITCH_IN) ||
-        g_str_equal (item->type, NNS_ELEMENT_TYPE_SWITCH_OUT)) {
-      ml_pipeline_switch_release_handle ((ml_pipeline_switch_h) item->handle);
-    } else if (g_str_equal (item->type, NNS_ELEMENT_TYPE_VALVE)) {
-      ml_pipeline_valve_release_handle ((ml_pipeline_valve_h) item->handle);
-    } else {
-      nns_logw ("Given element type %s is unknown.", item->type);
-      if (item->handle)
-        g_free (item->handle);
+    switch (item->type) {
+      case NNS_ELEMENT_TYPE_SRC:
+        ml_pipeline_src_release_handle ((ml_pipeline_src_h) item->handle);
+        break;
+      case NNS_ELEMENT_TYPE_SINK:
+        ml_pipeline_sink_unregister ((ml_pipeline_sink_h) item->handle);
+        break;
+      case NNS_ELEMENT_TYPE_VALVE:
+        ml_pipeline_valve_release_handle ((ml_pipeline_valve_h) item->handle);
+        break;
+      case NNS_ELEMENT_TYPE_SWITCH_IN:
+      case NNS_ELEMENT_TYPE_SWITCH_OUT:
+        ml_pipeline_switch_release_handle ((ml_pipeline_switch_h) item->handle);
+        break;
+      default:
+        nns_logw ("Given element type %d is unknown.", item->type);
+        if (item->handle)
+          g_free (item->handle);
+        break;
     }
 
     g_free (item->name);
-    g_free (item->type);
     g_free (item);
   }
 }
@@ -109,14 +114,14 @@ nns_free_element_data (gpointer data)
  * @brief Construct pipeline info.
  */
 gpointer
-nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, const gchar * type)
+nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, nns_pipe_type_e type)
 {
   pipeline_info_s *pipe_info;
 
   pipe_info = g_new0 (pipeline_info_s, 1);
   g_return_val_if_fail (pipe_info != NULL, NULL);
 
-  pipe_info->pipeline_type = g_strdup (type);
+  pipe_info->pipeline_type = type;
   pipe_info->pipeline_handle = handle;
   pipe_info->element_handles = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, nns_free_element_data);
   g_mutex_init (&pipe_info->lock);
@@ -152,19 +157,24 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
   pipe_info->element_handles = NULL;
   g_mutex_unlock (&pipe_info->lock);
 
-  if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_PIPELINE)) {
-    ml_pipeline_destroy (pipe_info->pipeline_handle);
-  } else if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_SINGLE)) {
-    ml_single_close (pipe_info->pipeline_handle);
-  } else if (g_str_equal (pipe_info->pipeline_type, NNS_PIPE_TYPE_CUSTOM)) {
-    /**
-     * Do nothing here (no handle to close).
-     * The handle is filter-framework and it will be closed in customfilter-destroy function.
-     */
-  } else {
-    nns_logw ("Given pipe type %s is unknown.", pipe_info->pipeline_type);
-    if (pipe_info->pipeline_handle)
-      g_free (pipe_info->pipeline_handle);
+  switch (pipe_info->pipeline_type) {
+    case NNS_PIPE_TYPE_PIPELINE:
+      ml_pipeline_destroy (pipe_info->pipeline_handle);
+      break;
+    case NNS_PIPE_TYPE_SINGLE:
+      ml_single_close (pipe_info->pipeline_handle);
+      break;
+    case NNS_PIPE_TYPE_CUSTOM:
+      /**
+       * Do nothing here (no handle to close).
+       * The handle is filter-framework and it will be closed in customfilter-destroy function.
+       */
+      break;
+    default:
+      nns_logw ("Given pipe type %d is unknown.", pipe_info->pipeline_type);
+      if (pipe_info->pipeline_handle)
+        g_free (pipe_info->pipeline_handle);
+      break;
   }
 
   g_mutex_clear (&pipe_info->lock);
@@ -173,7 +183,6 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
   (*env)->DeleteGlobalRef (env, pipe_info->cls_tensors_data);
   (*env)->DeleteGlobalRef (env, pipe_info->cls_tensors_info);
 
-  g_free (pipe_info->pipeline_type);
   g_free (pipe_info);
 }
 
