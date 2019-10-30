@@ -386,89 +386,16 @@ convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result,
 }
 
 /**
- * @brief Internal function to construct the pipeline.
- * If is_internal is true, this will ignore the permission in Tizen.
+ * @brief Iterate elements and prepare element handle.
  */
 static int
-construct_pipeline_internal (const char *pipeline_description,
-    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe, gboolean is_internal)
+iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
 {
-  GError *err = NULL;
-  GstElement *pipeline;
   GstIterator *it = NULL;
-  gchar *description = NULL;
   int status = ML_ERROR_NONE;
 
-  ml_pipeline *pipe_h;
+  g_return_val_if_fail (pipe_h && pipeline, ML_ERROR_INVALID_PARAMETER);
 
-  check_feature_state ();
-
-  if (!pipe || !pipeline_description)
-    return ML_ERROR_INVALID_PARAMETER;
-
-  /* init null */
-  *pipe = NULL;
-
-  if ((status = ml_initialize_gstreamer ()) != ML_ERROR_NONE)
-    return status;
-
-  /* prepare pipeline handle */
-  pipe_h = g_new0 (ml_pipeline, 1);
-  if (pipe_h == NULL) {
-    ml_loge ("Failed to allocate handle for pipeline.");
-    return ML_ERROR_OUT_OF_MEMORY;
-  }
-
-  g_mutex_init (&pipe_h->lock);
-
-  pipe_h->namednodes =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
-
-  pipe_h->resources =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_resource);
-
-  /* convert predefined element and launch the pipeline */
-  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description, is_internal);
-  if (status != ML_ERROR_NONE)
-    goto failed;
-
-  pipeline = gst_parse_launch (description, &err);
-  g_free (description);
-
-  if (pipeline == NULL || err) {
-    if (err) {
-      ml_loge ("Cannot parse and launch the given pipeline = [%s], %s",
-          pipeline_description, err->message);
-      g_clear_error (&err);
-    } else {
-      ml_loge
-          ("Cannot parse and launch the given pipeline = [%s], unknown reason",
-          pipeline_description);
-    }
-
-    if (pipeline)
-      gst_object_unref (pipeline);
-
-    status = ML_ERROR_STREAMS_PIPE;
-    goto failed;
-  }
-
-  g_assert (GST_IS_PIPELINE (pipeline));
-  pipe_h->element = pipeline;
-
-  /* bus and message callback */
-  pipe_h->bus = gst_element_get_bus (pipeline);
-  g_assert (pipe_h->bus);
-
-  gst_bus_enable_sync_message_emission (pipe_h->bus);
-  pipe_h->signal_msg = g_signal_connect (pipe_h->bus, "sync-message",
-      G_CALLBACK (cb_bus_sync_message), pipe_h);
-
-  /* state change callback */
-  pipe_h->state_cb.cb = cb;
-  pipe_h->state_cb.user_data = user_data;
-
-  /* iterate elements and prepare element handle */
   g_mutex_lock (&pipe_h->lock);
 
   it = gst_bin_iterate_elements (GST_BIN (pipeline));
@@ -547,14 +474,96 @@ construct_pipeline_internal (const char *pipeline_description,
           done = TRUE;
       }
     }
+
     g_value_unset (&item);
     /** @todo CRITICAL check the validity of elem=item registered in e */
     gst_iterator_free (it);
   }
 
   g_mutex_unlock (&pipe_h->lock);
+  return status;
+}
 
-  /* set pipeline state to PAUSED */
+/**
+ * @brief Internal function to construct the pipeline.
+ * If is_internal is true, this will ignore the permission in Tizen.
+ */
+static int
+construct_pipeline_internal (const char *pipeline_description,
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe, gboolean is_internal)
+{
+  GError *err = NULL;
+  GstElement *pipeline;
+  gchar *description = NULL;
+  int status = ML_ERROR_NONE;
+
+  ml_pipeline *pipe_h;
+
+  check_feature_state ();
+
+  if (!pipe || !pipeline_description)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *pipe = NULL;
+
+  if ((status = ml_initialize_gstreamer ()) != ML_ERROR_NONE)
+    return status;
+
+  /* prepare pipeline handle */
+  pipe_h = g_new0 (ml_pipeline, 1);
+  if (pipe_h == NULL) {
+    ml_loge ("Failed to allocate handle for pipeline.");
+    return ML_ERROR_OUT_OF_MEMORY;
+  }
+
+  g_mutex_init (&pipe_h->lock);
+
+  pipe_h->namednodes =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
+
+  pipe_h->resources =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_resource);
+
+  /* convert predefined element and launch the pipeline */
+  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description, is_internal);
+  if (status != ML_ERROR_NONE)
+    goto failed;
+
+  pipeline = gst_parse_launch (description, &err);
+  g_free (description);
+
+  if (pipeline == NULL || err) {
+    ml_loge ("Cannot parse and launch the given pipeline = [%s], %s",
+        pipeline_description, (err) ? err->message : "unknown reason");
+    g_clear_error (&err);
+
+    if (pipeline)
+      gst_object_unref (pipeline);
+
+    status = ML_ERROR_STREAMS_PIPE;
+    goto failed;
+  }
+
+  g_assert (GST_IS_PIPELINE (pipeline));
+  pipe_h->element = pipeline;
+
+  /* bus and message callback */
+  pipe_h->bus = gst_element_get_bus (pipeline);
+  g_assert (pipe_h->bus);
+
+  gst_bus_enable_sync_message_emission (pipe_h->bus);
+  pipe_h->signal_msg = g_signal_connect (pipe_h->bus, "sync-message",
+      G_CALLBACK (cb_bus_sync_message), pipe_h);
+
+  /* state change callback */
+  pipe_h->state_cb.cb = cb;
+  pipe_h->state_cb.user_data = user_data;
+
+  /* iterate elements and prepare element handle */
+  status = iterate_element (pipe_h, pipeline);
+
+  /* finally set pipeline state to PAUSED */
   if (status == ML_ERROR_NONE) {
     status = ml_pipeline_stop ((ml_pipeline_h) pipe_h);
   }
