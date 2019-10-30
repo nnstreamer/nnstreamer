@@ -125,8 +125,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
  */
-static inline int ml_single_invoke_dynamic (ml_single_h single, const ml_tensors_data_h input, const ml_tensors_info_h in_info,
-    ml_tensors_data_h *output, ml_tensors_info_h *out_info);
+static inline int ml_single_invoke_dynamic (ml_single_h single, const ml_tensors_data_h input, const ml_tensors_info_h in_info, ml_tensors_data_h *output, ml_tensors_info_h *out_info);
 
 /*************
  * UTILITIES *
