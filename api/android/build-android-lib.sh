@@ -180,13 +180,35 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     mkdir -p $result_directory
     cp $nnstreamer_android_api_lib $result_directory/$nnstreamer_lib_name-$today.aar
 
+    # Prepare native libraries and header files for C-API
+    unzip $nnstreamer_android_api_lib -d aar_extracted
+
+    mkdir -p main/java/org/freedesktop
+    mkdir -p main/jni/nnstreamer/lib
+    mkdir -p main/jni/nnstreamer/include
+
+    cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
+    cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
+    cp ext-files/jni/Android-nnstreamer-prebuilt.mk main/jni
+    cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
+
+    nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
+    zip -r $nnstreamer_native_files main
+    cp $nnstreamer_native_files $result_directory
+
+    rm -rf aar_extracted main
+
+    # Upload to jcenter
     if [[ $release_bintray == 'yes' ]]; then
         echo "Upload NNStreamer library to Bintray."
         ./gradlew api:bintrayUpload -PbintrayUser=$bintray_user_name -PbintrayKey=$bintray_user_key -PdryRun=false
     fi
 
+    # Run instrumentation test
     if [[ $run_unittest == 'yes' ]]; then
-        echo "Run instrumented test."
+        echo "Run instrumentation test."
         ./gradlew api:connectedCheck
 
         test_result="$nnstreamer_lib_name-test-$today.zip"
