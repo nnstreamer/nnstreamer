@@ -477,11 +477,10 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
 }
 
 /**
- * @brief Native method to initialize NNStreamer.
+ * @brief Initialize NNStreamer, register required plugins.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
-    jobject context)
+nnstreamer_native_initialize (void)
 {
   nns_logi ("Called native initialize.");
 
@@ -504,6 +503,16 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass cl
   init_is ();
 
   return JNI_TRUE;
+}
+
+/**
+ * @brief Native method to initialize NNStreamer.
+ */
+jboolean
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
+    jobject context)
+{
+  return nnstreamer_native_initialize ();
 }
 
 /**

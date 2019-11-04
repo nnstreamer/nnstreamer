@@ -124,13 +124,21 @@ $ git clone https://github.com/nnsuite/nnstreamer.git
 #### Build Android API
 
 Run the build script in NNStreamer.
-After building the Android API, you can find the library(.aar) in ```$NNSTREAMER_ROOT/android_lib```.
+
+- Build options
+  1. target_abi: Specify the ABI (armv7, arm64) to be built for with `--target_abi={TARGET-ABI}`.
+  2. api_option: Get the minimized library with GStreamer core elements `--api_option=lite`.
+  3. run_unittest: Run the instrumentation test `--run_unittest=yes`. 
 
 ```bash
 $ cd $NNSTREAMER_ROOT
 $ bash ./api/android/build-android-lib.sh
 ```
-Specify the ABI to be built for with `--target\_abi={TARGET-ABI}`.
+
+After building the Android API, you can find the library(.aar) in `$NNSTREAMER_ROOT/android_lib`.
+- Build result
+  1. nnstreamer.aar: NNStreamer library
+  2. nnstreamer-native.zip: shared objects and header files for native developer 
 
 #### Run the unit-test (Optional)
 
