@@ -18,18 +18,21 @@ We assume that you already have experienced Android application developments wit
 First of all, you need to set-up the development environment as following:
 
 ```bash
-$ mkdir -p $HOME/android/tools/sdk
-$ mkdir -p $HOME/android/gstreamer-1.0
-$ mkdir -p $HOME/android/workspace
+$ export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
+$ mkdir -p $ANDROID_DEV_ROOT/tools/sdk
+$ mkdir -p $ANDROID_DEV_ROOT/gstreamer-1.0
+$ mkdir -p $ANDROID_DEV_ROOT/workspace
 $
 $ vi ~/.bashrc
 # Environment variables for developing a NNStreamer application
-# $ANDROID_DEV_ROOT/gstreamer-1.0                # GStreamer binaries
-# $ANDROID_DEV_ROOT/tools/sdk                    # Android SDK root directory (default location: $HOME/Android/Sdk)
-# $ANDROID_DEV_ROOT/workspace/nnstreamer         # NNStreamer cloned git repository
 #
 export JAVA_HOME=/opt/android-studio/jre            # JRE path in Android Studio
 export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
+#
+# $ANDROID_DEV_ROOT/tools/sdk                    # Android SDK root directory (default location: $HOME/Android/Sdk)
+# $ANDROID_DEV_ROOT/gstreamer-1.0                # GStreamer binaries
+# $ANDROID_DEV_ROOT/workspace/nnstreamer         # NNStreamer cloned git repository
+#
 export ANDROID_SDK=$ANDROID_DEV_ROOT/tools/sdk      # Android SDK (The default path will be "$HOME/Android/Sdk".)
 export ANDROID_HOME=$ANDROID_SDK
 export GSTREAMER_ROOT_ANDROID=$ANDROID_DEV_ROOT/gstreamer-1.0
@@ -50,9 +53,17 @@ $ wget https://dl.google.com/dl/android/studio/ide-zips/3.4.0.18/android-studio-
 $ tar xvzf ./android-studio-ide-183.5452501-linux.tar.gz
 ```
 
+Now, run the android studio from `./android-studio/bin/studio.sh` and install SDK to `$ANDROID_SDK`.
+Next, agree to the licenses for the Android SDK.
+```
+$ cd $ANDROID_SDK/tools/bin
+$ yes | ./sdkmanager --licenses
+```
+
 #### Download NDK
 
 Use the default NDK in Android Studio.
+To install NDK in Android Studio, navigate to configure -> Appearance & Behavior -> System Settings -> Android SDK -> SDK Tools and then select NDK.
 
 If you need to set a specific version, download and decompress it to compile normally a GStreamer-based plugin (e.g., NNStreamer).
 You can download older version from [here](https://developer.android.com/ndk/downloads/older_releases.html).
@@ -63,14 +74,13 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 
 For example,
 ```bash
-$ cd $ANDROID_DEV_ROOT/
-$ mkdir gstreamer-1.0
-$ cd gstreamer-1.0
+$ cd $ANDROID_DEV_ROOT/gstreamer-1.0
 $ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.1/gstreamer-1.0-android-universal-1.16.1.tar.xz
 $ tar xJf gstreamer-1.0-android-universal-1.16.1.tar.xz
 ```
 
 Modify the gstreamer-1.0.mk file for NDK build to prevent build error.
+Supported target ABIs are `arm64` and `armv7`.
 
 ```
 $GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.mk
@@ -78,23 +88,30 @@ $GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.m
 
 - Add directory separator.
 
-```
-# Add separator '/' between $(GSTREAMER_NDK_BUILD_PATH) and $(plugin)
+```diff
+@@ -127,2 +127,2 @@
 
 GSTREAMER_PLUGINS_CLASSES    := $(strip \
             $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
             $(foreach plugin,$(GSTREAMER_PLUGINS), \
-            $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)/*.java))))
+-           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)/*.java))))
++           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)/*.java))))
 
 GSTREAMER_PLUGINS_WITH_CLASSES := $(strip \
             $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
             $(foreach plugin, $(GSTREAMER_PLUGINS), \
-            $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)))))
+-           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)))))
++           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)))))
+
+@@ -257,1 +257,1 @@
 
 copyjavasource_$(TARGET_ARCH_ABI):
-    ...
+  $(hide)$(call host-mkdir,$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer)
+    $(hide)$(foreach plugin,$(GSTREAMER_PLUGINS_WITH_CLASSES), \
+        $(call host-mkdir,$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(plugin)) && ) echo Done mkdir
     $(hide)$(foreach file,$(GSTREAMER_PLUGINS_CLASSES), \
-        $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
+-       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
++       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
 ```
 
 #### Download NNStreamer source code
@@ -113,9 +130,12 @@ After building the Android API, you can find the library(.aar) in ```$NNSTREAMER
 $ cd $NNSTREAMER_ROOT
 $ bash ./api/android/build-android-lib.sh
 ```
+Specify the ABI to be built for with `--target\_abi={TARGET-ABI}`.
 
 #### Run the unit-test (Optional)
 
+To run the unit-test, you will need an Android Emulator running or a physical device connected and in usb debugging mode.
+Make sure to select the appropriate target ABI for the emulator.
 Before running the unit-test, you should download the test model and copy it into your target device manually.
 
 Make directory and copy test model and label files into the internal storage of your own Android target device.
