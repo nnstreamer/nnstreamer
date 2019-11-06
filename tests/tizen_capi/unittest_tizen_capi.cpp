@@ -1850,6 +1850,58 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   ml_tensors_info_destroy (in_res);
   ml_tensors_info_destroy (out_res);
 }
+#else
+/**
+ * @brief Test NNStreamer single shot (tensorflow is not supported)
+ */
+TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
+{
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensor_dimension in_dim, out_dim;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "conv_actions_frozen.pb", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  in_dim[0] = 1;
+  in_dim[1] = 16022;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_name (in_info, 0, "wav_data");
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  out_dim[0] = 12;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_name (out_info, 0, "labels_softmax");
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
+
+  /* tensorflow is not supported */
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NOT_SUPPORTED);
+
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+  g_free (test_model);
+}
 #endif /* ENABLE_TENSORFLOW */
 
 #ifdef ENABLE_TENSORFLOW_LITE
