@@ -71,6 +71,55 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testSetNullInputInfo() {
+        try {
+            mSingle.setInputInfo(null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSetInputInfo() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File model = new File(root + "/nnstreamer/test/add.tflite");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        try {
+            SingleShot addSingle = new SingleShot(model);
+            TensorsInfo info = addSingle.getInputInfo();
+
+            /* input: float32 1:1:1:1 */
+            assertEquals(1, info.getTensorsCount());
+            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertArrayEquals(new int[]{1,1,1,1}, info.getTensorDimension(0));
+
+            TensorsInfo newInfo = new TensorsInfo();
+            newInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{1,1,1,10});
+
+            addSingle.setInputInfo(newInfo);
+
+            info = addSingle.getInputInfo();
+            /* input: float32 1:1:1:10 */
+            assertEquals(1, info.getTensorsCount());
+            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertArrayEquals(new int[]{1,1,1,10}, info.getTensorDimension(0));
+
+            info = addSingle.getOutputInfo();
+            /* output: float32 1:1:1:10 */
+            assertEquals(1, info.getTensorsCount());
+            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertArrayEquals(new int[]{1,1,1,10}, info.getTensorDimension(0));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testInvoke() {
         try {
             TensorsInfo info = mSingle.getInputInfo();
@@ -87,6 +136,61 @@ public class APITestSingleShot {
                 /* output: uint8 1001:1:1:1 */
                 assertEquals(1, out.getTensorsCount());
                 assertEquals(1001, out.getTensorData(0).capacity());
+
+                Thread.sleep(30);
+            }
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testInvokeDynamicBase() {
+        try {
+            TensorsInfo info = mSingle.getInputInfo();
+
+            /* let's ignore timeout (set 10 sec) */
+            mSingle.setTimeout(10000);
+
+            /* single-shot invoke with null */
+            TensorsData in = TensorsData.allocate(info);
+            TensorsData out = mSingle.invoke(in, null);
+            assertEquals(1, out.getTensorsCount());
+            assertEquals(1001, out.getTensorData(0).capacity());
+
+            /* single-shot invoke with resetting existing input info */
+            in = TensorsData.allocate(info);
+            out = mSingle.invoke(in, info);
+            assertEquals(1, out.getTensorsCount());
+            assertEquals(1001, out.getTensorData(0).capacity());
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testInvokeDynamicVary() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File model = new File(root + "/nnstreamer/test/add.tflite");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        try {
+            SingleShot addSingle = new SingleShot(model);
+
+            /* single-shot invoke */
+            for (int i = 1; i < 2; i++) {
+                TensorsInfo info = new TensorsInfo();
+                info.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{1,1,1,i});
+                /* dummy input */
+                TensorsData in = TensorsData.allocate(info);
+                TensorsData out = addSingle.invoke(in, info);
+
+                /* output: float32 1:1:1:i */
+                assertEquals(1, out.getTensorsCount());
+                assertEquals(i * Float.BYTES, out.getTensorData(0).capacity());
 
                 Thread.sleep(30);
             }
