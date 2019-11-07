@@ -98,6 +98,11 @@ BuildRequires: ssat
 # For ORC (Oil Runtime Compiler)
 BuildRequires:	pkgconfig(orc-0.4)
 
+%if %{with tizen}
+BuildRequires:	pkgconfig(sensor)
+BuildRequires:	capi-system-sensor-devel
+%endif
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs build ... --define "_skip_debug_rpm 1"'.
 
@@ -206,8 +211,16 @@ Note that there is no .pc file for this package because nnstreamer.pc file may b
 
 # Define build options
 %if %{with tizen}
-%define enable_tizen -Denable-tizen=true
+%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
 %define enable_api -Denable-capi=true
+
+# Add Tizen's sensor framework API integration
+%package tizen-sensor
+Summary:	NNStreamer integration of tizen sensor framework (tensor_src_tizensensor)
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	capi-system-sensor
+%description tizen-sensor
+You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
 
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert'
@@ -420,6 +433,10 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files cpp-devel
 %{_includedir}/nnstreamer/tensor_filter_cpp.h
+
+%if %{with tizen}
+%files tizen-sensor
+%endif
 
 %changelog
 * Thu Sep 26 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
