@@ -43,7 +43,7 @@
 class TFLiteCore
 {
 public:
-  TFLiteCore (const char *_model_path, nnapi_hw hw);
+  TFLiteCore (const char *_model_path, const char *accelerators);
   ~TFLiteCore ();
 
   int init ();
@@ -60,7 +60,7 @@ private:
 
   char *model_path;
   bool use_nnapi;
-  nnapi_hw accel;
+  accl_hw accelerator;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
@@ -74,9 +74,10 @@ private:
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
-
   int setTensorProp (const std::vector<int> &tensor_idx_list,
       GstTensorsInfo * tensorMeta);
+
+  void setAccelerator (const char * accelerators);
 };
 
 /**
@@ -86,7 +87,7 @@ extern "C"
 {
 #endif
 
-  void *tflite_core_new (const char *_model_path, nnapi_hw hw);
+  void *tflite_core_new (const char *_model_path, const char *accelerators);
   void tflite_core_delete (void * tflite);
   int tflite_core_init (void * tflite);
   const char *tflite_core_getModelPath (void * tflite);

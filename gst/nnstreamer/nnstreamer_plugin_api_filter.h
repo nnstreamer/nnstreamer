@@ -26,21 +26,69 @@
 
 #include "tensor_typedef.h"
 
+/** Macros for accelerator types */
+#define ACCL_NONE_STR "none"
+#define ACCL_AUTO_STR "auto"
+#define ACCL_CPU_STR  "cpu"
+#define ACCL_GPU_STR  "gpu"
+#define ACCL_NPU_STR  "npu"
+#define ACCL_NEON_STR "neon"
+#define ACCL_SRCN_STR "srcn"
+#define ACCL_DEF_STR  "default"
+
+#define REGEX_ACCL_EACH_ELEM(ELEM) "[^!]" ELEM "[,]?"
+
+#define REGEX_ACCL_AUTO REGEX_ACCL_EACH_ELEM(ACCL_AUTO_STR)
+#define REGEX_ACCL_CPU  REGEX_ACCL_EACH_ELEM(ACCL_CPU_STR)
+#define REGEX_ACCL_GPU  REGEX_ACCL_EACH_ELEM(ACCL_GPU_STR)
+#define REGEX_ACCL_NPU  REGEX_ACCL_EACH_ELEM(ACCL_NPU_STR)
+#define REGEX_ACCL_NEON REGEX_ACCL_EACH_ELEM(ACCL_NEON_STR)
+#define REGEX_ACCL_SRCN REGEX_ACCL_EACH_ELEM(ACCL_SRCN_STR)
+#define REGEX_ACCL_DEF  REGEX_ACCL_EACH_ELEM(ACCL_DEF_STR)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief nnapi hw properties.
+ * @brief acceleration hw properties.
+ * @details Enabling acceleration (choosing any accelerator hardware other
+ *          ACCL_NONE) will enable acceleration for the framework dependent on
+ *          the acceleration supported by the framework.
+ *
+ *          For example, enabling acceleration with tflite will enable NNAPI.
+ *          However, with NNFW will enable GPU/NEON etc.
+ *
+ *          Appropriate acceleration should be used with each framework. For
+ *          example, ACCL_NEON is only supported with NNFW tensor filter. Using
+ *          ACCL_NEON with pytorch would result in a warning message, and
+ *          the accelerator would fallback on ACCL_AUTO.
+ *
+ *          ACCL_AUTO automatically chooses the accelerator based on the ones
+ *          supported by the subplugin framework. However, ACCL_DEFAULT would
+ *          use the accelerator set by the subplugin framework, if any.
+ *
+ * @note Acceleration for a framework can be enabled/disabled in the build. If
+ *       the acceleration for a framework was disabled in the build, setting the
+ *       accelerator while use a tensor filter with that framework will have no
+ *       effect.
  */
 typedef enum
 {
-  NNAPI_CPU = 0,
-  NNAPI_GPU = 1,
-  NNAPI_NPU = 2,
+  /**< no explicit acceleration */
+  ACCL_NONE = 0,    /**< no acceleration (defaults to CPU) */
 
-  NNAPI_UNKNOWN
-} nnapi_hw;
+  /** Enables acceleration, 0xn000 any version of that device, 0xnxxx: device # xxx-1 */
+  ACCL_AUTO = 0x1,        /**< choose optimized device automatically */
+  ACCL_CPU  = 0x1000,     /**< specify device as CPU, if possible */
+  ACCL_GPU  = 0x2000,     /**< specify device as GPU, if possible */
+  ACCL_NPU  = 0x4000,     /**< specify device as NPU, if possible */
+  ACCL_NEON = 0x8000,     /**< specify device as NEON, if possible */
+  ACCL_SRCN = 0x10000,    /**< specify device as SRCN, if possible */
+
+  /** If there is no default config, and device needs to be specified, fallback to ACCL_AUTO */
+  ACCL_DEFAULT = 0x20000    /**< use default device configuration by the framework*/
+} accl_hw;
 
 /**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
@@ -62,7 +110,7 @@ typedef struct _GstTensorFilterProperties
   GstTensorsInfo output_meta; /**< configured output tensor info */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  const char *nnapi;
+  const char *accl_str; /**< accelerator configuration passed in as parameter */
 
 } GstTensorFilterProperties;
 
@@ -179,6 +227,18 @@ nnstreamer_filter_exit (const char *name);
  */
 extern const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name);
+
+/**
+ * @brief return accl_hw type from string
+ */
+extern accl_hw
+get_accl_hw_type (const char * str);
+
+/**
+ * @brief return string based on accl_hw type
+ */
+extern const char *
+get_accl_hw_str (const accl_hw key);
 
 #ifdef __cplusplus
 }
