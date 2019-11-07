@@ -125,6 +125,7 @@ typedef enum
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_3, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_DECODER_PROPERTY, /**< pipeline to test get/set_property of decoder */
+  TEST_CUSTOM_EASY_ICF_01, /**< pipeline to test easy-custom in code func */
   TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
 
@@ -930,6 +931,14 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_decoder mode=direct_video name=decoder option1=whatthehell option2=isgoingon option3=nothing option4=iswrong option5=keepcalm option6=\"and have a break\" option7=\"iwill=not\" option8=\"break=your\" option9=\"system=1234\" ! video/x-raw,format=BGRx ! tensor_converter ! tensor_sink name=test_sink ",
           option.num_buffers);
+      break;
+    case TEST_CUSTOM_EASY_ICF_01:
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=application/octet-stream ! "
+          "tensor_converter input-dim=1:10 input-type=uint8 ! "
+          "tensor_filter framework=custom-easy model=safe_memcpy_10x10 ! "
+          "tensor_sink name=test_sink");
       break;
     default:
       goto error;
@@ -4682,6 +4691,87 @@ TEST (tensor_stream_test, tensor_decoder_property)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
+}
+
+#include <tensor_filter_custom_easy.h>
+
+/** * @brief In-Code Test Function for custom-easy filter
+ */
+int cef_func_safe_memcpy (void *data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *in, GstTensorMemory *out)
+{
+  unsigned int t;
+  for (t = 0; t < prop->output_meta.num_tensors; t++) {
+    if (prop->input_meta.num_tensors <= t)
+      memset (out[t].data, 0, out[t].size);
+    else
+      memcpy (out[t].data, in[t].data, MIN(in[t].size, out[t].size));
+  }
+  return 0;
+}
+
+/**
+ * @brief Test custom-easy filter with an in-code function.
+ */
+TEST (tensor_filter_custom_easy, in_code_func_01)
+{
+  int ret;
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_CUSTOM_EASY_ICF_01 };
+  guint timeout_id;
+
+  const GstTensorsInfo info_in = {
+    .num_tensors = 1U,
+    .info = {{ .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1}}},
+  };
+  const GstTensorsInfo info_out = {
+    .num_tensors = 1U,
+    .info = {{ .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1}}},
+  };
+
+  ret = NNS_custom_easy_register ("safe_memcpy_10x10", cef_func_safe_memcpy,
+      NULL, &info_in, &info_out);
+  ASSERT_EQ(ret, 0);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (FALSE));
+
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 10U);
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for text */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 10U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+
+  /** @todo: Check the data at sink */
+
 }
 
 /**
