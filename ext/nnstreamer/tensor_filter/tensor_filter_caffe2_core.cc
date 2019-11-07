@@ -47,6 +47,7 @@ Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
   g_assert (_model_path != NULL && _model_path_sub != NULL);
   pred_model_path = g_strdup (_model_path);
   init_model_path = g_strdup (_model_path_sub);
+  first_run = true;
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -86,6 +87,8 @@ Caffe2Core::init (const GstTensorFilterProperties * prop)
     g_critical ("Failed to initialize input tensor\n");
     return -2;
   }
+
+  first_run = true;
   return 0;
 }
 
@@ -300,7 +303,27 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
     }
   }
 
-  workSpace.RunNet (predictNet.name ());
+  /**
+   * As the input information has not been verified, the first run for the model
+   * is encapsulated in a try-catch block
+   */
+  if (first_run) {
+    try {
+      workSpace.RunNet (predictNet.name ());
+      first_run = false;
+    } catch(const std::runtime_error& re) {
+      g_critical ("Runtime error while running the model: %s", re.what());
+      return -4;
+    } catch(const std::exception& ex)	{
+      g_critical ("Exception while running the model : %s", ex.what());
+      return -4;
+    } catch (...) {
+      g_critical ("Unknown exception while running the model");
+      return -4;
+    }
+  } else {
+    workSpace.RunNet (predictNet.name ());
+  }
 
   for (i = 0; i < outputTensorMeta.num_tensors; i++) {
     const auto& out = workSpace.GetBlob (outputTensorMeta.info[i].name)
