@@ -55,6 +55,7 @@ private:
 
   char *init_model_path;
   char *pred_model_path;
+  bool first_run;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
