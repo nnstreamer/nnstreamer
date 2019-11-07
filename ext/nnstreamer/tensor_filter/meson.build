@@ -228,17 +228,11 @@ endif
 
 if get_option('enable-movidius-ncsdk2')
   # Explicitly checks mvnc.h in the ncsdk2 directory
-  # check_header() requires meson >= 0.47
-  # if not cc.check_header('mvnc2/mvnc.h')
-  nns_mvncsdk2_dep = cc.find_library('mvnc')
-  if not cc.has_header('mvnc2/mvnc.h')
-    # warning() requires meson >= 0.44
-    # warning('enable-movidius-ncsdk2 is set but could not find \'mvnc2/mvnc.h\'.')
-    message('enable-movidius-ncsdk2 is set but could not find \'mvnc2/mvnc.h\'.')
-  elif not nns_mvncsdk2_dep.found()
-    # warning() requires meson >= 0.44
-    # warning('enable-movidius-ncsdk2 is set but could not find \'libmvnc.so\'.')
-    message('enable-movidius-ncsdk2 is set but could not find \'libmvnc.so\'.')
+  nns_mvncsdk2_dep = cc.find_library('mvnc', required: false)
+  if not nns_mvncsdk2_dep.found()
+    warning('Failed to find \'libmvnc.so\' despite setting enable-movidius-ncsdk2. This option be ignored.')
+  elif not cc.check_header('mvnc2/mvnc.h')
+    warning('Failed to find \'mvnc2/mvnc.h\' despite setting enable-movidius-ncsdk2. This option be ignored.')
   else
     filter_sub_mvncsdk2_sources = [
       'tensor_filter_movidius_ncsdk2.c'
