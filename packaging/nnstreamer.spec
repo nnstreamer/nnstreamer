@@ -357,7 +357,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
-%{gstlibdir}/*.so
+%{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini
 
@@ -436,6 +436,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %if %{with tizen}
 %files tizen-sensor
+%{gstlibdir}/libnnstreamer-tizen-sensor.so
 %endif
 
 %changelog
