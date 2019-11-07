@@ -249,7 +249,7 @@ if get_option('enable-movidius-ncsdk2')
       nnstreamer_filter_mvncsdk2_sources,
       c_args: ['-Wno-sign-compare'],
       dependencies: nnstreamer_filter_mvncsdk2_deps,
-      install: false,
+      install: true,
       install_dir: filter_subplugin_install_dir
     )
 
@@ -257,7 +257,7 @@ if get_option('enable-movidius-ncsdk2')
       nnstreamer_filter_mvncsdk2_sources,
       c_args: ['-Wno-sign-compare'],
       dependencies: nnstreamer_filter_mvncsdk2_deps,
-      install: false,
+      install: true,
       install_dir: nnstreamer_libdir
     )
   endif

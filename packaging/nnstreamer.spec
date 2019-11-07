@@ -44,8 +44,8 @@ BuildRequires:	gtest-devel
 BuildRequires:	python
 BuildRequires:	python-numpy
 # for python custom filters
-BuildRequires:  pkgconfig(python2)
-BuildRequires:  python-numpy-devel
+BuildRequires:	pkgconfig(python2)
+BuildRequires:	python-numpy-devel
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
@@ -76,6 +76,7 @@ BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
+BuildRequires:	pkgconfig(libmvnc)
 BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	gst-plugins-base-devel
 
@@ -197,6 +198,12 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer-devel = %{version}-%{release}
 %description -n nnstreamer-tizen-internal-capi-devel
 Tizen internal API to construct the pipeline without the permissions.
+
+%package	ncsdk2
+Summary:	NNStreamer Intel Movidius NCSDK2 support
+Group:		Multimedia/Framework
+%description	ncsdk2
+NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
 %endif
 
 %package cpp
@@ -219,6 +226,7 @@ Note that there is no .pc file for this package because nnstreamer.pc file may b
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
 %define enable_api -Denable-capi=true
+%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
 
 # Add Tizen's sensor framework API integration
 %package tizen-sensor
@@ -268,7 +276,10 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 
 mkdir -p build
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} --bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} -Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false %{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} build
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
+	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} \
+	-Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false \
+	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -433,6 +444,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
+
+%files -n nnstreamer-ncsdk2
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_movidius-ncsdk2.so
 %endif
 
 %files cpp
