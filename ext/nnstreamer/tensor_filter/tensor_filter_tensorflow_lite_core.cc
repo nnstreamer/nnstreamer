@@ -36,26 +36,42 @@
 #define DBG FALSE
 #endif
 
+/** Match all accelerators for nnapi at once */
+#define REGEX_ACCL_NNAPI \
+  "(^(true)[:]?([(]?(" \
+  REGEX_ACCL_AUTO "|" \
+  REGEX_ACCL_DEF "|" \
+  REGEX_ACCL_CPU "|" \
+  REGEX_ACCL_GPU "|" \
+  REGEX_ACCL_NPU "|" \
+  REGEX_ACCL_NEON ")*[)]?))"
+
+/** Match accelerator for nnapi one by one */
+#define REGEX_ACCL_NNAPI_ELEM \
+  "(" \
+  "(?<!!)" ACCL_AUTO_STR "|" \
+  "(?<!!)" ACCL_DEF_STR "|" \
+  "(?<!!)" ACCL_CPU_STR "|" \
+  "(?<!!)" ACCL_GPU_STR "|" \
+  "(?<!!)" ACCL_NPU_STR "|" \
+  "(?<!!)" ACCL_NEON_STR ")?"
 
 /**
  * @brief	TFLiteCore creator
- * @param	_model_path	: the logical path to '{model_name}.tffile' file
+ * @param	_model_path	: the logical path to '{model_name}.tflite' file
+ * @param	accelerators  : the accelerators property set for this subplugin
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char * _model_path, nnapi_hw hw)
+TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 {
   g_assert (_model_path != NULL);
   model_path = g_strdup (_model_path);
   interpreter = nullptr;
   model = nullptr;
 
-  if (hw == NNAPI_UNKNOWN) {
-    use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi", FALSE);
-  } else {
-    use_nnapi = TRUE;
-  }
-  accel = hw;
+  setAccelerator (accelerators);
+  g_warning ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str(accelerator));
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -69,6 +85,53 @@ TFLiteCore::~TFLiteCore ()
 {
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
+}
+
+void TFLiteCore::setAccelerator (const char * accelerators)
+{
+  GRegex * nnapi_elem;
+  GMatchInfo * match_info;
+
+  if (accelerators == NULL) {
+    goto use_nnapi_ini;
+  }
+
+  /* If set by user, get the precise accelerator */
+  use_nnapi = (bool) g_regex_match_simple (REGEX_ACCL_NNAPI, accelerators,
+      G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY);
+  if (use_nnapi == TRUE) {
+    /** Default to auto mode */
+    accelerator = ACCL_AUTO;
+    nnapi_elem = g_regex_new (REGEX_ACCL_NNAPI_ELEM, G_REGEX_CASELESS,
+        G_REGEX_MATCH_NOTEMPTY, NULL);
+
+    /** Now match each provided element and get specific accelerator */
+    if (g_regex_match (nnapi_elem, accelerators, G_REGEX_MATCH_NOTEMPTY,
+          &match_info)) {
+
+      while (g_match_info_matches (match_info)) {
+        gchar *word = g_match_info_fetch (match_info, 0);
+        accelerator = get_accl_hw_type (word);
+        g_free (word);
+        break;
+      }
+    }
+    g_match_info_free (match_info);
+    g_regex_unref (nnapi_elem);
+  } else  {
+    goto use_nnapi_ini;
+  }
+
+  return;
+
+use_nnapi_ini:
+  use_nnapi = nnsconf_get_custom_value_bool ("tensorflowlite", "enable_nnapi",
+      FALSE);
+  if (use_nnapi == FALSE) {
+    accelerator = ACCL_NONE;
+  } else {
+    accelerator = ACCL_AUTO;
+  }
 }
 
 /**
@@ -439,12 +502,13 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 /**
  * @brief	call the creator of TFLiteCore class.
  * @param	_model_path	: the logical path to '{model_name}.tffile' file
+ * @param accelerators : the accelerators property set for this subplugin
  * @return	TFLiteCore class
  */
 void *
-tflite_core_new (const char * _model_path, nnapi_hw hw)
+tflite_core_new (const char * _model_path, const char * accelerators)
 {
-  return new TFLiteCore (_model_path, hw);
+  return new TFLiteCore (_model_path, accelerators);
 }
 
 /**

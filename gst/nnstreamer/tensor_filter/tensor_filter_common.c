@@ -29,7 +29,19 @@
 
 #include "tensor_filter_common.h"
 
-#define REGEX_NNAPI_OPTION "(^(true|false)$|^(true|false)([:]?(cpu|gpu|npu)))"
+/**
+ * @brief Accelerator regex verification
+ * @note more details in nnstreamer_plugin_api_filter.h with accl_hw
+ */
+#define REGEX_ACCL_ALL \
+  "(^(true|false)[:]?([(]?(" \
+  REGEX_ACCL_AUTO "|" \
+  REGEX_ACCL_DEF "|" \
+  REGEX_ACCL_CPU "|" \
+  REGEX_ACCL_GPU "|" \
+  REGEX_ACCL_NPU "|" \
+  REGEX_ACCL_NEON "|" \
+  REGEX_ACCL_SRCN ")*[)]?))"
 
 /**
  * @brief Free memory
@@ -53,7 +65,7 @@ enum
   PROP_OUTPUTNAME,
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
-  PROP_NNAPI
+  PROP_ACCELERATOR
 };
 
 /**
@@ -301,9 +313,14 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("sub-plugins", "Sub-plugins",
           "Registrable sub-plugins list", "",
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_NNAPI,
-      g_param_spec_string ("nnapi", "NNAPI",
-          "Enable Neural Newtorks API ?", "", G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ACCELERATOR,
+      g_param_spec_string ("accelerator", "ACCELERATOR",
+          "Set accelerator for the subplugin with format "
+          "(true/false):(comma separated ACCELERATOR(s)). "
+          "true/false determines if accelerator is to be used. "
+          "list of accelerators determines the backend (ignored with false). "
+          "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU).",
+          "", G_PARAM_READWRITE));
 }
 
 /**
@@ -322,7 +339,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   prop->input_configured = FALSE;
   prop->output_configured = FALSE;
   prop->model_file = NULL;
-  prop->nnapi = NULL;
+  prop->accl_str = NULL;
   prop->custom_properties = NULL;
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_info_init (&prop->output_meta);
@@ -348,6 +365,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 
   g_free_const (prop->fwname);
   g_free_const (prop->model_file);
+  g_free_const (prop->accl_str);
   g_free_const (prop->custom_properties);
 
   gst_tensors_info_free (&prop->input_meta);
@@ -557,15 +575,34 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       prop->custom_properties = g_value_dup_string (value);
       g_debug ("Custom Option = %s\n", prop->custom_properties);
       break;
-    case PROP_NNAPI:
-      prop->nnapi = g_value_dup_string (value);
-      if (!g_regex_match_simple (REGEX_NNAPI_OPTION, prop->nnapi, 0, 0)) {
-        g_critical
-            ("nnapi: \'%s\' is not valid string: it should be in the form of BOOL:ACCELLERATOR or BOOL with a regex, "
-            REGEX_NNAPI_OPTION "\n", prop->nnapi);
+    case PROP_ACCELERATOR:
+    {
+      /**
+       * TODO: allow updating the subplugin accelerator after it has been init
+       * by reopening
+       */
+      if (priv->prop.fw_opened == TRUE) {
         break;
       }
+
+      prop->accl_str = g_value_dup_string (value);
+      /**
+       * Perform error check on the string passed,
+       * parsing the string and finalizing the hw is done in each subplugin
+       */
+      if (!g_regex_match_simple (REGEX_ACCL_ALL, prop->accl_str,
+              G_REGEX_CASELESS, 0)) {
+        g_critical
+            ("accelerator: \'%s\' is not valid string. "
+            "It should be in the form of BOOL:comma separated ACCELERATOR(s). "
+            "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU)."
+            REGEX_ACCL_ALL "\n", prop->accl_str);
+        g_free_const (prop->accl_str);
+        prop->accl_str = NULL;
+      }
+
       break;
+    }
     default:
       return FALSE;
   }
@@ -707,8 +744,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       g_value_take_string (value, g_string_free (subplugins, FALSE));
       break;
     }
-    case PROP_NNAPI:
-      g_value_set_string (value, prop->nnapi);
+    case PROP_ACCELERATOR:
+      if (prop->accl_str != NULL) {
+        g_value_set_string (value, prop->accl_str);
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
     default:
       /* unknown property */
@@ -750,5 +791,61 @@ gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
     priv->prop.fwname = NULL;
     priv->fw = NULL;
     priv->privateData = NULL;
+  }
+}
+
+/**
+ * @brief return accl_hw type from string
+ * @param key The key string value
+ * @return Corresponding index. Returns ACCL_NONE if not found.
+ */
+accl_hw
+get_accl_hw_type (const gchar * key)
+{
+  if (!g_ascii_strncasecmp (key, ACCL_AUTO_STR, strlen (ACCL_AUTO_STR)))
+    return ACCL_AUTO;
+  else if (!g_ascii_strncasecmp (key, ACCL_CPU_STR, strlen (ACCL_CPU_STR)))
+    return ACCL_CPU;
+  else if (!g_ascii_strncasecmp (key, ACCL_GPU_STR, strlen (ACCL_GPU_STR)))
+    return ACCL_GPU;
+  else if (!g_ascii_strncasecmp (key, ACCL_NPU_STR, strlen (ACCL_NPU_STR)))
+    return ACCL_NPU;
+  else if (!g_ascii_strncasecmp (key, ACCL_NEON_STR, strlen (ACCL_NEON_STR)))
+    return ACCL_NEON;
+  else if (!g_ascii_strncasecmp (key, ACCL_SRCN_STR, strlen (ACCL_SRCN_STR)))
+    return ACCL_SRCN;
+  else if (!g_ascii_strncasecmp (key, ACCL_DEF_STR, strlen (ACCL_DEF_STR)))
+    return ACCL_DEFAULT;
+
+  return ACCL_NONE;             /* key == "none" or Not Found */
+}
+
+/**
+ * @brief return string based on accl_hw type
+ * @param key The key enum value
+ * @return Corresponding string. Returns ACCL_NONE_STR if not found.
+ */
+const gchar *
+get_accl_hw_str (const accl_hw key)
+{
+  switch (key) {
+    case ACCL_NONE:
+      return ACCL_NONE_STR;
+    case ACCL_AUTO:
+      return ACCL_AUTO_STR;
+    case ACCL_CPU:
+      return ACCL_CPU_STR;
+    case ACCL_GPU:
+      return ACCL_GPU_STR;
+    case ACCL_NPU:
+      return ACCL_NPU_STR;
+    case ACCL_NEON:
+      return ACCL_NEON_STR;
+    case ACCL_SRCN:
+      return ACCL_SRCN_STR;
+    case ACCL_DEFAULT:
+      return ACCL_DEF_STR;
+    default:                   /* Not found */
+      return ACCL_NONE_STR;
   }
 }

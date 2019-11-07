@@ -30,7 +30,6 @@
 #include <string.h>
 
 #include "tensor_filter_tensorflow_lite_core.h"
-#include "tensor_common.h"
 
 void init_filter_tflite (void) __attribute__ ((constructor));
 void fini_filter_tflite (void) __attribute__ ((destructor));
@@ -43,28 +42,6 @@ struct _Tflite_data
   void *tflite_private_data;
 };
 typedef struct _Tflite_data tflite_data;
-
-/**
- * @brief nnapi hw type string
- */
-static const char *nnapi_hw_string[] = {
-  [NNAPI_CPU] = "cpu",
-  [NNAPI_GPU] = "gpu",
-  [NNAPI_NPU] = "npu",
-  [NNAPI_UNKNOWN] = "unknown",
-  NULL
-};
-
-/**
- * @brief return nnapi_hw type
- */
-static nnapi_hw
-get_nnapi_hw_type (const gchar * str)
-{
-  gint index = 0;
-  index = find_key_strv (nnapi_hw_string, str);
-  return (index < 0) ? NNAPI_UNKNOWN : index;
-}
 
 /**
  * @brief Free privateData and move on.
@@ -92,28 +69,6 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     void **private_data)
 {
   tflite_data *tf;
-  nnapi_hw hw = NNAPI_UNKNOWN;
-
-  if (prop->nnapi) {
-    gchar **strv = NULL;
-    guint len;
-
-    strv = g_strsplit (prop->nnapi, ":", 2);
-    len = g_strv_length (strv);
-
-    if (g_ascii_strcasecmp (strv[0], "true") == 0) {
-      if (len >= 2) {
-        hw = get_nnapi_hw_type (strv[1]);
-      } else {
-        /** defalut hw for nnapi is CPU */
-        hw = NNAPI_CPU;
-      }
-
-      g_info ("NNAPI HW type: %s", nnapi_hw_string[hw]);
-    }
-
-    g_strfreev (strv);
-  }
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
@@ -131,7 +86,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  tf->tflite_private_data = tflite_core_new (prop->model_file, hw);
+  tf->tflite_private_data = tflite_core_new (prop->model_file, prop->accl_str);
   if (tf->tflite_private_data) {
     if (tflite_core_init (tf->tflite_private_data)) {
       g_printerr ("failed to initialize the object: Tensorflow-lite");
