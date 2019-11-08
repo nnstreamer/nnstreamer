@@ -2659,6 +2659,163 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
+ * @brief Test NNStreamer single shot (custom filter)
+ * @detail Change the number of input tensors, run the model and verify output
+ */
+TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
+{
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_info_h in_res, out_res;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim, out_dim, res_dim;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  unsigned int count = 0;
+  int status, tensor_size;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /** add.tflite adds value 2 to all the values in the input */
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_passthrough",
+      "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+  ml_tensors_info_create (&in_res);
+  ml_tensors_info_create (&out_res);
+
+  tensor_size = 5;
+  in_dim[0] = tensor_size;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  out_dim[0] = tensor_size;
+  out_dim[1] = 1;
+  out_dim[2] = 1;
+  out_dim[3] = 1;
+  ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
+
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Run the model once with the original input/output info */
+  input = output = NULL;
+
+  /* generate dummy data */
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (input != NULL);
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+
+  /** modify input/output info and run again */
+  in_dim[0] = 10;
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+  out_dim[0] = 10;
+  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
+
+  status = ml_single_get_input_info (single, &in_res);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /**
+   * 1. start with a model file with different input dimensions
+   * 2. change the input for the model file
+   * 3. run the model file with the updated input dimensions
+   * 4. verify the output
+   */
+
+  ml_tensors_info_get_tensor_dimension (in_res, 0, res_dim);
+  EXPECT_FALSE (in_dim[0] == res_dim[0]);
+  EXPECT_TRUE (in_dim[1] == res_dim[1]);
+  EXPECT_TRUE (in_dim[2] == res_dim[2]);
+  EXPECT_TRUE (in_dim[3] == res_dim[3]);
+
+  /** set the same original input dimension */
+  status = ml_single_set_input_info (single, in_info);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
+      status == ML_ERROR_NONE);
+  if (status == ML_ERROR_NONE) {
+    /* input tensor in filter */
+    status = ml_single_get_input_info (single, &in_res);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_tensors_info_get_count (in_res, &count);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (count, 1U);
+
+    status = ml_tensors_info_get_tensor_type (in_res, 0, &type);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT32);
+
+    ml_tensors_info_get_tensor_dimension (in_res, 0, res_dim);
+    EXPECT_TRUE (in_dim[0] == res_dim[0]);
+    EXPECT_TRUE (in_dim[1] == res_dim[1]);
+    EXPECT_TRUE (in_dim[2] == res_dim[2]);
+    EXPECT_TRUE (in_dim[3] == res_dim[3]);
+
+    /* output tensor in filter */
+    status = ml_single_get_output_info (single, &out_res);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_tensors_info_get_count (out_res, &count);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (count, 1U);
+
+    status = ml_tensors_info_get_tensor_type (out_res, 0, &type);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT32);
+
+    ml_tensors_info_get_tensor_dimension (out_res, 0, res_dim);
+    EXPECT_TRUE (out_dim[0] == res_dim[0]);
+    EXPECT_TRUE (out_dim[1] == res_dim[1]);
+    EXPECT_TRUE (out_dim[2] == res_dim[2]);
+    EXPECT_TRUE (out_dim[3] == res_dim[3]);
+
+    input = output = NULL;
+
+    /* generate dummy data */
+    status = ml_tensors_data_create (in_info, &input);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (input != NULL);
+
+    status = ml_single_invoke (single, input, &output);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (output != NULL);
+
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+  }
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+  ml_tensors_info_destroy (in_res);
+  ml_tensors_info_destroy (out_res);
+}
+
+/**
  * @brief Main gtest
  */
 int

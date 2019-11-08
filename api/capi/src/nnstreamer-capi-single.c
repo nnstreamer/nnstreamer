@@ -770,6 +770,7 @@ ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
   in_info = (ml_tensors_info_s *) info;
   switch (single_h->nnfw) {
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
+    case ML_NNFW_TYPE_CUSTOM_FILTER:
       ml_tensors_info_copy_from_ml (&gst_in_info, in_info);
 
       klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
