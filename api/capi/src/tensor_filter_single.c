@@ -404,6 +404,7 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   if (G_UNLIKELY (!priv->fw) || G_UNLIKELY (!priv->fw->setInputDimension))
     return FALSE;
 
+  gst_tensors_info_init (out_info);
   status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
       in_info, out_info);
   if (status == 0) {
