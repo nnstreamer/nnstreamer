@@ -142,7 +142,7 @@ TFLiteCore::loadModel ()
 
     interpreter->UseNNAPI(use_nnapi);
 
-#ifdef ENABLE_NNFW
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
     if (use_nnapi) {
       nnfw_delegate.reset (new ::nnfw::tflite::NNAPIDelegate);
       if (nnfw_delegate->BuildGraph (interpreter.get()) != kTfLiteOk) {
@@ -409,7 +409,7 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     tensors_idx.push_back (tensor_idx);
   }
 
-#ifdef ENABLE_NNFW
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
   if (use_nnapi)
     status = nnfw_delegate->Invoke (interpreter.get());
   else
