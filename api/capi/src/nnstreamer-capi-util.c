@@ -908,7 +908,7 @@ ml_initialize_gstreamer (void)
  * @param[in/out] nnfw The type of NNFW.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported, or framework to support this model file is unavailable in the environment.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int
@@ -932,8 +932,27 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
   switch (*nnfw) {
     case ML_NNFW_TYPE_ANY:
       if (g_str_has_suffix (path_down, ".tflite")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model);
-        *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+        /**
+         * .tflite is supported by both tensorflow and nnfw.
+         * Priority decided with ini file.
+         */
+        gboolean nnfw_runtime_priority = nnsconf_get_custom_value_bool (
+            "nnfw-runtime", "prioritize_tflite_ext", FALSE);
+        bool available_nnfw = FALSE, available_tflite = FALSE;
+
+        ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY,
+            &available_nnfw);
+        ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE,
+            ML_NNFW_HW_ANY, &available_tflite);
+
+        if ((nnfw_runtime_priority && available_nnfw) ||
+            (!nnfw_runtime_priority && !available_tflite)) {
+          ml_logi ("The given model [%s] is supposed a nnfw model.", model);
+          *nnfw = ML_NNFW_TYPE_NNFW;
+        } else {
+          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model);
+          *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+        }
       } else if (g_str_has_suffix (path_down, ".pb")) {
         ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
         *nnfw = ML_NNFW_TYPE_TENSORFLOW;
@@ -944,6 +963,14 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
         ml_loge ("The given model [%s] has unknown extension.", model);
         status = ML_ERROR_INVALID_PARAMETER;
       }
+
+      if (status == ML_ERROR_NONE) {
+        bool available = false;
+        ml_check_nnfw_availability (*nnfw, ML_NNFW_HW_ANY, &available);
+        if (available == false)
+          status = ML_ERROR_NOT_SUPPORTED;
+      }
+
       break;
     case ML_NNFW_TYPE_CUSTOM_FILTER:
       if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
@@ -964,10 +991,27 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       }
       break;
     case ML_NNFW_TYPE_NNFW:
-      /** @todo Need to check method for NNFW */
-      ml_loge ("NNFW is not supported.");
-      status = ML_ERROR_NOT_SUPPORTED;
+    {
+      gchar *model_path = NULL;
+      gchar *meta = NULL;
+
+      if (!g_str_has_suffix (path_down, ".tflite")) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+        break;
+      }
+
+      model_path = g_path_get_dirname (model);
+      meta = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
+      if (!g_file_test (meta, G_FILE_TEST_IS_REGULAR)) {
+        ml_loge ("The given model path [%s] is missing metadata.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+
+      g_free (model_path);
+      g_free (meta);
       break;
+    }
     case ML_NNFW_TYPE_MVNC:
       /** @todo Need to check method for NCSDK2 */
       ml_loge ("Intel Movidius NCSDK2 is not supported.");
@@ -1014,8 +1058,7 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       }
       break;
     case ML_NNFW_TYPE_NNFW:
-      {
-        /** @todo Need to check method for NNFW */
+      if (nnstreamer_filter_find ("nnfw") == NULL) {
         ml_logw ("NNFW is not supported.");
         goto done;
       }
