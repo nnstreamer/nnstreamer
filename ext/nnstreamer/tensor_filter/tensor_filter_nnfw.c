@@ -55,7 +55,7 @@ typedef struct
   nnfw_tensorinfo i_in;
   nnfw_tensorinfo i_out;
   nnfw_session *session;
-  gchar *model_path;
+  gchar *model_file;
 } nnfw_pdata;
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
@@ -70,10 +70,12 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   NNFW_STATUS status;
   int err = 0;
   nnfw_pdata *pdata;
+  char *model_path = NULL;
+  char *meta_file = NULL;
 
   if (*private_data != NULL) {
     pdata = *private_data;
-    if (g_strcmp0 (prop->model_files[0], pdata->model_path) != 0) {
+    if (g_strcmp0 (prop->model_files[0], pdata->model_file) != 0) {
       nnfw_close (prop, private_data);  /* "reopen" */
     } else {
       return 1;
@@ -93,7 +95,20 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  status = nnfw_load_model_from_file (pdata->session, prop->model_files[0]);
+  /** @note nnfw opens the first model listed in the MANIFEST file */
+  model_path = g_path_get_dirname (prop->model_files[0]);
+  meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
+
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR) ||
+      !g_file_test (meta_file, G_FILE_TEST_IS_REGULAR)) {
+    err = -EINVAL;
+    g_printerr ("Model file (%s) or its metadata is not valid (not regular).",
+        prop->model_files[0]);
+    goto session_exit;
+  }
+
+  /* @todo open using model_file once nnfw works with it */
+  status = nnfw_load_model_from_file (pdata->session, model_path);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot load the model file: %s", prop->model_files[0]);
@@ -108,13 +123,18 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto session_exit;
   }
 
-  pdata->model_path = g_strdup (prop->model_files[0]);
+  pdata->model_file = g_strdup (prop->model_files[0]);
+  g_free (meta_file);
+  g_free (model_path);
+
   return 0;
 
 session_exit:
   status = nnfw_close_session(pdata->session);
   if (status != NNFW_STATUS_NO_ERROR)
     g_printerr ("Closing the session just opened by %s has failed", __func__);
+  g_free (meta_file);
+  g_free (model_path);
 unalloc_exit:
   g_free (pdata);
   *private_data = NULL;
@@ -136,7 +156,7 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
 
     if (status != NNFW_STATUS_NO_ERROR) {
       g_printerr ("cannot close nnfw-runtime session for %s",
-          pdata->model_path);
+          pdata->model_file);
     }
   } else {
     g_printerr ("nnfw_close called without proper nnfw_open");
@@ -145,8 +165,8 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
   }
   pdata->session = NULL;
 
-  g_free (pdata->model_path);
-  pdata->model_path = NULL;
+  g_free (pdata->model_file);
+  pdata->model_file = NULL;
 
   g_free (pdata);
   *private_data = NULL;

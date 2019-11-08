@@ -45,6 +45,40 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_00_n)
   EXPECT_NE (ret, 0);
 }
 
+static
+gboolean gen_tf_prop (GstTensorFilterProperties *prop)
+{
+  gchar *model_file;
+  gchar *meta_file;
+  gchar *model_path;
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+
+  g_return_val_if_fail (root_path != nullptr, FALSE);
+
+  /** nnfw needs a directory with model file and metadata in that directory */
+  model_path = g_build_filename (root_path, "tests", "test_models", "models",
+      NULL);
+
+  meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
+  g_return_val_if_fail (g_file_test (meta_file, G_FILE_TEST_EXISTS), FALSE);
+  g_free (meta_file);
+
+  model_file = g_build_filename (model_path, "add.tflite", NULL);
+  g_return_val_if_fail (g_file_test (model_file, G_FILE_TEST_EXISTS), FALSE);
+  g_free (model_path);
+
+  prop->fwname = "nnfw";
+  prop->fw_opened = 0;
+
+  const gchar *model_files[] = {
+    model_path, NULL,
+  };
+  prop->model_files = model_files;
+  prop->num_models = 1;
+
+  return TRUE;
+}
+
 /**
  * @brief Test nnfw subplugin with successful open/close
  */
@@ -52,32 +86,9 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_01_n)
 {
   int ret;
   void *data = NULL;
-  gchar *test_model;
-  gchar *model_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  GstTensorFilterProperties prop;
 
-  ASSERT_NE (root_path, nullptr);
-
-  /** nnfw needs a directory with model file and metadata in that directory */
-  model_path = g_build_filename (root_path, "tests", "test_models", "models",
-      NULL);
-  const gchar *model_files[] = {
-    model_path, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-
-  test_model = g_build_filename (model_path, "add.tflite", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
-
-  test_model = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
+  ASSERT_TRUE (gen_tf_prop (&prop));
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
@@ -101,33 +112,10 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
 {
   int ret;
   void *data = NULL;
-  gchar *test_model;
-  gchar *model_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   GstTensorsInfo info, res;
+  GstTensorFilterProperties prop;
 
-  ASSERT_NE (root_path, nullptr);
-
-  /** nnfw needs a directory with model file and metadata in that directory */
-  model_path = g_build_filename (root_path, "tests", "test_models", "models",
-      NULL);
-  const gchar *model_files[] = {
-    model_path, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-
-  test_model = g_build_filename (model_path, "add.tflite", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
-
-  test_model = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
+  ASSERT_TRUE (gen_tf_prop (&prop));
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
@@ -183,34 +171,11 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
 {
   int ret;
   void *data = NULL;
-  gchar *test_model;
-  gchar *model_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   GstTensorMemory input, output;
 
-  ASSERT_NE (root_path, nullptr);
+  GstTensorFilterProperties prop;
 
-  /** nnfw needs a directory with model file and metadata in that directory */
-  model_path = g_build_filename (root_path, "tests", "test_models", "models",
-      NULL);
-  const gchar *model_files[] = {
-    model_path, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-
-  /** this model adds 2 to the input data passed in float format */
-  test_model = g_build_filename (model_path, "add.tflite", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
-
-  test_model = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
-  g_free (test_model);
+  ASSERT_TRUE (gen_tf_prop (&prop));
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
