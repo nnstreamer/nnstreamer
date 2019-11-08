@@ -13,7 +13,6 @@ if get_option('enable-nnfw-runtime')
   endif
   nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, nnfw_dep]
 
-
   nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,

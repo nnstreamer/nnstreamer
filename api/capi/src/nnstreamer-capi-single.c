@@ -488,8 +488,12 @@ ml_single_open (ml_single_h * single, const char *model,
       }
       break;
     case ML_NNFW_TYPE_MVNC:
-      g_object_set (filter_obj, "framework", "movidius-ncsdk2", "model", model, NULL);
       /** @todo Verify this! (this code is not tested) */
+      g_object_set (filter_obj, "framework", "movidius-ncsdk2", "model", model, NULL);
+      break;
+    case ML_NNFW_TYPE_NNFW:
+      /* We can get the tensor meta from tf-lite model. */
+      g_object_set (filter_obj, "framework", "nnfw", "model", model, NULL);
       break;
     default:
       /** @todo Add other fw later. */

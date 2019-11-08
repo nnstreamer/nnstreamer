@@ -19,4 +19,8 @@ enable_nnapi=False
 [pytorch]
 enable_use_gpu=@TORCH_USE_GPU@
 
+# Set 1 or True if you want to prioritize nnfw over tensorflow lite for .tflite extension model files when automatically selecting framework for tensor filter.
+[nnfw-runtime]
+prioritize_tflite_ext=@NNFW_RUNTIME_PRIORITIZE@
+
 @ELEMENT_RESTRICTION_CONFIG@
