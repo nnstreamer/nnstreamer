@@ -17,6 +17,6 @@ option('enable-python', type: 'boolean', value: true)
 option('enable-tizen', type: 'boolean', value: false)
 option('enable-element-restriction', type: 'boolean', value: false) # true to restrict gst-elements in api
 option('restricted-elements', type: 'string', value: '')
-option('enable-nnfw', type: 'boolean', value: false)
-option('enable-nnfw-runtime', type: 'boolean', value: false)
+option('enable-tflite-nnapi-delegation', type: 'boolean', value: false) # true to enable tensorflow-lite to delegate nnapi interpretation to nnfw backend in tizen
+option('enable-nnfw-runtime', type: 'boolean', value: false) # true to enable nnfw tensor filter element
 option('enable-cppfilter', type: 'boolean', value: true)

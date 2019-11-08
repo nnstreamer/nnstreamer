@@ -33,7 +33,7 @@
 #include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
-#ifdef ENABLE_NNFW
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
 #include "tflite/ext/nnapi_delegate.h"
 #endif
 
@@ -68,7 +68,7 @@ private:
   std::unique_ptr <tflite::Interpreter> interpreter;
   std::unique_ptr <tflite::FlatBufferModel> model;
 
-#ifdef ENABLE_NNFW
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
   std::unique_ptr <nnfw::tflite::NNAPIDelegate> nnfw_delegate;
 #endif
 
