@@ -1069,13 +1069,13 @@ TEST (test_tensor_src_iio, \
   gint data_value; \
   gint samp_freq; \
   guint data_bits; \
-  gint fd, bytes_to_read, bytes_read; \
+  gint fd, ret; \
+  size_t bytes_read, bytes_to_read; \
   gchar *data_buffer; \
   gfloat expect_val, actual_val; \
   guint64 expect_val_mask; \
   gchar *expect_val_char, *actual_val_char; \
   struct stat stat_buf; \
-  gint stat_ret; \
   data_value = DATA_VALUE; \
   data_bits = DATA_BITS; \
   /** Make device */ \
@@ -1103,8 +1103,8 @@ TEST (test_tensor_src_iio, \
     g_usleep (MAX (10, 1000000 / samp_freq)); \
     ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
             data_value, SKIP), 0); \
-    stat_ret = stat (dev0->log_file, &stat_buf); \
-    if (stat_ret == 0 && stat_buf.st_size != 0) { \
+    ret = stat (dev0->log_file, &stat_buf); \
+    if (ret == 0 && stat_buf.st_size != 0) { \
       /** verify playing state has been maintained */ \
       status = \
           gst_element_get_state ( \
@@ -1128,12 +1128,14 @@ TEST (test_tensor_src_iio, \
   bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements/SKIP; \
   data_buffer = (gchar *) malloc (bytes_to_read); \
   ASSERT_TRUE (data_buffer != NULL); \
-  bytes_read = read (fd, data_buffer, bytes_to_read); \
+  ret = read (fd, data_buffer, bytes_to_read); \
+  ASSERT_GE (ret, 0); \
+  bytes_read = static_cast<size_t>(ret); \
   EXPECT_EQ (bytes_read, bytes_to_read); \
   expect_val_mask = G_MAXUINT64 >> (64 - data_bits); \
   expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE; \
   expect_val_char = g_strdup_printf ("%.2f", expect_val); \
-  for (int idx = 0; idx < bytes_to_read; idx += sizeof (float)) { \
+  for (size_t idx = 0; idx < bytes_to_read; idx += sizeof (float)) { \
     actual_val = *((gfloat *) data_buffer); \
     actual_val_char = g_strdup_printf ("%.2f", actual_val); \
     EXPECT_STREQ (expect_val_char, actual_val_char); \
