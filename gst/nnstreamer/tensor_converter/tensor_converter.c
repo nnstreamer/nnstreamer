@@ -196,7 +196,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   /**
    * GstTensorConverter::frames-per-tensor:
    *
-   * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
+   * The number of frames in outgoing buffer. (buffer is a single tensor instance)
    * GstTensorConverter can push a buffer with multiple media frames.
    */
   g_object_class_install_property (object_class, PROP_FRAMES_PER_TENSOR,
@@ -334,7 +334,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
     case PROP_INPUT_DIMENSION:
       if (gst_tensor_parse_dimension (g_value_get_string (value),
               self->tensor_info.dimension) == 0)
-        GST_WARNING ("input dimension unknown (optinal).");
+        GST_WARNING ("input dimension unknown (optional).");
       break;
     case PROP_INPUT_TYPE:
       self->tensor_info.type = gst_tensor_get_type (g_value_get_string (value));
@@ -932,7 +932,7 @@ gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
  * @param self this pointer to GstTensorConverter
  * @param config tensor config structure to be filled
  * @param info video info structure
- * @note Change dimention if tensor contains N frames.
+ * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
@@ -1002,7 +1002,7 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
  * @param self this pointer to GstTensorConverter
  * @param config tensor config structure to be filled
  * @param info audio info structure
- * @note Change dimention if tensor contains N frames.
+ * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
@@ -1075,7 +1075,7 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
  * @param self this pointer to GstTensorConverter
  * @param config tensor config structure to be filled
  * @param structure caps structure
- * @note Change dimention if tensor contains N frames.
+ * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
@@ -1130,7 +1130,7 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
  * @param self this pointer to GstTensorConverter
  * @param config tensor config structure to be filled
  * @param structure caps structure
- * @note Change tensor dimention and type.
+ * @note Change tensor dimension and type.
  * @return TRUE if supported type
  */
 static gboolean
