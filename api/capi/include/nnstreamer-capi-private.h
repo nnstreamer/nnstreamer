@@ -169,6 +169,7 @@ typedef struct _ml_pipeline_element {
   gulong handle_id;
 
   GMutex lock; /**< Lock for internal values */
+  gboolean is_media_stream;
 } ml_pipeline_element;
 
 /**
