@@ -404,6 +404,7 @@ int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h 
 
 /**
  * @brief Gets a handle for the tensors information of given src node.
+ * @details If the mediatype is not other/tensor or other/tensors, @a info handle may not be correct. If want to use other media types, you MUST set the correct properties.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a info handle must be released using ml_tensors_info_destroy().
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().

@@ -82,6 +82,7 @@ construct_element (GstElement * e, ml_pipeline * p, const char *name,
   ret->size = 0;
   ret->maxid = 0;
   ret->handle_id = 0;
+  ret->is_media_stream = FALSE;
   g_mutex_init (&ret->lock);
   return ret;
 }
@@ -894,6 +895,20 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
 
       if (caps) {
         found = get_tensors_info_from_caps (caps, &elem->tensors_info);
+
+        if (!found && gst_caps_is_fixed (caps)) {
+          GstStructure *caps_s;
+          const gchar *mimetype;
+
+          caps_s = gst_caps_get_structure (caps, 0);
+          mimetype = gst_structure_get_name (caps_s);
+
+          if (!g_str_equal (mimetype, "other/tensor") &&
+              !g_str_equal (mimetype, "other/tensors")) {
+            elem->is_media_stream = TRUE;
+          }
+        }
+
         gst_caps_unref (caps);
       }
 
@@ -903,13 +918,14 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
           elem->size += sz;
         }
       } else {
-        ml_logw
+        if (!elem->is_media_stream) {
+          ml_logw
             ("Cannot find caps. The pipeline is not yet negotiated for src element [%s].",
             elem->name);
-        gst_object_unref (elem->src);
-        elem->src = NULL;
-
-        ret = ML_ERROR_TRY_AGAIN;
+          gst_object_unref (elem->src);
+          elem->src = NULL;
+          ret = ML_ERROR_TRY_AGAIN;
+        }
       }
     }
   }
@@ -1037,25 +1053,27 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     goto destroy_data;
   }
 
-  if (elem->tensors_info.num_tensors != _data->num_tensors) {
-    ml_loge
-        ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
-        elem->name, elem->tensors_info.num_tensors, _data->num_tensors);
-
-    ret = ML_ERROR_INVALID_PARAMETER;
-    goto destroy_data;
-  }
-
-  for (i = 0; i < elem->tensors_info.num_tensors; i++) {
-    size_t sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
-
-    if (sz != _data->tensors[i].size) {
+  if (!elem->is_media_stream){
+    if (elem->tensors_info.num_tensors != _data->num_tensors) {
       ml_loge
-          ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
-          i, _data->tensors[i].size, sz);
+          ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
+          elem->name, elem->tensors_info.num_tensors, _data->num_tensors);
 
       ret = ML_ERROR_INVALID_PARAMETER;
       goto destroy_data;
+    }
+
+    for (i = 0; i < elem->tensors_info.num_tensors; i++) {
+      size_t sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
+
+      if (sz != _data->tensors[i].size) {
+        ml_loge
+            ("The given input tensor size (%d'th, %zu bytes) mismatches the source pad (%zu bytes)",
+            i, _data->tensors[i].size, sz);
+
+        ret = ML_ERROR_INVALID_PARAMETER;
+        goto destroy_data;
+      }
     }
   }
 
