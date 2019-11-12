@@ -116,6 +116,7 @@ typedef void *ml_pipeline_valve_h;
 /**
  * @brief Types of NNFWs.
  * @since_tizen 5.5
+ * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability()
  */
 typedef enum {
   ML_NNFW_TYPE_ANY = 0, /**< NNHW is not specified (Try to determine the NNFW with file extension). */
@@ -123,6 +124,7 @@ typedef enum {
   ML_NNFW_TYPE_TENSORFLOW_LITE, /**< Tensorflow-lite (.tflite). */
   ML_NNFW_TYPE_TENSORFLOW, /**< Tensorflow (.pb). */
   ML_NNFW_TYPE_NNFW, /**< Neural Network Inference framework, which is developed by SR */
+  ML_NNFW_TYPE_MVNC, /**< Intel NCSDK (libmvnc). */
 } ml_nnfw_type_e;
 
 /**
