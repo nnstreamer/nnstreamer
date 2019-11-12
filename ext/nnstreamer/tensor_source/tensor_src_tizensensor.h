@@ -31,6 +31,8 @@
 #ifndef __TIZEN__
 #error This plugin requires TIZEN packages.
 #endif
+/* Tizen Sensor Framework */
+#include <sensor.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_SRC_TIZENSENSOR \
@@ -60,6 +62,17 @@ struct _GstTensorSrcTIZENSENSOR
   gboolean silent; /**< true to print minimized log */
   gboolean configured; /**< true if device is configured and ready */
 
+  /** For managing critical sections */
+  GMutex lock;
+
+  /** Properties saved */
+  sensor_type_e type; /**< Sensor type. "ALL" for unspecified. */
+  guint sequence; /**< Sequence number. 0 for the first sensor of the type */
+  sensor_op_modes mode; /**< Sensor data retrieval mode */
+  gint freq_n; /**< Operating frequency of N/d */
+  gint freq_d; /**< Operating frequency of n/D */
+
+  /** Sensor node info (handle, context) */
 };
 
 /**
