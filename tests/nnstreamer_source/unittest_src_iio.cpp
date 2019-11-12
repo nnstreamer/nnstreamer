@@ -1061,6 +1061,8 @@ TEST (test_tensor_src_iio, start_stop)
 TEST (test_tensor_src_iio, \
     data_verify_no_trigger_bits##DATA_BITS##_alternate##SKIP) \
 { \
+  static const int MAX_NUM_TRY = 100; \
+  int num_try; \
   iio_dev_dir_struct *dev0; \
   GstElement *src_iio_pipeline; \
   GstStateChangeReturn status; \
@@ -1099,7 +1101,15 @@ TEST (test_tensor_src_iio, \
    * while loop is to make sure the element if fed with data with device freq \
    * till multifilesink makes the needed file \
    */ \
-  while (TRUE) { \
+  num_try = 0; \
+  while ((fd = open (dev0->log_file, O_RDONLY)) < 0) { \
+    if (num_try >= MAX_NUM_TRY) { \
+      FAIL() << "Failed to open " << dev0->log_file; \
+    } \
+    g_usleep (MAX (10, 1000000 / samp_freq)); \
+    num_try++; \
+  } \
+  for (num_try = 0; num_try < MAX_NUM_TRY; ++num_try) { \
     g_usleep (MAX (10, 1000000 / samp_freq)); \
     ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
             data_value, SKIP), 0); \
@@ -1123,12 +1133,18 @@ TEST (test_tensor_src_iio, \
     } \
   } \
   /** verify correctness of data */ \
-  fd = open (dev0->log_file, O_RDONLY); \
-  ASSERT_GE (fd, 0); \
   bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements/SKIP; \
   data_buffer = (gchar *) malloc (bytes_to_read); \
-  ASSERT_TRUE (data_buffer != NULL); \
+  if (data_buffer == NULL) { \
+    close (fd); \
+    FAIL() << "Failed to malloc for data_buffer"; \
+  } \
   ret = read (fd, data_buffer, bytes_to_read); \
+  if (ret < 0) { \
+    close (fd); \
+    free (data_buffer); \
+    FAIL() << "Failed to read file descriptor, " << fd; \
+  } \
   bytes_read = static_cast<size_t>(ret); \
   EXPECT_EQ (bytes_read, bytes_to_read); \
   expect_val_mask = G_MAXUINT64 >> (64 - data_bits); \
