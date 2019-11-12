@@ -356,6 +356,8 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
 static int
 _ts_clean_up_handle (GstTensorSrcTIZENSENSOR *self)
 {
+  self->configured = FALSE;
+
   return -EINVAL; /** @todo NYI */
 }
 
@@ -365,6 +367,8 @@ _ts_clean_up_handle (GstTensorSrcTIZENSENSOR *self)
 static int
 _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
 {
+  self->configured = TRUE;
+
   return -EINVAL; /** @todo NYI */
 }
 
@@ -374,6 +378,13 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
 static int
 _ts_reconfigure (GstTensorSrcTIZENSENSOR *self)
 {
+  /* Nothing to do if it's not configured, yet */
+  if (FALSE == self->configured)
+    return 0;
+
+  /** @todo If the stream is "flowing", we need some special treatments */
+
+  self->configured = TRUE; /* Keep it configured! */
   return -EINVAL; /** @todo NYI */
 }
 
@@ -545,39 +556,93 @@ gst_tensor_src_tizensensor_get_property (GObject * object,
 static void
 gst_tensor_src_tizensensor_finalize (GObject * object)
 {
-  /** @todo NYI */
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR (object);
+
+  _LOCK (self);
+
+  _ts_clean_up_handle (self);
+
+  _UNLOCK (self);
+  g_mutex_clear (&self->lock);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 
 /**
- * @brief start function, called when state changed null to ready.
- * load the device and init the device resources
+ * @brief start function
+ * @details This is called when state changed null to ready.
+ *          load the device and init the device resources
+ *          We won't configure before start is called.
+ *          Postcondition: configured = TRUE. src = RUNNING.
  */
 static gboolean
 gst_tensor_src_tizensensor_start (GstBaseSrc * src)
 {
-  /** @todo NYI */
+  int ret = 0;
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR_CAST (src);
+  gboolean retval = TRUE;
 
-  self->configured = TRUE;
-  /** bytes every buffer will be fixed */
+  _LOCK (self);
+
+  /* 1. Clean it up if there is a previous session */
+  if (TRUE == self->configured) {
+    ret = _ts_clean_up_handle (self);
+    if (ret) {
+      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+          ("Start method failed, cleaning up previous context failed."),
+          ("_ts_clean_up_handle () returns %d", ret));
+      retval = FALSE; /* FAIL! */
+      goto exit;
+    }
+  }
+
+  /* 2. Configure handle / context */
+  ret = _ts_configure_handle (self);
+  g_assert (self->configured == TRUE);
+
+  /** @todo TBD. Let's assume each frame has a fixed size */
   gst_base_src_set_dynamic_size (src, FALSE);
+
+  /* 3. Fire it up! */
+  g_assert (1 == 0); /** @todo NYI */
+
   /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_OK);
-  return FALSE;                 /* FAIL. NYI */
+
+exit:
+  _UNLOCK (self);
+  return retval;
 }
 
-
 /**
- * @brief stop function, called when state changed ready to null.
+ * @brief stop function.
+ * @details This is called when state changed ready to null.
+ *          Postcondition: configured = FALSE. src = STOPPED.
  */
 static gboolean
 gst_tensor_src_tizensensor_stop (GstBaseSrc * src)
 {
-  /** @todo NYI */
+  int ret = 0;
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR_CAST (src);
+  gboolean retval = TRUE;
 
-  return FALSE;                 /* FAIL. NYI */
+  _LOCK (self);
+
+  ret = _ts_clean_up_handle (self);
+  if (ret) {
+    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+        ("Stop method failed, cleaning up previous context failed."),
+        ("_ts_clean_up_handle () returns %d", ret));
+    retval = FALSE; /* FAIL! */
+    goto exit;
+  }
+
+  g_assert (FALSE == self->configured);
+
+exit:
+  _UNLOCK (self);
+  return retval;
 }
 
 /**
@@ -640,12 +705,11 @@ gst_tensor_src_tizensensor_change_state (GstElement * element,
 }
 
 /**
- * @brief check if source supports seeking
+ * @brief Sensor nodes are not seekable.
  */
 static gboolean
 gst_tensor_src_tizensensor_is_seekable (GstBaseSrc * src)
 {
-  /** @todo NYI */
   return FALSE;
 }
 
