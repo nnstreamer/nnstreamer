@@ -1129,7 +1129,6 @@ TEST (test_tensor_src_iio, \
   data_buffer = (gchar *) malloc (bytes_to_read); \
   ASSERT_TRUE (data_buffer != NULL); \
   ret = read (fd, data_buffer, bytes_to_read); \
-  ASSERT_GE (ret, 0); \
   bytes_read = static_cast<size_t>(ret); \
   EXPECT_EQ (bytes_read, bytes_to_read); \
   expect_val_mask = G_MAXUINT64 >> (64 - data_bits); \
