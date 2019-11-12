@@ -478,6 +478,10 @@ ml_single_open (ml_single_h * single, const char *model,
         goto error;
       }
       break;
+    case ML_NNFW_TYPE_MVNC:
+      g_object_set (filter_obj, "framework", "movidius-ncsdk2", "model", model, NULL);
+      /** @todo Verify this! (this code is not tested) */
+      break;
     default:
       /** @todo Add other fw later. */
       ml_loge ("The given nnfw is not supported.");
