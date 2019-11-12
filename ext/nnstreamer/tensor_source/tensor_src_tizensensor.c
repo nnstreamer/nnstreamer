@@ -126,6 +126,9 @@ enum
  */
 #define DEFAULT_PROP_SEQUENCE 0
 
+#define _LOCK(obj) g_mutex_lock (&(obj)->lock);
+#define _UNLOCK(obj) g_mutex_unlock (&(obj)->lock);
+
 /**
  * @brief Template for src pad.
  */
@@ -324,6 +327,9 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   /** init properties */
   self->configured = FALSE;
   self->silent = DEFAULT_PROP_SILENT;
+
+  g_mutex_init (&self->lock);
+
   /**
    * @todo TBD. Update This!
    * format of the source since IIO device as a source is live and operates
@@ -341,6 +347,35 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   gst_base_src_set_async (GST_BASE_SRC (self), TRUE);
 }
 
+/**
+ * @brief This cleans up.
+ * @details This cleans up the Tizen sensor handle/context,
+ *          ready for a new handle/context or exit.
+ *          This does not alter saved properties.
+ */
+static int
+_ts_clean_up_handle (GstTensorSrcTIZENSENSOR *self)
+{
+  return -EINVAL; /** @todo NYI */
+}
+
+/**
+ * @brief Get handle, setup context, make it ready!
+ */
+static int
+_ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
+{
+  return -EINVAL; /** @todo NYI */
+}
+
+/**
+ * @brief Keeping the handle/context, reconfigure a few parameters
+ */
+static int
+_ts_reconfigure (GstTensorSrcTIZENSENSOR *self)
+{
+  return -EINVAL; /** @todo NYI */
+}
 
 /**
  * @brief set tensor_src_tizensensor properties
@@ -349,7 +384,128 @@ static void
 gst_tensor_src_tizensensor_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec)
 {
-  /** @todo NYI */
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR (object);
+  int ret = 0;
+
+  switch (prop_id) {
+  case PROP_SILENT:
+    self->silent = g_value_get_boolean (value);
+    silent_debug ("Set silent = %d", self->silent);
+    break;
+  case PROP_TYPE:
+    {
+      sensor_type_e new_type = g_value_get_enum (value);
+
+      _LOCK (self);
+
+      if (new_type != self->type) {
+        /* Different sensor is being used. Clean it up! */
+        ret = _ts_clean_up_handle (self);
+
+        if (ret) {
+          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+              ("Calling _ts_clean_up_handle at set PROP_TYPE has failed."),
+              ("_ts_clean_up_handle() returns %d", ret));
+        }
+
+        silent_debug ("Set type from %d --> %d.", self->type, new_type);
+        self->type = new_type;
+      } else {
+        silent_debug ("Set type ignored (%d --> %d).", self->type, new_type);
+      }
+
+      _UNLOCK (self);
+    }
+    break;
+  case PROP_SEQUENCE:
+    {
+      guint new_sequence = g_value_get_uint (value);
+
+      _LOCK (self);
+
+      if (self->sequence != new_sequence) {
+        /* Different sensor is being used. Clean it up! */
+        ret = _ts_clean_up_handle (self);
+
+        if (ret) {
+          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+              ("Calling _ts_clean_up_handle at set PROP_SEQUENCE has failed."),
+              ("_ts_clean_up_handle() returns %d", ret));
+        }
+
+        silent_debug ("Set sequence from %u --> %u.", self->sequence,
+            new_sequence);
+        self->sequence = new_sequence;
+      } else {
+        silent_debug ("Set sequence ignored (%u --> %u).", self->sequence,
+            new_sequence);
+      }
+
+      _UNLOCK (self);
+    }
+    break;
+  case PROP_MODE:
+    {
+      sensor_op_modes new_mode = g_value_get_enum (value);
+      sensor_op_modes old_mode = self->mode;
+
+      _LOCK (self);
+
+      if (new_mode != self->mode) {
+        silent_debug ("Set mode from %d --> %d.", self->mode, new_mode);
+        self->mode = new_mode;
+
+        /* Same sensor is kept. Only mode is changed */
+        if (self->configured)
+          ret = _ts_reconfigure (self);
+
+        if (ret) {
+          self->mode = old_mode;
+          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+              ("Calling _ts_reconfigure at set PROP_MODE has failed."),
+              ("_ts_reconfigure () returns %d", ret));
+        }
+
+      } else {
+        silent_debug ("Set mode ignored (%d --> %d).", self->mode, new_mode);
+      }
+
+      _UNLOCK (self);
+    }
+    break;
+  case PROP_FREQ:
+    {
+      gint n = self->freq_n;
+      gint d = self->freq_d;
+
+      _LOCK (self);
+
+      self->freq_n = gst_value_get_fraction_numerator (value);
+      self->freq_d = gst_value_get_fraction_denominator (value);
+
+      silent_debug ("Set operating frequency %d/%d --> %d/%d",
+          n, d, self->freq_n, self->freq_d);
+
+      if (n != self->freq_n || d != self->freq_d) {
+        /* Same sensor is kept. Only mode is changed */
+        if (self->configured)
+          ret = _ts_reconfigure (self);
+
+        if (ret) {
+          self->freq_n = n;
+          self->freq_d = d;
+          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
+              ("Calling _ts_reconfigure at set PROP_FREQ has failed."),
+              ("_ts_reconfigure () returns %d", ret));
+        }
+      }
+      _UNLOCK (self);
+    }
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    break;
+  }
 }
 
 /**
@@ -359,7 +515,28 @@ static void
 gst_tensor_src_tizensensor_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec)
 {
-  /** @todo NYI */
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR (object);
+
+  switch (prop_id) {
+  case PROP_SILENT:
+    g_value_set_boolean (value, self->silent);
+    break;
+  case PROP_TYPE:
+    g_value_set_enum (value, self->type);
+    break;
+  case PROP_SEQUENCE:
+    g_value_set_uint (value, self->sequence);
+    break;
+  case PROP_MODE:
+    g_value_set_enum (value, self->mode);
+    break;
+  case PROP_FREQ:
+    gst_value_set_fraction (value, self->freq_n, self->freq_d);
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    break;
+  }
 }
 
 /**
