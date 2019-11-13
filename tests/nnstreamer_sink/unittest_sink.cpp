@@ -4695,9 +4695,10 @@ TEST (tensor_stream_test, tensor_decoder_property)
 
 #include <tensor_filter_custom_easy.h>
 
-/** * @brief In-Code Test Function for custom-easy filter
+/**
+ * @brief In-Code Test Function for custom-easy filter
  */
-int cef_func_safe_memcpy (void *data, const GstTensorFilterProperties *prop,
+static int cef_func_safe_memcpy (void *data, const GstTensorFilterProperties *prop,
     const GstTensorMemory *in, GstTensorMemory *out)
 {
   unsigned int t;

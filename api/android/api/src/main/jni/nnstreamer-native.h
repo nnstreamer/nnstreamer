@@ -34,10 +34,6 @@
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api_filter.h"
 
-#ifndef DBG
-#define DBG FALSE
-#endif
-
 #define TAG "NNStreamer-native"
 
 #define nns_logi(...) \
@@ -51,12 +47,6 @@
 
 #define nns_logd(...) \
     __android_log_print (ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
-
-#if (DBG)
-#define print_log nns_logd
-#else
-#define print_log(...)
-#endif
 
 #if GLIB_SIZEOF_VOID_P == 8
 #define CAST_TO_LONG(p) (jlong)(p)
