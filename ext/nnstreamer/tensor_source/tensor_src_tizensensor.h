@@ -55,9 +55,9 @@ typedef struct _GstTensorSrcTIZENSENSORClass GstTensorSrcTIZENSENSORClass;
  */
 typedef enum
 {
-  TZN_SENSOR_MODE_POLLING = 0; /**< Listening to Tizen's polling */
-  /** @todo TZN_SENSOR_MODE_ACTIVE_POLLING ; poll from nns */
-  /** @todo TZN_SENSOR_MODE_WAIT_UPDATES ; wait for events */
+  TZN_SENSOR_MODE_POLLING = 0; /**< GST polls Tizen Sensor FW */
+  /** @todo TZN_SENSOR_MODE_ACTIVE_POLLING ; Let Tizen poll */
+  /** @todo TZN_SENSOR_MODE_WAIT_UPDATES ; wait for events from Tizen */
 } sensor_op_modes;
 
 /**
@@ -84,7 +84,11 @@ struct _GstTensorSrcTIZENSENSOR
   gint freq_n; /**< Operating frequency of N/d */
   gint freq_d; /**< Operating frequency of n/D */
 
-  /** Sensor node info (handle, context) */
+  /**
+   * Sensor node info (handle, context)
+   * These are temporary values valid during a session of "configured"
+   * values should be cleared when confiured becomes FALSE
+   */
   const GstTensorInfo *src_spec;
   unsigned int interval_ms;
   sensor_listener_h listener;
