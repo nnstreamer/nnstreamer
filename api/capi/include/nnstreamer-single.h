@@ -125,7 +125,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
  */
-static inline int ml_single_invoke_dynamic (ml_single_h single, const ml_tensors_data_h input, const ml_tensors_info_h in_info, ml_tensors_data_h *output, ml_tensors_info_h *out_info);
+int ml_single_invoke_dynamic (ml_single_h single, const ml_tensors_data_h input, const ml_tensors_info_h in_info, ml_tensors_data_h *output, ml_tensors_info_h *out_info);
 
 /*************
  * UTILITIES *
@@ -178,15 +178,15 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
  * @details Note that a model/framework may not support setting such information.
  * @since_tizen 6.0
  * @param[in] single The model handle.
- * @param[in] info The handle of input tensors information.
- * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
+ * @param[in] in_info The handle of input tensors information.
+ * @param[out] out_info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
  *         Use ml_single_set_input_info/ml_single_get_output_info APIs instead for this framework.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
-static inline int ml_single_update_info (ml_single_h single, const ml_tensors_info_h in_info, ml_tensors_info_h *out_info);
+int ml_single_update_info (ml_single_h single, const ml_tensors_info_h in_info, ml_tensors_info_h *out_info);
 
 /**
  * @brief Sets the maximum amount of time to wait for an output, in milliseconds.
@@ -199,52 +199,6 @@ static inline int ml_single_update_info (ml_single_h single, const ml_tensors_in
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_set_timeout (ml_single_h single, unsigned int timeout);
-
-/*****************************
- * STATIC INLINE DEFINITIONS *
- ****************************/
-
-/**
- * @brief Invokes the model with the given input data with the given info.
- */
-static inline int ml_single_invoke_dynamic (ml_single_h single,
-    const ml_tensors_data_h input, const ml_tensors_info_h in_info,
-    ml_tensors_data_h *output, ml_tensors_info_h *out_info)
-{
-  int status;
-  ml_tensors_info_h cur_in_info;
-
-  status = ml_single_get_input_info (single, &cur_in_info);
-  if (status != ML_ERROR_NONE)
-    return status;
-
-  status = ml_single_update_info (single, in_info, out_info);
-  if (status != ML_ERROR_NONE)
-    return status;
-
-  status = ml_single_invoke (single, input, output);
-  if (status != ML_ERROR_NONE) {
-    ml_single_set_input_info (single, cur_in_info);
-    ml_tensors_info_destroy (*out_info);
-  }
-
-  return status;
-}
-
-/**
- * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
- */
-static inline int ml_single_update_info (ml_single_h single,
-    const ml_tensors_info_h in_info, ml_tensors_info_h *out_info)
-{
-  int status;
-
-  status = ml_single_set_input_info (single, in_info);
-  if (status != ML_ERROR_NONE)
-    return status;
-
-  return ml_single_get_output_info (single, out_info);
-}
 
 /**
  * @}

@@ -100,23 +100,23 @@ ml_tensors_info_initialize (ml_tensors_info_s * info)
 /**
  * @brief Validates the given tensor info is valid.
  */
-static int
+static gboolean
 ml_tensor_info_validate (const ml_tensor_info_s * info)
 {
   guint i;
 
   if (!info)
-    return ML_ERROR_INVALID_PARAMETER;
+    return FALSE;
 
   if (info->type < 0 || info->type >= ML_TENSOR_TYPE_UNKNOWN)
-    return ML_ERROR_INVALID_PARAMETER;
+    return FALSE;
 
   for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
     if (info->dimension[i] == 0)
-      return ML_ERROR_INVALID_PARAMETER;
+      return FALSE;
   }
 
-  return ML_ERROR_NONE;
+  return TRUE;
 }
 
 /**
@@ -142,8 +142,7 @@ ml_tensors_info_validate (const ml_tensors_info_h info, bool * valid)
   *valid = false;
 
   for (i = 0; i < tensors_info->num_tensors; i++) {
-    /* Failed if returned value is not 0 (ML_ERROR_NONE) */
-    if (ml_tensor_info_validate (&tensors_info->info[i]) != ML_ERROR_NONE)
+    if (!ml_tensor_info_validate (&tensors_info->info[i]))
       goto done;
   }
 
@@ -904,6 +903,11 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       ml_loge ("NNFW is not supported.");
       status = ML_ERROR_NOT_SUPPORTED;
       break;
+    case ML_NNFW_TYPE_MVNC:
+      /** @todo Need to check method for NCSDK2 */
+      ml_loge ("Intel Movidius NCSDK2 is not supported.");
+      status = ML_ERROR_NOT_SUPPORTED;
+      break;
     default:
       status = ML_ERROR_INVALID_PARAMETER;
       break;
@@ -945,6 +949,13 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       {
         /** @todo Need to check method for NNFW */
         ml_logw ("NNFW is not supported.");
+        goto done;
+      }
+      break;
+    case ML_NNFW_TYPE_MVNC:
+      /** @todo Condition to support Movidius NCSDK2 */
+      if (nnstreamer_filter_find ("movidius-ncsdk2") == NULL) {
+        ml_logw ("Intel Movidius NCSDK2 is not supported.");
         goto done;
       }
       break;

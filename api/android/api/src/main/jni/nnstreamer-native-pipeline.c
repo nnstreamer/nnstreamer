@@ -63,22 +63,18 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, vo
   pipeline_info_s *pipe_info;
   ml_tensors_data_s *out_data;
   ml_tensors_info_s *out_info;
+  jobject obj_data, obj_info;
+  JNIEnv *env;
 
   cb_data = (element_data_s *) user_data;
   pipe_info = cb_data->pipe_info;
   out_data = (ml_tensors_data_s *) data;
   out_info = (ml_tensors_info_s *) info;
 
-  print_log ("Received new data from %s (total %d tensors)",
-      cb_data->name, out_data->num_tensors);
-
-  JNIEnv *env = nns_get_jni_env (pipe_info);
-  if (env == NULL) {
+  if ((env = nns_get_jni_env (pipe_info)) == NULL) {
     nns_logw ("Cannot get jni env in the sink callback.");
     return;
   }
-
-  jobject obj_data, obj_info;
 
   obj_data = obj_info = NULL;
   if (nns_convert_tensors_data (pipe_info, env, out_data, &obj_data) &&
@@ -302,7 +298,6 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz
   int status;
   const char *pipeline = (*env)->GetStringUTFChars (env, description, NULL);
 
-  print_log ("Pipeline: %s", pipeline);
   pipe_info = nns_construct_pipe_info (env, thiz, NULL, NNS_PIPE_TYPE_PIPELINE);
 
   if (add_state_cb)
@@ -415,7 +410,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_src_h src;
-  ml_tensors_data_s *input = NULL;
+  ml_tensors_data_s *in_data = NULL;
   int status;
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
@@ -427,22 +422,21 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
     goto done;
   }
 
-  input = g_new0 (ml_tensors_data_s, 1);
-  if (input == NULL) {
+  if ((in_data = g_new0 (ml_tensors_data_s, 1)) == NULL) {
     nns_loge ("Failed to allocate memory for input data.");
     goto done;
   }
 
-  if (!nns_parse_tensors_data (pipe_info, env, in, input)) {
+  if (!nns_parse_tensors_data (pipe_info, env, in, in_data)) {
     nns_loge ("Failed to parse input data.");
-    ml_tensors_data_destroy ((ml_tensors_data_h) input);
+    ml_tensors_data_destroy ((ml_tensors_data_h) in_data);
     goto done;
   }
 
-  status = ml_pipeline_src_input_data (src, (ml_tensors_data_h) input,
+  status = ml_pipeline_src_input_data (src, (ml_tensors_data_h) in_data,
       ML_PIPELINE_BUF_POLICY_AUTO_FREE);
   if (status != ML_ERROR_NONE) {
-    nns_loge ("Failed to input tensors data.");
+    nns_loge ("Failed to input tensors data to source node %s.", element_name);
     goto done;
   }
 
@@ -491,6 +485,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject 
     result = (*env)->NewObjectArray (env, total, cls_string, (*env)->NewStringUTF (env, ""));
     if (result == NULL) {
       nns_loge ("Failed to allocate string array.");
+      (*env)->DeleteLocalRef (env, cls_string);
       goto done;
     }
 

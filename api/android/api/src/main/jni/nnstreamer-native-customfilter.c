@@ -42,13 +42,14 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
 {
   pipeline_info_s *pipe_info = NULL;
   ml_tensors_data_s *in_data, *out_data;
-  ml_tensors_info_s *in_info, *out_info;
+  ml_tensors_info_h in_info, out_info;
   JNIEnv *env;
+  jclass cls_custom;
+  jmethodID mid_invoke;
+  jobject obj_in_data, obj_out_data;
+  jobject obj_in_info, obj_out_info;
   guint i;
   int ret = -1;
-
-  in_data = out_data = NULL;
-  in_info = out_info = NULL;
 
   /* get pipe info and init */
   pipe_info = g_hash_table_lookup (g_customfilters, prop->fwname);
@@ -57,29 +58,37 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
   env = nns_get_jni_env (pipe_info);
   g_return_val_if_fail (env, -1);
 
-  in_data = g_new0 (ml_tensors_data_s, 1);
-  if (in_data == NULL) {
+  in_data = out_data = NULL;
+  in_info = out_info = NULL;
+  obj_in_data = obj_out_data = NULL;
+  obj_in_info = obj_out_info = NULL;
+
+  if ((in_data = g_new0 (ml_tensors_data_s, 1)) == NULL) {
     nns_loge ("Failed to allocate memory for input tensors data.");
     goto done;
   }
 
-  out_data = g_new0 (ml_tensors_data_s, 1);
-  if (out_data == NULL) {
+  if ((out_data = g_new0 (ml_tensors_data_s, 1)) == NULL) {
     nns_loge ("Failed to allocate memory for output tensors data.");
     goto done;
   }
 
-  in_info = g_new0 (ml_tensors_info_s, 1);
-  if (in_info == NULL) {
-    nns_loge ("Failed to allocate memory for input tensors info.");
+  if (ml_tensors_info_create (&in_info) != ML_ERROR_NONE) {
+    nns_loge ("Failed to create input tensors info.");
     goto done;
   }
 
-  out_info = g_new0 (ml_tensors_info_s, 1);
-  if (out_info == NULL) {
-    nns_loge ("Failed to allocate memory for output tensors info.");
+  if (ml_tensors_info_create (&out_info) != ML_ERROR_NONE) {
+    nns_loge ("Failed to create output tensors info.");
     goto done;
   }
+
+  cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
+  mid_invoke = (*env)->GetMethodID (env, cls_custom, "invoke",
+      "(Lorg/nnsuite/nnstreamer/TensorsData;"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;)"
+      "Lorg/nnsuite/nnstreamer/TensorsData;");
 
   /* convert to c-api data type */
   in_data->num_tensors = prop->input_meta.num_tensors;
@@ -92,12 +101,6 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
   ml_tensors_info_copy_from_gst (out_info, &prop->output_meta);
 
   /* call invoke callback */
-  jobject obj_in_data, obj_out_data;
-  jobject obj_in_info, obj_out_info;
-
-  obj_in_data = obj_out_data = NULL;
-  obj_in_info = obj_out_info = NULL;
-
   if (!nns_convert_tensors_info (pipe_info, env, in_info, &obj_in_info)) {
     nns_loge ("Failed to convert input info to info-object.");
     goto done;
@@ -113,15 +116,9 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
     goto done;
   }
 
-  jclass cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
-  jmethodID mid_invoke = (*env)->GetMethodID (env, cls_custom, "invoke",
-      "(Lorg/nnsuite/nnstreamer/TensorsData;"
-      "Lorg/nnsuite/nnstreamer/TensorsInfo;"
-      "Lorg/nnsuite/nnstreamer/TensorsInfo;)"
-      "Lorg/nnsuite/nnstreamer/TensorsData;");
-
   obj_out_data = (*env)->CallObjectMethod (env, pipe_info->instance, mid_invoke,
       obj_in_data, obj_in_info, obj_out_info);
+
   if (!nns_parse_tensors_data (pipe_info, env, obj_out_data, out_data)) {
     nns_loge ("Failed to parse output data.");
     goto done;
@@ -154,8 +151,8 @@ done:
 
   g_free (in_data);
   g_free (out_data);
-  ml_tensors_info_destroy ((ml_tensors_info_h) in_info);
-  ml_tensors_info_destroy ((ml_tensors_info_h) out_info);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
   return ret;
 }
 
@@ -172,11 +169,12 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   pipeline_info_s *pipe_info = NULL;
-  ml_tensors_info_s *in, *out;
+  ml_tensors_info_h in, out;
+  jobject obj_in_info, obj_out_info;
   JNIEnv *env;
+  jclass cls_custom;
+  jmethodID mid_info;
   int ret = -1;
-
-  in = out = NULL;
 
   /* get pipe info and init */
   pipe_info = g_hash_table_lookup (g_customfilters, prop->fwname);
@@ -185,37 +183,36 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
   env = nns_get_jni_env (pipe_info);
   g_return_val_if_fail (env, -1);
 
-  in = g_new0 (ml_tensors_info_s, 1);
-  if (in == NULL) {
-    nns_loge ("Failed to allocate memory for input tensors info.");
+  in = out = NULL;
+  obj_in_info = obj_out_info = NULL;
+
+  if (ml_tensors_info_create (&in) != ML_ERROR_NONE) {
+    nns_loge ("Failed to create input tensors info.");
     goto done;
   }
 
-  out = g_new0 (ml_tensors_info_s, 1);
-  if (out == NULL) {
-    nns_loge ("Failed to allocate memory for output tensors info.");
+  if (ml_tensors_info_create (&out) != ML_ERROR_NONE) {
+    nns_loge ("Failed to create output tensors info.");
     goto done;
   }
+
+  cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
+  mid_info = (*env)->GetMethodID (env, cls_custom, "getOutputInfo",
+      "(Lorg/nnsuite/nnstreamer/TensorsInfo;)"
+      "Lorg/nnsuite/nnstreamer/TensorsInfo;");
 
   /* convert to c-api data type */
   ml_tensors_info_copy_from_gst (in, in_info);
 
   /* call output info callback */
-  jobject obj_in_info, obj_out_info;
-
-  obj_in_info = obj_out_info = NULL;
   if (!nns_convert_tensors_info (pipe_info, env, in, &obj_in_info)) {
     nns_loge ("Failed to convert input tensors info to data object.");
     goto done;
   }
 
-  jclass cls_custom = (*env)->GetObjectClass (env, pipe_info->instance);
-  jmethodID mid_info = (*env)->GetMethodID (env, cls_custom, "getOutputInfo",
-      "(Lorg/nnsuite/nnstreamer/TensorsInfo;)"
-      "Lorg/nnsuite/nnstreamer/TensorsInfo;");
-
   obj_out_info = (*env)->CallObjectMethod (env, pipe_info->instance, mid_info, obj_in_info);
-  if (!obj_out_info || !nns_parse_tensors_info (pipe_info, env, obj_out_info, out)) {
+
+  if (!nns_parse_tensors_info (pipe_info, env, obj_out_info, out)) {
     nns_loge ("Failed to parse output info.");
     goto done;
   }
@@ -233,8 +230,8 @@ done:
     (*env)->DeleteLocalRef (env, obj_out_info);
   (*env)->DeleteLocalRef (env, cls_custom);
 
-  ml_tensors_info_destroy ((ml_tensors_info_h) in);
-  ml_tensors_info_destroy ((ml_tensors_info_h) out);
+  ml_tensors_info_destroy (in);
+  ml_tensors_info_destroy (out);
   return ret;
 }
 
@@ -269,6 +266,7 @@ Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject
   fw->invoke_NN = nns_customfilter_invoke;
   fw->setInputDimension = nns_customfilter_set_dimension;
 
+  /* register custom-filter */
   if (!nnstreamer_filter_probe (fw)) {
     nns_loge ("Failed to register custom-filter %s.", filter_name);
     g_free (fw->name);

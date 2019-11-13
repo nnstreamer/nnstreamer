@@ -747,7 +747,8 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
 /**
  * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
  */
-int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
+int
+ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
 {
   ml_single *single_h;
   GTensorFilterSingleClass *klass;
@@ -788,4 +789,71 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
 exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
   return status;
+}
+
+/**
+ * @brief Invokes the model with the given input data with the given info.
+ */
+int
+ml_single_invoke_dynamic (ml_single_h single,
+    const ml_tensors_data_h input, const ml_tensors_info_h in_info,
+    ml_tensors_data_h * output, ml_tensors_info_h * out_info)
+{
+  int status;
+  ml_tensors_info_h cur_in_info = NULL;
+
+  if (!single || !input || !in_info || !output || !out_info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *output = NULL;
+  *out_info = NULL;
+
+  status = ml_single_get_input_info (single, &cur_in_info);
+  if (status != ML_ERROR_NONE)
+    goto exit;
+
+  status = ml_single_update_info (single, in_info, out_info);
+  if (status != ML_ERROR_NONE)
+    goto exit;
+
+  status = ml_single_invoke (single, input, output);
+  if (status != ML_ERROR_NONE) {
+    ml_single_set_input_info (single, cur_in_info);
+  }
+
+exit:
+  if (cur_in_info)
+    ml_tensors_info_destroy (cur_in_info);
+
+  if (status != ML_ERROR_NONE) {
+    if (*out_info) {
+      ml_tensors_info_destroy (*out_info);
+      *out_info = NULL;
+    }
+  }
+
+  return status;
+}
+
+/**
+ * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
+ */
+int
+ml_single_update_info (ml_single_h single,
+    const ml_tensors_info_h in_info, ml_tensors_info_h * out_info)
+{
+  int status;
+
+  if (!single || !in_info || !out_info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *out_info = NULL;
+
+  status = ml_single_set_input_info (single, in_info);
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  return ml_single_get_output_info (single, out_info);
 }
