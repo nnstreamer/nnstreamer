@@ -513,6 +513,8 @@ TEST (nnstreamer_capi_sink, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_dm01, file2, &sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != NULL);
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -573,6 +575,7 @@ TEST (nnstreamer_capi_sink, dummy_02)
 
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != NULL);
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -602,6 +605,68 @@ TEST (nnstreamer_capi_sink, dummy_02)
 
   g_free (pipeline);
   g_free (count_sink);
+  g_free (pipe_state);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ */
+TEST (nnstreamer_capi_sink, register_duplicated)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_sink_h sinkhandle0, sinkhandle1;
+  gchar *pipeline;
+  int status;
+  guint *count_sink0, *count_sink1;
+  TestPipeState *pipe_state;
+
+  /* pipeline with appsink */
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx");
+
+  count_sink0 = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink0 != NULL);
+  *count_sink0 = 0;
+
+  count_sink1 = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink1 != NULL);
+  *count_sink1 = 0;
+
+  pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  ASSERT_TRUE (pipe_state != NULL);
+
+  status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink0, &sinkhandle0);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle0 != NULL);
+
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink1, &sinkhandle1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle1 != NULL);
+
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_usleep (100000); /* 100ms. Let a few frames flow. */
+
+  status = ml_pipeline_sink_unregister (sinkhandle0);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sinkhandle1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (*count_sink0 > 0U);
+  EXPECT_TRUE (*count_sink1 > 0U);
+  EXPECT_TRUE (pipe_state->paused);
+  EXPECT_TRUE (pipe_state->playing);
+
+  g_free (pipeline);
+  g_free (count_sink0);
+  g_free (count_sink1);
   g_free (pipe_state);
 }
 
@@ -651,6 +716,7 @@ TEST (nnstreamer_capi_sink, failure_01_n)
 
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != NULL);
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -977,6 +1043,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
 
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != NULL);
 
   status = ml_pipeline_switch_select (switchhandle, "sink_1");
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1068,9 +1135,11 @@ TEST (nnstreamer_capi_switch, dummy_02)
 
   status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, count_sink0, &sinkhandle0);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle0 != NULL);
 
   status = ml_pipeline_sink_register (handle, "sink1", test_sink_callback_count, count_sink1, &sinkhandle1);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle1 != NULL);
 
   status = ml_pipeline_switch_select (switchhandle, "src_1");
   EXPECT_EQ (status, ML_ERROR_NONE);
