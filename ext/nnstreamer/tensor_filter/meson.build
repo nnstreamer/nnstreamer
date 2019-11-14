@@ -22,12 +22,42 @@ if get_option('enable-nnfw-runtime')
   static_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
-    install: false,
-    install_dir: filter_subplugin_install_dir
+    install: true,
+    install_dir: nnstreamer_libdir
   )
 
   nnfw_plugin_dep = declare_dependency(link_with: nnfw_plugin_lib,
     dependencies: nnstreamer_filter_nnfw_deps)
+endif
+
+if get_option('enable-armnn')
+  filter_sub_armnn_sources = [
+    'tensor_filter_armnn.cc'
+  ]
+
+  nnstreamer_filter_armnn_sources = []
+  foreach s : filter_sub_armnn_sources
+    nnstreamer_filter_armnn_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  armnn_dep = dependency('armnn', required: true)
+  nnstreamer_filter_armnn_deps = [glib_dep, gst_dep, nnstreamer_dep, armnn_dep]
+
+  armnn_plugin_lib = shared_library('nnstreamer_filter_armnn',
+    nnstreamer_filter_armnn_sources,
+    dependencies: nnstreamer_filter_armnn_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+  static_library('nnstreamer_filter_armnn',
+    nnstreamer_filter_armnn_sources,
+    dependencies: nnstreamer_filter_armnn_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  armnn_plugin_dep = declare_dependency(link_with: armnn_plugin_lib,
+    dependencies: nnstreamer_filter_armnn_deps)
 endif
 
 if get_option('enable-tensorflow')

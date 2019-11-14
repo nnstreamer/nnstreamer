@@ -3,6 +3,11 @@
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 %define		tensorflow_support	0
+%define		armnn_support 0
+
+%ifnarch %arm aarch64
+%define armnn_support 0
+%endif
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
@@ -58,6 +63,12 @@ BuildRequires: procps
 BuildRequires: protobuf-devel >= 3.4.0
 BuildRequires: tensorflow
 BuildRequires: tensorflow-devel
+%endif
+# for armnn
+%if 0%{?armnn_support}
+BuildRequires: armnn-devel
+BuildRequires:  libarmcl
+BuildConflicts: libarmcl-release
 %endif
 
 %if 0%{?testcoverage}
@@ -136,6 +147,14 @@ Requires: nnstreamer = %{version}-%{release}
 Requires: python
 %description -n nnstreamer-python2
 NNStreamer's tensor_filter subplugin of Python (2.7).
+
+%if 0%{?armnn_support}
+%package armnn
+Summary:	NNStreamer Arm NN support
+Requires:	armnn
+%description armnn
+NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
+%endif
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
@@ -250,6 +269,13 @@ You can include Tizen sensor framework nodes as source elements of GStreamer/NNS
 %define enable_tf -Denable-tensorflow=false
 %endif
 
+# Support ArmNN
+%if 0%{?armnn_support}
+%define enable_armnn -Denable-armnn=true
+%else
+%define enable_armnn -Denable-armnn=false
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -275,7 +301,7 @@ mkdir -p build
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} \
 	-Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} build
+	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -447,6 +473,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
+%endif
+
+%if 0%{?armnn_support}
+%files armnn
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_armnn.so
 %endif
 
 %files -n nnstreamer-ncsdk2
