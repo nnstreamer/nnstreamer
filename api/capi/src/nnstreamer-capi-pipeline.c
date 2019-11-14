@@ -829,32 +829,27 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
   }
 
   if (elem->handle_id > 0) {
+    /* no need to connect signal to sink element */
     ml_logw ("Sink callback is already registered.");
-    ret = ML_ERROR_NONE;
-    goto unlock_return;
-  }
-
-  /* set callback for new data */
-  if (elem->type == ML_PIPELINE_ELEMENT_SINK) {
-    /* tensor_sink */
-    g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE,
-        NULL);
-    elem->handle_id =
-        g_signal_connect (elem->element, "new-data", G_CALLBACK (cb_sink_event),
-        elem);
   } else {
-    /* appsink */
-    g_object_set (G_OBJECT (elem->element), "emit-signals", (gboolean) TRUE,
-        NULL);
-    elem->handle_id =
-        g_signal_connect (elem->element, "new-sample",
-        G_CALLBACK (cb_appsink_new_sample), elem);
-  }
+    /* set callback for new data */
+    if (elem->type == ML_PIPELINE_ELEMENT_SINK) {
+      /* tensor_sink */
+      g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE, NULL);
+      elem->handle_id = g_signal_connect (elem->element, "new-data",
+          G_CALLBACK (cb_sink_event), elem);
+    } else {
+      /* appsink */
+      g_object_set (G_OBJECT (elem->element), "emit-signals", (gboolean) TRUE, NULL);
+      elem->handle_id = g_signal_connect (elem->element, "new-sample",
+          G_CALLBACK (cb_appsink_new_sample), elem);
+    }
 
-  if (elem->handle_id == 0) {
-    ml_loge ("Failed to connect a signal to the element [%s].", sink_name);
-    ret = ML_ERROR_STREAMS_PIPE;
-    goto unlock_return;
+    if (elem->handle_id == 0) {
+      ml_loge ("Failed to connect a signal to the element [%s].", sink_name);
+      ret = ML_ERROR_STREAMS_PIPE;
+      goto unlock_return;
+    }
   }
 
   sink = *h = g_new0 (ml_pipeline_sink, 1);
@@ -948,8 +943,8 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
       } else {
         if (!elem->is_media_stream) {
           ml_logw
-            ("Cannot find caps. The pipeline is not yet negotiated for src element [%s].",
-            elem->name);
+              ("Cannot find caps. The pipeline is not yet negotiated for src element [%s].",
+              elem->name);
           gst_object_unref (elem->src);
           elem->src = NULL;
           ret = ML_ERROR_TRY_AGAIN;
@@ -1085,7 +1080,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     goto destroy_data;
   }
 
-  if (!elem->is_media_stream){
+  if (!elem->is_media_stream) {
     if (elem->tensors_info.num_tensors != _data->num_tensors) {
       ml_loge
           ("The src push of [%s] cannot be handled because the number of tensors in a frame mismatches. %u != %u",
