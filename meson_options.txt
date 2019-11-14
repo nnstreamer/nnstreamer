@@ -23,3 +23,4 @@ option('nnfw-runtime-prioritize', type: 'boolean', value: false) # true to set h
 option('enable-cppfilter', type: 'boolean', value: true)
 option('enable-tizen-sensor', type: 'boolean', value: false)
 option('enable-edgetpu', type: 'boolean', value: false)
+option('enable-armnn', type: 'boolean', value: false)
