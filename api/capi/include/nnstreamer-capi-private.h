@@ -246,9 +246,13 @@ typedef struct _ml_pipeline_valve {
 
 /**
  * @brief Macro to check the tensors info is valid.
- * @since_tizen 5.5
  */
-#define ml_tensors_info_is_valid(i,v) (ml_tensors_info_validate ((i), &(v)) == ML_ERROR_NONE && (v))
+#define ml_tensors_info_is_valid(i) ({bool v; (ml_tensors_info_validate ((i), &v) == ML_ERROR_NONE && v);})
+
+/**
+ * @brief Macro to compare the tensors info.
+ */
+#define ml_tensors_info_is_equal(i1,i2) ({bool e; (ml_tensors_info_compare ((i1), (i2), &e) == ML_ERROR_NONE && e);})
 
 /**
  * @brief Gets the byte size of the given tensor info.
@@ -264,6 +268,20 @@ size_t ml_tensor_info_get_size (const ml_tensor_info_s *info);
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_tensors_info_initialize (ml_tensors_info_s *info);
+
+/**
+ * @brief Compares the given tensors information.
+ * @details If the function returns an error, @a equal is not changed.
+ * @since_tizen 6.0
+ * @param[in] info1 The handle of tensors information to be compared.
+ * @param[in] info2 The handle of tensors information to be compared.
+ * @param[out] equal @c true if given tensors information is equal, @c false if if it's not equal.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_tensors_info_compare (const ml_tensors_info_h info1, const ml_tensors_info_h info2, bool *equal);
 
 /**
  * @brief Frees the tensors info pointer.
@@ -289,6 +307,7 @@ GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
 
 /**
  * @brief Creates a tensor data frame wihout buffer with the given tensors information.
+ * @details If @a info is null, this allocates data handle with empty tensor data.
  * @param[in] info The handle of tensors information for the allocation.
  * @param[out] data The handle of tensors data.
  * @return @c 0 on success. Otherwise a negative error value.
