@@ -120,6 +120,28 @@ ml_tensor_info_validate (const ml_tensor_info_s * info)
 }
 
 /**
+ * @brief Compares the given tensor info.
+ */
+static gboolean
+ml_tensor_info_compare (const ml_tensor_info_s * i1, const ml_tensor_info_s * i2)
+{
+  guint i;
+
+  if (i1 == NULL || i2 == NULL)
+    return FALSE;
+
+  if (i1->type != i2->type)
+    return FALSE;
+
+  for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
+    if (i1->dimension[i] != i2->dimension[i])
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Validates the given tensors info is valid.
  */
 int
@@ -147,6 +169,41 @@ ml_tensors_info_validate (const ml_tensors_info_h info, bool * valid)
   }
 
   *valid = true;
+
+done:
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Compares the given tensors information.
+ */
+int
+ml_tensors_info_compare (const ml_tensors_info_h info1,
+    const ml_tensors_info_h info2, bool * equal)
+{
+  ml_tensors_info_s *i1, *i2;
+  guint i;
+
+  check_feature_state ();
+
+  if (info1 == NULL || info2 == NULL || equal == NULL)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  i1 = (ml_tensors_info_s *) info1;
+  i2 = (ml_tensors_info_s *) info2;
+
+  /* init false */
+  *equal = false;
+
+  if (i1->num_tensors != i2->num_tensors)
+    goto done;
+
+  for (i = 0; i < i1->num_tensors; i++) {
+    if (!ml_tensor_info_compare (&i1->info[i], &i2->info[i]))
+      goto done;
+  }
+
+  *equal = true;
 
 done:
   return ML_ERROR_NONE;
@@ -482,15 +539,15 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
     ml_tensors_data_h * data)
 {
   ml_tensors_data_s *_data;
-  ml_tensors_info_s *tensors_info;
+  ml_tensors_info_s *_info;
   gint i;
 
   check_feature_state ();
 
-  if (!info || !data)
+  if (data == NULL)
     return ML_ERROR_INVALID_PARAMETER;
 
-  tensors_info = (ml_tensors_info_s *) info;
+  /* init null */
   *data = NULL;
 
   _data = g_new0 (ml_tensors_data_s, 1);
@@ -499,10 +556,13 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
     return ML_ERROR_OUT_OF_MEMORY;
   }
 
-  _data->num_tensors = tensors_info->num_tensors;
-  for (i = 0; i < _data->num_tensors; i++) {
-    _data->tensors[i].size = ml_tensor_info_get_size (&tensors_info->info[i]);
-    _data->tensors[i].tensor = NULL;
+  _info = (ml_tensors_info_s *) info;
+  if (_info != NULL) {
+    _data->num_tensors = _info->num_tensors;
+    for (i = 0; i < _data->num_tensors; i++) {
+      _data->tensors[i].size = ml_tensor_info_get_size (&_info->info[i]);
+      _data->tensors[i].tensor = NULL;
+    }
   }
 
   *data = _data;
@@ -519,6 +579,11 @@ ml_tensors_data_create (const ml_tensors_info_h info,
   gint status = ML_ERROR_STREAMS_PIPE;
   ml_tensors_data_s *_data = NULL;
   gint i;
+
+  check_feature_state ();
+
+  if (info == NULL || data == NULL)
+    return ML_ERROR_INVALID_PARAMETER;
 
   status = ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) &_data);
 

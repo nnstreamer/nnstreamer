@@ -1366,6 +1366,56 @@ TEST (nnstreamer_capi_util, tensors_info)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
+/**
+ * @brief Test utility functions
+ */
+TEST (nnstreamer_capi_util, compare_info)
+{
+  ml_tensors_info_h info1, info2;
+  ml_tensor_dimension dim;
+  int status;
+
+  status = ml_tensors_info_create (&info1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_create (&info2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  dim[0] = 3;
+  dim[1] = 4;
+  dim[2] = 4;
+  dim[3] = 1;
+
+  ml_tensors_info_set_count (info1, 1);
+  ml_tensors_info_set_tensor_type (info1, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info1, 0, dim);
+
+  ml_tensors_info_set_count (info2, 1);
+  ml_tensors_info_set_tensor_type (info2, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info2, 0, dim);
+
+  /* compare info */
+  EXPECT_TRUE (ml_tensors_info_is_equal (info1, info2));
+
+  /* change type */
+  ml_tensors_info_set_tensor_type (info2, 0, ML_TENSOR_TYPE_UINT16);
+  EXPECT_FALSE (ml_tensors_info_is_equal (info1, info2));
+
+  /* validate info */
+  EXPECT_TRUE (ml_tensors_info_is_valid (info2));
+
+  /* validate invalid dimension */
+  dim[3] = 0;
+  ml_tensors_info_set_tensor_dimension (info2, 0, dim);
+  EXPECT_FALSE (ml_tensors_info_is_valid (info2));
+
+  status = ml_tensors_info_destroy (info1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_destroy (info2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
 #ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
