@@ -70,7 +70,7 @@ PATH_TO_INIT_MODEL="../test_models/models/caffe2_init_net.pb"
 PATH_TO_PRED_MODEL="../test_models/models/caffe2_predict_net.pb"
 PATH_TO_DATA="../test_models/data/5"
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter framework=caffe2 model=\"${PATH_TO_INIT_MODEL},${PATH_TO_PRED_MODEL}\" inputname=data input=32:32:3:1 inputtype=float32 output=10:1:1:1 outputtype=float32 outputname=softmax ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter framework=caffe2 model=\"${PATH_TO_INIT_MODEL},${PATH_TO_PRED_MODEL}\" inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
 python checkLabel.py tensorfilter.out.log 5
 testResult $? 1 "Golden test comparison" 0 1
 report

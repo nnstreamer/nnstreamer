@@ -12,6 +12,7 @@ import nnstreamer_python as nns
 D1 = 3
 D2 = 280
 D3 = 40
+D4 = 1
 
 ## @brief  User-defined custom filter; DO NOT CHANGE CLASS NAME
 class CustomFilter(object):
@@ -19,18 +20,18 @@ class CustomFilter(object):
 ## @breif  The constructor for custom filter: passthrough
 #  @param  None
   def __init__ (self, *args):
-    self.input_dims = [nns.TensorShape([D1, D2, D3], np.uint8)]
-    self.output_dims = [nns.TensorShape([D1, D2, D3], np.uint8)]
+    self.input_dims = [nns.TensorShape([D1, D2, D3, D4], np.uint8)]
+    self.output_dims = [nns.TensorShape([D1, D2, D3, D4], np.uint8)]
 
 ## @breif  python callback: getInputDim
 #  @param  None
-#  @return user-assigned input dimensions 
+#  @return user-assigned input dimensions
   def getInputDim (self):
     return self.input_dims
 
 ## @breif  Python callback: getOutputDim
 #  @param  None
-#  @return user-assigned output dimensions 
+#  @return user-assigned output dimensions
   def getOutputDim (self):
     return self.output_dims
 

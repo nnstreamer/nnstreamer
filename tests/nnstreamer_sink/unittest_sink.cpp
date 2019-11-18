@@ -793,7 +793,7 @@ _setup_pipeline (TestOption & option)
       str_pipeline =
           g_strdup_printf
           ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
-          "tensor_converter ! tensor_split silent=TRUE name=split tensorseg=1:160:120,1:160:120,1:160:120 tensorpick=0,1,2 "
+          "tensor_converter ! tensor_split silent=TRUE name=split tensorseg=1:160:120:1,1:160:120:1,1:160:120:1 tensorpick=0,1,2 "
           "split.src_0 ! queue ! tensor_sink "
           "split.src_1 ! queue ! tensor_sink name=test_sink "
           "split.src_2 ! queue ! tensor_sink", option.num_buffers, fps);

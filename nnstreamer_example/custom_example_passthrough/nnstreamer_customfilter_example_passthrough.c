@@ -23,6 +23,7 @@
 #define D1	(3)
 #define D2	(280)
 #define D3	(40)
+#define D4	(1)
 
 /**
  * @brief _pt_data
@@ -40,7 +41,6 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
-  int i;
 
   assert (data);
   memset (data, 0, sizeof (pt_data));
@@ -49,8 +49,7 @@ pt_init (const GstTensorFilterProperties * prop)
   data->info.dimension[0] = D1;
   data->info.dimension[1] = D2;
   data->info.dimension[2] = D3;
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    data->info.dimension[i] = 1;
+  data->info.dimension[3] = D4;
   data->info.type = _NNS_UINT8;
 
   return data;
@@ -80,8 +79,7 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
-  /** @todo use common function to copy tensor info */
-  info->info[0] = data->info;
+  gst_tensor_info_copy (&info->info[0], &data->info);
   return 0;
 }
 
@@ -98,8 +96,7 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 1;
-  /** @todo use common function to copy tensor info */
-  info->info[0] = data->info;
+  gst_tensor_info_copy (&info->info[0], &data->info);
   return 0;
 }
 
