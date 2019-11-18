@@ -181,6 +181,9 @@ Requires:	%{name} = %{version}-%{release}
 Tizen Native API wrapper for NNStreamer.
 You can construct a data stream pipeline with neural networks easily.
 
+%post -n capi-nnstreamer -p /sbin/ldconfig
+%postun -n capi-nnstreamer -p /sbin/ldconfig
+
 %package -n capi-nnstreamer-devel
 Summary:	Tizen Native API Devel Kit for NNStreamer
 Group:		Multimedia/Framework
@@ -201,6 +204,9 @@ Summary:	NNStreamer Custom Plugin Support for C++ Classes
 Requires:	nnstreamer = %{version}-%{release}
 %description cpp
 With this package, you may use C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
+
+%post cpp -p /sbin/ldconfig
+%postun cpp -p /sbin/ldconfig
 
 %package cpp-devel
 Summary:	NNStreamer Custom Plugin Development Support for C++ Classes
