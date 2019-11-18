@@ -1111,8 +1111,11 @@ TEST (test_tensor_src_iio, \
   } \
   for (num_try = 0; num_try < MAX_NUM_TRY; ++num_try) { \
     g_usleep (MAX (10, 1000000 / samp_freq)); \
-    ASSERT_EQ (build_dev_dir_scan_elements (dev0, data_bits, data_value, \
-            data_value, SKIP), 0); \
+    if (build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value, \
+          SKIP) != 0) { \
+      close (fd); \
+      FAIL() << "Failed to build and fill scan elements directory"; \
+    } \
     ret = stat (dev0->log_file, &stat_buf); \
     if (ret == 0 && stat_buf.st_size != 0) { \
       /** verify playing state has been maintained */ \
@@ -1192,6 +1195,8 @@ GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER (DATA, 64, 2);
  */
 TEST (test_tensor_src_iio, data_verify_trigger)
 {
+  static const int MAX_NUM_TRY = 100;
+  int num_try;
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
   GstElement *src_iio;
@@ -1201,13 +1206,13 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   gint samp_freq;
   gint data_value;
   guint data_bits;
-  gint fd, bytes_to_read, bytes_read;
+  gint fd, ret;
+  size_t bytes_to_read, bytes_read;
   gchar *data_buffer;
   gfloat expect_val, actual_val;
   guint64 expect_val_mask;
   gchar *expect_val_char, *actual_val_char;
   struct stat stat_buf;
-  gint stat_ret;
   data_value = DATA;
   data_bits = 16;
   GstCaps *caps;
@@ -1264,27 +1269,44 @@ TEST (test_tensor_src_iio, data_verify_trigger)
 
   /** let a few frames transfer */
   for (int idx = 0; idx < NUM_FRAMES; idx++) {
+    num_try = 0;
     /** wait for filter to process the frame and multifilesink to write it */
-    while (TRUE) {
-      stat_ret = stat (dev0->log_file, &stat_buf);
-      if (stat_ret == 0 && stat_buf.st_size != 0) {
+    while ((fd = open (dev0->log_file, O_RDONLY)) < 0) {
+      if (num_try >= MAX_NUM_TRY) {
+        FAIL() << "Failed to open " << dev0->log_file;
+      }
+      g_usleep (MAX (10, 1000000 / samp_freq));
+      num_try++;
+    }
+
+    /** wait for filter to process the frame and multifilesink to write it */
+    for (num_try = 0; num_try < MAX_NUM_TRY; ++num_try) {
+      ret = stat (dev0->log_file, &stat_buf);
+      if (ret == 0 && stat_buf.st_size != 0) {
         break;
       }
       g_usleep (MAX (1, 1000000 / samp_freq));
     }
 
     /** verify correctness of data */
-    fd = open (dev0->log_file, O_RDONLY);
-    ASSERT_GE (fd, 0);
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
     data_buffer = (gchar *) malloc (bytes_to_read);
-    ASSERT_TRUE (data_buffer != NULL);
-    bytes_read = read (fd, data_buffer, bytes_to_read);
+    if (data_buffer == NULL) {
+      close (fd);
+      FAIL() << "Failed to malloc for data_buffer";
+    }
+    ret = read (fd, data_buffer, bytes_to_read);
+    if (ret < 0) {
+      close (fd);
+      free (data_buffer);
+      FAIL() << "Failed to read file descriptor, " << fd;
+    }
+    bytes_read = static_cast<size_t>(ret); \
     EXPECT_EQ (bytes_read, bytes_to_read);
     expect_val_mask = G_MAXUINT64 >> (64 - data_bits);
     expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE;
     expect_val_char = g_strdup_printf ("%.2f", expect_val);
-    for (int idx = 0; idx < bytes_to_read; idx += sizeof (float)) {
+    for (size_t idx = 0; idx < bytes_to_read; idx += sizeof (float)) {
       actual_val = *((gfloat *) data_buffer);
       actual_val_char = g_strdup_printf ("%.2f", actual_val);
       EXPECT_STREQ (expect_val_char, actual_val_char);
