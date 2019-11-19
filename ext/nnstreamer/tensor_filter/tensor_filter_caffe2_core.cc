@@ -112,13 +112,14 @@ do {\
 int
 Caffe2Core::initInputTensor ()
 {
-  int i = 0;
+  guint i;
+
   inputTensorMap.clear ();
-  for (; i < inputTensorMeta.num_tensors; i++) {
+  for (i = 0; i < inputTensorMeta.num_tensors; i++) {
     Tensor *inputTensor = workSpace.CreateBlob (inputTensorMeta.info[i].name)
       ->GetMutable<Tensor> ();
 
-    switch (inputTensorMeta.info[i].type){
+    switch (inputTensorMeta.info[i].type) {
       case _NNS_INT32:
         initializeTensor (int32_t);
         break;
@@ -207,11 +208,11 @@ Caffe2Core::loadModels ()
   predictNet.mutable_device_option()->set_device_type(PROTO_CPU);
   initNet.mutable_device_option()->set_device_type(PROTO_CPU);
 
-  for(int i = 0; i < predictNet.op_size(); ++i){
-      predictNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  for (int i = 0; i < predictNet.op_size(); ++i) {
+    predictNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
   }
-  for(int i = 0; i < initNet.op_size(); ++i){
-      initNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  for (int i = 0; i < initNet.op_size(); ++i) {
+    initNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
   }
 
   CAFFE_ENFORCE (workSpace.RunNetOnce (initNet));
@@ -262,11 +263,12 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-  for (i = 0; i < inputTensorMeta.num_tensors; i++){
+
+  for (i = 0; i < inputTensorMeta.num_tensors; i++) {
     Tensor *inputTensor = inputTensorMap.
                             find(inputTensorMeta.info[i].name)->second;
-    inputTensor->ShareExternalPointer ((float*) input[i].data);
-    switch (outputTensorMeta.info[i].type){
+
+    switch (inputTensorMeta.info[i].type) {
       case _NNS_INT32:
         inputTensor->ShareExternalPointer ((int32_t*) input[i].data);
         break;
@@ -329,12 +331,12 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
     const auto& out = workSpace.GetBlob (outputTensorMeta.info[i].name)
       ->Get<Tensor> ();
 
-    switch (outputTensorMeta.info[i].type){
+    switch (outputTensorMeta.info[i].type) {
       case _NNS_INT32:
         output[i].data = out.data<int32_t>();
         break;
       case _NNS_UINT32:
-        g_critical ("invalid data type is used");
+        g_critical ("invalid data type (uint32) is used");
         return -1;
       case _NNS_INT16:
         output[i].data = out.data<int16_t>();
@@ -358,7 +360,7 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
         output[i].data = out.data<int64_t>();
         break;
       case _NNS_UINT64:
-        g_critical ("invalid data type is used");
+        g_critical ("invalid data type (uint64) is used");
         return -1;
       default:
         g_critical ("invalid data type is used");
