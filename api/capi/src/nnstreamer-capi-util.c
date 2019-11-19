@@ -933,6 +933,9 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   *available = false;
 
   switch (nnfw) {
+    case ML_NNFW_TYPE_CUSTOM_FILTER:
+      /* Always available */
+      break;
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
       if (nnstreamer_filter_find ("tensorflow-lite") == NULL) {
         ml_logw ("Tensorflow-lite is not supported.");
@@ -960,7 +963,7 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       }
       break;
     default:
-      break;
+      goto done; /* Default = "Not available!" */
   }
 
   *available = true;
