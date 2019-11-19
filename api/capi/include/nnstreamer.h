@@ -125,6 +125,9 @@ typedef enum {
   ML_NNFW_TYPE_TENSORFLOW, /**< Tensorflow (.pb). */
   ML_NNFW_TYPE_NNFW, /**< Neural Network Inference framework, which is developed by SR */
   ML_NNFW_TYPE_MVNC, /**< Intel NCSDK (libmvnc). */
+  ML_NNFW_TYPE_OPENVINO, /**< Intel openVINO. */
+  ML_NNFW_TYPE_VIVANTE, /**< VeriSilicon's Vivante (TBD) */
+  ML_NNFW_TYPE_CORAL_TPU, /**< Google Coral edge TPU (USB) */
 } ml_nnfw_type_e;
 
 /**
