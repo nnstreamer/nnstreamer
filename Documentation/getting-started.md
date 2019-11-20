@@ -30,7 +30,10 @@ The following example configuration is for Ubuntu 16.04:
 $ cat ~/.pbuilderrc
 DISTRIBUTION=xenial
 COMPONENTS="main restricted universe multiverse"
-OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial-backports universe | deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
+OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial main restricted universe multiverse |\
+  deb http://archive.ubuntu.com/ubuntu xenial-security main restricted universe multiverse |\
+  deb http://archive.ubuntu.com/ubuntu xenial-updates main restricted universe multiverse |\
+  deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
 $ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
 $ sudo pbuilder create
 ```
