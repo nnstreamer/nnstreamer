@@ -2,8 +2,8 @@ Source: nnstreamer
 Section: libs
 Priority: optional
 Maintainer: MyungJoo Ham <myungjoo.ham@samsung.com>
-Build-Depends: gcc (>=5), ninja-build, meson (>=0.50),
- debhelper (>=9),
+Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
+ ninja-build, meson (>=0.50), debhelper (>=9),
  libgstreamer1.0-dev, libgstreamer-plugins-base1.0-dev, libglib2.0-dev,
  gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good,
  libgtest-dev, ssat, libpng-dev, libopencv-dev, liborc-0.4-dev,

@@ -9,7 +9,7 @@
 %bcond_with tizen
 
 Name:		nnstreamer
-Summary:	gstremaer plugins for neural networks
+Summary:	gstreamer plugins for neural networks
 # Synchronize the version information among Ubuntu, Tizen, Android, and Meson.
 # 1. Ubuntu : ./debian/changelog
 # 2. Tizen  : ./packaging/nnstreamer.spec
@@ -258,6 +258,9 @@ rm -rf ./api/capi/include/platform
 cp %{SOURCE1001} ./nnstreamer-cpp.manifest
 
 %build
+# Remove compiler flags for meson to decide the cpp version
+CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-std=gnu++11||"`
+
 %if 0%{?testcoverage}
 CXXFLAGS="${CXXFLAGS} -fprofile-arcs -ftest-coverage"
 CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
