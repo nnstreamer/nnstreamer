@@ -125,10 +125,10 @@ pt_allocate_invoke (void *private_data,
     GstTensorMemory * output)
 {
   pt_data *data = private_data;
-  uint32_t ox, oy, x, y, z, elementsize;
+  uint32_t ox, oy, x, y, z;
   uint32_t oidx0, oidx1, oidx2;
   uint32_t iidx0, iidx1, iidx2;
-  size_t size;
+  size_t size, elementsize;
 
   assert (data);
   assert (input);

@@ -594,7 +594,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   switch (self->in_media_type) {
     case _NNS_VIDEO:
     {
-      guint color, width, height, type;
+      guint color, width, height;
+      gsize type;
 
       color = config->info.dimension[0];
       width = config->info.dimension[1];

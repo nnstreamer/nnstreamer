@@ -475,8 +475,8 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   uint8_t *inptr, *outptr;
   int num_mem = tensor_merge->tensors_config.info.num_tensors;
   int i, j, k, l;
-  size_t outSize = 0;
-  guint element_size;
+  gsize outSize = 0;
+  gsize element_size;
   tensor_dim dim;
   tensor_type type;
 
