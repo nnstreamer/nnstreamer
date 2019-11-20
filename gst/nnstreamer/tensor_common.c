@@ -945,11 +945,11 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
 }
 
 /**
- * @brief Count the number of elemnts of a tensor
+ * @brief Count the number of elements of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
  */
-gsize
+gulong
 gst_tensor_get_element_count (const tensor_dim dim)
 {
   gsize count = 1;
@@ -965,7 +965,7 @@ gst_tensor_get_element_count (const tensor_dim dim)
 /**
  * @brief Get element size of tensor type (byte per element)
  */
-guint
+gsize
 gst_tensor_get_element_size (tensor_type type)
 {
   return tensor_element_size[type];

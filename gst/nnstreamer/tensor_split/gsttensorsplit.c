@@ -410,7 +410,7 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
   GstMemory *mem;
   tensor_dim *dim;
   int i;
-  size_t size, offset;
+  gsize size, offset;
   GstMapInfo src_info, dest_info;
 
   size = 0;

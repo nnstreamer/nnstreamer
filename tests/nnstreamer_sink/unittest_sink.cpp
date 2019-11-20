@@ -3532,7 +3532,7 @@ TEST (tensor_stream_test, typecast_int32)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_INT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3583,7 +3583,7 @@ TEST (tensor_stream_test, typecast_uint32)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_UINT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3634,7 +3634,7 @@ TEST (tensor_stream_test, typecast_int16)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_INT16;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3685,7 +3685,7 @@ TEST (tensor_stream_test, typecast_uint16)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_UINT16;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3736,7 +3736,7 @@ TEST (tensor_stream_test, typecast_float64)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_FLOAT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3787,7 +3787,7 @@ TEST (tensor_stream_test, typecast_float32)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_FLOAT32;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3838,7 +3838,7 @@ TEST (tensor_stream_test, typecast_int64)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_INT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3889,7 +3889,7 @@ TEST (tensor_stream_test, typecast_uint64)
   const guint num_buffers = 2;
   const tensor_type t_type = _NNS_UINT64;
   TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  guint t_size = gst_tensor_get_element_size (t_type);
+  gsize t_size = gst_tensor_get_element_size (t_type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));

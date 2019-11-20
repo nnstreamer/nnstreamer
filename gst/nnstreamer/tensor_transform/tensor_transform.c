@@ -1035,9 +1035,9 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
   int to = filter->data_dimchg.to;
   int i, j, k;
   unsigned int loopLimit = 1;
-  size_t loopBlockSize = gst_tensor_get_element_size (in_tensor_type);
-  size_t copyblocksize = gst_tensor_get_element_size (in_tensor_type);
-  size_t copyblocklimit = 1;
+  gsize loopBlockSize = gst_tensor_get_element_size (in_tensor_type);
+  gsize copyblocksize = gst_tensor_get_element_size (in_tensor_type);
+  gsize copyblocklimit = 1;
 
   if (from == to) {
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
@@ -1106,13 +1106,13 @@ static GstFlowReturn
 gst_tensor_transform_typecast (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+  gulong num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
-  guint in_element_size, out_element_size;
+  gsize in_element_size, out_element_size;
 
   tensor_transform_operand_s value;
-  size_t i, data_idx;
+  gsize i, data_idx;
 
 #ifdef HAVE_ORC
   if (orc_supported (filter)) {
@@ -1154,7 +1154,7 @@ static GstFlowReturn
 gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  gsize num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+  gulong num = gst_tensor_get_element_count (filter->in_config.info.dimension);
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
   guint in_element_size, out_element_size;
@@ -1162,7 +1162,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   GSList *walk;
   tensor_transform_operator_s *op_s;
   tensor_transform_operand_s value;
-  size_t i, data_idx;
+  gsize i, data_idx;
 
 #ifdef HAVE_ORC
   if (orc_supported (filter)) {
@@ -1272,8 +1272,8 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   gboolean checkdim = FALSE;
   uint32_t *fromDim = filter->in_config.info.dimension;
   tensor_type in_tensor_type = filter->in_config.info.type;
-  size_t type_size = gst_tensor_get_element_size (in_tensor_type);
-  size_t indexI, indexJ, SL, SI, SJ, SK;
+  gsize type_size = gst_tensor_get_element_size (in_tensor_type);
+  gsize indexI, indexJ, SL, SI, SJ, SK;
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     from = i;
     to = filter->data_transpose.trans_order[i];
