@@ -69,9 +69,11 @@
 #include <config.h>
 #endif
 
+#include <string.h>
+#include <errno.h>
+
 #include <gst/gst.h>
 #include <glib.h>
-#include <errno.h>
 
 /** @todo VALIDATE: Tizen's System/Sensor Public C-API */
 #include <sensor.h>
@@ -150,9 +152,8 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; "
-    "other/tensors, num_tensors = 1, "
-    "framerate = " GST_TENSOR_RATE_RANGE
-    ));
+        "other/tensors, num_tensors = 1, "
+        "framerate = " GST_TENSOR_RATE_RANGE));
 
 /** GObject method implementation */
 static void gst_tensor_src_tizensensor_set_property (GObject * object,
@@ -247,11 +248,13 @@ static GHashTable *tizensensors = NULL;
 /**
  * @brief Specification for each Tizen Sensor Type
  */
-typedef struct {
+typedef struct
+{
   sensor_type_e type;
   int value_count;
   GstTensorInfo tinfo;
 } TizenSensorSpec;
+
 /**
  * @brief Tizen sensor type specification
  * @details According to Tizen document,
@@ -259,85 +262,85 @@ typedef struct {
  * Each sensor type has predetermined dimensions and types
  */
 static TizenSensorSpec tizensensorspecs[] = {
-    { .type=SENSOR_ACCELEROMETER, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_GRAVITY, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_LINEAR_ACCELERATION, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_MAGNETIC, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_ROTATION_VECTOR, .value_count=4,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={4, 1, 1, 1} }},
-    { .type=SENSOR_ORIENTATION, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_GYROSCOPE, .value_count=3,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={3, 1, 1, 1} }},
-    { .type=SENSOR_LIGHT, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_PROXIMITY, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_PRESSURE, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_ULTRAVIOLET, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_TEMPERATURE, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HUMIDITY, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HRM, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HRM_LED_GREEN, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HRM_LED_IR, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HRM_LED_RED, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_GYROSCOPE_UNCALIBRATED, .value_count=6,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={6, 1, 1, 1} }},
-    { .type=SENSOR_GEOMAGNETIC_UNCALIBRATED, .value_count=6,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={6, 1, 1, 1} }},
-    { .type=SENSOR_GYROSCOPE_ROTATION_VECTOR, .value_count=4,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={4, 1, 1, 1} }},
-    { .type=SENSOR_GEOMAGNETIC_ROTATION_VECTOR, .value_count=4,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={4, 1, 1, 1} }},
-    { .type=SENSOR_SIGNIFICANT_MOTION, .value_count=1,
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HUMAN_PEDOMETER, .value_count=8, /* Last 5 values might be flost32..? */
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={8, 1, 1, 1} }},
-    { .type=SENSOR_HUMAN_SLEEP_MONITOR, .value_count=1, /* STATE */
-      .tinfo = { .name="values", type=_NNS_INT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HUMAN_SLEEP_DETECTOR, .value_count=1, /** @todo check! */
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_HUMAN_STRESS_MONITOR, .value_count=1, /** @todo check! */
-      .tinfo = { .name="values", type=_NNS_FLOAT32,
-                 .dimension={1, 1, 1, 1} }},
-    { .type=SENSOR_LAST, .value_count=0, .tinfo = {0, }},
+  {.type = SENSOR_ACCELEROMETER,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_GRAVITY,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_LINEAR_ACCELERATION,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_MAGNETIC,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_ROTATION_VECTOR,.value_count = 4,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {4, 1, 1, 1}}},
+  {.type = SENSOR_ORIENTATION,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_GYROSCOPE,.value_count = 3,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {3, 1, 1, 1}}},
+  {.type = SENSOR_LIGHT,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_PROXIMITY,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_PRESSURE,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_ULTRAVIOLET,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_TEMPERATURE,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HUMIDITY,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HRM,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HRM_LED_GREEN,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HRM_LED_IR,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HRM_LED_RED,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_GYROSCOPE_UNCALIBRATED,.value_count = 6,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {6, 1, 1, 1}}},
+  {.type = SENSOR_GEOMAGNETIC_UNCALIBRATED,.value_count = 6,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {6, 1, 1, 1}}},
+  {.type = SENSOR_GYROSCOPE_ROTATION_VECTOR,.value_count = 4,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {4, 1, 1, 1}}},
+  {.type = SENSOR_GEOMAGNETIC_ROTATION_VECTOR,.value_count = 4,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {4, 1, 1, 1}}},
+  {.type = SENSOR_SIGNIFICANT_MOTION,.value_count = 1,
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HUMAN_PEDOMETER,.value_count = 8,     /* Last 5 values might be flost32..? */
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {8, 1, 1, 1}}},
+  {.type = SENSOR_HUMAN_SLEEP_MONITOR,.value_count = 1, /* STATE */
+        .tinfo = {.name = NULL,.type = _NNS_INT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HUMAN_SLEEP_DETECTOR,.value_count = 1, /** @todo check! */
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_HUMAN_STRESS_MONITOR,.value_count = 1, /** @todo check! */
+        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
+          .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_LAST,.value_count = 0,.tinfo = {0,}},
 };
 
 #define GST_TYPE_TIZEN_SENSOR_MODE (tizen_sensor_get_mode ())
@@ -384,8 +387,7 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
   g_object_class_install_property (gobject_class, PROP_SEQUENCE,
       g_param_spec_int ("sequence", "Sequence number of a sensor type",
           "Select a sensor if there are multiple sensors of a type",
-          -1, G_MAXINT, DEFAULT_PROP_SEQUENCE,
-          G_PARAM_READWRITE));
+          -1, G_MAXINT, DEFAULT_PROP_SEQUENCE, G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_MODE,
       g_param_spec_enum ("mode", "Sensor data retrieval mode (enum)",
           "Determine how sensor data are retrieved (e.g. polling)",
@@ -418,6 +420,8 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
   gstbasesrc_class->start =
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_stop);
+  gstbasesrc_class->create =
+      GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_create);
   gstbasesrc_class->fill = GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_fill);
   gstbasesrc_class->event =
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_event);
@@ -454,12 +458,12 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
 
   if (NULL == tizensensors) {
     int i;
-    gboolean r;
     tizensensors = g_hash_table_new (g_int_hash, g_int_equal);
 
     for (i = 0; tizensensorspecs[i].type != SENSOR_LAST; i++) {
-      g_assert (g_hash_table_insert (tizensensors, tizensensorspecs[i].type,
-          &tizensensorspecs[i].tinfo) == TRUE);
+      g_assert (g_hash_table_insert (tizensensors,
+              (gpointer) tizensensorspecs[i].type,
+              &tizensensorspecs[i].tinfo) == TRUE);
       g_assert (tizensensorspecs[i].value_count ==
           tizensensorspecs[i].tinfo.dimension[0]);
     }
@@ -473,7 +477,7 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
  *          This does not alter saved properties.
  */
 static int
-_ts_clean_up_handle (GstTensorSrcTIZENSENSOR *self)
+_ts_clean_up_handle (GstTensorSrcTIZENSENSOR * self)
 {
   if (TRUE == self->running) {
     sensor_listener_stop (self->listener);
@@ -498,9 +502,9 @@ _ts_clean_up_handle (GstTensorSrcTIZENSENSOR *self)
  * @brief Sensor event (data retrieval) handler
  * @details This is for TZN_SENSOR_MODE_ACTIVE_POLLING
  */
-static void
-_ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s *event,
-    void *user_data) __attribute__ ((unused))
+static void __attribute__ ((unused))
+    _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s * event,
+    void *user_data)
 {
   GstTensorSrcTIZENSENSOR *self = (GstTensorSrcTIZENSENSOR *) user_data;
   sensor_type_e type;
@@ -509,7 +513,7 @@ _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s *event,
   g_assert (self->configured);
   g_assert (self->running);
 
-  sensor_get_type(sensor, &type);
+  sensor_get_type (sensor, &type);
 
   g_assert (type == self->type);
   g_assert (n_tensor_size == event->value_count);
@@ -518,7 +522,7 @@ _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s *event,
 
   /** @todo Get proper timestamp from Tizen API, record it to metadata */
 
-  g_assert(1 == 0); /** @todo NYI. Needed if we add more modes */
+  g_assert (1 == 0);/** @todo NYI. Needed if we add more modes */
 }
 
 /**
@@ -526,7 +530,7 @@ _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s *event,
  * @details This is effective only for TZN_SENSOR_MODE_ACTIVE_POLLING.
  */
 static unsigned int
-_ts_get_interval_ms (GstTensorSrcTIZENSENSOR *self)
+_ts_get_interval_ms (GstTensorSrcTIZENSENSOR * self)
 {
   g_assert (self->freq_d > 0 && self->freq_n > 0);
 
@@ -537,11 +541,12 @@ _ts_get_interval_ms (GstTensorSrcTIZENSENSOR *self)
  * @brief Get handle, setup context, make it ready!
  */
 static int
-_ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
+_ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
 {
   int ret = 0;
-  const GstTensorInfo *val = g_hash_table_lookup (tizensensors, self->type);
-  gboolean supported = FALSE;
+  const GstTensorInfo *val = g_hash_table_lookup (tizensensors,
+      (gpointer) self->type);
+  bool supported = false;
 
   g_assert (val);
   self->src_spec = val;
@@ -551,12 +556,10 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
   ret = sensor_is_supported (self->type, &supported);
   g_assert (ret == 0);
 
-  if (FALSE == supported) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, SENSOR_NOT_AVAILABLE,
-        ("The requested sensor type %d is not supproted by this device",
-            self->type),
-        ("Tizen sensor framework API, sensor_is_supported(), says the sensor %d is not supported",
-            self->type));
+  if (false == supported) {
+    GST_ERROR_OBJECT (self,
+        "Tizen sensor framework API, sensor_is_supported(), says the sensor %d is not supported",
+        self->type);
     return -EINVAL;
   }
 
@@ -576,16 +579,14 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
       return ret;
 
     if (count <= self->sequence) {
-      GST_ELEMENT_WARNING (self, TIZEN_SENSOR, SENSOR_SEQUENCE_OOB,
-        ("The requested sensor sequence %d for sensor %d is not available. The max-sequence is used instead",
-            self->sequence, self->type),
-        ("The requested sensor sequence %d for sensor %d is not available. The max-sequence is used instead",
-            self->sequence, self->type));
+      GST_ERROR_OBJECT (self,
+          "The requested sensor sequence %d for sensor %d is not available. The max-sequence is used instead",
+          self->sequence, self->type);
       self->sequence = count - 1;
     }
 
-    self->sensor = (*list)[self->sequence];
-    free (list);
+    self->sensor = list[self->sequence];
+    g_free (list);
   }
 
   ret = sensor_create_listener (self->sensor, &self->listener);
@@ -593,26 +594,25 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
     return ret;
 
   /* 3. Configure interval_ms */
-  self->inteval_ms = _ts_get_interval_ms (self);
+  self->interval_ms = _ts_get_interval_ms (self);
 
   /* 4. Register sensor event handler */
   switch (self->mode) {
-  case TZN_SENSOR_MODE_POLLING:
-    /* Nothing to do. Let Gst poll data */
-    break;
+    case TZN_SENSOR_MODE_POLLING:
+      /* Nothing to do. Let Gst poll data */
+      break;
 #if 0 /** Use this if TZN_SENSOR_MODE_ACTIVE_POLLING is implemented */
-  case TZN_SENSOR_MODE_ACTIVE_POLLING:
-    ret = sensor_listener_set_event_cb(listener, self->interval_ms,
-        _ts_tizen_sensor_callback, self);
-    if (ret)
-      return ret;
-    break;
+    case TZN_SENSOR_MODE_ACTIVE_POLLING:
+      ret = sensor_listener_set_event_cb (listener, self->interval_ms,
+          _ts_tizen_sensor_callback, self);
+      if (ret)
+        return ret;
+      break;
 #endif
-  default:
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, SENSOR_MODE_INVALID,
-      ("The requested mode (%d) is invalid.", self->mode),
-      ("The requested mode (%d) is invalid, use values defined in sensor_op_modes only.",
-          self->mode));
+    default:
+      GST_ERROR_OBJECT (self,
+          "The requested mode (%d) is invalid, use values defined in sensor_op_modes only.",
+          self->mode);
   }
 
   self->configured = TRUE;
@@ -623,7 +623,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR *self)
  * @brief Keeping the handle/context, reconfigure a few parameters
  */
 static int
-_ts_reconfigure (GstTensorSrcTIZENSENSOR *self)
+_ts_reconfigure (GstTensorSrcTIZENSENSOR * self)
 {
   int ret = _ts_clean_up_handle (self);
 
@@ -644,11 +644,11 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
   int ret = 0;
 
   switch (prop_id) {
-  case PROP_SILENT:
-    self->silent = g_value_get_boolean (value);
-    silent_debug ("Set silent = %d", self->silent);
-    break;
-  case PROP_TYPE:
+    case PROP_SILENT:
+      self->silent = g_value_get_boolean (value);
+      silent_debug ("Set silent = %d", self->silent);
+      break;
+    case PROP_TYPE:
     {
       sensor_type_e new_type = g_value_get_enum (value);
 
@@ -659,9 +659,7 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
         ret = _ts_clean_up_handle (self);
 
         if (ret) {
-          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-              ("Calling _ts_clean_up_handle at set PROP_TYPE has failed."),
-              ("_ts_clean_up_handle() returns %d", ret));
+          GST_ERROR_OBJECT (self, "_ts_clean_up_handle() returns %d", ret);
         }
 
         silent_debug ("Set type from %d --> %d.", self->type, new_type);
@@ -672,8 +670,8 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
       _UNLOCK (self);
     }
-    break;
-  case PROP_SEQUENCE:
+      break;
+    case PROP_SEQUENCE:
     {
       gint new_sequence = g_value_get_int (value);
 
@@ -684,9 +682,7 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
         ret = _ts_clean_up_handle (self);
 
         if (ret) {
-          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-              ("Calling _ts_clean_up_handle at set PROP_SEQUENCE has failed."),
-              ("_ts_clean_up_handle() returns %d", ret));
+          GST_ERROR_OBJECT (self, "_ts_clean_up_handle() returns %d", ret);
         }
 
         silent_debug ("Set sequence from %d --> %d.", self->sequence,
@@ -699,8 +695,8 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
       _UNLOCK (self);
     }
-    break;
-  case PROP_MODE:
+      break;
+    case PROP_MODE:
     {
       sensor_op_modes new_mode = g_value_get_enum (value);
       sensor_op_modes old_mode = self->mode;
@@ -717,9 +713,7 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
         if (ret) {
           self->mode = old_mode;
-          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-              ("Calling _ts_reconfigure at set PROP_MODE has failed."),
-              ("_ts_reconfigure () returns %d", ret));
+          GST_ERROR_OBJECT (self, "_ts_reconfigure () returns %d", ret);
         }
 
       } else {
@@ -728,8 +722,8 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
       _UNLOCK (self);
     }
-    break;
-  case PROP_FREQ:
+      break;
+    case PROP_FREQ:
     {
       gint n = self->freq_n;
       gint d = self->freq_d;
@@ -750,17 +744,17 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
         if (ret) {
           self->freq_n = n;
           self->freq_d = d;
-          GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-              ("Calling _ts_reconfigure at set PROP_FREQ has failed."),
-              ("_ts_reconfigure () returns %d", ret));
+          GST_ERROR_OBJECT (self,
+              "Calling _ts_reconfigure at set PROP_FREQ has failed. _ts_reconfigure () returns %d",
+              ret);
         }
       }
       _UNLOCK (self);
     }
-    break;
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    break;
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
   }
 }
 
@@ -774,24 +768,24 @@ gst_tensor_src_tizensensor_get_property (GObject * object,
   GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR (object);
 
   switch (prop_id) {
-  case PROP_SILENT:
-    g_value_set_boolean (value, self->silent);
-    break;
-  case PROP_TYPE:
-    g_value_set_enum (value, self->type);
-    break;
-  case PROP_SEQUENCE:
-    g_value_set_int (value, self->sequence);
-    break;
-  case PROP_MODE:
-    g_value_set_enum (value, self->mode);
-    break;
-  case PROP_FREQ:
-    gst_value_set_fraction (value, self->freq_n, self->freq_d);
-    break;
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    break;
+    case PROP_SILENT:
+      g_value_set_boolean (value, self->silent);
+      break;
+    case PROP_TYPE:
+      g_value_set_enum (value, self->type);
+      break;
+    case PROP_SEQUENCE:
+      g_value_set_int (value, self->sequence);
+      break;
+    case PROP_MODE:
+      g_value_set_enum (value, self->mode);
+      break;
+    case PROP_FREQ:
+      gst_value_set_fraction (value, self->freq_n, self->freq_d);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
   }
 }
 
@@ -834,10 +828,10 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   if (TRUE == self->configured) {
     ret = _ts_clean_up_handle (self);
     if (ret) {
-      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-          ("Start method failed, cleaning up previous context failed."),
-          ("_ts_clean_up_handle () returns %d", ret));
-      retval = FALSE; /* FAIL! */
+      GST_ERROR_OBJECT (self,
+          "Start method failed, cleaning up previous context failed. _ts_clean_up_handle () returns %d",
+          ret);
+      retval = FALSE;           /* FAIL! */
       goto exit;
     }
   }
@@ -877,10 +871,10 @@ gst_tensor_src_tizensensor_stop (GstBaseSrc * src)
 
   ret = _ts_clean_up_handle (self);
   if (ret) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, FAILED,
-        ("Stop method failed, cleaning up previous context failed."),
-        ("_ts_clean_up_handle () returns %d", ret));
-    retval = FALSE; /* FAIL! */
+    GST_ERROR_OBJECT (self,
+        "Stop method failed, cleaning up previous context failed. _ts_clean_up_handle () returns %d",
+        ret);
+    retval = FALSE;             /* FAIL! */
     goto exit;
   }
 
@@ -905,26 +899,24 @@ gst_tensor_src_tizensensor_event (GstBaseSrc * src, GstEvent * event)
  * @brief Get possible GstCap from the configuration of self.
  */
 static GstCaps *
-_ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR *self)
+_ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR * self)
 {
   TizenSensorSpec *spec;
   gchar *tensor;
   GstCaps *retval;
-  gchar *typestr = NULL;
 
-  spec = g_hash_table_lookup (tizensensors, self->type);
+  spec = g_hash_table_lookup (tizensensors, (gpointer) self->type);
 
   if (FALSE == self->configured || SENSOR_ALL == self->type || NULL == spec) {
-    tensor = g_strdup_printf("other/tensor; other/tensors, num_tensors=1");
+    tensor = g_strdup_printf ("other/tensor; other/tensors, num_tensors=1");
   } else {
-    typestr = gst_tensor_get_type_string (spec->tinfo.type);
+    const gchar *typestr = gst_tensor_get_type_string (spec->tinfo.type);
+    gchar *dimstr = gst_tensor_get_dimension_string (spec->tinfo.dimension);
     g_assert (typestr && typestr[0]);
-    tensor = g_strdup_printf("other/tensor, dimension=%u:%u:%u:%u, type=%s ; "
-        "other/tensors, num_tensors=1, dimensions=%u:%u:%u:%u, type=%s",
-        spec->tinfo.dimension[0], spec->tinfo.dimension[1],
-        spec->tinfo.dimension[2], spec->tinfo.dimension[3], typestr,
-        spec->tinfo.dimension[0], spec->tinfo.dimension[1],
-        spec->tinfo.dimension[2], spec->tinfo.dimension[3], typestr);
+    tensor = g_strdup_printf ("other/tensor, dimension=%s, type=%s ; "
+        "other/tensors, num_tensors=1, dimensions=%s, type=%s",
+        dimstr, typestr, dimstr, typestr);
+    g_free (dimstr);
   }
 
   retval = gst_caps_from_string (tensor);
@@ -952,7 +944,6 @@ gst_tensor_src_tizensensor_set_caps (GstBaseSrc * src, GstCaps * caps)
   retval = gst_caps_can_intersect (caps, cap_tensor);
   gst_caps_unref (cap_tensor);
 
-exit:
   _UNLOCK (self);
   return retval;
 }
@@ -976,7 +967,7 @@ gst_tensor_src_tizensensor_get_caps (GstBaseSrc * src, GstCaps * filter)
 
   if (filter) {
     GstCaps *intersection =
-        gst_caps_intersect_full (filter, caps, GST_CAPS_INTESECT_FIRST);
+        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (caps);
     caps = intersection;
   }
@@ -1002,7 +993,6 @@ gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
     retval = gst_caps_intersect (caps, cap_tensor);
   gst_caps_unref (cap_tensor);
 
-exit:
   _UNLOCK (self);
   return gst_caps_fixate (retval);
 }
@@ -1059,22 +1049,20 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
   _LOCK (self);
 
   if (FALSE == self->configured) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-        ("Buffer creation requested while the element is not configured."),
-        ("gst_tensor_src_tizensensor_create() cannot proceed if it is not configured."));
+    GST_ERROR_OBJECT (self,
+        "Buffer creation requested while the element is not configured. gst_tensor_src_tizensensor_create() cannot proceed if it is not configured.");
     retval = GST_FLOW_ERROR;
     goto exit;
   }
 
-  g_assert (self->src_spec); /* It should be valid if configured */
+  g_assert (self->src_spec);    /* It should be valid if configured */
 
   /* We don't have multi-tensor (tensors with num-tensors > 1) */
   buffer_size = gst_tensor_info_get_size (self->src_spec);
   mem = gst_allocator_alloc (NULL, buffer_size, NULL);
   if (mem == NULL) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOMEM,
-        ("Cannot allocate memory for gst buffer"),
-        ("Cannot allocate memory for gst buffer of %u bytes", buffer_size));
+    GST_ERROR_OBJECT (self,
+        "Cannot allocate memory for gst buffer of %u bytes", buffer_size);
     retval = GST_FLOW_ERROR;
     goto exit;
   }
@@ -1091,7 +1079,7 @@ exit:
   return retval;
 }
 
-#define cast_loop (values, count, dest, desttype) \
+#define cast_loop(values, count, dest, desttype) \
 do { \
   int i; \
   char *destptr = (char *) (dest); \
@@ -1099,7 +1087,7 @@ do { \
     *(destptr + (sizeof (desttype) * i)) = (desttype) (values)[i]; \
 } while (0)
 
-#define case_cast_loop (values, count, dest, desttype, desttypeenum) \
+#define case_cast_loop(values, count, dest, desttype, desttypeenum) \
 case desttypeenum: \
   cast_loop (values, count, dest, desttype); \
   break;
@@ -1107,14 +1095,14 @@ case desttypeenum: \
 /**
  * @brief Copy sensor's values[] to Gst memory map.
  */
-void
-_ts_assign_values (float values[], int count, GstMapInfo *map,
-    const GstTensorInfo *spec)
+static void
+_ts_assign_values (float values[], int count, GstMapInfo * map,
+    const GstTensorInfo * spec)
 {
-    switch (spec->type) {
-      case _NNS_FLOAT32:
-        mamcpy (map->data, values, sizeof(float) * count);
-        break;
+  switch (spec->type) {
+    case _NNS_FLOAT32:
+      memcpy (map->data, values, sizeof (float) * count);
+      break;
       case_cast_loop (values, count, map->data, int64_t, _NNS_INT64);
       case_cast_loop (values, count, map->data, int32_t, _NNS_INT32);
       case_cast_loop (values, count, map->data, int16_t, _NNS_INT16);
@@ -1124,9 +1112,9 @@ _ts_assign_values (float values[], int count, GstMapInfo *map,
       case_cast_loop (values, count, map->data, uint16_t, _NNS_UINT16);
       case_cast_loop (values, count, map->data, uint8_t, _NNS_UINT8);
       case_cast_loop (values, count, map->data, double, _NNS_FLOAT64);
-      default:
-        g_assert (0); /** Other types are not implemented! */
-    }
+    default:
+      g_assert (0);   /** Other types are not implemented! */
+  }
 }
 
 /**
@@ -1147,27 +1135,24 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   _LOCK (self);
 
   if (FALSE == self->configured) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-        ("Buffer creation requested while the element is not configured."),
-        ("gst_tensor_src_tizensensor_fill() cannot proceed if it is not configured."));
+    GST_ERROR_OBJECT (self,
+        "gst_tensor_src_tizensensor_fill() cannot proceed if it is not configured.");
     retval = GST_FLOW_ERROR;
     goto exit;
   }
 
   if (size != gst_tensor_info_get_size (self->src_spec)) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-        ("Buffer size mismatch."),
-        ("gst_tensor_src_tizensensor_fill() requires size value (%u) to be matched with the configurations of sensors (%u)",
-            size, get_tensor_info_get_size (self->src_spec)));
+    GST_ERROR_OBJECT (self,
+        "gst_tensor_src_tizensensor_fill() requires size value (%u) to be matched with the configurations of sensors (%lu)",
+        size, (unsigned long) gst_tensor_info_get_size (self->src_spec));
     retval = GST_FLOW_ERROR;
     goto exit;
   }
 
   mem = gst_buffer_peek_memory (buffer, 0);
   if (FALSE == gst_memory_map (mem, &map, GST_MAP_WRITE)) {
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-        ("Buffer cannot be mapped."),
-        ("gst_tensor_src_tizensensor_fill() cannot map the given buffer for writing data."));
+    GST_ERROR_OBJECT (self,
+        "gst_tensor_src_tizensensor_fill() cannot map the given buffer for writing data.");
     retval = GST_FLOW_ERROR;
     goto exit;
   }
@@ -1180,18 +1165,17 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     int ret = sensor_listener_read_data (self->listener, &event);
 
     if (ret != SENSOR_ERROR_NONE) {
-      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-          ("Tizen sensor read failed."),
-          ("sensor_listener_read_data returned %d", ret));
+      GST_ERROR_OBJECT (self,
+          "Tizen sensor read failed: sensor_listener_read_data returned %d",
+          ret);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
 
-    if (event.value_count != self->src_spec.value_count) {
-      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, INCONSISTENT_META,
-          ("Sensor output metadata is inconsistent."),
-          ("The number of values (%d) mismatches the metadata (%d)",
-              event.value_count, self->src_spec.value_count));
+    if (event.value_count != self->src_spec->dimension[0]) {
+      GST_ERROR_OBJECT (self,
+          "The number of values (%d) mismatches the metadata (%d)",
+          event.value_count, self->src_spec->dimension[0]);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
@@ -1199,11 +1183,10 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     /* 2. Write timestamp/duration info to buffer */
 
     /* 2-1. Find out the delay already occured */
-    ts = g_get_monotonic_time();
+    ts = g_get_monotonic_time ();
     if (ts < event.timestamp) {
-      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, INCONSISTENT_TIMESTAMP,
-          ("Timestamp is from the future."),
-          ("Timestamp of the Tizen sensor is from the future."));
+      GST_ERROR_OBJECT (self,
+          "Timestamp of the Tizen sensor is from the future.");
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
@@ -1231,9 +1214,8 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
         pts -= diff;
       GST_BUFFER_PTS (buffer) = pts;
     } else {
-      GST_ELEMENT_ERROR (self, TIZEN_SENSOR, INVALID_TIMESTAMP,
-          ("Cannot read timestamp."),
-          ("The given buffer for fill function does not have a valid timestamp."));
+      GST_ERROR_OBJECT (self,
+          "The given buffer for fill function does not have a valid timestamp.");
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
@@ -1244,9 +1226,8 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
   } else {
     /** NYI! */
-    GST_ELEMENT_ERROR (self, TIZEN_SENSOR, NOT_CONFIGURED,
-        ("Mode %d is not implemented", self->mode),
-        ("gst_tensor_src_tizensensor_fill reached unimplemented code."));
+    GST_ERROR_OBJECT (self,
+        "gst_tensor_src_tizensensor_fill reached unimplemented code.");
     retval = GST_FLOW_ERROR;
     goto exit_unmap;
   }
@@ -1273,6 +1254,10 @@ gst_nnstreamer_tizen_sensor_init (GstPlugin * plugin)
 
   return TRUE;
 }
+
+#ifndef PACKAGE
+#define PACKAGE "nnstreamer"
+#endif
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
