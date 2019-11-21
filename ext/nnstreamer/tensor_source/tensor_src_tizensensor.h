@@ -55,7 +55,7 @@ typedef struct _GstTensorSrcTIZENSENSORClass GstTensorSrcTIZENSENSORClass;
  */
 typedef enum
 {
-  TZN_SENSOR_MODE_POLLING = 0; /**< GST polls Tizen Sensor FW */
+  TZN_SENSOR_MODE_POLLING = 0, /**< GST polls Tizen Sensor FW */
   /** @todo TZN_SENSOR_MODE_ACTIVE_POLLING ; Let Tizen poll */
   /** @todo TZN_SENSOR_MODE_WAIT_UPDATES ; wait for events from Tizen */
 } sensor_op_modes;
@@ -104,6 +104,11 @@ struct _GstTensorSrcTIZENSENSORClass
 {
   GstBaseSrcClass parent_class; /**< inherits class object */
 };
+
+/**
+ * @brief Function to get type of tensor_src_iio.
+ */
+GType gst_tensor_src_tizensensor_get_type (void);
 
 G_END_DECLS
 #endif /** __GST_TENSOR_SRC_TIZENSENSOR_H__ */
