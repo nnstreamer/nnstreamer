@@ -253,7 +253,7 @@ main (int argc, char *argv[])
   bmp.width = width;
   bmp.height = height;
 
-  bmp.pixels = calloc (width * height, sizeof (pixel_t));
+  bmp.pixels = calloc (bmp.width * bmp.height, sizeof (pixel_t));
 
   for (y = (int) height - 1; y >= 0; y--) {
     for (x = 0; x < (int) width; x++) {
