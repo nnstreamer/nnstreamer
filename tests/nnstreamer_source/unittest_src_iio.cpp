@@ -1623,7 +1623,20 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
 int
 main (int argc, char **argv)
 {
-  testing::InitGoogleTest (&argc, argv);
+  int ret = -1;
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
+
   gst_init (&argc, &argv);
-  return RUN_ALL_TESTS ();
+
+  try {
+    ret = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
+
+  return ret;
 }

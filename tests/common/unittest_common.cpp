@@ -760,6 +760,18 @@ TEST (conf_custom, env_str_01)
 int
 main (int argc, char **argv)
 {
-  testing::InitGoogleTest (&argc, argv);
-  return RUN_ALL_TESTS ();
+  int ret = -1;
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
+
+  try {
+    ret = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
+
+  return ret;
 }

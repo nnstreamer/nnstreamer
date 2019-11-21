@@ -4781,6 +4781,7 @@ TEST (tensor_filter_custom_easy, in_code_func_01)
 int
 main (int argc, char **argv)
 {
+  int ret = -1;
   gchar *jitter_cmd_arg = NULL;
   gchar *fps_cmd_arg = NULL;
   const GOptionEntry main_entries[] = {
@@ -4797,7 +4798,11 @@ main (int argc, char **argv)
   };
   GError *error = NULL;
   GOptionContext *optionctx;
-  testing::InitGoogleTest (&argc, argv);
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
 
   optionctx = g_option_context_new (NULL);
   g_option_context_add_main_entries (optionctx, main_entries, NULL);
@@ -4820,5 +4825,10 @@ main (int argc, char **argv)
 
   gst_init (&argc, &argv);
 
-  return RUN_ALL_TESTS ();
+  try {
+    ret = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
+  return ret;
 }
