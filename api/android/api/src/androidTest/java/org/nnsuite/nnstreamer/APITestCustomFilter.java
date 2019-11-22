@@ -25,19 +25,26 @@ public class APITestCustomFilter {
 
     private Pipeline.NewDataCallback mSinkCb = new Pipeline.NewDataCallback() {
         @Override
-        public void onNewDataReceived(TensorsData data, TensorsInfo info) {
-            if (data == null || data.getTensorsCount() != 1 ||
-                info == null || info.getTensorsCount() != 1) {
+        public void onNewDataReceived(TensorsData data) {
+            if (data == null || data.getTensorsCount() != 1) {
                 mInvalidState = true;
-            } else {
-                ByteBuffer output = data.getTensorData(0);
+                return;
+            }
 
-                for (int i = 0; i < 10; i++) {
-                    float expected = i + 1.5f;
+            TensorsInfo info = data.getTensorsInfo();
 
-                    if (expected != output.getFloat(i * 4)) {
-                        mInvalidState = true;
-                    }
+            if (info == null || info.getTensorsCount() != 1) {
+                mInvalidState = true;
+                return;
+            }
+
+            ByteBuffer output = data.getTensorData(0);
+
+            for (int i = 0; i < 10; i++) {
+                float expected = i + 1.5f;
+
+                if (expected != output.getFloat(i * 4)) {
+                    mInvalidState = true;
                 }
             }
 
@@ -51,13 +58,13 @@ public class APITestCustomFilter {
             mCustomPassthrough = CustomFilter.registerCustomFilter("custom-passthrough",
                 new CustomFilter.CustomFilterCallback() {
                     @Override
-                    public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
-                        return inInfo;
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        return in;
                     }
 
                     @Override
-                    public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
-                        return inData;
+                    public TensorsData invoke(TensorsData in) {
+                        return in;
                     }
                 });
 
@@ -65,24 +72,27 @@ public class APITestCustomFilter {
             mCustomConvert = CustomFilter.registerCustomFilter("custom-convert",
                 new CustomFilter.CustomFilterCallback() {
                     @Override
-                    public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
-                        inInfo.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
-                        return inInfo;
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        in.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
+                        return in;
                     }
 
                     @Override
-                    public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
-                        ByteBuffer input = inData.getTensorData(0);
-                        ByteBuffer output = TensorsData.allocateByteBuffer(4 * 10);
+                    public TensorsData invoke(TensorsData in) {
+                        TensorsInfo info = in.getTensorsInfo();
+                        ByteBuffer input = in.getTensorData(0);
+
+                        info.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
+
+                        TensorsData out = info.allocate();
+                        ByteBuffer output = out.getTensorData(0);
 
                         for (int i = 0; i < 10; i++) {
                             float value = (float) input.getInt(i * 4);
                             output.putFloat(i * 4, value);
                         }
 
-                        TensorsData out = new TensorsData();
-                        out.addTensorData(output);
-
+                        out.setTensorData(0, output);
                         return out;
                     }
                 });
@@ -91,14 +101,17 @@ public class APITestCustomFilter {
             mCustomAdd = CustomFilter.registerCustomFilter("custom-add",
                 new CustomFilter.CustomFilterCallback() {
                     @Override
-                    public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
-                        return inInfo;
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        return in;
                     }
 
                     @Override
-                    public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
-                        ByteBuffer input = inData.getTensorData(0);
-                        ByteBuffer output = TensorsData.allocateByteBuffer(4 * 10);
+                    public TensorsData invoke(TensorsData in) {
+                        TensorsInfo info = in.getTensorsInfo();
+                        ByteBuffer input = in.getTensorData(0);
+
+                        TensorsData out = info.allocate();
+                        ByteBuffer output = out.getTensorData(0);
 
                         for (int i = 0; i < 10; i++) {
                             float value = input.getFloat(i * 4);
@@ -108,9 +121,7 @@ public class APITestCustomFilter {
                             output.putFloat(i * 4, value);
                         }
 
-                        TensorsData out = new TensorsData();
-                        out.addTensorData(output);
-
+                        out.setTensorData(0, output);
                         return out;
                     }
                 });
@@ -164,22 +175,25 @@ public class APITestCustomFilter {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{10});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
 
             /* push input buffer */
             for (int i = 0; i < 15; i++) {
-                ByteBuffer input = TensorsData.allocateByteBuffer(4 * 10);
+                TensorsData in = TensorsData.allocate(info);
+                ByteBuffer input = in.getTensorData(0);
 
                 for (int j = 0; j < 10; j++) {
                     input.putInt(j * 4, j);
                 }
 
-                TensorsData in = new TensorsData();
-                in.addTensorData(input);
+                in.setTensorData(0, input);
 
                 pipe.inputData("srcx", in);
                 Thread.sleep(50);
@@ -206,22 +220,25 @@ public class APITestCustomFilter {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{10,1,1,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
 
             /* push input buffer repeatedly */
             for (int i = 0; i < 2048; i++) {
-                ByteBuffer input = TensorsData.allocateByteBuffer(4 * 10);
+                TensorsData in = TensorsData.allocate(info);
+                ByteBuffer input = in.getTensorData(0);
 
                 for (int j = 0; j < 10; j++) {
                     input.putInt(j * 4, j);
                 }
 
-                TensorsData in = new TensorsData();
-                in.addTensorData(input);
+                in.setTensorData(0, input);
 
                 pipe.inputData("srcx", in);
                 Thread.sleep(20);
@@ -247,13 +264,13 @@ public class APITestCustomFilter {
             CustomFilter.registerCustomFilter(null,
                 new CustomFilter.CustomFilterCallback() {
                     @Override
-                    public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
-                        return inInfo;
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        return in;
                     }
 
                     @Override
-                    public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
-                        return inData;
+                    public TensorsData invoke(TensorsData in) {
+                        return in;
                     }
             });
 
@@ -279,13 +296,13 @@ public class APITestCustomFilter {
             CustomFilter.registerCustomFilter(mCustomPassthrough.getName(),
                 new CustomFilter.CustomFilterCallback() {
                     @Override
-                    public TensorsInfo getOutputInfo(TensorsInfo inInfo) {
-                        return inInfo;
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        return in;
                     }
 
                     @Override
-                    public TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
-                        return inData;
+                    public TensorsData invoke(TensorsData in) {
+                        return in;
                     }
                 });
 

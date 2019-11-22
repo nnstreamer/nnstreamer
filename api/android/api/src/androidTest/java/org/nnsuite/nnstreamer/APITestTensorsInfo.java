@@ -71,14 +71,30 @@ public class APITestTensorsInfo {
         try {
             testAddInfo();
 
-            /* index 0: 1:1:1:1 int8 */
+            /* index 0: 1 int8 */
             assertEquals(1, mInfo.getTensorSize(0));
 
-            /* index 1: 2:2:1:1 uint8 */
+            /* index 1: 2:2 uint8 */
             assertEquals(4, mInfo.getTensorSize(1));
 
-            /* index 2: 3:3:3:1 float32 */
+            /* index 2: 3:3:3 float32 */
             assertEquals(108, mInfo.getTensorSize(2));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testAllocate() {
+        try {
+            testAddInfo();
+
+            TensorsData data = mInfo.allocate();
+
+            assertEquals(3, data.getTensorsCount());
+            assertEquals(1, data.getTensorData(0).capacity());
+            assertEquals(4, data.getTensorData(1).capacity());
+            assertEquals(108, data.getTensorData(2).capacity());
         } catch (Exception e) {
             fail();
         }
@@ -147,7 +163,7 @@ public class APITestTensorsInfo {
     @Test
     public void testAddInvalidDimension() {
         try {
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{1,1,0});
+            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{1,1,-1});
             fail();
         } catch (Exception e) {
             /* expected */

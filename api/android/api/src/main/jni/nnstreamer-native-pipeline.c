@@ -61,33 +61,25 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, vo
 {
   element_data_s *cb_data;
   pipeline_info_s *pipe_info;
-  ml_tensors_data_s *out_data;
-  ml_tensors_info_s *out_info;
-  jobject obj_data, obj_info;
+  jobject obj_data = NULL;
   JNIEnv *env;
 
   cb_data = (element_data_s *) user_data;
   pipe_info = cb_data->pipe_info;
-  out_data = (ml_tensors_data_s *) data;
-  out_info = (ml_tensors_info_s *) info;
 
   if ((env = nns_get_jni_env (pipe_info)) == NULL) {
     nns_logw ("Cannot get jni env in the sink callback.");
     return;
   }
 
-  obj_data = obj_info = NULL;
-  if (nns_convert_tensors_data (pipe_info, env, out_data, &obj_data) &&
-      nns_convert_tensors_info (pipe_info, env, out_info, &obj_info)) {
+  if (nns_convert_tensors_data (pipe_info, env, data, info, &obj_data)) {
     /* method for sink callback */
     jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
     jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
-        "(Ljava/lang/String;"
-        "Lorg/nnsuite/nnstreamer/TensorsData;"
-        "Lorg/nnsuite/nnstreamer/TensorsInfo;)V");
+        "(Ljava/lang/String;Lorg/nnsuite/nnstreamer/TensorsData;)V");
     jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
 
-    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name, obj_data, obj_info);
+    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name, obj_data);
 
     if ((*env)->ExceptionCheck (env)) {
       nns_loge ("Failed to call the callback method.");
@@ -96,14 +88,10 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, vo
 
     (*env)->DeleteLocalRef (env, sink_name);
     (*env)->DeleteLocalRef (env, cls_pipeline);
+    (*env)->DeleteLocalRef (env, obj_data);
   } else {
     nns_loge ("Failed to convert the result to data object.");
   }
-
-  if (obj_data)
-    (*env)->DeleteLocalRef (env, obj_data);
-  if (obj_info)
-    (*env)->DeleteLocalRef (env, obj_info);
 }
 
 /**
@@ -299,6 +287,10 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz
   const char *pipeline = (*env)->GetStringUTFChars (env, description, NULL);
 
   pipe_info = nns_construct_pipe_info (env, thiz, NULL, NNS_PIPE_TYPE_PIPELINE);
+  if (pipe_info == NULL) {
+    nns_loge ("Failed to create pipe info.");
+    goto done;
+  }
 
   if (add_state_cb)
     status = ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info, &pipe);
@@ -313,6 +305,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz
     pipe_info->pipeline_handle = pipe;
   }
 
+done:
   (*env)->ReleaseStringUTFChars (env, description, pipeline);
   return CAST_TO_LONG (pipe_info);
 }
@@ -410,7 +403,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_src_h src;
-  ml_tensors_data_s *in_data = NULL;
+  ml_tensors_data_h in_data = NULL;
   int status;
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
@@ -422,18 +415,12 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
     goto done;
   }
 
-  if ((in_data = g_new0 (ml_tensors_data_s, 1)) == NULL) {
-    nns_loge ("Failed to allocate memory for input data.");
-    goto done;
-  }
-
-  if (!nns_parse_tensors_data (pipe_info, env, in, in_data)) {
+  if (!nns_parse_tensors_data (pipe_info, env, in, &in_data, NULL)) {
     nns_loge ("Failed to parse input data.");
-    ml_tensors_data_destroy ((ml_tensors_data_h) in_data);
     goto done;
   }
 
-  status = ml_pipeline_src_input_data (src, (ml_tensors_data_h) in_data,
+  status = ml_pipeline_src_input_data (src, in_data,
       ML_PIPELINE_BUF_POLICY_AUTO_FREE);
   if (status != ML_ERROR_NONE) {
     nns_loge ("Failed to input tensors data to source node %s.", element_name);

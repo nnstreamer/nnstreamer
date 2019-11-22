@@ -25,6 +25,7 @@ import java.util.ArrayList;
  * Provides interfaces to handle tensor data frame.
  */
 public final class TensorsData implements AutoCloseable {
+    private TensorsInfo mInfo = null;
     private ArrayList<ByteBuffer> mDataList = new ArrayList<>();
 
     /**
@@ -33,38 +34,65 @@ public final class TensorsData implements AutoCloseable {
      * @param size The byte size of the buffer
      *
      * @return The new byte buffer
+     *
+     * @throws IllegalArgumentException if given size is invalid
      */
     public static ByteBuffer allocateByteBuffer(int size) {
         if (size <= 0) {
-            throw new IllegalArgumentException("The param size is invalid");
+            throw new IllegalArgumentException("Given size is invalid");
         }
 
         return ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder());
     }
 
     /**
-     * Allocates a new <code>TensorsData</code> instance with the given tensors information.
+     * Allocates a new {@link TensorsData} instance with the given tensors information.
      *
      * @param info The tensors information
      *
-     * @return The allocated tensors data instance
+     * @return {@link TensorsData} instance
      *
-     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalArgumentException if given info is invalid
      */
     public static TensorsData allocate(@NonNull TensorsInfo info) {
-        if (info == null) {
-            throw new IllegalArgumentException("The param info is null");
+        if (info == null || info.getTensorsCount() == 0) {
+            throw new IllegalArgumentException("Given info is invalid");
         }
 
         TensorsData data = new TensorsData();
         int count = info.getTensorsCount();
 
+        data.setTensorsInfo(info);
+
         for (int i = 0; i < count; i++) {
-            int size = info.getTensorSize(i);
-            data.addTensorData(allocateByteBuffer(size));
+            data.addTensorData(allocateByteBuffer(info.getTensorSize(i)));
         }
 
         return data;
+    }
+
+    /**
+     * Gets the tensors information.
+     *
+     * @return The {@link TensorsInfo} instance
+     */
+    public TensorsInfo getTensorsInfo() {
+        return mInfo;
+    }
+
+    /**
+     * Sets the tensors information.
+     *
+     * @param info The tensors information
+     *
+     * @throws IllegalArgumentException if given info is null
+     */
+    private void setTensorsInfo(@NonNull TensorsInfo info) {
+        if (info == null || info.getTensorsCount() == 0) {
+            throw new IllegalArgumentException("Given info is invalid");
+        }
+
+        mInfo = info;
     }
 
     /**
@@ -79,28 +107,12 @@ public final class TensorsData implements AutoCloseable {
     /**
      * Adds a new tensor data.
      *
-     * @param data The data object to be added
-     *
-     * @throws IllegalArgumentException if the data is not a byte buffer or the buffer is invalid
-     * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
-     */
-    public void addTensorData(@NonNull Object data) {
-        if (data == null || !(data instanceof ByteBuffer)) {
-            throw new IllegalArgumentException("Given data is not a byte buffer");
-        }
-
-        addTensorData((ByteBuffer) data);
-    }
-
-    /**
-     * Adds a new tensor data.
-     *
      * @param data The byte array to be added
      *
      * @throws IllegalArgumentException if given data is invalid
      * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
      */
-    public void addTensorData(@NonNull byte[] data) {
+    private void addTensorData(@NonNull byte[] data) {
         if (data == null) {
             throw new IllegalArgumentException("Given data is null");
         }
@@ -119,14 +131,10 @@ public final class TensorsData implements AutoCloseable {
      * @throws IllegalArgumentException if given data is invalid
      * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
      */
-    public void addTensorData(@NonNull ByteBuffer data) {
-        checkByteBuffer(data);
-
+    private void addTensorData(@NonNull ByteBuffer data) {
         int index = getTensorsCount();
 
-        if (index >= NNStreamer.TENSOR_SIZE_LIMIT) {
-            throw new IndexOutOfBoundsException("Max size of the tensors is " + NNStreamer.TENSOR_SIZE_LIMIT);
-        }
+        checkByteBuffer(index, data);
 
         mDataList.add(data);
     }
@@ -156,7 +164,7 @@ public final class TensorsData implements AutoCloseable {
      */
     public void setTensorData(int index, @NonNull ByteBuffer data) {
         checkIndexBounds(index);
-        checkByteBuffer(data);
+        checkByteBuffer(index, data);
 
         mDataList.set(index, data);
     }
@@ -176,8 +184,9 @@ public final class TensorsData implements AutoCloseable {
      * Internal method to check byte buffer.
      *
      * @throws IllegalArgumentException if given data is invalid
+     * @throws IndexOutOfBoundsException if the given index is invalid
      */
-    private void checkByteBuffer(ByteBuffer data) {
+    private void checkByteBuffer(int index, ByteBuffer data) {
         if (data == null) {
             throw new IllegalArgumentException("Given data is null");
         }
@@ -190,10 +199,35 @@ public final class TensorsData implements AutoCloseable {
             /* Default byte order of ByteBuffer in java is big-endian, it should be a little-endian. */
             throw new IllegalArgumentException("Given data has invalid byte order");
         }
+
+        if (index >= NNStreamer.TENSOR_SIZE_LIMIT) {
+            throw new IndexOutOfBoundsException("Max size of the tensors is " + NNStreamer.TENSOR_SIZE_LIMIT);
+        }
+
+        /* compare to tensors info */
+        if (mInfo != null) {
+            int count = mInfo.getTensorsCount();
+
+            if (index >= count) {
+                throw new IndexOutOfBoundsException("Current information has " + count + " tensors");
+            }
+
+            int size = mInfo.getTensorSize(index);
+
+            if (data.capacity() != size) {
+                throw new IllegalArgumentException("Invalid buffer size, required size is " + size);
+            }
+        }
     }
 
     @Override
     public void close() {
         mDataList.clear();
+        mInfo = null;
     }
+
+    /**
+     * Private constructor to prevent the instantiation.
+     */
+    private TensorsData() {}
 }

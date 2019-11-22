@@ -158,24 +158,24 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name, element
  * @brief Convert tensors data to TensorsData object.
  */
 extern gboolean
-nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_data_s * data, jobject * result);
+nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_data_h data_h, ml_tensors_info_h info_h, jobject * result);
 
 /**
  * @brief Parse tensors data from TensorsData object.
  */
 extern gboolean
-nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_data, ml_tensors_data_s * data);
+nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_data, ml_tensors_data_h * data_h, ml_tensors_info_h * info_h);
 
 /**
  * @brief Convert tensors info to TensorsInfo object.
  */
 extern gboolean
-nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_info_s * info, jobject * result);
+nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_info_h info_h, jobject * result);
 
 /**
  * @brief Parse tensors info from TensorsInfo object.
  */
 extern gboolean
-nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_info, ml_tensors_info_s * info);
+nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_info, ml_tensors_info_h * info_h);
 
 #endif /* __NNSTREAMER_ANDROID_NATIVE_H__ */

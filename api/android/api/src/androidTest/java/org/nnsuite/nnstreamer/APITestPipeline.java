@@ -26,11 +26,19 @@ public class APITestPipeline {
 
     private Pipeline.NewDataCallback mSinkCb = new Pipeline.NewDataCallback() {
         @Override
-        public void onNewDataReceived(TensorsData data, TensorsInfo info) {
+        public void onNewDataReceived(TensorsData data) {
+            if (data == null ||
+                data.getTensorsCount() != 1 ||
+                data.getTensorData(0).capacity() != 200) {
+                mInvalidState = true;
+                return;
+            }
+
+            TensorsInfo info = data.getTensorsInfo();
+
             /* validate received data (unit8 2:10:10:1) */
-            if (data == null || data.getTensorsCount() != 1 ||
-                data.getTensorData(0).capacity() != 200 ||
-                info == null || info.getTensorsCount() != 1 ||
+            if (info == null ||
+                info.getTensorsCount() != 1 ||
                 info.getTensorName(0) != null ||
                 info.getTensorType(0) != NNStreamer.TENSOR_TYPE_UINT8 ||
                 !Arrays.equals(info.getTensorDimension(0), new int[]{2,10,10,1})) {
@@ -150,12 +158,12 @@ public class APITestPipeline {
     }
 
     @Test
-    public void testSetNullDataCb() {
+    public void testRegisterNullDataCb() {
         String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
                 "tensor_converter ! tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
-            pipe.setSinkCallback("sinkx", null);
+            pipe.registerSinkCallback("sinkx", null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -163,12 +171,12 @@ public class APITestPipeline {
     }
 
     @Test
-    public void testSetDataCbInvalidName() {
+    public void testRegisterDataCbInvalidName() {
         String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
                 "tensor_converter ! tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
-            pipe.setSinkCallback("invalid_sink", mSinkCb);
+            pipe.registerSinkCallback("invalid_sink", mSinkCb);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -176,12 +184,51 @@ public class APITestPipeline {
     }
 
     @Test
-    public void testSetDataCbNullName() {
+    public void testRegisterDataCbNullName() {
         String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
                 "tensor_converter ! tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
-            pipe.setSinkCallback(null, mSinkCb);
+            pipe.registerSinkCallback(null, mSinkCb);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnregisterNullDataCb() {
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "tensor_converter ! tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.unregisterSinkCallback("sinkx", null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnregisterDataCbNullName() {
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "tensor_converter ! tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.unregisterSinkCallback(null, mSinkCb);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnregisteredDataCb() {
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "tensor_converter ! tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.unregisterSinkCallback("sinkx", mSinkCb);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -195,8 +242,11 @@ public class APITestPipeline {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
@@ -204,10 +254,7 @@ public class APITestPipeline {
             /* push input buffer */
             for (int i = 0; i < 10; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", info.allocate());
                 Thread.sleep(50);
             }
 
@@ -215,7 +262,7 @@ public class APITestPipeline {
             Thread.sleep(100);
             pipe.stop();
 
-            pipe.setSinkCallback("sinkx", null);
+            pipe.unregisterSinkCallback("sinkx", mSinkCb);
             Thread.sleep(100);
 
             /* start pipeline again */
@@ -224,16 +271,78 @@ public class APITestPipeline {
             /* push input buffer again */
             for (int i = 0; i < 10; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", info.allocate());
                 Thread.sleep(50);
             }
 
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertEquals(10, mReceived);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testDuplicatedDataCb() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
+            /* register three callbacks */
+            Pipeline.NewDataCallback cb1 = new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    mReceived++;
+                }
+            };
+
+            Pipeline.NewDataCallback cb2 = new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    mReceived++;
+                }
+            };
+
+            pipe.registerSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", cb1);
+            pipe.registerSinkCallback("sinkx", cb2);
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", info.allocate());
+                Thread.sleep(50);
+            }
+
+            /* pause pipeline and unregister sink callback */
+            Thread.sleep(100);
+            pipe.stop();
+
+            pipe.unregisterSinkCallback("sinkx", mSinkCb);
+            pipe.unregisterSinkCallback("sinkx", cb1);
+            Thread.sleep(100);
+
+            /* start pipeline again */
+            pipe.start();
+
+            /* push input buffer again */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", info.allocate());
+                Thread.sleep(50);
+            }
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertEquals(40, mReceived);
         } catch (Exception e) {
             fail();
         }
@@ -248,12 +357,21 @@ public class APITestPipeline {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{3,224,224,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
                 @Override
-                public void onNewDataReceived(TensorsData data, TensorsInfo info) {
-                    if (data == null || data.getTensorsCount() != 1 ||
-                        info == null || info.getTensorsCount() != 1) {
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 1) {
                         mInvalidState = true;
                     } else {
                         ByteBuffer output = data.getTensorData(0);
@@ -273,10 +391,7 @@ public class APITestPipeline {
             /* push input buffer */
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(3 * 224 * 224));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", TensorsData.allocate(info));
                 Thread.sleep(100);
             }
 
@@ -298,8 +413,11 @@ public class APITestPipeline {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
@@ -307,10 +425,7 @@ public class APITestPipeline {
             /* push input buffer repeatedly */
             for (int i = 0; i < 2048; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", TensorsData.allocate(info));
                 Thread.sleep(20);
             }
 
@@ -335,13 +450,13 @@ public class APITestPipeline {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* start pipeline */
             pipe.start();
 
-            TensorsData in = new TensorsData();
-            in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-            pipe.inputData("invalid_src", in);
+            pipe.inputData("invalid_src", TensorsData.allocate(info));
             fail();
         } catch (Exception e) {
             /* expected */
@@ -355,13 +470,13 @@ public class APITestPipeline {
                 "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* start pipeline */
             pipe.start();
 
-            TensorsData in = new TensorsData();
-            in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-            pipe.inputData(null, in);
+            pipe.inputData(null, TensorsData.allocate(info));
             fail();
         } catch (Exception e) {
             /* expected */
@@ -394,8 +509,11 @@ public class APITestPipeline {
                 "outs.src_1 ! tensor_sink async=false";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
@@ -403,10 +521,7 @@ public class APITestPipeline {
             /* push input buffer */
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", TensorsData.allocate(info));
                 Thread.sleep(50);
 
                 if (i == 9) {
@@ -457,20 +572,16 @@ public class APITestPipeline {
                 "outs.src_0 ! tensor_sink name=sinkx async=false " +
                 "outs.src_1 ! tensor_sink async=false";
 
-        Pipeline pipe = new Pipeline(desc);
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
 
-        /* start pipeline */
-        pipe.start();
-
-        try {
             /* get pad list with invalid switch name */
             pipe.getSwitchPads("invalid_outs");
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        pipe.close();
     }
 
     @Test
@@ -481,20 +592,16 @@ public class APITestPipeline {
                 "outs.src_0 ! tensor_sink name=sinkx async=false " +
                 "outs.src_1 ! tensor_sink async=false";
 
-        Pipeline pipe = new Pipeline(desc);
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
 
-        /* start pipeline */
-        pipe.start();
-
-        try {
             /* get pad list with null param */
             pipe.getSwitchPads(null);
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        pipe.close();
     }
 
     @Test
@@ -505,20 +612,16 @@ public class APITestPipeline {
                 "outs.src_0 ! tensor_sink name=sinkx async=false " +
                 "outs.src_1 ! tensor_sink async=false";
 
-        Pipeline pipe = new Pipeline(desc);
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
 
-        /* start pipeline */
-        pipe.start();
-
-        try {
             /* select invalid pad name */
             pipe.selectSwitchPad("outs", "invalid_src");
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        pipe.close();
     }
 
     @Test
@@ -530,8 +633,11 @@ public class APITestPipeline {
                 "t. ! queue ! valve name=valvex ! tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+
             /* register sink callback */
-            pipe.setSinkCallback("sinkx", mSinkCb);
+            pipe.registerSinkCallback("sinkx", mSinkCb);
 
             /* start pipeline */
             pipe.start();
@@ -539,10 +645,7 @@ public class APITestPipeline {
             /* push input buffer */
             for (int i = 0; i < 15; i++) {
                 /* dummy input */
-                TensorsData in = new TensorsData();
-                in.addTensorData(TensorsData.allocateByteBuffer(200));
-
-                pipe.inputData("srcx", in);
+                pipe.inputData("srcx", info.allocate());
                 Thread.sleep(50);
 
                 if (i == 9) {
@@ -570,19 +673,15 @@ public class APITestPipeline {
                 "t. ! queue ! tensor_sink " +
                 "t. ! queue ! valve name=valvex ! tensor_sink name=sinkx";
 
-        Pipeline pipe = new Pipeline(desc);
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
 
-        /* start pipeline */
-        pipe.start();
-
-        try {
             /* control valve with invalid name */
             pipe.controlValve("invalid_valve", false);
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        pipe.close();
     }
 }
