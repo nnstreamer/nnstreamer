@@ -61,7 +61,7 @@ public class APITestSingleShot {
         try {
             TensorsInfo info = mSingle.getOutputInfo();
 
-            /* output: uint8 1001:1:1:1 */
+            /* output: uint8 1001:1 */
             assertEquals(1, info.getTensorsCount());
             assertEquals(NNStreamer.TENSOR_TYPE_UINT8, info.getTensorType(0));
             assertArrayEquals(new int[]{1001,1,1,1}, info.getTensorDimension(0));
@@ -93,27 +93,27 @@ public class APITestSingleShot {
             SingleShot addSingle = new SingleShot(model);
             TensorsInfo info = addSingle.getInputInfo();
 
-            /* input: float32 1:1:1:1 */
+            /* input: float32 with dimension 1 */
             assertEquals(1, info.getTensorsCount());
             assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
             assertArrayEquals(new int[]{1,1,1,1}, info.getTensorDimension(0));
 
             TensorsInfo newInfo = new TensorsInfo();
-            newInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{1,1,1,10});
+            newInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{10});
 
             addSingle.setInputInfo(newInfo);
 
             info = addSingle.getInputInfo();
-            /* input: float32 1:1:1:10 */
+            /* input: float32 with dimension 10 */
             assertEquals(1, info.getTensorsCount());
             assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
-            assertArrayEquals(new int[]{1,1,1,10}, info.getTensorDimension(0));
+            assertArrayEquals(new int[]{10,1,1,1}, info.getTensorDimension(0));
 
             info = addSingle.getOutputInfo();
-            /* output: float32 1:1:1:10 */
+            /* output: float32 with dimension 10 */
             assertEquals(1, info.getTensorsCount());
             assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
-            assertArrayEquals(new int[]{1,1,1,10}, info.getTensorDimension(0));
+            assertArrayEquals(new int[]{10,1,1,1}, info.getTensorDimension(0));
         } catch (Exception e) {
             fail();
         }
@@ -130,39 +130,14 @@ public class APITestSingleShot {
             /* single-shot invoke */
             for (int i = 0; i < 600; i++) {
                 /* dummy input */
-                TensorsData in = TensorsData.allocate(info);
-                TensorsData out = mSingle.invoke(in);
+                TensorsData out = mSingle.invoke(info.allocate());
 
-                /* output: uint8 1001:1:1:1 */
+                /* output: uint8 1001:1 */
                 assertEquals(1, out.getTensorsCount());
                 assertEquals(1001, out.getTensorData(0).capacity());
 
                 Thread.sleep(30);
             }
-        } catch (Exception e) {
-            fail();
-        }
-    }
-
-    @Test
-    public void testInvokeDynamicBase() {
-        try {
-            TensorsInfo info = mSingle.getInputInfo();
-
-            /* let's ignore timeout (set 10 sec) */
-            mSingle.setTimeout(10000);
-
-            /* single-shot invoke with null */
-            TensorsData in = TensorsData.allocate(info);
-            TensorsData out = mSingle.invoke(in, null);
-            assertEquals(1, out.getTensorsCount());
-            assertEquals(1001, out.getTensorData(0).capacity());
-
-            /* single-shot invoke with resetting existing input info */
-            in = TensorsData.allocate(info);
-            out = mSingle.invoke(in, info);
-            assertEquals(1, out.getTensorsCount());
-            assertEquals(1001, out.getTensorData(0).capacity());
         } catch (Exception e) {
             fail();
         }
@@ -184,9 +159,9 @@ public class APITestSingleShot {
             for (int i = 1; i < 2; i++) {
                 TensorsInfo info = new TensorsInfo();
                 info.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{1,1,1,i});
+
                 /* dummy input */
-                TensorsData in = TensorsData.allocate(info);
-                TensorsData out = addSingle.invoke(in, info);
+                TensorsData out = addSingle.invoke(TensorsData.allocate(info));
 
                 /* output: float32 1:1:1:i */
                 assertEquals(1, out.getTensorsCount());
@@ -206,16 +181,12 @@ public class APITestSingleShot {
         /* timeout 5ms */
         mSingle.setTimeout(5);
 
-        for (int i = 0; i < 5; i++) {
+        try {
             /* dummy input */
-            TensorsData in = TensorsData.allocate(info);
-
-            try {
-                mSingle.invoke(in);
-                fail();
-            } catch (Exception e) {
-                /* expected */
-            }
+            mSingle.invoke(TensorsData.allocate(info));
+            fail();
+        } catch (Exception e) {
+            /* expected */
         }
     }
 
@@ -272,9 +243,9 @@ public class APITestSingleShot {
 
     @Test
     public void testInvalidOutputType() {
-        /* output: uint8 1001:1:1:1 */
+        /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT16, new int[]{1001,1,1,1});
+        info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT16, new int[]{1001,1});
 
         try {
             new SingleShot(APITestCommon.getTestModel(), null, info);
@@ -286,7 +257,7 @@ public class APITestSingleShot {
 
     @Test
     public void testInvalidOutputDimension() {
-        /* output: uint8 1001:1:1:1 */
+        /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{1001,2,1,1});
 
@@ -311,11 +282,11 @@ public class APITestSingleShot {
     @Test
     public void testInvokeInvalidData() {
         /* input data size: 3 * 224 * 224 */
-        TensorsData data = new TensorsData();
-        data.addTensorData(TensorsData.allocateByteBuffer(100));
+        TensorsInfo info = new TensorsInfo();
+        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{100});
 
         try {
-            mSingle.invoke(data);
+            mSingle.invoke(TensorsData.allocate(info));
             fail();
         } catch (Exception e) {
             /* expected */

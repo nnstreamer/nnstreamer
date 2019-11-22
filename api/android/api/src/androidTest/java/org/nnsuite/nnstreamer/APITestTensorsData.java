@@ -22,7 +22,14 @@ public class APITestTensorsData {
     @Before
     public void setUp() {
         APITestCommon.initNNStreamer();
-        mData = new TensorsData();
+
+        TensorsInfo info = new TensorsInfo();
+
+        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{100});
+        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{200});
+        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{300});
+
+        mData = TensorsData.allocate(info);
     }
 
     @After
@@ -50,64 +57,16 @@ public class APITestTensorsData {
             info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT16, new int[]{2,2});
             info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT32, new int[]{2,2,2});
 
-            mData = TensorsData.allocate(info);
+            TensorsData data = TensorsData.allocate(info);
 
-            /* index 0: 2:1:1:1 int16 */
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(0), 4));
+            /* index 0: 2 int16 */
+            assertTrue(APITestCommon.isValidBuffer(data.getTensorData(0), 4));
 
-            /* index 1: 2:2:1:1 uint16 */
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(1), 8));
+            /* index 1: 2:2 uint16 */
+            assertTrue(APITestCommon.isValidBuffer(data.getTensorData(1), 8));
 
-            /* index 0: 2:2:2:1 uint32 */
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(2), 32));
-        } catch (Exception e) {
-            fail();
-        }
-    }
-
-    @Test
-    public void testAddData() {
-        try {
-            Object buffer = ByteBuffer.allocateDirect(100).order(ByteOrder.nativeOrder());
-
-            mData.addTensorData(buffer);
-            assertEquals(1, mData.getTensorsCount());
-
-            mData.addTensorData(new byte[200]);
-            assertEquals(2, mData.getTensorsCount());
-
-            mData.addTensorData(TensorsData.allocateByteBuffer(300));
-            assertEquals(3, mData.getTensorsCount());
-        } catch (Exception e) {
-            fail();
-        }
-    }
-
-    @Test
-    public void testGetData() {
-        try {
-            testAddData();
-
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(0), 100));
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(1), 200));
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(2), 300));
-        } catch (Exception e) {
-            fail();
-        }
-    }
-
-    @Test
-    public void testSetData() {
-        try {
-            testAddData();
-
-            ByteBuffer buffer = TensorsData.allocateByteBuffer(500);
-            mData.setTensorData(1, buffer);
-
-            assertEquals(3, mData.getTensorsCount());
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(0), 100));
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(1), 500));
-            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(2), 300));
+            /* index 2: 2:2:2 uint32 */
+            assertTrue(APITestCommon.isValidBuffer(data.getTensorData(2), 32));
         } catch (Exception e) {
             fail();
         }
@@ -121,100 +80,76 @@ public class APITestTensorsData {
         } catch (Exception e) {
             /* expected */
         }
-
-        assertEquals(0, mData.getTensorsCount());
     }
 
     @Test
-    public void testAddNullByteBuffer() {
+    public void testGetData() {
+        try {
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(0), 100));
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(1), 200));
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(2), 300));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSetData() {
+        try {
+            ByteBuffer buffer = TensorsData.allocateByteBuffer(200);
+            mData.setTensorData(1, buffer);
+
+            assertEquals(3, mData.getTensorsCount());
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(0), 100));
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(1), 200));
+            assertTrue(APITestCommon.isValidBuffer(mData.getTensorData(2), 300));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSetNullByteBuffer() {
         try {
             ByteBuffer buffer = null;
 
-            mData.addTensorData(buffer);
+            mData.setTensorData(0, buffer);
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        assertEquals(0, mData.getTensorsCount());
     }
 
     @Test
-    public void testAddInvalidType() {
-        try {
-            Object buffer = new int[8];
-
-            mData.addTensorData(buffer);
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-
-        assertEquals(0, mData.getTensorsCount());
-    }
-
-    @Test
-    public void testAddInvalidByteBuffer() {
+    public void testSetInvalidOrderByteBuffer() {
         try {
             /* big-endian byte order */
-            Object buffer = ByteBuffer.allocateDirect(100);
+            ByteBuffer buffer = ByteBuffer.allocateDirect(100);
 
-            mData.addTensorData(buffer);
+            mData.setTensorData(0, buffer);
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        assertEquals(0, mData.getTensorsCount());
     }
 
     @Test
-    public void testAddNonDirectBuffer() {
+    public void testSetNonDirectByteBuffer() {
         try {
             /* non-direct byte buffer */
-            Object buffer = ByteBuffer.allocate(100);
+            ByteBuffer buffer = ByteBuffer.allocate(100).order(ByteOrder.nativeOrder());
 
-            mData.addTensorData(buffer);
+            mData.setTensorData(0, buffer);
             fail();
         } catch (Exception e) {
             /* expected */
         }
-
-        assertEquals(0, mData.getTensorsCount());
-    }
-
-    @Test
-    public void testAddNullObject() {
-        try {
-            Object buffer = null;
-
-            mData.addTensorData(buffer);
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-
-        assertEquals(0, mData.getTensorsCount());
-    }
-
-    @Test
-    public void testAddNullByteArray() {
-        try {
-            byte[] buffer = null;
-
-            mData.addTensorData(buffer);
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-
-        assertEquals(0, mData.getTensorsCount());
     }
 
     @Test
     public void testGetInvalidIndex() {
         try {
-            mData.getTensorData(0);
+            mData.getTensorData(5);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -226,7 +161,7 @@ public class APITestTensorsData {
         try {
             ByteBuffer buffer = TensorsData.allocateByteBuffer(500);
 
-            mData.setTensorData(1, buffer);
+            mData.setTensorData(5, buffer);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -234,12 +169,9 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetInvalidByteBuffer() {
-        testAddData();
-
+    public void testSetInvalidSizeByteBuffer() {
         try {
-            /* non-direct byte buffer */
-            ByteBuffer buffer = ByteBuffer.allocate(100);
+            ByteBuffer buffer = TensorsData.allocateByteBuffer(500);
 
             mData.setTensorData(1, buffer);
             fail();
@@ -262,18 +194,6 @@ public class APITestTensorsData {
     public void testAllocateZeroSize() {
         try {
             TensorsData.allocateByteBuffer(0);
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-    }
-
-    @Test
-    public void testAddMaxData() {
-        try {
-            for (int i = 0; i <= NNStreamer.TENSOR_SIZE_LIMIT; i++) {
-                mData.addTensorData(TensorsData.allocateByteBuffer(10));
-            }
             fail();
         } catch (Exception e) {
             /* expected */

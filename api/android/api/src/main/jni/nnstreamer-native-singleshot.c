@@ -33,30 +33,27 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
   pipeline_info_s *pipe_info = NULL;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
+  gboolean opened = FALSE;
   const char *model_info = (*env)->GetStringUTFChars (env, model, NULL);
 
   single = NULL;
   in_info = out_info = NULL;
 
-  if (in) {
-    if (ml_tensors_info_create (&in_info) != ML_ERROR_NONE) {
-      nns_loge ("Failed to create input tensors info.");
-      goto done;
-    }
+  pipe_info = nns_construct_pipe_info (env, thiz, NULL, NNS_PIPE_TYPE_SINGLE);
+  if (pipe_info == NULL) {
+    nns_loge ("Failed to create pipe info.");
+    goto done;
+  }
 
-    if (!nns_parse_tensors_info (pipe_info, env, in, in_info)) {
+  if (in) {
+    if (!nns_parse_tensors_info (pipe_info, env, in, &in_info)) {
       nns_loge ("Failed to parse input tensor.");
       goto done;
     }
   }
 
   if (out) {
-    if (ml_tensors_info_create (&out_info) != ML_ERROR_NONE) {
-      nns_loge ("Failed to create output tensors info.");
-      goto done;
-    }
-
-    if (!nns_parse_tensors_info (pipe_info, env, out, out_info)) {
+    if (!nns_parse_tensors_info (pipe_info, env, out, &out_info)) {
       nns_loge ("Failed to parse output tensor.");
       goto done;
     }
@@ -64,16 +61,22 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
 
   /* supposed tensorflow-lite only for android */
   if (ml_single_open (&single, model_info, in_info, out_info,
-          ML_NNFW_TYPE_ANY, ML_NNFW_HW_AUTO) != ML_ERROR_NONE) {
+          ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO) != ML_ERROR_NONE) {
     nns_loge ("Failed to create the pipeline.");
     goto done;
   }
 
-  pipe_info = nns_construct_pipe_info (env, thiz, single, NNS_PIPE_TYPE_SINGLE);
+  opened = TRUE;
+  pipe_info->pipeline_handle = single;
 
 done:
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
+
+  if (!opened) {
+    nns_destroy_pipe_info (pipe_info, env);
+    pipe_info = NULL;
+  }
 
   (*env)->ReleaseStringUTFChars (env, model, model_info);
   return CAST_TO_LONG (pipe_info);
@@ -98,45 +101,41 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
  */
 jobject
 Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
-    jobject thiz, jlong handle, jobject obj_data, jobject obj_info)
+    jobject thiz, jlong handle, jobject in)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
-  ml_tensors_info_h in_info, out_info;
-  ml_tensors_data_s *in_data, *out_data;
+  ml_tensors_info_h cur_info, in_info, out_info;
+  ml_tensors_data_h in_data, out_data;
   int status;
   jobject result = NULL;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
   single = pipe_info->pipeline_handle;
-  in_info = out_info = NULL;
+  cur_info = in_info = out_info = NULL;
   in_data = out_data = NULL;
 
-  if ((in_data = g_new0 (ml_tensors_data_s, 1)) == NULL) {
-    nns_loge ("Failed to allocate memory for input data.");
+  if (ml_single_get_input_info (single, &cur_info) != ML_ERROR_NONE) {
+    nns_loge ("Failed to get input tensors info.");
     goto done;
   }
 
-  if (!nns_parse_tensors_data (pipe_info, env, obj_data, in_data)) {
-    nns_loge ("Failed to parse input data.");
+  if (!nns_parse_tensors_data (pipe_info, env, in, &in_data, &in_info)) {
+    nns_loge ("Failed to parse input tensors data.");
     goto done;
   }
 
-  if (obj_info) {
-    if (ml_tensors_info_create (&in_info) != ML_ERROR_NONE) {
-      nns_loge ("Failed to create input tensors info.");
+  if (in_info == NULL || ml_tensors_info_is_equal (cur_info, in_info)) {
+    /* input tensors info is not changed */
+    if (ml_single_get_output_info (single, &out_info) != ML_ERROR_NONE) {
+      nns_loge ("Failed to get output tensors info.");
       goto done;
     }
 
-    if (!nns_parse_tensors_info (pipe_info, env, obj_info, in_info)) {
-      nns_loge ("Failed to parse input tensors info.");
-      goto done;
-    }
-
-    status = ml_single_invoke_dynamic (single, in_data, in_info,
-        (ml_tensors_data_h *) &out_data, &out_info);
+    status = ml_single_invoke (single, in_data, &out_data);
   } else {
-    status = ml_single_invoke (single, in_data, (ml_tensors_data_h *) &out_data);
+    /* input tensors info changed, call dynamic */
+    status = ml_single_invoke_dynamic (single, in_data, in_info, &out_data, &out_info);
   }
 
   if (status != ML_ERROR_NONE) {
@@ -144,16 +143,17 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
     goto done;
   }
 
-  if (!nns_convert_tensors_data (pipe_info, env, out_data, &result)) {
+  if (!nns_convert_tensors_data (pipe_info, env, out_data, out_info, &result)) {
     nns_loge ("Failed to convert the result to data.");
     result = NULL;
   }
 
 done:
-  ml_tensors_data_destroy ((ml_tensors_data_h) in_data);
-  ml_tensors_data_destroy ((ml_tensors_data_h) out_data);
+  ml_tensors_data_destroy (in_data);
+  ml_tensors_data_destroy (out_data);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
+  ml_tensors_info_destroy (cur_info);
   return result;
 }
 
@@ -254,12 +254,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetInputInfo (JNIEnv * env,
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
   single = pipe_info->pipeline_handle;
 
-  if (ml_tensors_info_create (&in_info) != ML_ERROR_NONE) {
-    nns_loge ("Failed to create input info handle.");
-    return JNI_FALSE;
-  }
-
-  if (!nns_parse_tensors_info (pipe_info, env, in, in_info)) {
+  if (!nns_parse_tensors_info (pipe_info, env, in, &in_info)) {
     nns_loge ("Failed to parse input tensor.");
     goto done;
   }

@@ -18,12 +18,13 @@ package org.nnsuite.nnstreamer;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.util.Hashtable;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Provides interfaces to create and execute stream pipelines with neural networks.<br>
  * <br>
- * <code>Pipeline</code> allows the following operations with NNStreamer:<br>
+ * {@link Pipeline} allows the following operations with NNStreamer:<br>
  * - Create a stream pipeline with NNStreamer plugins, GStreamer plugins.<br>
  * - Interfaces to push data to the pipeline from the application.<br>
  * - Interfaces to pull data from the pipeline to the application.<br>
@@ -32,7 +33,7 @@ import java.util.Hashtable;
  */
 public final class Pipeline implements AutoCloseable {
     private long mHandle = 0;
-    private Hashtable<String, NewDataCallback> mSinkCallbacks = new Hashtable<>();
+    private HashMap<String, ArrayList<NewDataCallback>> mSinkCallbacks = new HashMap<>();
     private StateChangeCallback mStateCallback = null;
 
     private native long nativeConstruct(String description, boolean addStateCb);
@@ -55,14 +56,13 @@ public final class Pipeline implements AutoCloseable {
          * Called when a sink node receives new data.
          *
          * If an application wants to accept data outputs of an NNStreamer stream, use this callback to get data from the stream.
-         * Note that the buffer may be deallocated after the return and this is synchronously called.
+         * Note that this is synchronously called and the buffer may be deallocated after the callback is finished.
          * Thus, if you need the data afterwards, copy the data to another buffer and return fast.
          * Do not spend too much time in the callback. It is recommended to use very small tensors at sinks.
          *
          * @param data The output data (a single frame, tensor/tensors)
-         * @param info The tensors information (dimension, type of output tensor/tensors)
          */
-        void onNewDataReceived(TensorsData data, TensorsInfo info);
+        void onNewDataReceived(TensorsData data);
     }
 
     /**
@@ -93,10 +93,10 @@ public final class Pipeline implements AutoCloseable {
     }
 
     /**
-     * Creates a new <code>Pipeline</code> instance with the given pipeline description.
+     * Creates a new {@link Pipeline} instance with the given pipeline description.
      *
-     * @param description The pipeline description.
-     *                    Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
+     * @param description The pipeline description. Refer to GStreamer manual or
+     *                    <a href="https://github.com/nnsuite/nnstreamer">NNStreamer</a> documentation for examples and the grammar.
      *
      * @throws IllegalArgumentException if given param is null
      * @throws IllegalStateException if failed to construct the pipeline
@@ -106,10 +106,10 @@ public final class Pipeline implements AutoCloseable {
     }
 
     /**
-     * Creates a new <code>Pipeline</code> instance with the given pipeline description.
+     * Creates a new {@link Pipeline} instance with the given pipeline description.
      *
-     * @param description The pipeline description.
-     *                    Refer to GStreamer manual or NNStreamer (github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
+     * @param description The pipeline description. Refer to GStreamer manual or
+     *                    <a href="https://github.com/nnsuite/nnstreamer">NNStreamer</a> documentation for examples and the grammar.
      * @param callback    The function to be called when the pipeline state is changed.
      *                    You may set null if it's not required.
      *
@@ -118,7 +118,7 @@ public final class Pipeline implements AutoCloseable {
      */
     public Pipeline(@NonNull String description, @Nullable StateChangeCallback callback) {
         if (description == null) {
-            throw new IllegalArgumentException("The param description is null");
+            throw new IllegalArgumentException("Given description is null");
         }
 
         mHandle = nativeConstruct(description, (callback != null));
@@ -196,11 +196,11 @@ public final class Pipeline implements AutoCloseable {
         checkPipelineHandle();
 
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
         }
 
         if (data == null) {
-            throw new IllegalArgumentException("The param data is null");
+            throw new IllegalArgumentException("Given data is null");
         }
 
         if (!nativeInputData(mHandle, name, data)) {
@@ -222,7 +222,7 @@ public final class Pipeline implements AutoCloseable {
         checkPipelineHandle();
 
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
         }
 
         String[] pads = nativeGetSwitchPads(mHandle, name);
@@ -247,11 +247,11 @@ public final class Pipeline implements AutoCloseable {
         checkPipelineHandle();
 
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
         }
 
         if (pad == null) {
-            throw new IllegalArgumentException("The param pad is null");
+            throw new IllegalArgumentException("Given pad is null");
         }
 
         if (!nativeSelectSwitchPad(mHandle, name, pad)) {
@@ -273,7 +273,7 @@ public final class Pipeline implements AutoCloseable {
         checkPipelineHandle();
 
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
         }
 
         if (!nativeControlValve(mHandle, name, open)) {
@@ -283,38 +283,73 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Registers new data callback to sink node.
-     * If an application registers a callback with same name, the callback is replaced with new one.
+     * The callback can be added in duplicate if an application tries to register multiple callbacks with same name.
      *
      * @param name     The name of sink node
-     * @param callback Callback for new data
+     * @param callback The callback for new data
      *
      * @throws IllegalArgumentException if given param is null
-     * @throws IllegalStateException if failed to add the callback to sink node in the pipeline
+     * @throws IllegalStateException if failed to register the callback to sink node in the pipeline
      */
-    public void setSinkCallback(@NonNull String name, NewDataCallback callback) {
+    public void registerSinkCallback(@NonNull String name, @NonNull NewDataCallback callback) {
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
+        }
+
+        if (callback == null) {
+            throw new IllegalArgumentException("Given callback is null");
         }
 
         synchronized(this) {
-            if (mSinkCallbacks.containsKey(name)) {
-                if (callback == null) {
-                    /* remove callback */
-                    mSinkCallbacks.remove(name);
-                    nativeRemoveSinkCallback(mHandle, name);
-                } else {
-                    mSinkCallbacks.replace(name, callback);
+            ArrayList<NewDataCallback> cbList = mSinkCallbacks.get(name);
+
+            if (cbList != null) {
+                /* check the list already includes same callback */
+                if (!cbList.contains(callback)) {
+                    cbList.add(callback);
                 }
             } else {
-                if (callback == null) {
-                    throw new IllegalArgumentException("The param callback is null");
+                if (nativeAddSinkCallback(mHandle, name)) {
+                    cbList = new ArrayList<>();
+                    cbList.add(callback);
+                    mSinkCallbacks.put(name, cbList);
                 } else {
-                    if (nativeAddSinkCallback(mHandle, name)) {
-                        mSinkCallbacks.put(name, callback);
-                    } else {
-                        throw new IllegalStateException("Failed to set sink callback to " + name);
-                    }
+                    throw new IllegalStateException("Failed to register sink callback to " + name);
                 }
+            }
+        }
+    }
+
+    /**
+     * Unregisters data callback from sink node.
+     *
+     * @param name     The name of sink node
+     * @param callback The callback object to be unregistered
+     *
+     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalStateException if failed to unregister the callback from sink node
+     */
+    public void unregisterSinkCallback(@NonNull String name, @NonNull NewDataCallback callback) {
+        if (name == null) {
+            throw new IllegalArgumentException("Given name is null");
+        }
+
+        if (callback == null) {
+            throw new IllegalArgumentException("Given callback is null");
+        }
+
+        synchronized(this) {
+            ArrayList<NewDataCallback> cbList = mSinkCallbacks.get(name);
+
+            if (cbList == null || !cbList.contains(callback)) {
+                throw new IllegalStateException("Failed to unregister sink callback from " + name);
+            }
+
+            cbList.remove(callback);
+            if (cbList.isEmpty()) {
+                /* remove callback */
+                mSinkCallbacks.remove(name);
+                nativeRemoveSinkCallback(mHandle, name);
             }
         }
     }
@@ -322,15 +357,15 @@ public final class Pipeline implements AutoCloseable {
     /**
      * Internal method called from native when a new data is available.
      */
-    private void newDataReceived(String name, TensorsData data, TensorsInfo info) {
-        NewDataCallback cb;
-
+    private void newDataReceived(String name, TensorsData data) {
         synchronized(this) {
-            cb = mSinkCallbacks.get(name);
-        }
+            ArrayList<NewDataCallback> cbList = mSinkCallbacks.get(name);
 
-        if (cb != null) {
-            cb.onNewDataReceived(data, info);
+            if (cbList != null) {
+                for (int i = 0; i < cbList.size(); i++) {
+                    cbList.get(i).onNewDataReceived(data);
+                }
+            }
         }
     }
 
@@ -338,14 +373,10 @@ public final class Pipeline implements AutoCloseable {
      * Internal method called from native when the state of pipeline is changed.
      */
     private void stateChanged(int state) {
-        StateChangeCallback cb;
-
         synchronized(this) {
-            cb = mStateCallback;
-        }
-
-        if (cb != null) {
-            cb.onStateChanged(state);
+            if (mStateCallback != null) {
+                mStateCallback.onStateChanged(state);
+            }
         }
     }
 

@@ -23,7 +23,7 @@ import android.support.annotation.NonNull;
  * To register a new custom-filter, an application should call {@link #registerCustomFilter(String, CustomFilterCallback)}
  * before constructing the pipeline.
  */
-public class CustomFilter implements AutoCloseable {
+public final class CustomFilter implements AutoCloseable {
     private long mHandle = 0;
     private String mName = null;
     private CustomFilterCallback mCallback = null;
@@ -40,27 +40,25 @@ public class CustomFilter implements AutoCloseable {
          *
          * NNStreamer filter configures input and output tensors information during the caps negotiation.
          *
-         * Note that this is not a fixed value and the pipeline may try different values during the cap negotiations.
+         * Note that this is not a fixed value and the pipeline may try different values during the caps negotiation.
          * An application should validate the information of input tensors and return proper output information.
          *
-         * @param inInfo The input tensors information
+         * @param in The input tensors information
          *
          * @return The output tensors information
          */
-        TensorsInfo getOutputInfo(TensorsInfo inInfo);
+        TensorsInfo getOutputInfo(TensorsInfo in);
 
         /**
          * Called synchronously while processing the pipeline.
          *
          * NNStreamer filter invokes the given custom-filter callback while processing the pipeline.
          *
-         * @param inData  The input data (a single frame, tensor/tensors)
-         * @param inInfo  The input tensors information
-         * @param outInfo The output tensors information
+         * @param in The input data (a single frame, tensor/tensors)
          *
          * @return The output data (a single frame, tensor/tensors)
          */
-        TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo);
+        TensorsData invoke(TensorsData in);
     }
 
     /**
@@ -71,7 +69,7 @@ public class CustomFilter implements AutoCloseable {
      * @param name     The name of custom-filter
      * @param callback The function to be called while processing the pipeline
      *
-     * @return <code>CustomFilter</code> instance
+     * @return {@link CustomFilter} instance
      *
      * @throws IllegalArgumentException if given param is null
      * @throws IllegalStateException if failed to initialize custom-filter
@@ -100,11 +98,11 @@ public class CustomFilter implements AutoCloseable {
      */
     private CustomFilter(@NonNull String name, @NonNull CustomFilterCallback callback) {
         if (name == null) {
-            throw new IllegalArgumentException("The param name is null");
+            throw new IllegalArgumentException("Given name is null");
         }
 
         if (callback == null) {
-            throw new IllegalArgumentException("The param callback is null");
+            throw new IllegalArgumentException("Given callback is null");
         }
 
         mHandle = nativeInitialize(name);
@@ -119,11 +117,11 @@ public class CustomFilter implements AutoCloseable {
     /**
      * Internal method called from native during the caps negotiation.
      */
-    private TensorsInfo getOutputInfo(TensorsInfo info) {
+    private TensorsInfo getOutputInfo(TensorsInfo in) {
         TensorsInfo out = null;
 
         if (mCallback != null) {
-            out = mCallback.getOutputInfo(info);
+            out = mCallback.getOutputInfo(in);
         }
 
         return out;
@@ -132,11 +130,11 @@ public class CustomFilter implements AutoCloseable {
     /**
      * Internal method called from native while processing the pipeline.
      */
-    private TensorsData invoke(TensorsData inData, TensorsInfo inInfo, TensorsInfo outInfo) {
+    private TensorsData invoke(TensorsData in) {
         TensorsData out = null;
 
         if (mCallback != null) {
-            out = mCallback.invoke(inData, inInfo, outInfo);
+            out = mCallback.invoke(in);
         }
 
         return out;
@@ -158,4 +156,9 @@ public class CustomFilter implements AutoCloseable {
             mHandle = 0;
         }
     }
+
+    /**
+     * Private constructor to prevent the instantiation.
+     */
+    private CustomFilter() {}
 }

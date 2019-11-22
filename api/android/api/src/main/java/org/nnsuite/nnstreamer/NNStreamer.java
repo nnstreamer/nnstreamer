@@ -38,7 +38,7 @@ public final class NNStreamer {
     public static final int TENSOR_RANK_LIMIT = 4;
 
     /**
-     * The maximum number of tensor instances that tensors may have.
+     * The maximum number of tensor that {@link TensorsData} instance may have.
      */
     public static final int TENSOR_SIZE_LIMIT = 16;
 
@@ -151,4 +151,9 @@ public final class NNStreamer {
     public static String getVersion() {
         return nativeGetVersion();
     }
+
+    /**
+     * Private constructor to prevent the instantiation.
+     */
+    private NNStreamer() {}
 }

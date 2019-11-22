@@ -40,7 +40,23 @@ public final class TensorsInfo implements AutoCloseable {
     private ArrayList<TensorInfo> mInfoList = new ArrayList<>();
 
     /**
-     * Gets the number of tensors in tensors information.
+     * Allocates a new {@link TensorsData} instance with the tensors information.
+     *
+     * @return {@link TensorsData} instance
+     *
+     * @throws IllegalStateException if tensors info is empty
+     */
+    public TensorsData allocate() {
+        if (getTensorsCount() == 0) {
+            throw new IllegalStateException("Empty tensor info");
+        }
+
+        return TensorsData.allocate(this);
+    }
+
+    /**
+     * Gets the number of tensors.
+     * The maximum number of tensors is {@link NNStreamer#TENSOR_SIZE_LIMIT}.
      *
      * @return The number of tensors
      */
@@ -75,7 +91,7 @@ public final class TensorsInfo implements AutoCloseable {
         int index = getTensorsCount();
 
         if (index >= NNStreamer.TENSOR_SIZE_LIMIT) {
-            throw new IndexOutOfBoundsException("Max size of the tensors is " + NNStreamer.TENSOR_SIZE_LIMIT);
+            throw new IndexOutOfBoundsException("Max number of the tensors is " + NNStreamer.TENSOR_SIZE_LIMIT);
         }
 
         mInfoList.add(new TensorInfo(name, type, dimension));
@@ -95,7 +111,7 @@ public final class TensorsInfo implements AutoCloseable {
     }
 
     /**
-     * Gets a tensor name of given index.
+     * Gets the tensor name of given index.
      *
      * @param index The index of the tensor information in the list
      *
@@ -215,7 +231,7 @@ public final class TensorsInfo implements AutoCloseable {
             setDimension(dimension);
         }
 
-        public void setName(String name) {
+        public void setName(@Nullable String name) {
             this.name = name;
         }
 
@@ -240,22 +256,22 @@ public final class TensorsInfo implements AutoCloseable {
                 throw new IllegalArgumentException("Given tensor dimension is null");
             }
 
-            int length = dimension.length;
+            int rank = dimension.length;
 
-            if (length > NNStreamer.TENSOR_RANK_LIMIT) {
+            if (rank > NNStreamer.TENSOR_RANK_LIMIT) {
                 throw new IllegalArgumentException("Max size of the tensor rank is " + NNStreamer.TENSOR_RANK_LIMIT);
             }
 
-            for (int i = 0; i < length; i++) {
-                if (dimension[i] <= 0) {
+            for (int dim : dimension) {
+                if (dim <= 0) {
                     throw new IllegalArgumentException("The dimension should be a positive value");
                 }
             }
 
-            System.arraycopy(dimension, 0, this.dimension, 0, length);
+            System.arraycopy(dimension, 0, this.dimension, 0, rank);
 
-            /* set 1 as default */
-            for (int i = length; i < NNStreamer.TENSOR_RANK_LIMIT; i++) {
+            /* fill default value */
+            for (int i = rank; i < NNStreamer.TENSOR_RANK_LIMIT; i++) {
                 this.dimension[i] = 1;
             }
         }
