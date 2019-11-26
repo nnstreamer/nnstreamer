@@ -345,6 +345,9 @@ static TizenSensorSpec tizensensorspecs[] = {
   {.type = SENSOR_HUMAN_STRESS_MONITOR,.value_count = 1, /** @todo check! */
         .tinfo = {.name = valstr,.type = _NNS_FLOAT32,
           .dimension = {1, 1, 1, 1}}},
+  {.type = SENSOR_CUSTOM,.value_count = 16, /** Assume it has 16 values always. Let the user filter out unnecessary values from it. */
+        .tinfo = {.name = valstr,.type = _NNS_FLOAT32,
+          .dimension = {16, 1, 1, 1}}},
   {.type = SENSOR_LAST,.value_count = 0,.tinfo = {0,}},
 };
 
@@ -1089,17 +1092,20 @@ exit:
   return retval;
 }
 
-#define cast_loop(values, count, dest, desttype) \
+#define cast_loop(values, count, dest, desttype, is_custom) \
 do { \
   int i; \
   char *destptr = (char *) (dest); \
   for (i = 0; i < (count); i++) \
     *(destptr + (sizeof (desttype) * i)) = (desttype) (values)[i]; \
+  if (is_custom) \
+    for (i = count; i < 16; i++) \
+      *(destptr + (sizeof (desttype) * i)) = (desttype) 0;\
 } while (0)
 
-#define case_cast_loop(values, count, dest, desttype, desttypeenum) \
+#define case_cast_loop(values, count, dest, desttype, desttypeenum, is_custom) \
 case desttypeenum: \
-  cast_loop (values, count, dest, desttype); \
+  cast_loop (values, count, dest, desttype, is_custom); \
   break;
 
 /**
@@ -1107,21 +1113,25 @@ case desttypeenum: \
  */
 static void
 _ts_assign_values (float values[], int count, GstMapInfo * map,
-    const GstTensorInfo * spec)
+    const GstTensorInfo * spec, int is_custom)
 {
   switch (spec->type) {
     case _NNS_FLOAT32:
       memcpy (map->data, values, sizeof (float) * count);
       break;
-      case_cast_loop (values, count, map->data, int64_t, _NNS_INT64);
-      case_cast_loop (values, count, map->data, int32_t, _NNS_INT32);
-      case_cast_loop (values, count, map->data, int16_t, _NNS_INT16);
-      case_cast_loop (values, count, map->data, int8_t, _NNS_INT8);
-      case_cast_loop (values, count, map->data, uint64_t, _NNS_UINT64);
-      case_cast_loop (values, count, map->data, uint32_t, _NNS_UINT32);
-      case_cast_loop (values, count, map->data, uint16_t, _NNS_UINT16);
-      case_cast_loop (values, count, map->data, uint8_t, _NNS_UINT8);
-      case_cast_loop (values, count, map->data, double, _NNS_FLOAT64);
+      case_cast_loop (values, count, map->data, int64_t, _NNS_INT64, is_custom);
+      case_cast_loop (values, count, map->data, int32_t, _NNS_INT32, is_custom);
+      case_cast_loop (values, count, map->data, int16_t, _NNS_INT16, is_custom);
+      case_cast_loop (values, count, map->data, int8_t, _NNS_INT8, is_custom);
+      case_cast_loop (values, count, map->data, uint64_t, _NNS_UINT64,
+          is_custom);
+      case_cast_loop (values, count, map->data, uint32_t, _NNS_UINT32,
+          is_custom);
+      case_cast_loop (values, count, map->data, uint16_t, _NNS_UINT16,
+          is_custom);
+      case_cast_loop (values, count, map->data, uint8_t, _NNS_UINT8, is_custom);
+      case_cast_loop (values, count, map->data, double, _NNS_FLOAT64,
+          is_custom);
     default:
       g_assert (0);   /** Other types are not implemented! */
   }
@@ -1183,7 +1193,9 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
       goto exit_unmap;
     }
 
-    if (event.value_count != self->src_spec->dimension[0]) {
+    if (event.value_count != self->src_spec->dimension[0] &&
+        self->type != SENSOR_CUSTOM) {
+      /* If it's custom, don't check the value_count */
       GST_ERROR_OBJECT (self,
           "The number of values (%d) mismatches the metadata (%d)",
           event.value_count, self->src_spec->dimension[0]);
@@ -1235,7 +1247,8 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     GST_BUFFER_PTS (buffer) = event.timestamp;
 
     /* 3. Write values to buffer. Be careful on type casting */
-    _ts_assign_values (event.values, event.value_count, &map, self->src_spec);
+    _ts_assign_values (event.values, event.value_count, &map, self->src_spec,
+        ! !(self->type == SENSOR_CUSTOM));
 
   } else {
     /** NYI! */
