@@ -197,6 +197,10 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
           for (i = 0; i < elem->tensors_info.num_tensors; i++) {
             size_t sz = ml_tensor_info_get_size (&elem->tensors_info.info[i]);
 
+            /* Not configured, yet. */
+            if (sz == 0)
+              ml_loge ("The caps for sink(%s) is not configured.", elem->name);
+
             if (sz != data->tensors[i].size) {
               ml_loge
                   ("The sink event of [%s] cannot be handled because the tensor dimension mismatches.",
