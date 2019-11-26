@@ -300,6 +300,10 @@ ninja -C build %{?_smp_mflags}
 %if 0%{?enable_nnfw_r}
     ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
 %endif
+%if %{with tizen}
+    ln -s ext/nnstreamer/tensor_source/*.so .
+    ./tests/tizen_capi/unittest_tizen_sensor --gst-plugin-path=. --gtest_output="xml:unittest_tizen_sensor.xml"
+%endif
     popd
     pushd tests
     ssat -n

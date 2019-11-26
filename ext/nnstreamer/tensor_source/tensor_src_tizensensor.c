@@ -44,7 +44,7 @@
  * Tizen-API / sensor_get_sensor_list(ACCELEROMETER, list, count);
  * When the sequence is not specified, the first (.0) is chosen.
  * You may specify the enum value of the sensor (sensor_type_e) defined
- * in sensor.h of Tizen with type, instead of typename.
+ * in sensor.h of Tizen with type.
  *
  * If sequence = -1 (default), we use "default sensor".
  *
@@ -54,6 +54,8 @@
  * https://docs.tizen.org/application/native/api/mobile/latest/group__CAPI__SYSTEM__SENSOR__LISTENER__MODULE.html#CAPI_SYSTEM_SENSOR_LISTENER_MODULE_URI
  *
  * @todo Add "Listener" mode (creates data only if there are updates)
+ *
+ * @todo Every mode should handle timestamp/duration properly!
  *
  * @todo Add "power management" options (Tizen sensor f/w accepts such)
  *
@@ -141,8 +143,8 @@ enum
  */
 #define DEFAULT_PROP_SEQUENCE -1
 
-#define _LOCK(obj) g_mutex_lock (&(obj)->lock);
-#define _UNLOCK(obj) g_mutex_unlock (&(obj)->lock);
+#define _LOCK(obj) g_mutex_lock (&(obj)->lock)
+#define _UNLOCK(obj) g_mutex_unlock (&(obj)->lock)
 
 /**
  * @brief Template for src pad.
@@ -380,7 +382,7 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
           "Produce verbose output", DEFAULT_PROP_SILENT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TYPE,
-      g_param_spec_enum ("typename", "Tizen Sensor Type Name (enum)",
+      g_param_spec_enum ("type", "Tizen Sensor Type (enum)",
           "Tizen sensor type as a enum-name, defined in sensor.h of Tizen",
           GST_TYPE_TIZEN_SENSOR_TYPE, SENSOR_ALL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -394,7 +396,7 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
           GST_TYPE_TIZEN_SENSOR_MODE, TZN_SENSOR_MODE_POLLING,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_FREQ,
-      gst_param_spec_fraction ("freq", "Frequency",
+      gst_param_spec_fraction ("framerate", "Framerate",
           "Rate of data retrievals from a sensor. Effective only when "
           "mode is ACTIVE_POLLING",
           0, 1, G_MAXINT, 1,
@@ -458,11 +460,11 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
 
   if (NULL == tizensensors) {
     int i;
-    tizensensors = g_hash_table_new (g_int_hash, g_int_equal);
+    tizensensors = g_hash_table_new (g_direct_hash, g_direct_equal);
 
     for (i = 0; tizensensorspecs[i].type != SENSOR_LAST; i++) {
       g_assert (g_hash_table_insert (tizensensors,
-              (gpointer) tizensensorspecs[i].type,
+              GINT_TO_POINTER (tizensensorspecs[i].type),
               &tizensensorspecs[i].tinfo) == TRUE);
       g_assert (tizensensorspecs[i].value_count ==
           tizensensorspecs[i].tinfo.dimension[0]);
@@ -532,6 +534,9 @@ static void __attribute__ ((unused))
 static unsigned int
 _ts_get_interval_ms (GstTensorSrcTIZENSENSOR * self)
 {
+  if (self->freq_n == 0)
+    return 100;                 /* If it's 0Hz, assume 100ms interval */
+
   g_assert (self->freq_d > 0 && self->freq_n > 0);
 
   return gst_util_uint64_scale_int ((guint64) self->freq_d, 1000, self->freq_n);
@@ -545,9 +550,11 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
 {
   int ret = 0;
   const GstTensorInfo *val = g_hash_table_lookup (tizensensors,
-      (gpointer) self->type);
+      GINT_TO_POINTER (self->type));
   bool supported = false;
 
+  if (NULL == val)
+    g_printerr ("The given sensor type (%d) is not supported.\n", self->type);
   g_assert (val);
   self->src_spec = val;
 
@@ -582,7 +589,8 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
       GST_ERROR_OBJECT (self,
           "The requested sensor sequence %d for sensor %d is not available. The max-sequence is used instead",
           self->sequence, self->type);
-      self->sequence = count - 1;
+      self->sequence = 0;
+      return -EINVAL;
     }
 
     self->sensor = list[self->sequence];
@@ -656,7 +664,8 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
       if (new_type != self->type) {
         /* Different sensor is being used. Clean it up! */
-        ret = _ts_clean_up_handle (self);
+        if (self->configured)
+          ret = _ts_clean_up_handle (self);
 
         if (ret) {
           GST_ERROR_OBJECT (self, "_ts_clean_up_handle() returns %d", ret);
@@ -679,7 +688,8 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
 
       if (self->sequence != new_sequence) {
         /* Different sensor is being used. Clean it up! */
-        ret = _ts_clean_up_handle (self);
+        if (self->configured)
+          ret = _ts_clean_up_handle (self);
 
         if (ret) {
           GST_ERROR_OBJECT (self, "_ts_clean_up_handle() returns %d", ret);
@@ -733,6 +743,11 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
       self->freq_n = gst_value_get_fraction_numerator (value);
       self->freq_d = gst_value_get_fraction_denominator (value);
 
+      if (self->freq_n < 0)
+        self->freq_n = 0;
+      if (self->freq_d < 1)
+        self->freq_d = 1;
+
       silent_debug ("Set operating frequency %d/%d --> %d/%d",
           n, d, self->freq_n, self->freq_d);
 
@@ -781,6 +796,10 @@ gst_tensor_src_tizensensor_get_property (GObject * object,
       g_value_set_enum (value, self->mode);
       break;
     case PROP_FREQ:
+      if (self->freq_d < 1)
+        self->freq_d = 1;
+      if (self->freq_n < 0)
+        self->freq_n = 0;
       gst_value_set_fraction (value, self->freq_n, self->freq_d);
       break;
     default:
@@ -838,6 +857,10 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
 
   /* 2. Configure handle / context */
   ret = _ts_configure_handle (self);
+  if (ret) {
+    retval = FALSE;
+    goto exit;
+  }
   g_assert (self->configured == TRUE);
 
   /** @todo TBD. Let's assume each frame has a fixed size */
@@ -901,17 +924,18 @@ gst_tensor_src_tizensensor_event (GstBaseSrc * src, GstEvent * event)
 static GstCaps *
 _ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR * self)
 {
-  TizenSensorSpec *spec;
+  const GstTensorInfo *spec;
   gchar *tensor;
   GstCaps *retval;
 
-  spec = g_hash_table_lookup (tizensensors, (gpointer) self->type);
+  /** @bug the retrieved spec is not valid...? */
+  spec = g_hash_table_lookup (tizensensors, GINT_TO_POINTER (self->type));
 
   if (FALSE == self->configured || SENSOR_ALL == self->type || NULL == spec) {
     tensor = g_strdup_printf ("other/tensor; other/tensors, num_tensors=1");
   } else {
-    const gchar *typestr = gst_tensor_get_type_string (spec->tinfo.type);
-    gchar *dimstr = gst_tensor_get_dimension_string (spec->tinfo.dimension);
+    const gchar *typestr = gst_tensor_get_type_string (spec->type);
+    gchar *dimstr = gst_tensor_get_dimension_string (spec->dimension);
     g_assert (typestr && typestr[0]);
     tensor = g_strdup_printf ("other/tensor, dimension=%s, type=%s ; "
         "other/tensors, num_tensors=1, dimensions=%s, type=%s",
@@ -1068,7 +1092,9 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
   }
   gst_buffer_append_memory (buf, mem);
 
+  _UNLOCK (self);
   retval = gst_tensor_src_tizensensor_fill (src, offset, buffer_size, buf);
+  _LOCK (self);
   if (retval != GST_FLOW_OK)
     goto exit;
 
@@ -1131,6 +1157,15 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   GstFlowReturn retval = GST_FLOW_OK;
   GstMemory *mem;
   GstMapInfo map;
+
+  if (self->freq_n > 0) {
+    gulong usec;
+    g_assert (self->freq_d > 0);
+
+    usec = ((gulong) self->freq_d * G_USEC_PER_SEC) / self->freq_n;
+    /** @tood Substract latency of itself */
+    g_usleep (usec);
+  }
 
   _LOCK (self);
 
@@ -1214,10 +1249,9 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
         pts -= diff;
       GST_BUFFER_PTS (buffer) = pts;
     } else {
-      GST_ERROR_OBJECT (self,
-          "The given buffer for fill function does not have a valid timestamp.");
-      retval = GST_FLOW_ERROR;
-      goto exit_unmap;
+      /* There is no valid timestamp. Override the timestamp */
+
+      /** @todo NYI. Need research on this matter */
     }
     GST_BUFFER_PTS (buffer) = event.timestamp;
 
