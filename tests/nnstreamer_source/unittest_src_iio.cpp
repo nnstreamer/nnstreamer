@@ -211,7 +211,6 @@ make_iio_dev_structure (int num)
   iio_dev->scan_el_type_generic =
       g_build_filename (iio_dev->scan_el, "in_voltage_type", NULL);
 
-  iio_dev->log_file = NULL;
   iio_dev->dev_dir = g_build_filename (iio_dev->base_dir, "dev", NULL);
   iio_dev->dev_device_dir =
       g_build_filename (iio_dev->dev_dir, device_folder_name, NULL);
@@ -703,6 +702,7 @@ clean_iio_dev_structure (iio_dev_dir_struct * iio_dev)
 
   g_free (iio_dev->dev_dir);
   g_free (iio_dev->dev_device_dir);
+  g_free (iio_dev->log_file);
 
   g_free (iio_dev);
   return;
@@ -1167,7 +1167,6 @@ TEST (test_tensor_src_iio, \
   ASSERT_EQ (safe_remove (dev0->log_file), 0); \
   gst_object_unref (src_iio_pipeline); \
   ASSERT_EQ (destroy_dev_dir (dev0), 0); \
-  g_free (dev0->log_file); \
   clean_iio_dev_structure (dev0); \
 }
 
@@ -1358,7 +1357,6 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   /** delete device structure */
   gst_object_unref (src_iio_pipeline);
   ASSERT_EQ (destroy_dev_dir (dev0), 0);
-  g_free (dev0->log_file);
   clean_iio_dev_structure (dev0);
 }
 
@@ -1447,7 +1445,6 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   /** delete device structure */
   gst_object_unref (src_iio_pipeline);
   ASSERT_EQ (destroy_dev_dir (dev0), 0);
-  g_free (dev0->log_file);
   clean_iio_dev_structure (dev0);
 }
 
@@ -1586,10 +1583,8 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   /** delete device structure */
   gst_object_unref (src_iio_pipeline);
   ASSERT_EQ (destroy_dev_dir (dev0), 0);
-  g_free (dev0->log_file);
   clean_iio_dev_structure (dev0);
 }
-
 
 /**
  * @brief Main function for unit test.
