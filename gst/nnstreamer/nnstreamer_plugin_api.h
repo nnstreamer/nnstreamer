@@ -64,7 +64,7 @@ gst_tensor_info_validate (const GstTensorInfo *info);
 
 /**
  * @brief Compare tensor info
- * @param TRUE if equal
+ * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
  */
 extern gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
@@ -172,7 +172,7 @@ gst_tensors_info_validate (const GstTensorsInfo *info);
 
 /**
  * @brief Compare tensors info
- * @param TRUE if equal
+ * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
  */
 extern gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
