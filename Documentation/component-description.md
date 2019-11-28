@@ -23,7 +23,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Audio (stable)
     - audio/x-raw. Users should specify the number of frames in a single buffer, which denotes the number of frames in a single tensor frame with the property of ```frames-per-buffer```. Needs more test cases.
   - Text (stable)
-    - text/x-raw. Partially implemented. Needs fixes and test cases.
+    - text/x-raw. Users should specify the byte size of a single tensor frame with the property ```input-dim```. Needs more test cases.
   - Binary (stable)
     - application/octet-stream. Stream pipeline developer MUST specify the corresponding type and dimensions via properties (input-dim, input-type)
 - [tensor\_filter](../gst/nnstreamer/tensor_filter)
