@@ -167,15 +167,17 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 
 /**
  * @brief Compare tensor info
- * @param TRUE if equal
+ * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
  */
 gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 {
   guint i;
 
-  g_return_val_if_fail (i1 != NULL, FALSE);
-  g_return_val_if_fail (i2 != NULL, FALSE);
+  if (gst_tensor_info_validate (i1) == FALSE ||
+      gst_tensor_info_validate (i2) == FALSE) {
+    return FALSE;
+  }
 
   if (i1->type != i2->type) {
     return FALSE;
@@ -301,7 +303,7 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
 
 /**
  * @brief Compare tensors info
- * @param TRUE if equal
+ * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
  */
 gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
@@ -311,7 +313,7 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
 
-  if (i1->num_tensors != i2->num_tensors) {
+  if (i1->num_tensors != i2->num_tensors || i1->num_tensors < 1) {
     return FALSE;
   }
 
@@ -952,7 +954,7 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
 gulong
 gst_tensor_get_element_count (const tensor_dim dim)
 {
-  gsize count = 1;
+  gulong count = 1;
   guint i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
