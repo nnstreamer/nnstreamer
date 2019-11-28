@@ -2,19 +2,18 @@
 
 ## Supported features
 
-- Video: direct conversion of video/x-raw / non-interace(progressive) to [height][width][#Colorspace] tensor. (#Colorspace:width:height:1)
+- Video: direct conversion of video/x-raw / non-interlace(progressive) to [height][width][#Colorspace] tensor. (#Colorspace:width:height:frames-per-tensor)
   - Supported colorspaces: RGB (3), BGRx (4), Gray8 (1)
   - You may express ```frames-per-tensor``` to have multiple image frames in a tensor like audio and text as well.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
   - Golden tests for such input
-- Audio: direct conversion of audio/x-raw with arbitrary numbers of channels and frames per tensor to [frames-per-tensor][channels] tensor. (channels:frames-per-tensor:1:1)
+- Audio: direct conversion of audio/x-raw with arbitrary numbers of channels and frames per tensor to [frames-per-tensor][channels] tensor. (channels:frames-per-tensor)
   - The number of frames per tensor is supposed to be configured manually by stream pipeline developer with the property of ```frames-per-tensor```.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
-- Text: direct conversion of text/x-raw with UTF-8 to [frames-per-tensor][1024] tensor. (1024:frames-per-tensor:1:1)
+- Text: direct conversion of text/x-raw with UTF-8 to [frames-per-tensor][input-dim] tensor. (input-dim:frames-per-tensor)
   - The number of frames per tensor is supposed to be configured manually by stream pipeline developer with the property of ```frames-per-tensor```.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
-  - The size of a text frame, 1024, is assumed to be large enough for any single frame of strings. Because the dimension of tensor is the key metadata of a tensor stream pipeline, we need to fix the value before actually looking at the actual stream data.
-  - TODO (Schedule TBD): Allow to accept longer text frames without having larger default text frame size.
+  - The size of a text frame should be configured by developer with the property ```input-dim```. Because the dimension of tensor is the key metadata of a tensor stream pipeline, we need to fix the value before actually looking at the actual stream data.
 
 ## Planned features
 
@@ -23,7 +22,7 @@ From higher priority
 
 ## Sink Pads
 
-One "Always" sink pad exists. The capability of sink pad is ```video/x-raw```, ```audio/x-raw```, and ```text/x-raw```.
+One "Always" sink pad exists. The capability of sink pad is ```video/x-raw```, ```audio/x-raw```, ```text/x-raw``` and ```application/octet-stream```.
 
 ## Source Pads
 
