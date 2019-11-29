@@ -1443,13 +1443,11 @@ gst_tensor_transform_read_caps (GstTensorTransform * filter,
 
   structure = gst_caps_get_structure (caps, 0);
 
-  if (!gst_structure_has_name (structure, "other/tensor")) {
+  if (!gst_tensor_config_from_structure (config, structure)) {
     GST_WARNING_OBJECT (filter, "caps is not tensor %s\n",
         gst_structure_get_name (structure));
     return FALSE;
   }
-
-  gst_tensor_config_from_structure (config, structure);
 
   return gst_tensor_info_validate (&config->info);
 }
@@ -1471,12 +1469,13 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 
   switch (filter->mode) {
     case GTT_DIMCHG:
+    {
+      int from = filter->data_dimchg.from;
+      int to = filter->data_dimchg.to;
+
       out_info->type = in_info->type;
 
       if (direction == GST_PAD_SINK) {
-        int from = filter->data_dimchg.from;
-        int to = filter->data_dimchg.to;
-
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           if ((i < from && i < to) || (i > from && i > to) || from == to) {
             out_info->dimension[i] = in_info->dimension[i];
@@ -1491,9 +1490,6 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
           }
         }
       } else {
-        int from = filter->data_dimchg.from;
-        int to = filter->data_dimchg.to;
-
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           if ((i < from && i < to) || (i > from && i > to) || from == to) {
             out_info->dimension[i] = in_info->dimension[i];
@@ -1509,26 +1505,19 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
         }
       }
       break;
-
+    }
     case GTT_TYPECAST:
       /** For both directions, dimension does not change */
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        out_info->dimension[i] = in_info->dimension[i];
-      }
+      gst_tensor_info_copy (out_info, in_info);
+
       if (direction == GST_PAD_SINK) {
           /** src = SINKPAD / dest = SRCPAD */
         out_info->type = filter->data_typecast.to;
-      } else {
-          /** src = SRCPAD / dest = SINKPAD */
-        out_info->type = in_info->type;   /** @todo this may cause problems with Cap-Transform */
       }
       break;
 
     case GTT_ARITHMETIC:
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        out_info->dimension[i] = in_info->dimension[i];
-      }
-      out_info->type = in_info->type;
+      gst_tensor_info_copy (out_info, in_info);
 
       /* check arith mode option has typecast operator */
       if (direction == GST_PAD_SINK &&
@@ -1556,10 +1545,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_STAND:
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        out_info->dimension[i] = in_info->dimension[i];
-      }
-      out_info->type = in_info->type;
+      gst_tensor_info_copy (out_info, in_info);
       break;
 
     default:
@@ -1661,6 +1647,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   GstTensorTransform *filter;
   GstTensorConfig in_config, out_config;
   GstTensorConfig config;
+  gboolean allowed = FALSE;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
@@ -1680,17 +1667,18 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     goto error;
   }
 
-  /* check framerate */
-  if (in_config.rate_n != out_config.rate_n
-      || in_config.rate_d != out_config.rate_d) {
-    GST_ERROR_OBJECT (filter, "Framerate is not matched\n");
+  /* compare type and dimension */
+  if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
+          &in_config.info, &config.info)) {
+    GST_ERROR_OBJECT (filter,
+        "Tensor info is not matched with given properties.");
     goto error;
   }
 
-  /* compare type and dimension */
-  if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-          &in_config.info, &config.info) ||
-      !gst_tensor_info_is_equal (&out_config.info, &config.info)) {
+  config.rate_n = in_config.rate_n;
+  config.rate_d = in_config.rate_d;
+
+  if (!gst_tensor_config_is_equal (&out_config, &config)) {
     GST_ERROR_OBJECT (filter,
         "Tensor info is not matched with given properties.\n");
     goto error;
@@ -1699,6 +1687,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   /* set in/out tensor info */
   filter->in_config = in_config;
   filter->out_config = out_config;
+  allowed = TRUE;
 
 #ifdef HAVE_ORC
   /**
@@ -1715,10 +1704,12 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     GST_INFO_OBJECT (filter, "Orc acceleration enabled.");
   }
 #endif
-  return TRUE;
+
 error:
-  GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
-  return FALSE;
+  if (!allowed)
+    GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
+
+  return allowed;
 }
 
 /**

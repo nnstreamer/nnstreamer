@@ -116,7 +116,7 @@ TEST (test_tensor_transform, properties)
 {
   const gboolean default_silent = TRUE;
   const gboolean default_accl = DEFAULT_VAL_PROP_ACCELERATION;
-  const gint default_mode = 1; /* typecast */
+  const gint default_mode = GTT_TYPECAST; /* typecast */
   const gchar default_option[] = "uint32";
   gchar *str_launch_line;
   gint res_mode;

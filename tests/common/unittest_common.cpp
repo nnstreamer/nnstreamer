@@ -403,6 +403,104 @@ TEST (common_tensor_info, copy_tensors)
 }
 
 /**
+ * @brief Internal function to update tensors info.
+ */
+static void
+fill_tensors_info_for_test (GstTensorsInfo * info1, GstTensorsInfo * info2)
+{
+  g_assert (info1 != NULL && info2 != NULL);
+
+  gst_tensors_info_init (info1);
+  gst_tensors_info_init (info2);
+
+  info1->num_tensors = info2->num_tensors = 2;
+
+  info1->info[0].type = info2->info[0].type = _NNS_INT64;
+  info1->info[1].type = info2->info[1].type = _NNS_FLOAT64;
+
+  info1->info[0].dimension[0] = info2->info[0].dimension[0] = 2;
+  info1->info[0].dimension[1] = info2->info[0].dimension[1] = 3;
+  info1->info[0].dimension[2] = info2->info[0].dimension[2] = 1;
+  info1->info[0].dimension[3] = info2->info[0].dimension[3] = 1;
+
+  info1->info[1].dimension[0] = info2->info[1].dimension[0] = 5;
+  info1->info[1].dimension[1] = info2->info[1].dimension[1] = 5;
+  info1->info[1].dimension[2] = info2->info[1].dimension[2] = 1;
+  info1->info[1].dimension[3] = info2->info[1].dimension[3] = 1;
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (common_tensor_info, equal_01_p)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (common_tensor_info, equal_02_n)
+{
+  GstTensorsInfo info1, info2;
+
+  gst_tensors_info_init (&info1);
+  gst_tensors_info_init (&info2);
+
+  /* test with invalid info */
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (common_tensor_info, equal_03_n)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* change info, this should not be compatible */
+  info1.num_tensors = 1;
+
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (common_tensor_info, equal_04_n)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* change info, this should not be compatible */
+  info1.info[0].type = _NNS_UINT64;
+
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (common_tensor_info, equal_05_n)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* change info, this should not be compatible */
+  info2.info[1].dimension[0] = 10;
+
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
  * @brief Test for dimensions string in tensors info.
  */
 TEST (common_tensors_info_string, dimensions)
@@ -424,13 +522,13 @@ TEST (common_tensors_info_string, dimensions)
   g_free (str_dims);
 
   /* 4 tensors info */
-  num_dims = gst_tensors_info_parse_dimensions_string (&info, "1, 2, 3, 4");
+  num_dims = gst_tensors_info_parse_dimensions_string (&info, "1, 2:2, 3:3:3, 4:4:4:4");
   EXPECT_EQ (num_dims, 4U);
 
   info.num_tensors = num_dims;
 
   str_dims = gst_tensors_info_get_dimensions_string (&info);
-  EXPECT_TRUE (g_str_equal (str_dims, "1:1:1:1,2:1:1:1,3:1:1:1,4:1:1:1"));
+  EXPECT_TRUE (g_str_equal (str_dims, "1:1:1:1,2:2:1:1,3:3:3:1,4:4:4:4"));
   g_free (str_dims);
 
   /* max */

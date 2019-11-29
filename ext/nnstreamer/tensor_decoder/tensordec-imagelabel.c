@@ -186,12 +186,10 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
 
   /* Even if it's multi-tensor, we use the first tensor only in image labeling */
   dim = config->info.info[0].dimension;
-  /* This allows N:1:1:1 only! */
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
-    if (dim[i] != 1) {
-      GST_ERROR ("Dimention %d is not 1, %u", i, dim[i]);
-      return NULL;
-    }
+  /* This allows N:1 only! */
+  g_return_val_if_fail (dim[0] > 0 && dim[1] == 1, NULL);
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
+    g_return_val_if_fail (dim[i] == 1, NULL);
 
   return gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
 }

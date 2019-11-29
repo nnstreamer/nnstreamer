@@ -1458,7 +1458,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
         g_critical
             ("Please set the properties input-dim and input-type to convert stream.\n"
-            "For example, input-dim=30:1 input-type=unit8 to handle 30 bytes of bin data.");
+            "For example, input-dim=30 input-type=unit8 to handle 30 bytes of bin data.");
         return FALSE;
       }
 

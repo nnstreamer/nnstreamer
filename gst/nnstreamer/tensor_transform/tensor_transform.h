@@ -142,7 +142,7 @@ struct _GstTensorTransform
   GstBaseTransform element;	/**< This is the parent object */
 
   gboolean silent;	/**< True if logging is minimized */
-  tensor_transform_mode mode; /**< Transform mode. GTT_END if invalid */
+  tensor_transform_mode mode; /**< Transform mode. GTT_UNKNOWN if invalid. */
   gchar *option; /**< Stored option value */
   union {
     tensor_transform_dimchg data_dimchg; /**< Parsed option value for "dimchg" mode */

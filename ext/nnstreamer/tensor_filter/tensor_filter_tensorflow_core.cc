@@ -324,8 +324,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
 
     if (num_dims == -1) { /* in case of unknown shape */
       info_s.rank = 0;
-    }
-    else {
+    } else {
       g_assert (num_dims > 0);
       info_s.rank = num_dims;
 
@@ -463,8 +462,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         total_size,
         &DeallocateInputTensor,
         &input_tensor_info[i]);
-    }
-    else {
+    } else {
       in_tensor = TF_NewTensor (
           input_tensor_info[i].type,
           input_tensor_info[i].dims.data (),
