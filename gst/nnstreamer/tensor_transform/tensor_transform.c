@@ -180,9 +180,9 @@ static gboolean gst_tensor_transform_transform_size (GstBaseTransform * trans,
 static GType
 gst_tensor_transform_mode_get_type (void)
 {
-  static GType mode_type = GTT_UNKNOWN;
+  static GType mode_type = 0;
 
-  if (mode_type == GTT_UNKNOWN) {
+  if (mode_type == 0) {
     static GEnumValue mode_types[] = {
       {GTT_DIMCHG, "Mode for changing tensor dimensions, "
             "option=FROM_DIM:TO_DIM (with a regex, " REGEX_DIMCHG_OPTION
