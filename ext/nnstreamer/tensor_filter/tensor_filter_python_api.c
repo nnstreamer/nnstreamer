@@ -54,9 +54,9 @@ PyMODINIT_FUNC PyInit_nnstreamer_python(void);
 PyMODINIT_FUNC initnnstreamer_python(void);
 #endif
 
-/** 
+/**
  * @brief method impl. for setDims
- * @param self : Python type object 
+ * @param self : Python type object
  * @param args : arguments for the method
  */
 static PyObject *
@@ -72,7 +72,7 @@ TensorShape_setDims(TensorShapeObject *self, PyObject *args) {
     int i;
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - PyList_Size(dims); i++)
       /** fill '1's in remaining slots */
-      PyList_Append(dims, PyLong_FromLong(1)); 
+      PyList_Append(dims, PyLong_FromLong(1));
     new_dims = dims;
     Py_XINCREF(new_dims);
   } else {
@@ -87,9 +87,9 @@ TensorShape_setDims(TensorShapeObject *self, PyObject *args) {
   Py_RETURN_NONE;
 }
 
-/** 
+/**
  * @brief method impl. for getDims
- * @param self : Python type object 
+ * @param self : Python type object
  * @param args : arguments for the method
  */
 static PyObject *
@@ -99,7 +99,7 @@ TensorShape_getDims(TensorShapeObject *self, PyObject *args) {
 
 /**
  * @brief method impl. for getType
- * @param self : Python type object 
+ * @param self : Python type object
  * @param args : arguments for the method
  */
 static PyObject *
@@ -107,9 +107,9 @@ TensorShape_getType(TensorShapeObject *self, PyObject *args) {
   return Py_BuildValue("O", self->type);
 }
 
-/** 
- * @brief new callback for custom type object 
- * @param self : Python type object 
+/**
+ * @brief new callback for custom type object
+ * @param self : Python type object
  * @param args : arguments for the method
  * @param kw : keywords for the arguments
  */
@@ -127,9 +127,9 @@ TensorShape_new(PyTypeObject *type, PyObject *args, PyObject *kw) {
   return (PyObject *) self;
 }
 
-/** 
- * @brief init callback for custom type object 
- * @param self : Python type object 
+/**
+ * @brief init callback for custom type object
+ * @param self : Python type object
  * @param args : arguments for the method
  * @param kw : keywords for the arguments
  */
@@ -161,9 +161,9 @@ TensorShape_init(TensorShapeObject *self, PyObject *args, PyObject *kw) {
   return 0;
 }
 
-/** 
- * @brief dealloc callback for custom type object 
- * @param self : Python type object 
+/**
+ * @brief dealloc callback for custom type object
+ * @param self : Python type object
  */
 static void
 TensorShape_dealloc(TensorShapeObject *self) {
@@ -225,7 +225,7 @@ initnnstreamer_python(void) {
 #else
   module = Py_InitModule("nnstreamer_python", nnstreamer_python_methods);
 #endif
-  if (module == NULL) 
+  if (module == NULL)
     return RETVAL(NULL);
 
   /** For numpy array init. */

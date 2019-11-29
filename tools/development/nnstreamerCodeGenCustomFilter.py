@@ -132,8 +132,12 @@ cg_getInputDim (void * _data, const GstTensorFilterProperties * prop,
   in_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[2] = 224; /** @todo MODIFY THIS! */
 
+  /**
+   * Check max dimension (NNS_TENSOR_RANK_LIMIT) and
+   * fill 1 to uninitialized dimension values.
+   */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    in_info->info[0].dimension[i] = 1; /** Fill 1 to uninitialized dimension values */
+    in_info->info[0].dimension[i] = 1;
 
   return 0;
 }}
@@ -165,8 +169,12 @@ cg_getOutputDim (void * _data, const GstTensorFilterProperties * prop,
   out_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[2] = 224; /** @todo MODIFY THIS! */
 
+  /**
+   * Check max dimension (NNS_TENSOR_RANK_LIMIT) and
+   * fill 1 to uninitialized dimension values.
+   */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    out_info->info[0].dimension[i] = 1; /** Fill 1 to uninitialized dimension values */
+    out_info->info[0].dimension[i] = 1;
 
   return 0;
 }}

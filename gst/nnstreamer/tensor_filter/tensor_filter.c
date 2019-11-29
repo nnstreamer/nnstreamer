@@ -669,12 +669,14 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
+  GstTensorFilterProperties *prop;
   GstTensorsConfig config;
   GstCaps *result;
   GstStructure *structure;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
+  prop = &priv->prop;
 
   /* Not ready */
   if (priv->fw == NULL)
@@ -701,9 +703,9 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
   if (direction == GST_PAD_SINK) {
     /* caps: sink pad. get src pad info */
-    if (priv->prop.output_configured) {
-      /* fixed tensor info */
-      config.info = priv->prop.output_meta;
+    if (prop->output_configured) {
+      /* caps with sub-plugin's tensor info */
+      config.info = prop->output_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /* check in-tensor info to call setInputDimension */
@@ -732,9 +734,9 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     }
   } else {
     /* caps: src pad. get sink pad info */
-    if (priv->prop.input_configured) {
-      /* fixed tensor info */
-      config.info = priv->prop.input_meta;
+    if (prop->input_configured) {
+      /* caps with sub-plugin's tensor info */
+      config.info = prop->input_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);
     } else {
       /* we don't know the exact tensor info from src pad caps */

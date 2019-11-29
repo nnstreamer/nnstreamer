@@ -1496,9 +1496,8 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 TEST (nnstreamer_capi_singleshot, invoke_02)
 {
   ml_single_h single;
-  ml_tensors_info_h in_info, out_info;
+  ml_tensors_info_h in_info;
   ml_tensors_data_h input, output;
-  ml_tensor_dimension in_dim, out_dim;
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -1512,27 +1511,11 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  ml_tensors_info_create (&in_info);
-  ml_tensors_info_create (&out_info);
-
-  in_dim[0] = 3;
-  in_dim[1] = 224;
-  in_dim[2] = 224;
-  in_dim[3] = 1;
-  ml_tensors_info_set_count (in_info, 1);
-  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
-  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
-
-  out_dim[0] = 1001;
-  out_dim[1] = 1;
-  out_dim[2] = 1;
-  out_dim[3] = 1;
-  ml_tensors_info_set_count (out_info, 1);
-  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
-  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
-
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   input = output = NULL;
@@ -1557,7 +1540,6 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
 }
 
 /**
@@ -1679,7 +1661,8 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example", "custom_example_passthrough",
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_passthrough",
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -2536,6 +2519,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   ml_tensors_info_create (&out_res);
 
   tensor_size = 5;
+
   in_dim[0] = tensor_size;
   in_dim[1] = 1;
   in_dim[2] = 1;
@@ -2680,7 +2664,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   if (root_path == NULL)
     root_path = "..";
 
-  /** add.tflite adds value 2 to all the values in the input */
+  /* custom-passthrough */
   test_model = g_build_filename (root_path, "build", "nnstreamer_example",
       "custom_example_passthrough",
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
