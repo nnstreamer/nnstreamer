@@ -36,7 +36,7 @@
  * </refsect2>
  *
  * Available types can be retrieved with Tizen System/Sensor APIs:
- * https://developer.tizen.org/development/api-references/native-application?redirect=https://developer.tizen.org/dev-guide/5.5.0/org.tizen.native.mobile.apireference/group__CAPI__SYSTEM__SENSOR__MODULE.html#ga92804cd50337aef93d0e3a3807a9cf33  (Tizen 5.5 Mobile API)
+ * https://docs.tizen.org/application/native/api/wearable/latest/group__CAPI__SYSTEM__SENSOR__MODULE.html#ga92804cd50337aef93d0e3a3807a9cf33 (Tizen 5.5 Mobile API)
  *
  * In case there are multiple sensors for a given sensor type,
  * you may designate the sequence to choose non-0 sensor instance.
@@ -48,7 +48,7 @@
  *
  * @todo More manual entries coming.
  * @todo Allow to use sensor URIs to designate a sensor
- * https://developer.tizen.org/dev-guide/5.5.0/org.tizen.native.mobile.apireference/group__CAPI__SYSTEM__SENSOR__LISTENER__MODULE.html#CAPI_SYSTEM_SENSOR_LISTENER_MODULE_URI
+ * https://docs.tizen.org/application/native/api/mobile/latest/group__CAPI__SYSTEM__SENSOR__LISTENER__MODULE.html#CAPI_SYSTEM_SENSOR_LISTENER_MODULE_URI
  * @todo Some sensor tpes are privileged. We need privilege control.
  * Some sensor types are privileged. An application should have the privilege http://tizen.org/privilege/healthinfo to get handles for the following sensors: SENSOR_HRM, SENSOR_HRM_LED_GREEN, SENSOR_HRM_LED_IR, SENSOR_HRM_LED_RED, SENSOR_HUMAN_PEDOMETER, SENSOR_HUMAN_SLEEP_MONITOR, SENSOR_HUMAN_SLEEP_DETECTOR, and SENSOR_HUMAN_STRESS_MONITOR.
  */
