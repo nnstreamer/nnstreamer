@@ -65,7 +65,8 @@ enum
   PROP_OUTPUTNAME,
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
-  PROP_ACCELERATOR
+  PROP_ACCELERATOR,
+  PROP_UPDATABLE_MODEL,
 };
 
 /**
@@ -321,6 +322,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "list of accelerators determines the backend (ignored with false). "
           "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU).",
           "", G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_UPDATABLE_MODEL,
+      g_param_spec_string ("is-updatable", "Updatable model",
+          "Indicate whether a given model to this tensor filter is "
+          "updatable in runtime. (e.g., with on-device training)",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -606,6 +612,11 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
       break;
     }
+    case PROP_UPDATABLE_MODEL:
+    {
+      priv->updatable_model = g_value_get_boolean (value);
+      break;
+    }
     default:
       return FALSE;
   }
@@ -754,6 +765,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       } else {
         g_value_set_string (value, "");
       }
+      break;
+    case PROP_UPDATABLE_MODEL:
+      g_value_set_boolean (value, priv->updatable_model);
       break;
     default:
       /* unknown property */

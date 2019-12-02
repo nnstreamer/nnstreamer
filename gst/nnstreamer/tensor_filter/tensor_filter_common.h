@@ -41,6 +41,7 @@ typedef struct _GstTensorFilterPrivate
   /* internal properties for tensor-filter */
   gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
   gboolean configured; /**< True if already successfully configured tensor metadata */
+  gboolean updatable_model; /**<  a given model to the filter is updatable if TRUE */
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config; /**< output tensor info */
 } GstTensorFilterPrivate;
