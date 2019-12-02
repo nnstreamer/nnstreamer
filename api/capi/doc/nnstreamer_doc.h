@@ -61,7 +61,7 @@
  * For example, your application accesses to the camera device,
  * then you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.\n
  * More details on featuring your application can be found from
- * <a href="https://developer.tizen.org/development/tizen-studio/native-tools/configuring-your-app/manifest-text-editor#feature">
+ * <a href="https://docs.tizen.org/application/tizen-studio/native-tools/manifest-text-editor#feature-element">
  *    <b>Feature Element</b>.
  * </a>
  */
@@ -102,7 +102,7 @@
  * For example, your application accesses to the camera device,
  * then you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.\n
  * More details on featuring your application can be found from
- * <a href="https://developer.tizen.org/development/tizen-studio/native-tools/configuring-your-app/manifest-text-editor#feature">
+ * <a href="https://docs.tizen.org/application/tizen-studio/native-tools/manifest-text-editor#feature-element">
  *    <b>Feature Element</b>.
  * </a>
  */

@@ -6,7 +6,7 @@ Since Tizen 5.5, Machine Learning Inference functionality has been provided on M
 ## Installing Visual Studio Tools for Tizen
 In order to use this functionality, you need to install Visual Studio Tools for Tizen and Tizen SDK. You can find the detailed guide for this at the below link.
 
-* https://developer.tizen.org/development/visual-studio-tools-tizen/installing-visual-studio-tools-tizen
+* https://docs.tizen.org/application/vstools/install
 
 
 ## Machine Learning
