@@ -285,26 +285,30 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 
 ninja -C build %{?_smp_mflags}
 
+export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
+
+pushd build
+export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
+export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
+export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
+export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
+%if 0%{?enable_nnfw_r}
+    ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
+%endif
 %if 0%{?unit_test}
-    export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
-    pushd build
-    export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
-    export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
-    export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
-    export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     ./tests/unittest_common --gtest_output="xml:unittest_common.xml"
     ./tests/unittest_sink --gst-plugin-path=. --gtest_output="xml:unittest_sink.xml"
     ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
     ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
-%if 0%{?enable_nnfw_r}
-    ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
 %endif
 %if %{with tizen}
     ln -s ext/nnstreamer/tensor_source/*.so .
     ./tests/tizen_capi/unittest_tizen_sensor --gst-plugin-path=. --gtest_output="xml:unittest_tizen_sensor.xml"
 %endif
-    popd
+popd
+
+%if 0%{?unit_test}
     pushd tests
     ssat -n
     popd
