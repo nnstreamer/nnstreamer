@@ -28,7 +28,7 @@ See also: #456, #789
 
 **Self evaluation:**
 1. Build test: [ ]Passed [ ]Failed [*]Skipped
-2. Run test: [ ]Passed [ ]Failed [*]Skipped
+2. Run test: [ ]Passed [ ]Failed [* ]Skipped
 
 **How to evaluate:**
 1. Describe how to evaluate in order to be reproduced by reviewer(s).
