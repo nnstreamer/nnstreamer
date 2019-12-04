@@ -322,9 +322,10 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     ml_tensors_info_s * tensors_info)
 {
   ml_single *single_h;
+  ml_tensors_info_h info = NULL;
   ml_tensors_info_s *dest;
-  bool valid = false;
-  gboolean configured = false;
+  gboolean configured = FALSE;
+  gboolean is_valid = FALSE;
   GTensorFilterSingleClass *klass;
   GObject * filter_obj;
 
@@ -343,24 +344,33 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     configured = klass->output_configured (single_h->filter);
   }
 
-  if (tensors_info) {
-    if (!configured)
-      ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
-    ml_tensors_info_clone (dest, tensors_info);
-  } else {
-    ml_tensors_info_h info;
-
+  if (configured) {
+    /* get configured info and compare with input info */
     ml_single_get_tensors_info_from_filter (single_h->filter, is_input, &info);
+
+    if (tensors_info && !ml_tensors_info_is_equal (tensors_info, info)) {
+      /* given input info is not matched with configured */
+      if (is_input) {
+        /* try to update tensors info */
+        ml_tensors_info_destroy (info);
+        if (ml_single_update_info (single, tensors_info, &info) != ML_ERROR_NONE)
+          goto done;
+      } else {
+        goto done;
+      }
+    }
+
     ml_tensors_info_clone (dest, info);
-    ml_tensors_info_destroy (info);
+  } else if (tensors_info) {
+    ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
+    ml_tensors_info_clone (dest, tensors_info);
   }
 
-  if (!ml_tensors_info_is_valid (dest, valid)) {
-    /* invalid tensors info */
-    return FALSE;
-  }
+  is_valid = ml_tensors_info_is_valid (dest);
 
-  return TRUE;
+done:
+  ml_tensors_info_destroy (info);
+  return is_valid;
 }
 
 /**
@@ -377,7 +387,6 @@ ml_single_open (ml_single_h * single, const char *model,
   GTensorFilterSingleClass *klass;
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   bool available = false;
-  bool valid = false;
   GError * error;
 
   check_feature_state ();
@@ -395,13 +404,13 @@ ml_single_open (ml_single_h * single, const char *model,
   out_tensors_info = (ml_tensors_info_s *) output_info;
 
   /* Validate input tensor info. */
-  if (input_info && !ml_tensors_info_is_valid (input_info, valid)) {
+  if (input_info && !ml_tensors_info_is_valid (input_info)) {
     ml_loge ("The given param, input tensor info is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   /* Validate output tensor info. */
-  if (output_info && !ml_tensors_info_is_valid (output_info, valid)) {
+  if (output_info && !ml_tensors_info_is_valid (output_info)) {
     ml_loge ("The given param, output tensor info is invalid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
@@ -755,14 +764,13 @@ ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info)
   int status = ML_ERROR_NONE;
   ml_tensors_info_s *in_info;
   GstTensorsInfo gst_in_info, gst_out_info;
-  bool valid = false;
 
   check_feature_state ();
 
   if (!single || !info)
     return ML_ERROR_INVALID_PARAMETER;
 
-  if (!ml_tensors_info_is_valid (info, valid))
+  if (!ml_tensors_info_is_valid (info))
     return ML_ERROR_INVALID_PARAMETER;
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);

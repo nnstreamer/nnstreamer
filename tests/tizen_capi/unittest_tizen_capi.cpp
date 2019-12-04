@@ -2011,7 +2011,62 @@ TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Failure case with invalid param.
  */
-TEST (nnstreamer_capi_singleshot, failure_01_n)
+TEST (nnstreamer_capi_singleshot, open_fail_01_n)
+{
+  ml_single_h single;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  /* invalid file path */
+  status = ml_single_open (&single, "wrong_file_name", NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* null file path */
+  status = ml_single_open (&single, NULL, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* invalid handle */
+  status = ml_single_open (NULL, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* invalid file extension */
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* invalid handle */
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* Successfully opened unknown fw type (tf-lite) */
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Failure case with invalid tensor info.
+ */
+TEST (nnstreamer_capi_singleshot, open_fail_02_n)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
@@ -2032,40 +2087,41 @@ TEST (nnstreamer_capi_singleshot, failure_01_n)
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
 
-  /* invalid file path */
-  status = ml_single_open (&single, "wrong_file_name", in_info, out_info,
-      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  /* null file path */
-  status = ml_single_open (&single, NULL, in_info, out_info,
-      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  /* invalid handle */
-  status = ml_single_open (NULL, test_model, in_info, out_info,
-      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
   /* invalid input tensor info */
-  status = ml_single_open (&single, test_model, in_info, out_info,
+  status = ml_single_open (&single, test_model, in_info, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  /* invalid output tensor info */
+  status = ml_single_open (&single, test_model, NULL, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   in_dim[0] = 3;
-  in_dim[1] = 224;
-  in_dim[2] = 224;
+  in_dim[1] = 100;
+  in_dim[2] = 100;
   in_dim[3] = 1;
   ml_tensors_info_set_count (in_info, 1);
   ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
   ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
 
-  /* invalid output tensor info */
-  status = ml_single_open (&single, test_model, in_info, out_info,
+  /* invalid input dimension (model does not support dynamic dimension) */
+  status = ml_single_open (&single, test_model, in_info, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  out_dim[0] = 1001;
+  in_dim[1] = in_dim[2] = 224;
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT16);
+
+  /* invalid input type */
+  status = ml_single_open (&single, test_model, in_info, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+
+  out_dim[0] = 1;
   out_dim[1] = 1;
   out_dim[2] = 1;
   out_dim[3] = 1;
@@ -2073,19 +2129,92 @@ TEST (nnstreamer_capi_singleshot, failure_01_n)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  /* invalid file extension */
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
+  /* invalid output dimension */
+  status = ml_single_open (&single, test_model, NULL, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  /* invalid handle */
-  status = ml_single_close (single);
+  out_dim[0] = 1001;
+  ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT16);
+
+  /* invalid output type */
+  status = ml_single_open (&single, test_model, NULL, out_info,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
 
   /* Successfully opened unknown fw type (tf-lite) */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @detail Open model (dynamic dimension is supported)
+ */
+TEST (nnstreamer_capi_singleshot, open_dynamic)
+{
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensor_dimension in_dim, out_dim;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  unsigned int count = 0;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* dynamic dimension supported */
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+
+  in_dim[0] = 5;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  /* open with input tensor info (1:1:1:1 > 5:1:1:1) */
+  status = ml_single_open (&single, test_model, in_info, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* validate output info */
+  status = ml_single_get_output_info (single, &out_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_get_count (out_info, &count);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (count, 1U);
+
+  status = ml_tensors_info_get_tensor_type (out_info, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT32);
+
+  ml_tensors_info_get_tensor_dimension (out_info, 0, out_dim);
+  EXPECT_EQ (out_dim[0], 5U);
+  EXPECT_EQ (out_dim[1], 1U);
+  EXPECT_EQ (out_dim[2], 1U);
+  EXPECT_EQ (out_dim[3], 1U);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
