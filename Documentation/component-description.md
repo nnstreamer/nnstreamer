@@ -36,6 +36,8 @@ In this page, we focus on the status of each elements. For requirements and desi
       - Accept other/tensors.
     - TODO: Allow to manage synchronization policies.
   - Custom-C (stable)
+  - Custom-C++-Class (stable)
+  - Custom-C-Easy (stable) (single function ops)
   - Custom-Python (stable)
   - Custom Native Functions (stable) (Supply custom-filter in run-time)
   - Tensorflow (stable)
@@ -43,8 +45,11 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Caffe2 (stable)
   - PyTorch (stable)
   - Movidius-X NCS2 (stable)
+  - NNFW-Runtime (stable)
+  - WIP: edge-TPU, openVINO(dldt), and a few more
   - Other NNFW TBD (keras, caffe, Exynos-NPU, edge-TPU, Qualcomm-SNPE, ...)
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
+  - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnsuite/nnstreamer-example/tree/master/templates)
 - [tensor\_sink](../gst/nnstreamer/tensor_sink) (stable)
 - [tensor\_transform](../gst/nnstreamer/tensor_transform) (stable)
   - Supported features
@@ -60,18 +65,23 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Supported features
     - Direct video conversion (video/x-raw) (stable)
     - Image classification labeling (text/x-raw) (stable)
-    - Bounding Boxes (video/x-raw) (stable)
-    - More items are planned.
+    - Bounding boxes (video/x-raw) (stable)
+    - Image segmentation (video/x-raw) (stable)
+    - Body pose (video/x-raw) (stable)
+    - Users can add plugins in run-time.
 - [tensor\_mux](../gst/nnstreamer/tensor_mux) (stable)
 - [tensor\_demux](../gst/nnstreamer/tensor_demux) (stable)
 - [tensor\_source](../gst/nnstreamer/tensor_source) (stable for IIO. More sources coming soon)
-- [tensor\_save](../gst/nnstreamer/tensor_saveload) (planned)
-- [tensor\_load](../gst/nnstreamer/tensor_saveload) (planned)
 - [tensor\_aggregator](../gst/nnstreamer/tensor_aggregator) (stable)
-- [tensor\_ros\_sink](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
-- [tensor\_ros\_src](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
 - [tensor\_repo\_sink](../gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_repo\_src](../gst/nnstreamer/tensor_repo) (stable)
+- [tensor\_src\_iio](../gst/nnstreamer/tensor_source) (stable)
+- [tensor\_src\_tizensensor](../ext/nnstreamer/tensor_source) (stable)
+- [tensor\_ros\_sink](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
+- [tensor\_ros\_src](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
+- [tensor\_flatbuffers\_src](../gst/) (planned)
+- [tensor\_flatbuffers\_sink](../gst/) (planned)
+- tensor\_save and tensor\_load canceled.
 
 
 Note that test elements in /tests/ are not elements for applications. They exist as scaffoldings to test the above elements especially in the case where related elements are not yet implemented.
@@ -83,10 +93,12 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - [Implementation](../api/capi) (stable, since Tizen 5.5 M2)
 - C#-API (.NET)
   - Main target is Tizen, but supports other OS as well.
-  - [Implementation](https://github.com/Samsung/TizenFX/tree/master/src/Tizen.MachineLearning.Inference) (to be released for Tizen 5.5 M2)
+  - [Implementation](https://github.com/Samsung/TizenFX/tree/master/src/Tizen.MachineLearning.Inference)
+    - Single API: Tizen 5.5 M2
+    - Pipeline API: Tizen 6.0 M1
 - JAVA-API (Android)
   - [Android sample app](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
-  - We will soon deploy NNStreamer via JCenter: org.nnsuite.nnstreamer
+  - [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
   - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 
 # Other Components
