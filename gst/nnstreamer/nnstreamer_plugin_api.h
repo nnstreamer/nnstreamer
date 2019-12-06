@@ -211,7 +211,7 @@ gst_tensor_config_is_equal (const GstTensorConfig * c1,
 /**
  * @brief Get media type from structure
  * @param structure structure to be interpreted
- * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
  */
 extern media_type
 gst_tensor_media_type_from_structure (const GstStructure * structure);

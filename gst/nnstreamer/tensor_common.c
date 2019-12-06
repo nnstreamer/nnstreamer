@@ -64,7 +64,7 @@ static const guint tensor_element_size[] = {
 /**
  * @brief Get media type from structure
  * @param structure structure to be interpreted
- * @return corresponding media type (returns _NNS_MEDIA_END for unsupported type)
+ * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
  */
 media_type
 gst_tensor_media_type_from_structure (const GstStructure * structure)
@@ -73,7 +73,7 @@ gst_tensor_media_type_from_structure (const GstStructure * structure)
 
   name = gst_structure_get_name (structure);
 
-  g_return_val_if_fail (name != NULL, _NNS_MEDIA_END);
+  g_return_val_if_fail (name != NULL, _NNS_MEDIA_INVALID);
 
   if (g_str_has_prefix (name, "video/")) {
     return _NNS_VIDEO;
@@ -92,7 +92,7 @@ gst_tensor_media_type_from_structure (const GstStructure * structure)
   }
 
   /* unknown or unsupported type */
-  return _NNS_MEDIA_END;
+  return _NNS_MEDIA_INVALID;
 }
 
 /**

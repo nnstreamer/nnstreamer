@@ -53,6 +53,7 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorConverter GstTensorConverter;
 typedef struct _GstTensorConverterClass GstTensorConverterClass;
+typedef struct _NNStreamerExternalConverter NNStreamerExternalConverter;
 
 /**
  * @brief Internal data structure for tensor_converter instances.
@@ -72,6 +73,9 @@ struct _GstTensorConverter
   GstAdapter *adapter; /**< adapt incoming media stream */
 
   media_type in_media_type; /**< incoming media type */
+  const NNStreamerExternalConverter *externalConverter;
+      /**< used if in_media_type == _NNS_MEDIA_PLUGINS */
+
   gsize frame_size; /**< size of one frame */
   gboolean remove_padding; /**< If true, zero-padding must be removed */
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
@@ -95,6 +99,7 @@ struct _GstTensorConverterClass
  * @brief Get Type function required for gst elements
  */
 GType gst_tensor_converter_get_type (void);
+
 
 G_END_DECLS
 
