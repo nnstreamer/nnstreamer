@@ -22,6 +22,8 @@
  * @see		https://github.com/nnsuite/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
+ * @todo        For flatbuffers, support other/tensors with properties
+ * @todo        Subplugins are not tested, yet.
  */
 
 /**
@@ -45,6 +47,8 @@
 #include <string.h>
 #include "tensor_converter.h"
 #include "converter-media-info.h"
+#include <nnstreamer_subplugin.h>
+#include <nnstreamer_plugin_api_converter.h>
 
 /**
  * @brief Macro for debug mode.
@@ -92,6 +96,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 
 /**
  * @brief tensor_converter properties
+ * @todo For flatbuffers, support other/tensors.
  */
 enum
 {
@@ -144,6 +149,9 @@ static GstCaps *gst_tensor_converter_query_caps (GstTensorConverter * self,
     GstPad * pad, GstCaps * filter);
 static gboolean gst_tensor_converter_parse_caps (GstTensorConverter * self,
     const GstCaps * caps);
+
+static const NNStreamerExternalConverter *findExternalConverter (const char
+    *media_type_name);
 
 /**
  * @brief Initialize the tensor_converter's class.
@@ -290,7 +298,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->silent = DEFAULT_SILENT;
   self->set_timestamp = DEFAULT_SET_TIMESTAMP;
   self->frames_per_tensor = DEFAULT_FRAMES_PER_TENSOR;
-  self->in_media_type = _NNS_MEDIA_END;
+  self->in_media_type = _NNS_MEDIA_INVALID;
   self->frame_size = 0;
   self->remove_padding = FALSE;
   gst_tensor_info_init (&self->tensor_info);
@@ -687,6 +695,19 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       g_assert ((buf_size % frame_size) == 0);
       frames_in = buf_size / frame_size;
       break;
+    case _NNS_MEDIA_PLUGINS:
+    {
+      if (self->externalConverter == NULL ||
+          self->externalConverter->convert == NULL)
+        return GST_FLOW_NOT_SUPPORTED;
+      inbuf = self->externalConverter->convert (self, buf, &frame_size,
+          &frames_in);
+
+      g_assert (inbuf != NULL);
+      g_assert (frame_size > 0);
+      g_assert ((buf_size % frame_size) == 0);
+      break;
+    }
     default:
       GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
       g_assert (0);
@@ -1304,6 +1325,29 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
                 }
               }
               break;
+            case _NNS_MEDIA_INVALID:   /* this could be MEDIA_PLUGIN */
+            {
+              const gchar *name = gst_structure_get_name (st);
+              const NNStreamerExternalConverter *ex;
+              gboolean ret;
+
+              if (name == NULL)
+                break;
+              ex = findExternalConverter (name);
+              if (ex == NULL)
+                break;
+
+              /** @todo What if this is inconsistent with self->ex? */
+
+              g_assert (ex->query_caps);
+              ret = ex->query_caps (self, &config, st);
+              if (ret == FALSE) {
+                GST_ERROR_OBJECT (self,
+                    "Failed to filter GstCap structure with the given config");
+              }
+
+              break;
+            }
             default:
               /* do nothing for text and octet stream */
               break;
@@ -1357,6 +1401,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
   structure = gst_caps_get_structure (caps, 0);
   in_type = gst_tensor_media_type_from_structure (structure);
+  self->externalConverter = NULL;
 
   switch (in_type) {
     case _NNS_VIDEO:
@@ -1467,8 +1512,29 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     }
     default:
+    {
+      /* if found, configure in_mdeia_type = _NNS_MEDIA_PLUGINS */
+      const gchar *name = gst_structure_get_name (structure);
+      if (name != NULL) {
+        const NNStreamerExternalConverter *ex = findExternalConverter (name);
+        if (ex != NULL) {
+          in_type = _NNS_MEDIA_PLUGINS;
+          self->externalConverter = ex;
+
+          if (NULL == ex->get_caps || !ex->get_caps (self, structure, &config)) {
+            GST_ERROR_OBJECT (self,
+                "Failed to get tensor info from %s. Check the given options.",
+                name);
+            g_critical ("Please set the options property correctly.\n");
+            self->externalConverter = NULL;
+            return FALSE;
+          }
+          break;
+        }
+      }
       GST_ERROR_OBJECT (self, "Unsupported type %d\n", in_type);
       return FALSE;
+    }
   }
 
   /** set the number of frames in dimension */
@@ -1494,4 +1560,31 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   self->tensor_configured = TRUE;
   self->tensor_config = config;
   return TRUE;
+}
+
+/**
+ * @brief Converter's external subplugins should call this at init.
+ */
+int
+registerExternalConverter (NNStreamerExternalConverter * ex)
+{
+  return register_subplugin (NNS_SUBPLUGIN_CONVERTER, ex->media_type_name, ex);
+}
+
+/**
+ * @brief Converter's external subplugins should call this at exit.
+ */
+void
+unregisterExternalConverter (const char *media_type_name)
+{
+  unregister_subplugin (NNS_SUBPLUGIN_CONVERTER, media_type_name);
+}
+
+/**
+ * @brief Internal static function to find registered subplugins.
+ */
+static const NNStreamerExternalConverter *
+findExternalConverter (const char *media_type_name)
+{
+  return get_subplugin (NNS_SUBPLUGIN_CONVERTER, media_type_name);
 }

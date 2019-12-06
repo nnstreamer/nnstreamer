@@ -103,15 +103,18 @@ typedef enum _nns_tensor_type
  *
  * This is realted with media input stream to other/tensor.
  * There is no restrictions for the outputs.
+ *
+ * In order to prevent enum-mix issues between device profiles,
+ * we explicitly define numbers for each enum type.
  */
 typedef enum _nns_media_type
 {
+  _NNS_MEDIA_INVALID = -1, /**< Uninitialized */
   _NNS_VIDEO = 0, /**< supposedly video/x-raw */
-  _NNS_AUDIO, /**< supposedly audio/x-raw */
-  _NNS_TEXT, /**< supposedly text/x-raw */
-  _NNS_OCTET, /**< supposedly application/octet-stream */
-
-  _NNS_MEDIA_END, /**< End Marker */
+  _NNS_AUDIO = 1, /**< supposedly audio/x-raw */
+  _NNS_TEXT = 2, /**< supposedly text/x-raw */
+  _NNS_OCTET = 3, /**< supposedly application/octet-stream */
+  _NNS_MEDIA_PLUGINS = 0x1000, /**< external converters */
 } media_type;
 
 /**

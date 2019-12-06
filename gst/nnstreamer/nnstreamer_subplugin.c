@@ -51,6 +51,21 @@ _spdata_destroy (gpointer _data)
   g_free (data);
 }
 
+typedef enum
+{
+  NNS_SEARCH_FILENAME,
+  NNS_SEARCH_GETALL,
+  NNS_SEARCH_NO_OP,
+} subpluginSearchLogic;
+
+static subpluginSearchLogic searchAlgorithm[] = {
+  [NNS_SUBPLUGIN_FILTER] = NNS_SEARCH_FILENAME,
+  [NNS_SUBPLUGIN_DECODER] = NNS_SEARCH_FILENAME,
+  [NNS_EASY_CUSTOM_FILTER] = NNS_SEARCH_FILENAME,
+  [NNS_SUBPLUGIN_CONVERTER] = NNS_SEARCH_GETALL,
+  [NNS_SUBPLUGIN_END] = NNS_SEARCH_NO_OP,
+};
+
 /** @brief Public function defined in the header */
 const void *
 get_subplugin (subpluginType type, const char *name)
@@ -69,9 +84,32 @@ get_subplugin (subpluginType type, const char *name)
         _spdata_destroy);
 
   table = subplugins[type];
-  data = g_hash_table_lookup (table, name);
 
-  if (data == NULL) {
+  if (searchAlgorithm[type] == NNS_SEARCH_GETALL) {
+    nnsconf_type_path conf_type = (nnsconf_type_path) type;
+    subplugin_info_s info;
+    guint i;
+    guint ret = nnsconf_get_subplugin_info (conf_type, &info);
+
+    for (i = 0; i < ret; i++) {
+      const gchar *fullpath = info.paths[i];
+
+      dlerror ();
+      G_UNLOCK (splock);
+      handle = dlopen (fullpath, RTLD_NOW);
+      /* If this is a correct subplugin, it will register itself */
+      G_LOCK (splock);
+      if (NULL == handle) {
+        g_critical ("Cannot dlopen %s with error %s.", fullpath, dlerror ());
+        continue;
+      }
+    }
+
+    searchAlgorithm[type] = NNS_SEARCH_NO_OP;
+  }
+
+  data = g_hash_table_lookup (table, name);
+  if (data == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
     /** Search and register if found with the conf */
     nnsconf_type_path conf_type = (nnsconf_type_path) type;
     const gchar *fullpath = nnsconf_get_fullpath (name, conf_type);
@@ -127,6 +165,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
     case NNS_SUBPLUGIN_FILTER:
     case NNS_SUBPLUGIN_DECODER:
     case NNS_EASY_CUSTOM_FILTER:
+    case NNS_SUBPLUGIN_CONVERTER:
       break;
     default:
       /* unknown sub-plugin type */
