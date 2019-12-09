@@ -62,7 +62,7 @@ Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer CPP Filter Subplugin Support
  This package allows nnstreamer to support custom filters of C++ classes
 
-Package: nnsreamer-cpp-dev
+Package: nnstreamer-cpp-dev
 Architecture: any
 Multi-Arch: same
 Depends: nnstreamer-cpp, ${shlibs:Depends}, ${misc:Depends}
