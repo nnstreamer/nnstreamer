@@ -58,6 +58,9 @@
 
 #include "tensor_filter.h"
 
+/** @todo rename & move this to better location */
+#define EVENT_NAME_UPDATE_MODEL "evt_update_model"
+
 /**
  * @brief Macro for debug mode.
  */
@@ -152,6 +155,8 @@ static gboolean gst_tensor_filter_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize);
 static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
+static gboolean gst_tensor_filter_sink_event (GstBaseTransform * trans,
+    GstEvent * event);
 
 /**
  * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
@@ -213,6 +218,9 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   /* Allocation units */
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensor_filter_transform_size);
+
+  /* setup sink event */
+  trans_class->sink_event = GST_DEBUG_FUNCPTR (gst_tensor_filter_sink_event);
 
   /* start/stop to call open/close */
   trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_filter_start);
@@ -866,6 +874,53 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
    */
   *othersize = 0;
   return TRUE;
+}
+
+/**
+ * @brief Event handler for sink pad of tensor filter.
+ * @param trans "this" pointer
+ * @param event a passed event object
+ * @return TRUE if there is no error.
+ */
+static gboolean
+gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
+{
+  GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
+
+  self = GST_TENSOR_FILTER_CAST (trans);
+  priv = &self->priv;
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CUSTOM_DOWNSTREAM:
+    {
+      const GstStructure *structure = gst_event_get_structure (event);
+      int ret = -1;
+
+      if (structure == NULL ||
+          !gst_structure_has_name (structure, EVENT_NAME_UPDATE_MODEL))
+        break;
+
+      if (priv->is_updatable) {
+        const GValue *value =
+            gst_structure_get_value (structure, "model_files");
+
+        if (value != NULL) {
+          g_object_set (self, "model", value, NULL);
+          ret = 0;
+        }
+      }
+
+      gst_event_unref (event);
+
+      return (ret == 0);
+    }
+    default:
+      break;
+  }
+
+  /** other events are handled in the default event handler */
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
 }
 
 /**
