@@ -27,6 +27,33 @@
 
 #include "nnstreamer_conf.h"
 
+/**
+ * Note that users still can place their custom filters anywhere if they
+ * designate them with the full path.
+ */
+
+/* Subplugin Naming Rules */
+#define NNSTREAMER_PREFIX_DECODER	"libnnstreamer_decoder_"
+#define NNSTREAMER_PREFIX_FILTER	"libnnstreamer_filter_"
+#define NNSTREAMER_PREFIX_CUSTOMFILTERS	""
+#define NNSTREAMER_PREFIX_CONVERTER	""
+/* Custom filter does not have prefix */
+
+/* Env-var names */
+static const gchar *NNSTREAMER_ENVVAR[NNSCONF_PATH_END] = {
+  [NNSCONF_PATH_FILTERS] = "NNSTREAMER_FILTERS",
+  [NNSCONF_PATH_DECODERS] = "NNSTREAMER_DECODERS",
+  [NNSCONF_PATH_CUSTOM_FILTERS] = "NNSTREAMER_CUSTOMFILTERS",
+  [NNSCONF_PATH_CONVERTERS] = "NNSTREAMER_CONVERTERS"
+};
+
+static const gchar *NNSTREAMER_PATH[NNSCONF_PATH_END] = {
+  [NNSCONF_PATH_FILTERS] = "/usr/lib/nnstreamer/filters/",
+  [NNSCONF_PATH_DECODERS] = "/usr/lib/nnstreamer/decoders/",
+  [NNSCONF_PATH_CUSTOM_FILTERS] = "/usr/lib/nnstreamer/customfilters/",
+  [NNSCONF_PATH_CONVERTERS] = "/usr/lib/nnstreamer/converters/",
+};
+
 static const gchar *subplugin_prefixes[] = {
   [NNSCONF_PATH_FILTERS] = NNSTREAMER_PREFIX_FILTER,
   [NNSCONF_PATH_DECODERS] = NNSTREAMER_PREFIX_DECODER,
@@ -36,7 +63,29 @@ static const gchar *subplugin_prefixes[] = {
   [NNSCONF_PATH_END] = NULL
 };
 
-#define CONF_SOURCES (3)
+typedef enum
+{
+  CONF_SOURCE_ENVVAR = 0,
+  CONF_SOURCE_INI = 1,
+  CONF_SOURCE_HARDCODE = 2,
+  CONF_SOURCE_END,
+} conf_sources;
+
+typedef struct
+{
+  /*************************************************
+   * Cached Raw Values                             *
+   * 0: ENVVAR. 1: CONFFILE, 2: Hardcoded          *
+   *************************************************/
+  gchar *path[CONF_SOURCE_END]; /**< directory paths */
+
+  /*************************************************
+   * Processed Values                              *
+   *************************************************/
+  gchar **files; /**< Null terminated list of full filepaths */
+  gchar **basename; /**< Null terminated list of basenames */
+} subplugin_conf;
+
 typedef struct
 {
   gboolean loaded;            /**< TRUE if loaded at least once */
@@ -45,27 +94,7 @@ typedef struct
 
   gchar *conffile;            /**< Location of conf file. */
 
-  /*************************************************
-   * Cached Raw Values                             *
-   * 0: ENVVAR. 1: CONFFILE, 2: Hardcoded          *
-   *************************************************/
-  gchar *pathFILTERS[CONF_SOURCES];        /**< directory paths for FILTERS */
-  gchar *pathDECODERS[CONF_SOURCES];       /**< directory paths for DECODERS */
-  gchar *pathCUSTOM_FILTERS[CONF_SOURCES]; /**< directory paths for CUSTOM FILTERS */
-  gchar *pathCONVERTERS[CONF_SOURCES]; /**< directory paths for CONVERTERS */
-
-  /*************************************************
-   * Processed Values                              *
-   *************************************************/
-  gchar **filesFILTERS;        /**< Null terminated list of full filepaths for FILTERS */
-  gchar **filesDECODERS;;      /**< Null terminated list of full filepaths for DECODERS */
-  gchar **filesCUSTOM_FILTERS; /**< Null terminated list of full filepaths for CUSTOM FILTERS */
-  gchar **filesCONVERTERS;     /**< Null terminated list of full filepaths for CONVERTERS */
-
-  gchar **basenameFILTERS;        /**< Null terminated list of basenames for FILTERS */
-  gchar **basenameDECODERS;;      /**< Null terminated list of basenames for DECODERS */
-  gchar **basenameCUSTOM_FILTERS; /**< Null terminated list of basenames for CUSTOM FILTERS */
-  gchar **basenameCONVERTERS;     /**< Null terminated list of basenames for CONVERTERS */
+  subplugin_conf conf[NNSCONF_PATH_END];
 } confdata;
 
 static confdata conf = { 0 };
@@ -177,36 +206,18 @@ static gboolean
 _get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
     gchar *** filepath)
 {
-  gchar **vstr, **vstrFull;
-
-  switch (type) {
-    case NNSCONF_PATH_FILTERS:
-      vstr = conf.basenameFILTERS;
-      vstrFull = conf.filesFILTERS;
-      break;
-    case NNSCONF_PATH_DECODERS:
-      vstr = conf.basenameDECODERS;
-      vstrFull = conf.filesDECODERS;
-      break;
-    case NNSCONF_PATH_CUSTOM_FILTERS:
-      /** follow through */
-    case NNSCONF_PATH_EASY_CUSTOM_FILTERS:
-      /* Both use the same paths */
-      vstr = conf.basenameCUSTOM_FILTERS;
-      vstrFull = conf.filesCUSTOM_FILTERS;
-      break;
-    case NNSCONF_PATH_CONVERTERS:
-      vstr = conf.basenameCONVERTERS;
-      vstrFull = conf.filesCONVERTERS;
-      break;
-    default:
-      /* unknown type */
-      g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
-      return FALSE;
+  if (type >= NNSCONF_PATH_END) {
+    /* unknown type */
+    g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
+    return FALSE;
   }
 
-  *basename = vstr;
-  *filepath = vstrFull;
+  /* Easy custom uses the configuration of custom */
+  if (type == NNSCONF_PATH_EASY_CUSTOM_FILTERS)
+    type = NNSCONF_PATH_CUSTOM_FILTERS;
+
+  *basename = conf.conf[type].basename;
+  *filepath = conf.conf[type].files;
   return TRUE;
 }
 
@@ -239,14 +250,14 @@ _g_list_foreach_vstr_helper (gpointer data, gpointer user_data)
  */
 static void
 _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
-    gchar * searchpath[CONF_SOURCES], nnsconf_type_path type)
+    gchar * searchpath[CONF_SOURCE_END], nnsconf_type_path type)
 {
   GSList *lstF = NULL, *lstB = NULL;
   vstr_helper vstrF, vstrB;
   guint i, counter;
 
   counter = 0;
-  for (i = 0; i < CONF_SOURCES; i++) {
+  for (i = 0; i < CONF_SOURCE_END; i++) {
     if (searchpath[i]) {
       _get_filenames (type, searchpath[i], &lstF, &lstB, &counter);
     }
@@ -281,7 +292,7 @@ nnsconf_loadconf (gboolean force_reload)
 {
   const gchar root_path_prefix[] = NNSTREAMER_SYS_ROOT_PATH_PREFIX;
   g_autoptr (GKeyFile) key_file = NULL;
-  guint i;
+  guint i, t;
 
   if (FALSE == force_reload && TRUE == conf.loaded)
     return TRUE;
@@ -292,21 +303,15 @@ nnsconf_loadconf (gboolean force_reload)
     /* Do Clean Up */
     g_free (conf.conffile);
 
-    for (i = 0; i < CONF_SOURCES; i++) {
-      g_free (conf.pathFILTERS[i]);
-      g_free (conf.pathDECODERS[i]);
-      g_free (conf.pathCUSTOM_FILTERS[i]);
-      g_free (conf.pathCONVERTERS[i]);
-    }
+    for (t = 0; t < NNSCONF_PATH_END; t++) {
 
-    g_strfreev (conf.filesFILTERS);
-    g_strfreev (conf.filesDECODERS);
-    g_strfreev (conf.filesCUSTOM_FILTERS);
-    g_strfreev (conf.filesCONVERTERS);
-    g_strfreev (conf.basenameFILTERS);
-    g_strfreev (conf.basenameDECODERS);
-    g_strfreev (conf.basenameCUSTOM_FILTERS);
-    g_strfreev (conf.basenameCONVERTERS);
+      for (i = 0; i < CONF_SOURCE_END; i++) {
+        g_free (conf.conf[t].path[i]);
+      }
+
+      g_strfreev (conf.conf[t].files);
+      g_strfreev (conf.conf[t].basename);
+    }
 
     /* init with 0 */
     memset (&conf, 0, sizeof (confdata));
@@ -348,40 +353,33 @@ nnsconf_loadconf (gboolean force_reload)
     conf.enable_symlink = _parse_bool_string (value, FALSE);
     g_free (value);
 
-    conf.pathFILTERS[1] =
+    conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI] =
         g_key_file_get_string (key_file, "filter", "filters", NULL);
-    conf.pathDECODERS[1] =
+    conf.conf[NNSCONF_PATH_DECODERS].path[CONF_SOURCE_INI] =
         g_key_file_get_string (key_file, "decoder", "decoders", NULL);
-    conf.pathCUSTOM_FILTERS[1] =
+    conf.conf[NNSCONF_PATH_CUSTOM_FILTERS].path[CONF_SOURCE_INI] =
         g_key_file_get_string (key_file, "filter", "customfilters", NULL);
-    conf.pathCONVERTERS[1] =
+    conf.conf[NNSCONF_PATH_CONVERTERS].path[CONF_SOURCE_INI] =
         g_key_file_get_string (key_file, "converter", "converters", NULL);
   }
 
-  /* Read from env variables. */
-  if (conf.enable_envvar) {
-    conf.pathFILTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_FILTERS);
-    conf.pathDECODERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_DECODERS);
-    conf.pathCUSTOM_FILTERS[0] =
-        _strdup_getenv (NNSTREAMER_ENVVAR_CUSTOMFILTERS);
-    conf.pathCONVERTERS[0] = _strdup_getenv (NNSTREAMER_ENVVAR_CONVERTERS);
+
+  for (t = 0; t < NNSCONF_PATH_END; t++) {
+    if (t == NNSCONF_PATH_EASY_CUSTOM_FILTERS)
+      continue;                 /* It does not have its own configuration */
+
+    /* Read from env variables. */
+    if (conf.enable_envvar)
+      conf.conf[t].path[CONF_SOURCE_ENVVAR] =
+          _strdup_getenv (NNSTREAMER_ENVVAR[t]);
+
+    /* Strdup the hardcoded */
+    conf.conf[t].path[CONF_SOURCE_HARDCODE] = g_strdup (NNSTREAMER_PATH[t]);
+
+    /* Fill in conf.files* */
+    _fill_in_vstr (&conf.conf[t].files, &conf.conf[t].basename,
+        conf.conf[t].path, t);
   }
-
-  /* Strdup the hardcoded */
-  conf.pathFILTERS[2] = g_strdup (NNSTREAMER_FILTERS);
-  conf.pathDECODERS[2] = g_strdup (NNSTREAMER_DECODERS);
-  conf.pathCUSTOM_FILTERS[2] = g_strdup (NNSTREAMER_CUSTOM_FILTERS);
-  conf.pathCONVERTERS[2] = g_strdup (NNSTREAMER_CONVERTERS);
-
-  /* Fill in conf.files* */
-  _fill_in_vstr (&conf.filesFILTERS, &conf.basenameFILTERS, conf.pathFILTERS,
-      NNSCONF_PATH_FILTERS);
-  _fill_in_vstr (&conf.filesDECODERS, &conf.basenameDECODERS, conf.pathDECODERS,
-      NNSCONF_PATH_DECODERS);
-  _fill_in_vstr (&conf.filesCUSTOM_FILTERS, &conf.basenameCUSTOM_FILTERS,
-      conf.pathCUSTOM_FILTERS, NNSCONF_PATH_CUSTOM_FILTERS);
-  _fill_in_vstr (&conf.filesCONVERTERS, &conf.basenameCONVERTERS,
-      conf.pathCONVERTERS, NNSCONF_PATH_CONVERTERS);
 
   conf.loaded = TRUE;
   return TRUE;

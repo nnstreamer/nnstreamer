@@ -53,40 +53,12 @@ G_BEGIN_DECLS
 #define NNSTREAMER_SO_FILE_EXTENSION	".so"
 #endif
 
-/* Env-var names */
-#define NNSTREAMER_ENVVAR_CONF_FILE     "NNSTREAMER_CONF"
-#define NNSTREAMER_ENVVAR_FILTERS       "NNSTREAMER_FILTERS"
-#define NNSTREAMER_ENVVAR_DECODERS      "NNSTREAMER_DECODERS"
-#define NNSTREAMER_ENVVAR_CUSTOMFILTERS "NNSTREAMER_CUSTOMFILTERS"
-#define NNSTREAMER_ENVVAR_CONVERTERS	"NNSTREAMER_CONVERTERS"
-
 /* Internal Hardcoded Values */
 #define NNSTREAMER_DEFAULT_CONF_FILE    "/etc/nnstreamer.ini"
 #ifndef NNSTREAMER_CONF_FILE
 #define NNSTREAMER_CONF_FILE NNSTREAMER_DEFAULT_CONF_FILE
 #endif
-#define NNSTREAMER_FILTERS              "/usr/lib/nnstreamer/filters/"
-#define NNSTREAMER_DECODERS             "/usr/lib/nnstreamer/decoders/"
-#define NNSTREAMER_CUSTOM_FILTERS       "/usr/lib/nnstreamer/customfilters/"
-#define NNSTREAMER_CONVERTERS		"/usr/lib/nnstreamer/converters/"
-/**
- *  Note that users still can place their custom filters anywhere if they
- * designate them with the full path.
- */
-
-/* Subplugin Naming Rules */
-#define NNSTREAMER_PREFIX_DECODER	"libnnstreamer_decoder_"
-#define NNSTREAMER_PREFIX_FILTER	"libnnstreamer_filter_"
-#define NNSTREAMER_PREFIX_CUSTOMFILTERS	""
-#define NNSTREAMER_PREFIX_CONVERTER	""
-/* Custom filter does not have prefix */
-
-/* struct for sub-plugins info (name and full path) */
-typedef struct
-{
-  gchar **names;
-  gchar **paths;
-} subplugin_info_s;
+#define NNSTREAMER_ENVVAR_CONF_FILE     "NNSTREAMER_CONF"
 
 typedef enum {
   NNSCONF_PATH_FILTERS = 0,
@@ -97,6 +69,13 @@ typedef enum {
 
   NNSCONF_PATH_END,
 } nnsconf_type_path;
+
+/* struct for sub-plugins info (name and full path) */
+typedef struct
+{
+  gchar **names;
+  gchar **paths;
+} subplugin_info_s;
 
 /**
  * @brief Load the .ini file
