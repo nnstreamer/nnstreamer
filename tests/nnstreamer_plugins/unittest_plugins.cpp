@@ -2966,12 +2966,17 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
+  const gchar *model_files[] = {
+    test_model, NULL,
+  };
+
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
   ASSERT_TRUE (prop != NULL);
 
   prop->fwname = fw_name;
-  prop->model_file = test_model;
+  prop->model_files = model_files;
+  prop->num_models = 1;
 
   ASSERT_TRUE (fw && fw->open && fw->close);
 

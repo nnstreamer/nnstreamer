@@ -94,12 +94,12 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   rd = g_new (runtime_data, 1);
   if (!rd)
     return -ENOMEM;
-  rd->model = get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_file);
+  rd->model = get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_files[0]);
 
   if (NULL == rd->model) {
     g_critical
         ("Cannot find the easy-custom model, \"%s\". You should provide a valid model name of easy-custom.",
-        prop->model_file);
+        prop->model_files[0]);
     g_free (rd);
     return -EINVAL;
   }

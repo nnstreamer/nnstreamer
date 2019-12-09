@@ -47,6 +47,7 @@
  * @brief Free memory
  */
 #define g_free_const(x) g_free((void*)(long)(x))
+#define g_strfreev_const(x) g_strfreev((void*)(long)(x))
 
 /**
  * @brief GstTensorFilter properties.
@@ -131,76 +132,23 @@ nnstreamer_filter_find (const char *name)
  * @brief Parse the string of model
  * @param[out] prop Struct containing the properties of the object
  * @param[in] model_files the prediction model paths
- * @return number of parsed model path
  */
-static guint
+static void
 gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
     const gchar * model_files)
 {
-  gchar **models;
-  gchar **model_0;
-  gchar **model_1;
-  guint num_models = 0;
-  guint num_model_0 = 0;
-  guint num_model_1 = 0;
+  if (prop == NULL)
+    return;
 
-  g_return_val_if_fail (prop != NULL, 0);
+  g_strfreev_const (prop->model_files);
 
   if (model_files) {
-    models = g_strsplit_set (model_files, ",", -1);
-    num_models = g_strv_length (models);
-
-    if (num_models == 1) {
-      prop->model_file = g_strdup (models[0]);
-    } else if (num_models == 2) {
-      model_0 = g_strsplit_set (models[0], "=", -1);
-      model_1 = g_strsplit_set (models[1], "=", -1);
-
-      num_model_0 = g_strv_length (model_0);
-      num_model_1 = g_strv_length (model_1);
-
-      if (num_model_0 == 1 && num_model_1 == 1) {
-        prop->model_file_sub = g_strdup (model_0[0]);
-        prop->model_file = g_strdup (model_1[0]);
-      } else if (g_ascii_strncasecmp (model_0[0], "init", 4) == 0 ||
-          g_ascii_strncasecmp (model_0[0], "Init", 4) == 0) {
-        prop->model_file_sub = g_strdup (model_0[1]);
-
-        if (num_model_1 == 2)
-          prop->model_file = g_strdup (model_1[1]);
-        else
-          prop->model_file = g_strdup (model_1[0]);
-      } else if (g_ascii_strncasecmp (model_0[0], "pred", 4) == 0 ||
-          g_ascii_strncasecmp (model_0[0], "Pred", 4) == 0) {
-        prop->model_file = g_strdup (model_0[1]);
-
-        if (num_model_1 == 2)
-          prop->model_file_sub = g_strdup (model_1[1]);
-        else
-          prop->model_file_sub = g_strdup (model_1[0]);
-      } else if (g_ascii_strncasecmp (model_1[0], "init", 4) == 0 ||
-          g_ascii_strncasecmp (model_1[0], "Init", 4) == 0) {
-        prop->model_file_sub = g_strdup (model_1[1]);
-
-        if (num_model_0 == 2)
-          prop->model_file = g_strdup (model_0[1]);
-        else
-          prop->model_file = g_strdup (model_0[0]);
-      } else if (g_ascii_strncasecmp (model_1[0], "pred", 4) == 0 ||
-          g_ascii_strncasecmp (model_1[0], "Pred", 4) == 0) {
-        prop->model_file = g_strdup (model_1[1]);
-
-        if (num_model_0 == 2)
-          prop->model_file_sub = g_strdup (model_0[1]);
-        else
-          prop->model_file_sub = g_strdup (model_0[0]);
-      }
-      g_strfreev (model_0);
-      g_strfreev (model_1);
-    }
-    g_strfreev (models);
+    prop->model_files = (const gchar **) g_strsplit_set (model_files, ",", -1);
+    prop->num_models = g_strv_length ((gchar **) prop->model_files);
+  } else {
+    prop->model_files = NULL;
+    prop->num_models = 0;
   }
-  return num_models;
 }
 
 
@@ -344,7 +292,8 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   prop->fw_opened = FALSE;
   prop->input_configured = FALSE;
   prop->output_configured = FALSE;
-  prop->model_file = NULL;
+  prop->model_files = NULL;
+  prop->num_models = 0;
   prop->accl_str = NULL;
   prop->custom_properties = NULL;
   gst_tensors_info_init (&prop->input_meta);
@@ -370,9 +319,9 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   prop = &priv->prop;
 
   g_free_const (prop->fwname);
-  g_free_const (prop->model_file);
   g_free_const (prop->accl_str);
   g_free_const (prop->custom_properties);
+  g_strfreev_const (prop->model_files);
 
   gst_tensors_info_free (&prop->input_meta);
   gst_tensors_info_free (&prop->output_meta);
@@ -428,43 +377,16 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_MODEL:
     {
       const gchar *model_files = g_value_get_string (value);
-      guint model_num;
+      int idx;
 
-      if (prop->model_file) {
-        gst_tensor_filter_common_close_fw (priv);
-        g_free_const (prop->model_file);
-        prop->model_file = NULL;
-      }
-
-      if (prop->model_file_sub) {
-        gst_tensor_filter_common_close_fw (priv);
-        g_free_const (prop->model_file_sub);
-        prop->model_file_sub = NULL;
-      }
-
-      /* Once configures, it cannot be changed in runtime */
       g_assert (model_files);
-      model_num = gst_tensor_filter_parse_modelpaths_string (prop, model_files);
-      if (model_num == 1) {
-        if (!g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR))
-          g_critical ("Cannot find the model file: %s\n"
-              "Ignore this if you have specified name and the model is preloaded.\n"
-              "Note that this should be refactored.\n", prop->model_file);
-          /** @todo This mechanism should be refactored. */
-      } else if (model_num == 2) {
-        if (!g_file_test (prop->model_file_sub, G_FILE_TEST_IS_REGULAR))
-          g_critical ("Cannot find the init model file: %s\n",
-              prop->model_file_sub);
-        if (!g_file_test (prop->model_file, G_FILE_TEST_IS_REGULAR))
-          g_critical ("Cannot find the pred model file: %s\n",
-              prop->model_file);
-      } else if (model_num > 2) {
-        /** @todo if the new NN framework requires more than 2 model files, this area will be implemented */
-        g_critical
-            ("There is no NN framework that requires model files more than 2. Current Input model files are :%d\n",
-            model_num);
-      } else {
-        g_critical ("Set model file path first\n");
+      gst_tensor_filter_parse_modelpaths_string (prop, model_files);
+
+      for (idx = 0; idx < prop->num_models; idx++) {
+        if (!g_file_test (prop->model_files[idx], G_FILE_TEST_IS_REGULAR)) {
+          g_critical ("Cannot find the model file [%d]: %s\n",
+              idx, prop->model_files[idx]);
+        }
       }
       break;
     }
@@ -648,8 +570,24 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       g_value_set_string (value, prop->fwname);
       break;
     case PROP_MODEL:
-      g_value_set_string (value, prop->model_file);
+    {
+      GString *gstr_models = g_string_new (NULL);
+      gchar *models;
+      int idx;
+
+      /* return a comma-separated string */
+      for (idx = 0; idx < prop->num_models; ++idx) {
+        if (idx != 0) {
+          g_string_append (gstr_models, ",");
+        }
+
+        g_string_append (gstr_models, prop->model_files[idx]);
+      }
+
+      models = g_string_free (gstr_models, FALSE);
+      g_value_take_string (value, models);
       break;
+    }
     case PROP_INPUT:
       if (prop->input_meta.num_tensors > 0) {
         gchar *dim_str;
@@ -785,6 +723,11 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 {
   if (!priv->prop.fw_opened && priv->fw) {
     if (priv->fw->open) {
+      /* at least one model should be configured before opening fw */
+      if (G_UNLIKELY (!priv->fw->run_without_model) &&
+          G_UNLIKELY (!(priv->prop.model_files &&
+                  priv->prop.num_models > 0 && priv->prop.model_files[0])))
+        return;
       /* 0 if successfully loaded. 1 if skipped (already loaded). */
       if (priv->fw->open (&priv->prop, &priv->privateData) >= 0)
         priv->prop.fw_opened = TRUE;

@@ -338,14 +338,15 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!priv->fw))
     goto unknown_framework;
   if (G_UNLIKELY (!priv->fw->run_without_model) &&
-      G_UNLIKELY (!prop->model_file))
+      G_UNLIKELY (!(prop->model_files &&
+              prop->num_models > 0 && prop->model_files[0])))
     goto unknown_model;
   if (G_UNLIKELY (!priv->fw->invoke_NN))
     goto unknown_invoke;
 
   /* 0. Check all properties. */
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
-      GST_STR_NULL (prop->model_file));
+      GST_STR_NULL (prop->model_files[0]));
 
   /* 1. Set input tensors from inbuf. */
   g_assert (gst_buffer_n_memory (inbuf) == prop->input_meta.num_tensors);

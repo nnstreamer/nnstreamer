@@ -352,7 +352,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   if (G_UNLIKELY (!priv->fw) || G_UNLIKELY (!priv->fw->invoke_NN))
     return FALSE;
   if (G_UNLIKELY (!priv->fw->run_without_model) &&
-      G_UNLIKELY (!priv->prop.model_file))
+      G_UNLIKELY (!(priv->prop.model_files &&
+          priv->prop.num_models > 0 && priv->prop.model_files[0])))
     return FALSE;
 
   /** start if not already started */
