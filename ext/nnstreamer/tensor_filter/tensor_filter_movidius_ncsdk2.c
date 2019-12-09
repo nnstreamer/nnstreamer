@@ -148,9 +148,9 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   /**
    * 2. Initialize graph (model) handle
    */
-  ret_code = ncGraphCreate (prop->model_file, &handle_graph);
+  ret_code = ncGraphCreate (prop->model_files[0], &handle_graph);
   if (ret_code != NC_OK) {
-    g_printerr ("Cannot create graph handle for \"%s\"\n", prop->model_file);
+    g_printerr ("Cannot create graph handle for \"%s\"\n", prop->model_files[0]);
     goto err_destroy_device_h;
   }
 
@@ -166,10 +166,10 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   /**
    * 4. Send model (graph) to the device
    */
-  file_model = g_mapped_file_new (prop->model_file, FALSE, NULL);
+  file_model = g_mapped_file_new (prop->model_files[0], FALSE, NULL);
   if (file_model == NULL) {
     g_printerr ("Failed to g_mapped_file_new for the model file, \"%s\"\n",
-        prop->model_file);
+        prop->model_files[0]);
     goto err_destroy_graph_h;
   }
 

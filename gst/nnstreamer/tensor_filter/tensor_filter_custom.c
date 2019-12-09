@@ -65,12 +65,14 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
     return 1;
   }
 
-  if (!prop->model_file || prop->model_file[0] == '\0') {
+  if (!prop->model_files || prop->num_models != 1 ||
+      !prop->model_files[0] || prop->model_files[0][0] == '\0') {
     /* The .so file path is not given */
     return -1;
   }
 
-  if (!nnsconf_validate_file (NNSCONF_PATH_CUSTOM_FILTERS, prop->model_file)) {
+  if (!nnsconf_validate_file (NNSCONF_PATH_CUSTOM_FILTERS,
+          prop->model_files[0])) {
     /* Cannot load the library */
     return -1;
   }
@@ -82,7 +84,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   /* Load .so if this is the first time for this instance. */
-  ptr->handle = dlopen (prop->model_file, RTLD_NOW);
+  ptr->handle = dlopen (prop->model_files[0], RTLD_NOW);
   if (!ptr->handle) {
     g_free (ptr);
     *private_data = NULL;

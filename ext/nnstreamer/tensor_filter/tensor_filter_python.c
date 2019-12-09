@@ -164,14 +164,15 @@ static int
 py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
 {
   /**
-   * prop->model_file contains the path of a python script
+   * prop->model_files[0] contains the path of a python script
    * prop->custom contains its arguments seperated by ' '
    */
   py_data *py;
 
   if (*private_data != NULL) {
     py = *private_data;
-    if (g_strcmp0 (prop->model_file, py_core_getScriptPath (py->py_private_data)) != 0) {
+    if (g_strcmp0 (prop->model_files[0],
+          py_core_getScriptPath (py->py_private_data)) != 0) {
       py_close (prop, private_data);
     } else {
       return 1;
@@ -184,7 +185,8 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     return -1;
   }
 
-  py->py_private_data = py_core_new (prop->model_file, prop->custom_properties);
+  py->py_private_data = py_core_new (prop->model_files[0],
+      prop->custom_properties);
 
   if (py->py_private_data) {
     if (py_core_init (py->py_private_data, prop)) {

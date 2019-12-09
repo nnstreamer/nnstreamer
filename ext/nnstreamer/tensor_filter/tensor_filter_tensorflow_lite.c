@@ -71,9 +71,9 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
   tflite_data *tf;
 
   if (*private_data != NULL) {
-    /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
+    /** @todo : Check the integrity of filter->data and filter->model_files, nnfw */
     tf = *private_data;
-    if (g_strcmp0 (prop->model_file,
+    if (g_strcmp0 (prop->model_files[0],
             tflite_core_getModelPath (tf->tflite_private_data)) != 0) {
       tflite_close (prop, private_data);
     } else {
@@ -86,7 +86,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  tf->tflite_private_data = tflite_core_new (prop->model_file, prop->accl_str);
+  tf->tflite_private_data = tflite_core_new (prop->model_files[0], prop->accl_str);
   if (tf->tflite_private_data) {
     if (tflite_core_init (tf->tflite_private_data)) {
       g_printerr ("failed to initialize the object: Tensorflow-lite");

@@ -27,10 +27,14 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, check_existence)
 TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_00_n)
 {
   int ret;
+  const gchar *model_files[] = {
+    "null.nnfw", NULL,
+  };
   GstTensorFilterProperties prop = {
     .fwname = "nnfw",
     .fw_opened = 0,
-    .model_file = "null.nnfw",
+    .model_files = model_files,
+    .num_models = 1,
   };
   void *data = NULL;
 
@@ -57,10 +61,14 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_01_n)
   /** nnfw needs a directory with model file and metadata in that directory */
   model_path = g_build_filename (root_path, "tests", "test_models", "models",
       NULL);
+  const gchar *model_files[] = {
+    model_path, NULL,
+  };
   GstTensorFilterProperties prop = {
     .fwname = "nnfw",
     .fw_opened = 0,
-    .model_file = model_path,
+    .model_files = model_files,
+    .num_models = 1,
   };
 
   test_model = g_build_filename (model_path, "add.tflite", NULL);
@@ -103,10 +111,14 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
   /** nnfw needs a directory with model file and metadata in that directory */
   model_path = g_build_filename (root_path, "tests", "test_models", "models",
       NULL);
+  const gchar *model_files[] = {
+    model_path, NULL,
+  };
   GstTensorFilterProperties prop = {
     .fwname = "nnfw",
     .fw_opened = 0,
-    .model_file = model_path,
+    .model_files = model_files,
+    .num_models = 1,
   };
 
   test_model = g_build_filename (model_path, "add.tflite", NULL);
@@ -181,10 +193,14 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
   /** nnfw needs a directory with model file and metadata in that directory */
   model_path = g_build_filename (root_path, "tests", "test_models", "models",
       NULL);
+  const gchar *model_files[] = {
+    model_path, NULL,
+  };
   GstTensorFilterProperties prop = {
     .fwname = "nnfw",
     .fw_opened = 0,
-    .model_file = model_path,
+    .model_files = model_files,
+    .num_models = 1,
   };
 
   /** this model adds 2 to the input data passed in float format */

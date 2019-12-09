@@ -73,7 +73,7 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
   gboolean torch_use_gpu;
   if (*private_data != NULL) {
     torch = *private_data;
-    if (g_strcmp0 (prop->model_file,
+    if (g_strcmp0 (prop->model_files[0],
             torch_core_getModelPath (torch->torch_private_data)) != 0) {
       torch_close (prop, private_data);
     } else {
@@ -90,7 +90,7 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  torch->torch_private_data = torch_core_new (prop->model_file);
+  torch->torch_private_data = torch_core_new (prop->model_files[0]);
 
   if (torch->torch_private_data) {
     if (torch_core_init (torch->torch_private_data, prop, torch_use_gpu)) {

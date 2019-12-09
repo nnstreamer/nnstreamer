@@ -45,8 +45,8 @@ std::map <char*, Tensor*> Caffe2Core::inputTensorMap;
 Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
 {
   g_assert (_model_path != NULL && _model_path_sub != NULL);
-  pred_model_path = g_strdup (_model_path);
-  init_model_path = g_strdup (_model_path_sub);
+  init_model_path = g_strdup (_model_path);
+  pred_model_path = g_strdup (_model_path_sub);
   first_run = true;
 
   gst_tensors_info_init (&inputTensorMeta);

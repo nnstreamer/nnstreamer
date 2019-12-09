@@ -73,7 +73,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     pdata = *private_data;
-    if (g_strcmp0 (prop->model_file, pdata->model_path) != 0) {
+    if (g_strcmp0 (prop->model_files[0], pdata->model_path) != 0) {
       nnfw_close (prop, private_data);  /* "reopen" */
     } else {
       return 1;
@@ -93,10 +93,10 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  status = nnfw_load_model_from_file (pdata->session, prop->model_file);
+  status = nnfw_load_model_from_file (pdata->session, prop->model_files[0]);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot load the model file: %s", prop->model_file);
+    g_printerr ("Cannot load the model file: %s", prop->model_files[0]);
     goto session_exit;
   }
 
@@ -104,11 +104,11 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("nnfw-runtime cannot prepare the session for %s",
-        prop->model_file);
+        prop->model_files[0]);
     goto session_exit;
   }
 
-  pdata->model_path = g_strdup (prop->model_file);
+  pdata->model_path = g_strdup (prop->model_files[0]);
   return 0;
 
 session_exit:

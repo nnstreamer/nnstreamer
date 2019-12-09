@@ -70,13 +70,20 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     void **private_data)
 {
   caffe2_data *cf2;
+
+  if (prop->num_models != 2) {
+    g_critical ("Caffe2 requires two model files\n");
+    return -1;
+  }
+
+  /* In caffe2, model_files[0] is a init model, and model_files[1] is a pred model */
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
     cf2 = *private_data;
-    if (g_strcmp0 (prop->model_file,
-            caffe2_core_getPredModelPath (cf2->caffe2_private_data)) != 0 ||
-        g_strcmp0 (prop->model_file_sub,
-            caffe2_core_getInitModelPath (cf2->caffe2_private_data)) != 0) {
+    if (g_strcmp0 (prop->model_files[0],
+            caffe2_core_getInitModelPath (cf2->caffe2_private_data)) != 0 ||
+        g_strcmp0 (prop->model_files[1],
+            caffe2_core_getPredModelPath (cf2->caffe2_private_data)) != 0) {
       caffe2_close (prop, private_data);
     } else {
       return 1;
@@ -88,8 +95,8 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  cf2->caffe2_private_data = caffe2_core_new (prop->model_file,
-      prop->model_file_sub);
+  cf2->caffe2_private_data = caffe2_core_new (prop->model_files[0],
+      prop->model_files[1]);
   if (cf2->caffe2_private_data) {
     if (caffe2_core_init (cf2->caffe2_private_data, prop)) {
       g_critical ("failed to initialize the object: Caffe2");
