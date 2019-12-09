@@ -93,13 +93,6 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  status = nnfw_set_default_backend(pdata->session, NNFW_DEFAULT_BACKEND);
-  if (status != NNFW_STATUS_NO_ERROR) {
-    err = -ENXIO;
-    g_printerr ("Cannot load the model file: %s", prop->model_file);
-    goto session_exit;
-  }
-
   status = nnfw_load_model_from_file (pdata->session, prop->model_file);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
