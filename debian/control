@@ -41,6 +41,13 @@ Depends: nnstreamer, pytorch, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Pytorch Support
  This package allows nnstreamer to support pytorch.
 
+Package: nnstreamer-caffe2
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, pytorch, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer Caffe2 Support
+ This package allows nnstreamer to support caffe2.
+
 Package: nnstreamer-python2
 Architecture: any
 Multi-Arch: same
