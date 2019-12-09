@@ -67,7 +67,7 @@ enum
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
   PROP_ACCELERATOR,
-  PROP_UPDATABLE_MODEL,
+  PROP_IS_UPDATABLE,
 };
 
 /**
@@ -270,8 +270,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "list of accelerators determines the backend (ignored with false). "
           "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU).",
           "", G_PARAM_READWRITE));
-  g_object_class_install_property (gobject_class, PROP_UPDATABLE_MODEL,
-      g_param_spec_string ("is-updatable", "Updatable model",
+  g_object_class_install_property (gobject_class, PROP_IS_UPDATABLE,
+      g_param_spec_boolean ("is-updatable", "Updatable model",
           "Indicate whether a given model to this tensor filter is "
           "updatable in runtime. (e.g., with on-device training)",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -388,6 +388,16 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
               idx, prop->model_files[idx]);
         }
       }
+
+      /* reload model if FW has been already opened */
+      if (priv->prop.fw_opened && priv->is_updatable) {
+        if (priv->fw && priv->fw->reloadModel) {
+          if (priv->fw->reloadModel (&priv->prop, &priv->privateData) != 0) {
+            g_critical ("Fail to reload model\n");
+          }
+        }
+      }
+
       break;
     }
     case PROP_INPUT:
@@ -534,9 +544,10 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
       break;
     }
-    case PROP_UPDATABLE_MODEL:
+    case PROP_IS_UPDATABLE:
     {
-      priv->updatable_model = g_value_get_boolean (value);
+      if (priv->fw->reloadModel != NULL)
+        priv->is_updatable = g_value_get_boolean (value);
       break;
     }
     default:
@@ -704,8 +715,8 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         g_value_set_string (value, "");
       }
       break;
-    case PROP_UPDATABLE_MODEL:
-      g_value_set_boolean (value, priv->updatable_model);
+    case PROP_IS_UPDATABLE:
+      g_value_set_boolean (value, priv->is_updatable);
       break;
     default:
       /* unknown property */

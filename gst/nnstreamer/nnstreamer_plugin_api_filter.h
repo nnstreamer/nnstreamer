@@ -202,6 +202,15 @@ typedef struct _GstTensorFilterFramework
        *
        * @param[in] data the data element.
        */
+
+  int (*reloadModel) (const GstTensorFilterProperties * prop, void **private_data);
+      /**< Optional. tensor_filter.c will call it when a model property is newly configured.
+       * @todo add more detail comments.
+       *
+       * @param[in] prop read-only property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
+       * @return 0 if ok. < 0 if error.
+       */
 } GstTensorFilterFramework;
 
 /* extern functions for subplugin management, exist in tensor_filter.c */
