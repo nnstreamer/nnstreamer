@@ -204,8 +204,7 @@ typedef struct _GstTensorFilterFramework
        */
 
   int (*reloadModel) (const GstTensorFilterProperties * prop, void **private_data);
-      /**< Optional. tensor_filter.c will call it when a model property is newly configured.
-       * @todo add more detail comments.
+      /**< Optional. tensor_filter.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model specified in the 'prop' argument. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
        *
        * @param[in] prop read-only property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
