@@ -69,17 +69,18 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     void **private_data)
 {
   tflite_data *tf;
+  int err;
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_files, nnfw */
     tf = *private_data;
-    if (g_strcmp0 (prop->model_files[0],
-            tflite_core_getModelPath (tf->tflite_private_data)) != 0) {
-      tflite_close (prop, private_data);
-    } else {
+
+    if (tflite_core_compareModelPath (tf->tflite_private_data, prop->model_files[0]))
       return 1;
-    }
+
+    tflite_close (prop, private_data);
   }
+
   tf = *private_data = g_new0 (tflite_data, 1);
   if (tf == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
@@ -87,16 +88,26 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
   }
 
   tf->tflite_private_data = tflite_core_new (prop->model_files[0], prop->accl_str);
-  if (tf->tflite_private_data) {
-    if (tflite_core_init (tf->tflite_private_data)) {
-      g_printerr ("failed to initialize the object: Tensorflow-lite");
-      return -2;
-    }
-    return 0;
-  } else {
+  if (tf->tflite_private_data == NULL) {
     g_printerr ("failed to create the object: Tensorflow-lite");
-    return -1;
+    err = -1;
+    goto err_free;
   }
+
+  if (tflite_core_init (tf->tflite_private_data) != 0) {
+    g_printerr ("failed to initialize the object: Tensorflow-lite");
+    tflite_core_delete (tf->tflite_private_data);
+    err = -2;
+    goto err_free;
+  }
+
+  return 0;
+
+err_free:
+  g_free (*private_data);
+  *private_data = NULL;
+
+  return err;
 }
 
 /**
@@ -182,6 +193,25 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   return tflite_core_setInputDim (tf->tflite_private_data, in_info, out_info);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @return 0 if OK. non-zero if error.
+ */
+static int
+tflite_reloadModel (const GstTensorFilterProperties * prop, void **private_data)
+{
+  tflite_data *tf;
+  tf = *private_data;
+  g_assert (*private_data);
+
+  if (prop->num_models != 1)
+    return -1;
+
+  return tflite_core_reloadModel (tf->tflite_private_data, prop->model_files[0]);
+}
+
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
@@ -192,6 +222,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
   .setInputDimension = tflite_setInputDim,
+  .reloadModel = tflite_reloadModel,
   .open = tflite_open,
   .close = tflite_close,
 };
