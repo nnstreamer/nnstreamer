@@ -5,7 +5,7 @@ $(warning NNSTREAMER_ROOT is not defined! Using $(LOCAL_PATH)/.. )
 NNSTREAMER_ROOT := $(LOCAL_PATH)/..
 endif
 
-NNSTREAMER_VERSION  := 1.0.0
+NNSTREAMER_VERSION  := 1.2.0
 
 NNSTREAMER_GST_HOME := $(NNSTREAMER_ROOT)/gst/nnstreamer
 NNSTREAMER_EXT_HOME := $(NNSTREAMER_ROOT)/ext/nnstreamer
