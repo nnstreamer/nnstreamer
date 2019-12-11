@@ -22,3 +22,4 @@ option('enable-nnfw-runtime', type: 'boolean', value: false) # true to enable nn
 option('nnfw-runtime-prioritize', type: 'boolean', value: false) # true to set higher priority for nnfw for tflite extension files in auto mode
 option('enable-cppfilter', type: 'boolean', value: true)
 option('enable-tizen-sensor', type: 'boolean', value: false)
+option('enable-edgetpu', type: 'boolean', value: false)

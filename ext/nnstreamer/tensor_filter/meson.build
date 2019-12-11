@@ -271,3 +271,24 @@ if get_option('enable-cppfilter')
     subdir: 'nnstreamer'
   )
 endif
+
+if get_option('enable-edgetpu')
+  edgetpu_dep = dependency('edgetpu', required: false)
+  if not edgetpu_dep.found()
+    # Ubuntu edgetpu package does not have pkgconfig file
+    edgetpu_dep = cc.find_library('edgetpu')
+  endif
+  filter_sub_edgetpu_sources = ['tensor_filter_edgetpu.cc']
+
+  nnstreamer_filter_edgetpu_sources = []
+  foreach s : filter_sub_edgetpu_sources
+    nnstreamer_filter_edgetpu_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  shared_library('nnstreamer_filter_edgetpu',
+    nnstreamer_filter_edgetpu_sources,
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, tflite_dep],
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+endif
