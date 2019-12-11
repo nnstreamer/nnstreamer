@@ -1,3 +1,18 @@
+1.0.0 -> 1.2.0:
+	- Tizen Sensor Framework Integration (tensor_src_tizensensor)
+	- Single C-API latency shortened by bypassing GST pipeline constructions
+	- NNFW-Runtime Integration (tensor_filter::nnfw)
+		- NNFW: https://git.tizen.org/cgit/platform/core/ml/nnfw/
+		- Integrated & tested along with ARMCL.
+	- C++ classes are suggested (WIP)
+	- Converter accepts external subplugins (tensor_converter::*)
+	- Custom-Easy mode (tensor_filter::custom_easy) for future "lambda func" support.
+	- Tizen ncsdk2 support
+	- Types for path configurations are no more hardcoded.
+	- Overall architecture improved/refactored (Lowered CC, DC, and so on)
+	- Fixes from 1.0.1 (Tizen 5.5 M2's stable/commercialization branch)
+	- Documentation updates and bugfixes.
+
 0.3.0 -> 1.0.0:
 	- Tizen Public C-API (Single & Pipeline) Reviewed and Confirmed!
 	- Tizen Public C#-API (Single) Reviewed and Confirmed!
