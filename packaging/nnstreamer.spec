@@ -472,6 +472,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %changelog
 * Wed Dec 11 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
+- 1.3.0 development starts
+
+* Wed Dec 11 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 1.2.0
 
 * Thu Sep 26 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
