@@ -228,8 +228,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_MODEL,
       g_param_spec_string ("model", "Model filepath",
-          "File path to the model file. Separated with \
-          ',' in case of multiple model files(like caffe2)", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "File path to the model file. Separated with ',' in case of multiple model files(like caffe2)",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_string ("input", "Input dimension",
           "Input tensor dimension from inner array, up to 4 dimensions ?", "",
