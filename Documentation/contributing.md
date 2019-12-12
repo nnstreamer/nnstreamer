@@ -15,6 +15,12 @@ However, even if you are not a reviewer (designated by committer or maintainers)
 
 The submitter has the first responsibility of keeping the created PR clean and neat (rebase whenever there are merge conflicts), following up the feedback, testing when needed.
 
+### Additional requirements for codes
+* Each feature should come with a rich set of test cases that can be executed as unit tests during build. If the feature is more invasive or richer, you need more and richer test cases. Refer to other test cases in /tests directory, which use either GTest or SSAT.
+* Try to stick with C89. Try to avoid introducing additional dependencies of libraries. If you are going to use C++ or additional libraries, your codes may be located at /ext/* so that they can be "optional" features.
+* If your functions or structs/classes are going to be accessed by other modules or NNStreamer users, provide full descriptions of all entries with Doxygen.
+* Passing all the tests of TAOS-CI is a neccesary condition, but not a satisfying condition.
+
 ### Any commits are required to be reviewed and approved before merged.
 
 ## Signing off commits
