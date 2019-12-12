@@ -1,8 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
-include $(LOCAL_PATH)/nnstreamer.mk
-
 ifndef NNSTREAMER_ROOT
 NNSTREAMER_ROOT := $(LOCAL_PATH)/..
 endif
@@ -24,6 +22,9 @@ GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/x86_64
 else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
+
+# Common definition for NNStreamer
+include $(LOCAL_PATH)/nnstreamer.mk
 
 # Define shared libraries that are required by a gstreamer plug-in.
 define shared_lib_common
@@ -86,10 +87,7 @@ LOCAL_MODULE        := nnstreamer
 LOCAL_SRC_FILES     := $(NNSTREAMER_COMMON_SRCS) $(NNSTREAMER_PLUGINS_SRCS)
 LOCAL_C_INCLUDES    := $(NNSTREAMER_INCLUDES)
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 LOCAL_SHARED_LIBRARIES := $(GST_BUILDING_BLOCK_LIST)
 
@@ -175,10 +173,7 @@ LOCAL_CFLAGS        += -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS      += -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -194,10 +189,7 @@ LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -213,10 +205,7 @@ LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -232,10 +221,7 @@ LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -251,10 +237,7 @@ LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 

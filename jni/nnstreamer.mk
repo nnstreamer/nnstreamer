@@ -1,8 +1,11 @@
 # This mk file defines common features to build NNStreamer library for Android.
 
 ifndef NNSTREAMER_ROOT
-$(warning NNSTREAMER_ROOT is not defined! Using $(LOCAL_PATH)/.. )
-NNSTREAMER_ROOT := $(LOCAL_PATH)/..
+$(error NNSTREAMER_ROOT is not defined!)
+endif
+
+ifndef GSTREAMER_ROOT_ANDROID
+$(error GSTREAMER_ROOT_ANDROID is not defined!)
 endif
 
 NNSTREAMER_VERSION  := 1.0.0
@@ -98,6 +101,12 @@ NNSTREAMER_DECODER_IS_SRCS := \
 NO_AUDIO := false
 
 ENABLE_NNAPI :=false
+
+GST_HEADERS_COMMON := \
+    $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
+    $(GSTREAMER_ROOT)/include/glib-2.0 \
+    $(GSTREAMER_ROOT)/lib/glib-2.0/include \
+    $(GSTREAMER_ROOT)/include
 
 GST_LIBS_COMMON := gstreamer-1.0 gstbase-1.0 gstvideo-1.0 glib-2.0 \
                    gobject-2.0 intl z bz2 orc-0.4 gmodule-2.0 gsttag-1.0 iconv \
