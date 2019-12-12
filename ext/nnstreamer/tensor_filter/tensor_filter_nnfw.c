@@ -95,6 +95,15 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
+  /**
+   * @todo: remove after fixes to nnfw package for aarch64
+   */
+  status = nnfw_set_available_backends(pdata->session, NNFW_DEFAULT_BACKEND);
+  if (status != NNFW_STATUS_NO_ERROR) {
+    err = -EINVAL;
+    g_printerr ("Cannot set nnfw-runtime backend to %s", NNFW_DEFAULT_BACKEND);
+    goto unalloc_exit;
+  }
   /** @note nnfw opens the first model listed in the MANIFEST file */
   model_path = g_path_get_dirname (prop->model_files[0]);
   meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
@@ -107,7 +116,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto session_exit;
   }
 
-  /* @todo open using model_file once nnfw works with it */
+  /** @todo open using model_file once nnfw works with it */
   status = nnfw_load_model_from_file (pdata->session, model_path);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
