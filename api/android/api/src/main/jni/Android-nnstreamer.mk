@@ -32,15 +32,10 @@ LOCAL_C_INCLUDES := \
     $(NNSTREAMER_CAPI_INCLUDES)
 
 # common headers (gstreamer, glib)
-LOCAL_C_INCLUDES += \
-    $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-    $(GSTREAMER_ROOT)/include/glib-2.0 \
-    $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-    $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 # common headers (tensorflow-lite)
-LOCAL_C_INCLUDES += \
-    $(TF_LITE_INCLUDES)
+LOCAL_C_INCLUDES += $(TF_LITE_INCLUDES)
 
 LOCAL_CFLAGS += -O2 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS += -std=c++11 -O2 -DVERSION=\"$(NNSTREAMER_VERSION)\"

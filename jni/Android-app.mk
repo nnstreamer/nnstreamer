@@ -20,8 +20,6 @@ ifndef NNSTREAMER_ROOT
 NNSTREAMER_ROOT := $(LOCAL_PATH)/..
 endif
 
-include $(LOCAL_PATH)/nnstreamer.mk
-
 CUSTOM_LINKER64    := -fPIE -pie -Wl,-dynamic-linker,/data/nnstreamer/libandroid/linker64
 
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
@@ -40,6 +38,9 @@ GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/x86_64
 else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
+
+# Common definition for NNStreamer
+include $(LOCAL_PATH)/nnstreamer.mk
 
 # Define shared libraries that are required by a gstreamer plug-in.
 define shared_lib_common
@@ -108,10 +109,7 @@ LOCAL_LDFLAGS   := $(CUSTOM_LINKER64)
 LOCAL_C_INCLUDES       := $(NNSTREAMER_INCLUDES)
 LOCAL_SHARED_LIBRARIES := $(BUILDING_BLOCK_LIST)
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 GSTREAMER_ANDROID_INCLUDE := $(GSTREAMER_ROOT)/include
 

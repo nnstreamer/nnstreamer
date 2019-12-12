@@ -31,8 +31,6 @@ ifndef NNSTREAMER_ROOT
 NNSTREAMER_ROOT := $(LOCAL_PATH)/..
 endif
 
-include $(LOCAL_PATH)/nnstreamer.mk
-
 # Do not specify "TARGET_ARCH_ABI" in this file. If you want to append additional architecture,
 # Please append an architecture name behind "APP_ABI" in Application.mk file.
 
@@ -49,6 +47,9 @@ GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/x86_64
 else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
+
+# Common definition for NNStreamer
+include $(LOCAL_PATH)/nnstreamer.mk
 
 # Define shared libraries that are required by a gstreamer plug-in.
 define shared_lib_common
@@ -124,10 +125,7 @@ ifeq ($(NO_AUDIO), false)
 BUILDING_BLOCK_LIST += gstaudio-1.0 gstbadaudio-1.0 gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
 endif
 
-LOCAL_C_INCLUDES += $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
-     $(GSTREAMER_ROOT)/include/glib-2.0 \
-     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
-     $(GSTREAMER_ROOT)/include
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 LOCAL_SHARED_LIBRARIES := $(BUILDING_BLOCK_LIST)
 
