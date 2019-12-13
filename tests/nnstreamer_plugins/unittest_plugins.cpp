@@ -13,6 +13,7 @@
 #include <gst/check/gstcheck.h>
 #include <gst/check/gsttestclock.h>
 #include <gst/check/gstharness.h>
+#include <glib/gstdio.h>
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 
@@ -3090,6 +3091,252 @@ TEST (test_tensor_filter, reload_tflite_set_property)
   gst_harness_teardown (h);
   g_free (test_model);
   g_free (test_model2);
+}
+
+/**
+ * @brief Test to reload tf-lite; model does not exist (negative)
+ */
+TEST (test_tensor_filter, reload_tflite_model_not_found_n)
+{
+  const gchar fw_name[] = "tensorflow-lite";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    test_model, NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
+  /* open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) == 0);
+
+  g_free (test_model);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v2_1.0_224_quant.tflite", NULL);
+  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+
+  /* reload tf-lite model */
+  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+
+  g_free (test_model);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "model_does_not_exist.tflite", NULL);
+  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+
+  /* reload tf-lite model which does not exist */
+  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* close tf-lite model */
+  fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief Test to reload tf-lite; model has wrong dimension (negative)
+ */
+TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
+{
+  const gchar fw_name[] = "tensorflow-lite";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    test_model, NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
+  /* open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) == 0);
+
+  g_free (test_model);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL); /* it has unmatched dimension with mobilenet v1 */
+  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+
+  /* reload tf-lite model with unmatched dims */
+  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* close tf-lite model */
+  fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief Test to reload tf-lite; same model does not exist (negative)
+ */
+TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
+{
+  const gchar fw_name[] = "tensorflow-lite";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+  gchar *test_model_renamed;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  test_model_renamed = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_renamed.tflite", NULL);
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    test_model, NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
+  /* open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) == 0);
+
+  /* reload tf-lite model again */
+  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* rename the model */
+  ASSERT_TRUE (g_rename (test_model, test_model_renamed) == 0);
+
+  /* reload tf-lite model which does not exist */
+  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* test model rollback */
+  ASSERT_TRUE (g_rename (test_model_renamed, test_model) == 0);
+
+  /* close tf-lite model */
+  fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+  g_free (test_model_renamed);
+}
+
+/**
+ * @brief Test to reload tf-lite; same model has wrong dimension (negative)
+ */
+TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
+{
+  const gchar fw_name[] = "tensorflow-lite";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+  gchar *test_model_backup;
+  gchar *test_model_renamed;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  test_model_backup = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_backup.tflite", NULL);
+  test_model_renamed = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL);
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    test_model, NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
+  /* open tf-lite model */
+  EXPECT_TRUE (fw->open (prop, &private_data) == 0);
+
+  /* reload tf-lite model again */
+  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* rename the model */
+  ASSERT_TRUE (g_rename (test_model, test_model_backup) == 0);
+  ASSERT_TRUE (g_rename (test_model_renamed, test_model) == 0);
+
+  /* reload tf-lite model with unmatched dims */
+  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+
+  /* test model rollback */
+  ASSERT_TRUE (g_rename (test_model, test_model_renamed) == 0);
+  ASSERT_TRUE (g_rename (test_model_backup, test_model) == 0);
+
+  /* close tf-lite model */
+  fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+  g_free (test_model_backup);
+  g_free (test_model_renamed);
 }
 
 #endif /* ENABLE_TENSORFLOW_LITE */
