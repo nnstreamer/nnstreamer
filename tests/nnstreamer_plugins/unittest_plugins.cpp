@@ -2992,6 +2992,106 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
   g_free (prop);
   g_free (test_model);
 }
+
+/**
+ * @brief Test to reload tf-lite model set_property of model/is-updatable
+ */
+TEST (test_tensor_filter, reload_tflite_set_property)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  gsize in_size, out_size;
+  GstTensorConfig config;
+  gboolean prop_updatable;
+  gchar *str_launch_line, *prop_string;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model, *test_model2;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  test_model2 = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v2_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model2, G_FILE_TEST_EXISTS));
+
+  h = gst_harness_new_empty ();
+  ASSERT_TRUE (h != NULL);
+
+  str_launch_line = g_strdup_printf ("tensor_filter framework=tensorflow-lite "
+      "is-updatable=true model=%s", test_model);
+  gst_harness_add_parse (h,  str_launch_line);
+  g_free (str_launch_line);
+
+  /* input tensor info */
+  config.info.type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+
+  /* playing state */
+  wait_for_element_state (h->element, GST_STATE_PLAYING);
+
+  /* paused state */
+  wait_for_element_state (h->element, GST_STATE_PAUSED);
+
+  /* get properties */
+  gst_harness_get (h, "tensor_filter", "framework", &prop_string, NULL);
+  EXPECT_TRUE (g_str_equal (prop_string, "tensorflow-lite"));
+  g_free (prop_string);
+
+  gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
+  EXPECT_TRUE (g_str_equal (prop_string, test_model));
+  g_free (prop_string);
+
+  gst_harness_get (h, "tensor_filter", "is-updatable", &prop_updatable, NULL);
+  EXPECT_TRUE (prop_updatable);
+
+  /* playing state */
+  wait_for_element_state (h->element, GST_STATE_PLAYING);
+
+  /* push buffer (dummy input RGB 224x224, output 1001) */
+  in_size = 3 * 224 * 224;
+  out_size = 1001;
+
+  in_buf = gst_harness_create_buffer (h, in_size);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), out_size);
+  gst_buffer_unref (out_buf);
+
+  /* set second model file */
+  gst_harness_set (h, "tensor_filter", "model", test_model2, NULL);
+
+  gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
+  EXPECT_TRUE (g_str_equal (prop_string, test_model2));
+  g_free (prop_string);
+
+  /* push buffer again */
+  in_buf = gst_harness_create_buffer (h, in_size);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), out_size);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+  g_free (test_model);
+  g_free (test_model2);
+}
+
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
