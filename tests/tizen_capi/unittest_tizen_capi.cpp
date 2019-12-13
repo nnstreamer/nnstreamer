@@ -2261,15 +2261,17 @@ single_shot_loop_test (void *arg)
 
   status = ml_single_open (&single, ss_data->test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  if (ss_data->expect)
+  if (ss_data->expect) {
     EXPECT_EQ (status, ML_ERROR_NONE);
+  }
   ss_data->single = &single;
 
   /* set timeout */
   if (ss_data->timeout != 0) {
     status = ml_single_set_timeout (single, ss_data->timeout);
-    if (ss_data->expect)
+    if (ss_data->expect) {
       EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+    }
     if (status == ML_ERROR_NOT_SUPPORTED)
       ss_data->timeout = 0;
   }
@@ -2318,8 +2320,9 @@ single_shot_loop_test (void *arg)
   ml_tensors_info_destroy (in_info);
 
   status = ml_single_close (single);
-  if (ss_data->expect)
+  if (ss_data->expect) {
     EXPECT_EQ (status, ML_ERROR_NONE);
+  }
 
   return NULL;
 }
