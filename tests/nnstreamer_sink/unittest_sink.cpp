@@ -138,6 +138,7 @@ typedef struct
   TestType test_type; /**< test pipeline */
   tensor_type t_type; /**< tensor type */
   char *tmpfile; /**< tmpfile to write */
+  gboolean need_sync; /**< sync on the clock */
 } TestOption;
 
 /**
@@ -853,7 +854,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_mux sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -864,7 +865,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_mux sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -875,7 +876,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_mux sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -887,7 +888,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_mux sync_mode=basepad sync_option=1:1000000000 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_mux sync_mode=basepad sync_option=1:1000000000 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -898,7 +899,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_merge mode=linear option=3 sync_mode=slowest name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -909,7 +910,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=0:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -920,7 +921,7 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_0 "
           "videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=25/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! mux.sink_1 "
-          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink sync=true name=test_sink t. ! queue ! filesink location=%s",
+          "tensor_merge mode=linear option=3 sync_mode=basepad sync_option=1:0 name=mux ! tensor_filter framework=custom model=%s/libnnscustom_framecounter.%s ! tee name=t ! queue ! tensor_sink name=test_sink t. ! queue ! filesink location=%s",
           option.num_buffers * 10, custom_dir ? custom_dir : "./tests", SO_EXT,
           option.num_buffers * 25, custom_dir ? custom_dir : "./tests", SO_EXT,
           custom_dir ? custom_dir : "./tests", SO_EXT, option.tmpfile);
@@ -964,6 +965,7 @@ _setup_pipeline (TestOption & option)
     /** print logs */
     g_object_set (g_test_data.sink, "silent", (gboolean) FALSE, NULL);
   }
+  g_object_set (g_test_data.sink, "sync", (gboolean) option.need_sync, NULL);
 
   /** signal for new data */
   handle_id = g_signal_connect (g_test_data.sink, "new-data",
@@ -1025,6 +1027,7 @@ TEST (tensor_sink_test, properties)
   gboolean qos, res_qos;
   TestOption option = { 1, TEST_TYPE_VIDEO_RGB };
 
+  option.need_sync = TRUE;
   ASSERT_TRUE (_setup_pipeline (option));
 
   /** default signal-rate is 0 */
@@ -4212,6 +4215,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_1 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
@@ -4276,6 +4280,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
@@ -4340,6 +4345,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_3 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
@@ -4423,6 +4429,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_1 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
@@ -4487,6 +4494,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
@@ -4551,6 +4559,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_3 };
 
+  option.need_sync = TRUE;
   option.tmpfile = _get_temp_filename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
