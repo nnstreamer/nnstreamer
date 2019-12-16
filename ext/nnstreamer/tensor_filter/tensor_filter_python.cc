@@ -1,4 +1,5 @@
 /**
+ * GStreamer Tensor_Filter, Python Module
  * Copyright (C) 2019 Samsung Electronics Co., Ltd. All rights reserved.
  * Copyright (C) 2019 Dongju Chae <dongju.chae@samsung.com>
  *
@@ -14,15 +15,41 @@
  *
  */
 /**
- * @file   tensor_filter_python_core.cc
- * @author Dongju Chae <dongju.chae@samsung.com>
- * @date   03/29/2019
- * @brief  connection with python libraries.
- * @bug     No known bugs.
+ * @file    tensor_filter_python.cc
+ * @date    10 Apr 2019
+ * @brief   Python module for tensor_filter gstreamer plugin
+ * @see     http://github.com/nnsuite/nnstreamer
+ * @author  Dongju Chae <dongju.chae@samsung.com>
+ * @bug     No known bugs except for NYI items
  */
 
-#include "tensor_filter_python_core.h"
+/**
+ * SECTION:element-tensor_filter_python
+ *
+ * A filter that loads and executes a python script implementing a custom filter.
+ * The python script should be provided.
+ *
+ * <refsect2>
+ * <title>Example launch line</title>
+ * |[
+ * gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_filter framework="python2" model="${PATH_TO_SCRIPT}" ! tensor_sink
+ * ]|
+ * </refsect2>
+ */
+
+#include <Python.h>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+#include <structmember.h>
+#include <string.h>
+#include <dlfcn.h>
+
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_conf.h>
+
+#include <vector>
+#include <map>
 
 /**
  * @brief Macro for debug mode.
@@ -37,7 +64,80 @@
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.so.1.0"
 #endif
 
+#define Py_ERRMSG(...) do {PyErr_Print(); g_critical (__VA_ARGS__);} while (0);
+
+/** @brief Callback type for custom filter */
+typedef enum _cb_type
+{
+  CB_SETDIM = 0,
+  CB_GETDIM,
+
+  CB_END,
+} cb_type;
+
+/**
+ * @brief	Python embedding core structure
+ */
+class PYCore
+{
+public:
+  /**
+   * member functions.
+   */
+  PYCore (const char* _script_path, const char* _custom);
+  ~PYCore ();
+
+  int init (const GstTensorFilterProperties * prop);
+  int loadScript ();
+  const char* getScriptPath();
+  int getInputTensorDim (GstTensorsInfo * info);
+  int getOutputTensorDim (GstTensorsInfo * info);
+  int setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
+  int run (const GstTensorMemory * input, GstTensorMemory * output);
+
+  int parseOutputTensors(PyObject* result, GstTensorsInfo * info);
+
+  /** @brief Return callback type */
+  cb_type getCbType () { return callback_type; }
+  /** @brief Lock python-related actions */
+  void Py_LOCK() { g_mutex_lock (&py_mutex); }
+  /** @brief Unlock python-related actions */
+  void Py_UNLOCK() { g_mutex_unlock (&py_mutex); }
+
+  PyObject* PyTensorShape_New (const GstTensorInfo *info);
+
+  int checkTensorType (GstTensorMemory *output, PyArrayObject *array);
+  int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
+
+  tensor_type getTensorType (NPY_TYPES npyType);
+  NPY_TYPES getNumpyType (tensor_type tType);
+
+  static std::map <void*, PyArrayObject*> outputArrayMap;
+private:
+
+  const std::string script_path;  /**< from model_path property */
+  const std::string module_args;  /**< from custom property */
+
+  std::string module_name;
+
+  cb_type callback_type;
+
+  PyObject* core_obj;
+  PyObject* shape_cls;
+  GMutex py_mutex;
+
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+
+  bool configured; /**< True if the script is successfully loaded */
+  void *handle; /**< returned handle by dlopen() */
+};
+
+void init_filter_py (void) __attribute__ ((constructor));
+void fini_filter_py (void) __attribute__ ((destructor));
+
 std::map <void*, PyArrayObject*> PYCore::outputArrayMap;
+static GstTensorFilterFramework *filter_framework = NULL;
 
 /**
  * @brief	PYCore creator
@@ -46,7 +146,7 @@ std::map <void*, PyArrayObject*> PYCore::outputArrayMap;
  * @return	Nothing
  */
 PYCore::PYCore (const char* _script_path, const char* _custom)
-  : script_path(_script_path), module_args(_custom)
+  : script_path(_script_path), module_args(_custom != NULL ? _custom : "")
 {
   /**
    * To fix import error of python extension modules
@@ -608,112 +708,29 @@ PYCore::getNumpyType (tensor_type tType)
 }
 
 /**
- * @brief allocate new PYCore class.
- * @param script_path : python script path
- * @return  Nothing
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : python plugin's private data
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
  */
-void *
-py_core_new (const char * _script_path, const char * _custom)
+static int
+py_run (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
-  return new PYCore (_script_path, _custom != NULL ? _custom : "");
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->run (input, output);
 }
 
 /**
- * @brief	delete the PYCore class.
- * @param	py	: the class object
- * @return	Nothing
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] data The data element.
  */
-void
-py_core_delete (void * py)
-{
-  PYCore *c = (PYCore *) py;
-  delete c;
-}
-
-/**
- * @brief	initialize the object with py script
- * @param	py	: the class object
- * @return 0 if OK. non-zero if error.
- */
-int
-py_core_init (void * py, const GstTensorFilterProperties * prop)
-{
-  PYCore *c = (PYCore *) py;
-  return c->init (prop);
-}
-
-/**
- * @brief	get script path
- * @param	py	: the class object
- * @return	script path
- */
-const char *
-py_core_getScriptPath (void * py)
-{
-  PYCore *c = (PYCore *) py;
-  return c->getScriptPath ();
-}
-
-/**
- * @brief	get the Dimension of Input Tensor of script
- * @param	py	the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-py_core_getInputDim (void * py, GstTensorsInfo * info)
-{
-  PYCore *c = (PYCore *) py;
-  return c->getInputTensorDim (info);
-}
-
-/**
- * @brief	get the Dimension of Output Tensor of script
- * @param	py	the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-py_core_getOutputDim (void * py, GstTensorsInfo * info)
-{
-  PYCore *c = (PYCore *) py;
-  return c->getOutputTensorDim (info);
-}
-
-/**
- * @brief	set the Dimension of Input Tensor and return the Dimension of Output Tensor
- * @param	py	the class object
- * @param[in] info Structure for input tensor info.
- * @param[out] info Structure for output tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-py_core_setInputDim (void * py, const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
-{
-  PYCore *c = (PYCore *) py;
-  return c->setInputTensorDim (in_info, out_info);
-}
-
-/**
- * @brief	run the script
- * @param	py	: the class object
- * @param[in] input : The array of input tensors
- * @param[out]  output : The array of output tensors
- * @return 0 if OK. non-zero if error.
- */
-int
-py_core_run (void * py, const GstTensorMemory * input, GstTensorMemory * output)
-{
-  PYCore *c = (PYCore *) py;
-  return c->run (input, output);
-}
-
-/**
- * @brief	the destroy notify method for Python. it will free the output array buffer
- * @param[in] data : the data element destroyed at the pipeline
- */
-void
-py_core_destroyNotify (void * data)
+static void
+py_destroyNotify (void *data)
 {
   std::map <void*, PyArrayObject*>::iterator it;
   it = PYCore::outputArrayMap.find(data);
@@ -725,13 +742,188 @@ py_core_destroyNotify (void * data)
 }
 
 /**
- * @brief return this module's callback type
- * @param None
- * @return callback type
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] prop read-only property values
+ * @param[in/out] private_data python plugin's private data
+ * @param[in] in_info structure of input tensor info
+ * @param[out] out_info structure of output tensor info
  */
-cb_type
-py_core_getCbType (void * py)
+static int
+py_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  PYCore *c = (PYCore *) py;
-  return c->getCbType ();
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->setInputTensorDim (in_info, out_info);
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : python plugin's private data
+ * @param[out] info The dimesions and types of input tensors
+ */
+static int
+py_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
+{
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getInputTensorDim (info);
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : python plugin's private data
+ * @param[out] info The dimesions and types of output tensors
+ */
+static int
+py_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
+{
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getOutputTensorDim (info);
+}
+
+/**
+ * @brief Free privateData and move on.
+ */
+static void
+py_close (const GstTensorFilterProperties * prop, void **private_data)
+{
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  g_assert (core);
+
+  delete core;
+
+  *private_data = NULL;
+}
+
+/**
+ * @brief Load python model
+ * @param prop: property of tensor_filter instance
+ * @param private_data : python plugin's private data
+ * @return 0 if successfully loaded. 1 if skipped (already loaded).
+ *        -1 if the object construction is failed.
+ *        -2 if the object initialization if failed
+ */
+static int
+py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
+{
+  PYCore *core;
+  const gchar *script_path;
+
+  if (prop->num_models != 1)
+    return -1;
+
+  /**
+   * prop->model_files[0] contains the path of a python script
+   * prop->custom contains its arguments seperated by ' '
+   */
+  core = static_cast<PYCore *>(*private_data);
+  script_path = prop->model_files[0];
+
+  if (core != NULL) {
+    if (g_strcmp0 (script_path, core->getScriptPath ()) == 0)
+      return 1; /* skipped */
+
+    py_close (prop, private_data);
+  }
+
+  core = new PYCore (script_path, prop->custom_properties);
+  if (core == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
+    return -1;
+  }
+
+  if (core->init (prop) != 0) {
+    *private_data = NULL;
+    delete core;
+
+    g_printerr ("failed to initailize the object: Python\n");
+    return -2;
+  }
+
+  g_assert (filter_framework);
+
+  /** check methods in python script */
+  switch (core->getCbType ()) {
+    case CB_SETDIM:
+      filter_framework->getInputDimension = NULL;
+      filter_framework->getOutputDimension = NULL;
+      filter_framework->setInputDimension = &py_setInputDim;
+      break;
+    case CB_GETDIM:
+      filter_framework->getInputDimension = &py_getInputDim;
+      filter_framework->getOutputDimension = &py_getOutputDim;
+      filter_framework->setInputDimension = NULL;
+      break;
+    default:
+      g_printerr ("Wrong callback type\n");
+      return -2;
+  }
+
+  *private_data = core;
+
+  return 0;
+}
+
+/**
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
+ * @param prop: property of tensor_filter instance
+ * @param private_data : python plugin's private data
+ */
+static int
+py_open (const GstTensorFilterProperties * prop, void **private_data)
+{
+  int status = py_loadScriptFile (prop, private_data);
+
+  g_assert (status >= 0);   /** This must be called only once */
+
+  return status;
+}
+
+#if PY_VERSION_HEX >= 0x03000000
+static gchar filter_subplugin_python[] = "python3";
+#else
+static gchar filter_subplugin_python[] = "python2";
+#endif
+
+static GstTensorFilterFramework NNS_support_python = {
+  .name = filter_subplugin_python,
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = TRUE,
+  .run_without_model = FALSE,
+  .invoke_NN = py_run,
+  /** dimension-related callbacks are dynamically assigned */
+  .getInputDimension = py_getInputDim,
+  .getOutputDimension = py_getOutputDim,
+  .setInputDimension = py_setInputDim,
+  .open = py_open,
+  .close = py_close,
+  .destroyNotify = py_destroyNotify,
+};
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+void
+init_filter_py (void)
+{
+  nnstreamer_filter_probe (&NNS_support_python);
+  filter_framework = &NNS_support_python;
+}
+
+/** @brief Destruct the subplugin */
+void
+fini_filter_py (void)
+{
+  nnstreamer_filter_exit (NNS_support_python.name);
 }
