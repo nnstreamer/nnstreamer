@@ -1,5 +1,7 @@
 /**
+ * GStreamer Tensor_Filter, caffe2 Module
  * Copyright (C) 2019 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (C) 2019 Hyoung Joo Ahn <hello.ahn@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -13,19 +15,25 @@
  *
  */
 /**
- * @file   tensor_filter_caffe2_core.cc
- * @author HyoungJoo Ahn <hello.ahn@samsung.com>
- * @date   31/5/2019
- * @brief  connection with caffe2 libraries.
+ * @file    tensor_filter_caffe2.cc
+ * @date    27 May 2019
+ * @brief   Caffe2 module for tensor_filter gstreamer plugin
+ * @see     http://github.com/nnsuite/nnstreamer
+ * @author  HyoungJoo Ahn <hello.ahn@samsung.com>
+ * @bug     No known bugs except for NYI items
  *
- * @bug     No known bugs.
+ * This is the per-NN-framework plugin (caffe2) for tensor_filter.
  */
 
+#include <iostream>
 #include <unistd.h>
 #include <algorithm>
 
 #include <nnstreamer_plugin_api.h>
-#include "tensor_filter_caffe2_core.h"
+#include <nnstreamer_plugin_api_filter.h>
+
+#include "caffe2/core/workspace.h"
+#include "caffe2/core/init.h"
 
 /**
  * @brief Macro for debug mode.
@@ -33,6 +41,44 @@
 #ifndef DBG
 #define DBG FALSE
 #endif
+
+using namespace caffe2;
+
+/**
+ * @brief	ring cache structure
+ */
+class Caffe2Core
+{
+public:
+  Caffe2Core (const char * _model_path, const char * _model_path_sub);
+  ~Caffe2Core ();
+
+  int init (const GstTensorFilterProperties * prop);
+  int loadModels ();
+  const char* getPredModelPath ();
+  const char* getInitModelPath ();
+  int getInputTensorDim (GstTensorsInfo * info);
+  int getOutputTensorDim (GstTensorsInfo * info);
+  int run (const GstTensorMemory * input, GstTensorMemory * output);
+
+private:
+
+  char *init_model_path;
+  char *pred_model_path;
+  bool first_run;
+
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+
+  Workspace workSpace;
+  NetDef initNet, predictNet;
+  static std::map <char*, Tensor*> inputTensorMap;
+
+  int initInputTensor ();
+};
+
+void init_filter_caffe2 (void) __attribute__ ((constructor));
+void fini_filter_caffe2 (void) __attribute__ ((destructor));
 
 std::map <char*, Tensor*> Caffe2Core::inputTensorMap;
 
@@ -378,111 +424,177 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
 }
 
 /**
- * @brief	call the creator of Caffe2Core class.
- * @param	_model_path	: the logical path to '{model_name}.tffile' file
- * @return	Caffe2Core class
+ * @brief Free privateData and move on.
  */
-void *
-caffe2_core_new (const char *_model_path, const char *_model_path_sub)
+static void
+caffe2_close (const GstTensorFilterProperties * prop, void **private_data)
 {
-  return new Caffe2Core (_model_path, _model_path_sub);
+  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+
+  g_assert (core);
+
+  delete core;
+
+  *private_data = NULL;
 }
 
 /**
- * @brief	delete the Caffe2Core class.
- * @param	caffe2	: the class object
- * @return	Nothing
+ * @brief Load caffe2 modelfile
+ * @param prop property of tensor_filter instance
+ * @param private_data : caffe2 plugin's private data
+ * @return 0 if successfully loaded. 1 if skipped (already loaded).
+ *        -1 if the object construction is failed.
+ *        -2 if the object initialization if failed
  */
-void
-caffe2_core_delete (void * caffe2)
+static int
+caffe2_loadModelFile (const GstTensorFilterProperties * prop,
+    void **private_data)
 {
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  delete c;
+  Caffe2Core *core;
+  const gchar *init_model;
+  const gchar *pred_model;
+
+  if (prop->num_models != 2) {
+    g_critical ("Caffe2 requires two model files\n");
+    return -1;
+  }
+
+  /* In caffe2, model_files[0] is a init model, and model_files[1] is a pred model */
+  core = static_cast<Caffe2Core *>(*private_data);
+  init_model = prop->model_files[0];
+  pred_model = prop->model_files[1];
+
+  if (core != NULL) {
+    if (g_strcmp0 (init_model, core->getInitModelPath ()) == 0 &&
+        g_strcmp0 (pred_model, core->getPredModelPath ()) == 0)
+      return 1; /* skipped */
+
+    caffe2_close (prop, private_data);
+  }
+
+  core = new Caffe2Core (init_model, pred_model);
+  if (core == NULL) {
+    g_critical ("Failed to allocate memory for filter subplugin: Caffe2\n");
+    return -1;
+  }
+
+  if (core->init (prop) != 0) {
+    *private_data = NULL;
+    delete core;
+
+    g_critical ("failed to initialize the object: Caffe2");
+    return -2;
+  }
+
+  *private_data = core;
+
+  return 0;
 }
 
 /**
- * @brief	initialize the object with caffe2 model
- * @param	caffe2	: the class object
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
+ * @param prop property of tensor_filter instance
+ * @param private_data : caffe2 plugin's private data
+ */
+static int
+caffe2_open (const GstTensorFilterProperties * prop, void **private_data)
+{
+  int status = caffe2_loadModelFile (prop, private_data);
+
+  g_assert (status >= 0);       /** This must be called only once */
+
+  return status;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : caffe2 plugin's private data
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
-int
-caffe2_core_init (void * caffe2, const GstTensorFilterProperties * prop)
+static int
+caffe2_run (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->init (prop);
+  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+
+  g_assert (core);
+
+  return core->run (input, output);
 }
 
 /**
- * @brief	get the model path
- * @param	caffe2	: the class object
- * @return the model path.
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : caffe2 plugin's private data
+ * @param[out] info The dimesions and types of input tensors
  */
-const char *
-caffe2_core_getInitModelPath (void * caffe2)
+static int
+caffe2_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
 {
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->getInitModelPath ();
+  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+
+  g_assert (core);
+
+  return core->getInputTensorDim (info);
 }
 
 /**
- * @brief	get the model path
- * @param	caffe2	: the class object
- * @return the model path.
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : caffe2 plugin's private data
+ * @param[out] info The dimesions and types of output tensors
  */
-const char *
-caffe2_core_getPredModelPath (void * caffe2)
+static int
+caffe2_getOutputDim (const GstTensorFilterProperties * prop,
+    void **private_data, GstTensorsInfo * info)
 {
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->getPredModelPath ();
+  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+
+  g_assert (core);
+
+  return core->getOutputTensorDim (info);
 }
 
 /**
- * @brief	get the Dimension of Input Tensor of model
- * @param	caffe2	: the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] data The data element.
  */
-int
-caffe2_core_getInputDim (void * caffe2, GstTensorsInfo * info)
-{
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->getInputTensorDim (info);
-}
-
-/**
- * @brief	get the Dimension of Output Tensor of model
- * @param	caffe2	: the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-caffe2_core_getOutputDim (void * caffe2, GstTensorsInfo * info)
-{
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->getOutputTensorDim (info);
-}
-
-/**
- * @brief	run the model
- * @param	caffe2	: the class object
- * @param[in] input : The array of input tensors
- * @param[out]  output : The array of output tensors
- * @return 0 if OK. non-zero if error.
- */
-int
-caffe2_core_run (void * caffe2, const GstTensorMemory * input,
-    GstTensorMemory * output)
-{
-  Caffe2Core *c = (Caffe2Core *) caffe2;
-  return c->run (input, output);
-}
-
-/**
- * @brief	the destroy notify method for caffe2. it will free the output tensor
- * @param[in] data : the data element destroyed at the pipeline
- */
-void
-caffe2_core_destroyNotify (void * data)
+static void
+caffe2_destroyNotify (void *data)
 {
   /* do nothing */
+}
+
+static gchar filter_subplugin_caffe2[] = "caffe2";
+
+static GstTensorFilterFramework NNS_support_caffe2 = {
+  .name = filter_subplugin_caffe2,
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = TRUE,
+  .run_without_model = FALSE,
+  .invoke_NN = caffe2_run,
+  .getInputDimension = caffe2_getInputDim,
+  .getOutputDimension = caffe2_getOutputDim,
+  .setInputDimension = NULL,
+  .open = caffe2_open,
+  .close = caffe2_close,
+  .destroyNotify = caffe2_destroyNotify,
+};
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+void
+init_filter_caffe2 (void)
+{
+  nnstreamer_filter_probe (&NNS_support_caffe2);
+}
+
+/** @brief Destruct the subplugin */
+void
+fini_filter_caffe2 (void)
+{
+  nnstreamer_filter_exit (NNS_support_caffe2.name);
 }

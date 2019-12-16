@@ -72,8 +72,7 @@ NNSTREAMER_FILTER_TORCH_SRCS := \
 
 # filter caffe2
 NNSTREAMER_FILTER_CAFFE2_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_caffe2.c \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_caffe2_core.cc
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_caffe2.cc
 
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
