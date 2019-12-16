@@ -79,6 +79,9 @@ BuildRequires:	pkgconfig(dlog)
 BuildRequires:	pkgconfig(libmvnc)
 BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	gst-plugins-base-devel
+# For tizen sensor support
+BuildRequires:	pkgconfig(sensor)
+BuildRequires:	capi-system-sensor-devel
 
 %if 0%{?enable_nnfw}
 %ifarch %arm aarch64
@@ -100,11 +103,6 @@ BuildRequires: ssat
 
 # For ORC (Oil Runtime Compiler)
 BuildRequires:	pkgconfig(orc-0.4)
-
-%if %{with tizen}
-BuildRequires:	pkgconfig(sensor)
-BuildRequires:	capi-system-sensor-devel
-%endif
 
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs build ... --define "_skip_debug_rpm 1"'.
@@ -137,12 +135,6 @@ Requires:	nnstreamer = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
-
-%package nnfw
-Summary:	NNStreamer Tizen-nnfw runtime support
-Requires:	nnfw
-%description nnfw
-NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 
 %package -n nnstreamer-python2
 Summary:  NNStreamer Python Custom Filter Support
@@ -186,6 +178,12 @@ You can construct a data stream pipeline with neural networks easily.
 
 %post -n capi-nnstreamer -p /sbin/ldconfig
 %postun -n capi-nnstreamer -p /sbin/ldconfig
+
+%package nnfw
+Summary:	NNStreamer Tizen-nnfw runtime support
+Requires:	nnfw
+%description nnfw
+NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 
 %package -n capi-nnstreamer-devel
 Summary:	Tizen Native API Devel Kit for NNStreamer
@@ -292,9 +290,6 @@ export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-%if 0%{?enable_nnfw_r}
-    ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
-%endif
 %if 0%{?unit_test}
     ./tests/unittest_common --gtest_output="xml:unittest_common.xml"
     ./tests/unittest_sink --gst-plugin-path=. --gtest_output="xml:unittest_sink.xml"
@@ -303,6 +298,9 @@ export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
 %endif
 %if %{with tizen}
+    %if 0%{?enable_nnfw_r}
+        ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
+    %endif
     ln -s ext/nnstreamer/tensor_source/*.so .
     ./tests/tizen_capi/unittest_tizen_sensor --gst-plugin-path=. --gtest_output="xml:unittest_tizen_sensor.xml"
 %endif
@@ -404,13 +402,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
-%if 0%{?enable_nnfw_r}
-%files nnfw
-%manifest nnstreamer.manifest
-%defattr(-,root,root,-)
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
-%endif
-
 %files -n nnstreamer-python2
 %manifest capi-nnstreamer.manifest
 %defattr(-,root,root,-)
@@ -454,6 +445,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
+
+%if 0%{?enable_nnfw_r}
+%files nnfw
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
+%endif
 
 %files -n nnstreamer-ncsdk2
 %defattr(-,root,root,-)
