@@ -38,7 +38,13 @@
  * </refsect2>
  */
 
-#include "tensor_filter_python_core.h"
+#include <Python.h>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+#include <structmember.h>
+
+#include <glib.h>
+#include <tensor_typedef.h>
 
 /** @brief object structure for custom Python type: TensorShape */
 typedef struct {

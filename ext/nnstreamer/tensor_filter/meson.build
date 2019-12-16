@@ -150,10 +150,7 @@ if get_option('enable-caffe2')
   )
 endif
 
-filter_sub_python_sources = [
-  'tensor_filter_python.c',
-  'tensor_filter_python_core.cc'
-]
+filter_sub_python_sources = ['tensor_filter_python.cc']
 
 nnstreamer_filter_python_sources = []
 foreach s : filter_sub_python_sources
