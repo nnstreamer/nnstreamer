@@ -74,6 +74,11 @@ BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
 %endif
 
+%ifarch aarch64 x86_64
+# This supports 64bit systems only
+BuildRequires:	pkgconfig(edgetpu)
+%endif
+
 %if 0%{?testcoverage}
 BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
@@ -248,6 +253,18 @@ Requires:	capi-system-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
 %endif # tizen
 
+%ifarch aarch64 x86_64
+%package edgetpu
+Summary:	NNStreamer plugin for Google-Coral Edge TPU
+Requires:	libedgetpu1
+Requires:	nnstreamer = %{version}-%{release}
+%description edgetpu
+You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
+%define enable_edgetpu -Denable-edgetpu=true
+%else
+%define enable_edgetpu -Denable-edgetpu=false
+%endif
+
 ## Define build options ##
 %define	enable_nnfw_runtime	-Denable-nnfw-runtime=false
 %if %{with tizen}
@@ -313,6 +330,7 @@ mkdir -p build
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} \
 	-Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false \
+	%{enable_edgetpu} \
 	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} \
 	%{enable_python} build
 
@@ -335,7 +353,12 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     bash %{test_script} ./tests
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
-%endif
+%ifarch aarch64 x86_64
+    pushd build
+    LD_LIBRARY_PATH=./tests/nnstreamer_filter_edgetpu:. ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu --gst-plugin-path=. --gtest_output="xml:unittest_edgetpu.xml"
+    popd
+%endif #ifarch 64
+%endif #if tizen
 %if 0%{?unit_test}
     pushd tests
     ssat -n --summary summary.txt
@@ -512,6 +535,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files cpp-devel
 %{_includedir}/nnstreamer/tensor_filter_cpp.h
+
+%ifarch aarch64 x86_64
+%files edgetpu
+%manifest nnstreamer.manifest
+%license LICENSE
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_edgetpu.so
+%endif
 
 %changelog
 * Wed Dec 11 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
