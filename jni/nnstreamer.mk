@@ -67,8 +67,7 @@ NNSTREAMER_FILTER_TFLITE_SRCS := \
 
 # filter pytorch
 NNSTREAMER_FILTER_TORCH_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch.c \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch_core.cc
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch.cc
 
 # filter caffe2
 NNSTREAMER_FILTER_CAFFE2_SRCS := \
