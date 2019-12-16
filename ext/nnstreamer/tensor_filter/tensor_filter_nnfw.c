@@ -44,6 +44,26 @@
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
+/** Match all accelerators for nnapi at once */
+#define REGEX_ACCL_NNFW \
+  "(^(true)[:]?([(]?(" \
+  REGEX_ACCL_AUTO "|" \
+  REGEX_ACCL_DEF "|" \
+  REGEX_ACCL_CPU "|" \
+  REGEX_ACCL_GPU "|" \
+  REGEX_ACCL_SRCN "|" \
+  REGEX_ACCL_NEON ")*[)]?))"
+
+/** Match accelerator for nnapi one by one */
+#define REGEX_ACCL_NNFW_ELEM \
+  "(" \
+  "(?<!!)" ACCL_AUTO_STR "|" \
+  "(?<!!)" ACCL_DEF_STR "|" \
+  "(?<!!)" ACCL_CPU_STR "|" \
+  "(?<!!)" ACCL_GPU_STR "|" \
+  "(?<!!)" ACCL_SRCN_STR "|" \
+  "(?<!!)" ACCL_NEON_STR ")?"
+
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
 
@@ -56,10 +76,39 @@ typedef struct
   nnfw_tensorinfo i_out;
   nnfw_session *session;
   gchar *model_file;
+  accl_hw accelerator;
 } nnfw_pdata;
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
+
+/**
+ * @brief parse user given input to extract accelerator to be used by nnfw
+ * @param[in] pdata nnfw private data
+ * @param[in] accelerators user given input
+ * @return accelerator configuration to be set for nnfw
+ */
+static const char *
+nnfw_get_accelerator (nnfw_pdata *pdata, const char * accelerators)
+{
+  pdata->accelerator = parse_accl_hw (accelerators, REGEX_ACCL_NNFW,
+      REGEX_ACCL_NNFW_ELEM);
+
+  switch (pdata->accelerator) {
+    case ACCL_SRCN:
+      return NNFW_SRCN_BACKEND;
+    case ACCL_NEON:
+      return NNFW_NEON_BACKEND;
+    case ACCL_GPU:
+      return NNFW_GPU_BACKEND;
+    case ACCL_CPU:
+      return NNFW_CPU_BACKEND;
+    case ACCL_DEFAULT:
+      /** intended */
+    default:
+      return NNFW_DEFAULT_BACKEND;
+  }
+}
 
 /**
  * @brief The standard tensor_filter callback
@@ -72,6 +121,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   nnfw_pdata *pdata;
   char *model_path = NULL;
   char *meta_file = NULL;
+  const char *accelerator = NULL;
 
   if (*private_data != NULL) {
     pdata = *private_data;
@@ -95,15 +145,14 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  /**
-   * @todo: remove after fixes to nnfw package for aarch64
-   */
-  status = nnfw_set_available_backends(pdata->session, NNFW_DEFAULT_BACKEND);
+  accelerator = nnfw_get_accelerator (pdata, prop->accl_str);
+  status = nnfw_set_available_backends(pdata->session, accelerator);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot set nnfw-runtime backend to %s", NNFW_DEFAULT_BACKEND);
+    g_printerr ("Cannot set nnfw-runtime backend to %s", accelerator);
     goto unalloc_exit;
   }
+
   /** @note nnfw opens the first model listed in the MANIFEST file */
   model_path = g_path_get_dirname (prop->model_files[0]);
   meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);

@@ -268,7 +268,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "(true/false):(comma separated ACCELERATOR(s)). "
           "true/false determines if accelerator is to be used. "
           "list of accelerators determines the backend (ignored with false). "
-          "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU).",
+          "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU). "
+          "Note that only a few subplugins support this property.",
           "", G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_IS_UPDATABLE,
       g_param_spec_boolean ("is-updatable", "Updatable model",
@@ -820,4 +821,52 @@ get_accl_hw_str (const accl_hw key)
     default:                   /* Not found */
       return ACCL_NONE_STR;
   }
+}
+
+/**
+ * @brief parse user given string to extract accelerator based on given regex
+ * @param[in] accelerators user given input
+ * @param[in] regex_accl regex to determine if accelerator or not
+ * @param[in] regex_accl_elem regex to determine which accelerator
+ * @return Corresponding string. Returns ACCL_NONE_STR if not found.
+ */
+accl_hw
+parse_accl_hw (const gchar * accelerators, const gchar * regex_accl,
+    const gchar * regex_accl_elem)
+{
+  GRegex *nnapi_elem;
+  GMatchInfo *match_info;
+  gboolean use_accl;
+  accl_hw accl;
+
+  if (accelerators == NULL)
+    return ACCL_DEFAULT;
+
+  /* If set by user, get the precise accelerator */
+  use_accl = (gboolean) g_regex_match_simple (regex_accl, accelerators,
+      G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY);
+  if (use_accl == TRUE) {
+    /** Default to auto mode */
+    accl = ACCL_AUTO;
+    nnapi_elem = g_regex_new (regex_accl_elem, G_REGEX_CASELESS,
+        G_REGEX_MATCH_NOTEMPTY, NULL);
+
+    /** Now match each provided element and get specific accelerator */
+    if (g_regex_match (nnapi_elem, accelerators, G_REGEX_MATCH_NOTEMPTY,
+            &match_info)) {
+
+      while (g_match_info_matches (match_info)) {
+        gchar *word = g_match_info_fetch (match_info, 0);
+        accl = get_accl_hw_type (word);
+        g_free (word);
+        break;
+      }
+    }
+    g_match_info_free (match_info);
+    g_regex_unref (nnapi_elem);
+  } else {
+    return ACCL_NONE;
+  }
+
+  return accl;
 }

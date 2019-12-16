@@ -525,40 +525,16 @@ TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 #endif
 }
 
+/**
+ * @brief	Set the accelerator for the tf engine
+ */
 void TFLiteCore::setAccelerator (const char * accelerators)
 {
-  GRegex * nnapi_elem;
-  GMatchInfo * match_info;
-
-  if (accelerators == NULL) {
+  use_nnapi = TRUE;
+  accelerator = parse_accl_hw (accelerators, REGEX_ACCL_NNAPI,
+      REGEX_ACCL_NNAPI_ELEM);
+  if (accelerators == NULL || accelerator == ACCL_NONE)
     goto use_nnapi_ini;
-  }
-
-  /* If set by user, get the precise accelerator */
-  use_nnapi = (bool) g_regex_match_simple (REGEX_ACCL_NNAPI, accelerators,
-      G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY);
-  if (use_nnapi == TRUE) {
-    /** Default to auto mode */
-    accelerator = ACCL_AUTO;
-    nnapi_elem = g_regex_new (REGEX_ACCL_NNAPI_ELEM, G_REGEX_CASELESS,
-        G_REGEX_MATCH_NOTEMPTY, NULL);
-
-    /** Now match each provided element and get specific accelerator */
-    if (g_regex_match (nnapi_elem, accelerators, G_REGEX_MATCH_NOTEMPTY,
-          &match_info)) {
-
-      while (g_match_info_matches (match_info)) {
-        gchar *word = g_match_info_fetch (match_info, 0);
-        accelerator = get_accl_hw_type (word);
-        g_free (word);
-        break;
-      }
-    }
-    g_match_info_free (match_info);
-    g_regex_unref (nnapi_elem);
-  } else  {
-    goto use_nnapi_ini;
-  }
 
   return;
 
