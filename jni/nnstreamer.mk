@@ -62,8 +62,7 @@ NNSTREAMER_FILTER_TF_SRCS := \
 
 # filter tensorflow-lite
 NNSTREAMER_FILTER_TFLITE_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_lite.c \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_lite_core.cc
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_lite.cc
 
 # filter pytorch
 NNSTREAMER_FILTER_TORCH_SRCS := \

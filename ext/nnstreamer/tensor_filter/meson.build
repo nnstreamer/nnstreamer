@@ -61,10 +61,7 @@ if get_option('enable-tensorflow')
 endif
 
 if get_option('enable-tensorflow-lite')
-  filter_sub_tflite_sources = [
-    'tensor_filter_tensorflow_lite.c',
-    'tensor_filter_tensorflow_lite_core.cc'
-  ]
+  filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
 
   nnstreamer_filter_tflite_sources = []
   foreach s : filter_sub_tflite_sources
