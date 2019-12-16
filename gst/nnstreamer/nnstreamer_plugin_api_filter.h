@@ -248,6 +248,13 @@ get_accl_hw_type (const char * str);
 extern const char *
 get_accl_hw_str (const accl_hw key);
 
+/**
+ * @brief parse user given string to extract accelerator based on given regex
+ */
+extern accl_hw
+parse_accl_hw (const char * accelerators, const char * regex_accl,
+    const char * regex_accl_elem);
+
 #ifdef __cplusplus
 }
 #endif
