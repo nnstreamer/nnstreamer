@@ -1,4 +1,5 @@
 /**
+ * GStreamer Tensor_Filter, Tensorflow-Lite Module
  * Copyright (C) 2018 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -13,12 +14,14 @@
  *
  */
 /**
- * @file   tensor_filter_tensorflow_lite_core.cc
+ * @file   tensor_filter_tensorflow_lite.cc
+ * @date   7 May 2018
+ * @brief  Tensorflow-lite module for tensor_filter gstreamer plugin
+ * @see    http://github.com/nnsuite/nnstreamer
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>
- * @date   7/5/2018
- * @brief  connection with tflite libraries.
+ * @bug    No known bugs except for NYI items
  *
- * @bug     No known bugs.
+ * This is the per-NN-framework plugin (tensorflow-lite) for tensor_filter.
  */
 
 #include <unistd.h>
@@ -26,8 +29,15 @@
 #include <algorithm>
 
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_conf.h>
-#include "tensor_filter_tensorflow_lite_core.h"
+
+#include <tensorflow/contrib/lite/model.h>
+#include <tensorflow/contrib/lite/kernels/register.h>
+
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
+#include "tflite/ext/nnapi_delegate.h"
+#endif
 
 /**
  * @brief Macro for debug mode.
@@ -55,6 +65,90 @@
   "(?<!!)" ACCL_GPU_STR "|" \
   "(?<!!)" ACCL_NPU_STR "|" \
   "(?<!!)" ACCL_NEON_STR ")?"
+
+/**
+ * @brief Wrapper class for TFLite Interpreter to support model switching
+ */
+class TFLiteInterpreter
+{
+public:
+  TFLiteInterpreter ();
+  ~TFLiteInterpreter ();
+
+  int invoke (const GstTensorMemory * input, GstTensorMemory * output, bool use_nnapi);
+  int loadModel (bool use_nnapi);
+  void moveInternals (TFLiteInterpreter& interp);
+
+  int setInputTensorProp ();
+  int setOutputTensorProp ();
+  int setInputTensorsInfo (const GstTensorsInfo * info);
+
+  void setModelPath (const char *model_path);
+  /** @brief get current model path */
+  const char *getModelPath () { return model_path; }
+
+  /** @brief return input tensor meta */
+  const GstTensorsInfo* getInputTensorsInfo () { return &inputTensorMeta; }
+  /** @brief return output tensor meta */
+  const GstTensorsInfo* getOutputTensorsInfo () { return &outputTensorMeta; }
+
+  /** @brief lock this interpreter */
+  void lock () { g_mutex_lock (&mutex); }
+  /** @brief unlock this interpreter */
+  void unlock () { g_mutex_unlock (&mutex); }
+
+private:
+  GMutex mutex;
+  char *model_path;
+
+  std::unique_ptr <tflite::Interpreter> interpreter;
+  std::unique_ptr <tflite::FlatBufferModel> model;
+#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
+  std::unique_ptr <nnfw::tflite::NNAPIDelegate> nnfw_delegate;
+#endif
+
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+
+  tensor_type getTensorType (TfLiteType tfType);
+  int getTensorDim (int tensor_idx, tensor_dim dim);
+  int setTensorProp (const std::vector<int> &tensor_idx_list,
+      GstTensorsInfo * tensorMeta);
+};
+
+/**
+ * @brief	ring cache structure
+ */
+class TFLiteCore
+{
+public:
+  TFLiteCore (const char *_model_path, const char *accelerators);
+
+  int init ();
+  int loadModel ();
+  gboolean compareModelPath (const char *model_path);
+  int setInputTensorProp ();
+  int setOutputTensorProp ();
+  int getInputTensorDim (GstTensorsInfo * info);
+  int getOutputTensorDim (GstTensorsInfo * info);
+  int setInputTensorDim (const GstTensorsInfo * info);
+  int reloadModel (const char * model_path);
+  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+
+private:
+  bool use_nnapi;
+  accl_hw accelerator;
+
+  TFLiteInterpreter interpreter;
+  TFLiteInterpreter interpreter_sub;
+
+  void setAccelerator (const char * accelerators);
+};
+
+extern "C" { /* accessed by android api */
+  void init_filter_tflite (void) __attribute__ ((constructor));
+  void fini_filter_tflite (void) __attribute__ ((destructor));
+}
 
 /**
  * @brief TFLiteInterpreter constructor
@@ -700,128 +794,185 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 }
 
 /**
- * @brief	call the creator of TFLiteCore class.
- * @param	_model_path	: the logical path to '{model_name}.tffile' file
- * @param accelerators : the accelerators property set for this subplugin
- * @return	TFLiteCore class
+ * @brief Free privateData and move on.
  */
-void *
-tflite_core_new (const char * _model_path, const char * accelerators)
+static void
+tflite_close (const GstTensorFilterProperties * prop, void **private_data)
 {
-  return new TFLiteCore (_model_path, accelerators);
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+
+  g_assert (core);
+  delete core;
+
+  *private_data = NULL;
 }
 
 /**
- * @brief	delete the TFLiteCore class.
- * @param	tflite	: the class object
- * @return	Nothing
+ * @brief Load tensorflow lite modelfile
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @return 0 if successfully loaded. 1 if skipped (already loaded).
+ *        -1 if the object construction is failed.
+ *        -2 if the object initialization if failed
  */
-void
-tflite_core_delete (void * tflite)
+static int
+tflite_loadModelFile (const GstTensorFilterProperties * prop,
+    void **private_data)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  delete c;
+  TFLiteCore *core;
+  const gchar *model_file;
+
+  if (prop->num_models != 1)
+    return -1;
+
+  core = static_cast<TFLiteCore *>(*private_data);
+  model_file = prop->model_files[0];
+
+  if (core != NULL) {
+    if (core->compareModelPath (model_file))
+      return 1; /* skipped */
+
+    tflite_close (prop, private_data);
+  }
+
+  core = new TFLiteCore (model_file, prop->accl_str);
+  if (core == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin.");
+    return -1;
+  }
+
+  if (core->init () != 0) {
+    *private_data = NULL;
+    delete core;
+
+    g_printerr ("failed to initialize the object: Tensorflow-lite");
+    return -2;
+  }
+
+  *private_data = core;
+
+  return 0;
 }
 
 /**
- * @brief	initialize the object with tflite model
- * @param	tflite	: the class object
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ */
+static int
+tflite_open (const GstTensorFilterProperties * prop, void **private_data)
+{
+  int status = tflite_loadModelFile (prop, private_data);
+
+  g_assert (status >= 0);       /** This must be called only once */
+
+  return status;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
  * @return 0 if OK. non-zero if error.
  */
-int
-tflite_core_init (void * tflite)
+static int
+tflite_invoke (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->init ();
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->invoke (input, output);
 }
 
 /**
- * @brief	compare the model path
- * @param	tflite	: the class object
- * @return TRUE if tflite core has the same model path
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param[out] info The dimesions and types of input tensors
  */
-gboolean
-tflite_core_compareModelPath (void * tflite, const char * model_path)
+static int
+tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->compareModelPath (model_path);
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getInputTensorDim (info);
 }
 
 /**
- * @brief	get the Dimension of Input Tensor of model
- * @param	tflite	: the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param[out] info The dimesions and types of output tensors
  */
-int
-tflite_core_getInputDim (void * tflite, GstTensorsInfo * info)
+static int
+tflite_getOutputDim (const GstTensorFilterProperties * prop,
+    void **private_data, GstTensorsInfo * info)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getInputTensorDim (info);
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getOutputTensorDim (info);
 }
 
 /**
- * @brief	get the Dimension of Output Tensor of model
- * @param	tflite	: the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-tflite_core_getOutputDim (void * tflite, GstTensorsInfo * info)
-{
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->getOutputTensorDim (info);
-}
-
-/**
- * @brief set the Dimension of Input Tensor of model
- * @param tflite the class object
- * @param in_info Structure for Input tensor info.
- * @param[out] out_info Structure for Output tensor info.
- * @return 0 if OK. non-zero if error.
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
+ * @param in_info The dimesions and types of input tensors
+ * @param[out] out_info The dimesions and types of output tensors
  * @detail Output Tensor info is recalculated based on the set Input Tensor Info
  */
-int
-tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
-    GstTensorsInfo * out_info)
+static int
+tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  int status;
-  TFLiteCore *c = (TFLiteCore *) tflite;
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
   GstTensorsInfo cur_in_info;
+  int status;
+
+  g_assert (core);
 
   /** get current input tensor info for resetting */
-  status = c->getInputTensorDim (&cur_in_info);
+  status = core->getInputTensorDim (&cur_in_info);
   if (status != 0)
     return status;
 
   /** set new input tensor info */
-  status = c->setInputTensorDim (in_info);
+  status = core->setInputTensorDim (in_info);
   if (status != 0) {
-    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
     return status;
   }
 
   /** update input tensor info */
-  if ((status = c->setInputTensorProp ()) != 0) {
-    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (c->setInputTensorProp () == 0);
+  if ((status = core->setInputTensorProp ()) != 0) {
+    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (core->setInputTensorProp () == 0);
     return status;
   }
 
   /** update output tensor info */
-  if ((status = c->setOutputTensorProp ()) != 0) {
-    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (c->setInputTensorProp () == 0);
-    g_assert (c->setOutputTensorProp () == 0);
+  if ((status = core->setOutputTensorProp ()) != 0) {
+    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (core->setInputTensorProp () == 0);
+    g_assert (core->setOutputTensorProp () == 0);
     return status;
   }
 
   /** get output tensor info to be returned */
-  status = c->getOutputTensorDim (out_info);
+  status = core->getOutputTensorDim (out_info);
   if (status != 0) {
-    g_assert (c->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (c->setInputTensorProp () == 0);
-    g_assert (c->setOutputTensorProp () == 0);
+    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
+    g_assert (core->setInputTensorProp () == 0);
+    g_assert (core->setOutputTensorProp () == 0);
     return status;
   }
 
@@ -829,29 +980,51 @@ tflite_core_setInputDim (void * tflite, const GstTensorsInfo * in_info,
 }
 
 /**
- * @brief	reload a model
- * @param	tflite	: the class object
- * @param[in] model_path : the path of model file
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop property of tensor_filter instance
+ * @param private_data : tensorflow lite plugin's private data
  * @return 0 if OK. non-zero if error.
  */
-int
-tflite_core_reloadModel (void * tflite, const char * model_path)
+static int
+tflite_reloadModel (const GstTensorFilterProperties * prop, void **private_data)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->reloadModel (model_path);
+  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+
+  g_assert (core);
+
+  if (prop->num_models != 1)
+    return -1;
+
+  return core->reloadModel (prop->model_files[0]);
 }
 
-/**
- * @brief	invoke the model
- * @param	tflite	: the class object
- * @param[in] input : The array of input tensors
- * @param[out]  output : The array of output tensors
- * @return 0 if OK. non-zero if error.
- */
-int
-tflite_core_invoke (void * tflite, const GstTensorMemory * input,
-    GstTensorMemory * output)
+static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
+
+static GstTensorFilterFramework NNS_support_tensorflow_lite = {
+  .name = filter_subplugin_tensorflow_lite,
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = FALSE,
+  .run_without_model = FALSE,
+  .invoke_NN = tflite_invoke,
+  .getInputDimension = tflite_getInputDim,
+  .getOutputDimension = tflite_getOutputDim,
+  .setInputDimension = tflite_setInputDim,
+  .open = tflite_open,
+  .close = tflite_close,
+  .destroyNotify = NULL,
+  .reloadModel = tflite_reloadModel,
+};
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+void
+init_filter_tflite (void)
 {
-  TFLiteCore *c = (TFLiteCore *) tflite;
-  return c->invoke (input, output);
+  nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
+}
+
+/** @brief Destruct the subplugin */
+void
+fini_filter_tflite (void)
+{
+  nnstreamer_filter_exit (NNS_support_tensorflow_lite.name);
 }
