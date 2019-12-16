@@ -382,10 +382,13 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       g_assert (model_files);
       gst_tensor_filter_parse_modelpaths_string (prop, model_files);
 
-      for (idx = 0; idx < prop->num_models; idx++) {
-        if (!g_file_test (prop->model_files[idx], G_FILE_TEST_IS_REGULAR)) {
-          g_critical ("Cannot find the model file [%d]: %s\n",
-              idx, prop->model_files[idx]);
+      /* 'custom-easy' framework has a virtual model file */
+      if (g_strcmp0 (prop->fwname, "custom-easy") != 0) {
+        for (idx = 0; idx < prop->num_models; idx++) {
+          if (!g_file_test (prop->model_files[idx], G_FILE_TEST_IS_REGULAR)) {
+            g_critical ("Cannot find the model file [%d]: %s\n",
+                idx, prop->model_files[idx]);
+          }
         }
       }
 
