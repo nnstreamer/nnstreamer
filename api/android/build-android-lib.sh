@@ -192,9 +192,16 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     cp -r aar_extracted/assets/* main/assets
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp ext-files/jni/Android-nnstreamer-prebuilt.mk main/jni
+    # header for C-API
     cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
+    # header for plugin
+    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
     zip -r $nnstreamer_native_files main
