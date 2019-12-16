@@ -1,4 +1,5 @@
 /**
+ * GStreamer Tensor_Filter, Tensorflow Module
  * Copyright (C) 2018 Samsung Electronics Co., Ltd. All rights reserved.
  * Copyright (C) 2018 HyoungJoo Ahn <hello.ahn@samsung.com>
  * Copyright (C) 2018 Jijoong Moon <jjioong.moon@samsung.com>
@@ -15,17 +16,27 @@
  *
  */
 /**
- * @file   tensor_filter_tensorflow_core.cc
+ * @file   tensor_filter_tensorflow.cc
+ * @date   02 Aug 2018
+ * @brief  Tensorflow module for tensor_filter gstreamer plugin
+ * @see    http://github.com/nnsuite/nnstreamer
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>
  * @author Jijoong Moon <jijoong.moon@samsung.com>
- * @date   08/02/2018
- * @brief  connection with tensorflow libraries.
+ * @bug    No known bugs except for NYI items
  *
- * @bug     No known bugs.
+ * This is the per-NN-framework plugin (tensorflow) for tensor_filter.
  */
 
 #include <nnstreamer_plugin_api.h>
-#include "tensor_filter_tensorflow_core.h"
+#include <nnstreamer_plugin_api_filter.h>
+
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+#include <vector>
+#include <map>
+
+#include <tensorflow/c/c_api.h>
 
 /**
  * @brief Macro for debug mode.
@@ -33,6 +44,58 @@
 #ifndef DBG
 #define DBG FALSE
 #endif
+
+/**
+ * @brief	Internal data structure for tensorflow
+ */
+typedef struct
+{
+  TF_DataType type;
+  int rank;
+  std::vector < std::int64_t > dims;
+} tf_tensor_info_s;
+
+/**
+ * @brief	ring cache structure
+ */
+class TFCore
+{
+public:
+  /**
+   * member functions.
+   */
+  TFCore (const char * _model_path);
+   ~TFCore ();
+
+  int init (const GstTensorFilterProperties * prop);
+  int loadModel ();
+  const char *getModelPath ();
+
+  int getInputTensorDim (GstTensorsInfo * info);
+  int getOutputTensorDim (GstTensorsInfo * info);
+  int run (const GstTensorMemory * input, GstTensorMemory * output);
+
+  static std::map < void *, TF_Tensor * >outputTensorMap;
+
+private:
+
+  char *model_path;
+
+  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors from user input */
+  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors from user input */
+
+  std::vector < tf_tensor_info_s > input_tensor_info; /* hold information for TF */
+
+  TF_Graph *graph;
+  TF_Session *session;
+
+  tensor_type getTensorTypeFromTF (TF_DataType tfType);
+  TF_DataType getTensorTypeToTF (tensor_type tType);
+  int validateTensor (const GstTensorsInfo * tensorInfo, int is_input);
+};
+
+void init_filter_tf (void) __attribute__ ((constructor));
+void fini_filter_tf (void) __attribute__ ((destructor));
 
 std::map <void*, TF_Tensor*> TFCore::outputTensorMap;
 
@@ -526,88 +589,6 @@ failed:
   return ret;
 }
 
-void *
-tf_core_new (const char *_model_path)
-{
-  return new TFCore (_model_path);
-}
-
-/**
- * @brief	delete the TFCore class.
- * @param	tf	: the class object
- * @return	Nothing
- */
-void
-tf_core_delete (void * tf)
-{
-  TFCore *c = (TFCore *) tf;
-  delete c;
-}
-
-/**
- * @brief	initialize the object with tf model
- * @param	tf	: the class object
- * @return 0 if OK. non-zero if error.
- */
-int
-tf_core_init (void * tf, const GstTensorFilterProperties * prop)
-{
-  TFCore *c = (TFCore *) tf;
-  return c->init (prop);
-}
-
-/**
- * @brief	get model path
- * @param	tf	: the class object
- * @return	model path
- */
-const char *
-tf_core_getModelPath (void * tf)
-{
-  TFCore *c = (TFCore *) tf;
-  return c->getModelPath ();
-}
-
-/**
- * @brief	get the Dimension of Input Tensor of model
- * @param	tf	the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-tf_core_getInputDim (void * tf, GstTensorsInfo * info)
-{
-  TFCore *c = (TFCore *) tf;
-  return c->getInputTensorDim (info);
-}
-
-/**
- * @brief	get the Dimension of Output Tensor of model
- * @param	tf	the class object
- * @param[out] info Structure for tensor info.
- * @return 0 if OK. non-zero if error.
- */
-int
-tf_core_getOutputDim (void * tf, GstTensorsInfo * info)
-{
-  TFCore *c = (TFCore *) tf;
-  return c->getOutputTensorDim (info);
-}
-
-/**
- * @brief	run the model
- * @param	tf	: the class object
- * @param[in] input : The array of input tensors
- * @param[out]  output : The array of output tensors
- * @return 0 if OK. non-zero if error.
- */
-int
-tf_core_run (void * tf, const GstTensorMemory * input, GstTensorMemory * output)
-{
-  TFCore *c = (TFCore *) tf;
-  return c->run (input, output);
-}
-
 /**
  * @brief	the destroy notify method for tensorflow. it will free the output tensor
  * @param[in] data : the data element destroyed at the pipeline
@@ -617,4 +598,173 @@ tf_core_destroyNotify (void * data)
 {
   TF_DeleteTensor ( (TFCore::outputTensorMap.find (data))->second);
   TFCore::outputTensorMap.erase (data);
+}
+
+/**
+ * @brief Free privateData and move on.
+ */
+static void
+tf_close (const GstTensorFilterProperties * prop, void **private_data)
+{
+  TFCore *core = static_cast<TFCore *>(*private_data);
+
+  g_assert (core);
+
+  delete core;
+
+  *private_data = NULL;
+}
+
+/**
+ * @brief Load tensorflow modelfile
+ * @param prop: property of tensor_filter instance
+ * @param private_data : tensorflow plugin's private data
+ * @return 0 if successfully loaded. 1 if skipped (already loaded).
+ *        -1 if the object construction is failed.
+ *        -2 if the object initialization if failed
+ */
+static int
+tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
+{
+  TFCore *core;
+  const gchar *model_file;
+
+  if (prop->num_models != 1)
+    return -1;
+
+  core = static_cast<TFCore *>(*private_data);
+  model_file = prop->model_files[0];
+
+  if (core != NULL) {
+    if (g_strcmp0 (model_file, core->getModelPath ()) == 0)
+      return 1; /* skipped */
+
+    tf_close (prop, private_data);
+  }
+
+  core = new TFCore (model_file);
+  if (core == NULL) {
+    g_printerr ("Failed to allocate memory for filter subplugin: tensorflow\n");
+    return -1;
+  }
+
+  if (core->init (prop) != 0) {
+    *private_data = NULL;
+    delete core;
+
+    g_printerr ("failed to initailize the object: tensorflow\n");
+    return -2;
+  }
+
+  *private_data = core;
+
+  return 0;
+}
+
+/**
+ * @brief The open callback for GstTensorFilterFramework. Called before anything else
+ * @param prop: property of tensor_filter instance
+ * @param private_data : tensorflow plugin's private data
+ */
+static int
+tf_open (const GstTensorFilterProperties * prop, void **private_data)
+{
+  int status = tf_loadModelFile (prop, private_data);
+
+  g_assert (status >= 0); /** This must be called only once */
+
+  return status;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : tensorflow plugin's private data
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
+ */
+static int
+tf_run (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  TFCore *core = static_cast<TFCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->run (input, output);
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : tensorflow plugin's private data
+ * @param[out] info The dimesions and types of input tensors
+ */
+static int
+tf_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
+{
+  TFCore *core = static_cast<TFCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getInputTensorDim (info);
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param prop: property of tensor_filter instance
+ * @param private_data : tensorflow plugin's private data
+ * @param[out] info The dimesions and types of output tensors
+ */
+static int
+tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
+{
+  TFCore *core = static_cast<TFCore *>(*private_data);
+
+  g_assert (core);
+
+  return core->getOutputTensorDim (info);
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] data The data element.
+ */
+static void
+tf_destroyNotify (void *data)
+{
+  TF_DeleteTensor ( (TFCore::outputTensorMap.find (data))->second);
+  TFCore::outputTensorMap.erase (data);
+}
+
+static gchar filter_subplugin_tensorflow[] = "tensorflow";
+
+static GstTensorFilterFramework NNS_support_tensorflow = {
+  .name = filter_subplugin_tensorflow,
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = TRUE,
+  .run_without_model = FALSE,
+  .invoke_NN = tf_run,
+  .getInputDimension = tf_getInputDim,
+  .getOutputDimension = tf_getOutputDim,
+  .setInputDimension = NULL,
+  .open = tf_open,
+  .close = tf_close,
+  .destroyNotify = tf_destroyNotify,
+};
+
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
+void
+init_filter_tf (void)
+{
+  nnstreamer_filter_probe (&NNS_support_tensorflow);
+}
+
+/** @brief Destruct the subplugin */
+void
+fini_filter_tf (void)
+{
+  nnstreamer_filter_exit (NNS_support_tensorflow.name);
 }

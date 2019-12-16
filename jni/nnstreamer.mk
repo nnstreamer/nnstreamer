@@ -57,8 +57,7 @@ NNSTREAMER_CAPI_SRCS := \
 
 # filter tensorflow
 NNSTREAMER_FILTER_TF_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow.c \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow_core.cc
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_tensorflow.cc
 
 # filter tensorflow-lite
 NNSTREAMER_FILTER_TFLITE_SRCS := \
