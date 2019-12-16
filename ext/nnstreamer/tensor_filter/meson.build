@@ -31,10 +31,7 @@ if get_option('enable-nnfw-runtime')
 endif
 
 if get_option('enable-tensorflow')
-  filter_sub_tf_sources = [
-    'tensor_filter_tensorflow.c',
-    'tensor_filter_tensorflow_core.cc'
-  ]
+  filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
   nnstreamer_filter_tf_sources = []
   foreach s : filter_sub_tf_sources
