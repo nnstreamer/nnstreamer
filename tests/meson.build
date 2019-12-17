@@ -102,6 +102,19 @@ if gtest_dep.found()
 
     test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
   endif
+
+  # Armnn unittest
+  if get_option('enable-armnn')
+    unittest_filter_armnn = executable('unittest_filter_armnn',
+      join_paths('nnstreamer_filter_armnn', 'unittest_filter_armnn.cpp'),
+      dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, armnn_plugin_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_armnn', unittest_filter_armnn, args: ['--gst-plugin-path=../..'])
+  endif
+
 endif
 
 # Install data required for unittest
