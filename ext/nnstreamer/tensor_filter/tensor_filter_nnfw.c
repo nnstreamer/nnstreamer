@@ -44,25 +44,16 @@
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
-/** Match all accelerators for nnapi at once */
-#define REGEX_ACCL_NNFW \
-  "(^(true)[:]?([(]?(" \
-  REGEX_ACCL_AUTO "|" \
-  REGEX_ACCL_DEF "|" \
-  REGEX_ACCL_CPU "|" \
-  REGEX_ACCL_GPU "|" \
-  REGEX_ACCL_SRCN "|" \
-  REGEX_ACCL_NEON ")*[)]?))"
-
-/** Match accelerator for nnapi one by one */
-#define REGEX_ACCL_NNFW_ELEM \
-  "(" \
-  "(?<!!)" ACCL_AUTO_STR "|" \
-  "(?<!!)" ACCL_DEF_STR "|" \
-  "(?<!!)" ACCL_CPU_STR "|" \
-  "(?<!!)" ACCL_GPU_STR "|" \
-  "(?<!!)" ACCL_SRCN_STR "|" \
-  "(?<!!)" ACCL_NEON_STR ")?"
+const gchar *nnfw_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  ACCL_CPU_NEON_STR,
+  ACCL_CPU_STR,
+  ACCL_GPU_STR,
+  ACCL_NPU_SRCN_STR,
+  ACCL_NPU_STR,
+  NULL
+};
 
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
@@ -91,13 +82,14 @@ static void nnfw_close (const GstTensorFilterProperties * prop,
 static const char *
 nnfw_get_accelerator (nnfw_pdata *pdata, const char * accelerators)
 {
-  pdata->accelerator = parse_accl_hw (accelerators, REGEX_ACCL_NNFW,
-      REGEX_ACCL_NNFW_ELEM);
+  pdata->accelerator = parse_accl_hw (accelerators, nnfw_accl_support);
 
   switch (pdata->accelerator) {
-    case ACCL_SRCN:
+    case ACCL_NPU:
       return NNFW_SRCN_BACKEND;
-    case ACCL_NEON:
+    case ACCL_NPU_SRCN:
+      return NNFW_SRCN_BACKEND;
+    case ACCL_CPU_NEON:
       return NNFW_NEON_BACKEND;
     case ACCL_GPU:
       return NNFW_GPU_BACKEND;
