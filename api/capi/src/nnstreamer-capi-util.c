@@ -1017,6 +1017,9 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       ml_loge ("Intel Movidius NCSDK2 is not supported.");
       status = ML_ERROR_NOT_SUPPORTED;
       break;
+    case ML_NNFW_TYPE_SNAP:
+      /* SNAP requires multiple files, set supported if model file exists. */
+      break;
     default:
       status = ML_ERROR_INVALID_PARAMETER;
       break;
@@ -1033,6 +1036,9 @@ int
 ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     bool * available)
 {
+  const GstTensorFilterFramework *fw;
+  gchar *fw_name = NULL;
+
   check_feature_state ();
 
   if (!available)
@@ -1043,40 +1049,40 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
 
   switch (nnfw) {
     case ML_NNFW_TYPE_CUSTOM_FILTER:
-      /* Always available */
+      fw_name = g_strdup ("custom");
       break;
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      if (nnstreamer_filter_find ("tensorflow-lite") == NULL) {
-        ml_logw ("Tensorflow-lite is not supported.");
-        goto done;
-      }
+      fw_name = g_strdup ("tensorflow-lite");
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
-      if (nnstreamer_filter_find ("tensorflow") == NULL) {
-        ml_logw ("Tensorflow is not supported.");
-        goto done;
-      }
+      fw_name = g_strdup ("tensorflow");
       break;
     case ML_NNFW_TYPE_NNFW:
-      if (nnstreamer_filter_find ("nnfw") == NULL) {
-        ml_logw ("NNFW is not supported.");
-        goto done;
-      }
+      fw_name = g_strdup ("nnfw");
       break;
     case ML_NNFW_TYPE_MVNC:
       /** @todo Condition to support Movidius NCSDK2 */
-      if (nnstreamer_filter_find ("movidius-ncsdk2") == NULL) {
-        ml_logw ("Intel Movidius NCSDK2 is not supported.");
-        goto done;
-      }
+      fw_name = g_strdup ("movidius-ncsdk2");
+      break;
+    case ML_NNFW_TYPE_SNAP:
+      fw_name = g_strdup ("snap");
       break;
     default:
-      goto done; /* Default = "Not available!" */
+      /* Default = "Not available!" */
+      break;
   }
 
-  *available = true;
+  /* finally check filter sub-plugin */
+  if (fw_name) {
+    if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
+      *available = true;
+    } else {
+      ml_logw ("%s is not supported.", fw_name);
+    }
 
-done:
+    g_free (fw_name);
+  }
+
   return ML_ERROR_NONE;
 }
 

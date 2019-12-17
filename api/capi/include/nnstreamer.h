@@ -119,15 +119,16 @@ typedef void *ml_pipeline_valve_h;
  * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability()
  */
 typedef enum {
-  ML_NNFW_TYPE_ANY = 0, /**< NNHW is not specified (Try to determine the NNFW with file extension). */
-  ML_NNFW_TYPE_CUSTOM_FILTER, /**< Custom filter (Independent shared object). */
-  ML_NNFW_TYPE_TENSORFLOW_LITE, /**< Tensorflow-lite (.tflite). */
-  ML_NNFW_TYPE_TENSORFLOW, /**< Tensorflow (.pb). */
-  ML_NNFW_TYPE_NNFW, /**< Neural Network Inference framework, which is developed by SR */
-  ML_NNFW_TYPE_MVNC, /**< Intel NCSDK (libmvnc). */
-  ML_NNFW_TYPE_OPENVINO, /**< Intel openVINO. */
-  ML_NNFW_TYPE_VIVANTE, /**< VeriSilicon's Vivante (TBD) */
-  ML_NNFW_TYPE_EDGE_TPU, /**< Google Coral edge TPU (USB) */
+  ML_NNFW_TYPE_ANY = 0,               /**< NNHW is not specified (Try to determine the NNFW with file extension). */
+  ML_NNFW_TYPE_CUSTOM_FILTER = 1,     /**< Custom filter (Independent shared object). */
+  ML_NNFW_TYPE_TENSORFLOW_LITE = 2,   /**< Tensorflow-lite (.tflite). */
+  ML_NNFW_TYPE_TENSORFLOW = 3,        /**< Tensorflow (.pb). */
+  ML_NNFW_TYPE_NNFW = 4,              /**< Neural Network Inference framework, which is developed by SR */
+  ML_NNFW_TYPE_MVNC = 5,              /**< Intel NCSDK (libmvnc). */
+  ML_NNFW_TYPE_OPENVINO = 6,          /**< Intel openVINO. */
+  ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante (TBD) */
+  ML_NNFW_TYPE_EDGE_TPU = 8,          /**< Google Coral edge TPU (USB) */
+  ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. */
 } ml_nnfw_type_e;
 
 /**
