@@ -326,6 +326,9 @@ export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     %endif
     ln -s ext/nnstreamer/tensor_source/*.so .
     ./tests/tizen_capi/unittest_tizen_sensor --gst-plugin-path=. --gtest_output="xml:unittest_tizen_sensor.xml"
+%if 0%{?armnn_support}
+    ./tests/unittest_filter_armnn --gst-plugin-path=. --gtest_output="xml:unittest_filter_armnn.xml"
+%endif
 %endif
 popd
 
