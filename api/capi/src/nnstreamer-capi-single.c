@@ -495,6 +495,9 @@ ml_single_open (ml_single_h * single, const char *model,
       /* We can get the tensor meta from tf-lite model. */
       g_object_set (filter_obj, "framework", "nnfw", "model", model, NULL);
       break;
+    case ML_NNFW_TYPE_SNAP:
+      g_object_set (filter_obj, "framework", "snap", "model", model, NULL);
+      break;
     default:
       /** @todo Add other fw later. */
       ml_loge ("The given nnfw is not supported.");
