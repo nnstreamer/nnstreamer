@@ -46,25 +46,15 @@
 #define DBG FALSE
 #endif
 
-/** Match all accelerators for nnapi at once */
-#define REGEX_ACCL_NNAPI \
-  "(^(true)[:]?([(]?(" \
-  REGEX_ACCL_AUTO "|" \
-  REGEX_ACCL_DEF "|" \
-  REGEX_ACCL_CPU "|" \
-  REGEX_ACCL_GPU "|" \
-  REGEX_ACCL_NPU "|" \
-  REGEX_ACCL_NEON ")*[)]?))"
-
-/** Match accelerator for nnapi one by one */
-#define REGEX_ACCL_NNAPI_ELEM \
-  "(" \
-  "(?<!!)" ACCL_AUTO_STR "|" \
-  "(?<!!)" ACCL_DEF_STR "|" \
-  "(?<!!)" ACCL_CPU_STR "|" \
-  "(?<!!)" ACCL_GPU_STR "|" \
-  "(?<!!)" ACCL_NPU_STR "|" \
-  "(?<!!)" ACCL_NEON_STR ")?"
+const gchar *tflite_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  ACCL_CPU_NEON_STR,
+  ACCL_CPU_STR,
+  ACCL_GPU_STR,
+  ACCL_NPU_STR,
+  NULL
+};
 
 /**
  * @brief Wrapper class for TFLite Interpreter to support model switching
@@ -530,8 +520,7 @@ TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 void TFLiteCore::setAccelerator (const char * accelerators)
 {
   use_nnapi = TRUE;
-  accelerator = parse_accl_hw (accelerators, REGEX_ACCL_NNAPI,
-      REGEX_ACCL_NNAPI_ELEM);
+  accelerator = parse_accl_hw (accelerators, tflite_accl_support);
   if (accelerators == NULL || accelerator == ACCL_NONE)
     goto use_nnapi_ini;
 

@@ -130,9 +130,9 @@ if [ -f /etc/tizen-platform.conf ] || [[ ! -z $(cat /etc/motd | grep Tizen) ]]; 
     cat info | grep "nnapi = 1, accl = auto"
     testResult $? 2-9 "NNAPI activation test" 0 1
 
-    # Property reading test for nnapi - based on ini
-    run_pipeline true:srcn
-    cat info | grep "nnapi = 1, accl = auto"
+    # Property reading test for nnapi
+    run_pipeline true:npu.srcn
+    cat info | grep "nnapi = 1, accl = npu"
     testResult $? 2-10 "NNAPI activation test" 0 1
 
     # Property reading test for nnapi
@@ -164,6 +164,11 @@ if [ -f /etc/tizen-platform.conf ] || [[ ! -z $(cat /etc/motd | grep Tizen) ]]; 
     run_pipeline true:!npu,abcd,gpu
     cat info | grep "nnapi = 1, accl = gpu"
     testResult $? 2-16 "NNAPI activation test" 0 1
+
+    # Property reading test for nnapi
+    run_pipeline true:cpu.neon,cpu
+    cat info | grep "nnapi = 1, accl = cpu.neon"
+    testResult $? 2-17 "NNAPI activation test" 0 1
 fi
 
 report

@@ -30,6 +30,39 @@
 #include "tensor_filter_common.h"
 
 /**
+ * Basic elements to form accelerator regex forming
+ */
+#define REGEX_ACCL_ELEM_START "("
+#define REGEX_ACCL_ELEM_PREFIX "(?<!!)"
+#define REGEX_ACCL_ELEM_SUFFIX ""
+#define REGEX_ACCL_ELEM_DELIMITER "|"
+#define REGEX_ACCL_ELEM_END ")?"
+
+#define REGEX_ACCL_START "(^(true)[:]?([(]?("
+#define REGEX_ACCL_PREFIX ""
+#define REGEX_ACCL_SUFFIX ""
+#define REGEX_ACCL_DELIMITER "|"
+#define REGEX_ACCL_END ")*[)]?))"
+
+const gchar *regex_accl_utils[] = {
+  REGEX_ACCL_START,
+  REGEX_ACCL_PREFIX,
+  REGEX_ACCL_SUFFIX,
+  REGEX_ACCL_DELIMITER,
+  REGEX_ACCL_END,
+  NULL
+};
+
+const gchar *regex_accl_elem_utils[] = {
+  REGEX_ACCL_ELEM_START,
+  REGEX_ACCL_ELEM_PREFIX,
+  REGEX_ACCL_ELEM_SUFFIX,
+  REGEX_ACCL_ELEM_DELIMITER,
+  REGEX_ACCL_ELEM_END,
+  NULL
+};
+
+/**
  * @brief Free memory
  */
 #define g_free_const(x) g_free((void*)(long)(x))
@@ -55,6 +88,68 @@ enum
   PROP_ACCELERATOR,
   PROP_IS_UPDATABLE,
 };
+
+/**
+ * @brief to get and register hardware accelerator backend enum
+ */
+static GType
+accl_hw_get_type (void)
+    G_GNUC_CONST;
+
+/**
+ * @brief copy the string from src to destination
+ * @param[in] dest destination string
+ * @param[in] src source string
+ * @return updated destination string
+ */
+     static gchar *strcpy2 (gchar * dest, const gchar * src)
+{
+  memcpy (dest, src, strlen (src));
+  return dest + strlen (src);
+}
+
+/**
+ * @brief create regex for the given string list and regex basic elements
+ * @param[in] enum_list list of strings to form regex for
+ * @param[in] regex_utils list of basic elements to form regex
+ * @return the formed regex (to be freed by the caller), NULL on error
+ */
+static gchar *
+create_regex (const gchar ** enum_list, const gchar ** regex_utils)
+{
+  gchar regex[4096];
+  gchar *regex_ptr = regex;
+  const gchar **strings = enum_list;
+  const gchar *iterator = *strings;
+  const gchar *escape_separator = "\\.";
+  const gchar *escape_chars = ".";
+  gchar **regex_split;
+  gchar *regex_escaped;
+
+  if (iterator == NULL)
+    return NULL;
+
+  /** create the regex string */
+  regex_ptr = strcpy2 (regex_ptr, regex_utils[0]);
+  regex_ptr = strcpy2 (regex_ptr, regex_utils[1]);
+  regex_ptr = strcpy2 (regex_ptr, iterator);
+  regex_ptr = strcpy2 (regex_ptr, regex_utils[2]);
+  for (iterator = strings[1]; iterator != NULL; iterator = *++strings) {
+    regex_ptr = strcpy2 (regex_ptr, regex_utils[3]);
+    regex_ptr = strcpy2 (regex_ptr, regex_utils[1]);
+    regex_ptr = strcpy2 (regex_ptr, iterator);
+    regex_ptr = strcpy2 (regex_ptr, regex_utils[2]);
+  }
+  regex_ptr = strcpy2 (regex_ptr, regex_utils[4]);
+  *regex_ptr = '\0';
+
+  /** escape the special characters */
+  regex_split = g_strsplit_set (regex, escape_chars, -1);
+  regex_escaped = g_strjoinv (escape_separator, regex_split);
+  g_strfreev (regex_split);
+
+  return regex_escaped;
+}
 
 /**
  * @brief Validate filter sub-plugin's data.
@@ -749,81 +844,73 @@ gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
 accl_hw
 get_accl_hw_type (const gchar * key)
 {
-  if (!g_ascii_strncasecmp (key, ACCL_AUTO_STR, strlen (ACCL_AUTO_STR)))
-    return ACCL_AUTO;
-  else if (!g_ascii_strncasecmp (key, ACCL_CPU_STR, strlen (ACCL_CPU_STR)))
-    return ACCL_CPU;
-  else if (!g_ascii_strncasecmp (key, ACCL_GPU_STR, strlen (ACCL_GPU_STR)))
-    return ACCL_GPU;
-  else if (!g_ascii_strncasecmp (key, ACCL_NPU_STR, strlen (ACCL_NPU_STR)))
-    return ACCL_NPU;
-  else if (!g_ascii_strncasecmp (key, ACCL_NEON_STR, strlen (ACCL_NEON_STR)))
-    return ACCL_NEON;
-  else if (!g_ascii_strncasecmp (key, ACCL_SRCN_STR, strlen (ACCL_SRCN_STR)))
-    return ACCL_SRCN;
-  else if (!g_ascii_strncasecmp (key, ACCL_DEF_STR, strlen (ACCL_DEF_STR)))
-    return ACCL_DEFAULT;
+  GEnumClass *enum_class;
+  GEnumValue *enum_value;
 
-  return ACCL_NONE;             /* key == "none" or Not Found */
+  enum_class = g_type_class_ref (accl_hw_get_type ());
+  enum_value = g_enum_get_value_by_name (enum_class, key);
+  g_type_class_unref (enum_class);
+
+  if (enum_value == NULL)
+    return ACCL_NONE;
+  return enum_value->value;
 }
 
 /**
  * @brief return string based on accl_hw type
  * @param key The key enum value
  * @return Corresponding string. Returns ACCL_NONE_STR if not found.
+ * @note Do not free the returned char *
  */
 const gchar *
 get_accl_hw_str (const accl_hw key)
 {
-  switch (key) {
-    case ACCL_NONE:
-      return ACCL_NONE_STR;
-    case ACCL_AUTO:
-      return ACCL_AUTO_STR;
-    case ACCL_CPU:
-      return ACCL_CPU_STR;
-    case ACCL_GPU:
-      return ACCL_GPU_STR;
-    case ACCL_NPU:
-      return ACCL_NPU_STR;
-    case ACCL_NEON:
-      return ACCL_NEON_STR;
-    case ACCL_SRCN:
-      return ACCL_SRCN_STR;
-    case ACCL_DEFAULT:
-      return ACCL_DEF_STR;
-    default:                   /* Not found */
-      return ACCL_NONE_STR;
-  }
+  GEnumClass *enum_class;
+  GEnumValue *enum_value;
+
+  enum_class = g_type_class_ref (accl_hw_get_type ());
+  enum_value = g_enum_get_value (enum_class, key);
+  g_type_class_unref (enum_class);
+
+  if (enum_value == NULL)
+    return ACCL_NONE_STR;
+  return enum_value->value_name;
 }
 
 /**
  * @brief parse user given string to extract accelerator based on given regex
  * @param[in] accelerators user given input
- * @param[in] regex_accl regex to determine if accelerator or not
- * @param[in] regex_accl_elem regex to determine which accelerator
+ * @param[in] supported_accelerators list ofi supported accelerators
  * @return Corresponding string. Returns ACCL_NONE_STR if not found.
  */
 accl_hw
-parse_accl_hw (const gchar * accelerators, const gchar * regex_accl,
-    const gchar * regex_accl_elem)
+parse_accl_hw (const gchar * accelerators,
+    const gchar ** supported_accelerators)
 {
   GRegex *nnapi_elem;
   GMatchInfo *match_info;
   gboolean use_accl;
   accl_hw accl;
+  gchar *regex_accl = NULL;
+  gchar *regex_accl_elem = NULL;
 
   if (accelerators == NULL)
     return ACCL_DEFAULT;
 
   /* If set by user, get the precise accelerator */
+  regex_accl = create_regex (supported_accelerators, regex_accl_utils);
   use_accl = (gboolean) g_regex_match_simple (regex_accl, accelerators,
       G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY);
+  g_free (regex_accl);
   if (use_accl == TRUE) {
     /** Default to auto mode */
     accl = ACCL_AUTO;
-    nnapi_elem = g_regex_new (regex_accl_elem, G_REGEX_CASELESS,
-        G_REGEX_MATCH_NOTEMPTY, NULL);
+    regex_accl_elem =
+        create_regex (supported_accelerators, regex_accl_elem_utils);
+    nnapi_elem =
+        g_regex_new (regex_accl_elem, G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY,
+        NULL);
+    g_free (regex_accl_elem);
 
     /** Now match each provided element and get specific accelerator */
     if (g_regex_match (nnapi_elem, accelerators, G_REGEX_MATCH_NOTEMPTY,
@@ -843,4 +930,37 @@ parse_accl_hw (const gchar * accelerators, const gchar * regex_accl,
   }
 
   return accl;
+}
+
+/**
+ * @brief to get and register hardware accelerator backend enum
+ */
+static GType
+accl_hw_get_type (void)
+{
+  static volatile gsize g_accl_hw_type_id__volatile = 0;
+
+  if (g_once_init_enter (&g_accl_hw_type_id__volatile)) {
+    static const GEnumValue values[] = {
+      {ACCL_NONE, ACCL_NONE_STR, ACCL_NONE_STR},
+      {ACCL_DEFAULT, ACCL_DEFAULT_STR, ACCL_DEFAULT_STR},
+      {ACCL_AUTO, ACCL_AUTO_STR, ACCL_AUTO_STR},
+      {ACCL_CPU, ACCL_CPU_STR, ACCL_CPU_STR},
+      {ACCL_CPU_NEON, ACCL_CPU_NEON_STR, ACCL_CPU_NEON_STR},
+      {ACCL_GPU, ACCL_GPU_STR, ACCL_GPU_STR},
+      {ACCL_NPU, ACCL_NPU_STR, ACCL_NPU_STR},
+      {ACCL_NPU_MOVIDIUS, ACCL_NPU_MOVIDIUS_STR, ACCL_NPU_MOVIDIUS_STR},
+      {ACCL_NPU_EDGE_TPU, ACCL_NPU_EDGE_TPU_STR, ACCL_NPU_EDGE_TPU_STR},
+      {ACCL_NPU_VIVANTE, ACCL_NPU_VIVANTE_STR, ACCL_NPU_VIVANTE_STR},
+      {ACCL_NPU_SRCN, ACCL_NPU_SRCN_STR, ACCL_NPU_SRCN_STR},
+      {ACCL_NPU_SR, ACCL_NPU_SR_STR, ACCL_NPU_SR_STR},
+      {0, NULL, NULL}
+    };
+
+    GType g_accl_hw_type_id =
+        g_enum_register_static (g_intern_static_string ("accl_hw"), values);
+    g_once_init_leave (&g_accl_hw_type_id__volatile, g_accl_hw_type_id);
+  }
+
+  return g_accl_hw_type_id__volatile;
 }

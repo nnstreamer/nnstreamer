@@ -28,23 +28,17 @@
 
 /** Macros for accelerator types */
 #define ACCL_NONE_STR "none"
+#define ACCL_DEFAULT_STR  "default"
 #define ACCL_AUTO_STR "auto"
 #define ACCL_CPU_STR  "cpu"
+#define ACCL_CPU_NEON_STR  "cpu.neon"
 #define ACCL_GPU_STR  "gpu"
 #define ACCL_NPU_STR  "npu"
-#define ACCL_NEON_STR "neon"
-#define ACCL_SRCN_STR "srcn"
-#define ACCL_DEF_STR  "default"
-
-#define REGEX_ACCL_EACH_ELEM(ELEM) "[^!]" ELEM "[,]?"
-
-#define REGEX_ACCL_AUTO REGEX_ACCL_EACH_ELEM(ACCL_AUTO_STR)
-#define REGEX_ACCL_CPU  REGEX_ACCL_EACH_ELEM(ACCL_CPU_STR)
-#define REGEX_ACCL_GPU  REGEX_ACCL_EACH_ELEM(ACCL_GPU_STR)
-#define REGEX_ACCL_NPU  REGEX_ACCL_EACH_ELEM(ACCL_NPU_STR)
-#define REGEX_ACCL_NEON REGEX_ACCL_EACH_ELEM(ACCL_NEON_STR)
-#define REGEX_ACCL_SRCN REGEX_ACCL_EACH_ELEM(ACCL_SRCN_STR)
-#define REGEX_ACCL_DEF  REGEX_ACCL_EACH_ELEM(ACCL_DEF_STR)
+#define ACCL_NPU_MOVIDIUS_STR  "npu.movidius"
+#define ACCL_NPU_EDGE_TPU_STR  "npu.edgetpu"
+#define ACCL_NPU_VIVANTE_STR  "npu.vivante"
+#define ACCL_NPU_SRCN_STR  "npu.srcn" /** srcn hardware supported by nnfw */
+#define ACCL_NPU_SR_STR  "npu.sr"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,7 +54,7 @@ extern "C" {
  *          However, with NNFW will enable GPU/NEON etc.
  *
  *          Appropriate acceleration should be used with each framework. For
- *          example, ACCL_NEON is only supported with NNFW tensor filter. Using
+ *          example, ACCL_CPU_NEON is supported with NNFW tensor filter. Using
  *          ACCL_NEON with pytorch would result in a warning message, and
  *          the accelerator would fallback on ACCL_AUTO.
  *
@@ -72,22 +66,29 @@ extern "C" {
  *       the acceleration for a framework was disabled in the build, setting the
  *       accelerator while use a tensor filter with that framework will have no
  *       effect.
+ *
+ * @note Add definition of new accelerators to accl_hw_get_type() in
+ *       tensor_filter_common.c as well.
  */
 typedef enum
 {
   /**< no explicit acceleration */
-  ACCL_NONE = 0,    /**< no acceleration (defaults to CPU) */
-
-  /** Enables acceleration, 0xn000 any version of that device, 0xnxxx: device # xxx-1 */
-  ACCL_AUTO = 0x1,        /**< choose optimized device automatically */
-  ACCL_CPU  = 0x1000,     /**< specify device as CPU, if possible */
-  ACCL_GPU  = 0x2000,     /**< specify device as GPU, if possible */
-  ACCL_NPU  = 0x4000,     /**< specify device as NPU, if possible */
-  ACCL_NEON = 0x8000,     /**< specify device as NEON, if possible */
-  ACCL_SRCN = 0x10000,    /**< specify device as SRCN, if possible */
+  ACCL_NONE    = 0,          /**< no acceleration (defaults to CPU) */
 
   /** If there is no default config, and device needs to be specified, fallback to ACCL_AUTO */
-  ACCL_DEFAULT = 0x20000    /**< use default device configuration by the framework*/
+  ACCL_AUTO    = 0x1,        /**< choose optimized device automatically */
+  ACCL_DEFAULT = 0x2,     /**< use default device configuration by the framework */
+
+  /** Enables acceleration, 0xn000 any version of that device, 0xnxxx: device # xxx-1 */
+  ACCL_CPU          = 0x1000,     /**< specify device as CPU, if possible */
+  ACCL_CPU_NEON     = 0x1100,     /**< specify device as NEON in cpu, if possible */
+  ACCL_GPU          = 0x2000,     /**< specify device as GPU, if possible */
+  ACCL_NPU          = 0x4000,     /**< specify device as any NPU, if possible */
+  ACCL_NPU_MOVIDIUS = 0x4001,     /**< specify device as movidius, if possible */
+  ACCL_NPU_EDGE_TPU = 0x4002,     /**< specify device as edge tpu, if possible */
+  ACCL_NPU_VIVANTE  = 0x4003,     /**< specify device as vivante, if possible */
+  ACCL_NPU_SRCN     = 0x4004,     /**< specify device as srcn, if possible */
+  ACCL_NPU_SR       = 0x4100,     /**< specify device as any SR npu, if possible */
 } accl_hw;
 
 /**
@@ -252,8 +253,7 @@ get_accl_hw_str (const accl_hw key);
  * @brief parse user given string to extract accelerator based on given regex
  */
 extern accl_hw
-parse_accl_hw (const char * accelerators, const char * regex_accl,
-    const char * regex_accl_elem);
+parse_accl_hw (const char * accelerators, const char ** supported_accelerators);
 
 #ifdef __cplusplus
 }
