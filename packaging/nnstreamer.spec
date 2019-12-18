@@ -469,6 +469,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %if %{with tizen}
 %files tizen-sensor
+%manifest nnstreamer.manifest
 %{gstlibdir}/libnnstreamer-tizen-sensor.so
 %endif
 
