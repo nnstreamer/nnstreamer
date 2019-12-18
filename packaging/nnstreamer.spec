@@ -3,7 +3,6 @@
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 %define		tensorflow_support	0
-%define		enable_nnfw	1
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
@@ -27,7 +26,7 @@ Source1001:	nnstreamer.manifest
 Source1002:	capi-nnstreamer.manifest
 %endif
 
-
+## Define build requirements ##
 Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
@@ -66,8 +65,6 @@ BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 
-%define		enable_nnfw_runtime	-Denable-nnfw-runtime=false
-%define		enable_nnfw_r	0
 %if %{with tizen}
 BuildRequires:	pkgconfig(dpm)
 BuildRequires:	pkgconfig(mm-resource-manager)
@@ -83,18 +80,14 @@ BuildRequires:	gst-plugins-base-devel
 BuildRequires:	pkgconfig(sensor)
 BuildRequires:	capi-system-sensor-devel
 
-%if 0%{?enable_nnfw}
 %ifarch %arm aarch64
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
-%define		enable_nnfw_runtime	-Denable-nnfw-runtime=true
-%define		enable_nnfw_r	1
 %endif
-%endif
-%endif
+%endif  # tizen
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
@@ -112,6 +105,7 @@ BuildRequires:	pkgconfig(orc-0.4)
 %global __debug_install_post %{nil}
 %endif
 
+## Define Packages ##
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream.
@@ -166,6 +160,22 @@ Summary:	NNStreamer UnitTest Coverage Analysis Result
 HTML pages of lcov results of NNStreamer generated during rpmbuild
 %endif
 
+%package cpp
+Summary:	NNStreamer Custom Plugin Support for C++ Classes
+Requires:	nnstreamer = %{version}-%{release}
+%description cpp
+With this package, you may use C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
+
+%post cpp -p /sbin/ldconfig
+%postun cpp -p /sbin/ldconfig
+
+%package cpp-devel
+Summary:	NNStreamer Custom Plugin Development Support for C++ Classes
+Requires:	nnstreamer-cpp = %{version}-%{release}
+%description cpp-devel
+With this package, you may write C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
+Note that there is no .pc file for this package because nnstreamer.pc file may be used for developing this.
+
 %%%% THIS IS FOR TIZEN ONLY! %%%%
 %if %{with tizen}
 %package -n capi-nnstreamer
@@ -204,29 +214,6 @@ Summary:	NNStreamer Intel Movidius NCSDK2 support
 Group:		Multimedia/Framework
 %description	ncsdk2
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
-%endif
-
-%package cpp
-Summary:	NNStreamer Custom Plugin Support for C++ Classes
-Requires:	nnstreamer = %{version}-%{release}
-%description cpp
-With this package, you may use C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
-
-%post cpp -p /sbin/ldconfig
-%postun cpp -p /sbin/ldconfig
-
-%package cpp-devel
-Summary:	NNStreamer Custom Plugin Development Support for C++ Classes
-Requires:	nnstreamer-cpp = %{version}-%{release}
-%description cpp-devel
-With this package, you may write C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
-Note that there is no .pc file for this package because nnstreamer.pc file may be used for developing this.
-
-# Define build options
-%if %{with tizen}
-%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
-%define enable_api -Denable-capi=true
-%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
 
 # Add Tizen's sensor framework API integration
 %package tizen-sensor
@@ -235,7 +222,17 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	capi-system-sensor
 %description tizen-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
+%endif # tizen
 
+## Define build options ##
+%define	enable_nnfw_runtime	-Denable-nnfw-runtime=false
+%if %{with tizen}
+%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
+%define enable_api -Denable-capi=true
+%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
+%ifarch %arm aarch64
+%define		enable_nnfw_runtime	-Denable-nnfw-runtime=true
+%endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert'
 
@@ -263,7 +260,6 @@ popd
 cp %{SOURCE1002} .
 rm -rf ./api/capi/include/platform
 %endif
-cp %{SOURCE1001} ./nnstreamer-cpp.manifest
 
 %build
 # Remove compiler flags for meson to decide the cpp version
@@ -285,6 +281,7 @@ ninja -C build %{?_smp_mflags}
 
 export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
 
+## Run unittests
 pushd build
 export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
@@ -298,7 +295,7 @@ export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
     ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
 %endif
 %if %{with tizen}
-    %if 0%{?enable_nnfw_r}
+    %ifarch %arm aarch64
         ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
     %endif
     ln -s ext/nnstreamer/tensor_source/*.so .
@@ -348,33 +345,32 @@ popd
 %else
 %define testtarget
 %endif
-    # 'lcov' generates the date format with UTC time zone by default. Let's replace UTC with KST.
-    # If you ccan get a root privilege, run ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
-    TZ='Asia/Seoul'; export TZ
-    $(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext %testtarget
 
-    # Get commit info
-    VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
+# 'lcov' generates the date format with UTC time zone by default. Let's replace UTC with KST.
+# If you ccan get a root privilege, run ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+TZ='Asia/Seoul'; export TZ
+$(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext %testtarget
 
-    # Create human readable unit test coverage report web page.
-    # Create null gcda files if gcov didn't create it because there is completely no unit test for them.
-    find . -name "*.gcno" -exec sh -c 'touch -a "${1%.gcno}.gcda"' _ {} \;
-    # Remove gcda for meaningless file (CMake's autogenerated)
-    find . -name "CMakeCCompilerId*.gcda" -delete
-    find . -name "CMakeCXXCompilerId*.gcda" -delete
-    #find . -path "/build/*.j
-    # Generate report
-    lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
-    # Exclude generated files (Orc)
-    lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/meson*/*" -o unittest-filtered.info
-    # Visualize the report
-    genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
-%endif
+# Get commit info
+VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
 
-%if 0%{?testcoverage}
+# Create human readable unit test coverage report web page.
+# Create null gcda files if gcov didn't create it because there is completely no unit test for them.
+find . -name "*.gcno" -exec sh -c 'touch -a "${1%.gcno}.gcda"' _ {} \;
+# Remove gcda for meaningless file (CMake's autogenerated)
+find . -name "CMakeCCompilerId*.gcda" -delete
+find . -name "CMakeCXXCompilerId*.gcda" -delete
+#find . -path "/build/*.j
+# Generate report
+lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
+# Exclude generated files (Orc)
+lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/meson*/*" -o unittest-filtered.info
+# Visualize the report
+genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
+
 mkdir -p %{buildroot}%{_datadir}/nnstreamer/unittest/
 cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
-%endif
+%endif  # test coverage
 
 %post -p /sbin/ldconfig
 
@@ -392,18 +388,18 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 # for tensorflow
 %if 0%{?tensorflow_support}
 %files tensorflow
-%manifest capi-nnstreamer.manifest
+%manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow.so
 %endif
 
 %files tensorflow-lite
-%manifest capi-nnstreamer.manifest
+%manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
 %files -n nnstreamer-python2
-%manifest capi-nnstreamer.manifest
+%manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
 %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
@@ -446,7 +442,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 
-%if 0%{?enable_nnfw_r}
+%ifarch %arm aarch64
 %files nnfw
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
@@ -457,21 +453,19 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_movidius-ncsdk2.so
-%endif
+
+%files tizen-sensor
+%manifest nnstreamer.manifest
+%{gstlibdir}/libnnstreamer-tizen-sensor.so
+%endif  # tizen
 
 %files cpp
-%manifest nnstreamer-cpp.manifest
+%manifest nnstreamer.manifest
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 
 %files cpp-devel
 %{_includedir}/nnstreamer/tensor_filter_cpp.h
-
-%if %{with tizen}
-%files tizen-sensor
-%manifest nnstreamer.manifest
-%{gstlibdir}/libnnstreamer-tizen-sensor.so
-%endif
 
 %changelog
 * Wed Dec 11 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
