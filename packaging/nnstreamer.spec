@@ -347,9 +347,11 @@ popd
 
 %if 0%{?unit_test}
     pushd tests
-    ssat -n
+    ssat -n --summary summary.txt
     popd
 %endif
+
+python tools/development/count_test_cases.py build tests/summary.txt
 
 %install
 DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
