@@ -40,6 +40,14 @@ executable('unittest_repo',
   install_dir: unittest_install_dir
 )
 
+# filter_reload
+executable('unittest_filter_reload',
+  join_paths('nnstreamer_filter_reload', 'tensor_filter_reload_test.c'),
+  dependencies: [nnstreamer_dep, gst_dep, glib_dep],
+  install: get_option('install-test'),
+  install_dir: unittest_install_dir
+)
+
 # gtest
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
@@ -128,6 +136,7 @@ if get_option('install-test')
   if get_option('enable-tensorflow-lite')
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_tests_install_dir)
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_reload', install_dir: unittest_tests_install_dir)
   endif
   if get_option('enable-python')
     install_subdir('nnstreamer_filter_python', install_dir: unittest_tests_install_dir)
