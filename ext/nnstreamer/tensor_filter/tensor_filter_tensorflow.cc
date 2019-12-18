@@ -590,17 +590,6 @@ failed:
 }
 
 /**
- * @brief	the destroy notify method for tensorflow. it will free the output tensor
- * @param[in] data : the data element destroyed at the pipeline
- */
-void
-tf_core_destroyNotify (void * data)
-{
-  TF_DeleteTensor ( (TFCore::outputTensorMap.find (data))->second);
-  TFCore::outputTensorMap.erase (data);
-}
-
-/**
  * @brief Free privateData and move on.
  */
 static void
