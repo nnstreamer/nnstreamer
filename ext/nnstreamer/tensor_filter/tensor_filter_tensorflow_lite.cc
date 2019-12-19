@@ -967,6 +967,20 @@ tflite_reloadModel (const GstTensorFilterProperties * prop, void **private_data)
   return core->reloadModel (prop->model_files[0]);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] hw backend accelerator hardware
+ * @return 0 if supported. -errno if not supported.
+ */
+static int
+tflite_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (tflite_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
@@ -982,6 +996,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .close = tflite_close,
   .destroyNotify = NULL,
   .reloadModel = tflite_reloadModel,
+  .checkAvailability = tflite_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */

@@ -1276,6 +1276,70 @@ TEST (nnstreamer_capi_util, availability_00)
 #endif  /* ENABLE_NNFW_RUNTIME */
 }
 
+#ifdef ENABLE_TENSORFLOW_LITE
+/**
+ * @brief Test NNStreamer Utility for checking availability of Tensorflow-lite backend
+ */
+TEST (nnstreamer_capi_util, availability_01)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_NEON, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking availability of Tensorflow-lite backend
+ */
+TEST (nnstreamer_capi_util, availability_fail_n)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_MOVIDIUS, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_EDGE_TPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_VIVANTE, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SRCN, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SR, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+}
+#endif /* ENABLE_TENSORFLOW_LITE */
+
 /**
  * @brief Test NNStreamer Utility for checking tensors info handle
  */
@@ -2832,7 +2896,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   ml_tensors_info_destroy (in_res);
   ml_tensors_info_destroy (out_res);
 }
-
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 #ifdef ENABLE_NNFW_RUNTIME
