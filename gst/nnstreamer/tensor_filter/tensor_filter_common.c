@@ -30,20 +30,6 @@
 #include "tensor_filter_common.h"
 
 /**
- * @brief Accelerator regex verification
- * @note more details in nnstreamer_plugin_api_filter.h with accl_hw
- */
-#define REGEX_ACCL_ALL \
-  "(^(true|false)[:]?([(]?(" \
-  REGEX_ACCL_AUTO "|" \
-  REGEX_ACCL_DEF "|" \
-  REGEX_ACCL_CPU "|" \
-  REGEX_ACCL_GPU "|" \
-  REGEX_ACCL_NPU "|" \
-  REGEX_ACCL_NEON "|" \
-  REGEX_ACCL_SRCN ")*[)]?))"
-
-/**
  * @brief Free memory
  */
 #define g_free_const(x) g_free((void*)(long)(x))
@@ -528,21 +514,6 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       }
 
       prop->accl_str = g_value_dup_string (value);
-      /**
-       * Perform error check on the string passed,
-       * parsing the string and finalizing the hw is done in each subplugin
-       */
-      if (!g_regex_match_simple (REGEX_ACCL_ALL, prop->accl_str,
-              G_REGEX_CASELESS, 0)) {
-        g_critical
-            ("accelerator: \'%s\' is not valid string. "
-            "It should be in the form of BOOL:comma separated ACCELERATOR(s). "
-            "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU)."
-            REGEX_ACCL_ALL "\n", prop->accl_str);
-        g_free_const (prop->accl_str);
-        prop->accl_str = NULL;
-      }
-
       break;
     }
     case PROP_IS_UPDATABLE:
