@@ -211,6 +211,13 @@ typedef struct _GstTensorFilterFramework
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
        * @return 0 if ok. < 0 if error.
        */
+
+  int (*checkAvailability) (accl_hw hw);
+      /**< Optional. Check if the provided hardware accelerator is supported. This check is static or dynamic based on framework support. Positive response of this check does not guarantee successful running of model with this accelerator. The static check can be performed without opening the framework.
+       *
+       * @param[in] hw backend accelerator hardware
+       * @return 0 if supported. -errno if not supported.
+       */
 } GstTensorFilterFramework;
 
 /* extern functions for subplugin management, exist in tensor_filter.c */

@@ -423,7 +423,6 @@ ml_single_open (ml_single_h * single, const char *model,
 
   /**
    * 2. Determine hw
-   * @todo Now the param hw is ignored.
    * (Supposed CPU only) Support others later.
    */
   status = ml_check_nnfw_availability (nnfw, hw, &available);
@@ -454,6 +453,7 @@ ml_single_open (ml_single_h * single, const char *model,
 
   /**
    * 3. Construct a pipeline
+   * @todo Set the hw property
    * Set the pipeline desc with nnfw.
    */
   single_h->nnfw = nnfw;

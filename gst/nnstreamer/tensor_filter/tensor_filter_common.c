@@ -893,6 +893,7 @@ parse_accl_hw (const gchar * accelerators,
   accl_hw accl;
   gchar *regex_accl = NULL;
   gchar *regex_accl_elem = NULL;
+  gboolean supported;
 
   if (accelerators == NULL)
     return ACCL_DEFAULT;
@@ -919,7 +920,10 @@ parse_accl_hw (const gchar * accelerators,
       while (g_match_info_matches (match_info)) {
         gchar *word = g_match_info_fetch (match_info, 0);
         accl = get_accl_hw_type (word);
+        supported = g_strv_contains (supported_accelerators, word);
         g_free (word);
+        if (!supported)
+          continue;
         break;
       }
     }

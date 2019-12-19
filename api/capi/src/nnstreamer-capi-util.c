@@ -1030,6 +1030,40 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
 }
 
 /**
+ * @brief Convert c-api based hw to internal representation
+ */
+static accl_hw
+ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
+{
+  switch (hw) {
+    case ML_NNFW_HW_ANY:
+      return ACCL_DEFAULT;
+    case ML_NNFW_HW_AUTO:
+      return ACCL_AUTO;
+    case ML_NNFW_HW_CPU:
+      return ACCL_CPU;
+    case ML_NNFW_HW_CPU_NEON:
+      return ACCL_CPU_NEON;
+    case ML_NNFW_HW_GPU:
+      return ACCL_GPU;
+    case ML_NNFW_HW_NPU:
+      return ACCL_NPU;
+    case ML_NNFW_HW_NPU_MOVIDIUS:
+      return ACCL_NPU_MOVIDIUS;
+    case ML_NNFW_HW_NPU_EDGE_TPU:
+      return ACCL_NPU_EDGE_TPU;
+    case ML_NNFW_HW_NPU_VIVANTE:
+      return ACCL_NPU_VIVANTE;
+    case ML_NNFW_HW_NPU_SRCN:
+      return ACCL_NPU_SRCN;
+    case ML_NNFW_HW_NPU_SR:
+      return ACCL_NPU_SR;
+    default:
+      return ACCL_AUTO;
+  }
+}
+
+/**
  * @brief Checks the availability of the given execution environments.
  */
 int
@@ -1072,10 +1106,13 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       break;
   }
 
-  /* finally check filter sub-plugin */
   if (fw_name) {
     if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
-      *available = true;
+      if (fw->checkAvailability && fw->checkAvailability (ml_nnfw_to_accl_hw (hw)) != 0) {
+        ml_logw ("%s is supported but not with the specified hardware.", fw_name);
+      } else {
+        *available = true;
+      }
     } else {
       ml_logw ("%s is not supported.", fw_name);
     }
