@@ -518,11 +518,10 @@ TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 
   interpreter.setModelPath (_model_path);
 
-  setAccelerator (accelerators);
-
-#if (DBG)
-  g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str(accelerator));
-#endif
+  if (accelerators != NULL) {
+    setAccelerator (accelerators);
+    g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str(accelerator));
+  }
 }
 
 /**
