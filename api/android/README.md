@@ -128,7 +128,7 @@ Run the build script in NNStreamer.
 - Build options
   1. target_abi: Specify the ABI (armv7, arm64) to be built for with `--target_abi={TARGET-ABI}`.
   2. api_option: Get the minimized library with GStreamer core elements `--api_option=lite`.
-  3. run_unittest: Run the instrumentation test `--run_unittest=yes`. 
+  3. run_test: Run the instrumentation test `--run_test=yes`.
 
 ```bash
 $ cd $NNSTREAMER_ROOT
@@ -138,7 +138,7 @@ $ bash ./api/android/build-android-lib.sh
 After building the Android API, you can find the library(.aar) in `$NNSTREAMER_ROOT/android_lib`.
 - Build result
   1. nnstreamer.aar: NNStreamer library
-  2. nnstreamer-native.zip: shared objects and header files for native developer 
+  2. nnstreamer-native.zip: shared objects and header files for native developer
 
 #### Run the unit-test (Optional)
 
@@ -158,10 +158,10 @@ You can download these files from [nnsuite testcases repository](https://github.
 {INTERNAL_STORAGE}/nnstreamer/test/orange.png
 ```
 
-To check the testcases, run the build script with an option ```--run_unittest=yes```.
+To check the testcases, run the build script with an option ```--run_test=yes```.
 You can find the result in ```$NNSTREAMER_ROOT/android_lib```.
 
 ```bash
 $ cd $NNSTREAMER_ROOT
-$ bash ./api/android/build-android-lib.sh --run_unittest=yes
+$ bash ./api/android/build-android-lib.sh --run_test=yes
 ```

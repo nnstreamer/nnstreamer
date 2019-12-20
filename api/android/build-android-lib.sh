@@ -9,9 +9,14 @@
 # - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
+# To include sub-plugin for SNAP, you also should define the variable 'SNAP_DIRECTORY'.
+# - SNAP_DIRECTORY: Absolute path for SNAP, tensor-filter sub-plugin and prebuilt library.
+#
 # Build options
 # --api_option (default 'all', 'lite' to build with GStreamer core plugins)
 # --target_abi (default 'armv7, arm64')
+# --run_test (default 'no', 'yes' to run the instrumentation test)
+# --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
 #
 # For example, to build library with core plugins for arm64-v8a
 # ./build-android-lib.sh --api_option=lite --target_abi=arm64
@@ -26,11 +31,14 @@ nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
 # Set tensorflow-lite version (available: 1.9 and 1.13)
 nnstreamer_tf_lite_ver=1.13
 
-# Run unittest after build procedure is done
-run_unittest='no'
+# Run instrumentation test after build procedure is done
+run_test='no'
 
 # Variables to release library (GROUP:ARTIFACT:VERSION)
 release_bintray='no'
+
+# Enable SNAP
+enable_snap='no'
 
 # Parse args
 for arg in "$@"; do
@@ -60,14 +68,25 @@ for arg in "$@"; do
         --bintray_user_key=*)
             bintray_user_key=${arg#*=}
             ;;
-        --run_unittest=*)
-            run_unittest=${arg#*=}
+        --run_test=*)
+            run_test=${arg#*=}
             ;;
         --result_directory=*)
             result_directory=${arg#*=}
             ;;
+        --enable_snap=*)
+            enable_snap=${arg#*=}
+            ;;
     esac
 done
+
+if [[ $enable_snap == 'yes' ]]; then
+    [ -z "$SNAP_DIRECTORY" ] && echo "Need to set SNAP_DIRECTORY, to build sub-plugin for SNAP." && exit 1
+
+    echo "Set target ABI arm64-v8a, including SNAP: $SNAP_DIRECTORY"
+    target_abi='arm64'
+    nnstreamer_target_abi="'arm64-v8a'"
+fi
 
 if [[ $release_bintray == 'yes' ]]; then
     [ -z "$release_version" ] && echo "Set release version." && exit 1
@@ -139,6 +158,13 @@ sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nns
 
 # Update API build option
 sed -i "s|NNSTREAMER_API_OPTION := all|NNSTREAMER_API_OPTION := $nnstreamer_api_option|" api/src/main/jni/Android.mk
+
+# Update SNAP option
+if [[ $enable_snap == 'yes' ]]; then
+    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" ext-files/jni/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
+    cp -r $SNAP_DIRECTORY/* api/src/main/jni
+fi
 
 # Add dependency for release
 if [[ $release_bintray == 'yes' ]]; then
@@ -216,7 +242,7 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     fi
 
     # Run instrumentation test
-    if [[ $run_unittest == 'yes' ]]; then
+    if [[ $run_test == 'yes' ]]; then
         echo "Run instrumentation test."
         ./gradlew api:connectedCheck
 

@@ -26,6 +26,9 @@
 /* nnstreamer plugins and sub-plugins declaration */
 GST_PLUGIN_STATIC_DECLARE (nnstreamer);
 extern void init_filter_tflite (void);
+#if defined (ENABLE_SNAP)
+extern void init_filter_snap (void);
+#endif
 extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);
@@ -490,10 +493,15 @@ nnstreamer_native_initialize (void)
   /* register nnstreamer plugins */
   GST_PLUGIN_STATIC_REGISTER (nnstreamer);
 
-  /* filter tensorflow-lite sub-plugin */
+  /* tensor-filter sub-plugin for tensorflow-lite */
   init_filter_tflite ();
 
-  /* decoder sub-plugins */
+#if defined (ENABLE_SNAP)
+  /* tensor-filter sub-plugin for snap */
+  init_filter_snap ();
+#endif
+
+  /* tensor-decoder sub-plugins */
   init_dv ();
   init_bb ();
   init_il ();
