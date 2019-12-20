@@ -16,6 +16,9 @@ else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
 
+# SNAP (Samsung Neural Acceleration Platform)
+ENABLE_SNAP := false
+
 #------------------------------------------------------
 # API build option
 #------------------------------------------------------
@@ -25,6 +28,10 @@ NNSTREAMER_API_OPTION := all
 # external libs
 #------------------------------------------------------
 include $(LOCAL_PATH)/Android-tensorflow-lite-prebuilt.mk
+
+ifeq ($(ENABLE_SNAP), true)
+include $(LOCAL_PATH)/Android-snap.mk
+endif
 
 #------------------------------------------------------
 # nnstreamer
@@ -46,6 +53,11 @@ LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(NNSTREAMER_CAPI_INCLUDES)
 LOCAL_STATIC_LIBRARIES := nnstreamer tensorflow-lite cpufeatures
 LOCAL_SHARED_LIBRARIES := gstreamer_android
 LOCAL_LDLIBS := -llog -landroid
+
+ifeq ($(ENABLE_SNAP), true)
+LOCAL_CFLAGS += -DENABLE_SNAP=1
+LOCAL_STATIC_LIBRARIES += snap
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
