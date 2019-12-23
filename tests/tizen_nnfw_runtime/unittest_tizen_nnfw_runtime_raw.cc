@@ -15,38 +15,6 @@
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
 
-/**
- * @brief Test nnfw subplugin existence.
- */
-TEST (nnstreamer_nnfw_runtime_raw_functions, check_existence)
-{
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
-}
-
-/**
- * @brief Test nnfw subplugin with failing open/close (no model file)
- */
-TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_00_n)
-{
-  int ret;
-  const gchar *model_files[] = {
-    "null.nnfw", NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-  void *data = NULL;
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
-
-  ret = sp->open (&prop, &data);
-  EXPECT_NE (ret, 0);
-}
 
 /**
  * @brief Get model file after validation checks
@@ -87,43 +55,6 @@ get_model_file ()
 }
 
 /**
- * @brief Test nnfw subplugin with successful open/close
- */
-TEST (nnstreamer_nnfw_runtime_raw_functions, open_close_01_n)
-{
-  int ret;
-  void *data = NULL;
-  gchar *model_file;
-
-  model_file = get_model_file ();
-  ASSERT_TRUE (model_file != nullptr);
-  const gchar *model_files[] = {
-    model_file, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
-
-  /** close without open, should not crash */
-  sp->close (&prop, &data);
-
-  /** open and close successfully */
-  ret = sp->open (&prop, &data);
-  EXPECT_EQ (ret, 0);
-  sp->close (&prop, &data);
-
-  /** close twice, should not crash */
-  sp->close (&prop, &data);
-  g_free (model_file);
-}
-
-/**
  * @brief Get input/output dimensions with nnfw subplugin
  */
 TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
@@ -148,12 +79,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
 
-  /** get input/output dimension without open */
-  ret = sp->getInputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
-
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
@@ -165,8 +90,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
   info.info[0].dimension[3] = 1;
 
   /** get input/output dimension successfully */
-  ret = sp->getInputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
   ret = sp->getInputDimension (&prop, &data, &res);
   EXPECT_EQ (ret, 0);
 
@@ -177,8 +100,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
-  ret = sp->getOutputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
   ret = sp->getOutputDimension (&prop, &data, &res);
   EXPECT_EQ (ret, 0);
 
@@ -224,22 +145,11 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
 
-  /** invoke without open */
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
-  EXPECT_NE (ret, 0);
-
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  ret = sp->invoke_NN (&prop, &data, NULL, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->invoke_NN (&prop, &data, &input, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->invoke_NN (&prop, &data, NULL, &output);
-  EXPECT_NE (ret, 0);
-
-  *((float *) input.data) = 10.0;
+  *((float *)input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (*((float *) output.data), 12.0);

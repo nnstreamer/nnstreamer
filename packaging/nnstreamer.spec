@@ -319,32 +319,23 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 ninja -C build %{?_smp_mflags}
 
 export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
+export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
+export NNSTREAMER_CONF=$(pwd)/build/nnstreamer-test.ini
+export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
+export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
 
-## Run unittests
-pushd build
-export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
-export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
-export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
-export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-%if 0%{?unit_test}
-    ./tests/unittest_common --gtest_output="xml:unittest_common.xml"
-    ./tests/unittest_sink --gst-plugin-path=. --gtest_output="xml:unittest_sink.xml"
-    ./tests/unittest_plugins --gst-plugin-path=. --gtest_output="xml:unittest_plugins.xml"
-    ./tests/unittest_src_iio --gst-plugin-path=. --gtest_output="xml:unittest_src_iio.xml"
-    ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. --gtest_output="xml:unittest_tizen_capi.xml"
-%endif
+%define test_script $(pwd)/packaging/run_unittests_binaries.sh
+
 %if %{with tizen}
-    %ifarch %arm aarch64
-        ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw --gst-plugin-path=. --gtest_output="xml:unittest_nnfw_runtime_raw.xml"
-    %endif
+    bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
     ln -s ext/nnstreamer/tensor_source/*.so .
-    ./tests/tizen_capi/unittest_tizen_sensor --gst-plugin-path=. --gtest_output="xml:unittest_tizen_sensor.xml"
-%if 0%{?armnn_support}
-    ./tests/unittest_filter_armnn --gst-plugin-path=. --gtest_output="xml:unittest_filter_armnn.xml"
+    bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
 %endif
+%if 0%{?unit_test}
+    bash %{test_script} ./tests
+    bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
+    bash %{test_script} ./tests/nnstreamer_filter_extensions_common
 %endif
-popd
-
 %if 0%{?unit_test}
     pushd tests
     ssat -n
