@@ -43,84 +43,21 @@ public final class NNStreamer {
     public static final int TENSOR_SIZE_LIMIT = 16;
 
     /**
-     * The data type of tensor in NNStreamer: Integer 32bit.
+     * The enumeration for possible data type of tensor in NNStreamer.
      */
-    public static final int TENSOR_TYPE_INT32 = 0;
-
-    /**
-     * The data type of tensor in NNStreamer: Unsigned integer 32bit.
-     */
-    public static final int TENSOR_TYPE_UINT32 = 1;
-
-    /**
-     * The data type of tensor in NNStreamer: Integer 16bit.
-     */
-    public static final int TENSOR_TYPE_INT16 = 2;
-
-    /**
-     * The data type of tensor in NNStreamer: Unsigned integer 16bit.
-     */
-    public static final int TENSOR_TYPE_UINT16 = 3;
-
-    /**
-     * The data type of tensor in NNStreamer: Integer 8bit.
-     */
-    public static final int TENSOR_TYPE_INT8 = 4;
-
-    /**
-     * The data type of tensor in NNStreamer: Unsigned integer 8bit.
-     */
-    public static final int TENSOR_TYPE_UINT8 = 5;
-
-    /**
-     * The data type of tensor in NNStreamer: Float 64bit.
-     */
-    public static final int TENSOR_TYPE_FLOAT64 = 6;
-
-    /**
-     * The data type of tensor in NNStreamer: Float 32bit.
-     */
-    public static final int TENSOR_TYPE_FLOAT32 = 7;
-
-    /**
-     * The data type of tensor in NNStreamer: Integer 64bit.
-     */
-    public static final int TENSOR_TYPE_INT64 = 8;
-
-    /**
-     * The data type of tensor in NNStreamer: Unsigned integer 64bit.
-     */
-    public static final int TENSOR_TYPE_UINT64 = 9;
-
-    /**
-     * Unknown data type of tensor in NNStreamer.
-     */
-    public static final int TENSOR_TYPE_UNKNOWN = 10;
-
-    /**
-     * The state of pipeline: Unknown state.
-     */
-    public static final int PIPELINE_STATE_UNKNOWN = 0;
-
-    /**
-     * The state of pipeline: Initial state of the pipeline.
-     */
-    public static final int PIPELINE_STATE_NULL = 1;
-
-    /**
-     * The state of pipeline: The pipeline is ready to go to PAUSED.
-     */
-    public static final int PIPELINE_STATE_READY = 2;
-
-    /**
-     * The state of pipeline: The pipeline is stopped, ready to accept and process data.
-     */
-    public static final int PIPELINE_STATE_PAUSED = 3;
-
-    /**
-     * The state of pipeline: The pipeline is started and the data is flowing.
-     */
-    public static final int PIPELINE_STATE_PLAYING = 4;
+    public enum TensorType {
+        /** Integer 32bit */ INT32,
+        /** Unsigned integer 32bit */ UINT32,
+        /** Integer 16bit */ INT16,
+        /** Unsigned integer 16bit */ UINT16,
+        /** Integer 8bit */ INT8,
+        /** Unsigned integer 8bit */ UINT8,
+        /** Float 64bit */ FLOAT64,
+        /** Float 32bit */ FLOAT32,
+        /** Integer 64bit */ INT64,
+        /** Unsigned integer 64bit */ UINT64,
+        /** Unknown data type (usually error) */ UNKNOWN
+    }
 
     private static native boolean nativeInitialize(Context context);
     private static native String nativeGetVersion();

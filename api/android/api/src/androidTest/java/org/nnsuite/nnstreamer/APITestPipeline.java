@@ -22,7 +22,7 @@ import static org.junit.Assert.*;
 public class APITestPipeline {
     private int mReceived = 0;
     private boolean mInvalidState = false;
-    private int mPipelineState = NNStreamer.PIPELINE_STATE_NULL;
+    private Pipeline.State mPipelineState = Pipeline.State.NULL;
 
     private Pipeline.NewDataCallback mSinkCb = new Pipeline.NewDataCallback() {
         @Override
@@ -40,7 +40,7 @@ public class APITestPipeline {
             if (info == null ||
                 info.getTensorsCount() != 1 ||
                 info.getTensorName(0) != null ||
-                info.getTensorType(0) != NNStreamer.TENSOR_TYPE_UINT8 ||
+                info.getTensorType(0) != NNStreamer.TensorType.UINT8 ||
                 !Arrays.equals(info.getTensorDimension(0), new int[]{2,10,10,1})) {
                 /* received data is invalid */
                 mInvalidState = true;
@@ -60,7 +60,16 @@ public class APITestPipeline {
 
         mReceived = 0;
         mInvalidState = false;
-        mPipelineState = NNStreamer.PIPELINE_STATE_NULL;
+        mPipelineState = Pipeline.State.NULL;
+    }
+
+    @Test
+    public void enumPipelineState() {
+        assertEquals(Pipeline.State.UNKNOWN, Pipeline.State.valueOf("UNKNOWN"));
+        assertEquals(Pipeline.State.NULL, Pipeline.State.valueOf("NULL"));
+        assertEquals(Pipeline.State.READY, Pipeline.State.valueOf("READY"));
+        assertEquals(Pipeline.State.PAUSED, Pipeline.State.valueOf("PAUSED"));
+        assertEquals(Pipeline.State.PLAYING, Pipeline.State.valueOf("PLAYING"));
     }
 
     @Test
@@ -93,7 +102,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc, null)) {
             Thread.sleep(100);
-            assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, pipe.getState());
+            assertEquals(Pipeline.State.PAUSED, pipe.getState());
             Thread.sleep(100);
         } catch (Exception e) {
             fail();
@@ -108,26 +117,26 @@ public class APITestPipeline {
         /* pipeline state callback */
         Pipeline.StateChangeCallback stateCb = new Pipeline.StateChangeCallback() {
             @Override
-            public void onStateChanged(int state) {
+            public void onStateChanged(Pipeline.State state) {
                 mPipelineState = state;
             }
         };
 
         try (Pipeline pipe = new Pipeline(desc, stateCb)) {
             Thread.sleep(100);
-            assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, mPipelineState);
+            assertEquals(Pipeline.State.PAUSED, mPipelineState);
 
             /* start pipeline */
             pipe.start();
             Thread.sleep(300);
 
-            assertEquals(NNStreamer.PIPELINE_STATE_PLAYING, mPipelineState);
+            assertEquals(Pipeline.State.PLAYING, mPipelineState);
 
             /* stop pipeline */
             pipe.stop();
             Thread.sleep(300);
 
-            assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, mPipelineState);
+            assertEquals(Pipeline.State.PAUSED, mPipelineState);
             Thread.sleep(100);
         } catch (Exception e) {
             fail();
@@ -144,13 +153,13 @@ public class APITestPipeline {
             pipe.start();
             Thread.sleep(300);
 
-            assertEquals(NNStreamer.PIPELINE_STATE_PLAYING, pipe.getState());
+            assertEquals(Pipeline.State.PLAYING, pipe.getState());
 
             /* stop pipeline */
             pipe.stop();
             Thread.sleep(300);
 
-            assertEquals(NNStreamer.PIPELINE_STATE_PAUSED, pipe.getState());
+            assertEquals(Pipeline.State.PAUSED, pipe.getState());
             Thread.sleep(100);
         } catch (Exception e) {
             fail();
@@ -243,7 +252,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);
@@ -291,7 +300,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* register three callbacks */
             Pipeline.NewDataCallback cb1 = new Pipeline.NewDataCallback() {
@@ -358,7 +367,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{3,224,224,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{3,224,224,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
@@ -414,7 +423,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);
@@ -451,7 +460,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* start pipeline */
             pipe.start();
@@ -471,7 +480,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* start pipeline */
             pipe.start();
@@ -510,7 +519,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);
@@ -634,7 +643,7 @@ public class APITestPipeline {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,10,10,1});
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);

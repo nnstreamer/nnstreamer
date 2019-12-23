@@ -67,15 +67,9 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Interface definition for a callback to be invoked when the pipeline state is changed.
-     * This callback can be registered only when constructing the pipeline.<br>
-     * <br>
-     * The state of pipeline:<br>
-     * {@link NNStreamer#PIPELINE_STATE_UNKNOWN}<br>
-     * {@link NNStreamer#PIPELINE_STATE_NULL}<br>
-     * {@link NNStreamer#PIPELINE_STATE_READY}<br>
-     * {@link NNStreamer#PIPELINE_STATE_PAUSED}<br>
-     * {@link NNStreamer#PIPELINE_STATE_PLAYING}<br>
+     * This callback can be registered only when constructing the pipeline.
      *
+     * @see State
      * @see #start()
      * @see #stop()
      */
@@ -89,7 +83,34 @@ public final class Pipeline implements AutoCloseable {
          *
          * @param state The changed state
          */
-        void onStateChanged(int state);
+        void onStateChanged(Pipeline.State state);
+    }
+
+    /**
+     * The enumeration for pipeline state.
+     * Refer to <a href="https://gstreamer.freedesktop.org/documentation/plugin-development/basics/states.html">GStreamer states</a> for the details.
+     */
+    public enum State {
+        /**
+         * Unknown state.
+         */
+        UNKNOWN,
+        /**
+         * Initial state of the pipeline.
+         */
+        NULL,
+        /**
+         * The pipeline is ready to go to PAUSED.
+         */
+        READY,
+        /**
+         * The pipeline is stopped, ready to accept and process data.
+         */
+        PAUSED,
+        /**
+         * The pipeline is started and the data is flowing.
+         */
+        PLAYING
     }
 
     /**
@@ -111,7 +132,7 @@ public final class Pipeline implements AutoCloseable {
      * @param description The pipeline description. Refer to GStreamer manual or
      *                    <a href="https://github.com/nnsuite/nnstreamer">NNStreamer</a> documentation for examples and the grammar.
      * @param callback    The function to be called when the pipeline state is changed.
-     *                    You may set null if it's not required.
+     *                    You may set null if it is not required.
      *
      * @throws IllegalArgumentException if given param is null
      * @throws IllegalStateException if failed to construct the pipeline
@@ -131,11 +152,12 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Starts the pipeline, asynchronously.
-     * The pipeline state would be changed to 'PLAYING'.
+     * The pipeline state would be changed to {@link State#PLAYING}.
      * If you need to get the changed state, add a callback while constructing a pipeline.
      *
      * @throws IllegalStateException if failed to start the pipeline
      *
+     * @see State
      * @see StateChangeCallback
      */
     public void start() {
@@ -148,11 +170,12 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Stops the pipeline, asynchronously.
-     * The pipeline state would be changed to 'PAUSED'.
+     * The pipeline state would be changed to {@link State#PAUSED}.
      * If you need to get the changed state, add a callback while constructing a pipeline.
      *
      * @throws IllegalStateException if failed to stop the pipeline
      *
+     * @see State
      * @see StateChangeCallback
      */
     public void stop() {
@@ -164,23 +187,19 @@ public final class Pipeline implements AutoCloseable {
     }
 
     /**
-     * Gets the state of pipeline.<br>
-     * {@link NNStreamer#PIPELINE_STATE_UNKNOWN}<br>
-     * {@link NNStreamer#PIPELINE_STATE_NULL}<br>
-     * {@link NNStreamer#PIPELINE_STATE_READY}<br>
-     * {@link NNStreamer#PIPELINE_STATE_PAUSED}<br>
-     * {@link NNStreamer#PIPELINE_STATE_PLAYING}<br>
+     * Gets the state of pipeline.
      *
      * @return The state of pipeline
      *
      * @throws IllegalStateException if the pipeline is not constructed
      *
+     * @see State
      * @see StateChangeCallback
      */
-    public int getState() {
+    public State getState() {
         checkPipelineHandle();
 
-        return nativeGetState(mHandle);
+        return convertPipelineState(nativeGetState(mHandle));
     }
 
     /**
@@ -372,12 +391,39 @@ public final class Pipeline implements AutoCloseable {
     /**
      * Internal method called from native when the state of pipeline is changed.
      */
-    private void stateChanged(int state) {
+    private void stateChanged(int value) {
         synchronized(this) {
             if (mStateCallback != null) {
-                mStateCallback.onStateChanged(state);
+                mStateCallback.onStateChanged(convertPipelineState(value));
             }
         }
+    }
+
+    /**
+     * Internal method to get the pipeline state from int value.
+     */
+    private State convertPipelineState(int value) {
+        State state = State.UNKNOWN;
+
+        switch (value) {
+            case 1:
+                state = State.NULL;
+                break;
+            case 2:
+                state = State.READY;
+                break;
+            case 3:
+                state = State.PAUSED;
+                break;
+            case 4:
+                state = State.PLAYING;
+                break;
+            default:
+                /* invalid or unknown state */
+                break;
+        }
+
+        return state;
     }
 
     /**

@@ -21,20 +21,11 @@ import android.support.annotation.Nullable;
 import java.util.ArrayList;
 
 /**
- * Provides interfaces to handle tensors information.<br>
- * <br>
- * The data type of tensor in NNStreamer:<br>
- * {@link NNStreamer#TENSOR_TYPE_INT32}<br>
- * {@link NNStreamer#TENSOR_TYPE_UINT32}<br>
- * {@link NNStreamer#TENSOR_TYPE_INT16}<br>
- * {@link NNStreamer#TENSOR_TYPE_UINT16}<br>
- * {@link NNStreamer#TENSOR_TYPE_INT8}<br>
- * {@link NNStreamer#TENSOR_TYPE_UINT8}<br>
- * {@link NNStreamer#TENSOR_TYPE_FLOAT64}<br>
- * {@link NNStreamer#TENSOR_TYPE_FLOAT32}<br>
+ * Provides interfaces to handle tensors information.
  *
  * @see NNStreamer#TENSOR_RANK_LIMIT
  * @see NNStreamer#TENSOR_SIZE_LIMIT
+ * @see NNStreamer.TensorType
  */
 public final class TensorsInfo implements AutoCloseable {
     private ArrayList<TensorInfo> mInfoList = new ArrayList<>();
@@ -73,7 +64,7 @@ public final class TensorsInfo implements AutoCloseable {
      * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
      * @throws IllegalArgumentException if given param is null or invalid
      */
-    public void addTensorInfo(int type, @NonNull int[] dimension) {
+    public void addTensorInfo(NNStreamer.TensorType type, @NonNull int[] dimension) {
         addTensorInfo(null, type, dimension);
     }
 
@@ -87,7 +78,7 @@ public final class TensorsInfo implements AutoCloseable {
      * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
      * @throws IllegalArgumentException if given param is null or invalid
      */
-    public void addTensorInfo(@Nullable String name, int type, @NonNull int[] dimension) {
+    public void addTensorInfo(@Nullable String name, NNStreamer.TensorType type, @NonNull int[] dimension) {
         int index = getTensorsCount();
 
         if (index >= NNStreamer.TENSOR_SIZE_LIMIT) {
@@ -133,7 +124,7 @@ public final class TensorsInfo implements AutoCloseable {
      * @throws IndexOutOfBoundsException if the given index is invalid
      * @throws IllegalArgumentException if the given type is unknown or unsupported type
      */
-    public void setTensorType(int index, int type) {
+    public void setTensorType(int index, NNStreamer.TensorType type) {
         checkIndexBounds(index);
         mInfoList.get(index).setType(type);
     }
@@ -147,7 +138,7 @@ public final class TensorsInfo implements AutoCloseable {
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
      */
-    public int getTensorType(int index) {
+    public NNStreamer.TensorType getTensorType(int index) {
         checkIndexBounds(index);
         return mInfoList.get(index).getType();
     }
@@ -202,6 +193,58 @@ public final class TensorsInfo implements AutoCloseable {
     }
 
     /**
+     * Internal method called from native to add new info.
+     */
+    private void appendInfo(String name, int type, int[] dimension) {
+        addTensorInfo(name, convertType(type), dimension);
+    }
+
+    /**
+     * Internal method to get the tensor type from int value.
+     */
+    private NNStreamer.TensorType convertType(int value) {
+        NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
+
+        switch (value) {
+            case 0:
+                type = NNStreamer.TensorType.INT32;
+                break;
+            case 1:
+                type = NNStreamer.TensorType.UINT32;
+                break;
+            case 2:
+                type = NNStreamer.TensorType.INT16;
+                break;
+            case 3:
+                type = NNStreamer.TensorType.UINT16;
+                break;
+            case 4:
+                type = NNStreamer.TensorType.INT8;
+                break;
+            case 5:
+                type = NNStreamer.TensorType.UINT8;
+                break;
+            case 6:
+                type = NNStreamer.TensorType.FLOAT64;
+                break;
+            case 7:
+                type = NNStreamer.TensorType.FLOAT32;
+                break;
+            case 8:
+                type = NNStreamer.TensorType.INT64;
+                break;
+            case 9:
+                type = NNStreamer.TensorType.UINT64;
+                break;
+            default:
+                /* unknown type */
+                break;
+        }
+
+        return type;
+    }
+
+    /**
      * Internal method to check the index.
      *
      * @throws IndexOutOfBoundsException if the given index is invalid
@@ -222,10 +265,10 @@ public final class TensorsInfo implements AutoCloseable {
      */
     private static class TensorInfo {
         private String name = null;
-        private int type = NNStreamer.TENSOR_TYPE_UNKNOWN;
+        private NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
         private int[] dimension = new int[NNStreamer.TENSOR_RANK_LIMIT];
 
-        public TensorInfo(@Nullable String name, int type, @NonNull int[] dimension) {
+        public TensorInfo(@Nullable String name, NNStreamer.TensorType type, @NonNull int[] dimension) {
             setName(name);
             setType(type);
             setDimension(dimension);
@@ -239,16 +282,20 @@ public final class TensorsInfo implements AutoCloseable {
             return this.name;
         }
 
-        public void setType(int type) {
-            if (type < 0 || type >= NNStreamer.TENSOR_TYPE_UNKNOWN) {
+        public void setType(NNStreamer.TensorType type) {
+            if (type == NNStreamer.TensorType.UNKNOWN) {
                 throw new IllegalArgumentException("Given tensor type is unknown or unsupported type");
             }
 
             this.type = type;
         }
 
-        public int getType() {
+        public NNStreamer.TensorType getType() {
             return this.type;
+        }
+
+        public int getTypeValue() {
+            return this.type.ordinal();
         }
 
         public void setDimension(@NonNull int[] dimension) {
@@ -283,28 +330,20 @@ public final class TensorsInfo implements AutoCloseable {
         public int getSize() {
             int size = 0;
 
-            switch (this.type) {
-                case NNStreamer.TENSOR_TYPE_INT32:
-                case NNStreamer.TENSOR_TYPE_UINT32:
-                case NNStreamer.TENSOR_TYPE_FLOAT32:
-                    size = 4;
-                    break;
-                case NNStreamer.TENSOR_TYPE_INT16:
-                case NNStreamer.TENSOR_TYPE_UINT16:
-                    size = 2;
-                    break;
-                case NNStreamer.TENSOR_TYPE_INT8:
-                case NNStreamer.TENSOR_TYPE_UINT8:
-                    size = 1;
-                    break;
-                case NNStreamer.TENSOR_TYPE_FLOAT64:
-                case NNStreamer.TENSOR_TYPE_INT64:
-                case NNStreamer.TENSOR_TYPE_UINT64:
-                    size = 8;
-                    break;
-                default:
-                    /* unknown type */
-                    break;
+            if (type == NNStreamer.TensorType.INT32 ||
+                    type == NNStreamer.TensorType.UINT32 ||
+                    type == NNStreamer.TensorType.FLOAT32) {
+                size = 4;
+            } else if (type == NNStreamer.TensorType.INT16 ||
+                    type == NNStreamer.TensorType.UINT16) {
+                size = 2;
+            } else if (type == NNStreamer.TensorType.INT8 ||
+                    type == NNStreamer.TensorType.UINT8) {
+                size = 1;
+            } else if (type == NNStreamer.TensorType.FLOAT64 ||
+                    type == NNStreamer.TensorType.INT64 ||
+                    type == NNStreamer.TensorType.UINT64) {
+                size = 8;
             }
 
             for (int i = 0; i < NNStreamer.TENSOR_RANK_LIMIT; i++) {
