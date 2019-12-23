@@ -138,6 +138,9 @@ if get_option('enable-nnfw-runtime')
   subdir('tizen_nnfw_runtime')
 endif
 
+# Tensor filter extensions basic test cases
+subdir('nnstreamer_filter_extensions_common')
+
 # Install Unittest
 if get_option('install-test')
   install_data('gen24bBMP.py', install_dir: unittest_tests_install_dir)
