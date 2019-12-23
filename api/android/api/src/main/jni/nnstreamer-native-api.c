@@ -408,7 +408,7 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
 
   /* method to generate tensors info */
   mid_init = (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "<init>", "()V");
-  mid_add = (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "addTensorInfo", "(Ljava/lang/String;I[I)V");
+  mid_add = (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "appendInfo", "(Ljava/lang/String;I[I)V");
 
   obj_info = (*env)->NewObject (env, pipe_info->cls_tensors_info, mid_init);
   if (!obj_info) {
@@ -487,7 +487,7 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     jclass cls_info = (*env)->GetObjectClass (env, item);
 
     jmethodID mid_name = (*env)->GetMethodID (env, cls_info, "getName", "()Ljava/lang/String;");
-    jmethodID mid_type = (*env)->GetMethodID (env, cls_info, "getType", "()I");
+    jmethodID mid_type = (*env)->GetMethodID (env, cls_info, "getTypeValue", "()I");
     jmethodID mid_dimension = (*env)->GetMethodID (env, cls_info, "getDimension", "()[I");
 
     /* tensor name */

@@ -49,7 +49,7 @@ public class APITestSingleShot {
 
             /* input: uint8 3:224:224:1 */
             assertEquals(1, info.getTensorsCount());
-            assertEquals(NNStreamer.TENSOR_TYPE_UINT8, info.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.UINT8, info.getTensorType(0));
             assertArrayEquals(new int[]{3,224,224,1}, info.getTensorDimension(0));
         } catch (Exception e) {
             fail();
@@ -63,7 +63,7 @@ public class APITestSingleShot {
 
             /* output: uint8 1001:1 */
             assertEquals(1, info.getTensorsCount());
-            assertEquals(NNStreamer.TENSOR_TYPE_UINT8, info.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.UINT8, info.getTensorType(0));
             assertArrayEquals(new int[]{1001,1,1,1}, info.getTensorDimension(0));
         } catch (Exception e) {
             fail();
@@ -95,24 +95,24 @@ public class APITestSingleShot {
 
             /* input: float32 with dimension 1 */
             assertEquals(1, info.getTensorsCount());
-            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.FLOAT32, info.getTensorType(0));
             assertArrayEquals(new int[]{1,1,1,1}, info.getTensorDimension(0));
 
             TensorsInfo newInfo = new TensorsInfo();
-            newInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{10});
+            newInfo.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{10});
 
             addSingle.setInputInfo(newInfo);
 
             info = addSingle.getInputInfo();
             /* input: float32 with dimension 10 */
             assertEquals(1, info.getTensorsCount());
-            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.FLOAT32, info.getTensorType(0));
             assertArrayEquals(new int[]{10,1,1,1}, info.getTensorDimension(0));
 
             info = addSingle.getOutputInfo();
             /* output: float32 with dimension 10 */
             assertEquals(1, info.getTensorsCount());
-            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, info.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.FLOAT32, info.getTensorType(0));
             assertArrayEquals(new int[]{10,1,1,1}, info.getTensorDimension(0));
         } catch (Exception e) {
             fail();
@@ -158,7 +158,7 @@ public class APITestSingleShot {
             /* single-shot invoke */
             for (int i = 1; i < 2; i++) {
                 TensorsInfo info = new TensorsInfo();
-                info.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{1,1,1,i});
+                info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{1,1,1,i});
 
                 /* dummy input */
                 TensorsData out = addSingle.invoke(TensorsData.allocate(info));
@@ -217,7 +217,7 @@ public class APITestSingleShot {
     public void testInvalidInputType() {
         /* input: uint8 3:224:224:1 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT16, new int[]{3,224,224,1});
+        info.addTensorInfo(NNStreamer.TensorType.UINT16, new int[]{3,224,224,1});
 
         try {
             new SingleShot(APITestCommon.getTestModel(), info, null);
@@ -231,7 +231,7 @@ public class APITestSingleShot {
     public void testInvalidInputDimension() {
         /* input: uint8 3:224:224:1 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,224,224});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,224,224});
 
         try {
             new SingleShot(APITestCommon.getTestModel(), info, null);
@@ -245,7 +245,7 @@ public class APITestSingleShot {
     public void testInvalidOutputType() {
         /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT16, new int[]{1001,1});
+        info.addTensorInfo(NNStreamer.TensorType.INT16, new int[]{1001,1});
 
         try {
             new SingleShot(APITestCommon.getTestModel(), null, info);
@@ -259,7 +259,7 @@ public class APITestSingleShot {
     public void testInvalidOutputDimension() {
         /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{1001,2,1,1});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{1001,2,1,1});
 
         try {
             new SingleShot(APITestCommon.getTestModel(), null, info);
@@ -283,7 +283,7 @@ public class APITestSingleShot {
     public void testInvokeInvalidData() {
         /* input data size: 3 * 224 * 224 */
         TensorsInfo info = new TensorsInfo();
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{100});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{100});
 
         try {
             mSingle.invoke(TensorsData.allocate(info));

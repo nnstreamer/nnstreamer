@@ -73,7 +73,7 @@ public class APITestCustomFilter {
                 new CustomFilter.CustomFilterCallback() {
                     @Override
                     public TensorsInfo getOutputInfo(TensorsInfo in) {
-                        in.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
+                        in.setTensorType(0, NNStreamer.TensorType.FLOAT32);
                         return in;
                     }
 
@@ -82,7 +82,7 @@ public class APITestCustomFilter {
                         TensorsInfo info = in.getTensorsInfo();
                         ByteBuffer input = in.getTensorData(0);
 
-                        info.setTensorType(0, NNStreamer.TENSOR_TYPE_FLOAT32);
+                        info.setTensorType(0, NNStreamer.TensorType.FLOAT32);
 
                         TensorsData out = info.allocate();
                         ByteBuffer output = out.getTensorData(0);
@@ -176,7 +176,7 @@ public class APITestCustomFilter {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{10});
+            info.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{10});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);
@@ -221,7 +221,7 @@ public class APITestCustomFilter {
 
         try (Pipeline pipe = new Pipeline(desc)) {
             TensorsInfo info = new TensorsInfo();
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{10,1,1,1});
+            info.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{10,1,1,1});
 
             /* register sink callback */
             pipe.registerSinkCallback("sinkx", mSinkCb);

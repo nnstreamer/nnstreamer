@@ -30,13 +30,13 @@ public class APITestTensorsInfo {
     @Test
     public void testAddInfo() {
         try {
-            mInfo.addTensorInfo("name1", NNStreamer.TENSOR_TYPE_INT8, new int[]{1});
+            mInfo.addTensorInfo("name1", NNStreamer.TensorType.INT8, new int[]{1});
             assertEquals(1, mInfo.getTensorsCount());
 
-            mInfo.addTensorInfo("name2", NNStreamer.TENSOR_TYPE_UINT8, new int[]{2,2});
+            mInfo.addTensorInfo("name2", NNStreamer.TensorType.UINT8, new int[]{2,2});
             assertEquals(2, mInfo.getTensorsCount());
 
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{3,3,3});
+            mInfo.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,3,3});
             assertEquals(3, mInfo.getTensorsCount());
         } catch (Exception e) {
             fail();
@@ -49,15 +49,15 @@ public class APITestTensorsInfo {
             testAddInfo();
 
             assertEquals("name1", mInfo.getTensorName(0));
-            assertEquals(NNStreamer.TENSOR_TYPE_INT8, mInfo.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.INT8, mInfo.getTensorType(0));
             assertArrayEquals(new int[]{1,1,1,1}, mInfo.getTensorDimension(0));
 
             assertEquals("name2", mInfo.getTensorName(1));
-            assertEquals(NNStreamer.TENSOR_TYPE_UINT8, mInfo.getTensorType(1));
+            assertEquals(NNStreamer.TensorType.UINT8, mInfo.getTensorType(1));
             assertArrayEquals(new int[]{2,2,1,1}, mInfo.getTensorDimension(1));
 
             assertNull(mInfo.getTensorName(2));
-            assertEquals(NNStreamer.TENSOR_TYPE_FLOAT32, mInfo.getTensorType(2));
+            assertEquals(NNStreamer.TensorType.FLOAT32, mInfo.getTensorType(2));
             assertArrayEquals(new int[]{3,3,3,1}, mInfo.getTensorDimension(2));
 
             assertEquals(3, mInfo.getTensorsCount());
@@ -110,10 +110,10 @@ public class APITestTensorsInfo {
             assertEquals("name2", mInfo.getTensorName(1));
             assertEquals("name3", mInfo.getTensorName(2));
 
-            mInfo.setTensorType(2, NNStreamer.TENSOR_TYPE_INT64);
-            assertEquals(NNStreamer.TENSOR_TYPE_INT8, mInfo.getTensorType(0));
-            assertEquals(NNStreamer.TENSOR_TYPE_UINT8, mInfo.getTensorType(1));
-            assertEquals(NNStreamer.TENSOR_TYPE_INT64, mInfo.getTensorType(2));
+            mInfo.setTensorType(2, NNStreamer.TensorType.INT64);
+            assertEquals(NNStreamer.TensorType.INT8, mInfo.getTensorType(0));
+            assertEquals(NNStreamer.TensorType.UINT8, mInfo.getTensorType(1));
+            assertEquals(NNStreamer.TensorType.INT64, mInfo.getTensorType(2));
 
             mInfo.setTensorDimension(2, new int[]{2,3});
             assertArrayEquals(new int[]{1,1,1,1}, mInfo.getTensorDimension(0));
@@ -125,21 +125,9 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddInvalidType() {
-        try {
-            mInfo.addTensorInfo(100, new int[]{2,2,2,2});
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-
-        assertEquals(0, mInfo.getTensorsCount());
-    }
-
-    @Test
     public void testAddUnknownType() {
         try {
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_UNKNOWN, new int[]{2,2,2,2});
+            mInfo.addTensorInfo(NNStreamer.TensorType.UNKNOWN, new int[]{2,2,2,2});
             fail();
         } catch (Exception e) {
             /* expected */
@@ -151,7 +139,7 @@ public class APITestTensorsInfo {
     @Test
     public void testAddInvalidRank() {
         try {
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{2,2,2,2,2});
+            mInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{2,2,2,2,2});
             fail();
         } catch (Exception e) {
             /* expected */
@@ -163,7 +151,7 @@ public class APITestTensorsInfo {
     @Test
     public void testAddInvalidDimension() {
         try {
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_INT32, new int[]{1,1,-1});
+            mInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{1,1,-1});
             fail();
         } catch (Exception e) {
             /* expected */
@@ -175,7 +163,7 @@ public class APITestTensorsInfo {
     @Test
     public void testAddNullDimension() {
         try {
-            mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, null);
+            mInfo.addTensorInfo(NNStreamer.TensorType.UINT8, null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -198,7 +186,7 @@ public class APITestTensorsInfo {
     public void testAddMaxInfo() {
         try {
             for (int i = 0; i <= NNStreamer.TENSOR_SIZE_LIMIT; i++) {
-                mInfo.addTensorInfo(NNStreamer.TENSOR_TYPE_FLOAT32, new int[]{2,2,2,2});
+                mInfo.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{2,2,2,2});
             }
             fail();
         } catch (Exception e) {

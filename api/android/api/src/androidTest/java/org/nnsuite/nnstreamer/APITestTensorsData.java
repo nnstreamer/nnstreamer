@@ -25,9 +25,9 @@ public class APITestTensorsData {
 
         TensorsInfo info = new TensorsInfo();
 
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{100});
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{200});
-        info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT8, new int[]{300});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{100});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{200});
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{300});
 
         mData = TensorsData.allocate(info);
     }
@@ -53,9 +53,9 @@ public class APITestTensorsData {
         try {
             TensorsInfo info = new TensorsInfo();
 
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_INT16, new int[]{2});
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT16, new int[]{2,2});
-            info.addTensorInfo(NNStreamer.TENSOR_TYPE_UINT32, new int[]{2,2,2});
+            info.addTensorInfo(NNStreamer.TensorType.INT16, new int[]{2});
+            info.addTensorInfo(NNStreamer.TensorType.UINT16, new int[]{2,2});
+            info.addTensorInfo(NNStreamer.TensorType.UINT32, new int[]{2,2,2});
 
             TensorsData data = TensorsData.allocate(info);
 
