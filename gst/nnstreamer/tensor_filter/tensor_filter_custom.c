@@ -26,6 +26,7 @@
  *
  */
 
+#include <errno.h>
 #include <glib.h>
 #include <dlfcn.h>
 
@@ -148,14 +149,14 @@ static int
 custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
-  int retval = custom_loadlib (prop, private_data);
   internal_data *ptr;
 
   /* Actually, tensor_filter must have called getInput/OutputDim first. */
-  g_assert (retval == 1);
-  g_assert (*private_data);
-  ptr = *private_data;
+  g_return_val_if_fail (*private_data != NULL, -EINVAL);
+  g_return_val_if_fail (input != NULL, -EINVAL);
+  g_return_val_if_fail (output != NULL, -EINVAL);
 
+  ptr = *private_data;
   if (ptr->methods->invoke) {
     return ptr->methods->invoke (ptr->customFW_private_data, prop,
         input, output);
@@ -174,16 +175,12 @@ static int
 custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
-  int retval = custom_loadlib (prop, private_data);
   internal_data *ptr;
 
-  g_assert (retval == 1);       /* open must be called before */
-
-  g_assert (*private_data);
   ptr = *private_data;
-  if (ptr->methods->getInputDim == NULL) {
-    return -1;
-  }
+  g_return_val_if_fail (ptr != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+  g_return_val_if_fail (ptr->methods->getInputDim != NULL, -EINVAL);
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, prop, info);
 }
@@ -195,16 +192,12 @@ static int
 custom_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
-  int retval = custom_loadlib (prop, private_data);
   internal_data *ptr;
 
-  g_assert (retval == 1);       /* open must be called before */
-
-  g_assert (*private_data);
   ptr = *private_data;
-  if (ptr->methods->getOutputDim == NULL) {
-    return -1;
-  }
+  g_return_val_if_fail (ptr != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+  g_return_val_if_fail (ptr->methods->getOutputDim != NULL, -EINVAL);
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data, prop, info);
 }
@@ -216,15 +209,13 @@ static int
 custom_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  int retval = custom_loadlib (prop, private_data);
   internal_data *ptr;
 
-  g_assert (retval == 1);       /* open must be called before */
-
-  g_assert (*private_data);
   ptr = *private_data;
-  if (ptr->methods->setInputDim == NULL)
-    return -1;
+  g_return_val_if_fail (ptr != NULL, -EINVAL);
+  g_return_val_if_fail (in_info != NULL, -EINVAL);
+  g_return_val_if_fail (out_info != NULL, -EINVAL);
+  g_return_val_if_fail (ptr->methods->setInputDim != NULL, -EINVAL);
 
   return ptr->methods->setInputDim (ptr->customFW_private_data,
       prop, in_info, out_info);
@@ -237,6 +228,8 @@ static void
 custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   internal_data *ptr = *private_data;
+
+  g_return_if_fail (ptr != NULL);
 
   ptr->methods->exitfunc (ptr->customFW_private_data, prop);
   g_free (ptr);

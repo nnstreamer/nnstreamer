@@ -501,7 +501,8 @@ torch_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   TorchCore *core = static_cast < TorchCore * >(*private_data);
 
-  g_assert (core);
+  if (!core)
+    return;
 
   delete core;
 
@@ -569,8 +570,6 @@ torch_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   gint status = torch_loadModelFile (prop, private_data);
 
-  g_assert (status >= 0);       /** This must be called only once */
-
   return status;
 }
 
@@ -587,8 +586,7 @@ torch_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   TorchCore *core = static_cast < TorchCore * >(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->invoke (input, output);
 }
@@ -604,8 +602,7 @@ torch_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   TorchCore *core = static_cast < TorchCore * >(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
 }
@@ -621,8 +618,7 @@ torch_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   TorchCore *core = static_cast < TorchCore * >(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }

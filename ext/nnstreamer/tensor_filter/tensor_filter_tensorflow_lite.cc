@@ -195,12 +195,14 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
+  bool size_mismatch = FALSE;
 
   for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    g_assert (tensor_ptr->bytes == output[i].size);
+    if (tensor_ptr->bytes != output[i].size)
+      size_mismatch = TRUE;
     tensor_ptr->data.raw = (char *) output[i].data;
     tensors_idx.push_back (tensor_idx);
   }
@@ -209,17 +211,22 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    g_assert (tensor_ptr->bytes == input[i].size);
+    if (tensor_ptr->bytes != input[i].size)
+      size_mismatch = TRUE;
     tensor_ptr->data.raw = (char *) input[i].data;
     tensors_idx.push_back (tensor_idx);
   }
 
+  if (!size_mismatch) {
 #ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  if (use_nnapi)
-    status = nnfw_delegate->Invoke (interpreter.get());
-  else
+    if (use_nnapi)
+      status = nnfw_delegate->Invoke (interpreter.get());
+    else
 #endif
-    status = interpreter->Invoke ();
+      status = interpreter->Invoke ();
+  } else {
+    status = kTfLiteError;
+  }
 
   /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
   int tensorSize = tensors_idx.size ();
@@ -351,7 +358,8 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
 {
   TfLiteIntArray *tensor_dims = interpreter->tensor (tensor_idx)->dims;
   int len = tensor_dims->size;
-  g_assert (len <= NNS_TENSOR_RANK_LIMIT);
+  if (len > NNS_TENSOR_RANK_LIMIT)
+    return -EPERM;
 
   /* the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
@@ -514,8 +522,6 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
  */
 TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 {
-  g_assert (_model_path != NULL);
-
   interpreter.setModelPath (_model_path);
 
   setAccelerator (accelerators);
@@ -777,9 +783,10 @@ tflite_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
 
-  g_assert (core);
-  delete core;
+  if (!core)
+    return;
 
+  delete core;
   *private_data = NULL;
 }
 
@@ -803,6 +810,9 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
 
   core = static_cast<TFLiteCore *>(*private_data);
   model_file = prop->model_files[0];
+
+  if (model_file == NULL)
+    return -1;
 
   if (core != NULL) {
     if (core->compareModelPath (model_file))
@@ -840,8 +850,6 @@ tflite_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int status = tflite_loadModelFile (prop, private_data);
 
-  g_assert (status >= 0);       /** This must be called only once */
-
   return status;
 }
 
@@ -858,8 +866,7 @@ tflite_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->invoke (input, output);
 }
@@ -875,8 +882,7 @@ tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
 }
@@ -892,8 +898,7 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }
@@ -914,7 +919,7 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   GstTensorsInfo cur_in_info;
   int status;
 
-  g_assert (core);
+  g_return_val_if_fail (core, -EINVAL);
 
   /** get current input tensor info for resetting */
   status = core->getInputTensorDim (&cur_in_info);
@@ -965,8 +970,7 @@ static int
 tflite_reloadModel (const GstTensorFilterProperties * prop, void **private_data)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core, -EINVAL);
 
   if (prop->num_models != 1)
     return -1;
