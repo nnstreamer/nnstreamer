@@ -63,8 +63,8 @@ void fini_filter_nnfw (void) __attribute__ ((destructor));
  */
 typedef struct
 {
-  nnfw_tensorinfo i_in;
-  nnfw_tensorinfo i_out;
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
   nnfw_session *session;
   gchar *model_file;
   accl_hw accelerator;
@@ -72,6 +72,8 @@ typedef struct
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
+static int nnfw_tensors_info_get (const nnfw_pdata *pdata,
+    const gboolean is_input, GstTensorsInfo * info);
 
 /**
  * @brief parse user given input to extract accelerator to be used by nnfw
@@ -170,6 +172,13 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     err = -EINVAL;
     g_printerr ("nnfw-runtime cannot prepare the session for %s",
         prop->model_files[0]);
+    goto session_exit;
+  }
+
+  if (nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info) ||
+      nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info)) {
+    err = -EINVAL;
+    g_printerr ("Error retrieving input/output info from nnfw-runtime.");
     goto session_exit;
   }
 
@@ -339,14 +348,15 @@ nnfw_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   nnfw_pdata *pdata;
-  int err = 0;
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
-
   pdata = (nnfw_pdata *) *private_data;
-  err = nnfw_tensors_info_get (pdata, TRUE, info);
 
-  return err;
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+
+  gst_tensors_info_copy (info, &pdata->in_info);
+  return 0;
 }
 
 /**
@@ -357,14 +367,15 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   nnfw_pdata *pdata;
-  int err = 0;
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
-
   pdata = (nnfw_pdata *) *private_data;
-  err = nnfw_tensors_info_get (pdata, FALSE, info);
 
-  return err;
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+
+  gst_tensors_info_copy (info, &pdata->out_info);
+  return 0;
 }
 
 /**
@@ -430,12 +441,17 @@ static int nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
     if (err != 0)
       return err;
 
-    if (is_input)
+    if (is_input) {
+      g_return_val_if_fail (mem[idx].size ==
+          gst_tensor_info_get_size (&pdata->in_info.info[idx]), -EINVAL);
       nnfw_status = nnfw_set_input (pdata->session, idx, nnfw_type,
         mem[idx].data, mem[idx].size);
-    else
+    } else {
+      g_return_val_if_fail (mem[idx].size ==
+          gst_tensor_info_get_size (&pdata->out_info.info[idx]), -EINVAL);
       nnfw_status = nnfw_set_output (pdata->session, idx, nnfw_type,
         mem[idx].data, mem[idx].size);
+    }
     if (nnfw_status != NNFW_STATUS_NO_ERROR)
       return -EINVAL;
   }

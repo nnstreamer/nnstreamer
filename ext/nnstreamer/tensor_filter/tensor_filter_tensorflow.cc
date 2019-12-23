@@ -597,10 +597,10 @@ tf_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   TFCore *core = static_cast<TFCore *>(*private_data);
 
-  g_assert (core);
+  if (!core)
+    return;
 
   delete core;
-
   *private_data = NULL;
 }
 
@@ -660,8 +660,6 @@ tf_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int status = tf_loadModelFile (prop, private_data);
 
-  g_assert (status >= 0); /** This must be called only once */
-
   return status;
 }
 
@@ -677,8 +675,7 @@ tf_run (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   TFCore *core = static_cast<TFCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->run (input, output);
 }
@@ -694,8 +691,7 @@ tf_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   TFCore *core = static_cast<TFCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
 }
@@ -711,8 +707,7 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   TFCore *core = static_cast<TFCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }

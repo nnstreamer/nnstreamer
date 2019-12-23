@@ -90,7 +90,6 @@ std::map <char*, Tensor*> Caffe2Core::inputTensorMap;
  */
 Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
 {
-  g_assert (_model_path != NULL && _model_path_sub != NULL);
   init_model_path = g_strdup (_model_path);
   pred_model_path = g_strdup (_model_path_sub);
   first_run = true;
@@ -431,10 +430,10 @@ caffe2_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
 
-  g_assert (core);
+  if (!core)
+    return;
 
   delete core;
-
   *private_data = NULL;
 }
 
@@ -463,6 +462,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
   core = static_cast<Caffe2Core *>(*private_data);
   init_model = prop->model_files[0];
   pred_model = prop->model_files[1];
+  g_return_val_if_fail (init_model && pred_model, -1);
 
   if (core != NULL) {
     if (g_strcmp0 (init_model, core->getInitModelPath ()) == 0 &&
@@ -501,8 +501,6 @@ caffe2_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int status = caffe2_loadModelFile (prop, private_data);
 
-  g_assert (status >= 0);       /** This must be called only once */
-
   return status;
 }
 
@@ -519,8 +517,7 @@ caffe2_run (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->run (input, output);
 }
@@ -536,8 +533,7 @@ caffe2_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
 }
@@ -553,8 +549,7 @@ caffe2_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }
