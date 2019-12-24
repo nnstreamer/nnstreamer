@@ -779,7 +779,7 @@ py_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (core && in_info && out_info, -EINVAL);
 
   if (core->getCbType () != CB_SETDIM) {
-    return -EINVAL;
+    return -ENOENT;
   }
 
   return core->setInputTensorDim (in_info, out_info);
@@ -799,7 +799,7 @@ py_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (core && info, -EINVAL);
 
   if (core->getCbType () != CB_GETDIM) {
-    return -EINVAL;
+    return -ENOENT;
   }
 
   return core->getInputTensorDim (info);
@@ -819,7 +819,7 @@ py_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (core && info, -EINVAL);
 
   if (core->getCbType () != CB_GETDIM) {
-    return -EINVAL;
+    return -ENOENT;
   }
 
   return core->getOutputTensorDim (info);

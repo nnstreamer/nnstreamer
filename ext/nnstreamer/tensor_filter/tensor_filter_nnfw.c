@@ -506,6 +506,9 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   if (in_info->num_tensors != pdata->in_info.num_tensors)
     return -EPERM;
 
+  /** Return -ENOENT till nnfw supports set input dimension internally */
+  return -ENOENT;
+
   for (idx = 0; idx < pdata->in_info.num_tensors; idx ++) {
     err = nnfw_tensor_info_set (pdata, in_info, idx);
     if (err)
