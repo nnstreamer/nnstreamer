@@ -245,6 +245,11 @@ typedef struct _ml_pipeline_valve {
 } ml_pipeline_valve;
 
 /**
+ * @brief Macro to check the availability of given NNFW.
+ */
+#define ml_nnfw_is_available(f,h) ({bool a; (ml_check_nnfw_availability ((f), (h), &a) == ML_ERROR_NONE && a);})
+
+/**
  * @brief Macro to check the tensors info is valid.
  */
 #define ml_tensors_info_is_valid(i) ({bool v; (ml_tensors_info_validate ((i), &v) == ML_ERROR_NONE && v);})
