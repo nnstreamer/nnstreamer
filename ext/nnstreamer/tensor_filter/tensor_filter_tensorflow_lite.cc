@@ -445,7 +445,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
      */
     input_rank = gst_tensor_info_get_rank (&info->info[tensor_idx]);
     for (int rank = NNS_TENSOR_RANK_LIMIT; rank >= input_rank; rank--) {
-			std::vector<int> dims(rank);
+      std::vector<int> dims(rank);
       /* the order of dimension is reversed at CAPS negotiation */
       for (int idx = 0; idx < rank; ++idx) {
         /** check overflow when storing uint32_t in int container */
@@ -463,12 +463,12 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
 
     /** return error when none of the ranks worked */
     if (status != kTfLiteOk)
-      return -EINVAL;
+      return -EPERM;
   }
 
   status = interpreter->AllocateTensors ();
   if (status != kTfLiteOk)
-    return -EINVAL;
+    return -EPERM;
 
   return 0;
 }
@@ -910,6 +910,8 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   int status;
 
   g_return_val_if_fail (core, -EINVAL);
+  g_return_val_if_fail (in_info, -EINVAL);
+  g_return_val_if_fail (out_info, -EINVAL);
 
   /** get current input tensor info for resetting */
   status = core->getInputTensorDim (&cur_in_info);
