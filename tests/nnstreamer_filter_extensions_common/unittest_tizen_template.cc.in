@@ -51,8 +51,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, open_close_00_n)
  * @returns model file path, NULL on error
  * @note caller has to be free the returned model file path
  */
-static
-gchar ** get_model_files ()
+static gchar **
+get_model_files ()
 {
   gchar *model_file, *model_filepath;
   gchar *model_path;
@@ -117,7 +117,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, open_close_01_n)
   GstTensorFilterProperties prop = {
     .fwname = "@EXT_NAME@",
     .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
+    .model_files = const_cast < const char **>(model_files),
     .num_models = (int) g_strv_length (model_files),
   };
 
@@ -153,30 +153,36 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension_fail_n)
   GstTensorFilterProperties prop = {
     .fwname = "@EXT_NAME@",
     .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
+    .model_files = const_cast < const char **>(model_files),
     .num_models = (int) g_strv_length (model_files),
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
 
-  /** get input/output dimension without open */
-  ret = sp->getInputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
+  if (sp->getInputDimension && sp->getOutputDimension) {
+    /** get input/output dimension without open */
+    ret = sp->getInputDimension (&prop, &data, &res);
+    EXPECT_NE (ret, 0);
+    ret = sp->getOutputDimension (&prop, &data, &res);
+    EXPECT_NE (ret, 0);
 
-  ret = sp->open (&prop, &data);
-  EXPECT_EQ (ret, 0);
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0);
 
-  /** get input/output dimension unsuccessfully */
-  ret = sp->getInputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
+    /** python subplugin modifies methods based on model file */
+    if (sp->getInputDimension && sp->getOutputDimension) {
+      /** get input/output dimension unsuccessfully */
+      ret = sp->getInputDimension (&prop, &data, NULL);
+      EXPECT_NE (ret, 0);
 
-  ret = sp->getOutputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
+      ret = sp->getOutputDimension (&prop, &data, NULL);
+      EXPECT_NE (ret, 0);
+    }
 
-  sp->close (&prop, &data);
+    sp->close (&prop, &data);
+  }
+
   g_strfreev (model_files);
 }
 
@@ -196,7 +202,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension)
   GstTensorFilterProperties prop = {
     .fwname = "@EXT_NAME@",
     .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
+    .model_files = const_cast < const char **>(model_files),
     .num_models = (int) g_strv_length (model_files),
   };
 
@@ -206,14 +212,20 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
-  /** get input/output dimension successfully */
-  ret = sp->getInputDimension (&prop, &data, &res);
-  EXPECT_EQ (ret, 0);
+  /** python subplugin modifies methods based on model file */
+  if (sp->getInputDimension && sp->getOutputDimension) {
+    /** get input/output dimension successfully */
+    ret = sp->getInputDimension (&prop, &data, &res);
+    gst_tensors_info_free (&res);
+    EXPECT_EQ (ret, 0);
 
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_EQ (ret, 0);
+    ret = sp->getOutputDimension (&prop, &data, &res);
+    gst_tensors_info_free (&res);
+    EXPECT_EQ (ret, 0);
+  }
 
   sp->close (&prop, &data);
+
   g_strfreev (model_files);
 }
 
@@ -233,7 +245,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
   GstTensorFilterProperties prop = {
     .fwname = "@EXT_NAME@",
     .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
+    .model_files = const_cast < const char **>(model_files),
     .num_models = (int) g_strv_length (model_files),
   };
 
@@ -249,8 +261,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
 
   input.type = output.type = _NNS_FLOAT32;
   input.size = output.size = 1 * gst_tensor_get_element_size (output.type);
-  input.data = g_malloc(input.size);
-  output.data = g_malloc(output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   /** invoke unsuccessful */
   ret = sp->invoke_NN (&prop, &data, NULL, NULL);
@@ -285,7 +297,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
   GstTensorFilterProperties prop = {
     .fwname = "@EXT_NAME@",
     .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
+    .model_files = const_cast < const char **>(model_files),
     .num_models = (int) g_strv_length (model_files),
   };
 
@@ -295,25 +307,50 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_EQ (ret, 0);
-  output.size = gst_tensor_info_get_size (&res.info[0]);
-  output.type = res.info[0].type;
-  num_outputs = res.num_tensors;
+  ASSERT_TRUE ((sp->getInputDimension && sp->getOutputDimension) ||
+      (sp->setInputDimension));
 
-  ret = sp->getInputDimension (&prop, &data, &res);
-  EXPECT_EQ (ret, 0);
-  input.size = gst_tensor_info_get_size (&res.info[0]);
-  input.type = res.info[0].type;
-  num_inputs = res.num_tensors;
+  /** Decide the size for input and output */
+  if (sp->getInputDimension && sp->getOutputDimension) {
+    gst_tensors_info_init (&res);
+    ret = sp->getOutputDimension (&prop, &data, &res);
+    EXPECT_EQ (ret, 0);
+    output.size = gst_tensor_info_get_size (&res.info[0]);
+    output.type = res.info[0].type;
+    num_outputs = res.num_tensors;
+    gst_tensors_info_free (&res);
 
-  input.data = g_malloc(input.size);
-  output.data = g_malloc(output.size);
+    gst_tensors_info_init (&res);
+    ret = sp->getInputDimension (&prop, &data, &res);
+    EXPECT_EQ (ret, 0);
+    input.size = gst_tensor_info_get_size (&res.info[0]);
+    input.type = res.info[0].type;
+    num_inputs = res.num_tensors;
+    gst_tensors_info_free (&res);
+  } else {
+    res.num_tensors = 1;
+    res.info[0].type = _NNS_FLOAT32;
+    res.info[0].dimension[0] = 10;
+    res.info[0].dimension[1] = 1;
+    res.info[0].dimension[2] = 1;
+    res.info[0].dimension[3] = 1;
+
+    input.size = gst_tensor_info_get_size (&res.info[0]);
+    input.type = res.info[0].type;
+    num_inputs = res.num_tensors;
+    output.size = gst_tensor_info_get_size (&res.info[0]);
+    output.type = res.info[0].type;
+    num_outputs = res.num_tensors;
+  }
+
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   /** should never crash */
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   /** should be successful for single input/output case */
-  if (num_inputs == 1 && num_outputs == 1) {
+  if (sp->getInputDimension && sp->getOutputDimension && num_inputs == 1
+      && num_outputs == 1) {
     EXPECT_EQ (ret, 0);
   }
 
