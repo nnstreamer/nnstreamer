@@ -386,7 +386,6 @@ ml_single_open (ml_single_h * single, const char *model,
   int status = ML_ERROR_NONE;
   GTensorFilterSingleClass *klass;
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
-  bool available = false;
   GError * error;
 
   check_feature_state ();
@@ -416,7 +415,7 @@ ml_single_open (ml_single_h * single, const char *model,
   }
 
   /**
-   * 1. Determine nnfw
+   * 1. Determine nnfw and validate model file
    */
   if ((status = ml_validate_model_file (model, &nnfw)) != ML_ERROR_NONE)
     return status;
@@ -425,11 +424,7 @@ ml_single_open (ml_single_h * single, const char *model,
    * 2. Determine hw
    * (Supposed CPU only) Support others later.
    */
-  status = ml_check_nnfw_availability (nnfw, hw, &available);
-  if (status != ML_ERROR_NONE)
-    return status;
-
-  if (!available) {
+  if (!ml_nnfw_is_available (nnfw, hw)) {
     ml_loge ("The given nnfw is not available.");
     return ML_ERROR_NOT_SUPPORTED;
   }
@@ -459,44 +454,39 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->nnfw = nnfw;
   switch (nnfw) {
     case ML_NNFW_TYPE_CUSTOM_FILTER:
-      g_object_set (filter_obj, "framework", "custom", "model", model, NULL);
+      g_object_set (filter_obj, "framework", "custom", NULL);
       break;
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
       /* We can get the tensor meta from tf-lite model. */
-      g_object_set (filter_obj, "framework", "tensorflow-lite",
-          "model", model, NULL);
+      g_object_set (filter_obj, "framework", "tensorflow-lite", NULL);
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
       if (in_tensors_info && out_tensors_info) {
-        status = ml_single_set_inout_tensors_info (filter_obj, TRUE,
-            in_tensors_info);
+        status = ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
         if (status != ML_ERROR_NONE)
           goto error;
 
-        status = ml_single_set_inout_tensors_info (filter_obj, FALSE,
-            out_tensors_info);
+        status = ml_single_set_inout_tensors_info (filter_obj, FALSE, out_tensors_info);
         if (status != ML_ERROR_NONE)
           goto error;
 
-        g_object_set (filter_obj, "framework", "tensorflow",
-            "model", model, NULL);
+        g_object_set (filter_obj, "framework", "tensorflow", NULL);
       } else {
-        ml_loge ("To run the pipeline with tensorflow model, \
-            input and output information should be initialized.");
+        ml_loge ("To run the pipeline with tensorflow model, input and output information should be initialized.");
         status = ML_ERROR_INVALID_PARAMETER;
         goto error;
       }
       break;
     case ML_NNFW_TYPE_MVNC:
       /** @todo Verify this! (this code is not tested) */
-      g_object_set (filter_obj, "framework", "movidius-ncsdk2", "model", model, NULL);
+      g_object_set (filter_obj, "framework", "movidius-ncsdk2", NULL);
       break;
     case ML_NNFW_TYPE_NNFW:
       /* We can get the tensor meta from tf-lite model. */
-      g_object_set (filter_obj, "framework", "nnfw", "model", model, NULL);
+      g_object_set (filter_obj, "framework", "nnfw", NULL);
       break;
     case ML_NNFW_TYPE_SNAP:
-      g_object_set (filter_obj, "framework", "snap", "model", model, NULL);
+      g_object_set (filter_obj, "framework", "snap", NULL);
       break;
     default:
       /** @todo Add other fw later. */
@@ -504,6 +494,9 @@ ml_single_open (ml_single_h * single, const char *model,
       status = ML_ERROR_NOT_SUPPORTED;
       goto error;
   }
+
+  /* set model file */
+  g_object_set (filter_obj, "model", model, NULL);
 
   /* 4. Allocate */
   ml_tensors_info_initialize (&single_h->in_info);
@@ -538,8 +531,7 @@ ml_single_open (ml_single_h * single, const char *model,
   single_h->state = IDLE;
   single_h->ignore_output = FALSE;
 
-  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h,
-      &error);
+  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
   if (single_h->thread == NULL) {
     ml_loge ("Failed to create the invoke thread, error: %s.", error->message);
     g_clear_error (&error);

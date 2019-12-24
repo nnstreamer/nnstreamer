@@ -938,12 +938,8 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
          */
         gboolean nnfw_runtime_priority = nnsconf_get_custom_value_bool (
             "nnfw-runtime", "prioritize_tflite_ext", FALSE);
-        bool available_nnfw = FALSE, available_tflite = FALSE;
-
-        ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY,
-            &available_nnfw);
-        ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE,
-            ML_NNFW_HW_ANY, &available_tflite);
+        gboolean available_nnfw = ml_nnfw_is_available (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+        gboolean available_tflite = ml_nnfw_is_available (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
 
         if ((nnfw_runtime_priority && available_nnfw) ||
             (!nnfw_runtime_priority && !available_tflite)) {
@@ -965,9 +961,7 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       }
 
       if (status == ML_ERROR_NONE) {
-        bool available = false;
-        ml_check_nnfw_availability (*nnfw, ML_NNFW_HW_ANY, &available);
-        if (available == false)
+        if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY))
           status = ML_ERROR_NOT_SUPPORTED;
       }
 
