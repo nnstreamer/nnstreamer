@@ -177,18 +177,18 @@ foreach s : filter_sub_python_sources
 endforeach
 
 if have_python2
-  nnstreamer_filter_python_deps = [python2_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_python2_deps = [python2_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_python2',
     nnstreamer_filter_python_sources,
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_python2',
     nnstreamer_filter_python_sources,
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python2_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )
@@ -196,25 +196,25 @@ if have_python2
   shared_library('nnstreamer_python2',
     'tensor_filter_python_api.c',
     name_prefix: '',
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 endif
 
 if have_python3
-  nnstreamer_filter_python_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_python3',
     nnstreamer_filter_python_sources,
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python3_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_python3',
     nnstreamer_filter_python_sources,
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python3_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )
@@ -222,7 +222,7 @@ if have_python3
   shared_library('nnstreamer_python3',
     'tensor_filter_python_api.c',
     name_prefix: '',
-    dependencies: nnstreamer_filter_python_deps,
+    dependencies: nnstreamer_filter_python3_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
