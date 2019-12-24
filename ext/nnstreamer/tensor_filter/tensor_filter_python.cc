@@ -164,9 +164,6 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
   g_assert(handle);
 
-  Py_Initialize();
-  g_assert(Py_IsInitialized());
-
   _import_array();  /** for numpy */
 
   /**
@@ -196,19 +193,13 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   Py_XDECREF(sys_path);
   Py_XDECREF(sys_module);
 
-  /** Find nnstreamer_api module */
-  PyObject *api_module = PyImport_ImportModule("nnstreamer_python");
-  g_assert(api_module);
-  shape_cls = PyObject_GetAttrString(api_module, "TensorShape");
-  g_assert(shape_cls);
-  Py_XDECREF(api_module);
-
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
 
   callback_type = CB_END;
   core_obj = NULL;
   configured = false;
+  shape_cls = NULL;
 
   /** to prevent concurrent Python C-API calls */
   g_mutex_init (&py_mutex);
@@ -229,7 +220,6 @@ PYCore::~PYCore ()
     Py_XDECREF(shape_cls);
 
   PyErr_Clear();
-  Py_Finalize();
 
   dlclose(handle);
   g_mutex_clear (&py_mutex);
@@ -242,6 +232,18 @@ PYCore::~PYCore ()
 int
 PYCore::init (const GstTensorFilterProperties * prop)
 {
+  /** Find nnstreamer_api module */
+  PyObject *api_module = PyImport_ImportModule("nnstreamer_python");
+  if (api_module == NULL) {
+    return -EINVAL;
+  }
+
+  shape_cls = PyObject_GetAttrString(api_module, "TensorShape");
+  Py_XDECREF(api_module);
+
+  if (shape_cls == NULL)
+    return -EINVAL;
+
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
 
@@ -724,7 +726,9 @@ py_run (const GstTensorFilterProperties * prop, void **private_data,
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
 
-  g_assert (core);
+  g_return_val_if_fail (core, -EINVAL);
+  g_return_val_if_fail (input, -EINVAL);
+  g_return_val_if_fail (output, -EINVAL);
 
   return core->run (input, output);
 }
@@ -757,8 +761,7 @@ py_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && in_info && out_info, -EINVAL);
 
   return core->setInputTensorDim (in_info, out_info);
 }
@@ -774,8 +777,7 @@ py_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
 }
@@ -791,8 +793,7 @@ py_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
     GstTensorsInfo * info)
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
-
-  g_assert (core);
+  g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }
@@ -805,8 +806,7 @@ py_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
 
-  g_assert (core);
-
+  g_return_if_fail (core != NULL);
   delete core;
 
   *private_data = NULL;
@@ -891,9 +891,8 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
 static int
 py_open (const GstTensorFilterProperties * prop, void **private_data)
 {
+  g_assert(Py_IsInitialized());
   int status = py_loadScriptFile (prop, private_data);
-
-  g_assert (status >= 0);   /** This must be called only once */
 
   return status;
 }
@@ -926,11 +925,15 @@ init_filter_py (void)
 {
   nnstreamer_filter_probe (&NNS_support_python);
   filter_framework = &NNS_support_python;
+  /** Python should be initialized and finalized only once */
+  Py_Initialize();
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_py (void)
 {
+  /** Python should be initialized and finalized only once */
+  Py_Finalize();
   nnstreamer_filter_exit (NNS_support_python.name);
 }

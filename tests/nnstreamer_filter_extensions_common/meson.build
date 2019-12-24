@@ -31,6 +31,14 @@ if get_option('enable-caffe2')
   extensions += [['caffe2', 'caffe2', nnstreamer_filter_caffe2_deps, 'caffe2_init_net.pb,caffe2_predict_net.pb']]
 endif
 
+if have_python2
+  extensions += [['python2', 'python2', nnstreamer_filter_python2_deps, 'passthrough.py']]
+endif
+
+if have_python3
+  extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'passthrough.py']]
+endif
+
 foreach ext : extensions
   gen_test_src = run_command('deploy.sh', ext[0], ext[1], ext[3])
 
