@@ -556,6 +556,7 @@ caffe2_getOutputDim (const GstTensorFilterProperties * prop,
 
 /**
  * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] private_data caffe2 plugin's private data
  * @param[in] data The data element.
  */
 static void
