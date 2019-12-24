@@ -28,6 +28,7 @@
 #include <gst/gst.h>
 
 #include "nnstreamer.h"
+#include "nnstreamer-single.h"
 #include "tensor_typedef.h"
 
 /* Tizen ML feature */
@@ -243,6 +244,25 @@ typedef struct _ml_pipeline_valve {
   ml_pipeline_element *element;
   guint32 id;
 } ml_pipeline_valve;
+
+/**
+ * @brief An information to create single-shot instance.
+ * @todo consider to open new api ml_single_open_custom()
+ */
+typedef struct {
+  ml_tensors_info_h input_info;  /**< The input tensors information. */
+  ml_tensors_info_h output_info; /**< The output tensors information. */
+  ml_nnfw_type_e nnfw;           /**< The neural network framework. */
+  ml_nnfw_hw_e hw;               /**< The type of hardware resource. */
+  char *models;                  /**< Comma separated neural network model files. */
+  char *custom_option;           /**< Custom option string for neural network framework. */
+} ml_single_preset;
+
+/**
+ * @brief Opens an ML model with the custom options and returns the instance as a handle.
+ * @todo consider to open new api ml_single_open_custom()
+ */
+int ml_single_open_custom (ml_single_h *single, ml_single_preset *info);
 
 /**
  * @brief Macro to check the availability of given NNFW.
