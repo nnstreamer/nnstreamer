@@ -346,6 +346,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 {
   GstTensorFilterPrivate *priv;
   guint i;
+  gboolean allocate_in_invoke;
 
   priv = &self->priv;
 
@@ -365,9 +366,10 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   }
 
   /** Setup output buffer */
+  allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
   for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
     /* allocate memory if allocate_in_invoke is FALSE */
-    if (priv->fw->allocate_in_invoke == FALSE) {
+    if (allocate_in_invoke == FALSE) {
       output[i].data = g_malloc (output[i].size);
       if (!output[i].data) {
         g_critical ("Failed to allocate the output tensor.");
@@ -380,7 +382,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     return TRUE;
 
 error:
-  if (priv->fw->allocate_in_invoke == FALSE)
+  if (allocate_in_invoke == FALSE)
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
       g_free (output[i].data);
   return FALSE;

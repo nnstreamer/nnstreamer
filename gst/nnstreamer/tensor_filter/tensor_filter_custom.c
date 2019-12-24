@@ -37,8 +37,6 @@
 void init_filter_custom (void) __attribute__ ((constructor));
 void fini_filter_custom (void) __attribute__ ((destructor));
 
-static GstTensorFilterFramework NNS_support_custom;
-
 /**
  * @brief internal_data
  */
@@ -131,9 +129,6 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   ptr = *private_data;
   g_assert (!ptr->methods->invoke != !ptr->methods->allocate_invoke);   /* XOR! */
 
-  if (ptr->methods->allocate_invoke) {
-    NNS_support_custom.allocate_in_invoke = TRUE;
-  }
   return 0;
 }
 
@@ -256,23 +251,38 @@ custom_destroyNotify (void **private_data, void *data)
   }
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ */
+static int
+custom_allocateInInvoke (void **private_data)
+{
+  internal_data *ptr = *private_data;
+
+  if (ptr && ptr->methods->allocate_invoke) {
+    return 0;
+  }
+
+  return -EINVAL;
+}
+
 static gchar filter_subplugin_custom[] = "custom";
 
 static GstTensorFilterFramework NNS_support_custom = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .name = filter_subplugin_custom,
   .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
-  .allocate_in_invoke = FALSE,  /* GstTensorFilter allocates output buffers */
+  .allocate_in_invoke = TRUE,   /* GstTensorFilter allocates output buffers */
   .run_without_model = FALSE,   /* custom needs a so file */
   .invoke_NN = custom_invoke,
 
-  /* We need to disable getI/O-dim or setI-dim with the first call */
   .getInputDimension = custom_getInputDim,
   .getOutputDimension = custom_getOutputDim,
   .setInputDimension = custom_setInputDim,
   .open = custom_open,
   .close = custom_close,
-  .destroyNotify = custom_destroyNotify,        /* default null. if allocate_in_invoke is true, this will be set from custom filter. */
+  .destroyNotify = custom_destroyNotify,        /* if custom filter model supports allocate_in_invoke, this will be set from custom filter. */
+  .allocateInInvoke = custom_allocateInInvoke,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */

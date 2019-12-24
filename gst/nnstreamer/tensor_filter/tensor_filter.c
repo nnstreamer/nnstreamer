@@ -357,6 +357,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   guint i;
   gint ret;
+  gboolean allocate_in_invoke;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
@@ -376,6 +377,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 0. Check all properties. */
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
+  allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
   /* 1. Set input tensors from inbuf. */
   g_assert (gst_buffer_n_memory (inbuf) == prop->input_meta.num_tensors);
@@ -399,7 +401,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].type = prop->output_meta.info[i].type;
 
     /* allocate memory if allocate_in_invoke is FALSE */
-    if (priv->fw->allocate_in_invoke == FALSE) {
+    if (allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
 
@@ -414,10 +416,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    if (priv->fw->allocate_in_invoke) {
+    if (allocate_in_invoke) {
       GPtrArray *data_array = g_ptr_array_new ();
       g_ptr_array_add (data_array, (gpointer) self);
       g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
+
       /* filter-subplugin allocated new memory, update this */
       out_mem[i] =
           gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,

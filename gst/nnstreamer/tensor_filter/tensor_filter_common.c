@@ -416,6 +416,27 @@ gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
   }
 }
 
+/**
+ * @brief check if the allocate_in_invoke is valid for the framework
+ * @param[in] priv Struct containing the properties of the object
+ * @return TRUE if valid, FALSE on error
+ */
+gboolean
+gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv)
+{
+  int allocate_in_invoke;
+
+  allocate_in_invoke = priv->fw->allocate_in_invoke;
+  if (allocate_in_invoke == TRUE && priv->fw->allocateInInvoke) {
+    if (priv->fw->allocateInInvoke (&priv->privateData) == 0) {
+      allocate_in_invoke = TRUE;
+    } else {
+      allocate_in_invoke = FALSE;
+    }
+  }
+
+  return allocate_in_invoke;
+}
 
 /**
  * @brief Printout the comparison results of two tensors.

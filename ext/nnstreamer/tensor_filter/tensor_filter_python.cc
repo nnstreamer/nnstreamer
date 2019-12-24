@@ -590,7 +590,7 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   PyObject *param = PyList_New(0);
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     /** create a Numpy array wrapper (1-D) for NNS tensor data */
-    npy_intp input_dims[] = {(npy_intp) input[i].size};
+    npy_intp input_dims[] = {(npy_intp) (input[i].size / gst_tensor_get_element_size (input[i].type))};
     PyObject *input_array = PyArray_SimpleNewFromData(
         1, input_dims, getNumpyType(input[i].type), input[i].data);
     PyList_Append(param, input_array);
@@ -717,8 +717,8 @@ PYCore::getNumpyType (tensor_type tType)
  * @brief The mandatory callback for GstTensorFilterFramework
  * @param prop: property of tensor_filter instance
  * @param private_data : python plugin's private data
- * @param[in] input The array of input tensors
- * @param[out] output The array of output tensors
+ * @param input : The array of input tensors
+ * @param output : The array of output tensors
  */
 static int
 py_run (const GstTensorFilterProperties * prop, void **private_data,
@@ -735,7 +735,8 @@ py_run (const GstTensorFilterProperties * prop, void **private_data,
 
 /**
  * @brief The optional callback for GstTensorFilterFramework
- * @param[in] data The data element.
+ * @param data : The data element.
+ * @param private_data : python plugin's private data
  */
 static void
 py_destroyNotify (void **private_data, void *data)
@@ -745,8 +746,9 @@ py_destroyNotify (void **private_data, void *data)
   if (it != PYCore::outputArrayMap.end()){
     Py_XDECREF(it->second);
     PYCore::outputArrayMap.erase (it);
-  } else
+  } else {
     g_critical("Cannot find output data: 0x%lx", (unsigned long) data);
+  }
 }
 
 /**

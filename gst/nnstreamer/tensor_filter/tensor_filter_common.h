@@ -57,6 +57,14 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
     GstTensorsInfo * info2);
 
 /**
+ * @brief check if the allocate_in_invoke is valid for the framework
+ * @param[in] priv Struct containing the properties of the object
+ * @return TRUE if valid, FALSE on error
+ */
+extern gboolean
+gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv);
+
+/**
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */

@@ -714,7 +714,8 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
 
 /**
  * @brief The optional callback for GstTensorFilterFramework
- * @param[in] data The data element.
+ * @param data : The data element.
+ * @param private_data : tensorflow plugin's private data
  */
 static void
 tf_destroyNotify (void **private_data, void *data)
