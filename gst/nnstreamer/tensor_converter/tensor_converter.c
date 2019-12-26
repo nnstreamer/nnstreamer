@@ -1184,6 +1184,171 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
 }
 
 /**
+ * @brief Get possible media-caps from downstream element.
+ */
+static GstCaps *
+gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
+{
+  GstCaps *media_caps = NULL;
+  GstCaps *peer_caps;
+
+  /* get possible caps from downstream element */
+  peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
+
+  if (peer_caps) {
+    silent_debug_caps (peer_caps, "peer caps");
+
+    if (gst_caps_get_size (peer_caps) > 0) {
+      GstTensorConfig config;
+      GstStructure *st;
+      guint i, caps_len;
+      media_type type;
+
+      /* get tensor info from peer caps */
+      st = gst_caps_get_structure (peer_caps, 0);
+      gst_tensor_config_from_structure (&config, st);
+
+      /* convert peer caps to possible media caps */
+      media_caps = gst_pad_get_pad_template_caps (self->sinkpad);
+      media_caps = gst_caps_make_writable (media_caps);
+      caps_len = gst_caps_get_size (media_caps);
+
+      for (i = 0; i < caps_len; ++i) {
+        st = gst_caps_get_structure (media_caps, i);
+        type = gst_tensor_media_type_from_structure (st);
+
+        switch (type) {
+          case _NNS_VIDEO:
+            /* video caps from tensor info */
+            if (is_video_supported (self) && config.info.type == _NNS_UINT8) {
+              GValue supported_formats = G_VALUE_INIT;
+              gint colorspace, width, height;
+
+              colorspace = config.info.dimension[0];
+              switch (colorspace) {
+                case 1:
+                  gst_tensor_converter_get_format_list (&supported_formats,
+                      "GRAY8", NULL);
+                  break;
+                case 3:
+                  gst_tensor_converter_get_format_list (&supported_formats,
+                      "RGB", "BGR", NULL);
+                  break;
+                case 4:
+                  gst_tensor_converter_get_format_list (&supported_formats,
+                      "RGBx", "BGRx", "xRGB", "xBGR", "RGBA", "BGRA", "ARGB",
+                      "ABGR", NULL);
+                  break;
+                default:
+                  /* unsupported format, set default video formats */
+                  break;
+              }
+
+              if (gst_value_list_get_size (&supported_formats) > 0) {
+                gst_structure_set_value (st, "format", &supported_formats);
+              }
+              g_value_unset (&supported_formats);
+
+              if ((width = config.info.dimension[1]) > 0) {
+                gst_structure_set (st, "width", G_TYPE_INT, width, NULL);
+              }
+
+              if ((height = config.info.dimension[2]) > 0) {
+                gst_structure_set (st, "height", G_TYPE_INT, height, NULL);
+              }
+
+              if (config.rate_n >= 0 && config.rate_d > 0) {
+                gst_structure_set (st, "framerate", GST_TYPE_FRACTION,
+                    config.rate_n, config.rate_d, NULL);
+              }
+            }
+            break;
+          case _NNS_AUDIO:
+            /* audio caps from tensor info */
+            if (is_audio_supported (self) && config.info.type != _NNS_END) {
+              gint ch, rate;
+              GstAudioFormat aformat;
+
+              switch (config.info.type) {
+                case _NNS_INT8:
+                  aformat = GST_AUDIO_FORMAT_S8;
+                  break;
+                case _NNS_UINT8:
+                  aformat = GST_AUDIO_FORMAT_U8;
+                  break;
+                case _NNS_INT16:
+                  aformat = GST_AUDIO_FORMAT_S16;
+                  break;
+                case _NNS_UINT16:
+                  aformat = GST_AUDIO_FORMAT_U16;
+                  break;
+                case _NNS_INT32:
+                  aformat = GST_AUDIO_FORMAT_S32;
+                  break;
+                case _NNS_UINT32:
+                  aformat = GST_AUDIO_FORMAT_U32;
+                  break;
+                case _NNS_FLOAT32:
+                  aformat = GST_AUDIO_FORMAT_F32;
+                  break;
+                case _NNS_FLOAT64:
+                  aformat = GST_AUDIO_FORMAT_F64;
+                  break;
+                default:
+                  /* unsupported format */
+                  aformat = GST_AUDIO_FORMAT_UNKNOWN;
+                  break;
+              }
+
+              if (aformat != GST_AUDIO_FORMAT_UNKNOWN) {
+                gst_structure_set (st, "format", G_TYPE_STRING,
+                    gst_audio_format_to_string (aformat), NULL);
+
+                if ((ch = config.info.dimension[0]) > 0) {
+                  gst_structure_set (st, "channels", G_TYPE_INT, ch, NULL);
+                }
+
+                if ((rate = config.rate_n) > 0) {
+                  gst_structure_set (st, "rate", G_TYPE_INT, rate, NULL);
+                }
+              }
+            }
+            break;
+          case _NNS_MEDIA_INVALID:     /* this could be MEDIA_PLUGIN */
+          {
+            const gchar *name = gst_structure_get_name (st);
+            const NNStreamerExternalConverter *ex;
+
+            if (name == NULL)
+              break;
+            ex = findExternalConverter (name);
+            if (ex == NULL)
+              break;
+
+            /** @todo What if this is inconsistent with self->ex? */
+
+            g_assert (ex->query_caps);
+            if (ex->query_caps (self, &config, st) == FALSE) {
+              GST_ERROR_OBJECT (self,
+                  "Failed to filter GstCap structure with the given config");
+            }
+
+            break;
+          }
+          default:
+            /* do nothing for text and octet stream */
+            break;
+        }
+      }
+    }
+
+    gst_caps_unref (peer_caps);
+  }
+
+  return media_caps;
+}
+
+/**
  * @brief Get pad caps for caps negotiation.
  */
 static GstCaps *
@@ -1198,172 +1363,17 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
   }
 
   if (pad == self->sinkpad) {
-    GstCaps *peer_caps;
+    GstCaps *media_caps;
 
-    /* get possible caps from downstream element */
-    peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
+    media_caps = gst_tensor_converter_get_possible_media_caps (self);
+    if (media_caps) {
+      /* intersect with pad caps */
+      GstCaps *tmp = gst_caps_intersect_full (media_caps, caps,
+          GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref (caps);
+      caps = tmp;
 
-    if (peer_caps) {
-      silent_debug_caps (peer_caps, "peer caps");
-
-      if (gst_caps_get_size (peer_caps) > 0) {
-        GstTensorConfig config;
-        GstStructure *st;
-        GstCaps *media_caps, *tmp;
-        guint i, caps_len;
-        media_type type;
-
-        /* get tensor info from peer caps */
-        st = gst_caps_get_structure (peer_caps, 0);
-        gst_tensor_config_from_structure (&config, st);
-
-        /* convert peer caps to possible media caps */
-        media_caps = gst_pad_get_pad_template_caps (pad);
-        media_caps = gst_caps_make_writable (media_caps);
-        caps_len = gst_caps_get_size (media_caps);
-
-        for (i = 0; i < caps_len; ++i) {
-          st = gst_caps_get_structure (media_caps, i);
-          type = gst_tensor_media_type_from_structure (st);
-
-          switch (type) {
-            case _NNS_VIDEO:
-              /* video caps from tensor info */
-              if (is_video_supported (self) && config.info.type == _NNS_UINT8) {
-                GValue supported_formats = G_VALUE_INIT;
-                gint colorspace, width, height;
-
-                colorspace = config.info.dimension[0];
-                switch (colorspace) {
-                  case 1:
-                    gst_tensor_converter_get_format_list (&supported_formats,
-                        "GRAY8", NULL);
-                    break;
-                  case 3:
-                    gst_tensor_converter_get_format_list (&supported_formats,
-                        "RGB", "BGR", NULL);
-                    break;
-                  case 4:
-                    gst_tensor_converter_get_format_list (&supported_formats,
-                        "RGBx", "BGRx", "xRGB", "xBGR", "RGBA", "BGRA", "ARGB",
-                        "ABGR", NULL);
-                    break;
-                  default:
-                    /* unsupported format, set default video formats */
-                    break;
-                }
-
-                if (gst_value_list_get_size (&supported_formats) > 0) {
-                  gst_structure_set_value (st, "format", &supported_formats);
-                }
-                g_value_unset (&supported_formats);
-
-                if ((width = config.info.dimension[1]) > 0) {
-                  gst_structure_set (st, "width", G_TYPE_INT, width, NULL);
-                }
-
-                if ((height = config.info.dimension[2]) > 0) {
-                  gst_structure_set (st, "height", G_TYPE_INT, height, NULL);
-                }
-
-                if (config.rate_n >= 0 && config.rate_d > 0) {
-                  gst_structure_set (st, "framerate", GST_TYPE_FRACTION,
-                      config.rate_n, config.rate_d, NULL);
-                }
-              }
-              break;
-            case _NNS_AUDIO:
-              /* audio caps from tensor info */
-              if (is_audio_supported (self) && config.info.type != _NNS_END) {
-                gint channels, samplerate;
-                GstAudioFormat aformat;
-
-                switch (config.info.type) {
-                  case _NNS_INT8:
-                    aformat = GST_AUDIO_FORMAT_S8;
-                    break;
-                  case _NNS_UINT8:
-                    aformat = GST_AUDIO_FORMAT_U8;
-                    break;
-                  case _NNS_INT16:
-                    aformat = GST_AUDIO_FORMAT_S16;
-                    break;
-                  case _NNS_UINT16:
-                    aformat = GST_AUDIO_FORMAT_U16;
-                    break;
-                  case _NNS_INT32:
-                    aformat = GST_AUDIO_FORMAT_S32;
-                    break;
-                  case _NNS_UINT32:
-                    aformat = GST_AUDIO_FORMAT_U32;
-                    break;
-                  case _NNS_FLOAT32:
-                    aformat = GST_AUDIO_FORMAT_F32;
-                    break;
-                  case _NNS_FLOAT64:
-                    aformat = GST_AUDIO_FORMAT_F64;
-                    break;
-                  default:
-                    /* unsupported format */
-                    aformat = GST_AUDIO_FORMAT_UNKNOWN;
-                    break;
-                }
-
-                if (aformat != GST_AUDIO_FORMAT_UNKNOWN) {
-                  gst_structure_set (st, "format", G_TYPE_STRING,
-                      gst_audio_format_to_string (aformat), NULL);
-
-                  if ((channels = config.info.dimension[0]) > 0) {
-                    gst_structure_set (st, "channels", G_TYPE_INT, channels,
-                        NULL);
-                  }
-
-                  if ((samplerate = config.rate_n) > 0) {
-                    gst_structure_set (st, "rate", G_TYPE_INT, samplerate,
-                        NULL);
-                  }
-                }
-              }
-              break;
-            case _NNS_MEDIA_INVALID:   /* this could be MEDIA_PLUGIN */
-            {
-              const gchar *name = gst_structure_get_name (st);
-              const NNStreamerExternalConverter *ex;
-              gboolean ret;
-
-              if (name == NULL)
-                break;
-              ex = findExternalConverter (name);
-              if (ex == NULL)
-                break;
-
-              /** @todo What if this is inconsistent with self->ex? */
-
-              g_assert (ex->query_caps);
-              ret = ex->query_caps (self, &config, st);
-              if (ret == FALSE) {
-                GST_ERROR_OBJECT (self,
-                    "Failed to filter GstCap structure with the given config");
-              }
-
-              break;
-            }
-            default:
-              /* do nothing for text and octet stream */
-              break;
-          }
-        }
-
-        /* intersect with pad caps */
-        tmp = gst_caps_intersect_full (media_caps, caps,
-            GST_CAPS_INTERSECT_FIRST);
-        gst_caps_unref (caps);
-        caps = tmp;
-
-        gst_caps_unref (media_caps);
-      }
-
-      gst_caps_unref (peer_caps);
+      gst_caps_unref (media_caps);
     }
   }
 
