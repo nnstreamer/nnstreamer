@@ -374,6 +374,50 @@ done:
 }
 
 /**
+ * @brief Internal function to create and initialize the single handle.
+ */
+static ml_single *
+ml_single_create_handle (ml_nnfw_type_e nnfw)
+{
+  ml_single *single_h;
+  GError *error;
+
+  single_h = g_new0 (ml_single, 1);
+  if (single_h == NULL) {
+    ml_loge ("Failed to allocate the single handle.");
+    return NULL;
+  }
+
+  single_h->filter = g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+  if (single_h->filter == NULL) {
+    ml_loge ("Failed to create a new instance for filter.");
+    g_free (single_h);
+    return NULL;
+  }
+
+  single_h->magic = ML_SINGLE_MAGIC;
+  single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
+  single_h->nnfw = nnfw;
+  single_h->state = IDLE;
+  single_h->ignore_output = FALSE;
+
+  ml_tensors_info_initialize (&single_h->in_info);
+  ml_tensors_info_initialize (&single_h->out_info);
+  g_mutex_init (&single_h->mutex);
+  g_cond_init (&single_h->cond);
+
+  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
+  if (single_h->thread == NULL) {
+    ml_loge ("Failed to create the invoke thread, error: %s.", error->message);
+    g_clear_error (&error);
+    ml_single_close (single_h);
+    return NULL;
+  }
+
+  return single_h;
+}
+
+/**
  * @brief Opens an ML model with the custom options and returns the instance as a handle.
  */
 int
@@ -386,7 +430,6 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   ml_nnfw_type_e nnfw;
   ml_nnfw_hw_e hw;
-  GError * error;
 
   check_feature_state ();
 
@@ -450,20 +493,9 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   }
 
   /** Create ml_single object */
-  single_h = g_new0 (ml_single, 1);
-  if (single_h == NULL) {
-    ml_loge ("Failed to allocate the single handle.");
+  if ((single_h = ml_single_create_handle (nnfw)) == NULL)
     return ML_ERROR_OUT_OF_MEMORY;
-  }
 
-  single_h->magic = ML_SINGLE_MAGIC;
-
-  single_h->filter = g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
-  single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
-  if (single_h->filter == NULL) {
-    status = ML_ERROR_INVALID_PARAMETER;
-    goto error;
-  }
   filter_obj = G_OBJECT (single_h->filter);
 
   /**
@@ -471,8 +503,6 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
    * @todo Set the hw property
    * Set the pipeline desc with nnfw.
    */
-  single_h->nnfw = nnfw;
-
   if (nnfw == ML_NNFW_TYPE_TENSORFLOW || nnfw == ML_NNFW_TYPE_SNAP) {
     /* set input and output tensors information */
     if (in_tensors_info && out_tensors_info) {
@@ -526,11 +556,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     g_object_set (filter_obj, "custom", info->custom_option, NULL);
   }
 
-  /* 4. Allocate */
-  ml_tensors_info_initialize (&single_h->in_info);
-  ml_tensors_info_initialize (&single_h->out_info);
-
-  /* 5. Start the nnfw to get inout configurations if needed */
+  /* 4. Start the nnfw to get inout configurations if needed */
   klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
   if (!klass) {
     status = ML_ERROR_INVALID_PARAMETER;
@@ -541,7 +567,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     goto error;
   }
 
-  /* 6. Set in/out configs and metadata */
+  /* 5. Set in/out configs and metadata */
   if (!ml_single_set_info_in_handle (single_h, TRUE, in_tensors_info)) {
     ml_loge ("The input tensor info is invalid.");
     status = ML_ERROR_INVALID_PARAMETER;
@@ -551,19 +577,6 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   if (!ml_single_set_info_in_handle (single_h, FALSE, out_tensors_info)) {
     ml_loge ("The output tensor info is invalid.");
     status = ML_ERROR_INVALID_PARAMETER;
-    goto error;
-  }
-
-  g_mutex_init (&single_h->mutex);
-  g_cond_init (&single_h->cond);
-  single_h->state = IDLE;
-  single_h->ignore_output = FALSE;
-
-  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
-  if (single_h->thread == NULL) {
-    ml_loge ("Failed to create the invoke thread, error: %s.", error->message);
-    g_clear_error (&error);
-    status = ML_ERROR_UNKNOWN;
     goto error;
   }
 
@@ -616,7 +629,9 @@ ml_single_close (ml_single_h single)
   g_cond_broadcast (&single_h->cond);
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
-  g_thread_join (single_h->thread);
+
+  if (single_h->thread != NULL)
+    g_thread_join (single_h->thread);
 
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
