@@ -281,11 +281,12 @@ nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
   if ((status = nnfw_tensor_type_to_gst (nnfw_info->dtype, &gst_info->type)) < 0)
     return status;
 
+  /** reverse the order of dimension */
   for (idx = 0; idx < nnfw_info->rank; idx ++)
-    *(gst_info->dimension + idx) = nnfw_info->dims[idx];
+    gst_info->dimension[NNS_TENSOR_RANK_LIMIT - idx - 1] = nnfw_info->dims[idx];
 
   for (idx = nnfw_info->rank; idx < NNS_TENSOR_RANK_LIMIT; idx ++)
-    *(gst_info->dimension + idx) = 1;
+    gst_info->dimension[NNS_TENSOR_RANK_LIMIT - idx - 1] = 1;
 
   return 0;
 }
