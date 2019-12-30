@@ -196,7 +196,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -205,7 +205,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     tensors_idx.push_back (tensor_idx);
   }
 
-  for (int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
@@ -376,7 +376,7 @@ TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
 {
   tensorMeta->num_tensors = tensor_idx_list.size ();
 
-  for (int i = 0; i < tensorMeta->num_tensors; ++i) {
+  for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     if (getTensorDim (tensor_idx_list[i], tensorMeta->info[i].dimension)) {
       g_critical ("failed to get the dimension of input tensors");
       return -1;
@@ -431,7 +431,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
   if (info->num_tensors != input_idx_list.size ())
     return -EINVAL;
 
-  for (int tensor_idx = 0; tensor_idx < info->num_tensors; ++tensor_idx) {
+  for (unsigned int tensor_idx = 0; tensor_idx < info->num_tensors; ++tensor_idx) {
     tensor_type tf_type;
     const GstTensorInfo *tensor_info;
     int input_rank;
