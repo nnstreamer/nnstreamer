@@ -461,7 +461,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
   g_assert (param);
 
   inputTensorMeta.num_tensors = in_info->num_tensors;
-  for (int i = 0; i < in_info->num_tensors; i++) {
+  for (unsigned int i = 0; i < in_info->num_tensors; i++) {
     PyObject *shape = PyTensorShape_New (&in_info->info[i]);
     assert (shape);
 
@@ -472,7 +472,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
       core_obj, (char*) "setInputDim", (char*) "(O)", param);
 
   /** dereference input param */
-  for (int i = 0; i < in_info->num_tensors; i++) {
+  for (unsigned int i = 0; i < in_info->num_tensors; i++) {
     PyObject *shape = PyList_GetItem(param, (Py_ssize_t) i);
     Py_XDECREF (shape);
   }
@@ -535,7 +535,7 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
 
   info->num_tensors = PyList_Size(result);
 
-  for (int i = 0; i < info->num_tensors; i++) {
+  for (unsigned int i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem(result, (Py_ssize_t) i);
     g_assert(tensor_shape);
@@ -582,7 +582,7 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   Py_LOCK();
 
   PyObject *param = PyList_New(0);
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     /** create a Numpy array wrapper (1-D) for NNS tensor data */
     npy_intp input_dims[] = {(npy_intp) input[i].size};
     PyObject *input_array = PyArray_SimpleNewFromData(
@@ -592,9 +592,9 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   PyObject *result = PyObject_CallMethod(core_obj, (char*) "invoke", (char*) "(O)", param);
   if (result) {
-    g_assert(PyList_Size(result) == outputTensorMeta.num_tensors);
+    g_assert((unsigned int) PyList_Size(result) == outputTensorMeta.num_tensors);
 
-    for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+    for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject* output_array = (PyArrayObject*) PyList_GetItem(result, (Py_ssize_t) i);
       /** type/size checking */
       if (checkTensorType(&output[i], output_array) &&
@@ -617,7 +617,7 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   /** dereference input param */
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     PyObject *input_array = PyList_GetItem(param, (Py_ssize_t) i);
     Py_XDECREF (input_array);
   }

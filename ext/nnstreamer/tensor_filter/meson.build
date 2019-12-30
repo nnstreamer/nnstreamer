@@ -42,7 +42,6 @@ if get_option('enable-tensorflow')
 
   shared_library('nnstreamer_filter_tensorflow',
     nnstreamer_filter_tf_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_tf_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -50,7 +49,6 @@ if get_option('enable-tensorflow')
 
   static_library('nnstreamer_filter_tensorflow',
     nnstreamer_filter_tf_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_tf_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -78,7 +76,6 @@ if get_option('enable-tensorflow-lite')
 
   shared_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -86,7 +83,6 @@ if get_option('enable-tensorflow-lite')
 
   static_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -105,7 +101,6 @@ if get_option('enable-pytorch')
 
   shared_library('nnstreamer_filter_pytorch',
     nnstreamer_filter_torch_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_torch_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -113,7 +108,6 @@ if get_option('enable-pytorch')
 
   static_library('nnstreamer_filter_pytorch',
     nnstreamer_filter_torch_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_torch_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -132,7 +126,6 @@ if get_option('enable-caffe2')
 
   shared_library('nnstreamer_filter_caffe2',
     nnstreamer_filter_caffe2_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_caffe2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -140,7 +133,6 @@ if get_option('enable-caffe2')
 
   static_library('nnstreamer_filter_caffe2',
     nnstreamer_filter_caffe2_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_caffe2_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -159,7 +151,6 @@ if have_python2
 
   shared_library('nnstreamer_filter_python2',
     nnstreamer_filter_python_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_python_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -167,7 +158,6 @@ if have_python2
 
   static_library('nnstreamer_filter_python2',
     nnstreamer_filter_python_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_python_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -187,7 +177,6 @@ if have_python3
 
   shared_library('nnstreamer_filter_python3',
     nnstreamer_filter_python_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_python_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -195,7 +184,6 @@ if have_python3
 
   static_library('nnstreamer_filter_python3',
     nnstreamer_filter_python_sources,
-    cpp_args: ['-Wno-sign-compare'],
     dependencies: nnstreamer_filter_python_deps,
     install: true,
     install_dir: nnstreamer_libdir

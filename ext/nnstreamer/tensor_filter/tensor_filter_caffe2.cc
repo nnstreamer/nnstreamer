@@ -305,7 +305,7 @@ Caffe2Core::getOutputTensorDim (GstTensorsInfo * info)
 int
 Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
 {
-  int i;
+  unsigned int i;
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif

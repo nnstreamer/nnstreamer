@@ -358,7 +358,7 @@ TFCore::getTensorTypeToTF (tensor_type tType)
 int
 TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
 {
-  for (int i = 0; i < tensorInfo->num_tensors; i++) {
+  for (unsigned int i = 0; i < tensorInfo->num_tensors; i++) {
     /* set the name of tensor */
     TF_Operation *op = TF_GraphOperationByName (graph, tensorInfo->info[i].name);
 
@@ -485,7 +485,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   int ret = 0;
 
   /* create input tensor for the graph from `input` */
-  for (int i = 0; i < inputTensorMeta.num_tensors; i++) {
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     TF_Tensor* in_tensor = nullptr;
     TF_Output input_op = {
       TF_GraphOperationByName (graph, inputTensorMeta.info[i].name), 0
@@ -539,7 +539,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   /* create output tensor for the graph from `output` */
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
     TF_Output output_op = {
       TF_GraphOperationByName (graph, outputTensorMeta.info[i].name), 0
       };
@@ -568,13 +568,13 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     goto failed;
   }
 
-  for (int i = 0; i < outputTensorMeta.num_tensors; i++) {
+  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
     output[i].data = TF_TensorData (output_tensors[i]);
     outputTensorMap.insert (std::make_pair (output[i].data, output_tensors[i]));
   }
 
 failed:
-  for (int i = 0; i < input_tensors.size(); i++) {
+  for (unsigned int i = 0; i < input_tensors.size(); i++) {
     TF_DeleteTensor (input_tensors[i]);
   }
 
