@@ -28,16 +28,12 @@
  */
 jlong
 Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
-    jstring model, jobject in, jobject out)
+    jobjectArray models, jobject in, jobject out, jint fw_type, jstring option)
 {
   pipeline_info_s *pipe_info = NULL;
-  ml_single_h single;
-  ml_tensors_info_h in_info, out_info;
+  ml_single_h single = NULL;
+  ml_single_preset info = { 0, };
   gboolean opened = FALSE;
-  const char *model_info = (*env)->GetStringUTFChars (env, model, NULL);
-
-  single = NULL;
-  in_info = out_info = NULL;
 
   pipe_info = nns_construct_pipe_info (env, thiz, NULL, NNS_PIPE_TYPE_SINGLE);
   if (pipe_info == NULL) {
@@ -45,23 +41,64 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
     goto done;
   }
 
+  /* parse in/out tensors information */
   if (in) {
-    if (!nns_parse_tensors_info (pipe_info, env, in, &in_info)) {
+    if (!nns_parse_tensors_info (pipe_info, env, in, &info.input_info)) {
       nns_loge ("Failed to parse input tensor.");
       goto done;
     }
   }
 
   if (out) {
-    if (!nns_parse_tensors_info (pipe_info, env, out, &out_info)) {
+    if (!nns_parse_tensors_info (pipe_info, env, out, &info.output_info)) {
       nns_loge ("Failed to parse output tensor.");
       goto done;
     }
   }
 
-  /* supposed tensorflow-lite only for android */
-  if (ml_single_open (&single, model_info, in_info, out_info,
-          ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO) != ML_ERROR_NONE) {
+  /* nnfw type and hw resource */
+  if (!nns_get_nnfw_type (fw_type, &info.nnfw)) {
+    nns_loge ("Failed, unsupported framework (%d).", fw_type);
+    goto done;
+  }
+
+  info.hw = ML_NNFW_HW_ANY;
+
+  /* parse models */
+  if (models) {
+    GString *model_str;
+    jsize i, models_count;
+
+    model_str = g_string_new (NULL);
+    models_count = (*env)->GetArrayLength (env, models);
+
+    for (i = 0; i < models_count; i++) {
+      jstring model_obj = (jstring) (*env)->GetObjectArrayElement (env, models, i);
+      const char *model_path = (*env)->GetStringUTFChars (env, model_obj, NULL);
+
+      g_string_append (model_str, model_path);
+      if (i < models_count - 1) {
+        g_string_append (model_str, ",");
+      }
+
+      (*env)->ReleaseStringUTFChars (env, model_obj, model_path);
+    }
+
+    info.models = g_string_free (model_str, FALSE);
+  } else {
+    nns_loge ("Failed to get model file.");
+    goto done;
+  }
+
+  /* parse option string */
+  if (option) {
+    const char *option_str = (*env)->GetStringUTFChars (env, option, NULL);
+
+    info.custom_option = g_strdup (option_str);
+    (*env)->ReleaseStringUTFChars (env, option, option_str);
+  }
+
+  if (ml_single_open_custom (&single, &info) != ML_ERROR_NONE) {
     nns_loge ("Failed to create the pipeline.");
     goto done;
   }
@@ -70,15 +107,16 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
   pipe_info->pipeline_handle = single;
 
 done:
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
+  ml_tensors_info_destroy (info.input_info);
+  ml_tensors_info_destroy (info.output_info);
+  g_free (info.models);
+  g_free (info.custom_option);
 
   if (!opened) {
     nns_destroy_pipe_info (pipe_info, env);
     pipe_info = NULL;
   }
 
-  (*env)->ReleaseStringUTFChars (env, model, model_info);
   return CAST_TO_LONG (pipe_info);
 }
 
