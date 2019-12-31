@@ -43,6 +43,39 @@ public final class NNStreamer {
     public static final int TENSOR_SIZE_LIMIT = 16;
 
     /**
+     * The enumeration for supported frameworks in NNStreamer.
+     */
+    public enum NNFWType {
+        /**
+         * TensorFlow Lite<br>
+         * <br>
+         * <a href="https://www.tensorflow.org/lite">TensorFlow Lite</a> is an open source
+         * deep learning framework for on-device inference.<br>
+         */
+        TENSORFLOW_LITE,
+        /**
+         * SNAP (Samsung Neural Acceleration Platform)<br>
+         * <br>
+         * Supports <a href="https://developer.samsung.com/neural">Samsung Neural SDK</a>
+         * (Version 1.0, run only on Samsung devices)<br>
+         * To construct a pipeline with SNAP, developer should set the custom option string
+         * to specify the neural network and data format.<br>
+         * <br>
+         * Custom options<br>
+         * - ModelFWType: the type of model (TensorFlow/Caffe)<br>
+         * - ExecutionDataType: the execution data type for SNAP (default float32)<br>
+         * - ComputingUnit: the computing unit to execute the model (default CPU)<br>
+         * - CpuThreadCount: the number of CPU threads to be executed (optional, default 4 if ComputingUnit is CPU)<br>
+         * - GpuCacheSource: the absolute path to GPU Kernel caching (mandatory if ComputingUnit is GPU)<br>
+         */
+        SNAP,
+        /**
+         * Unknown framework (usually error)
+         */
+        UNKNOWN
+    }
+
+    /**
      * The enumeration for possible data type of tensor in NNStreamer.
      */
     public enum TensorType {
@@ -60,6 +93,7 @@ public final class NNStreamer {
     }
 
     private static native boolean nativeInitialize(Context context);
+    private static native boolean nativeCheckAvailability(int fw);
     private static native String nativeGetVersion();
 
     /**
@@ -78,6 +112,17 @@ public final class NNStreamer {
         }
 
         return nativeInitialize(context);
+    }
+
+    /**
+     * Checks the neural network framework is available.
+     *
+     * @param fw The neural network framework
+     *
+     * @return true if the neural network framework is available
+     */
+    public static boolean isAvailable(NNFWType fw) {
+        return nativeCheckAvailability(fw.ordinal());
     }
 
     /**

@@ -178,4 +178,10 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_
 extern gboolean
 nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_info, ml_tensors_info_h * info_h);
 
+/**
+ * @brief Get NNFW from integer value.
+ */
+extern gboolean
+nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw);
+
 #endif /* __NNSTREAMER_ANDROID_NATIVE_H__ */

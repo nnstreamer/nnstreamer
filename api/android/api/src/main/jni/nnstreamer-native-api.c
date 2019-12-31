@@ -526,6 +526,37 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
 }
 
 /**
+ * @brief Get NNFW from integer value.
+ */
+gboolean
+nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
+{
+  gboolean is_supported = TRUE;
+
+  if (!nnfw)
+    return FALSE;
+
+  *nnfw = ML_NNFW_TYPE_ANY;
+
+  /* enumeration defined in NNStreamer.java */
+  if (fw_type == 0) {
+    *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+  } else if (fw_type == 1) {
+    *nnfw = ML_NNFW_TYPE_SNAP;
+
+#if !defined (ENABLE_SNAP)
+    nns_logw ("SNAP is not supported.");
+    is_supported = FALSE;
+#endif
+  } else {
+    nns_logw ("Unknown NNFW type (%d).", fw_type);
+    is_supported = FALSE;
+  }
+
+  return is_supported && ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY);
+}
+
+/**
  * @brief Initialize NNStreamer, register required plugins.
  */
 jboolean
@@ -567,6 +598,22 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass cl
     jobject context)
 {
   return nnstreamer_native_initialize ();
+}
+
+/**
+ * @brief Native method to check the availability of NNFW.
+ */
+jboolean
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env, jclass clazz,
+    jint fw_type)
+{
+  ml_nnfw_type_e nnfw;
+
+  if (!nns_get_nnfw_type (fw_type, &nnfw)) {
+    return JNI_FALSE;
+  }
+
+  return JNI_TRUE;
 }
 
 /**

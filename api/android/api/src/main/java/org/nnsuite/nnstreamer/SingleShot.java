@@ -34,7 +34,7 @@ import java.io.File;
 public final class SingleShot implements AutoCloseable {
     private long mHandle = 0;
 
-    private native long nativeOpen(String model, TensorsInfo in, TensorsInfo out);
+    private native long nativeOpen(String[] models, TensorsInfo in, TensorsInfo out, int fw, String option);
     private native void nativeClose(long handle);
     private native TensorsData nativeInvoke(long handle, TensorsData in);
     private native TensorsInfo nativeGetInputInfo(long handle);
@@ -43,7 +43,7 @@ public final class SingleShot implements AutoCloseable {
     private native boolean nativeSetTimeout(long handle, int timeout);
 
     /**
-     * Creates a new {@link SingleShot} instance with the given model.
+     * Creates a new {@link SingleShot} instance with the given model for TensorFlow Lite.
      * If the model has flexible data dimensions, the pipeline will not be constructed and this will make an exception.
      *
      * @param model The path to the neural network model file
@@ -56,7 +56,7 @@ public final class SingleShot implements AutoCloseable {
     }
 
     /**
-     * Creates a new {@link SingleShot} instance with the given model.
+     * Creates a new {@link SingleShot} instance with the given model for TensorFlow Lite.
      * The input and output tensors information are required if the given model has flexible data dimensions,
      * where the information MUST be given before executing the model.
      * However, once it's given, the dimension cannot be changed for the given model handle.
@@ -70,13 +70,48 @@ public final class SingleShot implements AutoCloseable {
      * @throws IllegalStateException if failed to construct the pipeline
      */
     public SingleShot(@NonNull File model, @Nullable TensorsInfo in, @Nullable TensorsInfo out) {
-        if (model == null || !model.exists()) {
+        this(new File[]{model}, in, out, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
+    }
+
+    /**
+     * Creates a new {@link SingleShot} instance with the given files and custom option.
+     *
+     * Unlike other constructors, this handles multiple files and custom option string
+     * when the neural network requires various options and model files.
+     *
+     * @param models The array of {@link File} objects to the neural network model files
+     * @param in     The input tensors information
+     * @param out    The output tensors information
+     * @param fw     The neural network framework
+     * @param option The custom option string to open the neural network
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException if failed to construct the pipeline
+     *
+     * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
+     */
+    public SingleShot(@NonNull File[] models, @Nullable TensorsInfo in, @Nullable TensorsInfo out,
+                      NNStreamer.NNFWType fw, @Nullable String option) {
+        if (models == null) {
             throw new IllegalArgumentException("Given model is invalid");
         }
 
-        String path = model.getAbsolutePath();
+        if (!NNStreamer.isAvailable(fw)) {
+            throw new IllegalStateException("Given framework is not available");
+        }
 
-        mHandle = nativeOpen(path, in, out);
+        String[] path = new String[models.length];
+        int index = 0;
+
+        for (File model : models) {
+            if (model == null || !model.exists()) {
+                throw new IllegalArgumentException("Given model is invalid");
+            }
+
+            path[index++] = model.getAbsolutePath();
+        }
+
+        mHandle = nativeOpen(path, in, out, fw.ordinal(), option);
         if (mHandle == 0) {
             throw new IllegalStateException("Failed to construct the pipeline");
         }
