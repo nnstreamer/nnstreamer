@@ -162,7 +162,7 @@ TEST (nnstreamer_filter_armnn, get_dimension)
 /**
  * @brief Test armnn subplugin with successful invoke for tflite
  */
-TEST (nnstreamer_filter_armnn, invoke_basic)
+TEST (nnstreamer_filter_armnn, invoke_00)
 {
   int ret;
   void *data = NULL;
@@ -227,10 +227,11 @@ TEST (nnstreamer_filter_armnn, invoke_basic)
 /**
  * @brief get argmax from the array
  */
-size_t get_argmax (guint8 *array, size_t size)
+template <typename T>
+size_t get_argmax (T *array, size_t size)
 {
   size_t idx, max_idx = 0;
-  guint8 max_value = 0;
+  T max_value = 0;
   for (idx = 0; idx < size; idx ++) {
     if (max_value < array[idx]) {
       max_idx = idx;
@@ -342,7 +343,7 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   EXPECT_EQ (ret, 0);
 
   /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt */
-  max_idx = get_argmax ((guint8 *)output.data, output.size);
+  max_idx = get_argmax<guint8> ((guint8 *)output.data, output.size);
   EXPECT_EQ (max_idx, 951);
 
   g_free (data_file);
@@ -350,6 +351,115 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   g_free (input.data);
   g_free (model_file);
   sp->close (&prop, &data);
+}
+
+/**
+ * @brief Test armnn subplugin with successful invoke for caffe
+ */
+TEST (nnstreamer_filter_armnn, invoke_01)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file, *data_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  GstTensorMemory input_uint8, output, input;
+  ssize_t max_idx;
+  const unsigned int num_labels = 10;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (root_path, "tests", "test_models", "models",
+      "lenet_iter_9000.caffemodel", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  data_file = g_build_filename (root_path, "tests", "test_models", "data",
+      "9.raw", NULL);
+  ASSERT_TRUE (g_file_test (data_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = { model_file, NULL, };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn",
+    .fw_opened = 0,
+    .model_files = model_files,
+    .num_models = 1,
+  };
+
+  /** Manually configure the input for test */
+  gst_tensors_info_init (&prop.input_meta);
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 1;
+  prop.output_meta.info[0].type = _NNS_FLOAT32;
+  prop.output_meta.info[0].name = g_strdup ("prob");
+  prop.input_meta.num_tensors = 1;
+  prop.input_meta.info[0].name = g_strdup ("data");
+
+  EXPECT_TRUE (g_file_get_contents (data_file, (guint **) &input_uint8.data,
+        &input_uint8.size, NULL));
+
+  /** Convert the data from uint8 to float */
+  input.type = _NNS_FLOAT32;
+  input.size = input_uint8.size * gst_tensor_get_element_size (input.type);
+  input.data = g_malloc (input.size);
+  for (unsigned int idx=0; idx < input_uint8.size; idx ++) {
+    ((float *) input.data)[idx] =
+      static_cast<float> (((guint8 *) input_uint8.data)[idx]);
+    ((float *) input.data)[idx] -= 127.5;
+    ((float *) input.data)[idx] /= 127.5;
+  }
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *) NULL);
+
+  output.type = _NNS_FLOAT32;
+  output.size = gst_tensor_get_element_size (output.type) * num_labels;
+  output.data = g_malloc(output.size);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** invoke successful */
+  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  max_idx = get_argmax<float> ((float *)output.data, num_labels);
+  EXPECT_EQ (max_idx, 9);
+
+  sp->close (&prop, &data);
+
+  /** Run the test again but with setting input meta as well */
+  gst_tensors_info_init (&prop.input_meta);
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 1;
+  prop.output_meta.info[0].type = _NNS_FLOAT32;
+  prop.output_meta.info[0].name = g_strdup ("prob");
+
+  prop.input_meta.num_tensors = 1;
+  prop.input_meta.info[0].type = _NNS_FLOAT32;
+  prop.input_meta.info[0].name = g_strdup ("data");
+  prop.input_meta.info[0].dimension[0] = 28;
+  prop.input_meta.info[0].dimension[1] = 28;
+  prop.input_meta.info[0].dimension[2] = 1;
+  prop.input_meta.info[0].dimension[3] = 1;
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** invoke successful */
+  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  max_idx = get_argmax<float> ((float *)output.data, num_labels);
+  EXPECT_EQ (max_idx, 9);
+
+  sp->close (&prop, &data);
+
+  g_free (data_file);
+  g_free (input.data);
+  g_free (input_uint8.data);
+  g_free (output.data);
+  g_free (prop.output_meta.info[0].name);
+  g_free (prop.input_meta.info[0].name);
 }
 
 /**

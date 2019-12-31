@@ -32,6 +32,7 @@
 
 #include <armnn/ArmNN.hpp>
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
+#include <armnnCaffeParser/ICaffeParser.hpp>
 
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
@@ -164,8 +165,37 @@ int
 ArmNNCore::makeCaffeNetwork (std::map < std::string,
     armnn::TensorShape > &input_map, std::vector < std::string > &output_vec)
 {
-  /** @todo fill this */
-  return -EPERM;
+  bool unknown_input_dim = false;
+
+  armnnCaffeParser::ICaffeParserPtr parser =
+      armnnCaffeParser::ICaffeParser::Create ();
+
+  for (auto const &inputs:input_map) {
+    if (inputs.second.GetNumDimensions () == 0) {
+      unknown_input_dim = true;
+    }
+  }
+
+  if (unknown_input_dim) {
+    network = parser->CreateNetworkFromBinaryFile
+      (model_path, {}, output_vec);
+  } else {
+    network = parser->CreateNetworkFromBinaryFile
+      (model_path, input_map, output_vec);
+  }
+
+  /** set input/output bindings */
+  for (auto const &output_name:output_vec) {
+    outputBindingInfo.push_back (
+        parser->GetNetworkOutputBindingInfo (output_name));
+  }
+
+  for (auto const &inputs:input_map) {
+    inputBindingInfo.push_back (
+        parser->GetNetworkInputBindingInfo (inputs.first));
+  }
+
+  return 0;
 }
 
 /**
@@ -204,7 +234,7 @@ ArmNNCore::makeTfLiteNetwork ()
   /** @todo: support multiple subgraphs */
   /** set input/output bindings */
   std::vector < std::string > in_names =
-    parser->GetSubgraphInputTensorNames (0);
+      parser->GetSubgraphInputTensorNames (0);
   for (auto const &name:in_names) {
     inputBindingInfo.push_back (parser->GetNetworkInputBindingInfo (0, name));
   }
@@ -248,15 +278,22 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties * prop)
 
   /** Create input map with name and data shape */
   for (unsigned int i = 0; i < prop->input_meta.num_tensors; i++) {
-    int rank = gst_tensor_info_get_rank (&prop->input_meta.info[i]);
-    if (rank == 0 || prop->input_meta.info[i].name == NULL) {
+    if (prop->input_meta.info[i].name == NULL) {
       /** clear input map in case of error */
       input_map.clear ();
       break;
     }
 
-    input_map[prop->input_meta.info[i].name] =
-        armnn::TensorShape (rank, prop->input_meta.info[i].dimension);
+    /** Set dimension only if valid */
+    if (gst_tensor_dimension_is_valid (prop->input_meta.info[i].dimension)) {
+      unsigned int rev_dim[NNS_TENSOR_RANK_LIMIT];
+      std::reverse_copy (prop->input_meta.info[i].dimension,
+          prop->input_meta.info[i].dimension + NNS_TENSOR_RANK_LIMIT, rev_dim);
+      input_map[prop->input_meta.info[i].name] =
+          armnn::TensorShape (NNS_TENSOR_RANK_LIMIT, rev_dim);
+    } else {
+      input_map[prop->input_meta.info[i].name] = armnn::TensorShape ();
+    }
   }
 
   if (g_str_has_suffix (model_path, ".prototxt")
@@ -316,7 +353,7 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
     if (status == armnn::Status::Failure)
       throw std::runtime_error ("Error loading the network.");
   }
-  catch (...) {
+  catch ( ...) {
     try {
       runtime = nullptr;
       network = nullptr;
@@ -430,11 +467,11 @@ ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
 
     /** reverse the order of dimensions */
     arm_shape = arm_info.GetShape ();
-    for (int i = num_dim-1; i >= 0; i--) {
+    for (int i = num_dim - 1; i >= 0; i--) {
       gst_info->dimension[i] = arm_shape[num_dim - i - 1];
     }
 
-    for (int i = NNS_TENSOR_RANK_LIMIT-1; i >= num_dim; i--) {
+    for (int i = NNS_TENSOR_RANK_LIMIT - 1; i >= num_dim; i--) {
       gst_info->dimension[i] = 1;
     }
   }
@@ -503,23 +540,25 @@ ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     if (inputBindingInfo[i].second.GetNumBytes () != input[i].size) {
-      input_tensors.clear();
+      input_tensors.clear ();
       return -EINVAL;
     }
     armnn::ConstTensor input_tensor (inputBindingInfo[i].second, input[i].data);
     input_tensors.push_back ( {
-        inputBindingInfo[i].first, input_tensor});
+        inputBindingInfo[i].first, input_tensor}
+    );
   }
 
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
     if (outputBindingInfo[i].second.GetNumBytes () != output[i].size) {
-      output_tensors.clear();
-      input_tensors.clear();
+      output_tensors.clear ();
+      input_tensors.clear ();
       return -EINVAL;
     }
     armnn::Tensor output_tensor (outputBindingInfo[i].second, output[i].data);
     output_tensors.push_back ( {
-        outputBindingInfo[i].first, output_tensor});
+        outputBindingInfo[i].first, output_tensor}
+    );
   }
 
   /** Run the inference */
@@ -527,8 +566,8 @@ ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
       output_tensors);
 
   /** Clear the Input and Output tensors */
-  input_tensors.clear();
-  output_tensors.clear();
+  input_tensors.clear ();
+  output_tensors.clear ();
 
   if (ret == armnn::Status::Failure)
     return -EINVAL;
@@ -578,7 +617,8 @@ armnn_open (const GstTensorFilterProperties * prop, void **private_data)
 
   try {
     core = new ArmNNCore (prop->model_files[0], hw);
-  } catch (const std::bad_alloc & ex) {
+  }
+  catch (const std::bad_alloc & ex) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
     return -1;
   }
