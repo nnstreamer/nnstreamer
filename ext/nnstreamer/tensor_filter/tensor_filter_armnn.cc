@@ -299,7 +299,7 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
     /* Optimize the network for the given runtime */
     /** TODO: set the backend based on config received */
     std::vector < armnn::BackendId > backends = {
-    armnn::Compute::CpuRef};
+    armnn::Compute::CpuAcc};
     /** TODO: add option to enable FP32 to FP16 with OptimizerOptions */
     /** TODO: add GPU based optimizations */
     runtime = armnn::IRuntime::Create (options);
@@ -353,15 +353,17 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
 {
   switch (armType) {
     case armnn::DataType::Signed32:
+      /** Supported with tf and tflite */
       return _NNS_INT32;
     case armnn::DataType::Float32:
+      /** Supported with tf, tflite and caffe */
       return _NNS_FLOAT32;
     case armnn::DataType::Float16:
       g_warning ("Unsupported armnn datatype Float16.");
       break;
     case armnn::DataType::QuantisedAsymm8:
-      g_warning ("Unsupported armnn datatype QuantizedAsym8.");
-      break;
+      /** Supported with tflite */
+      return _NNS_UINT8;
     case armnn::DataType::Boolean:
       g_warning ("Unsupported armnn datatype Boolean.");
       break;
@@ -420,7 +422,7 @@ ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
     }
 
     /* Set the dimensions */
-    unsigned int num_dim = arm_info.GetNumDimensions ();
+    int num_dim = arm_info.GetNumDimensions ();
     if (num_dim > NNS_TENSOR_RANK_LIMIT) {
       g_warning ("Data rank exceeds max supported rank.");
       return -EINVAL;
@@ -428,12 +430,12 @@ ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
 
     /** reverse the order of dimensions */
     arm_shape = arm_info.GetShape ();
-    for (unsigned int i = 0; i < num_dim; i++) {
-      gst_info->dimension[NNS_TENSOR_RANK_LIMIT - i - 1] = arm_shape[i];
+    for (int i = num_dim-1; i >= 0; i--) {
+      gst_info->dimension[i] = arm_shape[num_dim - i - 1];
     }
 
-    for (unsigned int i = num_dim; i < NNS_TENSOR_RANK_LIMIT; i++) {
-      gst_info->dimension[NNS_TENSOR_RANK_LIMIT - i - 1] = 1;
+    for (int i = NNS_TENSOR_RANK_LIMIT-1; i >= num_dim; i--) {
+      gst_info->dimension[i] = 1;
     }
   }
 
