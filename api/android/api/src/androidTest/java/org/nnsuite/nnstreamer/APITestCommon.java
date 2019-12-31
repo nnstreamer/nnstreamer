@@ -1,10 +1,13 @@
 package org.nnsuite.nnstreamer;
 
+import android.Manifest;
 import android.content.Context;
 import android.os.Environment;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -40,6 +43,14 @@ public class APITestCommon {
     }
 
     /**
+     * Grants required runtime permissions.
+     */
+    public static GrantPermissionRule grantPermissions() {
+        return GrantPermissionRule.grant(Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE);
+    }
+
+    /**
      * Gets the File object of tensorflow-lite image classification model.
      * Note that, to invoke tensorflow-lite model in the storage, the permission READ_EXTERNAL_STORAGE is required.
      */
@@ -72,6 +83,11 @@ public class APITestCommon {
         return false;
     }
 
+    @Before
+    public void setUp() {
+        initNNStreamer();
+    }
+
     @Test
     public void useAppContext() {
         Context context = InstrumentationRegistry.getTargetContext();
@@ -92,5 +108,18 @@ public class APITestCommon {
         assertEquals(NNStreamer.TensorType.INT64, NNStreamer.TensorType.valueOf("INT64"));
         assertEquals(NNStreamer.TensorType.UINT64, NNStreamer.TensorType.valueOf("UINT64"));
         assertEquals(NNStreamer.TensorType.UNKNOWN, NNStreamer.TensorType.valueOf("UNKNOWN"));
+    }
+
+    @Test
+    public void enumNNFWType() {
+        assertEquals(NNStreamer.NNFWType.TENSORFLOW_LITE, NNStreamer.NNFWType.valueOf("TENSORFLOW_LITE"));
+        assertEquals(NNStreamer.NNFWType.SNAP, NNStreamer.NNFWType.valueOf("SNAP"));
+        assertEquals(NNStreamer.NNFWType.UNKNOWN, NNStreamer.NNFWType.valueOf("UNKNOWN"));
+    }
+
+    @Test
+    public void testAvailability() {
+        /* tensorflow-lite is always available */
+        assertTrue(NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE));
     }
 }

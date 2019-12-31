@@ -73,7 +73,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testAllocateNullInfo() {
+    public void testAllocateNullInfo_n() {
         try {
             TensorsData.allocate(null);
             fail();
@@ -109,7 +109,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetNullByteBuffer() {
+    public void testSetNullByteBuffer_n() {
         try {
             ByteBuffer buffer = null;
 
@@ -121,7 +121,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetInvalidOrderByteBuffer() {
+    public void testSetInvalidOrderByteBuffer_n() {
         try {
             /* big-endian byte order */
             ByteBuffer buffer = ByteBuffer.allocateDirect(100);
@@ -134,7 +134,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetNonDirectByteBuffer() {
+    public void testSetNonDirectByteBuffer_n() {
         try {
             /* non-direct byte buffer */
             ByteBuffer buffer = ByteBuffer.allocate(100).order(ByteOrder.nativeOrder());
@@ -147,7 +147,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testGetInvalidIndex() {
+    public void testGetInvalidIndex_n() {
         try {
             mData.getTensorData(5);
             fail();
@@ -157,7 +157,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetInvalidIndex() {
+    public void testSetInvalidIndex_n() {
         try {
             ByteBuffer buffer = TensorsData.allocateByteBuffer(500);
 
@@ -169,7 +169,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testSetInvalidSizeByteBuffer() {
+    public void testSetInvalidSizeByteBuffer_n() {
         try {
             ByteBuffer buffer = TensorsData.allocateByteBuffer(500);
 
@@ -181,7 +181,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testAllocateInvalidSize() {
+    public void testAllocateInvalidSize_n() {
         try {
             TensorsData.allocateByteBuffer(-1);
             fail();
@@ -191,7 +191,7 @@ public class APITestTensorsData {
     }
 
     @Test
-    public void testAllocateZeroSize() {
+    public void testAllocateZeroSize_n() {
         try {
             TensorsData.allocateByteBuffer(0);
             fail();
