@@ -1,6 +1,5 @@
 package org.nnsuite.nnstreamer;
 
-import android.Manifest;
 import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
@@ -23,8 +22,7 @@ public class APITestSingleShot {
     private SingleShot mSingle;
 
     @Rule
-    public GrantPermissionRule mPermissionRule =
-            GrantPermissionRule.grant(Manifest.permission.READ_EXTERNAL_STORAGE);
+    public GrantPermissionRule mPermissionRule = APITestCommon.grantPermissions();
 
     @Before
     public void setUp() {
@@ -71,7 +69,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testSetNullInputInfo() {
+    public void testSetNullInputInfo_n() {
         try {
             mSingle.setInputInfo(null);
             fail();
@@ -175,7 +173,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvokeTimeout() {
+    public void testInvokeTimeout_n() {
         TensorsInfo info = mSingle.getInputInfo();
 
         /* timeout 5ms */
@@ -191,7 +189,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testNullFile() {
+    public void testNullFile_n() {
         try {
             new SingleShot(null);
             fail();
@@ -201,7 +199,17 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvalidFile() {
+    public void testNullFiles_n() {
+        try {
+            new SingleShot(null, null, null, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testInvalidFile_n() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
         File model = new File(root + "/invalid_path/invalid.tflite");
 
@@ -214,7 +222,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvalidInputType() {
+    public void testInvalidInputType_n() {
         /* input: uint8 3:224:224:1 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TensorType.UINT16, new int[]{3,224,224,1});
@@ -228,7 +236,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvalidInputDimension() {
+    public void testInvalidInputDimension_n() {
         /* input: uint8 3:224:224:1 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,224,224});
@@ -242,7 +250,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvalidOutputType() {
+    public void testInvalidOutputType_n() {
         /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TensorType.INT16, new int[]{1001,1});
@@ -256,7 +264,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvalidOutputDimension() {
+    public void testInvalidOutputDimension_n() {
         /* output: uint8 1001:1 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{1001,2,1,1});
@@ -270,7 +278,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvokeNullData() {
+    public void testInvokeNullData_n() {
         try {
             mSingle.invoke(null);
             fail();
@@ -280,7 +288,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testInvokeInvalidData() {
+    public void testInvokeInvalidData_n() {
         /* input data size: 3 * 224 * 224 */
         TensorsInfo info = new TensorsInfo();
         info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{100});
@@ -294,7 +302,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testSetZeroTimeout() {
+    public void testSetZeroTimeout_n() {
         try {
             mSingle.setTimeout(0);
             fail();
@@ -304,7 +312,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testSetInvalidTimeout() {
+    public void testSetInvalidTimeout_n() {
         try {
             mSingle.setTimeout(-1);
             fail();

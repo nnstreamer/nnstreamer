@@ -259,7 +259,7 @@ public class APITestCustomFilter {
     }
 
     @Test
-    public void testRegisterNullName() {
+    public void testRegisterNullName_n() {
         try {
             CustomFilter.registerCustomFilter(null,
                 new CustomFilter.CustomFilterCallback() {
@@ -281,7 +281,7 @@ public class APITestCustomFilter {
     }
 
     @Test
-    public void testRegisterNullCallback() {
+    public void testRegisterNullCallback_n() {
         try {
             CustomFilter.registerCustomFilter("custom-invalid-cb", null);
             fail();
@@ -291,7 +291,7 @@ public class APITestCustomFilter {
     }
 
     @Test
-    public void testRegisterDuplicatedName() {
+    public void testRegisterDuplicatedName_n() {
         try {
             CustomFilter.registerCustomFilter(mCustomPassthrough.getName(),
                 new CustomFilter.CustomFilterCallback() {

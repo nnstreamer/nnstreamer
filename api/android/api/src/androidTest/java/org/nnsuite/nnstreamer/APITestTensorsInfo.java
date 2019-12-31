@@ -143,6 +143,18 @@ public class APITestTensorsInfo {
     }
 
     @Test
+    public void testAllocateEmpty_n() {
+        try {
+            TensorsInfo info = new TensorsInfo();
+
+            info.allocate();
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testUpdateInfo() {
         try {
             testAddInfo();
@@ -167,7 +179,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddUnknownType() {
+    public void testAddUnknownType_n() {
         try {
             mInfo.addTensorInfo(NNStreamer.TensorType.UNKNOWN, new int[]{2,2,2,2});
             fail();
@@ -179,7 +191,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddInvalidRank() {
+    public void testAddInvalidRank_n() {
         try {
             mInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{2,2,2,2,2});
             fail();
@@ -191,7 +203,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddInvalidDimension() {
+    public void testAddInvalidDimension_n() {
         try {
             mInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{1,1,-1});
             fail();
@@ -203,7 +215,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddNullDimension() {
+    public void testAddNullDimension_n() {
         try {
             mInfo.addTensorInfo(NNStreamer.TensorType.UINT8, null);
             fail();
@@ -215,7 +227,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testGetInvalidIndex() {
+    public void testGetInvalidIndex_n() {
         try {
             mInfo.getTensorType(0);
             fail();
@@ -225,7 +237,7 @@ public class APITestTensorsInfo {
     }
 
     @Test
-    public void testAddMaxInfo() {
+    public void testAddMaxInfo_n() {
         try {
             for (int i = 0; i <= NNStreamer.TENSOR_SIZE_LIMIT; i++) {
                 mInfo.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{2,2,2,2});
