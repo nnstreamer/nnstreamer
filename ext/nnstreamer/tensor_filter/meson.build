@@ -302,3 +302,34 @@ if get_option('enable-edgetpu')
     install_dir: filter_subplugin_install_dir
   )
 endif
+
+if get_option('enable-openvino')
+  openvino_deps = []
+  openvino_cpp_args = []
+  openvino_deps += dependency('openvino', required: true)
+  filter_sub_openvino_sources = ['tensor_filter_openvino.cc']
+
+  nnstreamer_filter_openvino_sources = []
+  foreach s : filter_sub_openvino_sources
+    nnstreamer_filter_openvino_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_openvino_deps = [glib_dep, gst_dep, nnstreamer_dep, openvino_deps]
+
+  shared_library('nnstreamer_filter_openvino',
+    nnstreamer_filter_openvino_sources,
+    cpp_args: openvino_cpp_args,
+    dependencies: nnstreamer_filter_openvino_deps,
+    install: false,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_openvino',
+    nnstreamer_filter_openvino_sources,
+    cpp_args: openvino_cpp_args,
+    dependencies: nnstreamer_filter_openvino_deps,
+    install: false,
+    install_dir: nnstreamer_libdir
+  )
+
+endif
