@@ -419,6 +419,19 @@ ov_getOutputDim (const GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Standard tensor_filter callback to close sub-plugin
+ */
+static void
+ov_close (const GstTensorFilterProperties * prop, void **private_data)
+{
+  TensorFilterOpenvino *tfOv =
+      static_cast < TensorFilterOpenvino * >(*private_data);
+
+  delete tfOv;
+  *private_data = NULL;
+}
+
+/**
  * @brief Standard tensor_filter callback to open sub-plugin
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
@@ -494,25 +507,22 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
     return TensorFilterOpenvino::RetEInval;
   }
 
+  tfOv = static_cast<TensorFilterOpenvino *>(*private_data);
+  if (tfOv != nullptr) {
+    if ((tfOv->getPathModelBin () == model_path_bin) &&
+        (tfOv->getPathModelXml () == model_path_xml)) {
+      return TensorFilterOpenvino::RetSuccess;
+    }
+
+    ov_close (prop, private_data);
+    tfOv = nullptr;
+  }
+
   tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
   *private_data = tfOv;
 
   return tfOv->loadModel ();
 }
-
-/**
- * @brief Standard tensor_filter callback to close sub-plugin
- */
-static void
-ov_close (const GstTensorFilterProperties * prop, void **private_data)
-{
-  TensorFilterOpenvino *tfOv =
-      static_cast < TensorFilterOpenvino * >(*private_data);
-
-  delete tfOv;
-  *private_data = NULL;
-}
-
 
 static gchar filter_subplugin_openvino[] = "openvino";
 
