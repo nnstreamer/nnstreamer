@@ -67,6 +67,48 @@ public class APITestTensorsInfo {
     }
 
     @Test
+    public void testClone() {
+        try {
+            testAddInfo();
+
+            /* clone */
+            TensorsInfo cloned = mInfo.clone();
+
+            /* update info */
+            mInfo.setTensorName(0, "updated1");
+            mInfo.setTensorType(0, NNStreamer.TensorType.INT16);
+            mInfo.setTensorDimension(0, new int[]{10,1,1,1});
+
+            mInfo.setTensorName(1, "updated2");
+            mInfo.setTensorType(1, NNStreamer.TensorType.UINT16);
+            mInfo.setTensorDimension(1, new int[]{20,1,1,1});
+
+            mInfo.setTensorName(2, "updated3");
+            mInfo.setTensorType(2, NNStreamer.TensorType.FLOAT64);
+            mInfo.setTensorDimension(2, new int[]{30,1,1,1});
+
+            mInfo.addTensorInfo("updated4", NNStreamer.TensorType.INT64, new int[]{40,1,1,1});
+
+            /* check cloned info */
+            assertEquals("name1", cloned.getTensorName(0));
+            assertEquals(NNStreamer.TensorType.INT8, cloned.getTensorType(0));
+            assertArrayEquals(new int[]{1,1,1,1}, cloned.getTensorDimension(0));
+
+            assertEquals("name2", cloned.getTensorName(1));
+            assertEquals(NNStreamer.TensorType.UINT8, cloned.getTensorType(1));
+            assertArrayEquals(new int[]{2,2,1,1}, cloned.getTensorDimension(1));
+
+            assertNull(cloned.getTensorName(2));
+            assertEquals(NNStreamer.TensorType.FLOAT32, cloned.getTensorType(2));
+            assertArrayEquals(new int[]{3,3,3,1}, cloned.getTensorDimension(2));
+
+            assertEquals(3, cloned.getTensorsCount());
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testGetSize() {
         try {
             testAddInfo();

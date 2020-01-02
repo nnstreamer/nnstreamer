@@ -19,6 +19,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * Provides interfaces to handle tensors information.
@@ -27,7 +28,7 @@ import java.util.ArrayList;
  * @see NNStreamer#TENSOR_SIZE_LIMIT
  * @see NNStreamer.TensorType
  */
-public final class TensorsInfo implements AutoCloseable {
+public final class TensorsInfo implements AutoCloseable, Cloneable {
     private ArrayList<TensorInfo> mInfoList = new ArrayList<>();
 
     /**
@@ -43,6 +44,24 @@ public final class TensorsInfo implements AutoCloseable {
         }
 
         return TensorsData.allocate(this);
+    }
+
+    /**
+     * Creates a new {@link TensorsInfo} instance cloned from the current tensors information.
+     *
+     * @return {@link TensorsInfo} instance
+     */
+    @Override
+    public TensorsInfo clone() {
+        TensorsInfo cloned = new TensorsInfo();
+        Iterator<TensorInfo> iter = mInfoList.iterator();
+
+        while (iter.hasNext()) {
+            TensorInfo info = iter.next();
+            cloned.addTensorInfo(info.getName(), info.getType(), info.getDimension());
+        }
+
+        return cloned;
     }
 
     /**
