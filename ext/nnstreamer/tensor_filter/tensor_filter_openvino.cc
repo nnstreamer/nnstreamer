@@ -27,11 +27,18 @@
 #include <glib.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <tensor_common.h>
-
+#ifdef __OPENVINO_CPU_EXT__
+#include <ext_list.hpp>
+#endif /* __OPENVINO_CPU_EXT__ */
 #include <inference_engine.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
+
+const gchar *openvino_accl_support[] = {
+  ACCL_CPU_STR,
+  NULL
+};
 
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
@@ -42,14 +49,19 @@ public:
   enum RetVal
   {
     RetSuccess = 0,
+    RetEBusy = -EBUSY,
     RetEInval = -EINVAL,
+    RetENoDev = -ENODEV,
     RetEOverFlow = -EOVERFLOW,
   };
 
   static tensor_type convertFromIETypeStr (std::string type);
 
-  TensorFilterOpenvino (std::string path_model_prefix);
+  TensorFilterOpenvino (std::string path_model_prefix, accl_hw hw);
   ~TensorFilterOpenvino ();
+
+  // TODO: Need to support other acceleration devices
+  int loadModel ();
 
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
@@ -66,11 +78,13 @@ private:
   InferenceEngine::CNNNetReader _networkReaderCNN;
   InferenceEngine::CNNNetwork _networkCNN;
   InferenceEngine::InputsDataMap _inputsDataMap;
-  InferenceEngine::TensorDesc _inputTensorDesc;
   InferenceEngine::OutputsDataMap _outputsDataMap;
+  InferenceEngine::ExecutableNetwork _executableNet;
 
   std::string pathModelXml;
   std::string pathModelBin;
+  bool isLoaded;
+  accl_hw hw;
 };
 
 const std::string TensorFilterOpenvino::extBin = ".bin";
@@ -131,7 +145,8 @@ TensorFilterOpenvino::getPathModelBin ()
  * @param pathModelPrefix the path (after the file extension such as .bin or .xml is eliminated) of the given model
  * @return  Nothing
  */
-TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix)
+TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix,
+    accl_hw hw)
 {
   this->pathModelXml = pathModelPrefix + TensorFilterOpenvino::extXml;
   this->pathModelBin = pathModelPrefix + TensorFilterOpenvino::extBin;
@@ -140,6 +155,8 @@ TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix)
   this->_networkCNN = _networkReaderCNN.getNetwork ();
   this->_inputsDataMap = _networkCNN.getInputsInfo ();
   this->_outputsDataMap = _networkCNN.getOutputsInfo ();
+  this->isLoaded = false;
+  this->hw = hw;
 }
 
 /**
@@ -149,6 +166,59 @@ TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix)
 TensorFilterOpenvino::~TensorFilterOpenvino ()
 {
   ;
+}
+
+/**
+ * @brief Load the given neural network into the target device
+ * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
+ */
+int
+TensorFilterOpenvino::loadModel ()
+{
+  std::string targetDevice;
+  std::vector<std::string> strVector;
+  std::vector<std::string>::iterator strVectorIter;
+
+  if (this->isLoaded) {
+    // TODO: Can OpenVino support to replace the loaded model with a new one?
+    g_critical ("The model file is already loaded onto the device.");
+    return RetEBusy;
+  }
+
+  strVector = this->_ieCore.GetAvailableDevices ();
+  if (strVector.size () == 0) {
+    g_critical ("No devices found for the OpenVino toolkit");
+    return RetENoDev;
+  }
+
+  switch (this->hw)
+  {
+  /** TODO: Currently, the CPU (amd64) is the only acceleration device.
+   *        Need to check the 'accelerator' property.
+   */
+  case ACCL_CPU:
+#ifdef __OPENVINO_CPU_EXT__
+    strVectorIter = std::find(strVector.begin (), strVector.end (),
+        "CPU");
+    if (strVectorIter == strVector.end ()) {
+      g_critical ("Failed to find the CPU plugin of the OpenVino toolkit");
+      return RetEInval;
+    }
+    this->_ieCore.AddExtension(
+        std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>(),
+        "CPU");
+    this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
+        *strVectorIter);
+    this->isLoaded = true;
+#endif /* __OPENVINO_CPU_EXT__ */
+    break;
+  default:
+    break;
+  }
+
+  if (this->isLoaded)
+    return RetSuccess;
+  return RetENoDev;
 }
 
 /**
@@ -177,15 +247,15 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
   for (inputDataMapIter = inputsDataMap->begin (), i = 0;
       inputDataMapIter != inputsDataMap->end (); ++inputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
-    InferenceEngine::TensorDesc eachInputTenserDesc;
+    InferenceEngine::TensorDesc eachInputTensorDesc;
     InferenceEngine::InputInfo::Ptr eachInputInfo;
     InferenceEngine::SizeVector dimsSizeVec;
     std::string ieTensorTypeStr;
     tensor_type nnsTensorType;
 
     eachInputInfo = inputDataMapIter->second;
-    eachInputTenserDesc = eachInputInfo->getTensorDesc ();
-    dimsSizeVec = eachInputTenserDesc.getDims ();
+    eachInputTensorDesc = eachInputInfo->getTensorDesc ();
+    dimsSizeVec = eachInputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
       g_critical ("The ranks of dimensions of InputTensor[%d] in the model "
           "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
@@ -248,15 +318,15 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
   for (outputDataMapIter = outputsDataMap->begin (), i = 0;
       outputDataMapIter != outputsDataMap->end (); ++outputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
-    InferenceEngine::TensorDesc eachOutputTenserDesc;
+    InferenceEngine::TensorDesc eachOutputTensorDesc;
     InferenceEngine::SizeVector dimsSizeVec;
     InferenceEngine::DataPtr eachOutputInfo;
     std::string ieTensorTypeStr;
     tensor_type nnsTensorType;
 
     eachOutputInfo = outputDataMapIter->second;
-    eachOutputTenserDesc = eachOutputInfo->getTensorDesc ();
-    dimsSizeVec = eachOutputTenserDesc.getDims ();
+    eachOutputTensorDesc = eachOutputInfo->getTensorDesc ();
+    dimsSizeVec = eachOutputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
       g_critical ("The ranks of dimensions of OutputTensor[%d] in the model "
           "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
@@ -359,6 +429,21 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
   std::size_t expected_len_path_model_prefix = model_path.length () - 4;
   std::string path_model_prefix;
   TensorFilterOpenvino *tfOv;
+  accl_hw accelerator;
+
+  accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support);
+#ifndef __OPENVINO_CPU_EXT__
+  if (accelerator == ACCL_CPU) {
+    g_critical ("Accelerating via CPU is not supported on the current platform");
+    return TensorFilterOpenvino::RetEInval;
+  }
+#endif
+  if (accelerator == ACCL_NONE
+      || accelerator == ACCL_AUTO
+      || accelerator == ACCL_DEFAULT) {
+    g_critical ("Setting a specific accelerating device is required");
+    return TensorFilterOpenvino::RetEInval;
+  }
 
   if ((ext_start_at == expected_len_path_model_prefix)
       || (model_path.find (TensorFilterOpenvino::extBin,
@@ -370,10 +455,10 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
     path_model_prefix = model_path;
   }
 
-  tfOv = new TensorFilterOpenvino (path_model_prefix);
+  tfOv = new TensorFilterOpenvino (path_model_prefix, accelerator);
   *private_data = tfOv;
 
-  return TensorFilterOpenvino::RetSuccess;
+  return tfOv->loadModel ();
 }
 
 /**
