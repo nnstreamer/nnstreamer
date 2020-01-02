@@ -199,4 +199,44 @@ public class APITestTensorsData {
             /* expected */
         }
     }
+
+    @Test
+    public void testGetInfo() {
+        try {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo("name1", NNStreamer.TensorType.INT64, new int[]{10,1,1,1});
+            info.addTensorInfo("name2", NNStreamer.TensorType.UINT64, new int[]{20,1,1,1});
+
+            /* allocate data, info is cloned */
+            TensorsData data = TensorsData.allocate(info);
+
+            /* update info */
+            info.setTensorName(0, "test1");
+            info.setTensorType(0, NNStreamer.TensorType.INT16);
+            info.setTensorDimension(0, new int[]{1,1,1,1});
+
+            info.setTensorName(1, "test2");
+            info.setTensorType(1, NNStreamer.TensorType.UINT16);
+            info.setTensorDimension(1, new int[]{2,2,1,1});
+
+            info.addTensorInfo("test3", NNStreamer.TensorType.FLOAT64, new int[]{3,3,3,1});
+
+            assertEquals(3, info.getTensorsCount());
+
+            /* check cloned info */
+            TensorsInfo cloned = data.getTensorsInfo();
+
+            assertEquals(2, cloned.getTensorsCount());
+
+            assertEquals("name1", cloned.getTensorName(0));
+            assertEquals(NNStreamer.TensorType.INT64, cloned.getTensorType(0));
+            assertArrayEquals(new int[]{10,1,1,1}, cloned.getTensorDimension(0));
+
+            assertEquals("name2", cloned.getTensorName(1));
+            assertEquals(NNStreamer.TensorType.UINT64, cloned.getTensorType(1));
+            assertArrayEquals(new int[]{20,1,1,1}, cloned.getTensorDimension(1));
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }

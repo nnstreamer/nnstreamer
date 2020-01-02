@@ -74,10 +74,10 @@ public final class TensorsData implements AutoCloseable {
     /**
      * Gets the tensors information.
      *
-     * @return The {@link TensorsInfo} instance
+     * @return {@link TensorsInfo} instance cloned from current tensors information.
      */
     public TensorsInfo getTensorsInfo() {
-        return mInfo;
+        return mInfo.clone();
     }
 
     /**
@@ -92,7 +92,7 @@ public final class TensorsData implements AutoCloseable {
             throw new IllegalArgumentException("Given info is invalid");
         }
 
-        mInfo = info;
+        mInfo = info.clone();
     }
 
     /**
