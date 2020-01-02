@@ -307,6 +307,15 @@ if get_option('enable-openvino')
   openvino_deps = []
   openvino_cpp_args = []
   openvino_deps += dependency('openvino', required: true)
+  if cxx.has_header('ext_list.hpp')
+    openvino_cpuext_lib = cxx.find_library('cpu_extension', required: true)
+    if openvino_cpuext_lib.found()
+      openvino_cpp_args += '-D__OPENVINO_CPU_EXT__=1'
+      openvino_deps += openvino_cpuext_lib
+    else
+      error('Cannot find the shared object, libcpu_extension.')
+    endif
+  endif
   filter_sub_openvino_sources = ['tensor_filter_openvino.cc']
 
   nnstreamer_filter_openvino_sources = []
