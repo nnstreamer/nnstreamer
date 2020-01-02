@@ -57,7 +57,7 @@ public:
 
   static tensor_type convertFromIETypeStr (std::string type);
 
-  TensorFilterOpenvino (std::string path_model_prefix, accl_hw hw);
+  TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
   ~TensorFilterOpenvino ();
 
   // TODO: Need to support other acceleration devices
@@ -142,14 +142,15 @@ TensorFilterOpenvino::getPathModelBin ()
 
 /**
  * @brief TensorFilterOpenvino constructor
- * @param pathModelPrefix the path (after the file extension such as .bin or .xml is eliminated) of the given model
+ * @param pathModelXml the path of the given model in a XML format
+ * @param pathModelBin the path of the given model in a Bin format
  * @return  Nothing
  */
-TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix,
-    accl_hw hw)
+TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml,
+    std::string pathModelBin)
 {
-  this->pathModelXml = pathModelPrefix + TensorFilterOpenvino::extXml;
-  this->pathModelBin = pathModelPrefix + TensorFilterOpenvino::extBin;
+  this->pathModelXml = pathModelXml;
+  this->pathModelBin = pathModelBin;
   (this->_networkReaderCNN).ReadNetwork (this->pathModelXml);
   (this->_networkReaderCNN).ReadWeights (this->pathModelBin);
   this->_networkCNN = _networkReaderCNN.getNetwork ();
@@ -424,10 +425,11 @@ ov_getOutputDim (const GstTensorFilterProperties * prop,
 static int
 ov_open (const GstTensorFilterProperties * prop, void **private_data)
 {
-  std::string model_path = std::string (prop->model_files[0]);
-  std::size_t ext_start_at = model_path.find_last_of ('.');
-  std::size_t expected_len_path_model_prefix = model_path.length () - 4;
   std::string path_model_prefix;
+  std::string model_path_xml;
+  std::string model_path_bin;
+  guint num_models_xml = 0;
+  guint num_models_bin = 0;
   TensorFilterOpenvino *tfOv;
   accl_hw accelerator;
 
@@ -445,17 +447,54 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
     return TensorFilterOpenvino::RetEInval;
   }
 
-  if ((ext_start_at == expected_len_path_model_prefix)
-      || (model_path.find (TensorFilterOpenvino::extBin,
-              ext_start_at) != std::string::npos)
-      || (model_path.find (TensorFilterOpenvino::extXml,
-              ext_start_at) != std::string::npos)) {
-    path_model_prefix = model_path.substr (0, expected_len_path_model_prefix);
-  } else {
-    path_model_prefix = model_path;
+  if (prop->num_models == 1) {
+    if (g_str_has_suffix (prop->model_files[0],
+        TensorFilterOpenvino::extBin.c_str ())
+        || g_str_has_suffix (prop->model_files[0],
+        TensorFilterOpenvino::extXml.c_str ())) {
+      std::string model_path = std::string (prop->model_files[0]);
+
+      path_model_prefix = model_path.substr (0, model_path.length () - 4);
+    } else {
+      path_model_prefix = std::string (prop->model_files[0]);
+    }
+
+    model_path_xml = path_model_prefix + TensorFilterOpenvino::extXml;
+    model_path_bin = path_model_prefix + TensorFilterOpenvino::extBin;
+  } else{
+    for (gint i = 0; i < prop->num_models; ++i) {
+      if (g_str_has_suffix (prop->model_files[i],
+          TensorFilterOpenvino::extXml.c_str ())) {
+        num_models_xml++;
+        model_path_xml = std::string (prop->model_files[i]);
+      } else if (g_str_has_suffix (prop->model_files[i],
+          TensorFilterOpenvino::extBin.c_str ())) {
+        num_models_bin++;
+        model_path_bin = std::string (prop->model_files[i]);
+      }
+
+      if (num_models_xml > 1) {
+        g_critical ("Too many model files in a XML format are provided.");
+        return TensorFilterOpenvino::RetEInval;
+      } else if (num_models_bin > 1) {
+        g_critical ("Too many model files in a BIN format are provided.");
+        return TensorFilterOpenvino::RetEInval;
+      }
+    }
   }
 
-  tfOv = new TensorFilterOpenvino (path_model_prefix, accelerator);
+  if (!g_file_test (model_path_xml.c_str (), G_FILE_TEST_IS_REGULAR)) {
+    g_critical ("Failed to open the XML model file, %s",
+        model_path_xml.c_str ());
+    return TensorFilterOpenvino::RetEInval;
+  }
+  if (!g_file_test (model_path_bin.c_str (), G_FILE_TEST_IS_REGULAR)) {
+    g_critical ("Failed to open the BIN model file, %s",
+        model_path_bin.c_str ());
+    return TensorFilterOpenvino::RetEInval;
+  }
+
+  tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
   *private_data = tfOv;
 
   return tfOv->loadModel ();
