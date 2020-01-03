@@ -56,6 +56,9 @@ public:
   };
 
   static tensor_type convertFromIETypeStr (std::string type);
+  static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
+      const InferenceEngine::TensorDesc tensorDesc,
+      const GstTensorMemory * gstTensor);
 
   TensorFilterOpenvino (std::string path_model_prefix, accl_hw hw);
   ~TensorFilterOpenvino ();
@@ -65,6 +68,8 @@ public:
 
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
+  int invoke (const GstTensorFilterProperties * prop,
+      const GstTensorMemory * input, GstTensorMemory * output);
   std::string getPathModelXml ();
   std::string getPathModelBin ();
 
@@ -78,8 +83,11 @@ private:
   InferenceEngine::CNNNetReader _networkReaderCNN;
   InferenceEngine::CNNNetwork _networkCNN;
   InferenceEngine::InputsDataMap _inputsDataMap;
+  InferenceEngine::TensorDesc _inputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
   InferenceEngine::OutputsDataMap _outputsDataMap;
+  InferenceEngine::TensorDesc _outputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
   InferenceEngine::ExecutableNetwork _executableNet;
+  InferenceEngine::InferRequest _inferRequest;
 
   std::string pathModelXml;
   std::string pathModelBin;
@@ -121,6 +129,66 @@ TensorFilterOpenvino::convertFromIETypeStr (std::string type)
 }
 
 /**
+ * @brief Convert a tensor container in NNS to a tensor container in IE
+ * @param tensorDesc the class that defines a Tensor description to be converted from a GstTensorMemory
+ * @param gstTensor the container of a tensor in NNS to be coverted to a tensor container in IE
+ * @return a pointer to the Blob which is a container of a tensor in IE if OK, otherwise nullptr
+ */
+InferenceEngine::Blob::Ptr
+TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (
+    const InferenceEngine::TensorDesc tensorDesc,
+    const GstTensorMemory * gstTensor)
+{
+  switch (gstTensor->type) {
+    case _NNS_UINT8:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<uint8_t>(
+              tensorDesc,
+              (uint8_t *) gstTensor->data, gstTensor->size
+              )
+          );
+    case _NNS_UINT16:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<uint16_t>(
+              tensorDesc,
+              (uint16_t *) gstTensor->data, gstTensor->size
+              )
+          );
+    case _NNS_INT8:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<int8_t>(
+              tensorDesc,
+              (int8_t *) gstTensor->data, gstTensor->size
+              )
+          );
+    case _NNS_INT16:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<int16_t>(
+              tensorDesc,
+              (int16_t *) gstTensor->data, gstTensor->size
+              )
+          );
+    case _NNS_INT32:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<int32_t>(
+              tensorDesc,
+              (int32_t *) gstTensor->data, gstTensor->size
+              )
+          );
+    case _NNS_FLOAT32:
+      return InferenceEngine::Blob::Ptr (
+          new InferenceEngine::TBlob<float>(
+              tensorDesc,
+              (float *) gstTensor->data, gstTensor->size
+              )
+          );
+    default:
+      return nullptr;
+  }
+}
+
+
+/**
  * @brief Get a path where the model file in XML format is located
  * @return a std::string of the path
  */
@@ -152,9 +220,9 @@ TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelPrefix,
   this->pathModelBin = pathModelPrefix + TensorFilterOpenvino::extBin;
   (this->_networkReaderCNN).ReadNetwork (this->pathModelXml);
   (this->_networkReaderCNN).ReadWeights (this->pathModelBin);
-  this->_networkCNN = _networkReaderCNN.getNetwork ();
-  this->_inputsDataMap = _networkCNN.getInputsInfo ();
-  this->_outputsDataMap = _networkCNN.getOutputsInfo ();
+  this->_networkCNN = (this->_networkReaderCNN).getNetwork ();
+  this->_inputsDataMap = (this->_networkCNN).getInputsInfo ();
+  this->_outputsDataMap = (this->_networkCNN).getOutputsInfo ();
   this->isLoaded = false;
   this->hw = hw;
 }
@@ -207,17 +275,21 @@ TensorFilterOpenvino::loadModel ()
     this->_ieCore.AddExtension(
         std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>(),
         "CPU");
-    this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
-        *strVectorIter);
-    this->isLoaded = true;
 #endif /* __OPENVINO_CPU_EXT__ */
     break;
   default:
-    break;
+    goto err;
   }
 
-  if (this->isLoaded)
-    return RetSuccess;
+  this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
+        *strVectorIter);
+  this->isLoaded = true;
+  this->_inferRequest = this->_executableNet.CreateInferRequest ();
+
+  return RetSuccess;
+err:
+  g_critical ("Failed to load the modes onto the device.");
+
   return RetENoDev;
 }
 
@@ -282,6 +354,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
 
     info->info[i].type = nnsTensorType;
     info->info[i].name = g_strdup (eachInputInfo->name ().c_str ());
+    this->_inputTensorDescs[i] = eachInputTensorDesc;
   }
 
   return TensorFilterOpenvino::RetSuccess;
@@ -353,6 +426,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
 
     info->info[i].type = nnsTensorType;
     info->info[i].name = g_strdup (eachOutputInfo->getName ().c_str ());
+    this->_outputTensorDescs[i] = eachOutputTensorDesc;
   }
 
   return TensorFilterOpenvino::RetSuccess;
@@ -364,19 +438,69 @@ failed:
 }
 
 /**
+ * @brief Do inference using Inference Engine of the OpenVino framework
+ * @param prop property of tensor_filter instance
+ * @param[in] input the array of input tensors
+ * @param[out] output the array of output tensors
+ * @return RetSuccess if OK. non-zero if error
+ */
+int
+TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  InferenceEngine::BlobMap inBlobMap;
+  InferenceEngine::BlobMap outBlobMap;
+  guint num_tensors;
+  guint i;
+
+  num_tensors = (prop->input_meta).num_tensors;
+  for (i = 0; i < num_tensors; ++i) {
+    const GstTensorInfo *info = &((prop->input_meta).info[i]);
+    InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
+        this->_inputTensorDescs[i], &(input[i]));
+    if (blob == nullptr) {
+      g_critical ("Failed to create a blob for the input tensor: %u", i);
+      return RetEInval;
+    }
+    inBlobMap.insert (make_pair (std::string(info->name), blob));
+  }
+  this->_inferRequest.SetInput (inBlobMap);
+
+  num_tensors = (prop->output_meta).num_tensors;
+  for (i = 0; i < num_tensors; ++i) {
+    const GstTensorInfo *info = &((prop->output_meta).info[i]);
+    InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
+        this->_outputTensorDescs[i], &(output[i]));
+    outBlobMap.insert (make_pair (std::string(info->name), blob));
+    if (blob == nullptr) {
+      g_critical ("Failed to create a blob for the output tensor: %u", i);
+      return RetEInval;
+    }
+  }
+  this->_inferRequest.SetOutput (outBlobMap);
+
+  this->_inferRequest.Infer();
+
+  return RetSuccess;
+}
+
+
+/**
  * @brief The mandatory callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data TensorFilterOpenvino plugin's private data
  * @param[in] input the array of input tensors
  * @param[out] output the array of output tensors
  * @return 0 if OK. non-zero if error
- * @todo fill this fuction
  */
 static int
 ov_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
-  return TensorFilterOpenvino::RetSuccess;
+  TensorFilterOpenvino *tfOv =
+      static_cast < TensorFilterOpenvino * >(*private_data);
+
+  return tfOv->invoke (prop, input, output);
 }
 
 /**
