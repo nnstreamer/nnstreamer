@@ -23,9 +23,6 @@
  *
  * This is the per-NN-framework plugin (Tizen nnfw) for tensor_filter.
  *
- * @todo Check if nnfw supports dynamic input dimension. (if so, we need to supply setInputDim)
- * @todo Decide whether to let nnfw allocate output buffers or we will feed output buffers to nnfw.
- * @todo NYI: configuring backends
  * @todo NYI: support quant8,bool type
  *
  */
@@ -43,6 +40,9 @@
 #define NNFW_NEON_BACKEND "acl_neon"
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
+
+/** Maximum rank allowed for tensor dimension */
+#define NNFW_TENSOR_RANK_LIMIT 6
 
 static const gchar *nnfw_accl_support[] = {
   ACCL_AUTO_STR,
@@ -74,6 +74,8 @@ static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
 static int nnfw_tensors_info_get (const nnfw_pdata *pdata,
     const gboolean is_input, GstTensorsInfo * info);
+static int nnfw_tensor_type_from_gst (const tensor_type type,
+    NNFW_TYPE * nnfw_type);
 
 /**
  * @brief parse user given input to extract accelerator to be used by nnfw
@@ -175,10 +177,15 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto session_exit;
   }
 
-  if (nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info) ||
-      nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info)) {
-    err = -EINVAL;
-    g_printerr ("Error retrieving input/output info from nnfw-runtime.");
+  err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info);
+  if (err) {
+    g_printerr ("Error retrieving input info from nnfw-runtime.");
+    goto session_exit;
+  }
+
+  err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info);
+  if (err) {
+    g_printerr ("Error retrieving output info from nnfw-runtime.");
     goto session_exit;
   }
 
@@ -297,6 +304,40 @@ nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
 }
 
 /**
+ * @brief register/set input tensor info with nnfw
+ * @param[in] pdata private data for nnfw opened instance
+ * @param[in] tensors_info info of tensors to be registered
+ * @param[in] tensor_idx idx of the tensor to be registered
+ * @return 0 on success, errno on failure
+ */
+static int
+nnfw_tensor_info_set (const nnfw_pdata *pdata, const GstTensorsInfo * tensors_info,
+    guint tensor_idx)
+{
+  struct nnfw_tensorinfo nnfw_info;
+  gint err;
+  gint idx;
+  const GstTensorInfo *info = &tensors_info->info[tensor_idx];
+
+  err = nnfw_tensor_type_from_gst (info->type, &nnfw_info.dtype);
+  if (err)
+    return err;
+
+  nnfw_info.rank = gst_tensor_info_get_rank (info);
+
+  /** reverse the order of dimension */
+  for (idx = nnfw_info.rank-1; idx >= 0; idx--)
+    nnfw_info.dims[nnfw_info.rank - idx - 1] = info->dimension[idx];
+
+  for (idx = NNFW_TENSOR_RANK_LIMIT-1; idx >= nnfw_info.rank; idx--)
+    nnfw_info.dims[idx] = 0;
+
+  nnfw_apply_tensorinfo (pdata->session, tensor_idx, nnfw_info);
+
+  return 0;
+}
+
+/**
  * @brief get nnfw tensor info in gst format info format from private data
  * @param[in] pdata private data for nnfw opened instance
  * @param[in] is_input to get info about input/output
@@ -311,10 +352,6 @@ nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
   struct nnfw_tensorinfo nnfw_info_t;
   int err;
   guint idx;
-
-  g_return_val_if_fail (info != NULL, -EINVAL);
-  g_return_val_if_fail (pdata != NULL, -EINVAL);
-  g_return_val_if_fail (pdata->session != NULL, -EINVAL);
 
   /** First get number of outputs */
   if (is_input)
@@ -379,11 +416,62 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
   g_return_val_if_fail (info != NULL, -EINVAL);
 
   gst_tensors_info_copy (info, &pdata->out_info);
+
   return 0;
 }
 
 /**
- * @brief Convert from nnfw type to gst tensor type
+ * @brief The standard tensor_filter callback
+ */
+static int
+nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  nnfw_pdata *pdata;
+  int err, idx;
+  GstTensorsInfo updated_info;
+
+  g_return_val_if_fail (private_data != NULL, -EINVAL);
+  g_return_val_if_fail (in_info != NULL, -EINVAL);
+  g_return_val_if_fail (out_info != NULL, -EINVAL);
+
+  pdata = (nnfw_pdata *) *private_data;
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
+
+  if (in_info->num_tensors != pdata->in_info.num_tensors)
+    return -EPERM;
+
+  for (idx = 0; idx < pdata->in_info.num_tensors; idx ++) {
+    err = nnfw_tensor_info_set (pdata, in_info, idx);
+    if (err)
+      goto error;
+  }
+
+  err = nnfw_tensors_info_get (pdata, TRUE, &updated_info);
+  if (err || !gst_tensors_info_is_equal (in_info, &updated_info))
+    goto error;
+
+  err = nnfw_tensors_info_get (pdata, FALSE, out_info);
+  if (err)
+    goto error;
+
+  gst_tensors_info_copy (&pdata->in_info, in_info);
+  gst_tensors_info_copy (&pdata->out_info, out_info);
+
+  return 0;
+
+error:
+  g_printerr ("Unable to set the provided input tensor info");
+  /** Reset input dimensions */
+  for (idx = 0; idx < pdata->in_info.num_tensors; idx ++) {
+    nnfw_tensor_info_set (pdata, &pdata->in_info, idx);
+  }
+
+  return err;
+}
+
+/**
+ * @brief Convert from gst tensor type to NNFW type
  * @param[in] type type given in gst format
  * @param[out] nnfw_type container to receive type in nnfw tensor format
  * @return 0 on sucess, negative errno on error
@@ -435,15 +523,10 @@ nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (pdata->session != NULL, -EPERM);
 
-  if (is_input == TRUE && prop->input_configured == TRUE)
-    num_tensors = prop->input_meta.num_tensors;
-  else if (is_input == FALSE && prop->output_configured == TRUE)
-    num_tensors = prop->output_meta.num_tensors;
-  else {
-    GstTensorsInfo info;
-    err = nnfw_tensors_info_get (pdata, is_input, &info);
-    num_tensors = info.num_tensors;
-  }
+  if (is_input)
+    num_tensors = pdata->in_info.num_tensors;
+  else
+    num_tensors = pdata->out_info.num_tensors;
 
   for (idx = 0; idx < num_tensors; idx++) {
     err = nnfw_tensor_type_from_gst (mem[idx].type, &nnfw_type);
@@ -508,6 +591,7 @@ static GstTensorFilterFramework NNS_support_nnfw = {
   .invoke_NN = nnfw_invoke,
   .getInputDimension = nnfw_getInputDim,
   .getOutputDimension = nnfw_getOutputDim,
+  .setInputDimension = nnfw_setInputDim,
   .open = nnfw_open,
   .close = nnfw_close,
 };

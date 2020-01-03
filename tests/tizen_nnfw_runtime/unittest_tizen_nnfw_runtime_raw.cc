@@ -115,6 +115,111 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
 }
 
 /**
+ * @brief Set input dimensions with nnfw subplugin
+ * @todo enable when nnfw_set_dimension API is interally implemented
+ */
+TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorsInfo in_info, out_info, res;
+  GstTensorMemory input, output;
+  gchar *model_file;
+  int tensor_size;
+
+  model_file = get_model_file ();
+  ASSERT_TRUE (model_file != nullptr);
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "nnfw",
+    .fw_opened = 0,
+    .model_files = model_files,
+    .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
+  EXPECT_NE (sp, (void *) NULL);
+
+  /** set input dimension without open */
+  ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
+  EXPECT_NE (ret, 0);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  tensor_size = 5;
+
+  res.num_tensors = 1;
+  res.info[0].type = _NNS_INT32;
+  res.info[0].dimension[0] = tensor_size;
+  res.info[0].dimension[1] = 1;
+  res.info[0].dimension[2] = 1;
+  res.info[0].dimension[3] = 1;
+
+  /** get input/output dimension successfully */
+  ret = sp->getInputDimension (&prop, &data, &in_info);
+  EXPECT_EQ (ret, 0);
+
+  EXPECT_EQ (res.num_tensors, in_info.num_tensors);
+  EXPECT_NE (res.info[0].type, in_info.info[0].type);
+  EXPECT_NE (res.info[0].dimension[0], in_info.info[0].dimension[0]);
+  EXPECT_EQ (res.info[0].dimension[1], in_info.info[0].dimension[1]);
+  EXPECT_EQ (res.info[0].dimension[2], in_info.info[0].dimension[2]);
+  EXPECT_EQ (res.info[0].dimension[3], in_info.info[0].dimension[3]);
+
+  ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
+  EXPECT_EQ (ret, 0);
+
+  /** get input/output dimension successfully */
+  ret = sp->getInputDimension (&prop, &data, &in_info);
+  EXPECT_EQ (ret, 0);
+
+  EXPECT_EQ (res.num_tensors, in_info.num_tensors);
+  EXPECT_EQ (res.info[0].type, in_info.info[0].type);
+  EXPECT_EQ (res.info[0].dimension[0], in_info.info[0].dimension[0]);
+  EXPECT_EQ (res.info[0].dimension[1], in_info.info[0].dimension[1]);
+  EXPECT_EQ (res.info[0].dimension[2], in_info.info[0].dimension[2]);
+  EXPECT_EQ (res.info[0].dimension[3], in_info.info[0].dimension[3]);
+
+  ret = sp->getOutputDimension (&prop, &data, &out_info);
+  EXPECT_EQ (ret, 0);
+
+  EXPECT_EQ (res.num_tensors, out_info.num_tensors);
+  EXPECT_EQ (res.info[0].type, out_info.info[0].type);
+  EXPECT_EQ (res.info[0].dimension[0], out_info.info[0].dimension[0]);
+  EXPECT_EQ (res.info[0].dimension[1], out_info.info[0].dimension[1]);
+  EXPECT_EQ (res.info[0].dimension[2], out_info.info[0].dimension[2]);
+  EXPECT_EQ (res.info[0].dimension[3], out_info.info[0].dimension[3]);
+
+  input.size = gst_tensor_info_get_size (&in_info.info[0]);
+  output.size = gst_tensor_info_get_size (&out_info.info[0]);
+
+  input.type = in_info.info[0].type;
+  output.type = out_info.info[0].type;
+
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
+
+  /* generate dummy data */
+  for (int idx = 0; idx < tensor_size; idx++)
+    ((gint32 *) input.data)[idx] = idx;
+
+  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  for (int idx = 0; idx < tensor_size; idx++)
+    EXPECT_EQ (((gint32 *) output.data)[idx], idx + 2);
+
+  g_free (input.data);
+  g_free (output.data);
+
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
  * @brief Test nnfw subplugin with successful invoke
  */
 TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
