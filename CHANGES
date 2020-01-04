@@ -1,13 +1,13 @@
 1.5.0 -> 1.5.1
 	- Filter subplugin APIs updated. Both V0 (minor changes to the conventional) and V1 (refactored API set) are supported.
 	- Fixed major issue: now, each instance of a filter subplugin may have different property values.
-	- Tizen 6.0 API ACR preparations
+	- Tizen 6.0 API ACR preparations.
 	- Allow to build Single-API-only Android build for minimal ML-API usage.
 	- Compatibility fix for GStreamer 1.16; Gst 1.16 has additional audit that blacklists behaviors of older NNStreamer.
-	- Met Linux Foundation / AI requirements (policy files)
+	- Met Linux Foundation / AI requirements. (policy files)
 	- Compatibility fix for LLVM/Clang and macOS.
 
-	- Verisilicon-Vivante: Vivante is supported with private proprietary plugin. There was a minor infrastructural updates to assist it. We will work on opening this code; we may need assistance from Verisilicon (they need to open source a few headers for general public to build Vivante-subplugin.)
+	- Verisilicon-Vivante: Vivante is supported with private proprietary plugin. There was a minor infrastructural updates to assist it. We will work on opening this code; we may need assistance from Verisilicon. (they need to open source a few headers for general public to build Vivante-subplugin.)
 	- TensorFlow-lite: recently added data types of Tensorflow-lite is supported.
 	- OpenVINO/Caffe2/Tensorflow/NNFW/NCSDK2/ARMNN/Python: refactored hardware acceleration options.
 
@@ -18,10 +18,10 @@
 	- 1.5.0 is a devel version for 1.6.0 release.
 
 1.3.1 -> 1.4.0
-	- Stable release with API changes
+	- Stable release with API changes.
 	- *Tensor-filter subplugin API has been updated.*
-	- Stability fixes & added unit test cases
-	- C-API updates
+	- Stability fixes & added unit test cases.
+	- C-API updates.
 
 1.3.0 -> 1.3.1
 	- 1.3.1 is a devel version for 1.4.0 release.
@@ -31,7 +31,7 @@
 	- Unit test: higher visibility & behavior correctness fixes.
 	- Auto-generated test cases for tensor-filter sub-plugins (extensions).
 	- Android/Java support with more convinient methods.
-	- Support gcc9
+	- Support gcc9.
 	- Support openVino as a tensor-filter, allowing to accelerate with Intel NCS/Myriad.
 	- Support NCSDK as a tensor-filter.
 	- Support ARMNN as a tensor-filter. (support TF-Lite and Caffe models)
@@ -39,27 +39,27 @@
 	- Support Androdi/SNAP as a tensor-filter.
 	- Support hardware accelerators & 8-bit quantization for NNFW-Runtime & stabilize NNFW-Runtime support with test cases.
 	- Support Edge-TPU and its runtime as a tensor-filter.
-	- Filter subplugins refactored to have a single source file (.cc)
-	- Support model reload
-	- A lot of fixes for bugs found by Coverity, SVACE, and other static analysis tools
+	- Filter subplugins refactored to have a single source file. (.cc)
+	- Support model reload.
+	- A lot of fixes for bugs found by Coverity, SVACE, and other static analysis tools.
 
 1.2.0 -> 1.3.0:
 	- 1.3.0 is a devel version for 1.4.0 release.
 	- From 1.2.0, 1.even.x is a release and 1.odd.x is a devel version.
-	- When 1.3.x is "done", it will release 1.4.0 and move on to 1.5.0
+	- When 1.3.x is "done", it will be release as 1.4.0 and move on to 1.5.0.
 
 1.0.0 -> 1.2.0:
-	- Tizen Sensor Framework Integration (tensor_src_tizensensor)
-	- Single C-API latency shortened by bypassing GST pipeline constructions
+	- Tizen Sensor Framework Integration. (tensor_src_tizensensor)
+	- Single C-API latency shortened by bypassing GST pipeline constructions.
 	- NNFW-Runtime Integration (tensor_filter::nnfw)
 		- NNFW: https://git.tizen.org/cgit/platform/core/ml/nnfw/
 		- Integrated & tested along with ARMCL.
-	- C++ classes are suggested (WIP)
-	- Converter accepts external subplugins (tensor_converter::*)
+	- C++ classes are suggested. (WIP)
+	- Converter accepts external subplugins. (tensor_converter::*)
 	- Custom-Easy mode (tensor_filter::custom_easy) for future "lambda func" support.
-	- Tizen ncsdk2 support
+	- Support Tizen ncsdk2.
 	- Types for path configurations are no more hardcoded.
-	- Overall architecture improved/refactored (Lowered CC, DC, and so on)
+	- Overall architecture improved/refactored. (Lowered CC, DC, and so on)
 	- Fixes from 1.0.1 (Tizen 5.5 M2's stable/commercialization branch)
 	- Documentation updates and bugfixes.
 
@@ -71,38 +71,38 @@
 	- Android Java-API released via JCenter for Android Studio users.
 	- Passed Quality Assurance. (code quality, stability, security, compliance, and so on)
 		- Fixed a lot of minor bugs in the course.
-	- Support macOS
+	- Support macOS.
 	- Fixed regressions related with ROS and Yocto support.
 
 0.2.0 -> 0.3.0:
 	- Tizen Public C-API Single/Pipeline RC1 Fixed for 5.5 M2
-	- Tizen Public C-API RC2 features included (pipeline whitelist, aliasing)
+	- Tizen Public C-API RC2 features included. (pipeline whitelist, aliasing)
 	- Tizen Public C#-API Single/Pipeline RC1.
 	- Android Java-API and build infrastructure. Ready for JCenter release.
-	- Tensorflow-lite / NNAPI tested & fixed
-	- Tensorflow 1.13 compatibility fix (1.09 kept supported)
-	- Caffe2/PyTorch support
-	- Movidius support
-	- This is effectively 1.0-RC1
+	- Tensorflow-lite / NNAPI tested & fixed.
+	- Tensorflow 1.13 compatibility fix. (1.09 kept supported)
+	- Caffe2/PyTorch support.
+	- Movidius support.
+	- This is effectively 1.0-RC1.
 
 0.1.2 -> 0.2.0:
-	- A lot of security issues and bugs fixed (for Tizen 5.5 M1 release)
-	- Tizen Public C-API Pipeline for 5.5 M1
-	- Tizen Public C-API SingleShot Prototype
-	- Yocto/Openembedded layer released
-	- ROS sink/src
-	- IIO support
-	- Android source draft
-	- Python custom filter
-	- Android sample application released
-	- Tensorflow-lite / NNAPI support
+	- A lot of security issues and bugs fixed. (for Tizen 5.5 M1 release)
+	- Tizen Public C-API Pipeline for 5.5 M1.
+	- Tizen Public C-API SingleShot Prototype.
+	- Yocto/Openembedded layer released.
+	- ROS sink/src.
+	- IIO support.
+	- Android source draft.
+	- Python custom filter.
+	- Android sample application released.
+	- Tensorflow-lite / NNAPI support.
 
 0.1.1 -> 0.1.2:
-	- Tizen Public C-API Draft Prototype
+	- Tizen Public C-API Draft Prototype.
 	- Yocto/Openembedded Layer Tested.
 	- ROS sink/src supported and partially tested.
-	- IIO support draft
-	- Custom filter codegen
+	- IIO support draft.
+	- Custom filter codegen.
 	- Capability to cut the dependencies on audio/video plugins for minimal memory footprint.
 	- More clear error messages when the pipeline cannot be initiated.
 	- Increased unit test coverages with additional unit test cases.
@@ -110,31 +110,31 @@
 	- A series of bug fixes.
 
 0.1.0 -> 0.1.1:
-	- Full "Plug & Play" capability of subplugins (tensor_filter, tensor_filter::custom, tensor_decoder)
-		- Fully configurable subplugin locations
-		- Capability to build subplungins wihtout the dependencies on nnstreamer sources
+	- Full "Plug & Play" capability of subplugins. (tensor_filter, tensor_filter::custom, tensor_decoder)
+		- Fully configurable subplugin locations.
+		- Capability to build subplungins wihtout the dependencies on nnstreamer sources.
 	- Revert Tensorflow input-memcpy-less-ness for multi-tensor support. (Will support memcpy-less-ness later)
-	- Support "String" type of tensors
-	- API sets updated (still not "stable")
+	- Support "String" type of tensors.
+	- API sets updated. (still not "stable")
 	- Code location refactored.
-	- Yocto/Openembedded Layer Registered (not tested): "meta-neural-network"
+	- Yocto/Openembedded Layer Registered (not tested): "meta-neural-network".
 	- No more additional shared libraries.
-	- Better error handling and messages for a few plugins
-	- Android support (N / arm64)
+	- Better error handling and messages for a few plugins.
+	- Android support. (N / arm64)
 
 0.0.3 -> 0.1.0:
-	- Build system migration cmake --> meson
-	- Support Tensorflow without input/output tensor memcpy
+	- Build system migration cmake --> meson.
+	- Support Tensorflow without input/output tensor memcpy.
 	- other/tensor stream format updated
 		- From 0.1.0, a single property, "dimension", describes the whole dimension instead of "dim1", "dim2", ...
 		- Objective 1: in the future, we may support tensors with more than 4 dimensions without updating the protocol.
 		- Objective 2: it was just too ugly.
 	- Example applications migrated to other git repo to make this repo ready for upstreaming in the future and to ensure buildability for third party developers.
-	- Support run-time attaching subplugins (filter and decoder)
-	- Support "ini" and envvar configurations for subplugin locations
-	- Dynamic external recurrences
-	- Subplugin API sets (draft. do not expect backward compatibility)
-	- Bug fixes (memory leaks, incorrect logs, type checks, ...)
+	- Support run-time attaching subplugins. (filter and decoder)
+	- Support "ini" and envvar configurations for subplugin locations.
+	- Dynamic external recurrences.
+	- Added Subplugin API sets. (draft. do not expect backward compatibility)
+	- Several bug fixes including memory leaks, incorrect logs, type checks and others.
 
 0.0.2 -> 0.0.3:
 	- Support external recurrencies with tensor_repo (more test cases are to be released later)
@@ -143,22 +143,22 @@
 	- Support bounding-box decoding (tensor_decoder)
 	- Support subplugins for tensor_decoder
 	- Internal APIs for dynamic configurations and subplugins. tensor_filter and tensor_decoder will be updated to use such configurations in the later releases.
-	- Tensorflow support is in-progress, it's postponed to later releases. (Still, tensorflow-lite is the only framework officially supported)
+	- Tensorflow support is in-progress, although it's postponed to later releases. (Still, tensorflow-lite is the only framework officially supported)
 	- Pipeviz support. (tensor_converter/filter/decoder)
-	- Tested with MTCNN (each "part" is separated as an instance of tensor_filter).
+	- Tested with MTCNN. (each "part" is separated as an instance of tensor_filter)
 	- Meson build introduced.
-	- Released via build.tizen.org (Tizen Devel. x64/x86/arm32/arm64) and launchpad.net (Ubuntu/PPA. x64/x86/arm32/arm64)
-	- Static build for Android (Not tested. No example. An example Android application is to be released later)
-	- Timestamp handling / Synchronization support
-	- AWS App Testing Enabled (testing nnstreamer application with virtual camera devices in AWS)
-	- arm64 support added
+	- Released via build.tizen.org. (Tizen Devel. x64/x86/arm32/arm64) and launchpad.net (Ubuntu/PPA. x64/x86/arm32/arm64)
+	- Static build for Android. (Not tested. No example. An example Android application is to be released later)
+	- Timestamp handling / Synchronization support.
+	- AWS App Testing Enabled. (testing nnstreamer application with virtual camera devices in AWS)
+	- arm64 support added.
 
 0.0.1 -> 0.0.2:
 	- Support multi-tensors (other/tensors) along with mux, demux.
-	- Support audio, test, binary-octet streams (tensor converter)
-	- Support image-classification decoding (tensor_decoder)
+	- Support audio, test, binary-octet streams. (tensor converter)
+	- Support image-classification decoding. (tensor_decoder)
 	- Support merge.
-	- More subfeatures for transform
-	- Support frame-merging by time (tensor_aggregator)
+	- More subfeatures for transform.
+	- Support frame-merging by time. (tensor_aggregator)
 	- More test cases w/ TAOS_CI integration.
 	- Applied to and tested w/ real products.
