@@ -46,7 +46,7 @@
 #define DBG FALSE
 #endif
 
-const gchar *tflite_accl_support[] = {
+static const gchar *tflite_accl_support[] = {
   ACCL_AUTO_STR,
   ACCL_DEFAULT_STR,
   ACCL_CPU_NEON_STR,
@@ -510,7 +510,8 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
+TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators):
+  use_nnapi(false), accelerator(ACCL_AUTO)
 {
   interpreter.setModelPath (_model_path);
 

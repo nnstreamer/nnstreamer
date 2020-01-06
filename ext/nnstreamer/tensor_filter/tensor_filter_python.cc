@@ -839,6 +839,9 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     py_close (prop, private_data);
   }
 
+  /* init null */
+  *private_data = NULL;
+
   core = new PYCore (script_path, prop->custom_properties);
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
@@ -846,9 +849,7 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   if (core->init (prop) != 0) {
-    *private_data = NULL;
     delete core;
-
     g_printerr ("failed to initailize the object: Python\n");
     return -2;
   }
@@ -868,6 +869,7 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
       filter_framework->setInputDimension = NULL;
       break;
     default:
+      delete core;
       g_printerr ("Wrong callback type\n");
       return -2;
   }
