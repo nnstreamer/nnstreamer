@@ -588,6 +588,7 @@ static GstTensorFilterFramework NNS_support_nnfw = {
   .allow_in_place = FALSE,
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = nnfw_invoke,
   .getInputDimension = nnfw_getInputDim,
   .getOutputDimension = nnfw_getOutputDim,

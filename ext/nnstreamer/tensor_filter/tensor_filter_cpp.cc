@@ -127,6 +127,7 @@ static GstTensorFilterFramework NNS_support_cpp = {
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = cpp_invoke,
   .getInputDimension = cpp_getInputDim,
   .getOutputDimension = cpp_getOutputDim,

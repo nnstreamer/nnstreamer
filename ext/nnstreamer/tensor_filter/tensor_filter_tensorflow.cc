@@ -730,6 +730,7 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = tf_run,
   .getInputDimension = tf_getInputDim,
   .getOutputDimension = tf_getOutputDim,

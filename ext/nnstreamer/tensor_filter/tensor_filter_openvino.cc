@@ -655,6 +655,7 @@ static GstTensorFilterFramework NNS_support_openvino = {
   .allow_in_place = FALSE,
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = ov_invoke,
   .getInputDimension = ov_getInputDim,
   .getOutputDimension = ov_getOutputDim,
