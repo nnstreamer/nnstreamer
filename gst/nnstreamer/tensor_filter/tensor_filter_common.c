@@ -152,6 +152,43 @@ create_regex (const gchar ** enum_list, const gchar ** regex_utils)
 }
 
 /**
+ * @brief Verify validity of path for given model file if verify_model_path is set
+ * @param[in] priv Struct containing the common tensor-filter properties of the object
+ * @return TRUE if there is no error
+ */
+static inline gboolean
+verify_model_path (const GstTensorFilterPrivate * priv)
+{
+  const GstTensorFilterProperties *prop;
+  gboolean ret = TRUE;
+  int i;
+
+  if (priv == NULL)
+    return FALSE;
+
+  prop = &(priv->prop);
+
+  if (prop == NULL)
+    return FALSE;
+
+  if (g_strcmp0 (prop->fwname, "custom-easy") == 0)
+    return TRUE;
+
+  if ((prop->model_files != NULL) && (priv->fw->verify_model_path == TRUE)) {
+    for (i = 0; i < prop->num_models; i++) {
+      if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
+        g_critical ("Cannot find the model file [%d]: %s\n",
+            i, prop->model_files[i]);
+        ret = FALSE;
+      }
+    }
+  }
+
+  return ret;
+}
+
+
+/**
  * @brief Validate filter sub-plugin's data.
  */
 static gboolean
@@ -459,22 +496,12 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_MODEL:
     {
       const gchar *model_files = g_value_get_string (value);
-      int idx;
 
       g_assert (model_files);
       gst_tensor_filter_parse_modelpaths_string (prop, model_files);
 
-      /* 'custom-easy' framework has a virtual model file */
-      if (g_strcmp0 (prop->fwname, "custom-easy") != 0) {
-        for (idx = 0; idx < prop->num_models; idx++) {
-          if (!g_file_test (prop->model_files[idx], G_FILE_TEST_IS_REGULAR)) {
-            g_critical ("Cannot find the model file [%d]: %s\n",
-                idx, prop->model_files[idx]);
-          }
-        }
-      }
-
       /* reload model if FW has been already opened */
+      /* TODO: need to define the behaviur according to priv->fw->verify_model_path */
       if (priv->prop.fw_opened && priv->is_updatable) {
         if (priv->fw && priv->fw->reloadModel) {
           if (priv->fw->reloadModel (&priv->prop, &priv->privateData) != 0) {
@@ -810,8 +837,11 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
                   priv->prop.num_models > 0 && priv->prop.model_files[0])))
         return;
       /* 0 if successfully loaded. 1 if skipped (already loaded). */
-      if (priv->fw->open (&priv->prop, &priv->privateData) >= 0)
-        priv->prop.fw_opened = TRUE;
+      if (priv->fw->open (&priv->prop, &priv->privateData) >= 0) {
+        if (verify_model_path (priv)) {
+          priv->prop.fw_opened = TRUE;
+        }
+      }
     } else {
       priv->prop.fw_opened = TRUE;
     }

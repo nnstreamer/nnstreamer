@@ -377,6 +377,7 @@ static GstTensorFilterFramework NNS_support_edgetpu = {
   .allow_in_place = FALSE,
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = edgetpu_invoke,
   .getInputDimension = edgetpu_getInputDim,
   .getOutputDimension = edgetpu_getOutputDim,

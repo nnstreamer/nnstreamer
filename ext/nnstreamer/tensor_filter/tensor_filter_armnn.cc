@@ -660,6 +660,7 @@ static GstTensorFilterFramework NNS_support_armnn = {
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = armnn_invoke,
   .getInputDimension = armnn_getInputDim,
   .getOutputDimension = armnn_getOutputDim,

@@ -630,6 +630,7 @@ static GstTensorFilterFramework NNS_support_pytorch = {
   .allow_in_place = FALSE,
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = torch_invoke,
   .getInputDimension = torch_getInputDim,
   .getOutputDimension = torch_getOutputDim,

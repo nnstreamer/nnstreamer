@@ -571,6 +571,7 @@ static GstTensorFilterFramework NNS_support_caffe2 = {
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = TRUE,
   .run_without_model = FALSE,
+  .verify_model_path = FALSE,
   .invoke_NN = caffe2_run,
   .getInputDimension = caffe2_getInputDim,
   .getOutputDimension = caffe2_getOutputDim,
