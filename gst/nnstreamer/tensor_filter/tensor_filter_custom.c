@@ -180,7 +180,9 @@ custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
   ptr = *private_data;
   g_return_val_if_fail (ptr != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
-  g_return_val_if_fail (ptr->methods->getInputDim != NULL, -EINVAL);
+
+  if (ptr->methods->getInputDim == NULL)
+    return -EINVAL;
 
   return ptr->methods->getInputDim (ptr->customFW_private_data, prop, info);
 }
@@ -197,7 +199,9 @@ custom_getOutputDim (const GstTensorFilterProperties * prop,
   ptr = *private_data;
   g_return_val_if_fail (ptr != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
-  g_return_val_if_fail (ptr->methods->getOutputDim != NULL, -EINVAL);
+
+  if (ptr->methods->getOutputDim == NULL)
+    return -EINVAL;
 
   return ptr->methods->getOutputDim (ptr->customFW_private_data, prop, info);
 }
@@ -215,7 +219,9 @@ custom_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (ptr != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
   g_return_val_if_fail (out_info != NULL, -EINVAL);
-  g_return_val_if_fail (ptr->methods->setInputDim != NULL, -EINVAL);
+
+  if (ptr->methods->setInputDim == NULL)
+    return -EINVAL;
 
   return ptr->methods->setInputDim (ptr->customFW_private_data,
       prop, in_info, out_info);
