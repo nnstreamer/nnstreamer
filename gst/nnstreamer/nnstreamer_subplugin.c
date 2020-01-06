@@ -71,7 +71,7 @@ const void *
 get_subplugin (subpluginType type, const char *name)
 {
   GHashTable *table;
-  subpluginData *data;
+  subpluginData *spdata = NULL;
   void *handle;
 
   g_return_val_if_fail (name, NULL);
@@ -108,8 +108,8 @@ get_subplugin (subpluginType type, const char *name)
     searchAlgorithm[type] = NNS_SEARCH_NO_OP;
   }
 
-  data = g_hash_table_lookup (table, name);
-  if (data == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
+  spdata = g_hash_table_lookup (table, name);
+  if (spdata == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
     /** Search and register if found with the conf */
     nnsconf_type_path conf_type = (nnsconf_type_path) type;
     const gchar *fullpath = nnsconf_get_fullpath (name, conf_type);
@@ -131,23 +131,19 @@ get_subplugin (subpluginType type, const char *name)
     G_LOCK (splock);
 
     /* If a subplugin's constructor has called register_subplugin, skip the rest */
-    data = g_hash_table_lookup (table, name);
-    if (data == NULL) {
+    spdata = g_hash_table_lookup (table, name);
+    if (spdata == NULL) {
       g_critical
           ("nnstreamer_subplugin of %s (%s) is broken. It does not call register_subplugin with its init function.",
           name, fullpath);
-      goto error_handle;
+      dlclose (handle);
+      goto error;
     }
   }
 
-  G_UNLOCK (splock);
-  return data->data;
-
-error_handle:
-  dlclose (handle);
 error:
   G_UNLOCK (splock);
-  return NULL;
+  return (spdata != NULL) ? spdata->data : NULL;
 }
 
 /** @brief Public function defined in the header */
@@ -177,13 +173,11 @@ register_subplugin (subpluginType type, const char *name, const void *data)
         g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
         _spdata_destroy);
   } else {
-    subpluginData *data;
-
     G_LOCK (splock);
-    data = g_hash_table_lookup (subplugins[type], name);
+    spdata = g_hash_table_lookup (subplugins[type], name);
     G_UNLOCK (splock);
 
-    if (data) {
+    if (spdata) {
       /* already exists */
       g_critical ("Subplugin %s is already registered.", name);
       return FALSE;

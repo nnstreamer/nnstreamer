@@ -44,7 +44,7 @@
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
-const gchar *nnfw_accl_support[] = {
+static const gchar *nnfw_accl_support[] = {
   ACCL_AUTO_STR,
   ACCL_DEFAULT_STR,
   ACCL_CPU_NEON_STR,

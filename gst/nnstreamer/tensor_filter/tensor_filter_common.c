@@ -44,7 +44,7 @@
 #define REGEX_ACCL_DELIMITER "|"
 #define REGEX_ACCL_END ")*[)]?))"
 
-const gchar *regex_accl_utils[] = {
+static const gchar *regex_accl_utils[] = {
   REGEX_ACCL_START,
   REGEX_ACCL_PREFIX,
   REGEX_ACCL_SUFFIX,
@@ -53,7 +53,7 @@ const gchar *regex_accl_utils[] = {
   NULL
 };
 
-const gchar *regex_accl_elem_utils[] = {
+static const gchar *regex_accl_elem_utils[] = {
   REGEX_ACCL_ELEM_START,
   REGEX_ACCL_ELEM_PREFIX,
   REGEX_ACCL_ELEM_SUFFIX,
