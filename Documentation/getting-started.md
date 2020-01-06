@@ -5,7 +5,7 @@ The following dependencies are needed to compile/build/run.
 * gcc/g++
 * gstreamer 1.0 and its relatives
 * glib 2.0
-* meson >= 0.42
+* meson >= 0.50
 
 ### Install via PPA repository (Debian/Ubuntu)
 
