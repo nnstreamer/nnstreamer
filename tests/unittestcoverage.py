@@ -32,7 +32,7 @@
 #  $ unittestcoverage all /home/abuild/rpmbuild/BUILD/audri-1.1.1/ROS/
 #  Please use absolute path to the ROS module root dir
 #
-# Limitation of this version: supports c/c++ only (.c, .cpp, .h, .hpp)
+# Limitation of this version: supports c/c++ only (.c, .cc, .h, .hpp)
 #
 
 from __future__ import print_function
@@ -65,7 +65,7 @@ def auditEvaders(gcovOutput, path):
     for file in files:
       # TODO 1 : Support other than C/C++
       # TODO 2 : case insensitive
-      if file.endswith(".cpp") or file.endswith(".c") or \
+      if file.endswith(".cc") or file.endswith(".c") or \
          file.endswith(".h") or file.endswith(".hpp"):
         dprint(file)
 

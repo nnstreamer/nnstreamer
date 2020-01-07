@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file    tensor_filter_openvino.cpp
+ * @file    tensor_filter_openvino.cc
  * @date    23 Dec 2019
  * @brief   Tensor_filter subplugin for OpenVino (DLDT).
  * @see     http://github.com/nnsuite/nnstreamer

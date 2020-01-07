@@ -1,5 +1,5 @@
 /**
- * @file	unittest_tizen_sensor.cpp
+ * @file	unittest_tizen_sensor.cc
  * @date	25 Nov 2019
  * @brief	Unit test for NNStreamer's tensor-src-tizensensor.
  * @see		https://github.com/nnsuite/nnstreamer
