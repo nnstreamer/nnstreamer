@@ -1,5 +1,5 @@
 /**
- * @file unittest_common.cpp
+ * @file unittest_common.cc
  * @date 31 May 2018
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @brief Unit test module for NNStreamer common library

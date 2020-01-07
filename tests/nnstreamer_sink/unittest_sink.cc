@@ -1,5 +1,5 @@
 /**
- * @file	unittest_sink.cpp
+ * @file	unittest_sink.cc
  * @date	29 June 2018
  * @brief	Unit test for tensor sink plugin
  * @see		https://github.com/nnsuite/nnstreamer

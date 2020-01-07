@@ -1,5 +1,5 @@
 /**
- * @file        unittest_filter_armnn.cpp
+ * @file        unittest_filter_armnn.cc
  * @date        13 Dec 2019
  * @brief       Unit test for armnn tensor filter plugin.
  * @see         https://github.com/nnsuite/nnstreamer

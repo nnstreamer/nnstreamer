@@ -63,7 +63,7 @@ if gtest_dep.found()
 
   # Run unittest_common
   unittest_common = executable('unittest_common',
-    join_paths('common', 'unittest_common.cpp'),
+    join_paths('common', 'unittest_common.cc'),
     dependencies: [nnstreamer_unittest_deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
@@ -73,7 +73,7 @@ if gtest_dep.found()
 
   # Run unittest_sink
   unittest_sink = executable('unittest_sink',
-    join_paths('nnstreamer_sink', 'unittest_sink.cpp'),
+    join_paths('nnstreamer_sink', 'unittest_sink.cc'),
     dependencies: [nnstreamer_unittest_deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
@@ -83,7 +83,7 @@ if gtest_dep.found()
 
   # Run unittest_plugins
   unittest_plugins = executable('unittest_plugins',
-    join_paths('nnstreamer_plugins', 'unittest_plugins.cpp'),
+    join_paths('nnstreamer_plugins', 'unittest_plugins.cc'),
     dependencies: [nnstreamer_unittest_deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
@@ -94,7 +94,7 @@ if gtest_dep.found()
   # Run unittest_src_iio
   if build_platform != 'macos'
     unittest_src_iio = executable('unittest_src_iio',
-      join_paths('nnstreamer_source', 'unittest_src_iio.cpp'),
+      join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
       dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
@@ -106,7 +106,7 @@ if gtest_dep.found()
   # Armnn unittest
   if get_option('enable-armnn')
     unittest_filter_armnn = executable('unittest_filter_armnn',
-      join_paths('nnstreamer_filter_armnn', 'unittest_filter_armnn.cpp'),
+      join_paths('nnstreamer_filter_armnn', 'unittest_filter_armnn.cc'),
       dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, armnn_plugin_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir

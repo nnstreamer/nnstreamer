@@ -1,5 +1,5 @@
 /**
- * @file	unittest_plugins.cpp
+ * @file	unittest_plugins.cc
  * @date	7 November 2018
  * @brief	Unit test for nnstreamer plugins. (testcases to check data conversion or buffer transfer)
  * @see		https://github.com/nnsuite/nnstreamer

@@ -5,7 +5,7 @@ tizen_apptest_deps = [
 ]
 
 unittest_tizen_capi = executable('unittest_tizen_capi',
-  'unittest_tizen_capi.cpp',
+  'unittest_tizen_capi.cc',
   dependencies: [tizen_apptest_deps],
   install: get_option('install-test'),
   install_dir: unittest_install_dir
@@ -33,7 +33,7 @@ if get_option('enable-tizen-sensor')
     unittest_sensor_helper_dep,
   ]
   unittest_tizen_sensor = executable('unittest_tizen_sensor',
-    ['unittest_tizen_sensor.cpp'],
+    ['unittest_tizen_sensor.cc'],
     dependencies: [tizen_sensor_apptest_deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir

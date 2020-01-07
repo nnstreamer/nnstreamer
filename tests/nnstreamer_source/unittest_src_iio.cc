@@ -1,5 +1,5 @@
 /**
- * @file	unittest_src_iio.cpp
+ * @file	unittest_src_iio.cc
  * @date	22 March 2019
  * @brief	Unit test for tensor_src_iio
  * @see		https://github.com/nnsuite/nnstreamer

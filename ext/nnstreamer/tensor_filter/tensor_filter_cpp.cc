@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file	tensor_filter_cpp.cpp
+ * @file	tensor_filter_cpp.cc
  * @date	26 Sep 2019
  * @brief	Tensor_filter subplugin for C++ custom filters.
  * @see		http://github.com/nnsuite/nnstreamer

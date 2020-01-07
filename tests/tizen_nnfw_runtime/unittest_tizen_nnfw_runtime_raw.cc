@@ -1,5 +1,5 @@
 /**
- * @file        unittest_tizen_capi.cpp
+ * @file        unittest_tizen_capi.cc
  * @date        13 Mar 2019
  * @brief       Unit test for Tizen CAPI of NNStreamer. Basis of TCT in the future.
  * @see         https://github.com/nnsuite/nnstreamer
