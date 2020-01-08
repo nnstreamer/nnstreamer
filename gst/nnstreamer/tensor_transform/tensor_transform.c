@@ -890,6 +890,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       int i;
       gchar **strv = NULL;
 
+      /** TODO: update layout here */
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
         g_critical
             ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is alwayes fixed to 3)\n",
@@ -1474,6 +1475,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       int to = filter->data_dimchg.to;
 
       out_info->type = in_info->type;
+      out_info->layout = in_info->layout;
 
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -1528,6 +1530,8 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 
     case GTT_TRANSPOSE:
       out_info->type = in_info->type;
+      /** TODO: update this layout based on transpose */
+      out_info->layout = in_info->layout;
 
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {

@@ -169,6 +169,17 @@ typedef enum _ml_tensor_type_e
 } ml_tensor_type_e;
 
 /**
+ * @brief Possible data format/layout of Tensor in NNStreamer.
+ * @since_tizen 6.0
+ */
+typedef enum _ml_tensor_layout_e
+{
+  ML_TENSOR_LAYOUT_NONE = 0,      /**< It has unknown layout or it does not care about the data layout */
+  ML_TENSOR_LAYOUT_NHWC,          /**< Channel first layout */
+  ML_TENSOR_LAYOUT_NCHW,          /**< Channel last layout */
+} ml_tensor_layout_e;
+
+/**
  * @brief Enumeration for the error codes of NNStreamer Pipelines.
  * @since_tizen 5.5
  */

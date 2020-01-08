@@ -108,6 +108,7 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   info->name = NULL;
   info->type = _NNS_END;
+  info->layout = _NNS_LAYOUT_NONE;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     info->dimension[i] = 0;
@@ -183,6 +184,10 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     return FALSE;
   }
 
+  if (i1->layout != i2->layout) {
+    return FALSE;
+  }
+
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     if (i1->dimension[i] != i2->dimension[i]) {
       return FALSE;
@@ -208,6 +213,7 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
 
   dest->name = (src->name) ? g_strdup (src->name) : NULL;
   dest->type = src->type;
+  dest->layout = src->layout;
 
   for (i = 0; i < n; i++) {
     dest->dimension[i] = src->dimension[i];
@@ -423,6 +429,44 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
   }
 
   return num_types;
+}
+
+/**
+ * @brief Parse the string of layout
+ * @param info tensors info structure
+ * @param layout_string string of layout
+ * @return number of parsed layouts
+ */
+guint
+gst_tensors_info_parse_layouts_string (GstTensorsInfo * info,
+    const gchar * layout_string)
+{
+  guint num_layouts = 0;
+
+  g_return_val_if_fail (info != NULL, 0);
+
+  if (layout_string) {
+    guint i;
+    gchar **str_layouts;
+
+    str_layouts = g_strsplit_set (layout_string, ",.", -1);
+    num_layouts = g_strv_length (str_layouts);
+
+    if (num_layouts > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, layouts (%d) max (%d)\n",
+          num_layouts, NNS_TENSOR_SIZE_LIMIT);
+
+      num_layouts = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_layouts; i++) {
+      info->info[i].layout = gst_tensor_get_layout (str_layouts[i]);
+    }
+
+    g_strfreev (str_layouts);
+  }
+
+  return num_layouts;
 }
 
 /**
@@ -974,6 +1018,43 @@ gsize
 gst_tensor_get_element_size (tensor_type type)
 {
   return tensor_element_size[type];
+}
+
+/**
+ * @brief Get tensor layout from string input.
+ * @return Corresponding tensor_layout.
+ */
+tensor_layout
+gst_tensor_get_layout (const gchar * layoutstr)
+{
+  gsize len;
+  gchar *layout_string;
+  tensor_layout layout = _NNS_LAYOUT_NONE;
+
+  if (layoutstr == NULL)
+    return layout;
+
+  /* remove spaces */
+  layout_string = g_strdup (layoutstr);
+  g_strstrip (layout_string);
+
+  len = strlen (layout_string);
+
+  if (len == 0) {
+    g_free (layout_string);
+    return layout;
+  }
+
+  if (g_ascii_strcasecmp (layoutstr, "NCHW") == 0) {
+    layout = _NNS_LAYOUT_NCHW;
+  } else if (g_ascii_strcasecmp (layoutstr, "NHWC") == 0) {
+    layout = _NNS_LAYOUT_NHWC;
+  } else {
+    GST_WARNING ("Invalid layout, defaulting to none layout.");
+  }
+
+  g_free (layout_string);
+  return layout;
 }
 
 /**

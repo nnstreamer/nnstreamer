@@ -80,9 +80,11 @@ enum
   PROP_INPUT,
   PROP_INPUTTYPE,
   PROP_INPUTNAME,
+  PROP_INPUTLAYOUT,
   PROP_OUTPUT,
   PROP_OUTPUTTYPE,
   PROP_OUTPUTNAME,
+  PROP_OUTPUTLAYOUT,
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
   PROP_ACCELERATOR,
@@ -323,6 +325,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("inputtype", "Input tensor element type",
           "Type of each element of the input tensor ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INPUTLAYOUT,
+      g_param_spec_string ("inputlayout", "Input Data Layout",
+          "Set channel first (NCHW) or channel last layout (NHWC) for input data. "
+          "Layout of the data can be NHWC or NCHW or none for now. ",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTNAME,
       g_param_spec_string ("outputname", "Name of Output Tensor",
           "The Name of Output Tensor", "",
@@ -335,6 +342,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("outputtype", "Output tensor element type",
           "Type of each element of the output tensor ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTLAYOUT,
+      g_param_spec_string ("outputlayout", "Output Data Layout",
+          "Set channel first (NCHW) or channel last layout (NHWC) for output data. "
+          "Layout of the data can be NHWC or NCHW or none for now. ",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CUSTOM,
       g_param_spec_string ("custom", "Custom properties for subplugins",
           "Custom properties for subplugins ?", "",
@@ -620,6 +632,40 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
         priv->is_updatable = g_value_get_boolean (value);
       break;
     }
+    case PROP_INPUTLAYOUT:
+      g_assert (!prop->input_configured && value);
+      /* Once configured, it cannot be changed in runtime */
+      {
+        guint num_layouts;
+
+        num_layouts = gst_tensors_info_parse_layouts_string (&prop->input_meta,
+            g_value_get_string (value));
+
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_layouts) {
+          g_warning ("Invalid input-layout, given param does not fit.");
+        }
+
+        prop->input_meta.num_tensors = num_layouts;
+      }
+      break;
+    case PROP_OUTPUTLAYOUT:
+      g_assert (!prop->output_configured && value);
+      /* Once configured, it cannot be changed in runtime */
+      {
+        guint num_layouts;
+
+        num_layouts = gst_tensors_info_parse_layouts_string (&prop->output_meta,
+            g_value_get_string (value));
+
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_layouts) {
+          g_warning ("Invalid output-layout, given param does not fit.");
+        }
+
+        prop->output_meta.num_tensors = num_layouts;
+      }
+      break;
     default:
       return FALSE;
   }

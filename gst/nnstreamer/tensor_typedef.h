@@ -133,6 +133,16 @@ typedef union {
   uint64_t _uint64_t;
 } tensor_element;
 
+/**
+ * @brief Internal tensor layout format for other/tensor
+ */
+typedef enum _nns_tensor_layout
+{
+  _NNS_LAYOUT_NONE = 0,    /**< It has unknown layout or it does not care about the data layout */
+  _NNS_LAYOUT_NHWC,        /**< NHWC: channel last layout */
+  _NNS_LAYOUT_NCHW,        /**< NCHW: channel first layout */
+} tensor_layout;
+
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
@@ -155,6 +165,7 @@ typedef struct
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+  tensor_layout layout; /**< Layout. Channel first/channel last/none data layout */
 } GstTensorInfo;
 
 /**

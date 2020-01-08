@@ -104,6 +104,7 @@ typedef struct {
   char *name;              /**< Name of each element in the tensor. */
   ml_tensor_type_e type;   /**< Type of each element in the tensor. */
   ml_tensor_dimension dimension;     /**< Dimension information. */
+  ml_tensor_layout_e layout;  /**< The layout of the tensor data */
 } ml_tensor_info_s;
 
 /**

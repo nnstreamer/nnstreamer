@@ -53,6 +53,7 @@ pt_init (const GstTensorFilterProperties * prop)
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
     data->info[0].dimension[i] = 1;
   data->info[0].type = _NNS_FLOAT32;
+
   data->info[1] = data->info[0];
   data->info[2] = data->info[0];
 

@@ -127,6 +127,16 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     const gchar * type_string);
 
 /**
+ * @brief Parse the string of layout
+ * @param info tensors info structure
+ * @param layout_string string of layout
+ * @return number of parsed layouts
+ */
+extern guint
+gst_tensors_info_parse_layouts_string (GstTensorsInfo * info,
+    const gchar * layout_string);
+
+/**
  * @brief Parse the string of names
  * @param info tensors info structure
  * @param name_string string of names
@@ -315,6 +325,13 @@ gst_tensor_get_element_count (const tensor_dim dim);
  */
 extern gsize
 gst_tensor_get_element_size (tensor_type type);
+
+/**
+ * @brief Get tensor layout from string input.
+ * @return Corresponding tensor_layout.
+ */
+extern tensor_layout
+gst_tensor_get_layout (const gchar * layoutstr);
 
 /**
  * @brief Get tensor type from string input.
