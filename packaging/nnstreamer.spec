@@ -4,6 +4,7 @@
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 %define		tensorflow_support	0
 %define		armnn_support 0
+%define		python_support 1
 
 %ifnarch %arm aarch64
 %define armnn_support 0
@@ -47,9 +48,11 @@ BuildRequires:	gtest-devel
 # a few test cases uses python
 BuildRequires:	python
 BuildRequires:	python-numpy
+%if 0%{?python_support}
 # for python custom filters
 BuildRequires:	pkgconfig(python2)
 BuildRequires:	python-numpy-devel
+%endif
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
 # for tensorflow-lite
@@ -141,12 +144,14 @@ Requires:	nnstreamer = %{version}-%{release}
 %description tensorflow-lite
 NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
 
+%if 0%{?python_support}
 %package -n nnstreamer-python2
 Summary:  NNStreamer Python Custom Filter Support
 Requires: nnstreamer = %{version}-%{release}
 Requires: python
 %description -n nnstreamer-python2
 NNStreamer's tensor_filter subplugin of Python (2.7).
+%endif
 
 %if 0%{?armnn_support}
 %package armnn
@@ -276,6 +281,13 @@ You can include Tizen sensor framework nodes as source elements of GStreamer/NNS
 %define enable_armnn -Denable-armnn=false
 %endif
 
+# Support python
+%if 0%{?python_support}
+%define enable_python -Denable-python=true
+%else
+%define enable_python -Denable-python=false
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -301,7 +313,8 @@ mkdir -p build
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} \
 	-Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} build
+	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} \
+	%{enable_python} build
 
 ninja -C build %{?_smp_mflags}
 
@@ -345,10 +358,12 @@ pushd %{buildroot}%{_libdir}
 ln -sf %{gstlibdir}/libnnstreamer.so libnnstreamer.so
 popd
 
+%if 0%{?python_support}
 mkdir -p %{buildroot}%{python_sitelib}
 pushd %{buildroot}%{python_sitelib}
 ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python.so
 popd
+%endif
 
 # Hotfix: Support backward compatibility
 pushd %{buildroot}%{_libdir}
@@ -427,12 +442,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
 
+%if 0%{?python_support}
 %files -n nnstreamer-python2
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
 %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
 %{python_sitelib}/nnstreamer_python.so
+%endif
 
 %files devel
 %{_includedir}/nnstreamer/tensor_typedef.h
