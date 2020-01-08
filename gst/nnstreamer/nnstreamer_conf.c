@@ -316,26 +316,41 @@ nnsconf_loadconf (gboolean force_reload)
     /* init with 0 */
     memset (&conf, 0, sizeof (confdata));
   }
-
-  /* Read from the conf file first */
-  if (g_path_is_absolute (NNSTREAMER_CONF_FILE)) {
-    conf.conffile = g_strdup (NNSTREAMER_CONF_FILE);
-  } else {
-    /** default value of 'sysconfdir' in meson is 'etc' */
-    conf.conffile = g_build_path (G_DIR_SEPARATOR_S, root_path_prefix,
-        NNSTREAMER_CONF_FILE, NULL);
-  }
-
+#ifndef __TIZEN__
+  /** if it's not Tizen, configuration from env-var has a higher priority */
+  conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
   if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
-    /* File not found or not configured */
     g_free (conf.conffile);
-
-    /* Try to read from Environmental Variables */
-    conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
+    conf.conffile = NULL;
   }
+#endif
+  if (conf.conffile == NULL) {
+    /**
+     * Priority of reading a conf file
+     * 1) read from NNSTREAMER_CONF_FILE
+     * 2) read from NNSTREAMER_DEFAULT_CONF_FILE
+     * 3) read from env-var
+     */
+    if (g_path_is_absolute (NNSTREAMER_CONF_FILE)) {
+      conf.conffile = g_strdup (NNSTREAMER_CONF_FILE);
+    } else {
+      /** default value of 'sysconfdir' in meson is 'etc' */
+      conf.conffile = g_build_path (G_DIR_SEPARATOR_S, root_path_prefix,
+          NNSTREAMER_CONF_FILE, NULL);
+    }
 
-  if (conf.conffile == NULL)
-    conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
+    if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
+      /* File not found or not configured */
+      g_free (conf.conffile);
+
+      if (g_file_test (NNSTREAMER_DEFAULT_CONF_FILE, G_FILE_TEST_IS_REGULAR)) {
+        conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
+      } else {
+        /* Try to read from Environmental Variables */
+        conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
+      }
+    }
+  }
 
   g_assert (key_file != NULL);
   g_assert (conf.conffile != NULL);
