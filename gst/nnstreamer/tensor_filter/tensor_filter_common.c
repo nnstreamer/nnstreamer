@@ -80,14 +80,161 @@ enum
   PROP_INPUT,
   PROP_INPUTTYPE,
   PROP_INPUTNAME,
+  PROP_INPUTLAYOUT,
   PROP_OUTPUT,
   PROP_OUTPUTTYPE,
   PROP_OUTPUTNAME,
+  PROP_OUTPUTLAYOUT,
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
   PROP_ACCELERATOR,
   PROP_IS_UPDATABLE,
 };
+
+/**
+ * @brief Initialize the tensors layout.
+ */
+static void
+gst_tensors_layout_init (tensors_layout layout)
+{
+  int i;
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    layout[i] = _NNS_LAYOUT_ANY;
+  }
+}
+
+/**
+ * @brief Get tensor layout from string input.
+ * @return Corresponding tensor_layout.
+ */
+static tensor_layout
+gst_tensor_parse_layout_string (const gchar * layoutstr)
+{
+  gsize len;
+  gchar *layout_string;
+  tensor_layout layout = _NNS_LAYOUT_ANY;
+
+  if (layoutstr == NULL)
+    return layout;
+
+  /* remove spaces */
+  layout_string = g_strdup (layoutstr);
+  g_strstrip (layout_string);
+
+  len = strlen (layout_string);
+
+  if (len == 0) {
+    g_free (layout_string);
+    return layout;
+  }
+
+  if (g_ascii_strcasecmp (layoutstr, "NCHW") == 0) {
+    layout = _NNS_LAYOUT_NCHW;
+  } else if (g_ascii_strcasecmp (layoutstr, "NHWC") == 0) {
+    layout = _NNS_LAYOUT_NHWC;
+  } else if (g_ascii_strcasecmp (layoutstr, "ANY") == 0) {
+    layout = _NNS_LAYOUT_ANY;
+  } else {
+    GST_WARNING ("Invalid layout, defaulting to none layout.");
+    layout = _NNS_LAYOUT_NONE;
+  }
+
+  g_free (layout_string);
+  return layout;
+}
+
+/**
+ * @brief Parse the string of tensor layouts
+ * @param layout layout of the tensors
+ * @param layout_string string of layout
+ * @return number of parsed layouts
+ */
+static guint
+gst_tensors_parse_layouts_string (tensors_layout layout,
+    const gchar * layout_string)
+{
+  guint num_layouts = 0;
+
+  g_return_val_if_fail (layout != NULL, 0);
+
+  if (layout_string) {
+    guint i;
+    gchar **str_layouts;
+
+    str_layouts = g_strsplit_set (layout_string, ",.", -1);
+    num_layouts = g_strv_length (str_layouts);
+
+    if (num_layouts > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, layouts (%d) max (%d)\n",
+          num_layouts, NNS_TENSOR_SIZE_LIMIT);
+
+      num_layouts = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_layouts; i++) {
+      layout[i] = gst_tensor_parse_layout_string (str_layouts[i]);
+    }
+
+    g_strfreev (str_layouts);
+  }
+
+  return num_layouts;
+}
+
+/**
+ * @brief Get layout string of tensor layout.
+ * @param layout layout of the tensor
+ * @return string of layout in tensor
+ */
+static const gchar *
+gst_tensor_get_layout_string (tensor_layout layout)
+{
+  switch (layout) {
+    case _NNS_LAYOUT_NCHW:
+      return "NCHW";
+    case _NNS_LAYOUT_NHWC:
+      return "NHWC";
+    case _NNS_LAYOUT_NONE:
+      return "NONE";
+    case _NNS_LAYOUT_ANY:
+      return "ANY";
+    default:
+      return NULL;
+  }
+}
+
+/**
+ * @brief Get the string of layout of tensors
+ * @param layout layout of the tensors
+ * @return string of layouts in tensors
+ * @note The returned value should be freed with g_free()
+ */
+static gchar *
+gst_tensors_get_layout_string (const GstTensorsInfo * info,
+    tensors_layout layout)
+{
+  gchar *layout_str = NULL;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  if (info->num_tensors > 0) {
+    guint i;
+    GString *layouts = g_string_new (NULL);
+
+    for (i = 0; i < info->num_tensors; i++) {
+      g_string_append (layouts, gst_tensor_get_layout_string (layout[i]));
+
+      if (i < info->num_tensors - 1) {
+        g_string_append (layouts, ",");
+      }
+    }
+
+    layout_str = g_string_free (layouts, FALSE);
+  }
+
+  return layout_str;
+}
 
 /**
  * @brief to get and register hardware accelerator backend enum
@@ -360,6 +507,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("inputtype", "Input tensor element type",
           "Type of each element of the input tensor ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INPUTLAYOUT,
+      g_param_spec_string ("inputlayout", "Input Data Layout",
+          "Set channel first (NCHW) or channel last layout (NHWC) or None for input data. "
+          "Layout of the data can be any or NHWC or NCHW or none for now. ",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTNAME,
       g_param_spec_string ("outputname", "Name of Output Tensor",
           "The Name of Output Tensor", "",
@@ -372,6 +524,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("outputtype", "Output tensor element type",
           "Type of each element of the output tensor ?", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTLAYOUT,
+      g_param_spec_string ("outputlayout", "Output Data Layout",
+          "Set channel first (NCHW) or channel last layout (NHWC) or None for output data. "
+          "Layout of the data can be any or NHWC or NCHW or none for now. ",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CUSTOM,
       g_param_spec_string ("custom", "Custom properties for subplugins",
           "Custom properties for subplugins ?", "",
@@ -417,6 +574,8 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   prop->custom_properties = NULL;
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_info_init (&prop->output_meta);
+  gst_tensors_layout_init (prop->input_layout);
+  gst_tensors_layout_init (prop->output_layout);
 
   /* init internal properties */
   priv->fw = NULL;
@@ -650,6 +809,40 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
         priv->is_updatable = g_value_get_boolean (value);
       break;
     }
+    case PROP_INPUTLAYOUT:
+      g_assert (!prop->input_configured && value);
+      /* Once configured, it cannot be changed in runtime */
+      {
+        guint num_layouts;
+
+        num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
+            g_value_get_string (value));
+
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_layouts) {
+          g_warning ("Invalid input-layout, given param does not fit.");
+        }
+
+        prop->input_meta.num_tensors = num_layouts;
+      }
+      break;
+    case PROP_OUTPUTLAYOUT:
+      g_assert (!prop->output_configured && value);
+      /* Once configured, it cannot be changed in runtime */
+      {
+        guint num_layouts;
+
+        num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
+            g_value_get_string (value));
+
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_layouts) {
+          g_warning ("Invalid output-layout, given param does not fit.");
+        }
+
+        prop->output_meta.num_tensors = num_layouts;
+      }
+      break;
     default:
       return FALSE;
   }
@@ -817,6 +1010,32 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_IS_UPDATABLE:
       g_value_set_boolean (value, priv->is_updatable);
+      break;
+    case PROP_INPUTLAYOUT:
+      if (prop->input_meta.num_tensors > 0) {
+        gchar *layout_str;
+
+        layout_str = gst_tensors_get_layout_string (&prop->input_meta,
+            prop->input_layout);
+
+        g_value_set_string (value, layout_str);
+        g_free (layout_str);
+      } else {
+        g_value_set_string (value, "");
+      }
+      break;
+    case PROP_OUTPUTLAYOUT:
+      if (prop->output_meta.num_tensors > 0) {
+        gchar *layout_str;
+
+        layout_str = gst_tensors_get_layout_string (&prop->output_meta,
+            prop->output_layout);
+
+        g_value_set_string (value, layout_str);
+        g_free (layout_str);
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
     default:
       /* unknown property */
