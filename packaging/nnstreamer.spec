@@ -105,6 +105,7 @@ BuildRequires:	capi-system-sensor-devel
 BuildRequires:  nnfw-devel
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
+BuildRequires:  json-glib-devel
 %endif
 %endif  # tizen
 

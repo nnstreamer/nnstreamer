@@ -288,9 +288,9 @@ get_argmax (guint8 * array, size_t size)
 }
 
 /**
- * @brief Test armnn subplugin with successful invoke for tflite advanced model
+ * @brief Test nnfw subplugin with successful invoke for tflite advanced model
  */
-TEST (nnstreamer_filter_armnn, invoke_advanced)
+TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
 {
   int ret;
   void *data = NULL;
@@ -307,7 +307,7 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
 
   ASSERT_NE (root_path, nullptr);
 
-  /** armnn needs a directory with model file and metadata in that directory */
+  /** nnfw needs a directory with model file and metadata in that directory */
   model_file = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   status = g_file_test (model_file, G_FILE_TEST_EXISTS);
@@ -325,6 +325,21 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
     ASSERT_EQ (status, TRUE);
   }
 
+  const gchar *model_files[] = { model_file, NULL, };
+  GstTensorFilterProperties prop = {
+    .fwname = "nnfw",
+    .fw_opened = 0,
+    .model_files = model_files,
+    .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
+  EXPECT_NE (sp, (void *) NULL);
+
+  /** Wrong file in the manifest, open should fail */
+  ret = sp->open (&prop, &data);
+  EXPECT_NE (ret, 0);
+
   replace_command =
       g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
       orig_model, new_model, manifest_file);
@@ -336,17 +351,6 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
     g_free (manifest_file);
     ASSERT_EQ (ret, 0);
   }
-
-  const gchar *model_files[] = { model_file, NULL, };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
 
   info.num_tensors = 1;
   info.info[0].type = _NNS_UINT8;
@@ -941,7 +945,7 @@ new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
 
 /**
  * @brief Test nnfw subplugin multi-modal (pipeline, ML-API)
- * @detail Invoke a model via Pipeline API, with two input streams into a single tensor 
+ * @detail Invoke a model via Pipeline API, with two input streams into a single tensor
  */
 TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
 {
@@ -979,7 +983,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
       orig_model, new_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
-  
+
   if (ret != 0) {
     g_free (model_file);
     g_free (manifest_file);
@@ -1079,7 +1083,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
 
 /**
  * @brief Test nnfw subplugin multi-model (pipeline, ML-API)
- * @detail Invoke two models via Pipeline API, sharing a single input stream 
+ * @detail Invoke two models via Pipeline API, sharing a single input stream
  */
 TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
 {
@@ -1176,7 +1180,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
 
 /**
  * @brief Test nnfw subplugin multi-model (pipeline, ML-API)
- * @detail Invoke two models which have different framework via Pipeline API, sharing a single input stream 
+ * @detail Invoke two models which have different framework via Pipeline API, sharing a single input stream
  */
 TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
 {

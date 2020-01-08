@@ -29,9 +29,11 @@
 
 #include <string.h>
 #include <glib.h>
+#include <glib-object.h>
+#include <json-glib/json-glib.h>
+
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
-
 #include <nnfw.h>
 
 /** backends supported by nnfw */
@@ -72,7 +74,7 @@ typedef struct
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
-static int nnfw_tensors_info_get (const nnfw_pdata *pdata,
+static int nnfw_tensors_info_get (const nnfw_pdata * pdata,
     const gboolean is_input, GstTensorsInfo * info);
 static int nnfw_tensor_type_from_gst (const tensor_type type,
     NNFW_TYPE * nnfw_type);
@@ -104,6 +106,62 @@ nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
     default:
       return NNFW_DEFAULT_BACKEND;
   }
+}
+
+/**
+ * @brief Verify the provided model file matches the existing metadata file
+ */
+static int
+nnfw_metadata_verify (const char *meta_file, const char *model_file)
+{
+  int err = -EINVAL;
+  JsonParser *parser;
+  JsonNode *root;
+  JsonNode *model_node;
+  GError *error;
+  JsonObject *object;
+  JsonArray *filenames;
+  GValue model_value = G_VALUE_INIT;
+  gchar *basename_ref, *basename_in;
+  const gchar *filename;
+
+  parser = json_parser_new ();
+  if (json_parser_load_from_file (parser, meta_file, &error)) {
+    root = json_parser_get_root (parser);
+    object = json_node_get_object (root);
+
+    /** Parse the list of models from the metadata file */
+    if (object && json_object_has_member (object, "models")) {
+      filenames = json_object_get_array_member (object, "models");
+
+      /** Ensure that the first element is the model file to be run */
+      if (filenames && json_array_get_length (filenames) > 0) {
+        model_node = json_array_get_element (filenames, 0);
+        json_node_get_value (model_node, &model_value);
+
+        if (G_VALUE_HOLDS_STRING (&model_value)) {
+          filename = g_value_get_string (&model_value);
+
+          basename_ref = g_path_get_basename (model_file);
+          basename_in = g_path_get_basename (filename);
+          if (g_strcmp0 (basename_in, basename_ref) == 0) {
+            err = 0;
+          }
+
+          g_free (basename_ref);
+          g_free (basename_in);
+        }
+        g_value_unset (&model_value);
+      }
+    }
+  } else {
+    err = -1 * error->code;
+    g_printerr ("Unable to parse %s: %s\n", meta_file, error->message);
+    g_error_free (error);
+  }
+
+  g_object_unref (parser);
+  return err;
 }
 
 /**
@@ -161,7 +219,14 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto session_exit;
   }
 
-  /** @todo open using model_file once nnfw works with it */
+  /** ensure the provided filename matches with info in metadata */
+  if (nnfw_metadata_verify (meta_file, prop->model_files[0]) != 0) {
+    err = -EINVAL;
+    g_printerr ("Provided model file (%s) and its metadata mismatch.",
+        prop->model_files[0]);
+    goto session_exit;
+  }
+
   status = nnfw_load_model_from_file (pdata->session, model_path);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
@@ -391,7 +456,7 @@ nnfw_getInputDim (const GstTensorFilterProperties * prop,
   nnfw_pdata *pdata;
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
-  pdata = (nnfw_pdata *) *private_data;
+  pdata = (nnfw_pdata *) * private_data;
 
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
@@ -410,7 +475,7 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
   nnfw_pdata *pdata;
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
-  pdata = (nnfw_pdata *) *private_data;
+  pdata = (nnfw_pdata *) * private_data;
 
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
@@ -537,12 +602,12 @@ nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
       g_return_val_if_fail (mem[idx].size ==
           gst_tensor_info_get_size (&pdata->in_info.info[idx]), -EINVAL);
       nnfw_status = nnfw_set_input (pdata->session, idx, nnfw_type,
-        mem[idx].data, mem[idx].size);
+          mem[idx].data, mem[idx].size);
     } else {
       g_return_val_if_fail (mem[idx].size ==
           gst_tensor_info_get_size (&pdata->out_info.info[idx]), -EINVAL);
       nnfw_status = nnfw_set_output (pdata->session, idx, nnfw_type,
-        mem[idx].data, mem[idx].size);
+          mem[idx].data, mem[idx].size);
     }
     if (nnfw_status != NNFW_STATUS_NO_ERROR)
       return -EINVAL;
