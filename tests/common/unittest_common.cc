@@ -430,6 +430,23 @@ fill_tensors_info_for_test (GstTensorsInfo * info1, GstTensorsInfo * info2)
 }
 
 /**
+ * @brief Internal function to update tensors info.
+ */
+static void
+fill_tensors_config_for_test (GstTensorsConfig * conf1, GstTensorsConfig * conf2)
+{
+  g_assert (conf1 != NULL && conf2 != NULL);
+
+  gst_tensors_config_init (conf1);
+  gst_tensors_config_init (conf2);
+
+  conf1->rate_n = conf2->rate_n = 1;
+  conf1->rate_d = conf2->rate_d = 2;
+
+  fill_tensors_info_for_test (&conf1->info, &conf2->info);
+}
+
+/**
  * @brief Test for same tensors info.
  */
 TEST (common_tensor_info, equal_01_p)
@@ -498,6 +515,86 @@ TEST (common_tensor_info, equal_05_n)
   info2.info[1].dimension[0] = 10;
 
   EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_01_p)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+
+  EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_02_p)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+  conf1.rate_n *= 2;
+  conf1.rate_d *= 2;
+
+  EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_03_p)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+  conf1.rate_n *= 0;
+  conf2.rate_n *= 0;
+
+  EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_04_n)
+{
+  GstTensorsConfig conf1, conf2;
+
+  gst_tensors_config_init (&conf1);
+  gst_tensors_config_init (&conf2);
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_05_n)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+  conf1.rate_n *= 2;
+  conf1.rate_d *= 4;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (common_tensors_config, equal_06_n)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+  conf1.rate_d *= 0;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
 }
 
 /**
