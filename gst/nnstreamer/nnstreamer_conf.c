@@ -297,8 +297,6 @@ nnsconf_loadconf (gboolean force_reload)
   if (FALSE == force_reload && TRUE == conf.loaded)
     return TRUE;
 
-  key_file = g_key_file_new ();
-
   if (TRUE == force_reload && TRUE == conf.loaded) {
     /* Do Clean Up */
     g_free (conf.conffile);
@@ -352,8 +350,17 @@ nnsconf_loadconf (gboolean force_reload)
     }
   }
 
+  if (conf.conffile == NULL) {
+    /**
+     * Failed to get the configuration.
+     * Note that Android API does not use the configuration.
+     */
+    g_warning ("Failed to load the configuration, no config file found.");
+    return FALSE;
+  }
+
+  key_file = g_key_file_new ();
   g_assert (key_file != NULL);
-  g_assert (conf.conffile != NULL);
 
   /* Read the conf file. It's ok even if we cannot load it. */
   if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
