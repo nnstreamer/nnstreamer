@@ -510,13 +510,12 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators):
-  use_nnapi(false), accelerator(ACCL_AUTO)
+TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 {
   interpreter.setModelPath (_model_path);
 
+  setAccelerator (accelerators);
   if (accelerators != NULL) {
-    setAccelerator (accelerators);
     g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str(accelerator));
   }
 }
