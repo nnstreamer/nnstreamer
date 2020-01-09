@@ -43,6 +43,14 @@
 #define INPUT_TENSOR_META_CHAR "InputTensorMeta"
 #define OUTPUT_TENSOR_META_CHAR "OutputTensorMeta"
 
+static const gchar *torch_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  ACCL_CPU_STR,
+  ACCL_GPU_STR,
+  NULL
+};
+
 /**
  * @brief	ring cache structure
  */
@@ -52,8 +60,7 @@ public:
   TorchCore (const char *_model_path);
   ~TorchCore ();
 
-  int init (const GstTensorFilterProperties * prop,
-      const gboolean torch_use_gpu);
+  int init (const GstTensorFilterProperties * prop);
   int loadModel ();
   const char *getModelPath ();
   int getInputTensorDim (GstTensorsInfo * info);
@@ -64,6 +71,7 @@ private:
 
   char *model_path;
   bool use_gpu;
+  accl_hw accelerator;
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
@@ -72,6 +80,7 @@ private:
 
   std::shared_ptr < torch::jit::script::Module > model;
 
+  void setAccelerator (const char *accelerators);
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype * torchType);
   int validateOutputTensor (at::Tensor output);
@@ -112,15 +121,40 @@ TorchCore::~TorchCore ()
 }
 
 /**
+ * @brief	Set the accelerator for the pytorch
+ */
+void
+TorchCore::setAccelerator (const char *accelerators)
+{
+  use_gpu = TRUE;
+  accelerator = parse_accl_hw (accelerators, torch_accl_support);
+  if (accelerator == ACCL_NONE)
+    goto use_gpu_ini;
+  if ((accelerator & (ACCL_CPU | ACCL_DEFAULT)) != 0)
+    use_gpu = FALSE;
+
+  return;
+
+use_gpu_ini:
+  use_gpu = nnsconf_get_custom_value_bool ("pytorch", "enable_use_gpu",
+      FALSE);
+  if (use_gpu == FALSE) {
+    accelerator = ACCL_NONE;
+  } else {
+    accelerator = ACCL_GPU;
+  }
+}
+
+/**
  * @brief	initialize the object with torch model
  * @return 0 if OK. non-zero if error.
  *        -1 if the model is not loaded.
  */
 int
-TorchCore::init (const GstTensorFilterProperties * prop,
-    const gboolean torch_use_gpu)
+TorchCore::init (const GstTensorFilterProperties * prop)
 {
-  use_gpu = torch_use_gpu;
+  setAccelerator (prop->accl_str);
+  g_message ("gpu = %d, accl = %s", use_gpu, get_accl_hw_str(accelerator));
 
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
@@ -543,11 +577,7 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  gboolean torch_use_gpu = nnsconf_get_custom_value_bool ("pytorch",
-      "enable_use_gpu",
-      FALSE);
-
-  if (core->init (prop, torch_use_gpu) != 0) {
+  if (core->init (prop) != 0) {
     *private_data = NULL;
     delete core;
 
@@ -623,6 +653,20 @@ torch_getOutputDim (const GstTensorFilterProperties * prop,
   return core->getOutputTensorDim (info);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] hw backend accelerator hardware
+ * @return 0 if supported. -errno if not supported.
+ */
+static int
+torch_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (torch_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_pytorch[] = "pytorch";
 
 static GstTensorFilterFramework NNS_support_pytorch = {
@@ -637,6 +681,9 @@ static GstTensorFilterFramework NNS_support_pytorch = {
   .setInputDimension = NULL,
   .open = torch_open,
   .close = torch_close,
+  .destroyNotify = NULL,
+  .reloadModel = NULL,
+  .checkAvailability = torch_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
