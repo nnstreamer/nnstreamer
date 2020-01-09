@@ -1240,7 +1240,7 @@ static gboolean test_tensor_src_iio_data_verify_util (iio_dev_dir_struct *dev0,
       free (data_buffer);
       return FALSE;
     }
-    bytes_read = static_cast<size_t>(ret); \
+    bytes_read = static_cast<size_t>(ret);
     EXPECT_EQ (bytes_read, bytes_to_read);
     expect_val_mask = G_MAXUINT64 >> (64 - data_bits);
     expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE;
