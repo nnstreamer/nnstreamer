@@ -13,26 +13,28 @@ Neural Network Support as Gstreamer Plugins.
 
 NNStreamer is a set of Gstreamer plugins that allow
 Gstreamer developers to adopt neural network models easily and efficiently and
-neural network developers to manage stream pipelines and their filters easily and efficiently.
+neural network developers to manage neural network pipelines and their filters easily and efficiently.
 
 [Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)<br /> <br />
 
 [NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf/tech report](https://arxiv.org/pdf/1901.04985)]<br />
 [GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnsuite/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf/slides](https://github.com/nnsuite/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]<br />
-[Naver Tech Talk (Korean)](https://www.facebook.com/naverengineering/posts/2255360384531425) [[media](https://youtu.be/XvXxcnbRjgU)] [[pdf/slides](https://www.slideshare.net/NaverEngineering/nnstreamer-stream-pipeline-for-arbitrary-neural-networks)]<br />
+[Naver Tech Talk (Korean), 2018](https://www.facebook.com/naverengineering/posts/2255360384531425) [[media](https://youtu.be/XvXxcnbRjgU)] [[pdf/slides](https://www.slideshare.net/NaverEngineering/nnstreamer-stream-pipeline-for-arbitrary-neural-networks)]<br />
+[Samsung Developer Conference 2019, NNStreamer](https://www.samsungdeveloperconference.com/schedule/session/1089245) [[media](https://youtu.be/wVbMbpOjbkw)]<br />
 [ResearchGate Page of NNStreamer](https://www.researchgate.net/project/Neural-Network-Streamer-nnstreamer)
 
 
 ## Official Releases
 
-| Arch   | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
+|     | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | -- | -- | -- | -- | -- | -- |
-|     | 5.5 | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
+|     | 5.5M2 and later | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
 | arm | Available  | Available  | Ready | Available| Ready | N/A |
 | arm64 | Available  | Available  | Ready | Available | Planned | N/A |
 | x64 | Available  | Available  | Ready  | Ready | Ready | Available |
 | x86 | Available  | N/A  | N/A  | N/A  | N/A | N/A |
-|     | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
+| Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
+| API | C/C# (Official) | C |    | Java | C  | C  |
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
@@ -65,6 +67,8 @@ neural network developers to manage stream pipelines and their filters easily an
 * [Hyoungjoo Ahn](https://github.com/helloahn)
 * [Parichay Kapoor](https://github.com/kparichay)
 * [Dongju Chae](https://github.com/dongju-chae)
+* [Gichan Jang](https://github.com/gichan-jang)
+* [Yongjoo Ahn](https://github.com/anyj0527)
 
 ## Components
 
@@ -85,6 +89,18 @@ For more details, please access the following manuals.
 
 - [CI service status](http://nnsuite.mooo.com/)
 - [TAOS-CI config files for nnstreamer](.TAOS-CI).
+
+## AI Acceleration Hardware Support
+
+Although a framework may accelerate transparently as Tensorflow-GPU does, nnstreamer provides various hardware acceleration subplugins.
+- Movidius-X via ncsdk2 subplugin: Released
+- Movidius-X via openVINO subplugin: Released
+- Edge-TPU via edgetpu subplugin: Released
+- NNRuntime via nnfw subplugin: Released
+- ARMNN via armnn subplugin: Released
+- Verisilicon-Vivante via vivante subplugin: WIP
+- Qualcomm SNPE: WIP
+- Exynos NPU: WIP
 
 
 [gitter-url]: https://gitter.im/nnstreamer/Lobby
