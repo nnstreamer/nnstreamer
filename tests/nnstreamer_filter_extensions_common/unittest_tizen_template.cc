@@ -1,5 +1,5 @@
 /**
- * @file        unittest_tizen_EXT_NAME.cpp
+ * @file        unittest_tizen_EXT_NAME.cc
  * @date        19 Dec 2019
  * @brief       Failure Unit tests for tensor filter extension (EXT_NAME).
  * @see         https://github.com/nnsuite/nnstreamer

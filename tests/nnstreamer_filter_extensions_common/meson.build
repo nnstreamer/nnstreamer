@@ -39,12 +39,14 @@ if have_python3
   extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'passthrough.py']]
 endif
 
+ext_test_gen_dir = join_paths(meson.current_build_dir(), 'gen')
+
 foreach ext : extensions
-  gen_test_src = run_command('deploy.sh', ext[0], ext[1], ext[3])
+  gen_test_src = run_command('deploy.sh', ext[0], ext[1], ext[3], ext_test_gen_dir)
 
   if gen_test_src.returncode() == 0
     exec = executable('unittest_tizen_' + ext[0],
-      ['unittest_tizen_' + ext[0] + '.cpp'],
+      join_paths(ext_test_gen_dir, 'unittest_tizen_' + ext[0] + '.cc'),
       dependencies: [tizen_apptest_deps, ext[2]],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
