@@ -2,13 +2,13 @@
 
 - other/tensor
 - other/tensors
-- other/tensorsave (Planned)
+- other/tensorsave (planned --> canceled)
 
-findtype specifics: refer to the wiki ([other/tensorsave](https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind))
+The findtype specifics: refer to the wiki ([other/tensorsave (canceled)](https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind))
 
-Note that in any frame in a stream of other/tensor and other/tensors, there should be only ONE instance of other/tensor or other/tensors.
+Each frame of an other/tensor or other/tensors stream should have only ONE instance of other/tensor or other/tensors.
 
-Note that except for tensor\_decoder, which accepts data semantics from pipeline developers, and tensor\_converter, which accepts data semantics from sink pad caps, any NNStreamer tensor plugins or any instances of tensor streams should be agnostic to the data semantics. With data semantics, we know whether the corresponding tensor denotes for video, audio, text, or any other "meaningful data types". The NNStreamer elements and data-pipeline should treat every other/tensor and other/tensors as arrays of numbers only.
+Except tensor\_decoder, which accepts data semantics from pipeline developers, and tensor\_converter, which accepts data semantics from sink pad caps, every NNStreamer tensor plugin and tensor stream should be agnostic to the data semantics. With data semantics, we know whether the corresponding tensor denotes for video, audio, text, or any other "meaningful data types". The NNStreamer elements and data-pipeline, being agnostic to such semantics, should treat every other/tensor and other/tensors as multi-dimensional arrays of general numbers.
 
 # Gstreamer Elements (Plugins)
 
@@ -26,6 +26,8 @@ In this page, we focus on the status of each elements. For requirements and desi
     - text/x-raw. Users should specify the byte size of a single tensor frame with the property ```input-dim```. Needs more test cases.
   - Binary (stable)
     - application/octet-stream. Stream pipeline developer MUST specify the corresponding type and dimensions via properties (input-dim, input-type)
+  - You may add subplugins of converters. However, as of 2020-01-10, we do not have any converter subplugins released although we do support them. Users may add such subplugins in run-time.
+    - Planned: flatbuffers, protobuf
 - [tensor\_filter](../gst/nnstreamer/tensor_filter)
   - Main (stable)
     - Supported features
@@ -34,20 +36,23 @@ In this page, we focus on the status of each elements. For requirements and desi
       - Invoke subplugin with pre-allocated buffers
       - Invoke subplugin and let subplugin allocate output buffers.
       - Accept other/tensors.
+      - Users can add plugins in run-time.
     - TODO: Allow to manage synchronization policies.
   - Custom-C (stable)
-  - Custom-C++-Class (stable)
-  - Custom-C-Easy (stable) (single function ops)
-  - Custom-Python (stable)
+  - Custom-C++-Class (WIP)
+  - Custom-C-Easy (stable) (single function ops. basis for lambda functions in the future)
+  - Custom-Python (stable) (2.7 and 3)
   - Custom Native Functions (stable) (Supply custom-filter in run-time)
-  - Tensorflow (stable)
-  - Tensorflow-lite (stable)
+  - Tensorflow (stable) (1.09, 1.13 tested)
+  - Tensorflow-lite (stable) (1.09, 1.13 tested)
   - Caffe2 (stable)
   - PyTorch (stable)
   - Movidius-X NCS2 (stable)
-  - NNFW-Runtime (stable)
-  - WIP: edge-TPU, openVINO(dldt), and a few more
-  - Other NNFW TBD (keras, caffe, Exynos-NPU, edge-TPU, Qualcomm-SNPE, ...)
+  - NNFW-Runtime/nnfw (stable)
+  - Edge-TPU (stable)
+  - openVINO (stable)
+  - ARMNN (stable)
+  - WIP: Verisilicon-Vivante, SNAP (Exynos-NPU & Qualcomm-SNPE), ...
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
   - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnsuite/nnstreamer-example/tree/master/templates)
 - [tensor\_sink](../gst/nnstreamer/tensor_sink) (stable)
@@ -69,6 +74,7 @@ In this page, we focus on the status of each elements. For requirements and desi
     - Image segmentation (video/x-raw) (stable)
     - Body pose (video/x-raw) (stable)
     - Users can add plugins in run-time.
+  - Planned: flatbuffers, protobuf
 - [tensor\_mux](../gst/nnstreamer/tensor_mux) (stable)
 - [tensor\_demux](../gst/nnstreamer/tensor_demux) (stable)
 - [tensor\_source](../gst/nnstreamer/tensor_source) (stable for IIO. More sources coming soon)
@@ -79,8 +85,6 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_src\_tizensensor](../ext/nnstreamer/tensor_source) (stable)
 - [tensor\_ros\_sink](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
 - [tensor\_ros\_src](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
-- [tensor\_flatbuffers\_src](../gst/) (planned)
-- [tensor\_flatbuffers\_sink](../gst/) (planned)
 - tensor\_save and tensor\_load canceled.
 
 
@@ -100,6 +104,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - [Android sample app](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
   - [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
   - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
+- Web API (HTML5) Planned (Tizen 7.0?)
 
 # Other Components
 - CI ([@AWS](http://nnsuite.mooo.com/nnstreamer/ci/taos)) (stable): Up and Running.
