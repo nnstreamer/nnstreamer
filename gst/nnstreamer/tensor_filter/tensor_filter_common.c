@@ -500,8 +500,11 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       g_assert (model_files);
       gst_tensor_filter_parse_modelpaths_string (prop, model_files);
 
-      /* reload model if FW has been already opened */
-      /* TODO: need to define the behaviur according to priv->fw->verify_model_path */
+      /**
+       * Reload model if FW has been already opened;
+       * In the case of reloading model files, each priv->fw (tensor filter for each nnfw)
+       * has responsibility for the verification of the path regardless of priv->fw->verify_model_path.
+       */
       if (priv->prop.fw_opened && priv->is_updatable) {
         if (priv->fw && priv->fw->reloadModel) {
           if (priv->fw->reloadModel (&priv->prop, &priv->privateData) != 0) {
