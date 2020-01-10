@@ -6,6 +6,8 @@ Consistent code conventions are important for several reasons:
 * To make it easy to debug the code, with both a system call tracer and GNU debuggers. It should be easy to set breakpoints, view locals, and display and view data structures.
 * To attempt to improve code quality through consistency, and requiring patterns that are less likely to result in bugs either initially, or after code modification.
 
+For more information, please refer to [coding-convention.md](coding-convention.md).
+
 ## Code Reviews and PRs
 
 Please review incoming PRs; regardless whether you are a maintainer, a designated reviewer, or just a passer-by.
@@ -19,9 +21,23 @@ The submitter has the first responsibility of keeping the created PR clean and n
 * Each feature should come with a rich set of test cases that can be executed as unit tests during build. If the feature is more invasive or richer, you need more and richer test cases. Refer to other test cases in /tests directory, which use either GTest or SSAT.
 * Try to stick with C89. Try to avoid introducing additional dependencies of libraries. If you are going to use C++ or additional libraries, your codes may be located at /ext/* so that they can be "optional" features.
 * If your functions or structs/classes are going to be accessed by other modules or NNStreamer users, provide full descriptions of all entries with Doxygen.
-* Passing all the tests of TAOS-CI is a neccesary condition, but not a satisfying condition.
+* Passing all the tests of TAOS-CI is a necessary condition, but not a satisfying condition.
 
-### Any commits are required to be reviewed and approved before merged.
+### Merge Criteria
+
+A PR is required to meet the following criteria.
+* It has passed all the tests defined for TAOS-CI.
+    - This includes unit tests and integration tests in various platforms and different static analysis tools.
+    - Note that one of the tests includes the "Signed-off-by" check, which means that the author has agreed with [Code of Conduct](../CODE_OF_CONDUCT.md). You may need to refer to later section.
+* At least TWO official reviewers have approved the PR.
+    - This does not guarantee accepts. This is a necessary condition, not sufficient.
+    - If the PR touches sensitive codes or may affect wide ranges of components, reviewers will wait for other reviewers to back them up.
+    - If the PR is messy, you will need to wait indefinitely to get reviews.
+        - Apply general rules of git commits and common senses.
+        - Do not write a lengthy commit. Apply a single commit per PR if you are new to the community. Have a single topic per commit. Provide enough background information and references. And so on.
+* There is no rejections from any official reviewers.
+* There is no pending negative feedbacks (unresolved issues) from reviewers.
+
 
 ## Signing off commits
 
