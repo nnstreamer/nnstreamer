@@ -326,11 +326,6 @@ void ml_tensors_info_copy_from_gst (ml_tensors_info_s *ml_info, const GstTensors
 void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
 
 /**
- * @brief Gets caps from tensors info.
- */
-GstCaps * ml_tensors_info_get_caps (const ml_tensors_info_s *info);
-
-/**
  * @brief Creates a tensor data frame wihout buffer with the given tensors information.
  * @details If @a info is null, this allocates data handle with empty tensor data.
  * @param[in] info The handle of tensors information for the allocation.
