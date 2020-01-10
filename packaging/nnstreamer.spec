@@ -260,29 +260,26 @@ Requires:	libedgetpu1
 Requires:	nnstreamer = %{version}-%{release}
 %description edgetpu
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
-%define enable_edgetpu -Denable-edgetpu=true
-%else
-%define enable_edgetpu -Denable-edgetpu=false
 %endif
 
 ## Define build options ##
-%define	enable_nnfw_runtime	-Denable-nnfw-runtime=false
+%define enable_tizen -Denable-tizen=false -Denable-tizen-sensor=false
+%define enable_api -Denable-capi=false
+%define enable_mvncsdk2 -Denable-movidius-ncsdk2=false
+%define enable_nnfw_runtime -Denable-nnfw-runtime=false
+%define element_restriction -Denable-element-restriction=false
+
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
 %define enable_api -Denable-capi=true
 %define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
 %ifarch %arm aarch64
-%define		enable_nnfw_runtime	-Denable-nnfw-runtime=true
+%define enable_nnfw_runtime -Denable-nnfw-runtime=true
 %endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert'
-
-%define restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
-%else
-%define enable_tizen -Denable-tizen=false
-%define enable_api -Denable-capi=false
-%define restriction -Denable-element-restriction=false
-%endif
+%define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
+%endif #if tizen
 
 # Support tensorflow
 %if 0%{?tensorflow_support}
@@ -303,6 +300,13 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_python -Denable-python=true
 %else
 %define enable_python -Denable-python=false
+%endif
+
+# Support edgetpu
+%ifarch aarch64 x86_64
+%define enable_edgetpu -Denable-edgetpu=true
+%else
+%define enable_edgetpu -Denable-edgetpu=false
 %endif
 
 %prep
@@ -328,11 +332,11 @@ CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
 mkdir -p build
 
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
-	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true %{enable_tf} \
-	-Denable-pytorch=false -Denable-caffe2=false -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_edgetpu} \
-	%{enable_api} %{enable_tizen} %{restriction} %{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} \
-	%{enable_python} build
+	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
+	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
+	-Denable-pytorch=false -Denable-caffe2=false %{enable_tf} %{enable_python} \
+	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu} \
+	build
 
 ninja -C build %{?_smp_mflags}
 
@@ -348,7 +352,7 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
     ln -s ext/nnstreamer/tensor_source/*.so .
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
-%endif
+%endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
@@ -358,12 +362,10 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     LD_LIBRARY_PATH=./tests/nnstreamer_filter_edgetpu:. ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu --gst-plugin-path=. --gtest_output="xml:unittest_edgetpu.xml"
     popd
 %endif #ifarch 64
-%endif #if tizen
-%if 0%{?unit_test}
     pushd tests
     ssat -n --summary summary.txt
     popd
-%endif
+%endif #if unit_test
 
 python tools/development/count_test_cases.py build tests/summary.txt
 
