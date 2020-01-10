@@ -309,8 +309,9 @@ TEST (nnstreamer_EXT_NICK_NAME_basic_functions, invoke)
   /** should never crash */
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   /** should be successful for single input/output case */
-  if (num_inputs == 1 && num_outputs == 1)
+  if (num_inputs == 1 && num_outputs == 1) {
     EXPECT_EQ (ret, 0);
+  }
 
   g_free (input.data);
   g_free (output.data);
