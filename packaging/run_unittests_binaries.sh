@@ -34,7 +34,7 @@ run_entry() {
 if [ -f "${input}" ]; then
   run_entry $input
 elif [ -d "${input}" ]; then
-  filelist=(`find "${input}" -mindepth 1 -maxdepth 1 -type f -name "unittest_*"`)
+  filelist=(`find "${input}" -mindepth 1 -maxdepth 1 -type f -executable -name "unittest_*"`)
   for entry in "${filelist[@]}"
   do
     run_entry $entry
@@ -42,7 +42,7 @@ elif [ -d "${input}" ]; then
 else
   filename=${input##*/}
   dirname=${input%/*}
-  filelist=(`find "${dirname}" -mindepth 1 -maxdepth 1 -type f -name "${filename}"`)
+  filelist=(`find "${dirname}" -mindepth 1 -maxdepth 1 -type f -executable -name "${filename}"`)
   for entry in "${filelist[@]}"
   do
     run_entry $entry
