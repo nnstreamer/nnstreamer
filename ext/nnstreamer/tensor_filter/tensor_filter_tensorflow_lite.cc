@@ -249,10 +249,6 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
   gint64 start_time = g_get_real_time ();
 #endif
 
-  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path (%s) is not valid (not regular)\n", model_path);
-    return -1;
-  }
   model = tflite::FlatBufferModel::BuildFromFile (model_path);
   if (!model) {
     g_critical ("Failed to mmap model\n");
@@ -696,6 +692,12 @@ TFLiteCore::reloadModel (const char * _model_path)
 {
   int err;
 
+  if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
+    g_critical ("The path of model file(s), %s, to reload is invalid.",
+        _model_path);
+    return -EINVAL;
+  }
+
   interpreter_sub.lock ();
   interpreter_sub.setModelPath (_model_path);
 
@@ -988,7 +990,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
-  .verify_model_path = FALSE,
+  .verify_model_path = TRUE,
   .invoke_NN = tflite_invoke,
   .getInputDimension = tflite_getInputDim,
   .getOutputDimension = tflite_getOutputDim,
