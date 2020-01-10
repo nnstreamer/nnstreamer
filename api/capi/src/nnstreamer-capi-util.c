@@ -844,42 +844,6 @@ ml_tensors_info_copy_from_ml (GstTensorsInfo * gst_info,
 }
 
 /**
- * @brief Gets caps from tensors info.
- */
-GstCaps *
-ml_tensors_info_get_caps (const ml_tensors_info_s * info)
-{
-  GstCaps *caps;
-  GstTensorsConfig config;
-
-  if (!info)
-    return NULL;
-
-  ml_tensors_info_copy_from_ml (&config.info, info);
-
-  /* set framerate 0/1 */
-  config.rate_n = 0;
-  config.rate_d = 1;
-
-  /* Supposed input type is single tensor if the number of tensors is 1. */
-  if (config.info.num_tensors == 1) {
-    GstTensorConfig c;
-
-    gst_tensor_info_copy (&c.info, &config.info.info[0]);
-    c.rate_n = 0;
-    c.rate_d = 1;
-
-    caps = gst_tensor_caps_from_config (&c);
-    gst_tensor_info_free (&c.info);
-  } else {
-    caps = gst_tensors_caps_from_config (&config);
-  }
-
-  gst_tensors_info_free (&config.info);
-  return caps;
-}
-
-/**
  * @brief Initializes the GStreamer library. This is internal function.
  */
 int
