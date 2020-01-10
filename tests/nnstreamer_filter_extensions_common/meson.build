@@ -6,7 +6,7 @@ tizen_apptest_deps = [
 # TODO: enable for python
 
 # Format for adding subplugin into extensions -
-# [name, nick name, dependencies, model file name/folder path/file path]
+# [name, extension abbreviation, dependencies, model file name/folder path/file path]
 extensions = []
 
 extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.so']]
@@ -39,21 +39,34 @@ if have_python3
   extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'passthrough.py']]
 endif
 
-ext_test_gen_dir = join_paths(meson.current_build_dir(), 'gen')
+sed_command = find_program('sed', required: true)
+ext_test_template_prefix = 'unittest_tizen_'
+ext_test_template = files (ext_test_template_prefix + 'template.cc.in')
 
 foreach ext : extensions
-  gen_test_src = run_command('deploy.sh', ext[0], ext[1], ext[3], ext_test_gen_dir)
+  ext_test_path_each = ext_test_template_prefix + ext[0] + '.cc'
 
-  if gen_test_src.returncode() == 0
-    exec = executable('unittest_tizen_' + ext[0],
-      join_paths(ext_test_gen_dir, 'unittest_tizen_' + ext[0] + '.cc'),
-      dependencies: [tizen_apptest_deps, ext[2]],
-      install: get_option('install-test'),
-      install_dir: unittest_install_dir
-    )
+  sed_ext_name_option = 's|@EXT_NAME@|' + ext[0] + '|'
+  sed_ext_abbrv_option = 's|@EXT_ABBRV@|' + ext[1] + '|'
+  sed_ext_mf_option = 's|@MODEL_FILE@|' + ext[3] + '|'
 
-    test('unittest_tizen_' + ext[0], exec, args: ['--gst-plugin-path=../..'])
-  else
-    warning('Failed to generate basic unittest for ' + ext[0])
-  endif
+  ext_test_each = custom_target (
+    ext_test_path_each,
+    input : ext_test_template,
+    output : ext_test_path_each,
+    command : [copy, '-f', '@INPUT@', '@OUTPUT@', \
+      '&&', 'sed', '-i', sed_ext_name_option, '@OUTPUT@', \
+      '&&', 'sed', '-i', sed_ext_abbrv_option, '@OUTPUT@', \
+      '&&', 'sed', '-i', sed_ext_mf_option, '@OUTPUT@']
+  )
+
+  exec = executable(
+    ext_test_template_prefix + ext[0],
+    ext_test_each,
+    dependencies: [tizen_apptest_deps, ext[2]],
+    install: get_option('install-test'),
+    install_dir: unittest_install_dir
+  )
+
+  test(ext_test_template_prefix + ext[0], exec, args: ['--gst-plugin-path=../..'])
 endforeach
