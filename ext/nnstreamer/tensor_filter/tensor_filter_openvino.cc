@@ -289,7 +289,7 @@ TensorFilterOpenvino::loadModel ()
 
   return RetSuccess;
 err:
-  g_critical ("Failed to load the modes onto the device.");
+  g_critical ("Failed to load the models onto the device.");
 
   return RetENoDev;
 }
