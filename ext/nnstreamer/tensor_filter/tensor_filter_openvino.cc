@@ -37,6 +37,7 @@
 
 const gchar *openvino_accl_support[] = {
   ACCL_CPU_STR,
+  ACCL_NPU_MOVIDIUS_STR,
   NULL
 };
 
@@ -59,6 +60,8 @@ public:
   static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
       const InferenceEngine::TensorDesc tensorDesc,
       const GstTensorMemory * gstTensor);
+  static bool isAcclDevSupported (std::vector<std::string> &devsVector,
+      accl_hw hw);
 
   TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
   ~TensorFilterOpenvino ();
@@ -91,11 +94,17 @@ private:
   InferenceEngine::TensorDesc _outputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
   InferenceEngine::ExecutableNetwork _executableNet;
   InferenceEngine::InferRequest _inferRequest;
+  static std::map<accl_hw, std::string> _nnsAcclHwToOVDevMap;
 
   std::string pathModelXml;
   std::string pathModelBin;
   bool isLoaded;
   accl_hw hw;
+};
+
+std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
+    {ACCL_CPU, "CPU"},
+    {ACCL_NPU_MOVIDIUS, "MYRIAD"},
 };
 
 const std::string TensorFilterOpenvino::extBin = ".bin";
@@ -190,6 +199,27 @@ TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (
   }
 }
 
+/**
+ * @brief Check the given hw is supported by the fw or not
+ * @param devsVector a reference of a vector of the available device names (the return of _ieCore.GetAvailableDevices ().)
+ * @param hw a user-given acceleration device of which the data type is accl_hw
+ * @return TRUE if supported
+ */
+inline bool
+TensorFilterOpenvino::isAcclDevSupported (std::vector<std::string> &devsVector,
+    accl_hw hw)
+{
+  std::vector<std::string>::iterator it;
+
+  it = std::find (devsVector.begin (), devsVector.end (),
+      _nnsAcclHwToOVDevMap[hw]);
+
+  if (it == devsVector.end ()) {
+      return FALSE;
+  }
+
+  return TRUE;
+}
 
 /**
  * @brief Get a path where the model file in XML format is located
@@ -242,6 +272,7 @@ TensorFilterOpenvino::~TensorFilterOpenvino ()
 
 /**
  * @brief Load the given neural network into the target device
+ * @param hw a user-given acceleration device to use
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
@@ -259,46 +290,32 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
 
   strVector = this->_ieCore.GetAvailableDevices ();
   if (strVector.size () == 0) {
-    g_critical ("No devices found for the OpenVino toolkit");
+    g_critical ("No devices found for the OpenVino toolkit; "
+        "check your plugin is installed, and the device is also connected.");
     return RetENoDev;
   }
 
-  strVectorIter = strVector.end ();
-  switch (hw)
-  {
-  /** TODO: Currently, the CPU (amd64) is the only acceleration device.
-   *        Need to check the 'accelerator' property.
-   */
-  case ACCL_CPU:
+  if (!TensorFilterOpenvino::isAcclDevSupported (strVector, hw)) {
+    g_critical ("Failed to find the device (%s) or its plugin (%s)",
+        get_accl_hw_str (hw), _nnsAcclHwToOVDevMap[hw].c_str());
+    return RetEInval;
+  }
+
 #ifdef __OPENVINO_CPU_EXT__
-    strVectorIter = std::find(strVector.begin (), strVector.end (),
-        "CPU");
-    if (strVectorIter == strVector.end ()) {
-      g_critical ("Failed to find the CPU plugin of the OpenVino toolkit");
-      return RetEInval;
-    }
+  if (hw == ACCL_CPU) {
     this->_ieCore.AddExtension(
         std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>(),
-        "CPU");
-#endif /* __OPENVINO_CPU_EXT__ */
-    break;
-  default:
-    goto err;
+        _nnsAcclHwToOVDevMap[hw]);
   }
+#endif
+  /** TODO: Catch the IE exception */
+  this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
+      _nnsAcclHwToOVDevMap[hw]);
+  this->hw = hw;
+  this->isLoaded = true;
+  this->_inferRequest = this->_executableNet.CreateInferRequest ();
 
-  if (strVectorIter != strVector.end ()) {
-    this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
-        *strVectorIter);
-    this->hw = hw;
-    this->isLoaded = true;
-    this->_inferRequest = this->_executableNet.CreateInferRequest ();
-
-    return RetSuccess;
-  }
-err:
-  g_critical ("Failed to load the models onto the device.");
-
-  return RetENoDev;
+  return RetSuccess;
 }
 
 /**
@@ -591,7 +608,7 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
           prop->accl_str);
     }
     g_critical ("The 'accelerator' property is mandatory to use the tensor filter for OpenVino.\n"
-        "An acceptable format is as follows: 'true:cpu'. Note that 'cpu' is only for the x86_64 architecture.");
+        "An acceptable format is as follows: 'true:[cpu|npu.movidius]'. Note that 'cpu' is only for the x86_64 architecture.");
 
     return TensorFilterOpenvino::RetEInval;
   }
