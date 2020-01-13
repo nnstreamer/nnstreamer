@@ -3,7 +3,7 @@
 ## Files
 - nnstreamer-capi-pipeline.c - API to make pipeline with NNStreamer
 - nnstreamer-capi-single.c - API to run a single model with NNStreamer, independent of GStreamer
-- nnstreamer-capi-util.c - Utility functions for capi
+- nnstreamer-capi-util.c - Utility functions for CAPI
 - tensor\_filter\_single.c - Tensor\_filter independent of GStreamer
 
 ## Comparison of Single API

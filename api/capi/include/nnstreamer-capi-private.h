@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Samsung Electronics Co., Ltd All Rights Reserved
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -300,7 +300,7 @@ int ml_tensors_info_initialize (ml_tensors_info_s *info);
  * @since_tizen 6.0
  * @param[in] info1 The handle of tensors information to be compared.
  * @param[in] info2 The handle of tensors information to be compared.
- * @param[out] equal @c true if given tensors information is equal, @c false if if it's not equal.
+ * @param[out] equal @c true if given tensors information is equal, @c false if it's not equal.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
@@ -326,7 +326,7 @@ void ml_tensors_info_copy_from_gst (ml_tensors_info_s *ml_info, const GstTensors
 void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_info_s *ml_info);
 
 /**
- * @brief Creates a tensor data frame wihout buffer with the given tensors information.
+ * @brief Creates a tensor data frame without buffer with the given tensors information.
  * @details If @a info is null, this allocates data handle with empty tensor data.
  * @param[in] info The handle of tensors information for the allocation.
  * @param[out] data The handle of tensors data.
