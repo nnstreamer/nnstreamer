@@ -68,33 +68,37 @@ gchar ** get_model_files ()
       NULL);
 
   model_files = g_strsplit (model_filenames, ",", 0);
-  model_files_iterator = model_files;
-  for (model_file = *model_files_iterator; model_file != NULL;
-      model_file = *++model_files_iterator) {
+  if (model_files != NULL) {
+    model_files_iterator = model_files;
+    for (model_file = *model_files_iterator; model_file != NULL;
+        model_file = *++model_files_iterator) {
 
-    /** If input is already path, then dont add path */
-    dirname = g_path_get_dirname (model_file);
-    if (g_strcmp0 (dirname, ".") != 0)
-      model_filepath = g_strdup (model_file);
-    else
-      model_filepath = g_build_filename (model_path, model_file, NULL);
-    g_free (dirname);
+      /** If input is already path, then dont add path */
+      dirname = g_path_get_dirname (model_file);
+      if (g_strcmp0 (dirname, ".") != 0)
+        model_filepath = g_strdup (model_file);
+      else
+        model_filepath = g_build_filename (model_path, model_file, NULL);
+      g_free (dirname);
 
-    if (!g_file_test (model_filepath, G_FILE_TEST_EXISTS)) {
-      g_free (model_filepath);
-      g_free (model_path);
-      g_strfreev (model_files);
-      model_files = NULL;
-      goto ret;
+      if (!g_file_test (model_filepath, G_FILE_TEST_EXISTS)) {
+        g_free (model_filepath);
+        g_free (model_path);
+        g_strfreev (model_files);
+        model_files = NULL;
+        goto ret;
+      }
+
+      g_free (*model_files_iterator);
+      *model_files_iterator = model_filepath;
     }
 
-    g_free (*model_files_iterator);
-    *model_files_iterator = model_filepath;
+    g_message ("%s\n", *model_files);
   }
+
   g_free (model_path);
 
 ret:
-  g_message ("%s\n", *model_files);
   return model_files;
 }
 
@@ -326,11 +330,15 @@ TEST (nnstreamer_EXT_NICK_NAME_basic_functions, invoke)
 int
 main (int argc, char **argv)
 {
-  int result;
+  int result = -1;
 
-  testing::InitGoogleTest (&argc, argv);
+  try {
+    testing::InitGoogleTest (&argc, argv);
 
-  result = RUN_ALL_TESTS ();
+    result = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("Catched exception, GTest failed.");
+  }
 
   return result;
 }
