@@ -69,7 +69,7 @@ public:
   // TODO: Need to support other acceleration devices
   int loadModel (accl_hw hw);
   bool isModelLoaded () {
-    return isLoaded;
+    return _isLoaded;
   }
 
   int getInputTensorDim (GstTensorsInfo * info);
@@ -96,10 +96,10 @@ private:
   InferenceEngine::InferRequest _inferRequest;
   static std::map<accl_hw, std::string> _nnsAcclHwToOVDevMap;
 
-  std::string pathModelXml;
-  std::string pathModelBin;
-  bool isLoaded;
-  accl_hw hw;
+  std::string _pathModelXml;
+  std::string _pathModelBin;
+  bool _isLoaded;
+  accl_hw _hw;
 };
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
@@ -228,7 +228,7 @@ TensorFilterOpenvino::isAcclDevSupported (std::vector<std::string> &devsVector,
 std::string
 TensorFilterOpenvino::getPathModelXml ()
 {
-  return this->pathModelXml;
+  return this->_pathModelXml;
 }
 
 /**
@@ -238,7 +238,7 @@ TensorFilterOpenvino::getPathModelXml ()
 std::string
 TensorFilterOpenvino::getPathModelBin ()
 {
-  return this->pathModelBin;
+  return this->_pathModelBin;
 }
 
 /**
@@ -250,15 +250,15 @@ TensorFilterOpenvino::getPathModelBin ()
 TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml,
     std::string pathModelBin)
 {
-  this->pathModelXml = pathModelXml;
-  this->pathModelBin = pathModelBin;
-  (this->_networkReaderCNN).ReadNetwork (this->pathModelXml);
-  (this->_networkReaderCNN).ReadWeights (this->pathModelBin);
+  this->_pathModelXml = pathModelXml;
+  this->_pathModelBin = pathModelBin;
+  (this->_networkReaderCNN).ReadNetwork (this->_pathModelXml);
+  (this->_networkReaderCNN).ReadWeights (this->_pathModelBin);
   this->_networkCNN = (this->_networkReaderCNN).getNetwork ();
   this->_inputsDataMap = (this->_networkCNN).getInputsInfo ();
   this->_outputsDataMap = (this->_networkCNN).getOutputsInfo ();
-  this->isLoaded = false;
-  this->hw = ACCL_NONE;
+  this->_isLoaded = false;
+  this->_hw = ACCL_NONE;
 }
 
 /**
@@ -282,7 +282,7 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   std::vector<std::string> strVector;
   std::vector<std::string>::iterator strVectorIter;
 
-  if (this->isLoaded) {
+  if (this->_isLoaded) {
     // TODO: Can OpenVino support to replace the loaded model with a new one?
     g_critical ("The model file is already loaded onto the device.");
     return RetEBusy;
@@ -311,8 +311,8 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   /** TODO: Catch the IE exception */
   this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
       _nnsAcclHwToOVDevMap[hw]);
-  this->hw = hw;
-  this->isLoaded = true;
+  this->_hw = hw;
+  this->_isLoaded = true;
   this->_inferRequest = this->_executableNet.CreateInferRequest ();
 
   return RetSuccess;
