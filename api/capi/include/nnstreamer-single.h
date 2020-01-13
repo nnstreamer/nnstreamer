@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Samsung Electronics Co., Ltd All Rights Reserved
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -101,7 +101,7 @@ int ml_single_close (ml_single_h single);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to push a buffer into source element.
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
  */
@@ -121,7 +121,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE Cannot push a buffer into source element.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to push a buffer into source element.
  * @retval #ML_ERROR_TIMED_OUT Failed to get the result from sink element.
  *
  */
@@ -134,7 +134,7 @@ int ml_single_invoke_dynamic (ml_single_h single, const ml_tensors_data_h input,
 /**
  * @brief Gets the information (tensor dimension, type, name and so on) of required input data for the given model.
  * @details Note that a model may not have such information if its input type is flexible.
- *          The name of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
+ *          The names of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
  * @param[out] info The handle of input tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
@@ -148,7 +148,7 @@ int ml_single_get_input_info (ml_single_h single, ml_tensors_info_h *info);
 /**
  * @brief Gets the information (tensor dimension, type, name and so on) of output data for the given model.
  * @details Note that a model may not have such information if its output type is flexible and output type is not determined statically.
- *          The name of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
+ *          The names of tensors are sometimes unavailable (optional), while its dimensions and types are always available.
  * @since_tizen 5.5
  * @param[in] single The model handle.
  * @param[out] info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
@@ -168,7 +168,7 @@ int ml_single_get_output_info (ml_single_h single, ml_tensors_info_h *info);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
- *         Use ml_single_set_input_info/ml_single_get_output_info APIs instead for this framework.
+ *         Use ml_single_get_input_info() and ml_single_get_output_info() instead for this framework.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
@@ -183,7 +183,7 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
- *         Use ml_single_set_input_info/ml_single_get_output_info APIs instead for this framework.
+ *         Use ml_single_get_input_info() and ml_single_get_output_info() instead for this framework.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_update_info (ml_single_h single, const ml_tensors_info_h in_info, ml_tensors_info_h *out_info);

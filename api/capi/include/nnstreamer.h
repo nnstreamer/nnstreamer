@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Samsung Electronics Co., Ltd All Rights Reserved
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -123,7 +123,7 @@ typedef enum {
   ML_NNFW_TYPE_CUSTOM_FILTER = 1,     /**< Custom filter (Independent shared object). */
   ML_NNFW_TYPE_TENSORFLOW_LITE = 2,   /**< Tensorflow-lite (.tflite). */
   ML_NNFW_TYPE_TENSORFLOW = 3,        /**< Tensorflow (.pb). */
-  ML_NNFW_TYPE_NNFW = 4,              /**< Neural Network Inference framework, which is developed by SR */
+  ML_NNFW_TYPE_NNFW = 4,              /**< Neural Network Inference framework, which is developed by Samsung Research. */
   ML_NNFW_TYPE_MVNC = 5,              /**< Intel NCSDK (libmvnc). */
   ML_NNFW_TYPE_OPENVINO = 6,          /**< Intel openVINO. */
   ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante (TBD) */
@@ -150,7 +150,7 @@ typedef enum {
 } ml_nnfw_hw_e;
 
 /**
- * @brief Possible data element types of Tensor in NNStreamer.
+ * @brief Possible data element types of tensor in NNStreamer.
  * @since_tizen 5.5
  */
 typedef enum _ml_tensor_type_e
@@ -169,13 +169,13 @@ typedef enum _ml_tensor_type_e
 } ml_tensor_type_e;
 
 /**
- * @brief Enumeration for the error codes of NNStreamer Pipelines.
+ * @brief Enumeration for the error codes of NNStreamer.
  * @since_tizen 5.5
  */
 typedef enum {
   ML_ERROR_NONE                 = TIZEN_ERROR_NONE, /**< Success! */
   ML_ERROR_INVALID_PARAMETER    = TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
-  ML_ERROR_STREAMS_PIPE         = TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access GStreamer pipeline. */
+  ML_ERROR_STREAMS_PIPE         = TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access the pipeline. */
   ML_ERROR_TRY_AGAIN            = TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
   ML_ERROR_UNKNOWN              = TIZEN_ERROR_UNKNOWN,  /**< Unknown error */
   ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /**< Time out */
@@ -210,7 +210,7 @@ typedef enum {
 
 /**
  * @brief Enumeration for switch types.
- * @details This designates different GStreamer filters, "GstInputSelector"/"GetOutputSelector".
+ * @details This designates different GStreamer filters, "GstInputSelector"/"GstOutputSelector".
  * @since_tizen 5.5
  */
 typedef enum {
@@ -224,7 +224,7 @@ typedef enum {
  * @since_tizen 5.5
  * @remarks The @a data can be used only in the callback. To use outside, make a copy.
  * @remarks The @a info can be used only in the callback. To use outside, make a copy.
- * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that max num_tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
+ * @param[out] data The handle of the tensor output (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[out] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[out] user_data User application's private data.
  */
@@ -277,7 +277,7 @@ int ml_pipeline_construct (const char *pipeline_description, ml_pipeline_state_c
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid (Pipeline is not negotiated yet.)
- * @retval #ML_ERROR_STREAMS_PIPE Cannot access the pipeline status.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to access the pipeline state.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PLAYING or #ML_PIPELINE_STATE_PAUSED.
  * @post The pipeline state will be #ML_PIPELINE_STATE_NULL.
@@ -311,7 +311,7 @@ int ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e *state);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (NPipeline is not negotiated yet.)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_PAUSED.
@@ -352,7 +352,7 @@ int ml_pipeline_stop (ml_pipeline_h pipe);
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated, sink_name is not found, or sink_name has an invalid type.)
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Not negotiated, @a sink_name is not found, or @a sink_name has an invalid type.)
  * @retval #ML_ERROR_STREAMS_PIPE Failed to connect a signal to sink element.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  *
@@ -384,7 +384,7 @@ int ml_pipeline_sink_unregister (ml_pipeline_sink_h sink_handle);
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE Fail to get SRC element.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to get src element.
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
@@ -407,19 +407,19 @@ int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
  * @param[in] data The handle of input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
  *                 This function takes ownership of the data if @a policy is #ML_PIPELINE_BUF_POLICY_AUTO_FREE.
- * @param[in] policy The policy of buf deallocation.
+ * @param[in] policy The policy of buffer deallocation.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. (Pipeline is not negotiated yet.)
+ * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent pad caps. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
 int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h data, ml_pipeline_buf_policy_e policy);
 
 /**
  * @brief Gets a handle for the tensors information of given src node.
- * @details If the mediatype is not other/tensor or other/tensors, @a info handle may not be correct. If want to use other media types, you MUST set the correct properties.
+ * @details If the media type is not other/tensor or other/tensors, @a info handle may not be correct. If want to use other media types, you MUST set the correct properties.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a info handle must be released using ml_tensors_info_destroy().
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
@@ -428,7 +428,7 @@ int ml_pipeline_src_input_data (ml_pipeline_src_h src_handle, ml_tensors_data_h 
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent padcaps. (Pipeline is not negotiated yet.)
+ * @retval #ML_ERROR_STREAMS_PIPE The pipeline has inconsistent pad caps. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_TRY_AGAIN The pipeline is not ready yet.
  */
 int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_info_h *info);
@@ -438,7 +438,7 @@ int ml_pipeline_src_get_tensors_info (ml_pipeline_src_h src_handle, ml_tensors_i
  ****************************************************/
 
 /**
- * @brief Gets a handle to operate a "GstInputSelector / GstOutputSelector" node of NNStreamer pipelines.
+ * @brief Gets a handle to operate a "GstInputSelector"/"GstOutputSelector" node of NNStreamer pipelines.
  * @details Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-input-selector.html for input selectors.
  *          Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-output-selector.html for output selectors.
  * @since_tizen 5.5
@@ -547,7 +547,7 @@ int ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h switch_handle, char **
 
 /**
  * @brief Gets a handle to operate a "GstValve" node of NNStreamer pipelines.
- * @details Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more info.
+ * @details Refer to https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gstreamer-plugins/html/gstreamer-plugins-valve.html for more information.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a valve_handle handle must be released using ml_pipeline_valve_release_handle().
  * @param[in] pipe The pipeline to be managed.
@@ -612,10 +612,10 @@ int ml_tensors_info_destroy (ml_tensors_info_h info);
 
 /**
  * @brief Validates the given tensors information.
- * @details If the function returns an error, @a valid is not changed.
+ * @details If the function returns an error, @a valid may not be changed.
  * @since_tizen 5.5
  * @param[in] info The handle of tensors information to be validated.
- * @param[out] valid @c true if it's valid, @c false if if it's invalid.
+ * @param[out] valid @c true if it's valid, @c false if it's invalid.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
@@ -807,13 +807,13 @@ int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
 
 /**
  * @brief Checks the availability of the given execution environments.
- * @details If the function returns an error, @a available is not changed.
+ * @details If the function returns an error, @a available may not be changed.
  * @since_tizen 5.5
  * @param[in] nnfw Check if the nnfw is available in the system.
  *               Set #ML_NNFW_TYPE_ANY to skip checking nnfw.
  * @param[in] hw Check if the hardware is available in the system.
  *               Set #ML_NNFW_HW_ANY to skip checking hardware.
- * @param[out] available @c true if it's available, @c false if if it's not available.
+ * @param[out] available @c true if it's available, @c false if it's not available.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful and the environments are available.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.

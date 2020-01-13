@@ -10,16 +10,16 @@ The main features of the Machine Learning Inference API include:
   You can compose the data stream pipeline through Machine Learning Inference with various elements of GStreamer and NNStreamer.
 
 - [Single](#single-api) API and [Pipeline](#pipeline-api) API
-  
+
   There are two types of Machine Learning Inference API - Single API and Pipeline API.
 
   Single API is useful for a simple usage scenario of neural network models. It allows invoking a neural network model with a single instance of input data for the model directly. It is useful if you have the input data pre-processed with the application itself and there are no complex interactions between neural network models, data processors, or data stream paths.
 
   Pipeline API allows developers to construct and execute pipelines with multiple neural network models, multiple inputs and output nodes, multiple data processors, pre-and-post processors, and various data path manipulators. Besides, if the input is online data or streamed data, Pipeline API simplifies your application and improves its performance.
 
-  
+
 - Support various neural network frameworks (NNFW)
-  
+
   TensorFlow, TensorFlow-Lite, Caffe2, and PyTorch are the supported neural network frameworks. Neural network model files trained by such frameworks can be imported as filters of pipelines directly.
   Custom filters, which are neural network models implemented directly with programming languages including C/C++ and Python, maybe imported as filters of pipelines directly as well.
 
@@ -47,7 +47,7 @@ To enable your application to use the machine learning functionality:
 ## Single API
 
 This section shows how to load a model without the construction of pipelines.
- 
+
 1. Open a model file:
 
     ```c
@@ -79,7 +79,7 @@ This section shows how to load a model without the construction of pipelines.
     ml_single_invoke (single, input, &output);
     ```
 
-4. close the opened handle:
+4. Close the opened handle:
 
     ```c
     ml_single_close (single);
