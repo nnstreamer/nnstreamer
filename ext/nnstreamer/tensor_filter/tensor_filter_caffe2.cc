@@ -32,8 +32,8 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
-#include "caffe2/core/workspace.h"
-#include "caffe2/core/init.h"
+#include <caffe2/core/workspace.h>
+#include <caffe2/core/init.h>
 
 /**
  * @brief Macro for debug mode.
