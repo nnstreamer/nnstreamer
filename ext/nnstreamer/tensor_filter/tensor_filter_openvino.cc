@@ -64,7 +64,7 @@ public:
   ~TensorFilterOpenvino ();
 
   // TODO: Need to support other acceleration devices
-  int loadModel ();
+  int loadModel (accl_hw hw);
 
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
@@ -225,7 +225,7 @@ TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml,
   this->_inputsDataMap = (this->_networkCNN).getInputsInfo ();
   this->_outputsDataMap = (this->_networkCNN).getOutputsInfo ();
   this->isLoaded = false;
-  this->hw = hw;
+  this->hw = ACCL_NONE;
 }
 
 /**
@@ -242,7 +242,7 @@ TensorFilterOpenvino::~TensorFilterOpenvino ()
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
-TensorFilterOpenvino::loadModel ()
+TensorFilterOpenvino::loadModel (accl_hw hw)
 {
   std::string targetDevice;
   std::vector<std::string> strVector;
@@ -260,7 +260,8 @@ TensorFilterOpenvino::loadModel ()
     return RetENoDev;
   }
 
-  switch (this->hw)
+  strVectorIter = strVector.end ();
+  switch (hw)
   {
   /** TODO: Currently, the CPU (amd64) is the only acceleration device.
    *        Need to check the 'accelerator' property.
@@ -282,12 +283,15 @@ TensorFilterOpenvino::loadModel ()
     goto err;
   }
 
-  this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
+  if (strVectorIter != strVector.end ()) {
+    this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
         *strVectorIter);
-  this->isLoaded = true;
-  this->_inferRequest = this->_executableNet.CreateInferRequest ();
+    this->hw = hw;
+    this->isLoaded = true;
+    this->_inferRequest = this->_executableNet.CreateInferRequest ();
 
-  return RetSuccess;
+    return RetSuccess;
+  }
 err:
   g_critical ("Failed to load the models onto the device.");
 
@@ -577,10 +581,15 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
     return TensorFilterOpenvino::RetEInval;
   }
 #endif
-  if (accelerator == ACCL_NONE
-      || accelerator == ACCL_AUTO
+  if (accelerator == ACCL_NONE || accelerator == ACCL_AUTO
       || accelerator == ACCL_DEFAULT) {
-    g_critical ("Setting a specific accelerating device is required");
+    if (prop->accl_str != NULL) {
+      g_critical("'%s' is not valid value for the 'accelerator' property",
+          prop->accl_str);
+    }
+    g_critical ("The 'accelerator' property is mandatory to use the tensor filter for OpenVino.\n"
+        "An acceptable format is as follows: 'true:cpu'. Note that 'cpu' is only for the x86_64 architecture.");
+
     return TensorFilterOpenvino::RetEInval;
   }
 
@@ -645,7 +654,7 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
   tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
   *private_data = tfOv;
 
-  return tfOv->loadModel ();
+  return tfOv->loadModel (accelerator);
 }
 
 static gchar filter_subplugin_openvino[] = "openvino";
