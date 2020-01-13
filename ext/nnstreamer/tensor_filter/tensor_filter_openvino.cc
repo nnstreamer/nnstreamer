@@ -65,6 +65,9 @@ public:
 
   // TODO: Need to support other acceleration devices
   int loadModel (accl_hw hw);
+  bool isModelLoaded () {
+    return isLoaded;
+  }
 
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
@@ -642,9 +645,11 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
 
   tfOv = static_cast<TensorFilterOpenvino *>(*private_data);
   if (tfOv != nullptr) {
-    if ((tfOv->getPathModelBin () == model_path_bin) &&
+    if (tfOv->isModelLoaded ()) {
+      if ((tfOv->getPathModelBin () == model_path_bin) &&
         (tfOv->getPathModelXml () == model_path_xml)) {
       return TensorFilterOpenvino::RetSuccess;
+      }
     }
 
     ov_close (prop, private_data);
