@@ -38,9 +38,6 @@
 
 #include "tensor_filter_cpp.h"
 
-void init_filter_cpp (void) __attribute__ ((constructor));
-void fini_filter_cpp (void) __attribute__ ((destructor));
-
 std::unordered_map<std::string, tensor_filter_cpp*> tensor_filter_cpp::filters;
 
 static gchar filter_subplugin_cpp[] = "cpp";
@@ -236,6 +233,10 @@ void tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **pri
   cpp->ref_count--;
 }
 
+G_BEGIN_DECLS
+void init_filter_cpp (void) __attribute__ ((constructor));
+void fini_filter_cpp (void) __attribute__ ((destructor));
+
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_cpp (void)
@@ -249,3 +250,4 @@ fini_filter_cpp (void)
 {
   nnstreamer_filter_exit (NNS_support_cpp.name);
 }
+G_END_DECLS

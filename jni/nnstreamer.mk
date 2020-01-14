@@ -34,6 +34,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
     $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
     $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_repo.c \
@@ -54,6 +55,15 @@ NNSTREAMER_CAPI_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
     $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
+
+# source AMC (Android MediaCodec)
+NNSTREAMER_SOURCE_AMC_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/android_source/gstamcsrc.c \
+    $(NNSTREAMER_EXT_HOME)/android_source/gstamcsrc_looper.cc
+
+# filter cpp
+NNSTREAMER_FILTER_CPP_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_cpp.cc
 
 # filter tensorflow
 NNSTREAMER_FILTER_TF_SRCS := \

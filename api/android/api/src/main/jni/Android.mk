@@ -52,7 +52,7 @@ LOCAL_CFLAGS += -O2 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(NNSTREAMER_CAPI_INCLUDES)
 LOCAL_STATIC_LIBRARIES := nnstreamer tensorflow-lite cpufeatures
 LOCAL_SHARED_LIBRARIES := gstreamer_android
-LOCAL_LDLIBS := -llog -landroid
+LOCAL_LDLIBS := -llog -landroid -lmediandk
 
 ifeq ($(ENABLE_SNAP), true)
 LOCAL_CFLAGS += -DENABLE_SNAP=1
