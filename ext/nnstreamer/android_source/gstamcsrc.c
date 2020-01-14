@@ -636,7 +636,7 @@ static void
 feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize buf_size)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
-
+  GstElement *element = GST_ELEMENT (self);
   GstBuffer *buffer;
   GstMemory *mem;
   GstDataQueueItem *item;
@@ -646,10 +646,8 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
 
   GstWrappedBuf *wrapped_buf;
 
-  if ((clock = gst_element_get_clock (self))) {
-    GstClockTime base_time = GST_ELEMENT_CAST (self)->base_time;
-
-    current_ts = gst_clock_get_time (clock) - base_time;
+  if ((clock = gst_element_get_clock (element))) {
+    current_ts = gst_clock_get_time (clock) - gst_element_get_base_time (element);
     gst_object_unref (clock);
   }
 
@@ -810,7 +808,7 @@ static void looper_handle (gint cmd, void *data)
         break;
       case MSG_CODEC_SEEK:
         AMediaExtractor_seekTo (priv->ex, 0, AMEDIAEXTRACTOR_SEEK_NEXT_SYNC);
-        AMediaCodec_flush (priv->ex);
+        AMediaCodec_flush (priv->codec);
 
         priv->renderstart = -1;
         priv->sawInputEOS = FALSE;
