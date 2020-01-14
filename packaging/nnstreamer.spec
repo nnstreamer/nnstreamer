@@ -538,6 +538,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files cpp-devel
 %{_includedir}/nnstreamer/tensor_filter_cpp.h
+%{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
 %ifarch aarch64 x86_64
 %files edgetpu

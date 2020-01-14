@@ -25,6 +25,10 @@
  *       If you want to write an OpenCV custom filter for nnstreamer, this is a good choice.
  *
  */
+#include <iostream>
+#include <string>
+
+#include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
 #include <glib.h>
@@ -37,6 +41,25 @@
 void init_filter_cpp (void) __attribute__ ((constructor));
 void fini_filter_cpp (void) __attribute__ ((destructor));
 
+std::unordered_map<std::string, tensor_filter_cpp*> tensor_filter_cpp::filters;
+
+static gchar filter_subplugin_cpp[] = "cpp";
+
+static GstTensorFilterFramework NNS_support_cpp = {
+  .name = filter_subplugin_cpp,
+  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+  .allocate_in_invoke = FALSE,
+  .run_without_model = FALSE,
+  .verify_model_path = FALSE,
+  .invoke_NN = tensor_filter_cpp::invoke,
+  .getInputDimension = tensor_filter_cpp::getInputDim,
+  .getOutputDimension = tensor_filter_cpp::getOutputDim,
+  .setInputDimension = tensor_filter_cpp::setInputDim,
+  .open = tensor_filter_cpp::open,
+  .close = tensor_filter_cpp::close,
+};
+
+
 #define loadClass(name, ptr) \
   class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
   g_assert (*(ptr)); \
@@ -45,7 +68,7 @@ void fini_filter_cpp (void) __attribute__ ((destructor));
 /**
  * @brief Class constructor
  */
-tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name))
+tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name)), ref_count(0)
 {
 }
 
@@ -66,9 +89,42 @@ bool tensor_filter_cpp::isValid()
 }
 
 /**
+ * @brief Register the c++ filter
+ */
+int tensor_filter_cpp::__register (
+    class tensor_filter_cpp *filter, unsigned int ref_count)
+{
+  if (filters.find (filter->name) != filters.end())
+    return -EINVAL; /** Already registered */
+  if (ref_count)
+    filter->ref_count = ref_count;
+  filters[filter->name] = filter;
+
+  return 0;
+}
+
+/**
+ * @brief Unregister the c++ filter from unordered map
+ */
+int tensor_filter_cpp::__unregister (const char *name)
+{
+  if (filters.find (name) == filters.end())
+    return -EINVAL; /** Not found */
+  if (filters[name]->ref_count > 0) {
+    unsigned int cnt = filters[name]->ref_count;
+    g_critical ("The reference counter of c++ filter, %s, is %u. Anyway, we are closing this because this is being closed by destructor of .so file.", name, cnt);
+  }
+  size_t num = filters.erase (name);
+  if (num != 1)
+    return -EINVAL; /** Cannot erase */
+
+  return 0;
+}
+
+/**
  * @brief Standard tensor_filter callback
  */
-static int cpp_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+int tensor_filter_cpp::getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
   loadClass(cpp, private_data);
   return cpp->getInputDim (info);
@@ -77,7 +133,7 @@ static int cpp_getInputDim (const GstTensorFilterProperties *prop, void **privat
 /**
  * @brief Standard tensor_filter callback
  */
-static int cpp_getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+int tensor_filter_cpp::getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
   loadClass(cpp, private_data);
   return cpp->getOutputDim (info);
@@ -86,7 +142,7 @@ static int cpp_getOutputDim (const GstTensorFilterProperties *prop, void **priva
 /**
  * @brief Standard tensor_filter callback
  */
-static int cpp_setInputDim (const GstTensorFilterProperties *prop, void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
+int tensor_filter_cpp::setInputDim (const GstTensorFilterProperties *prop, void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
 {
   loadClass(cpp, private_data);
   return cpp->setInputDim (in, out);
@@ -95,46 +151,90 @@ static int cpp_setInputDim (const GstTensorFilterProperties *prop, void **privat
 /**
  * @brief Standard tensor_filter callback
  */
-static int cpp_invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
+int tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
   loadClass(cpp, private_data);
   return cpp->invoke(input, output);
 }
 
 /**
- * @brief Standard tensor_filter callback
+ * @brief Printout only once for a given error
  */
-static int cpp_open (const GstTensorFilterProperties *prop, void **private_data)
+static void g_printerr_once (const char *file, int line, const char *fmt,
+    ...)
 {
-  /** @todo: load the class with the given name (either file path or registered name) */
-  /** @todo: configure values of NNS_support_cpp (allocate_in_invoke) */
-  return -EPERM; /** NYI */
+  static guint file_hash = 0;
+  static int _line = 0;
+
+  if (file_hash != g_str_hash(file) || _line != line) {
+    char buffer[256];
+    file_hash = g_str_hash(file);
+    _line = line;
+
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, 256, fmt, args);
+    g_printerr("%s", buffer);
+    va_end(args);
+  }
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-static void cpp_close (const GstTensorFilterProperties *prop, void **private_data)
+int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_data)
 {
-  /** @todo Implement This! NYI! */
-  g_assert(false); /** NYI */
+  class tensor_filter_cpp *cpp;
+
+  if (*private_data) {
+    /** Reloading. Unload it to reload */
+    close (prop, private_data);
+    *private_data = NULL;
+  }
+
+  if (filters.find(prop->model_files[0]) == filters.end()) {
+    /* model_files may be really path to .so file. try to dlopen it */
+    if (prop->num_models < 2)
+      return -EINVAL;
+
+    void *handle = dlopen (prop->model_files[1], RTLD_NOW);
+    if (!handle) {
+      g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s cannot be found: opening %s failed\n", prop->model_files[0], prop->model_files[1]);
+      return -EINVAL; /** Model file / name not found */
+    }
+
+    /** At this stage, the constructor of the .so file should have registered
+      * itself with tensor_filter_cpp_register() */
+    dlclose (handle);
+
+    if (filters.find(prop->model_files[0]) == filters.end()) {
+      /** It's still not found. it's not there. */
+      g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s is not found in %s.\n",
+          prop->model_files[0], prop->model_files[1]);
+      return -EINVAL;
+    }
+  }
+
+  *private_data = cpp = filters[prop->model_files[0]];
+  cpp->ref_count++;
+  cpp->prop = prop;
+
+  NNS_support_cpp.allocate_in_invoke = ! cpp->isAllocatedBeforeInvoke();
+
+  return 0;
 }
 
-static gchar filter_subplugin_cpp[] = "cpp";
+/**
+ * @brief Standard tensor_filter callback
+ */
+void tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **private_data)
+{
+  loadClass(cpp, private_data);
 
-static GstTensorFilterFramework NNS_support_cpp = {
-  .name = filter_subplugin_cpp,
-  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = cpp_invoke,
-  .getInputDimension = cpp_getInputDim,
-  .getOutputDimension = cpp_getOutputDim,
-  .setInputDimension = cpp_setInputDim,
-  .open = cpp_open,
-  .close = cpp_close,
-};
+  g_assert (cpp->ref_count > 0);
+  /** The class is deallocated from unordered_map if ref_count hits 0 */
+  cpp->ref_count--;
+}
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

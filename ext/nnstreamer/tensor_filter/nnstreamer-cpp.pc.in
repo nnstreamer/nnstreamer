@@ -1,0 +1,13 @@
+# Package Information for pkg-config, for custom nnstreamer plugin writers
+
+prefix=@PREFIX@
+exec_prefix=@EXEC_PREFIX@
+libdir=@LIB_INSTALL_DIR@
+includedir=@INCLUDE_INSTALL_DIR@
+
+Name: nnstreamer-cpp
+Description: Dev Kit of NNStreamer C++ Filters
+Version: @VERSION@
+Requires: nnstreamer
+Libs: -L${prefix}/lib/nnstreamer/filters/ -lnnstreamer_filter_cpp
+Cflags: -I${includedir}/nnstreamer

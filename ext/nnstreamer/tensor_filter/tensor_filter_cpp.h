@@ -31,21 +31,54 @@
  * To Packagers:
  *
  * This is to be exposed with "nnstreamer-c++-dev"
+ *
+ * @details Usage examples
+ *
+ *          Case 1: myfilter class implemented in the application
+ *          - class myfilter : public tensor_filter_cpp { ... };
+ *          - myfilter fx("myfilter01");
+ *          - fx.register():
+ *          - gst pipeline with ( ... ! tensor_filter framework=cpp
+ *                                      model=myfilter01 ! ... );
+ *
+ *          Case 2: class exists in abc.so
+ *          - gst pipeline with ( ... ! tensor_filter framework=cpp
+ *                                      model=myfilter,abc.so ! ... );
+ *          - // if myfilter already exists, abc.so is not loaded
+ *          - in abc.so,
+ *          - - class myfilter : public tensor_filter_cpp { ... };
+ *          - - so's init() { myfilter fx("myfilter");
+ *                            fx.register(); }
+ *
  */
 #ifndef __NNS_TENSOR_FITLER_CPP_H__
 #define __NNS_TENSOR_FITLER_CPP_H__
 
+#include <atomic>
 #include <stdint.h>
+#include <unordered_map>
+#include <nnstreamer_plugin_api_filter.h>
 
 #ifdef __cplusplus
+
 /**
  * @brief This allows to have a c++ class inserted as a filter in a neural network pipeline of nnstreamer
  * @note This is experimental.
+ * @details
+ *          The C++ custom filter writers are supposed to inherit
+ *         tensor_filter_cpp class. They should NOT touch any private
+ *         properties.
  */
 class tensor_filter_cpp {
   private:
     const uint32_t validity;
     const char *name; /**< The name of this C++ custom filter, searchable with "model" property */
+
+    std::atomic_uint ref_count;
+    static std::unordered_map<std::string, tensor_filter_cpp*> filters;
+
+  protected:
+    const GstTensorFilterProperties *prop;
 
   public:
     tensor_filter_cpp(const char *modelName); /**< modelName is the model property of tensor_filter, which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
@@ -66,14 +99,34 @@ class tensor_filter_cpp {
            This should not change its return values. */
 
     /** API. Do not override. */
-    static int tensor_filter_cpp_register(class tensor_filter_cpp *filter);
+    static int __register(class tensor_filter_cpp *filter, unsigned int ref_count = 0);
       /**< Register a C++ custom filter with this API if you want to register
            it at runtime or at the constructor of a shared object if you want
            to load it dynamically. This should be invoked before initialized
-           (constructed) by tensor_filter at run-time. */
+           (constructed) by tensor_filter at run-time.
+           If you don't want to touch initial ref_count, keep it 0.
+      */
+    int _register(unsigned int ref_count = 0) {
+      return __register(this, ref_count);
+    }
+    static int __unregister(const char *name);
+      /**< Unregister the run-time registered c++ filter.
+           Do not call this to filters loaded as a .so (independent)
+           filter. */
+    int _unregister() {
+      return __unregister(this->name);
+    }
 
-    /** Internal Functions. Do not override. */
     bool isValid();
+      /**< Check if it's a valid filter_cpp object. Do not override. */
+
+    /** Internal functions for tensor_filter main. Do not override */
+    static int getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info);
+    static int getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info);
+    static int setInputDim (const GstTensorFilterProperties *prop, void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out);
+    static int invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output);
+    static int open (const GstTensorFilterProperties *prop, void **private_data);
+    static void close (const GstTensorFilterProperties *prop, void **private_data);
 };
 
 #endif /* __cplusplus */
