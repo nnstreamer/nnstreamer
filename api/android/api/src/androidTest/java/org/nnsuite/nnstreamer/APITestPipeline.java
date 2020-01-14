@@ -1,5 +1,6 @@
 package org.nnsuite.nnstreamer;
 
+import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
 
@@ -749,6 +750,74 @@ public class APITestPipeline {
             fail();
         } catch (Exception e) {
             /* expected */
+        }
+    }
+
+    @Test
+    public void testAMCsrc() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        String media = root + "/nnstreamer/test/test_video.mp4";
+
+        String desc = "amcsrc location=" + media + " ! " +
+                "videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240 ! " +
+                "tensor_converter ! tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                    } else {
+                        ByteBuffer output = data.getTensorData(0);
+
+                        if (!APITestCommon.isValidBuffer(output, 230400)) {
+                            mInvalidState = true;
+                        }
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* sleep 2 seconds to invoke */
+            Thread.sleep(2000);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+
+            /* sleep 1 second and restart */
+            Thread.sleep(1000);
+            mReceived = 0;
+
+            pipe.start();
+
+            /* sleep 2 seconds to invoke */
+            Thread.sleep(2000);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
         }
     }
 }

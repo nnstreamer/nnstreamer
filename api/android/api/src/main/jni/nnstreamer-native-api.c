@@ -25,6 +25,10 @@
 
 /* nnstreamer plugins and sub-plugins declaration */
 GST_PLUGIN_STATIC_DECLARE (nnstreamer);
+GST_PLUGIN_STATIC_DECLARE (amcsrc);
+extern void init_filter_cpp (void);
+extern void init_filter_custom (void);
+extern void init_filter_custom_easy (void);
 extern void init_filter_tflite (void);
 #if defined (ENABLE_SNAP)
 extern void init_filter_snap (void);
@@ -34,6 +38,11 @@ extern void init_bb (void);
 extern void init_il (void);
 extern void init_pose (void);
 extern void init_is (void);
+
+/**
+ * @brief Global lock for native functions.
+ */
+G_LOCK_DEFINE_STATIC (nns_native_lock);
 
 /**
  * @brief Attach thread with Java VM.
@@ -562,32 +571,49 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
 jboolean
 nnstreamer_native_initialize (void)
 {
+  jboolean result = JNI_FALSE;
+  static gboolean nns_is_initilaized = FALSE;
+
   nns_logi ("Called native initialize.");
+
+  G_LOCK (nns_native_lock);
 
   if (!gst_is_initialized ()) {
     nns_loge ("GStreamer is not initialized.");
-    return JNI_FALSE;
+    goto done;
   }
 
-  /* register nnstreamer plugins */
-  GST_PLUGIN_STATIC_REGISTER (nnstreamer);
+  if (nns_is_initilaized == FALSE) {
+    /* register nnstreamer plugins */
+    GST_PLUGIN_STATIC_REGISTER (nnstreamer);
 
-  /* tensor-filter sub-plugin for tensorflow-lite */
-  init_filter_tflite ();
+    /* Android MediaCodec */
+    GST_PLUGIN_STATIC_REGISTER (amcsrc);
 
+    /* tensor-filter sub-plugins */
+    init_filter_cpp ();
+    init_filter_custom ();
+    init_filter_custom_easy ();
+    init_filter_tflite ();
 #if defined (ENABLE_SNAP)
-  /* tensor-filter sub-plugin for snap */
-  init_filter_snap ();
+    init_filter_snap ();
 #endif
 
-  /* tensor-decoder sub-plugins */
-  init_dv ();
-  init_bb ();
-  init_il ();
-  init_pose ();
-  init_is ();
+    /* tensor-decoder sub-plugins */
+    init_dv ();
+    init_bb ();
+    init_il ();
+    init_pose ();
+    init_is ();
 
-  return JNI_TRUE;
+    nns_is_initilaized = TRUE;
+  }
+
+  result = JNI_TRUE;
+
+done:
+  G_UNLOCK (nns_native_lock);
+  return result;
 }
 
 /**
