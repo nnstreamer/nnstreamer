@@ -272,7 +272,7 @@ if get_option('enable-cppfilter')
     nnstreamer_filter_cpp_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  shared_library('nnstreamer_filter_cpp',
+  nnstreamer_cpp_lib = shared_library('nnstreamer_filter_cpp',
     nnstreamer_filter_cpp_sources,
     dependencies: [glib_dep, gst_dep, nnstreamer_dep],
     install: true,
@@ -280,6 +280,14 @@ if get_option('enable-cppfilter')
   )
   install_headers(['tensor_filter_cpp.h'],
     subdir: 'nnstreamer'
+  )
+  configure_file(input: 'nnstreamer-cpp.pc.in', output: 'nnstreamer-cpp.pc',
+    install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+    configuration: nnstreamer_install_conf
+  )
+  nnstreamer_cpp_dep = declare_dependency(link_with: nnstreamer_cpp_lib,
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+    include_directories: include_directories('.')
   )
 endif
 
