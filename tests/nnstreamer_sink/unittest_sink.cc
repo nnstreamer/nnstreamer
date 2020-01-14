@@ -106,6 +106,7 @@ typedef enum
   TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux, tensor_demux pick 1,2 */
   TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
   TEST_TYPE_CUSTOM_TENSORS, /**< pipeline for tensors with passthrough custom filter */
+  TEST_TYPE_CUSTOM_MULTI, /**< pipeline with multiple custom filters */
   TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter using custom filter */
   TEST_TYPE_CUSTOM_PASSTHROUGH, /**< pipeline to test custom passthrough without so file */
   TEST_TYPE_NEGO_FAILED, /**< pipeline to test caps negotiation */
@@ -765,6 +766,21 @@ _setup_pipeline (TestOption & option)
           custom_dir ? custom_dir :
           "./nnstreamer_example/custom_example_passthrough", SO_EXT,
           option.num_buffers, option.num_buffers, option.num_buffers);
+      break;
+    case TEST_TYPE_CUSTOM_MULTI:
+      /* multiple custom filters */
+      str_pipeline =
+          g_strdup_printf
+          ("tensor_mux name=mux ! tensor_sink name=test_sink "
+          "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! "
+              "tensor_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s ! mux.sink_0 "
+          "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=280,height=40,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! "
+              "tensor_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough.%s ! mux.sink_1 "
+          "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=320,height=240,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! "
+              "tensor_filter framework=custom model=%s/libnnstreamer_customfilter_scaler.%s custom=640x480 ! mux.sink_2",
+          option.num_buffers, custom_dir ? custom_dir : "./nnstreamer_example/custom_example_passthrough", SO_EXT,
+          option.num_buffers, custom_dir ? custom_dir : "./nnstreamer_example/custom_example_passthrough", SO_EXT,
+          option.num_buffers, custom_dir ? custom_dir : "./nnstreamer_example/custom_example_scaler", SO_EXT);
       break;
     case TEST_TYPE_CUSTOM_BUF_DROP:
       /* audio stream to test buffer-drop using custom filter */
@@ -3004,6 +3020,63 @@ TEST (tensor_stream_test, custom_filter_tensors)
 
     gst_caps_unref (caps);
   }
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for multiple custom filters.
+ */
+TEST (tensor_stream_test, custom_filter_multi)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_MULTI };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 3U);
+  EXPECT_EQ (g_test_data.received_size, 1012800U); /** 160 * 120 * 3 + 280 * 40 * 3 + 640 * 480 * 3 */
+
+  /** check caps name */
+  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 3U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 280U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 40U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[1], 640U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[2], 480U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
