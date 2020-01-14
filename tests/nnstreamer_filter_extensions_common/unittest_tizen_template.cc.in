@@ -56,7 +56,7 @@ gchar ** get_model_files ()
 {
   gchar *model_file, *model_filepath;
   gchar *model_path;
-  const gchar *model_filenames = "MODEL_FILE";
+  const gchar *model_filenames = "@MODEL_FILE@";
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar **model_files, **model_files_iterator;
   gchar *dirname;
