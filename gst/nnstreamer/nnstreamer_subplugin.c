@@ -26,7 +26,7 @@
 #include <dlfcn.h>
 #include <features.h>           /* Check libc version for dlclose-related workaround */
 #include <glib.h>
-#include <gmodule.h>
+
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
@@ -71,24 +71,67 @@ static subpluginSearchLogic searchAlgorithm[] = {
   [NNS_SUBPLUGIN_END] = NNS_SEARCH_NO_OP,
 };
 
+/**
+ * @brief Internal function to get sub-plugin data.
+ */
+static subpluginData *
+_get_subplugin_data (subpluginType type, const gchar * name)
+{
+  subpluginData *spdata = NULL;
+
+  G_LOCK (splock);
+  if (subplugins[type] == NULL) {
+    subplugins[type] =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+        _spdata_destroy);
+  } else {
+    spdata = g_hash_table_lookup (subplugins[type], name);
+  }
+  G_UNLOCK (splock);
+
+  return spdata;
+}
+
+/**
+ * @brief Internal function to scan sub-plugin.
+ */
+static subpluginData *
+_search_subplugin (subpluginType type, const gchar * name, const gchar * path)
+{
+  subpluginData *spdata = NULL;
+  void *handle;
+
+  g_return_val_if_fail (name != NULL, NULL);
+  g_return_val_if_fail (path != NULL, NULL);
+
+  dlerror ();
+  handle = dlopen (path, RTLD_NOW);
+  /* If this is a correct subplugin, it will register itself */
+  if (handle == NULL) {
+    g_critical ("Cannot dlopen %s(%s) with error %s.", name, path, dlerror ());
+    return NULL;
+  }
+
+  spdata = _get_subplugin_data (type, name);
+  if (spdata) {
+    g_ptr_array_add (handles, (gpointer) handle);
+  } else {
+    g_critical
+        ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
+        name, path);
+    dlclose (handle);
+  }
+
+  return spdata;
+}
+
 /** @brief Public function defined in the header */
 const void *
 get_subplugin (subpluginType type, const char *name)
 {
-  GHashTable *table;
   subpluginData *spdata = NULL;
-  void *handle;
 
   g_return_val_if_fail (name, NULL);
-
-  G_LOCK (splock);
-
-  if (subplugins[type] == NULL)
-    subplugins[type] =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-        _spdata_destroy);
-
-  table = subplugins[type];
 
   if (searchAlgorithm[type] == NNS_SEARCH_GETALL) {
     nnsconf_type_path conf_type = (nnsconf_type_path) type;
@@ -97,59 +140,23 @@ get_subplugin (subpluginType type, const char *name)
     guint ret = nnsconf_get_subplugin_info (conf_type, &info);
 
     for (i = 0; i < ret; i++) {
-      const gchar *fullpath = info.paths[i];
-
-      dlerror ();
-      G_UNLOCK (splock);
-      handle = dlopen (fullpath, RTLD_NOW);
-      /* If this is a correct subplugin, it will register itself */
-      G_LOCK (splock);
-      if (NULL == handle) {
-        g_critical ("Cannot dlopen %s with error %s.", fullpath, dlerror ());
-        continue;
-      }
-      g_ptr_array_add (handles, (gpointer) handle);
+      _search_subplugin (type, info.names[i], info.paths[i]);
     }
 
     searchAlgorithm[type] = NNS_SEARCH_NO_OP;
   }
 
-  spdata = g_hash_table_lookup (table, name);
+  spdata = _get_subplugin_data (type, name);
   if (spdata == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
     /** Search and register if found with the conf */
     nnsconf_type_path conf_type = (nnsconf_type_path) type;
     const gchar *fullpath = nnsconf_get_fullpath (name, conf_type);
 
-    if (!nnsconf_validate_file (conf_type, fullpath))
-      goto error;               /* No Such Thing !!! */
-
-    G_UNLOCK (splock);
-
-    /** clear any existing errors */
-    dlerror ();
-    handle = dlopen (fullpath, RTLD_NOW);
-    if (NULL == handle) {
-      g_critical ("Cannot dlopen %s (%s) with error %s.", name, fullpath,
-          dlerror ());
-      return NULL;
+    if (nnsconf_validate_file (conf_type, fullpath)) {
+      spdata = _search_subplugin (type, name, fullpath);
     }
-
-    G_LOCK (splock);
-
-    /* If a subplugin's constructor has called register_subplugin, skip the rest */
-    spdata = g_hash_table_lookup (table, name);
-    if (spdata == NULL) {
-      g_critical
-          ("nnstreamer_subplugin of %s (%s) is broken. It does not call register_subplugin with its init function.",
-          name, fullpath);
-      dlclose (handle);
-      goto error;
-    }
-    g_ptr_array_add (handles, (gpointer) handle);
   }
 
-error:
-  G_UNLOCK (splock);
   return (spdata != NULL) ? spdata->data : NULL;
 }
 
@@ -158,7 +165,7 @@ gboolean
 register_subplugin (subpluginType type, const char *name, const void *data)
 {
   /** @todo data out of scope at add */
-  subpluginData *spdata;
+  subpluginData *spdata = NULL;
   gboolean ret;
 
   g_return_val_if_fail (name, FALSE);
@@ -175,23 +182,14 @@ register_subplugin (subpluginType type, const char *name, const void *data)
       return FALSE;
   }
 
-  if (subplugins[type] == NULL) {
-    subplugins[type] =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-        _spdata_destroy);
-  } else {
-    G_LOCK (splock);
-    spdata = g_hash_table_lookup (subplugins[type], name);
-    G_UNLOCK (splock);
-
-    if (spdata) {
-      /* already exists */
-      g_critical ("Subplugin %s is already registered.", name);
-      return FALSE;
-    }
+  spdata = _get_subplugin_data (type, name);
+  if (spdata) {
+    /* already exists */
+    g_warning ("Subplugin %s is already registered.", name);
+    return FALSE;
   }
 
-  spdata = g_new (subpluginData, 1);
+  spdata = g_new0 (subpluginData, 1);
   if (spdata == NULL) {
     g_critical ("Failed to allocate memory for subplugin registration.");
     return FALSE;
