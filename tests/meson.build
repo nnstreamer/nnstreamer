@@ -142,6 +142,10 @@ if get_option('enable-edgetpu')
   subdir('nnstreamer_filter_edgetpu')
 endif
 
+if get_option('enable-cppfilter')
+  subdir('cpp_methods')
+endif
+
 # Tensor filter extensions basic test cases
 subdir('nnstreamer_filter_extensions_common')
 
@@ -181,4 +185,7 @@ if get_option('install-test')
   install_subdir('transform_stand', install_dir: unittest_tests_install_dir)
   install_subdir('transform_transpose', install_dir: unittest_tests_install_dir)
   install_subdir('transform_typecast', install_dir: unittest_tests_install_dir)
+  if get_option('enable-cppfilter')
+    install_subdir('cpp_methods', install_dir: unittest_tests_install_dir)
+  endif
 endif
