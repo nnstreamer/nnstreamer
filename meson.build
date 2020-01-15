@@ -244,6 +244,38 @@ if get_option('enable-tflite-nnapi-delegation')
   # For tf-lite/nnapi, enable-nnfw allows to use nnfw::tflite::nnapi as a backend.
 endif
 
+# Set configuration to install .ini
+nnstreamer_install_conf = configuration_data()
+nnstreamer_install_conf.merge_from(nnstreamer_conf)
+
+nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
+nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
+nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
+nnstreamer_install_conf.set('NNFW_RUNTIME_PRIORITIZE', get_option('nnfw-runtime-prioritize'))
+
+# Element restriction
+restriction_config = ''
+
+if get_option('enable-element-restriction')
+  restriction_config = '''[element-restriction]
+enable_element_restriction=True
+restricted_elements=''' + get_option('restricted-elements')
+endif
+
+nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)
+
+# Install .ini
+configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
+  install_dir: nnstreamer_inidir,
+  configuration: nnstreamer_install_conf
+)
+
+# Install .pc
+configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_install_conf
+)
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 
@@ -278,35 +310,3 @@ if get_option('enable-test')
     configuration: nnstreamer_test_conf
   )
 endif
-
-# Set configuration to install .ini
-nnstreamer_install_conf = configuration_data()
-nnstreamer_install_conf.merge_from(nnstreamer_conf)
-
-nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
-nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
-nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
-nnstreamer_install_conf.set('NNFW_RUNTIME_PRIORITIZE', get_option('nnfw-runtime-prioritize'))
-
-# Element restriction
-restriction_config = ''
-
-if get_option('enable-element-restriction')
-  restriction_config = '''[element-restriction]
-enable_element_restriction=True
-restricted_elements=''' + get_option('restricted-elements')
-endif
-
-nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)
-
-# Install .ini
-configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
-  install_dir: nnstreamer_inidir,
-  configuration: nnstreamer_install_conf
-)
-
-# Install .pc
-configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
-  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
-  configuration: nnstreamer_install_conf
-)
