@@ -28,6 +28,13 @@
  * @note This is experimental. The API and Class definition is NOT stable.
  *       If you want to write an OpenCV custom filter for nnstreamer, this is a good choice.
  *
+ * @details
+ *    This is a subplugin for C++ custom filters.
+ *    If you want to write a wrapper for neural network frameworks
+ *    or a hardware adaptor in C++, this is not for you.
+ *    If you want to attach a single C++ class/object as a filter
+ *    (a.k.a. custom filter) to a pipeline, this is what you want.
+ *
  * To Packagers:
  *
  * This is to be exposed with "nnstreamer-c++-dev"

@@ -8,3 +8,7 @@ tensor_filter_sources = [
 foreach s : tensor_filter_sources
   nnstreamer_sources += join_paths(meson.current_source_dir(), s)
 endforeach
+
+if get_option('enable-filter-cpp-class')
+  nnstreamer_sources += join_paths(meson.current_source_dir(), 'tensor_filter_support_cc.cc')
+endif
