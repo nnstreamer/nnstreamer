@@ -376,7 +376,11 @@ typedef struct _GstTensorFilterFramework
         * @param[in] private_data A subplugin may save its internal private data here.
         * @return 0 if supported. -errno if not supported.
         */
-    };
+    }
+#ifdef __NO_ANONYMOUS_NESTED_STRUCT
+        v0
+#endif
+    ;
 
     /**
      * @brief Tensor_Filter Subplugin definition Version 1
@@ -448,7 +452,12 @@ typedef struct _GstTensorFilterFramework
        * @param[in/out] data user sata for the supported handlers (can be NULL)
        * @return 0 if OK. non-zero if error. -ENOENT if operation is not supported. -EINVAL if operation is supported but provided arguments are invalid.
        */
-    };
+      void *subplugin_data; /**< A subplugin may store its own private global data here as well. Do not store data of each instance here, it is shared across all instances of a subplugin. */
+    }
+#ifdef __NO_ANONYMOUS_NESTED_STRUCT
+        v1
+#endif
+    ;
   };
 } GstTensorFilterFramework;
 
