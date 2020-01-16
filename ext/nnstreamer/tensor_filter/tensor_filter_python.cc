@@ -141,7 +141,6 @@ void init_filter_py (void) __attribute__ ((constructor));
 void fini_filter_py (void) __attribute__ ((destructor));
 
 std::map <void*, PyArrayObject*> PYCore::outputArrayMap;
-static GstTensorFilterFramework *filter_framework = NULL;
 
 /**
  * @brief	PYCore creator
@@ -765,6 +764,10 @@ py_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   PYCore *core = static_cast<PYCore *>(*private_data);
   g_return_val_if_fail (core && in_info && out_info, -EINVAL);
 
+  if (core->getCbType () != CB_SETDIM) {
+    return -EINVAL;
+  }
+
   return core->setInputTensorDim (in_info, out_info);
 }
 
@@ -781,6 +784,10 @@ py_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
   PYCore *core = static_cast<PYCore *>(*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
+  if (core->getCbType () != CB_GETDIM) {
+    return -EINVAL;
+  }
+
   return core->getInputTensorDim (info);
 }
 
@@ -796,6 +803,10 @@ py_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
 {
   PYCore *core = static_cast<PYCore *>(*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+
+  if (core->getCbType () != CB_GETDIM) {
+    return -EINVAL;
+  }
 
   return core->getOutputTensorDim (info);
 }
@@ -860,21 +871,8 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
     return -2;
   }
 
-  g_assert (filter_framework);
-
   /** check methods in python script */
-  switch (core->getCbType ()) {
-    case CB_SETDIM:
-      filter_framework->getInputDimension = NULL;
-      filter_framework->getOutputDimension = NULL;
-      filter_framework->setInputDimension = &py_setInputDim;
-      break;
-    case CB_GETDIM:
-      filter_framework->getInputDimension = &py_getInputDim;
-      filter_framework->getOutputDimension = &py_getOutputDim;
-      filter_framework->setInputDimension = NULL;
-      break;
-    default:
+  if (core->getCbType () != CB_SETDIM && core->getCbType () != CB_GETDIM) {
       delete core;
       g_printerr ("Wrong callback type\n");
       return -2;
@@ -930,7 +928,6 @@ init_filter_py (void)
   NNS_support_python.destroyNotify = py_destroyNotify;
 
   nnstreamer_filter_probe (&NNS_support_python);
-  filter_framework = &NNS_support_python;
   /** Python should be initialized and finalized only once */
   Py_Initialize();
 }
