@@ -72,15 +72,13 @@ private:
 
   Workspace workSpace;
   NetDef initNet, predictNet;
-  static std::map <char*, Tensor*> inputTensorMap;
+  std::map <char*, Tensor*> inputTensorMap;
 
   int initInputTensor ();
 };
 
 void init_filter_caffe2 (void) __attribute__ ((constructor));
 void fini_filter_caffe2 (void) __attribute__ ((destructor));
-
-std::map <char*, Tensor*> Caffe2Core::inputTensorMap;
 
 /**
  * @brief	Caffe2Core creator
