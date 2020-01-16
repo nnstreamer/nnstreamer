@@ -100,6 +100,7 @@ public:
   int run (const GstTensorMemory * input, GstTensorMemory * output);
 
   int parseOutputTensors(PyObject* result, GstTensorsInfo * info);
+  void freeOutputTensors(void *data);
 
   /** @brief Return callback type */
   cb_type getCbType () { return callback_type; }
@@ -116,13 +117,13 @@ public:
   tensor_type getTensorType (NPY_TYPES npyType);
   NPY_TYPES getNumpyType (tensor_type tType);
 
-  static std::map <void*, PyArrayObject*> outputArrayMap;
 private:
 
   const std::string script_path;  /**< from model_path property */
   const std::string module_args;  /**< from custom property */
 
   std::string module_name;
+  std::map <void*, PyArrayObject*> outputArrayMap;
 
   cb_type callback_type;
 
@@ -139,8 +140,6 @@ private:
 
 void init_filter_py (void) __attribute__ ((constructor));
 void fini_filter_py (void) __attribute__ ((destructor));
-
-std::map <void*, PyArrayObject*> PYCore::outputArrayMap;
 
 /**
  * @brief	PYCore creator
@@ -565,6 +564,24 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
 }
 
 /**
+ * @brief free output tensor corresponding to the given data
+ * @param[data] The data element
+ */
+void
+PYCore::freeOutputTensors (void *data)
+{
+  std::map <void*, PyArrayObject*>::iterator it;
+
+  it = outputArrayMap.find(data);
+  if (it != outputArrayMap.end()){
+    Py_XDECREF(it->second);
+    outputArrayMap.erase (it);
+  } else {
+    g_critical("Cannot find output data: 0x%lx", (unsigned long) data);
+  }
+}
+
+/**
  * @brief	run the script with the input.
  * @param[in] input : The array of input tensors
  * @param[out]  output : The array of output tensors
@@ -740,13 +757,10 @@ py_run (const GstTensorFilterProperties * prop, void **private_data,
 static void
 py_destroyNotify (void **private_data, void *data)
 {
-  std::map <void*, PyArrayObject*>::iterator it;
-  it = PYCore::outputArrayMap.find(data);
-  if (it != PYCore::outputArrayMap.end()){
-    Py_XDECREF(it->second);
-    PYCore::outputArrayMap.erase (it);
-  } else {
-    g_critical("Cannot find output data: 0x%lx", (unsigned long) data);
+  PYCore *core = static_cast<PYCore *>(*private_data);
+
+  if (core) {
+    core->freeOutputTensors (data);
   }
 }
 

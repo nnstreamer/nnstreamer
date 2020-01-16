@@ -74,8 +74,7 @@ public:
   int getInputTensorDim (GstTensorsInfo * info);
   int getOutputTensorDim (GstTensorsInfo * info);
   int run (const GstTensorMemory * input, GstTensorMemory * output);
-
-  static std::map < void *, TF_Tensor * >outputTensorMap;
+  void freeOutputTensor (void *data);
 
 private:
 
@@ -85,6 +84,7 @@ private:
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors from user input */
 
   std::vector < tf_tensor_info_s > input_tensor_info; /* hold information for TF */
+  std::map < void *, TF_Tensor * > outputTensorMap;
 
   TF_Graph *graph;
   TF_Session *session;
@@ -96,8 +96,6 @@ private:
 
 void init_filter_tf (void) __attribute__ ((constructor));
 void fini_filter_tf (void) __attribute__ ((destructor));
-
-std::map <void*, TF_Tensor*> TFCore::outputTensorMap;
 
 /**
  * @brief	TFCore creator
@@ -590,6 +588,18 @@ failed:
 }
 
 /**
+ * @brief free output tensor corresponding to the given data
+ * @param[in] data The data element
+ */
+void
+TFCore::freeOutputTensor (void *data)
+{
+  TF_Tensor *output_tensor = outputTensorMap.find (data)->second;
+  TF_DeleteTensor (output_tensor);
+  outputTensorMap.erase (data);
+}
+
+/**
  * @brief Free privateData and move on.
  */
 static void
@@ -720,8 +730,11 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
 static void
 tf_destroyNotify (void **private_data, void *data)
 {
-  TF_DeleteTensor ( (TFCore::outputTensorMap.find (data))->second);
-  TFCore::outputTensorMap.erase (data);
+  TFCore *core = static_cast<TFCore *>(*private_data);
+
+  if (core) {
+    core->freeOutputTensor (data);
+  }
 }
 
 static gchar filter_subplugin_tensorflow[] = "tensorflow";
