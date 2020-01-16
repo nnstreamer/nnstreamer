@@ -138,7 +138,7 @@ if get_option('enable-nnfw-runtime')
   subdir('tizen_nnfw_runtime')
 endif
 
-if get_option('enable-edgetpu')
+if get_option('enable-tensorflow-lite') and get_option('enable-edgetpu')
   subdir('nnstreamer_filter_edgetpu')
 endif
 
