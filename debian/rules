@@ -36,7 +36,9 @@ override_dh_auto_clean:
 
 override_dh_auto_configure:
 	mkdir -p build
-	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include -Dinstall-example=true -Denable-tensorflow=$(enable_tf) -Denable-capi=true -Denable-tizen=false build
+	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
+	-Dinstall-example=true -Denable-tensorflow=$(enable_tf) -Denable-tensorflow-lite=true -Denable-pytorch=true -Denable-caffe2=true \
+	-Denable-capi=true -Denable-tizen=false build
 
 override_dh_auto_build:
 	ninja -C build
