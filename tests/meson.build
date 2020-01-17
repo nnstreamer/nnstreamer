@@ -61,6 +61,19 @@ if gtest_dep.found()
     gtest_dep
   ]
 
+  # Shared library of internal APIs for nnstreamer-gtest
+  unittest_util_shared = shared_library('unittest_util',
+    join_paths(meson.current_source_dir(), 'unittest_util.c'),
+    dependencies: nnstreamer_base_deps,
+    include_directories: nnstreamer_inc,
+    install: get_option('install-test'),
+    install_dir: nnstreamer_libdir
+  )
+  unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
+    dependencies: nnstreamer_base_deps,
+    include_directories: include_directories('.')
+  )
+
   # Run unittest_common
   unittest_common = executable('unittest_common',
     join_paths('common', 'unittest_common.cc'),
@@ -74,7 +87,7 @@ if gtest_dep.found()
   # Run unittest_sink
   unittest_sink = executable('unittest_sink',
     join_paths('nnstreamer_sink', 'unittest_sink.cc'),
-    dependencies: [nnstreamer_unittest_deps],
+    dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )

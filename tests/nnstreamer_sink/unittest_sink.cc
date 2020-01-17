@@ -16,6 +16,7 @@
 
 #include "tensor_common.h"
 #include "nnstreamer_plugin_api_filter.h"
+#include <unittest_util.h>
 
 /**
  * @brief Macro for debug mode.
@@ -29,11 +30,6 @@
 #else
 #define SO_EXT  "so"
 #endif /* __MACOS__ */
-
-/**
- * @brief Macro for debug message.
- */
-#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
 
 /**
  * @brief Macro to check error case.
@@ -995,39 +991,6 @@ error:
   g_test_data.test_failed = TRUE;
   _free_test_data ();
   return FALSE;
-}
-
-/**
- * @brief Get temp file name.
- * @return file name (should free string with g_free)
- */
-static gchar *
-_get_temp_filename (void)
-{
-  const gchar *tmp_dir;
-  gchar *tmp_fn;
-  gint fd;
-
-  if ((tmp_dir = g_get_tmp_dir ()) == NULL) {
-    _print_log ("failed to get tmp dir");
-    return NULL;
-  }
-
-  tmp_fn = g_build_filename (tmp_dir, "nnstreamer_unittest_temp_XXXXXX", NULL);
-  fd = g_mkstemp (tmp_fn);
-
-  if (fd < 0) {
-    _print_log ("failed to create temp file %s", tmp_fn);
-    g_free (tmp_fn);
-    return NULL;
-  }
-
-  g_close (fd, NULL);
-  if (g_remove (tmp_fn) != 0) {
-    _print_log ("failed to remove temp file %s", tmp_fn);
-  }
-
-  return tmp_fn;
 }
 
 /**
