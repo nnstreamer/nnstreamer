@@ -42,7 +42,7 @@ setPipelineStateSync (GstElement * pipeline, GstState state,
  * @return file name (should free string with g_free)
  */
 gchar *
-_get_temp_filename (void)
+getTempFilename (void)
 {
   const gchar *tmp_dir;
   gchar *tmp_fn;

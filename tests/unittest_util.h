@@ -32,7 +32,7 @@ extern int setPipelineStateSync (GstElement *pipeline, GstState state, uint32_t 
  * @brief Get temp file name.
  * @return file name (should free string with g_free)
  */
-extern gchar * _get_temp_filename (void);
+extern gchar * getTempFilename (void);
 
 #ifdef __cplusplus
 }
