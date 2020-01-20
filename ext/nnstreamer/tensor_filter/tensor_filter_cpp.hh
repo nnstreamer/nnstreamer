@@ -50,16 +50,21 @@
  *          - - so's init() { myfilter fx("myfilter");
  *                            fx.register(); }
  *
+ *	User should aware that the model name of a filter should be
+ *     unique across all the .so files used in a pipeline. Otherwise,
+ *     "Already registered (-EINVAL)" may occur.
+ *
  */
 #ifndef __NNS_TENSOR_FITLER_CPP_H__
 #define __NNS_TENSOR_FITLER_CPP_H__
 
+#ifdef __cplusplus
+
 #include <atomic>
+#include <vector>
 #include <stdint.h>
 #include <unordered_map>
 #include <nnstreamer_plugin_api_filter.h>
-
-#ifdef __cplusplus
 
 /**
  * @brief This allows to have a c++ class inserted as a filter in a neural network pipeline of nnstreamer
@@ -76,6 +81,8 @@ class tensor_filter_cpp {
 
     std::atomic_uint ref_count;
     static std::unordered_map<std::string, tensor_filter_cpp*> filters;
+    static std::vector<void *> handles;
+    static bool dlclose_all_called;
 
   protected:
     const GstTensorFilterProperties *prop;
@@ -106,6 +113,7 @@ class tensor_filter_cpp {
            (constructed) by tensor_filter at run-time.
            If you don't want to touch initial ref_count, keep it 0.
       */
+    /** @brief Register this instance (same effect with __register) */
     int _register(unsigned int ref_count = 0) {
       return __register(this, ref_count);
     }
@@ -113,6 +121,7 @@ class tensor_filter_cpp {
       /**< Unregister the run-time registered c++ filter.
            Do not call this to filters loaded as a .so (independent)
            filter. */
+    /** @brief Unregister this instance (same effect with __unregister */
     int _unregister() {
       return __unregister(this->name);
     }
@@ -127,6 +136,7 @@ class tensor_filter_cpp {
     static int invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output);
     static int open (const GstTensorFilterProperties *prop, void **private_data);
     static void close (const GstTensorFilterProperties *prop, void **private_data);
+    static void dlclose_all (void);
 };
 
 #endif /* __cplusplus */

@@ -27,6 +27,7 @@
  */
 #include <iostream>
 #include <string>
+#include <assert.h>
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -39,8 +40,11 @@
 #include "tensor_filter_cpp.hh"
 
 std::unordered_map<std::string, tensor_filter_cpp*> tensor_filter_cpp::filters;
+std::vector<void *> tensor_filter_cpp::handles;
+G_LOCK_DEFINE_STATIC (lock_handles);
 
 static gchar filter_subplugin_cpp[] = "cpp";
+bool tensor_filter_cpp::dlclose_all_called = false;
 
 static GstTensorFilterFramework NNS_support_cpp = {
   .name = filter_subplugin_cpp,
@@ -59,8 +63,9 @@ static GstTensorFilterFramework NNS_support_cpp = {
 
 #define loadClass(name, ptr) \
   class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
-  g_assert (*(ptr)); \
-  g_assert (name->isValid());
+  assert (false == dlclose_all_called); \
+  assert (*(ptr)); \
+  assert (name->isValid());
 
 /**
  * @brief Class constructor
@@ -200,16 +205,21 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
       return -EINVAL; /** Model file / name not found */
     }
 
-    /** At this stage, the constructor of the .so file should have registered
-      * itself with tensor_filter_cpp_register() */
-    dlclose (handle);
-
     if (filters.find(prop->model_files[0]) == filters.end()) {
       /** It's still not found. it's not there. */
+      dlclose (handle);
       g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s is not found in %s.\n",
           prop->model_files[0], prop->model_files[1]);
       return -EINVAL;
     }
+
+    /** We do not know until when this handle might be required: user may
+      * invoke functions from it at anytime while the pipeline is not
+      * closed */
+    G_LOCK (lock_handles);
+    handles.push_back (handle);
+    G_UNLOCK (lock_handles);
+
   }
 
   *private_data = cpp = filters[prop->model_files[0]];
@@ -237,6 +247,33 @@ G_BEGIN_DECLS
 void init_filter_cpp (void) __attribute__ ((constructor));
 void fini_filter_cpp (void) __attribute__ ((destructor));
 
+/**
+ * @brief Call dlclose for all handle
+ */
+void tensor_filter_cpp::dlclose_all ()
+{
+  assert (false == dlclose_all_called);
+/**
+ * Ubuntu 16.04 / GLIBC 2.23 Workaround
+ * If we do dlclose at exit() function, it may incur
+ * https://bugzilla.redhat.com/show_bug.cgi?id=1264556#c42
+ * , which is a GLIBC bug at 2.23.
+ * The corresponding error message is:
+ * Inconsistency detected by ld.so: dl-close.c: 811:
+ * _dl_close: Assertion `map->l_init_called' failed!
+ */
+#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ == 23)
+  /* Do not call dlclose */
+#else
+  G_LOCK (lock_handles);
+  for (void *handle : handles) {
+    dlclose (handle);
+  }
+  G_UNLOCK (lock_handles);
+#endif
+  dlclose_all_called = true;
+}
+
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_cpp (void)
@@ -249,5 +286,6 @@ void
 fini_filter_cpp (void)
 {
   nnstreamer_filter_exit (NNS_support_cpp.name);
+  tensor_filter_cpp::dlclose_all ();
 }
 G_END_DECLS
