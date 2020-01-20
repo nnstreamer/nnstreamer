@@ -611,6 +611,15 @@ nnstreamer_native_initialize (void)
 
   result = JNI_TRUE;
 
+  /* print version info */
+  gchar *gst_ver = gst_version_string ();
+  gchar *nns_ver = nnstreamer_version_string ();
+
+  nns_logi ("%s %s GLib %d.%d.%d", nns_ver, gst_ver, GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
+
+  g_free (gst_ver);
+  g_free (nns_ver);
+
 done:
   G_UNLOCK (nns_native_lock);
   return result;
@@ -643,19 +652,14 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env, jc
 }
 
 /**
- * @brief Native method to get the version string of NNStreamer and GStreamer.
+ * @brief Native method to get the version string of NNStreamer.
  */
 jstring
 Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env, jclass clazz)
 {
-  gchar *gst_ver = gst_version_string ();
-  gchar *version_str = g_strdup_printf ("NNStreamer %s, %s", VERSION, gst_ver);
+  gchar *nns_ver = nnstreamer_version_string ();
+  jstring version = (*env)->NewStringUTF (env, nns_ver);
 
-  jstring version = (*env)->NewStringUTF (env, version_str);
-
-  nns_logi ("%s, GLib %d.%d.%d", version_str, GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
-
-  g_free (gst_ver);
-  g_free (version_str);
+  g_free (nns_ver);
   return version;
 }

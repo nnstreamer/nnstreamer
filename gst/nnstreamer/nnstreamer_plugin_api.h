@@ -352,5 +352,12 @@ find_key_strv (const gchar ** strv, const gchar * key);
 extern gchar *
 replace_string (gchar * source, const gchar * what, const gchar * to, const gchar * delimiters, guint * count);
 
+/**
+ * @brief Get the version of NNStreamer.
+ * @return Newly allocated string. The returned string should be freed with g_free().
+ */
+extern gchar *
+nnstreamer_version_string (void);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

@@ -1457,3 +1457,16 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   /* not eos */
   return FALSE;
 }
+
+/**
+ * @brief Get the version of NNStreamer.
+ * @return Newly allocated string. The returned string should be freed with g_free().
+ */
+gchar *
+nnstreamer_version_string (void)
+{
+  gchar *version;
+
+  version = g_strdup_printf ("NNStreamer %s", VERSION);
+  return version;
+}
