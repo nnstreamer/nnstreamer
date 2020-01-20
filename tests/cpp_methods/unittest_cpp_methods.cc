@@ -287,8 +287,8 @@ TEST (cpp_filter_on_demand, basic_04_n)
 TEST (cpp_filter_on_demand, pipeline_01)
 {
   filter_basic basic("pl01");
-  char *tmp1 = _get_temp_filename ();
-  char *tmp2 = _get_temp_filename ();
+  char *tmp1 = getTempFilename ();
+  char *tmp2 = getTempFilename ();
 
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);
@@ -358,9 +358,9 @@ TEST (cpp_filter_on_demand, unregistered_01_n)
 
 TEST (cpp_filter_obj, base_01_n)
 {
-  char *tmp1 = _get_temp_filename ();
-  char *tmp2 = _get_temp_filename ();
-  char *tmp3 = _get_temp_filename ();
+  char *tmp1 = getTempFilename ();
+  char *tmp2 = getTempFilename ();
+  char *tmp3 = getTempFilename ();
 
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);
@@ -393,9 +393,9 @@ GError *err = NULL;
 
 TEST (cpp_filter_obj, base_02_n)
 {
-  char *tmp1 = _get_temp_filename ();
-  char *tmp2 = _get_temp_filename ();
-  char *tmp3 = _get_temp_filename ();
+  char *tmp1 = getTempFilename ();
+  char *tmp2 = getTempFilename ();
+  char *tmp3 = getTempFilename ();
 
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);
@@ -428,11 +428,11 @@ TEST (cpp_filter_obj, base_02_n)
 
 TEST (cpp_filter_obj, base_03)
 {
-  char *tmp1 = _get_temp_filename ();
-  char *tmp2 = _get_temp_filename ();
-  char *tmp3 = _get_temp_filename ();
-  char *tmp4 = _get_temp_filename ();
-  char *tmp5 = _get_temp_filename ();
+  char *tmp1 = getTempFilename ();
+  char *tmp2 = getTempFilename ();
+  char *tmp3 = getTempFilename ();
+  char *tmp4 = getTempFilename ();
+  char *tmp5 = getTempFilename ();
 
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);

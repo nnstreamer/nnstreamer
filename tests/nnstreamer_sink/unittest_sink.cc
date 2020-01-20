@@ -4252,7 +4252,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_1 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4317,7 +4317,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4382,7 +4382,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_3 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4466,7 +4466,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_1 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4531,7 +4531,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4596,7 +4596,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_3 };
 
   option.need_sync = TRUE;
-  option.tmpfile = _get_temp_filename ();
+  option.tmpfile = getTempFilename ();
   EXPECT_TRUE (option.tmpfile != NULL);
 
   ASSERT_TRUE (_setup_pipeline (option));
