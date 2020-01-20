@@ -126,7 +126,7 @@ public final class NNStreamer {
     }
 
     /**
-     * Gets the version string of GStreamer and NNStreamer.
+     * Gets the version string of NNStreamer.
      *
      * @return The version string
      */
