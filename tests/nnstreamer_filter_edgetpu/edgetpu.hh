@@ -1,5 +1,5 @@
 /**
- * @file        edgetpu.h
+ * @file        edgetpu.hh
  * @date        16 Dec 2019
  * @brief       Dummy implementation of tflite and edgetpu for unit tests.
  * @see         https://github.com/nnsuite/nnstreamer
@@ -114,7 +114,7 @@ TfLiteRegistration * RegisterCustomOp();
 static const EdgeTpuManager::DeviceEnumerationRecord dummyRecord =
     { .type = DeviceType::kApexUsb, .path = "Dummy" };
 
-/** @brief Dummy, making this equivalent to original edgetpu-runtime (2019-12) */  
+/** @brief Dummy, making this equivalent to original edgetpu-runtime (2019-12) */
 class EdgeTpuContextDummy : public EdgeTpuContext {
 public:
   /** @brief Dummy API */

@@ -11,7 +11,7 @@
  */
 #include <iostream>
 #include <cassert>
-#include "edgetpu.h"
+#include "edgetpu.hh"
 #include <stdio.h>
 
 namespace edgetpu {

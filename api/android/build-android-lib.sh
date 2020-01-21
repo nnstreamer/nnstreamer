@@ -230,7 +230,7 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/ext/nnstreamer/tensor_filter/tensor_filter_cpp.h main/jni/nnstreamer/include
+    cp $NNSTREAMER_ROOT/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
     zip -r $nnstreamer_native_files main
