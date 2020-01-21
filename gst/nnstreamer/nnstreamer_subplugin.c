@@ -24,20 +24,27 @@
  */
 
 #include <dlfcn.h>
+#include <features.h>           /* Check libc version for dlclose-related workaround */
 #include <glib.h>
 #include <gmodule.h>
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
+/** @brief Array of dlopen-ed handles */
+static GPtrArray *handles = NULL;
+
+static void init_subplugin (void) __attribute__ ((constructor));
+static void fini_subplugin (void) __attribute__ ((destructor));
+
 typedef struct
 {
   char *name; /**< The name of subplugin */
   const void *data; /**< subplugin specific data forwarded from the subplugin */
-  void *handle; /**< dlopen'ed handle */
 } subpluginData;
 
 static GHashTable *subplugins[NNS_SUBPLUGIN_END] = { 0 };
 
+/** @brief Protects handles and subplugins */
 G_LOCK_DEFINE_STATIC (splock);
 
 /** @brief Private function for g_hash_table data destructor, GDestroyNotify */
@@ -46,8 +53,6 @@ _spdata_destroy (gpointer _data)
 {
   subpluginData *data = _data;
   g_free (data->name);
-  if (data->handle)
-    dlclose (data->handle);
   g_free (data);
 }
 
@@ -103,6 +108,7 @@ get_subplugin (subpluginType type, const char *name)
         g_critical ("Cannot dlopen %s with error %s.", fullpath, dlerror ());
         continue;
       }
+      g_ptr_array_add (handles, (gpointer) handle);
     }
 
     searchAlgorithm[type] = NNS_SEARCH_NO_OP;
@@ -139,6 +145,7 @@ get_subplugin (subpluginType type, const char *name)
       dlclose (handle);
       goto error;
     }
+    g_ptr_array_add (handles, (gpointer) handle);
   }
 
 error:
@@ -192,7 +199,6 @@ register_subplugin (subpluginType type, const char *name, const void *data)
 
   spdata->name = g_strdup (name);
   spdata->data = data;
-  spdata->handle = NULL;
 
   G_LOCK (splock);
   ret = g_hash_table_insert (subplugins[type], g_strdup (name), spdata);
@@ -215,4 +221,48 @@ unregister_subplugin (subpluginType type, const char *name)
   G_UNLOCK (splock);
 
   return ret;
+}
+
+/** @brief dlclose as dealloc function for handles */
+static void
+_dlclose (gpointer data)
+{
+/**
+ * Ubuntu 16.04 / GLIBC 2.23 Workaround
+ * If we do dlclose at exit() function, it may incur
+ * https://bugzilla.redhat.com/show_bug.cgi?id=1264556#c42
+ * , which is a GLIBC bug at 2.23.
+ * The corresponding error message is:
+ * Inconsistency detected by ld.so: dl-close.c: 811:
+ * _dl_close: Assertion `map->l_init_called' failed!
+ */
+#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ == 23)
+  return;                       /* Do not call dlclose and return */
+#else
+  void *ptr = data;
+  dlclose (ptr);
+#endif
+}
+
+/** @brief Create handles at the start of library */
+static void
+init_subplugin (void)
+{
+  G_LOCK (splock);
+  g_assert (NULL == handles);
+  handles = g_ptr_array_new_full (16, _dlclose);
+  G_UNLOCK (splock);
+}
+
+/** @brief Free handles at the start of library */
+static void
+fini_subplugin (void)
+{
+  G_LOCK (splock);
+  g_assert (handles);
+
+  /* iterate and call dlclose by calling g_array_clear */
+  g_ptr_array_free (handles, TRUE);
+  handles = NULL;
+  G_UNLOCK (splock);
 }
