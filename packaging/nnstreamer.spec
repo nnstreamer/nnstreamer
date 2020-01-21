@@ -567,7 +567,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 
 %files cpp-devel
-%{_includedir}/nnstreamer/tensor_filter_cpp.h
+%{_includedir}/nnstreamer/tensor_filter_cpp.hh
 %{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
 %ifarch aarch64 x86_64

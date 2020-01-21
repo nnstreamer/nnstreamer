@@ -36,7 +36,7 @@
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 
-#include "tensor_filter_cpp.h"
+#include "tensor_filter_cpp.hh"
 
 std::unordered_map<std::string, tensor_filter_cpp*> tensor_filter_cpp::filters;
 

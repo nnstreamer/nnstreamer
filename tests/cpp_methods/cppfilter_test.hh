@@ -12,7 +12,7 @@
 #include <vector>
 
 #include <glib.h>
-#include <tensor_filter_cpp.h>
+#include <tensor_filter_cpp.hh>
 
 class filter_basic: public tensor_filter_cpp {
   public:

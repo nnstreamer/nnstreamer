@@ -278,7 +278,7 @@ if get_option('enable-cppfilter')
     install: true,
     install_dir: filter_subplugin_install_dir
   )
-  install_headers(['tensor_filter_cpp.h'],
+  install_headers(['tensor_filter_cpp.hh'],
     subdir: 'nnstreamer'
   )
   configure_file(input: 'nnstreamer-cpp.pc.in', output: 'nnstreamer-cpp.pc',

@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file	tensor_filter_cpp.h
+ * @file	tensor_filter_cpp.hh
  * @date	24 Sep 2019
  * @brief	Custom tensor processing interface for C++ codes.
  * @see		http://github.com/nnsuite/nnstreamer
