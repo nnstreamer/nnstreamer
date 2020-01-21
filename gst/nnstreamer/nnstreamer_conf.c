@@ -356,35 +356,38 @@ nnsconf_loadconf (gboolean force_reload)
      * Note that Android API does not use the configuration.
      */
     g_warning ("Failed to load the configuration, no config file found.");
-    return FALSE;
   }
 
-  key_file = g_key_file_new ();
-  g_assert (key_file != NULL);
+  if (conf.conffile) {
+    key_file = g_key_file_new ();
+    g_assert (key_file != NULL);
 
-  /* Read the conf file. It's ok even if we cannot load it. */
-  if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
-          NULL)) {
-    gchar *value;
+    /* Read the conf file. It's ok even if we cannot load it. */
+    if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
+            NULL)) {
+      gchar *value;
 
-    value = g_key_file_get_string (key_file, "common", "enable_envvar", NULL);
-    conf.enable_envvar = _parse_bool_string (value, FALSE);
-    g_free (value);
+      value = g_key_file_get_string (key_file, "common", "enable_envvar", NULL);
+      conf.enable_envvar = _parse_bool_string (value, FALSE);
+      g_free (value);
 
-    value = g_key_file_get_string (key_file, "common", "enable_symlink", NULL);
-    conf.enable_symlink = _parse_bool_string (value, FALSE);
-    g_free (value);
+      value =
+          g_key_file_get_string (key_file, "common", "enable_symlink", NULL);
+      conf.enable_symlink = _parse_bool_string (value, FALSE);
+      g_free (value);
 
-    conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI] =
-        g_key_file_get_string (key_file, "filter", "filters", NULL);
-    conf.conf[NNSCONF_PATH_DECODERS].path[CONF_SOURCE_INI] =
-        g_key_file_get_string (key_file, "decoder", "decoders", NULL);
-    conf.conf[NNSCONF_PATH_CUSTOM_FILTERS].path[CONF_SOURCE_INI] =
-        g_key_file_get_string (key_file, "filter", "customfilters", NULL);
-    conf.conf[NNSCONF_PATH_CONVERTERS].path[CONF_SOURCE_INI] =
-        g_key_file_get_string (key_file, "converter", "converters", NULL);
+      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI] =
+          g_key_file_get_string (key_file, "filter", "filters", NULL);
+      conf.conf[NNSCONF_PATH_DECODERS].path[CONF_SOURCE_INI] =
+          g_key_file_get_string (key_file, "decoder", "decoders", NULL);
+      conf.conf[NNSCONF_PATH_CUSTOM_FILTERS].path[CONF_SOURCE_INI] =
+          g_key_file_get_string (key_file, "filter", "customfilters", NULL);
+      conf.conf[NNSCONF_PATH_CONVERTERS].path[CONF_SOURCE_INI] =
+          g_key_file_get_string (key_file, "converter", "converters", NULL);
+    }
+
+    g_key_file_free (key_file);
   }
-
 
   for (t = 0; t < NNSCONF_PATH_END; t++) {
     if (t == NNSCONF_PATH_EASY_CUSTOM_FILTERS)
