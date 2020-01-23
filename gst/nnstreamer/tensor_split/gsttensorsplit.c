@@ -643,14 +643,17 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
     }
     case PROP_TENSORSEG:
     {
-      if (split->tensorseg && split->tensorseg->len > 0) {
+      if ((split->tensorseg) && (split->tensorseg->len > 0)) {
         tensor_dim *dim = NULL;
+        gchar *strv = NULL;
         int i, j;
-        gchar **strings;
-        gchar *p, *strv;
+
 
         for (i = 0; i < split->tensorseg->len; i++) {
           GPtrArray *arr = g_ptr_array_new ();
+          gchar *p = NULL;
+          gchar **strings;
+
           dim = g_array_index (split->tensorseg, tensor_dim *, i);
           for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
             g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
@@ -673,7 +676,8 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
             strv = p;
           }
         }
-        g_value_take_string (value, strv);
+        /* the second parameter, strv (i.e., gchar *v_string), is nullable */
+        g_value_take_string (value, strv ? strv : g_strdup (""));
       } else {
         g_value_set_string (value, "");
       }
