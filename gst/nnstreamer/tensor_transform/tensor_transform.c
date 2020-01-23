@@ -1467,13 +1467,14 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 {
   int i;
 
+  /* copy input info first, then update output info */
+  gst_tensor_info_copy (out_info, in_info);
+
   switch (filter->mode) {
     case GTT_DIMCHG:
     {
       int from = filter->data_dimchg.from;
       int to = filter->data_dimchg.to;
-
-      out_info->type = in_info->type;
 
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -1508,8 +1509,6 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
     }
     case GTT_TYPECAST:
       /** For both directions, dimension does not change */
-      gst_tensor_info_copy (out_info, in_info);
-
       if (direction == GST_PAD_SINK) {
           /** src = SINKPAD / dest = SRCPAD */
         out_info->type = filter->data_typecast.to;
@@ -1517,8 +1516,6 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_ARITHMETIC:
-      gst_tensor_info_copy (out_info, in_info);
-
       /* check arith mode option has typecast operator */
       if (direction == GST_PAD_SINK &&
           filter->data_arithmetic.out_type != _NNS_END) {
@@ -1527,8 +1524,6 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_TRANSPOSE:
-      out_info->type = in_info->type;
-
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
           out_info->dimension[i] =
@@ -1545,7 +1540,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_STAND:
-      gst_tensor_info_copy (out_info, in_info);
+      /* same tensors info, do nothing. */
       break;
 
     default:
