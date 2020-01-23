@@ -254,12 +254,19 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
 {
   GSList *lstF = NULL, *lstB = NULL;
   vstr_helper vstrF, vstrB;
-  guint i, counter;
+  guint i, j, counter;
 
   counter = 0;
   for (i = 0; i < CONF_SOURCE_END; i++) {
     if (searchpath[i]) {
-      _get_filenames (type, searchpath[i], &lstF, &lstB, &counter);
+      /* skip duplicated paths */
+      for (j = i + 1; j < CONF_SOURCE_END; j++) {
+        if (searchpath[j] && !g_strcmp0 (searchpath[i], searchpath[j])) {
+          break;
+        }
+      }
+      if (j == CONF_SOURCE_END)
+        _get_filenames (type, searchpath[i], &lstF, &lstB, &counter);
     }
   }
 
