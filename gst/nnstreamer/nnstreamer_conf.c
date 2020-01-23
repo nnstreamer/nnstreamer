@@ -317,7 +317,7 @@ nnsconf_loadconf (gboolean force_reload)
 #ifndef __TIZEN__
   /** if it's not Tizen, configuration from env-var has a higher priority */
   conf.conffile = _strdup_getenv (NNSTREAMER_ENVVAR_CONF_FILE);
-  if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
+  if (conf.conffile && !g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
     g_free (conf.conffile);
     conf.conffile = NULL;
   }
@@ -350,14 +350,6 @@ nnsconf_loadconf (gboolean force_reload)
     }
   }
 
-  if (conf.conffile == NULL) {
-    /**
-     * Failed to get the configuration.
-     * Note that Android API does not use the configuration.
-     */
-    g_warning ("Failed to load the configuration, no config file found.");
-  }
-
   if (conf.conffile) {
     key_file = g_key_file_new ();
     g_assert (key_file != NULL);
@@ -387,6 +379,12 @@ nnsconf_loadconf (gboolean force_reload)
     }
 
     g_key_file_free (key_file);
+  } else {
+    /**
+     * Failed to get the configuration.
+     * Note that Android API does not use the configuration.
+     */
+    g_warning ("Failed to load the configuration, no config file found.");
   }
 
   for (t = 0; t < NNSCONF_PATH_END; t++) {
