@@ -136,7 +136,8 @@ unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
 tensor_filter_ext_enabled = get_option('enable-tensorflow-lite') or \
     get_option('enable-python') or get_option('enable-tensorflow') or \
     get_option('enable-pytorch') or get_option('enable-caffe2') or \
-    get_option('enable-nnfw-runtime') or get_option('enable-edgetpu')
+    get_option('enable-nnfw-runtime') or get_option('enable-edgetpu') or \
+    get_option('enable-movidius-ncsdk2')
 if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
@@ -154,6 +155,11 @@ endif
 if get_option('enable-tensorflow-lite') and get_option('enable-edgetpu')
   subdir('nnstreamer_filter_edgetpu')
 endif
+
+if get_option('enable-movidius-ncsdk2')
+  subdir('nnstreamer_filter_mvncsdk2')
+endif
+
 
 if get_option('enable-cppfilter')
   subdir('cpp_methods')
@@ -186,6 +192,9 @@ if get_option('install-test')
   endif
   if get_option('enable-caffe2')
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_tests_install_dir)
+  endif
+  if get_option('enable-movidius-ncsdk2')
+    install_subdir('unittest_filter_mvncsdk2', install_dir: unittest_tests_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_repo', install_dir: unittest_tests_install_dir)
