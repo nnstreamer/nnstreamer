@@ -395,6 +395,9 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     LD_LIBRARY_PATH=./tests/nnstreamer_filter_edgetpu:. ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu --gst-plugin-path=. --gtest_output="xml:unittest_edgetpu.xml"
     popd
 %endif #ifarch 64
+    pushd build
+    LD_LIBRARY_PATH=./tests/nnstreamer_filter_mvncsdk2:. ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2 --gst-plugin-path=. --gtest_output="xml:unittest_mvncsdk2.xml"
+    popd
     pushd tests
     ssat -n --summary summary.txt
     popd
