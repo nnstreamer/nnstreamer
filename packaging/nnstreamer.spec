@@ -381,6 +381,9 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
     ln -s ext/nnstreamer/tensor_source/*.so .
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
+    pushd build
+    LD_LIBRARY_PATH=./tests/nnstreamer_filter_mvncsdk2:. ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2 --gst-plugin-path=. --gtest_output="xml:unittest_mvncsdk2.xml"
+    popd
 %endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests
