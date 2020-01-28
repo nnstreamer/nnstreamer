@@ -23,7 +23,7 @@ Summary:	gstreamer plugins for neural networks
 # 2. Tizen  : ./packaging/nnstreamer.spec
 # 3. Android: ./jni/nnstreamer.mk
 # 4. Meson  : ./meson.build
-Version:	1.3.0
+Version:	1.3.1
 Release:	0
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -578,6 +578,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %changelog
+* Mon Feb 03 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 1.3.1
+
 * Wed Dec 11 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
 - 1.3.0 development starts
 
