@@ -244,6 +244,12 @@ if get_option('enable-tflite-nnapi-delegation')
   # For tf-lite/nnapi, enable-nnfw allows to use nnfw::tflite::nnapi as a backend.
 endif
 
+# ArmNN
+if get_option('enable-armnn')
+  armnn_dep = dependency('armnn', required: true)
+  add_project_arguments('-DENABLE_ARMNN=1', language: ['c', 'cpp'])
+endif
+
 # Set configuration to install .ini
 nnstreamer_install_conf = configuration_data()
 nnstreamer_install_conf.merge_from(nnstreamer_conf)

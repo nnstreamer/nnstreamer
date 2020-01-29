@@ -128,6 +128,7 @@ typedef enum {
   ML_NNFW_TYPE_OPENVINO = 6,          /**< Intel openVINO. */
   ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante (TBD) */
   ML_NNFW_TYPE_EDGE_TPU = 8,          /**< Google Coral edge TPU (USB) */
+  ML_NNFW_TYPE_ARMNN = 9,             /**< Arm Neural Network framework (support for caffe and tensorflow-lite) */
   ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. */
 } ml_nnfw_type_e;
 

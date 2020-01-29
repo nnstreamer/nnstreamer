@@ -978,6 +978,15 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
     case ML_NNFW_TYPE_SNAP:
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
+    case ML_NNFW_TYPE_ARMNN:
+      if (!g_str_has_suffix (path_down, ".caffemodel") &&
+          !g_str_has_suffix (path_down, ".tflite") &&
+          !g_str_has_suffix (path_down, ".pb") &&
+          !g_str_has_suffix (path_down, ".prototxt")) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
     default:
       status = ML_ERROR_INVALID_PARAMETER;
       break;
@@ -1058,6 +1067,9 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       break;
     case ML_NNFW_TYPE_SNAP:
       fw_name = g_strdup ("snap");
+      break;
+    case ML_NNFW_TYPE_ARMNN:
+      fw_name = g_strdup ("armnn");
       break;
     default:
       /* Default = "Not available!" */
