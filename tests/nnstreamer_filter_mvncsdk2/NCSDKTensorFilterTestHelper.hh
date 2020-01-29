@@ -46,6 +46,27 @@ typedef enum _model {
   DEFAULT_MODEL = GOOGLE_LENET,
 } model_t;
 
+typedef enum _fail_stage_t {
+  NONE,
+  WRONG_SDK_VER,
+  FAIL_GLBL_GET_OPT,
+  FAIL_DEV_CREATE,
+  FAIL_DEV_OPEN,
+  FAIL_DEV_CLOSE,
+  FAIL_GRAPH_CREATE,
+  FAIL_GRAPH_ALLOC,
+  FAIL_GRAPH_Q_INFER,
+  FAIL_GRAPH_GET_INPUT_TENSOR_DESC,
+  FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC,
+  FAIL_FIFO_CREATE_INPUT,
+  FAIL_FIFO_CREATE_OUTPUT,
+  FAIL_FIFO_ALLOC_INPUT,
+  FAIL_FIFO_ALLOC_OUTPUT,
+  FAIL_FIFO_WRT_ELEM,
+  FAIL_FIFO_RD_ELEM,
+  FAIL_FIFO_RM_ELEM,
+} fail_stage_t;
+
 typedef uint32_t ncsdk_ver_t[NC_VERSION_MAX_SIZE];
 
 class NCSDKTensorFilterTestHelper
@@ -61,6 +82,9 @@ public:
   ~NCSDKTensorFilterTestHelper ();
   void init (model_t model);
   void release ();
+  // Set/Get fail-stage
+  void setFailStage (const fail_stage_t stage);
+  const fail_stage_t getFailStage ();
 
   // Mock methods that simulate NCSDK2 APIs
   // Mock Global APIs
@@ -120,6 +144,7 @@ private:
   const void *mGraphBuf;
   uint32_t mLenGraphBuf;
   ncsdk_ver_t mVer;
+  fail_stage_t mFailStage;
   gchar *mModelPath;
   model_t mModel;
 };
