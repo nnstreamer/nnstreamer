@@ -101,7 +101,8 @@ typedef enum
   TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
   TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux, tensor_demux pick 1,2 */
   TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
-  TEST_TYPE_CUSTOM_TENSORS, /**< pipeline for tensors with passthrough custom filter */
+  TEST_TYPE_CUSTOM_TENSORS_1, /**< pipeline for tensors with passthrough custom filter */
+  TEST_TYPE_CUSTOM_TENSORS_2, /**< pipeline for tensors with passthrough custom filter properties specified */
   TEST_TYPE_CUSTOM_MULTI, /**< pipeline with multiple custom filters */
   TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter using custom filter */
   TEST_TYPE_CUSTOM_PASSTHROUGH, /**< pipeline to test custom passthrough without so file */
@@ -751,11 +752,25 @@ _setup_pipeline (TestOption & option)
           custom_dir ? custom_dir :
           "./nnstreamer_example/custom_example_passthrough", SO_EXT);
       break;
-    case TEST_TYPE_CUSTOM_TENSORS:
+    case TEST_TYPE_CUSTOM_TENSORS_1:
       /** other/tensors with tensormux, passthrough custom filter */
       str_pipeline =
           g_strdup_printf
           ("tensor_mux name=mux ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s ! tensor_sink name=test_sink "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
+          "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
+          custom_dir ? custom_dir :
+          "./nnstreamer_example/custom_example_passthrough", SO_EXT,
+          option.num_buffers, option.num_buffers, option.num_buffers);
+      break;
+    case TEST_TYPE_CUSTOM_TENSORS_2:
+      /** other/tensors with tensormux, passthrough custom filter */
+      str_pipeline =
+          g_strdup_printf
+          ("tensor_mux name=mux ! tensor_filter name=test_filter framework=custom model=%s/libnnstreamer_customfilter_passthrough_variable.%s "
+          "input=3:160:120:1,3:120:80:1,3:64:48:1 output=3:160:120:1,3:120:80:1,3:64:48:1 inputtype=uint8,uint8,uint8 outputtype=uint8,uint8,uint8 "
+          "inputlayout=NCHW,NHWC,NONE outputlayout=ANY,NHCW,NCHW ! tensor_sink name=test_sink "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
           "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
@@ -2920,7 +2935,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
 TEST (tensor_stream_test, custom_filter_tensors)
 {
   const guint num_buffers = 5;
-  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS };
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_1 };
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -3100,6 +3115,16 @@ TEST (tensor_stream_test, filter_properties_1)
   EXPECT_TRUE (g_str_equal (str, ""));
   g_free (str);
 
+  /* inputlayout */
+  g_object_get (filter, "inputlayout", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  /* outputlayout */
+  g_object_get (filter, "outputlayout", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
 
@@ -3138,6 +3163,16 @@ TEST (tensor_stream_test, filter_properties_1)
   EXPECT_TRUE (g_str_equal (str, ""));
   g_free (str);
 
+  /* inputlayout */
+  g_object_get (filter, "inputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY");
+  g_free (str);
+
+  /* outputlayout */
+  g_object_get (filter, "outputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY");
+  g_free (str);
+
   gst_object_unref (filter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
@@ -3151,7 +3186,7 @@ TEST (tensor_stream_test, filter_properties_1)
 TEST (tensor_stream_test, filter_properties_2)
 {
   const guint num_buffers = 5;
-  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS };
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_1 };
 
   GstElement *filter;
   gboolean silent, res_silent;
@@ -3236,6 +3271,152 @@ TEST (tensor_stream_test, filter_properties_2)
   /* outputname */
   g_object_get (filter, "outputname", &str, NULL);
   EXPECT_TRUE (g_str_equal (str, ",,"));
+  g_free (str);
+
+  /* inputlayout */
+  g_object_get (filter, "inputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY,ANY,ANY");
+  g_free (str);
+
+  /* outputlayout */
+  g_object_get (filter, "outputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY,ANY,ANY");
+  g_free (str);
+
+  gst_object_unref (filter);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor filter properties.
+ */
+TEST (tensor_stream_test, filter_properties_3)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_2 };
+
+  GstElement *filter;
+  gboolean silent, res_silent;
+  gchar *str = NULL;
+  gchar *model = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  filter = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "test_filter");
+
+  /* default silent is TRUE */
+  g_object_get (filter, "silent", &silent, NULL);
+  EXPECT_TRUE (silent);
+
+  /* framework */
+  g_object_get (filter, "framework", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "custom"));
+  g_free (str);
+
+  /* model */
+  g_object_get (filter, "model", &str, NULL);
+  model =
+      g_strdup_printf ("libnnstreamer_customfilter_passthrough_variable.%s",
+      SO_EXT);
+  EXPECT_TRUE (g_str_has_suffix (str, model));
+  g_free (str);
+  g_free (model);
+
+  /* silent */
+  g_object_set (filter, "silent", !silent, NULL);
+  g_object_get (filter, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* input */
+  g_object_get (filter, "input", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  g_free (str);
+
+  /* inputtype */
+  g_object_get (filter, "inputtype", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  g_free (str);
+
+  /* inputname */
+  g_object_get (filter, "inputname", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, ",,"));
+  g_free (str);
+
+  /* output */
+  g_object_get (filter, "output", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  g_free (str);
+
+  /* outputtype */
+  g_object_get (filter, "outputtype", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  g_free (str);
+
+  /* outputname */
+  g_object_get (filter, "outputname", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, ",,"));
+  g_free (str);
+
+  /* inputlayout */
+  g_object_get (filter, "inputlayout", &str, NULL);
+  EXPECT_STREQ (str, "NCHW,NHWC,NONE");
+  g_free (str);
+
+  /* outputlayout */
+  g_object_get (filter, "outputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY,NONE,NCHW");
+  g_free (str);
+
+  /* verify properties are maintained after state set to playing */
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  /* silent */
+  g_object_set (filter, "silent", !silent, NULL);
+  g_object_get (filter, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* input */
+  g_object_get (filter, "input", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  g_free (str);
+
+  /* inputtype */
+  g_object_get (filter, "inputtype", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  g_free (str);
+
+  /* inputname */
+  g_object_get (filter, "inputname", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, ",,"));
+  g_free (str);
+
+  /* output */
+  g_object_get (filter, "output", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  g_free (str);
+
+  /* outputtype */
+  g_object_get (filter, "outputtype", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  g_free (str);
+
+  /* outputname */
+  g_object_get (filter, "outputname", &str, NULL);
+  EXPECT_TRUE (g_str_equal (str, ",,"));
+  g_free (str);
+
+  /* inputlayout */
+  g_object_get (filter, "inputlayout", &str, NULL);
+  EXPECT_STREQ (str, "NCHW,NHWC,NONE");
+  g_free (str);
+
+  /* outputlayout */
+  g_object_get (filter, "outputlayout", &str, NULL);
+  EXPECT_STREQ (str, "ANY,NONE,NCHW");
   g_free (str);
 
   gst_object_unref (filter);

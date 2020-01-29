@@ -810,39 +810,49 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     }
     case PROP_INPUTLAYOUT:
-      g_assert (!prop->input_configured && value);
-      /* Once configured, it cannot be changed in runtime */
-      {
-        guint num_layouts;
+    {
+      /** TODO: allow updating the data layout after fw has been opened */
+      guint num_layouts;
 
-        num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
-            g_value_get_string (value));
-
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_layouts) {
-          g_warning ("Invalid input-layout, given param does not fit.");
-        }
-
-        prop->input_meta.num_tensors = num_layouts;
+      if (priv->prop.fw_opened == TRUE) {
+        g_warning
+            ("Updating data layout is not supported after opened framework.");
+        break;
       }
+
+      num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
+          g_value_get_string (value));
+
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_layouts) {
+        g_warning ("Invalid input-layout, given param does not fit.");
+      }
+
+      prop->input_meta.num_tensors = num_layouts;
       break;
+    }
     case PROP_OUTPUTLAYOUT:
-      g_assert (!prop->output_configured && value);
-      /* Once configured, it cannot be changed in runtime */
-      {
-        guint num_layouts;
+    {
+      /** TODO: allow updating the data layout after fw has been opened */
+      guint num_layouts;
 
-        num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
-            g_value_get_string (value));
-
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_layouts) {
-          g_warning ("Invalid output-layout, given param does not fit.");
-        }
-
-        prop->output_meta.num_tensors = num_layouts;
+      if (priv->prop.fw_opened == TRUE) {
+        g_warning
+            ("Updating data layout is not supported after opened framework.");
+        break;
       }
+
+      num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
+          g_value_get_string (value));
+
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_layouts) {
+        g_warning ("Invalid output-layout, given param does not fit.");
+      }
+
+      prop->output_meta.num_tensors = num_layouts;
       break;
+    }
     default:
       return FALSE;
   }
