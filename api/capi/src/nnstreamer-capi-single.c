@@ -518,6 +518,18 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
       status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
+  } else if (nnfw == ML_NNFW_TYPE_ARMNN) {
+    /* set input and output tensors information, if available */
+    if (in_tensors_info) {
+      status = ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
+      if (status != ML_ERROR_NONE)
+        goto error;
+    }
+    if (out_tensors_info) {
+      status = ml_single_set_inout_tensors_info (filter_obj, FALSE, out_tensors_info);
+      if (status != ML_ERROR_NONE)
+        goto error;
+    }
   }
 
   switch (nnfw) {
@@ -542,6 +554,9 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     case ML_NNFW_TYPE_SNAP:
       g_object_set (filter_obj, "framework", "snap", NULL);
       break;
+    case ML_NNFW_TYPE_ARMNN:
+      g_object_set (filter_obj, "framework", "armnn", NULL);
+      break;
     default:
       /** @todo Add other fw later. */
       ml_loge ("The given nnfw is not supported.");
@@ -562,6 +577,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     status = ML_ERROR_INVALID_PARAMETER;
     goto error;
   }
+
   if (klass->start (single_h->filter) == FALSE) {
     status = ML_ERROR_INVALID_PARAMETER;
     goto error;

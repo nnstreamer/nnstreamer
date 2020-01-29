@@ -41,7 +41,6 @@ if get_option('enable-armnn')
     nnstreamer_filter_armnn_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  armnn_dep = dependency('armnn', required: true)
   nnstreamer_filter_armnn_deps = [glib_dep, gst_dep, nnstreamer_dep, armnn_dep]
 
   armnn_plugin_lib = shared_library('nnstreamer_filter_armnn',

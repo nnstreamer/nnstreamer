@@ -394,7 +394,7 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   prop.input_meta.num_tensors = 1;
   prop.input_meta.info[0].name = g_strdup ("data");
 
-  EXPECT_TRUE (g_file_get_contents (data_file, (guint **) &input_uint8.data,
+  EXPECT_TRUE (g_file_get_contents (data_file, (gchar **) &input_uint8.data,
         &input_uint8.size, NULL));
 
   /** Convert the data from uint8 to float */
