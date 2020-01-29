@@ -117,10 +117,14 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
 
   /* 0. Check the API version */
   ret_code = ncGlobalGetOption (NC_RO_API_VERSION, sdk_ver, &size_sdk_ver);
-  if ((ret_code != NC_OK) && (sdk_ver[0] != NNS_MVNCSDK2_SUPPORT_API_MAJOR_VER)) {
+  if ((ret_code == NC_OK) && (sdk_ver[0] != NNS_MVNCSDK2_SUPPORT_API_MAJOR_VER)) {
     g_printerr
         ("The major version number of the MVNCSDK API should be %d, not %d\n",
         NNS_MVNCSDK2_SUPPORT_API_MAJOR_VER, sdk_ver[0]);
+    return -1;
+  } else if (ret_code != NC_OK) {
+    g_printerr
+        ("Failed to get the information about the version of the MVNCSDK API\n");
     return -1;
   }
 
