@@ -16,6 +16,26 @@
 std::unique_ptr<NCSDKTensorFilterTestHelper>
     NCSDKTensorFilterTestHelper::mInstance;
 std::once_flag NCSDKTensorFilterTestHelper::mOnceFlag;
+static const char NNS_MVNCSDK2_NAME_INPUT_FIFO[] = "INPUT_FIFO";
+static const char NNS_MVNCSDK2_NAME_OUTPUT_FIFO[] = "OUTPUT_FIFO";
+
+/** @brief Compare two ncTensorDescriptor_t data */
+static bool compareTensorDesc (const struct ncTensorDescriptor_t &tensor1,
+    const struct ncTensorDescriptor_t &tensor2) {
+  if (tensor1.c != tensor2.c)
+    return false;
+  else if (tensor1.n != tensor2.n)
+    return false;
+  else if (tensor1.w != tensor2.w)
+    return false;
+  else if (tensor1.h != tensor2.h)
+    return false;
+  else if (tensor1.dataType != tensor2.dataType)
+    return false;
+  // Do not care other member variables
+
+  return true;
+}
 
 /**
  * @brief Default constuctor. Note that explicit invocation of init () is always
@@ -60,6 +80,7 @@ NCSDKTensorFilterTestHelper::init (model_t model)
     this->mGraphHandle = nullptr;
   }
   this->mModelPath = nullptr;
+  this->mFailStage =fail_stage_t::NONE;
 
   switch (model) {
     default:
@@ -110,12 +131,47 @@ NCSDKTensorFilterTestHelper::release ()
 }
 
 /**
+ * @brief Set the stage where the NCSDK fails
+ */
+void
+NCSDKTensorFilterTestHelper::setFailStage (const fail_stage_t stage)
+{
+  this->mFailStage = stage;
+}
+
+/**
+ * @brief Get the stage where the NCSDK fails
+ */
+const fail_stage_t
+NCSDKTensorFilterTestHelper::getFailStage ()
+{
+  return this->mFailStage;
+}
+/**
  * @brief A method mocking ncGlobalGetOption()
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
       unsigned int *dataLength)
 {
+  if (this->mFailStage == fail_stage_t::WRONG_SDK_VER) {
+    ncsdk_ver_t ver;
+
+    // MAJOR version number should be 2
+    ver[MAJOR] = 3;
+    ver[MINOR] = 4;
+    ver[HOTFIX] = 5;
+    ver[RC] = 6;
+    if (sizeof(ncsdk_ver_t) != (*dataLength))
+        return NC_ERROR;
+
+    memcpy (data, ver, *dataLength);
+
+    return NC_OK;
+  } else if (this->mFailStage == FAIL_GLBL_GET_OPT) {
+    return NC_ERROR;
+  }
+
   switch (option) {
     case NC_RO_API_VERSION:
       if (sizeof(ncsdk_ver_t) != (*dataLength))
@@ -135,6 +191,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncDeviceCreate (int index,
     struct ncDeviceHandle_t **deviceHandle)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_DEV_CREATE) {
+    return NC_ERROR;
+  }
+
   if ((index < 0) || (index >= SUPPORT_MAX_NUMS_DEVICES))
     return NC_INVALID_PARAMETERS;
 
@@ -152,6 +212,10 @@ NCSDKTensorFilterTestHelper::ncDeviceCreate (int index,
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_DEV_OPEN) {
+    return NC_ERROR;
+  }
+
   if (deviceHandle != this->mDevHandle)
     return NC_NOT_ALLOCATED;
 
@@ -165,6 +229,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncDeviceClose(
     struct ncDeviceHandle_t *deviceHandle)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_DEV_CLOSE) {
+    return NC_ERROR;
+  }
+
   if (deviceHandle != this->mDevHandle)
     return NC_NOT_ALLOCATED;
 
@@ -197,6 +265,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncGraphCreate(const char* name,
     struct ncGraphHandle_t **graphHandle)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_GRAPH_CREATE) {
+    return NC_ERROR;
+  }
+
   if (!g_file_test (name, G_FILE_TEST_IS_REGULAR)) {
     return NC_INVALID_PARAMETERS;
   }
@@ -219,6 +291,10 @@ NCSDKTensorFilterTestHelper::ncGraphAllocate(
     struct ncDeviceHandle_t *deviceHandle, struct ncGraphHandle_t *graphHandle,
     const void *graphBuffer, unsigned int graphBufferLength)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_GRAPH_ALLOC) {
+    return NC_ERROR;
+  }
+
   if ((this->mDevHandle != deviceHandle) || (this->mGraphHandle != graphHandle))
     return NC_INVALID_PARAMETERS;
 
@@ -239,6 +315,9 @@ NCSDKTensorFilterTestHelper::ncGraphGetOption(
 {
   switch (option) {
     case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
+      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
+        return NC_ERROR;
+      }
       if (this->mTensorDescInput == nullptr) {
         return NC_OUT_OF_MEMORY;
       }
@@ -247,6 +326,9 @@ NCSDKTensorFilterTestHelper::ncGraphGetOption(
       memcpy (data, (void *) this->mTensorDescInput, *dataLength);
       break;
     case NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS:
+      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC) {
+        return NC_ERROR;
+      }
       if (this->mTensorDescOutput == nullptr) {
         return NC_OUT_OF_MEMORY;
       }
@@ -268,6 +350,10 @@ NCSDKTensorFilterTestHelper::ncGraphQueueInference(
     unsigned int inFifoCount, struct ncFifoHandle_t** fifoOut,
     unsigned int outFifoCount)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_GRAPH_Q_INFER) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
@@ -303,6 +389,14 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoCreate(const char* name, ncFifoType_t type,
     struct ncFifoHandle_t** fifoHandle)
 {
+  if ((this->mFailStage == fail_stage_t::FAIL_FIFO_CREATE_INPUT)
+      && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_INPUT_FIFO)) {
+    return NC_ERROR;
+  } else if ((this->mFailStage == fail_stage_t::FAIL_FIFO_CREATE_OUTPUT)
+      && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_OUTPUT_FIFO)) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
@@ -314,6 +408,14 @@ NCSDKTensorFilterTestHelper::ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
     struct ncDeviceHandle_t* device, struct ncTensorDescriptor_t* tensorDesc,
     unsigned int numElem)
 {
+  if ((this->mFailStage == fail_stage_t::FAIL_FIFO_ALLOC_INPUT)
+      && (compareTensorDesc (*tensorDesc, *(this->mTensorDescInput)))) {
+    return NC_ERROR;
+  } else if ((this->mFailStage == fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT)
+      && (compareTensorDesc (*tensorDesc, *(this->mTensorDescOutput)))) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
@@ -353,6 +455,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoWriteElem(struct ncFifoHandle_t* fifoHandle,
     const void *inputTensor, unsigned int * inputTensorLength, void *userParam)
 {
+ if (this->mFailStage == fail_stage_t::FAIL_FIFO_WRT_ELEM) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
@@ -363,6 +469,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoReadElem(struct ncFifoHandle_t* fifoHandle,
     void *outputData, unsigned int* outputDataLen, void **userParam)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_FIFO_RD_ELEM) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
@@ -372,6 +482,10 @@ NCSDKTensorFilterTestHelper::ncFifoReadElem(struct ncFifoHandle_t* fifoHandle,
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle)
 {
+  if (this->mFailStage == fail_stage_t::FAIL_FIFO_RM_ELEM) {
+    return NC_ERROR;
+  }
+
   return NC_OK;
 }
 
