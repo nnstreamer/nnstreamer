@@ -80,7 +80,7 @@ NCSDKTensorFilterTestHelper::init (model_t model)
     this->mGraphHandle = nullptr;
   }
   this->mModelPath = nullptr;
-  this->mFailStage =fail_stage_t::NONE;
+  this->mFailStage = fail_stage_t::NONE;
 
   switch (model) {
     default:
