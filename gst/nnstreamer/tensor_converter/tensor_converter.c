@@ -1244,7 +1244,8 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
                   break;
               }
 
-              if (gst_value_list_get_size (&supported_formats) > 0) {
+              if (G_VALUE_TYPE (&supported_formats) == GST_TYPE_LIST &&
+                  gst_value_list_get_size (&supported_formats) > 0) {
                 gst_structure_set_value (st, "format", &supported_formats);
               }
               g_value_unset (&supported_formats);
