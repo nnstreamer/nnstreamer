@@ -1,21 +1,15 @@
-if get_option('enable-cppfilter') and get_option('enable-capi')
-  test_deps = [
-    nnstreamer_capi_dep,
-    gtest_dep,
-    glib_dep,
-    nnstreamer_cpp_dep,
-  ]
-
-  lib_ucf = declare_dependency(compile_args: '-DTHIS_IS_SHLIB')
-
-  lib_unittest_cppfilter = shared_library('cppfilter_test',
-    join_paths(meson.current_source_dir(), 'unittest_cpp_methods.cc'),
-    dependencies: [test_deps, lib_ucf, unittest_util_dep]
+if get_option('enable-cppfilter')
+  cppfilter_test_lib = library('cppfilter_test',
+    join_paths(meson.current_source_dir(), 'cppfilter_test.cc'),
+    dependencies: [nnstreamer_cpp_dep],
+    install: get_option('install-test'),
+    install_dir: unittest_install_dir
   )
 
   unittest_cppfilter = executable('unittest_cppfilter',
     join_paths(meson.current_source_dir(), 'unittest_cpp_methods.cc'),
-    dependencies: [test_deps, unittest_util_dep],
+    dependencies: [gtest_dep, unittest_util_dep, nnstreamer_cpp_dep],
+    link_with: cppfilter_test_lib,
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
