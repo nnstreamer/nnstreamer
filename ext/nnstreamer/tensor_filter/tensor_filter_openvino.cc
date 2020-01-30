@@ -34,73 +34,11 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "tensor_filter_openvino.hh"
 
-const gchar *openvino_accl_support[] = {
-  ACCL_CPU_STR,
-  ACCL_NPU_MOVIDIUS_STR,
-  NULL
-};
 
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
-
-class TensorFilterOpenvino
-{
-public:
-  enum RetVal
-  {
-    RetSuccess = 0,
-    RetEBusy = -EBUSY,
-    RetEInval = -EINVAL,
-    RetENoDev = -ENODEV,
-    RetEOverFlow = -EOVERFLOW,
-  };
-
-  static tensor_type convertFromIETypeStr (std::string type);
-  static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
-      const InferenceEngine::TensorDesc tensorDesc,
-      const GstTensorMemory * gstTensor);
-  static bool isAcclDevSupported (std::vector<std::string> &devsVector,
-      accl_hw hw);
-
-  TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
-  ~TensorFilterOpenvino ();
-
-  // TODO: Need to support other acceleration devices
-  int loadModel (accl_hw hw);
-  bool isModelLoaded () {
-    return _isLoaded;
-  }
-
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int invoke (const GstTensorFilterProperties * prop,
-      const GstTensorMemory * input, GstTensorMemory * output);
-  std::string getPathModelXml ();
-  std::string getPathModelBin ();
-
-  static const std::string extBin;
-  static const std::string extXml;
-
-private:
-  TensorFilterOpenvino ();
-
-  InferenceEngine::Core _ieCore;
-  InferenceEngine::CNNNetReader _networkReaderCNN;
-  InferenceEngine::CNNNetwork _networkCNN;
-  InferenceEngine::InputsDataMap _inputsDataMap;
-  InferenceEngine::TensorDesc _inputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
-  InferenceEngine::OutputsDataMap _outputsDataMap;
-  InferenceEngine::TensorDesc _outputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
-  InferenceEngine::ExecutableNetwork _executableNet;
-  InferenceEngine::InferRequest _inferRequest;
-  static std::map<accl_hw, std::string> _nnsAcclHwToOVDevMap;
-
-  std::string _pathModelXml;
-  std::string _pathModelBin;
-  bool _isLoaded;
-  accl_hw _hw;
-};
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
     {ACCL_CPU, "CPU"},
