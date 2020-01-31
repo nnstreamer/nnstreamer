@@ -314,7 +314,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %if 0%{?caffe2_support}
 %define enable_caffe2 -Denable-caffe2=true
 %else
-%define enable_caffe2 -Denable_caffe2=false
+%define enable_caffe2 -Denable-caffe2=false
 %endif
 
 # Support ArmNN
