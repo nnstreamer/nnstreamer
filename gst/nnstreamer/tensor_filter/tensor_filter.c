@@ -791,6 +791,12 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   silent_debug_caps (caps, "caps");
   silent_debug_caps (othercaps, "othercaps");
 
+  /** Removes no-used-variable warning for priv in when DBG is set */
+  if (priv->fw == NULL) {
+    gst_caps_unref (othercaps);
+    return NULL;
+  }
+
   /**
    * To get the out-caps, GstTensorFilter has to parse tensor info from NN model.
    */
