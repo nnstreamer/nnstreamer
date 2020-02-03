@@ -337,7 +337,7 @@ if get_option('enable-openvino')
 
   nnstreamer_filter_openvino_deps = [glib_dep, gst_dep, nnstreamer_dep, openvino_deps]
 
-  shared_library('nnstreamer_filter_openvino',
+  nnstreamer_filter_openvino_so_lib = shared_library('nnstreamer_filter_openvino',
     nnstreamer_filter_openvino_sources,
     cpp_args: openvino_cpp_args,
     dependencies: nnstreamer_filter_openvino_deps,
@@ -353,4 +353,8 @@ if get_option('enable-openvino')
     install_dir: nnstreamer_libdir
   )
 
+  nnstreamer_filter_openvino_dep = declare_dependency(
+    link_with: nnstreamer_filter_openvino_so_lib,
+    include_directories: include_directories('.')
+  )
 endif
