@@ -40,6 +40,21 @@
 #define ACCL_NPU_SRCN_STR  "npu.srcn" /** srcn hardware supported by nnfw */
 #define ACCL_NPU_SR_STR  "npu.sr"
 
+#define GST_TENSOR_FILTER_FRAMEWORK_BASE (0xDEAFDEAD00000000ULL)
+#define GST_TENSOR_FILTER_FRAMEWORK_V0 (GST_TENSOR_FILTER_FRAMEWORK_BASE)
+#define GST_TENSOR_FILTER_FRAMEWORK_V1 (GST_TENSOR_FILTER_FRAMEWORK_BASE | 0x10000ULL)
+
+/** TODO: update this to 1 after supporting version 1 GstTensorFilterFramework in tensor_filter.c */
+#define GST_TENSOR_FILTER_API_VERSION_DEFINED (0)
+#define GST_TENSOR_FILTER_API_VERSION_MIN (0)	/* The minimum API version supported (could be obsolete) */
+#define GST_TENSOR_FILTER_API_VERSION_MAX (0)	/* The maximum API version supported (recommended) */
+
+/**
+ * @brief Check the value of the version field of GstTensorFilterFramework
+ */
+#define checkGstTensorFitlerFrameworkVersion(value, version) \
+  ((GST_TENSOR_FILTER_FRAMEWORK_BASE | ((version) << 16)) == (value & 0xFFFFFFFFFFFF0000ULL))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -142,9 +157,83 @@ typedef struct _GstTensorFilterProperties
   tensors_layout output_layout; /**< data layout info provided as a property to tensor_filter for the output, defaults to _NNS_LAYOUT_ANY for all the tensors */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  const char *accl_str; /**< accelerator configuration passed in as parameter */
+  union {
+    accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
+    const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
+  };
 
 } GstTensorFilterProperties;
+
+/**
+ * @brief Tensor_Filter Subplugin framework related information
+ *
+ * All the information except the supported acclerator is provided statically.
+ * Accelerators can be provided based on static or dynamic check dependent on framework support.
+ */
+typedef struct _GstTensorFilterFrameworkInfo
+{
+  char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
+  int allow_in_place; /**< TRUE(nonzero) if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
+  int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
+  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
+  int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+  accl_hw *hw_list; /**< List of supported hardwares by the framework.  Positive response of this check does not guarantee successful running of model with this accelerator. */
+} GstTensorFilterFrameworkInfo;
+
+/**
+ * @brief Tensor_Filter Subplugin related events
+ *
+ * These are possible set of events that can be supported by the tensor filter subplugin.
+ */
+typedef enum
+{
+  DESTROY_NOTIFY,   /**< Free the data element allocated in the invoke callback */
+  RELOAD_MODEL,     /**< Reloads the subplugin with newely provided model */
+  SET_INPUT_PROP,   /**< Update input tensor info and layout */
+  SET_OUTPUT_PROP,  /**< Update output tensor info and layout */
+  SET_ACCELERATOR,  /**< Update accelerator of the subplugin to be used as backend */
+} event_ops;
+
+/**
+ * @brief Tensor_Filter Subplugin's model related info gathering operations
+ */
+typedef enum
+{
+  GET_IN_OUT_INFO,   /**< Gets the input and output tensor info */
+  SET_INPUT_INFO,   /**< Sets the provided input tensor info, and get updated output tensor info */
+} model_info_ops;
+
+/**
+ * @brief User data for the tensor_tilter subplugin related events
+ */
+typedef struct _GstTensorFilterFrameworkEventData
+{
+  /** Union of the user data for each event supported by eventHandler */
+  union {
+    /** for DESTROY_NOTIFY event */
+    struct {
+      void * data;  /**< The data element to be destroyed */
+    };
+
+    /** for RELOAD_MODEL event */
+    struct {
+      const char **model_files;  /**< Filepath to the new list of model files */
+      int num_models;   /**< Updated number of the model files */
+    };
+
+    /** for SET_INPUT_PROP/SET_OUTPUT_PROP event */
+    struct {
+      const GstTensorsInfo * info;  /**< The tensor info to be updated to */
+      tensors_layout layout;        /**< The layout of the tensor to be updated to */
+    };
+
+    /** for SET_ACCELERATOR event */
+    struct {
+      accl_hw *hw_list;   /**< accelerators supported by framework intersected with the new user provided accelerator preference */
+    };
+
+  };
+} GstTensorFilterFrameworkEventData;
 
 /**
  * @brief Tensor_Filter Subplugin definition
@@ -155,14 +244,47 @@ typedef struct _GstTensorFilterProperties
  */
 typedef struct _GstTensorFilterFramework
 {
-  char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
-  int allow_in_place; /**< TRUE(nonzero) if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
-  int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
-  int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+  uint64_t version;
+  /**< Version of the struct
+   * | 32bit (validity check) | 16bit (API version) | 16bit (Subplugin's internal version. Tensor_filter does not case) |
+   * API version will be 0x0 (earlier version (_GstTensorFilterFramework_v0)) or 0x1 (newer version (_GstTensorFilterFramework_v1))
+   */
 
-  int (*invoke_NN) (const GstTensorFilterProperties * prop, void **private_data,
-      const GstTensorMemory * input, GstTensorMemory * output);
+  int (*open) (const GstTensorFilterProperties * prop, void **private_data);
+  /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close.
+   *
+   * Note: If 'open' callback is not defined, then the private_data passed in other callbacks will be NULL.
+   *
+   * @param[in] prop read-only property values
+   * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
+   * @return 0 if ok. < 0 if error.
+   */
+
+  void (*close) (const GstTensorFilterProperties * prop, void **private_data);
+  /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
+   *
+   * @param[in] prop read-only property values
+   * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
+   */
+
+  /**
+   * @brief Distinct elements between two versions of the subplugin interfaces
+   */
+  union
+  {
+    /**
+     * @brief Tensor_Filter Subplugin definition Version 0
+     */
+    struct /** _GstTensorFilterFramework_v0 */
+    {
+      char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
+      int allow_in_place; /**< TRUE(nonzero) if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
+      int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
+      int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
+      int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+
+      int (*invoke_NN) (const GstTensorFilterProperties * prop, void **private_data,
+          const GstTensorMemory * input, GstTensorMemory * output);
       /**< Mandatory callback. Invoke the given network model.
        *
        * @param[in] prop read-only property values
@@ -172,8 +294,8 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-  int (*getInputDimension) (const GstTensorFilterProperties * prop,
-      void **private_data, GstTensorsInfo * info);
+      int (*getInputDimension) (const GstTensorFilterProperties * prop,
+          void **private_data, GstTensorsInfo * info);
       /**< Optional. Set NULL if not supported. Get dimension of input tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
@@ -184,8 +306,8 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-  int (*getOutputDimension) (const GstTensorFilterProperties * prop,
-      void **private_data, GstTensorsInfo * info);
+      int (*getOutputDimension) (const GstTensorFilterProperties * prop,
+          void **private_data, GstTensorsInfo * info);
       /**< Optional. Set NULL if not supported. Get dimension of output tensor
        * If getInputDimension is NULL, setInputDimension must be defined.
        * If getInputDimension is defined, it is recommended to define getOutputDimension
@@ -196,10 +318,10 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-  int (*setInputDimension) (const GstTensorFilterProperties * prop,
-      void **private_data, const GstTensorsInfo * in_info,
-      GstTensorsInfo * out_info);
-      /**< Optional. Set Null if not supported. Tensor_Filter::main will
+      int (*setInputDimension) (const GstTensorFilterProperties * prop,
+          void **private_data, const GstTensorsInfo * in_info,
+          GstTensorsInfo * out_info);
+      /**< Optional. Set Null if not supported.Tensor_Filter::main will
        * configure input dimension from pad-cap in run-time for the sub-plugin.
        * Then, the sub-plugin is required to return corresponding output dimension
        * If this is NULL, both getInput/OutputDimension must be non-NULL.
@@ -215,28 +337,14 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-  int (*open) (const GstTensorFilterProperties * prop, void **private_data);
-      /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close
+      void (*destroyNotify) (void **private_data, void * data);
+      /**< Optional. tensor_filter.c will call it when 'allocate_in_invoke' flag of the framework is TRUE and allocateInInvoke also return enabled. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
        *
-       * @param[in] prop read-only property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
-       * @return 0 if ok. < 0 if error.
-       */
-
-  void (*close) (const GstTensorFilterProperties * prop, void **private_data);
-      /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
-       *
-       * @param[in] prop read-only property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
-       */
-
-  void (*destroyNotify) (void * data);
-      /**< Optional. tensor_filter.c will call it when 'allocate_in_invoke' flag of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
-       *
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] data the data element.
        */
 
-  int (*reloadModel) (const GstTensorFilterProperties * prop, void **private_data);
+      int (*reloadModel) (const GstTensorFilterProperties * prop, void **private_data);
       /**< Optional. tensor_filter.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model specified in the 'prop' argument. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
        *
        * @param[in] prop read-only property values
@@ -244,12 +352,92 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if ok. < 0 if error.
        */
 
-  int (*checkAvailability) (accl_hw hw);
+      int (*checkAvailability) (accl_hw hw);
       /**< Optional. Check if the provided hardware accelerator is supported. This check is static or dynamic based on framework support. Positive response of this check does not guarantee successful running of model with this accelerator. The static check can be performed without opening the framework.
        *
        * @param[in] hw backend accelerator hardware
        * @return 0 if supported. -errno if not supported.
        */
+
+       int (*allocateInInvoke) (void **private_data);
+			 /**< Optional. tensor_filter.c will call it when allocate_in_invoke is set to TRUE. This check if the provided model for the framework supports allocation at invoke or not. If this is not defined, then the value of allocate_in_invoke is assumed to be final for all models.
+				*
+				* @param[in] private_data A subplugin may save its internal private data here.
+				* @return 0 if supported. -errno if not supported.
+				*/
+    };
+
+    /**
+     * @brief Tensor_Filter Subplugin definition Version 1
+     */
+    struct /** _GstTensorFilterFramework_v1 */
+    {
+      int (*invoke) (const GstTensorFilterProperties * prop, void *private_data,
+          const GstTensorMemory * input, GstTensorMemory * output);
+      /**< Mandatory callback. Invoke the given network model.
+       *
+       * @param[in] prop read-only property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
+       * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke_NN. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
+       * @return 0 if OK. non-zero if error.
+       */
+
+      int (*getFrameworkInfo) (const GstTensorFilterProperties * prop,
+          void *private_data, GstTensorFilterFrameworkInfo *fw_info);
+      /**< Mandatory callback. Get the framworks statically determined info. Argument 'private_data' can be NULL. If provided 'private_data' is not NULL, then some info, such as 'allocate_in_invoke', can be updated based on the model being used (inferred from the 'private_data' provided). This updated info is useful for custom filter, as some custom filter's ability to support 'allocate_in_invoke' depends on the opened model.
+       *
+       * @param[in] prop read-only property values
+       * @param[in] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. This parameter can be NULL.
+       * @param[out] fw_info struct to hold frameworks info. Must be allocated by the caller (return value).
+       * @return 0 if OK. non-zero if error.
+       *
+       * @note CAUTION: private_data can be NULL if the framework is not yet opened by the caller.
+       */
+
+      int (*getModelInfo) (const GstTensorFilterProperties * prop,
+          void *private_data, model_info_ops ops,
+          GstTensorsInfo *in_info, GstTensorsInfo *out_info);
+      /**< Mandatory callback. Gets the model related tensor info.
+       * If ops == GET_IN_OUT_INFO, in_info would contain the input tensor info, and out_info would contain the output tensor info.
+       * If ops == SET_INPUT_INFO, in_info would contain the provided input tensor info, and out_info would contain the updated output tensor info.
+       * At least one of SET_INPUT_INFO and GET_IN_OUT_INFO operations must be supported.
+       *
+       * Note: Tensor_Filter::main will configure input dimension from pad-cap in
+       * run-time for the sub-plugin. Then, the sub-plugin is required to return
+       * corresponding output dimension, and will call SET_INPUT_INFO operation.
+       *
+       * Note: With SET_INPUT_INFO operation, the caller must NOT allocate or fix
+       * internal data structure based on the return value until invoke is called.
+       * Gstreamer may try different dimensions before settling down.
+       *
+       * @param[in] prop read-only property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in] ops operation to be performed
+       * @param[in/out] in_info structure of input tensor info
+       * @param[out] out_info structure of output tensor info (return value)
+       * @return 0 if OK. non-zero if error. -ENOENT is operation is not supported.
+       */
+
+      int (*eventHandler) (const GstTensorFilterProperties * prop,
+          void *private_data, event_ops ops, GstTensorFilterFrameworkEventData * data);
+      /**< Mandatory callback. Runs the event corresponding to the passed operation.
+       * If ops == DESTROY_NOTIFY: tensor_filter.c will call it when 'allocate_in_invoke' property of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
+       * If ops == RELOAD_MODEL: tensor_filter.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model passed in as argument via data. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
+       * If ops == SET_INPUT_PROP: tensor_filter will call to update the property of the subplugin. This function will take tensor info and layout as the argument. This operation can update input tensor shape, type, name and layout.
+       * If ops == SET_OUTPUT_PROP: tensor_filter will call to update the property of the subplugin. This function will take tensor info and layout as the argument. This operation can update output tensor shape, type, name and layout.
+       * If ops == SET_ACCELERATOR: tensor_filter will call to update the property of the subplugin. This function will take accelerator list as the argument. This operation will update the backend to be used by the corresponding subplugin.
+       * List of operations to be supported are optional.
+       * Note: In these operations, the argument 'prop' will not contain the updated information, but will be updated after the corresponding operation is succeeded.
+       *
+       * @param[in] prop read-only property values
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in] ops operation to be performed
+       * @param[in/out] data user sata for the supported handlers (can be NULL)
+       * @return 0 if OK. non-zero if error. -ENOENT if operation is not supported.
+       */
+    };
+  };
 } GstTensorFilterFramework;
 
 /* extern functions for subplugin management, exist in tensor_filter.c */

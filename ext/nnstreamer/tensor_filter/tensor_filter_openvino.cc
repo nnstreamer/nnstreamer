@@ -620,15 +620,7 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
 static gchar filter_subplugin_openvino[] = "openvino";
 
 static GstTensorFilterFramework NNS_support_openvino = {
-  .name = filter_subplugin_openvino,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = ov_invoke,
-  .getInputDimension = ov_getInputDim,
-  .getOutputDimension = ov_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
 };
@@ -639,6 +631,15 @@ static GstTensorFilterFramework NNS_support_openvino = {
 void
 init_filter_openvino (void)
 {
+  NNS_support_openvino.name = filter_subplugin_openvino;
+  NNS_support_openvino.allow_in_place = FALSE;
+  NNS_support_openvino.allocate_in_invoke = FALSE;
+  NNS_support_openvino.run_without_model = FALSE;
+  NNS_support_openvino.verify_model_path = FALSE;
+  NNS_support_openvino.invoke_NN = ov_invoke;
+  NNS_support_openvino.getInputDimension = ov_getInputDim;
+  NNS_support_openvino.getOutputDimension = ov_getOutputDim;
+
   nnstreamer_filter_probe (&NNS_support_openvino);
 }
 

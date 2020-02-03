@@ -717,7 +717,7 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @param[in] data The data element.
  */
 static void
-tf_destroyNotify (void *data)
+tf_destroyNotify (void **private_data, void *data)
 {
   TF_DeleteTensor ( (TFCore::outputTensorMap.find (data))->second);
   TFCore::outputTensorMap.erase (data);
@@ -726,24 +726,25 @@ tf_destroyNotify (void *data)
 static gchar filter_subplugin_tensorflow[] = "tensorflow";
 
 static GstTensorFilterFramework NNS_support_tensorflow = {
-  .name = filter_subplugin_tensorflow,
-  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = TRUE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = tf_run,
-  .getInputDimension = tf_getInputDim,
-  .getOutputDimension = tf_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tf_open,
   .close = tf_close,
-  .destroyNotify = tf_destroyNotify,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_tf (void)
 {
+  NNS_support_tensorflow.name = filter_subplugin_tensorflow;
+  NNS_support_tensorflow.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
+  NNS_support_tensorflow.allocate_in_invoke = TRUE;
+  NNS_support_tensorflow.run_without_model = FALSE;
+  NNS_support_tensorflow.verify_model_path = FALSE;
+  NNS_support_tensorflow.invoke_NN = tf_run;
+  NNS_support_tensorflow.getInputDimension = tf_getInputDim;
+  NNS_support_tensorflow.getOutputDimension = tf_getOutputDim;
+  NNS_support_tensorflow.destroyNotify = tf_destroyNotify;
+
   nnstreamer_filter_probe (&NNS_support_tensorflow);
 }
 

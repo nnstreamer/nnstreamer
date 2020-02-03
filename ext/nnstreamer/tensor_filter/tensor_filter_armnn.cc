@@ -698,15 +698,7 @@ armnn_getOutputDim (const GstTensorFilterProperties * prop,
 static gchar filter_subplugin_armnn[] = "armnn";
 
 static GstTensorFilterFramework NNS_support_armnn = {
-  .name = filter_subplugin_armnn,
-  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = armnn_invoke,
-  .getInputDimension = armnn_getInputDim,
-  .getOutputDimension = armnn_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = armnn_open,
   .close = armnn_close,
 };
@@ -715,6 +707,15 @@ static GstTensorFilterFramework NNS_support_armnn = {
 void
 init_filter_armnn (void)
 {
+  NNS_support_armnn.name = filter_subplugin_armnn;
+  NNS_support_armnn.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
+  NNS_support_armnn.allocate_in_invoke = FALSE;
+  NNS_support_armnn.run_without_model = FALSE;
+  NNS_support_armnn.verify_model_path = FALSE;
+  NNS_support_armnn.invoke_NN = armnn_invoke;
+  NNS_support_armnn.getInputDimension = armnn_getInputDim;
+  NNS_support_armnn.getOutputDimension = armnn_getOutputDim;
+
   nnstreamer_filter_probe (&NNS_support_armnn);
 }
 
