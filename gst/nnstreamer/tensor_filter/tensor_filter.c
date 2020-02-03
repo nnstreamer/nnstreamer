@@ -319,6 +319,27 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
 }
 
 /**
+ * @brief Free the data allocated for tensor transform
+ * @details default function for tensor filter framework if not provided by the
+ *          framework. The data is in GPtrArray - first element is private data
+ *          of framework and second element is the data to be freed.
+ */
+static void
+gst_tensor_filter_destroy_notify (void *data)
+{
+  GPtrArray *array = (GPtrArray *) data;
+  GstTensorFilter *self = (GstTensorFilter *) g_ptr_array_index (array, 0);
+  void *tensor_data = (void *) g_ptr_array_index (array, 1);
+  g_ptr_array_free (array, TRUE);
+
+  if (self->priv.fw->destroyNotify) {
+    self->priv.fw->destroyNotify (&self->priv.privateData, tensor_data);
+  } else {
+    g_free (tensor_data);
+  }
+}
+
+/**
  * @brief non-ip transform. required vmethod of GstBaseTransform.
  */
 static GstFlowReturn
@@ -394,11 +415,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     if (priv->fw->allocate_in_invoke) {
+      GPtrArray *data_array = g_ptr_array_new ();
+      g_ptr_array_add (data_array, (gpointer) self);
+      g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
       /* filter-subplugin allocated new memory, update this */
       out_mem[i] =
           gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
-          0, out_tensors[i].size, out_tensors[i].data,
-          priv->fw->destroyNotify ? priv->fw->destroyNotify : g_free);
+          0, out_tensors[i].size, (gpointer) data_array,
+          gst_tensor_filter_destroy_notify);
     } else {
       gst_memory_unmap (out_mem[i], &out_info[i]);
     }

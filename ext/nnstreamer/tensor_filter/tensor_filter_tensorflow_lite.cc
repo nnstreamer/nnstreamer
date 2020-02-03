@@ -985,26 +985,26 @@ tflite_checkAvailability (accl_hw hw)
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
-  .name = filter_subplugin_tensorflow_lite,
-  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = TRUE,
-  .invoke_NN = tflite_invoke,
-  .getInputDimension = tflite_getInputDim,
-  .getOutputDimension = tflite_getOutputDim,
-  .setInputDimension = tflite_setInputDim,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tflite_open,
   .close = tflite_close,
-  .destroyNotify = NULL,
-  .reloadModel = tflite_reloadModel,
-  .checkAvailability = tflite_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_tflite (void)
 {
+  NNS_support_tensorflow_lite.name = filter_subplugin_tensorflow_lite,
+  NNS_support_tensorflow_lite.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
+  NNS_support_tensorflow_lite.allocate_in_invoke = FALSE;
+  NNS_support_tensorflow_lite.run_without_model = FALSE;
+  NNS_support_tensorflow_lite.verify_model_path = TRUE;
+  NNS_support_tensorflow_lite.invoke_NN = tflite_invoke;
+  NNS_support_tensorflow_lite.getInputDimension = tflite_getInputDim;
+  NNS_support_tensorflow_lite.getOutputDimension = tflite_getOutputDim;
+  NNS_support_tensorflow_lite.setInputDimension = tflite_setInputDim;
+  NNS_support_tensorflow_lite.reloadModel = tflite_reloadModel;
+  NNS_support_tensorflow_lite.checkAvailability = tflite_checkAvailability;
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
 }
 

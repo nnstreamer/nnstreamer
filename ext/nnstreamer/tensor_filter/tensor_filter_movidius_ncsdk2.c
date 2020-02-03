@@ -412,13 +412,7 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
 static gchar filter_subplugin_movidius_ncsdk2[] = "movidius-ncsdk2";
 
 static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
-  .name = filter_subplugin_movidius_ncsdk2,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = _mvncsdk2_invoke,
-  .getInputDimension = _mvncsdk2_getInputDim,
-  .getOutputDimension = _mvncsdk2_getOutputDim,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = _mvncsdk2_open,
   .close = _mvncsdk2_close,
 };
@@ -427,6 +421,14 @@ static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
 void
 init_filter_mvncsdk2 (void)
 {
+  NNS_support_movidius_ncsdk2.name = filter_subplugin_movidius_ncsdk2;
+  NNS_support_movidius_ncsdk2.allow_in_place = FALSE;
+  NNS_support_movidius_ncsdk2.allocate_in_invoke = FALSE;
+  NNS_support_movidius_ncsdk2.verify_model_path = FALSE;
+  NNS_support_movidius_ncsdk2.invoke_NN = _mvncsdk2_invoke;
+  NNS_support_movidius_ncsdk2.getInputDimension = _mvncsdk2_getInputDim;
+  NNS_support_movidius_ncsdk2.getOutputDimension = _mvncsdk2_getOutputDim;
+
   nnstreamer_filter_probe (&NNS_support_movidius_ncsdk2);
 }
 

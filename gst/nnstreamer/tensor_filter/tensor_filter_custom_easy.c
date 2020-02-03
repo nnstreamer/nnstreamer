@@ -165,6 +165,7 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
 
 static char name_str[] = "custom-easy";
 static GstTensorFilterFramework NNS_support_custom_easy = {
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .name = name_str,
   .allow_in_place = FALSE,      /* custom cannot support in-place. */
   .allocate_in_invoke = FALSE,  /* we allocate output buffers for you. */

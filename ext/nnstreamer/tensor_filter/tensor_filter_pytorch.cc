@@ -670,26 +670,25 @@ torch_checkAvailability (accl_hw hw)
 static gchar filter_subplugin_pytorch[] = "pytorch";
 
 static GstTensorFilterFramework NNS_support_pytorch = {
-  .name = filter_subplugin_pytorch,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = torch_invoke,
-  .getInputDimension = torch_getInputDim,
-  .getOutputDimension = torch_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = torch_open,
   .close = torch_close,
-  .destroyNotify = NULL,
-  .reloadModel = NULL,
-  .checkAvailability = torch_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_torch (void)
 {
+  NNS_support_pytorch.name = filter_subplugin_pytorch;
+  NNS_support_pytorch.allow_in_place = FALSE;
+  NNS_support_pytorch.allocate_in_invoke = FALSE;
+  NNS_support_pytorch.run_without_model = FALSE;
+  NNS_support_pytorch.verify_model_path = FALSE;
+  NNS_support_pytorch.invoke_NN = torch_invoke;
+  NNS_support_pytorch.getInputDimension = torch_getInputDim;
+  NNS_support_pytorch.getOutputDimension = torch_getOutputDim;
+  NNS_support_pytorch.checkAvailability = torch_checkAvailability;
+
   nnstreamer_filter_probe (&NNS_support_pytorch);
 }
 

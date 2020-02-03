@@ -373,25 +373,24 @@ edgetpu_getOutputDim (const GstTensorFilterProperties *prop, void **private_data
 static gchar filter_subplugin_edgetpu[] = "edgetpu";
 
 static GstTensorFilterFramework NNS_support_edgetpu = {
-  .name = filter_subplugin_edgetpu,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = edgetpu_invoke,
-  .getInputDimension = edgetpu_getInputDim,
-  .getOutputDimension = edgetpu_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = edgetpu_open,
   .close = edgetpu_close,
-  .destroyNotify = NULL,
-  .reloadModel = NULL,
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_edgetpu (void)
 {
+  NNS_support_edgetpu.name = filter_subplugin_edgetpu;
+  NNS_support_edgetpu.allow_in_place = FALSE;
+  NNS_support_edgetpu.allocate_in_invoke = FALSE;
+  NNS_support_edgetpu.run_without_model = FALSE;
+  NNS_support_edgetpu.verify_model_path = FALSE;
+  NNS_support_edgetpu.invoke_NN = edgetpu_invoke;
+  NNS_support_edgetpu.getInputDimension = edgetpu_getInputDim;
+  NNS_support_edgetpu.getOutputDimension = edgetpu_getOutputDim;
+
   nnstreamer_filter_probe (&NNS_support_edgetpu);
 }
 

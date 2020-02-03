@@ -649,15 +649,7 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
 static gchar filter_subplugin_nnfw[] = "nnfw";
 
 static GstTensorFilterFramework NNS_support_nnfw = {
-  .name = filter_subplugin_nnfw,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = nnfw_invoke,
-  .getInputDimension = nnfw_getInputDim,
-  .getOutputDimension = nnfw_getOutputDim,
-  .setInputDimension = nnfw_setInputDim,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = nnfw_open,
   .close = nnfw_close,
 };
@@ -666,6 +658,16 @@ static GstTensorFilterFramework NNS_support_nnfw = {
 void
 init_filter_nnfw (void)
 {
+  NNS_support_nnfw.name = filter_subplugin_nnfw;
+  NNS_support_nnfw.allow_in_place = FALSE;
+  NNS_support_nnfw.allocate_in_invoke = FALSE;
+  NNS_support_nnfw.run_without_model = FALSE;
+  NNS_support_nnfw.verify_model_path = FALSE;
+  NNS_support_nnfw.invoke_NN = nnfw_invoke;
+  NNS_support_nnfw.getInputDimension = nnfw_getInputDim;
+  NNS_support_nnfw.getOutputDimension = nnfw_getOutputDim;
+  NNS_support_nnfw.setInputDimension = nnfw_setInputDim;
+
   nnstreamer_filter_probe (&NNS_support_nnfw);
 }
 

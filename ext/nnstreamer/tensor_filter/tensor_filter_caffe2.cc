@@ -559,7 +559,7 @@ caffe2_getOutputDim (const GstTensorFilterProperties * prop,
  * @param[in] data The data element.
  */
 static void
-caffe2_destroyNotify (void *data)
+caffe2_destroyNotify (void **private_data, void *data)
 {
   /* do nothing */
 }
@@ -567,24 +567,25 @@ caffe2_destroyNotify (void *data)
 static gchar filter_subplugin_caffe2[] = "caffe2";
 
 static GstTensorFilterFramework NNS_support_caffe2 = {
-  .name = filter_subplugin_caffe2,
-  .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-  .allocate_in_invoke = TRUE,
-  .run_without_model = FALSE,
-  .verify_model_path = FALSE,
-  .invoke_NN = caffe2_run,
-  .getInputDimension = caffe2_getInputDim,
-  .getOutputDimension = caffe2_getOutputDim,
-  .setInputDimension = NULL,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = caffe2_open,
   .close = caffe2_close,
-  .destroyNotify = caffe2_destroyNotify,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_caffe2 (void)
 {
+  NNS_support_caffe2.name = filter_subplugin_caffe2;
+  NNS_support_caffe2.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
+  NNS_support_caffe2.allocate_in_invoke = TRUE;
+  NNS_support_caffe2.run_without_model = FALSE;
+  NNS_support_caffe2.verify_model_path = FALSE;
+  NNS_support_caffe2.invoke_NN = caffe2_run;
+  NNS_support_caffe2.getInputDimension = caffe2_getInputDim;
+  NNS_support_caffe2.getOutputDimension = caffe2_getOutputDim;
+  NNS_support_caffe2.destroyNotify = caffe2_destroyNotify;
+
   nnstreamer_filter_probe (&NNS_support_caffe2);
 }
 
