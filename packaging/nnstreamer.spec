@@ -85,6 +85,7 @@ BuildRequires:	pkgconfig(edgetpu)
 %endif
 
 %if 0%{?testcoverage}
+# to be compatible with gcc-9, lcov should have a higher version than 1.14.1
 BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
