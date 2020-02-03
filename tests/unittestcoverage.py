@@ -194,25 +194,24 @@ def check_component(path):
   out = os.popen("gcov -p -r -s " + path + " `find " + buildpath +
                  " -name *.gcno`").read()
   dprint(out)
-  endpoint = len(out) - 1
-  while (out[endpoint] == '\n'):
-    endpoint = endpoint - 1
-  startpoint = endpoint
-  endpoint = endpoint + 1
-  while (out[startpoint] != '\n' and startpoint >= 0):
-    startpoint = startpoint - 1
-  startpoint = startpoint + 1
 
-  lastline = out[startpoint:endpoint]
-  m = re.match("Lines executed:(\d+.\d+)% of (\d+)$", lastline)
-  if m:
-    rate = float(m.group(1))
-    lines = int(m.group(2))
-  else:
-    print("ERROR! Cannot parse gcov result!")
-    return (-1, -1)
+  total_lines = 0
+  total_covered = 0
+  total_rate = 0.0
+  # Calculate a line coverage per file
+  for each_line in out.splitlines():
+    m = re.match("Lines executed:(\d+.\d+)% of (\d+)$", each_line)
+    if m:
+      rate = float(m.group(1))
+      lines = int(m.group(2))
 
-  return (lines, rate)
+      total_lines = total_lines + lines
+      total_covered = total_covered + (rate * lines)
+
+  if total_lines > 0:
+    total_rate = total_covered / total_lines
+
+  return (total_lines, total_rate)
   # Call auditEvaders(out, path) if we really become paranoid.
 
 ## @brief Check unit test coverage for a specific path. (every code in that path, recursively)
@@ -234,7 +233,7 @@ def cmd_module(paths):
 
   print("\n\n===========================================================")
   print("Paths for test coverage " + str(paths))
-  print(str(lines) + " Lines with " + str(rate) + "% unit test coverage")
+  print("%d Lines with %0.2f%% unit test coverage" % (lines, rate))
   print("===========================================================\n\n\n")
   return 0
 
