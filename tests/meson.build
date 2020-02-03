@@ -137,7 +137,7 @@ tensor_filter_ext_enabled = get_option('enable-tensorflow-lite') or \
     get_option('enable-python') or get_option('enable-tensorflow') or \
     get_option('enable-pytorch') or get_option('enable-caffe2') or \
     get_option('enable-nnfw-runtime') or get_option('enable-edgetpu') or \
-    get_option('enable-movidius-ncsdk2')
+    get_option('enable-movidius-ncsdk2') or get_option('enable-openvino')
 if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
@@ -163,6 +163,10 @@ endif
 
 if get_option('enable-cppfilter')
   subdir('cpp_methods')
+endif
+
+if get_option('enable-openvino')
+  subdir('nnstreamer_filter_openvino')
 endif
 
 # Tensor filter extensions basic test cases
