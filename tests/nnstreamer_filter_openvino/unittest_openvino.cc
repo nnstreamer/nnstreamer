@@ -13,6 +13,21 @@
 const static gchar MODEL_BASE_NAME_MOBINET_V2[] =
     "openvino_mobilenetv2-int8-tf-0001";
 
+const static uint32_t MOBINET_V2_IN_NUM_TENSOR = 1;
+const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+    224,
+    224,
+    3,
+    1,
+};
+const static uint32_t MOBINET_V2_OUT_NUM_TENSOR = 1;
+const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+    1001,
+    1,
+    1,
+    1,
+};
+
 /**
  * @brief Test cases for open and close callbacks varying the model files
  */
@@ -509,6 +524,82 @@ TEST (tensor_filter_openvino, open_and_close_2_n)
 
   g_free (prop);
   g_free (test_model);
+}
+
+/**
+ * @brief Test cases for getInputTensorDim and getOutputTensorDim callbacks
+ */
+TEST (tensor_filter_openvino, getTensorDim_0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  GstTensorsInfo nns_tensors_info;
+  gpointer private_data = NULL;
+  std::string str_test_model;
+  gchar *test_model;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->num_models = 1;
+  prop->accl_str = "true:cpu";
+  {
+    const gchar *model_files[] = {
+      test_model, NULL,
+    };
+
+    prop->model_files = model_files;
+
+    ASSERT_TRUE (fw && fw->open && fw->close);
+
+    ret = fw->open (prop, &private_data);
+#ifdef __OPENVINO_CPU_EXT__
+    EXPECT_EQ (ret, 0);
+#else
+    EXPECT_NE (ret, 0);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+#endif
+  }
+
+  /* Test getInputDimension () */
+  ASSERT_TRUE (fw->getInputDimension);
+  ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+  EXPECT_EQ (ret, 0);
+  EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+  for (uint32_t i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
+    for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
+      EXPECT_EQ (nns_tensors_info.info[i].dimension[j],
+          MOBINET_V2_IN_DIMS[j]);
+    }
+  }
+
+  /* Test getOutputDimension () */
+  ASSERT_TRUE (fw->getOutputDimension);
+  ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+  EXPECT_EQ (ret, 0);
+  EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+  for (uint32_t i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
+    for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
+      EXPECT_EQ (nns_tensors_info.info[i].dimension[j],
+          MOBINET_V2_OUT_DIMS[j]);
+    }
+  }
+
+  fw->close (prop, &private_data);
+
+  g_free (test_model);
+
+  g_free (prop);
 }
 
 /**
