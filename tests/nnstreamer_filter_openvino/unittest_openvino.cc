@@ -28,6 +28,62 @@ const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
     1,
 };
 
+class TensorFilterOpenvinoTest : public TensorFilterOpenvino
+{
+public:
+  typedef TensorFilterOpenvino super;
+  TensorFilterOpenvinoTest (std::string path_model_xml,
+      std::string path_model_bin);
+  ~TensorFilterOpenvinoTest ();
+
+  InferenceEngine::InputsDataMap &getInputsDataMap ();
+  void setInputsDataMap (InferenceEngine::InputsDataMap &map);
+  InferenceEngine::OutputsDataMap &getOutputsDataMap ();
+  void setOutputsDataMap (InferenceEngine::OutputsDataMap &map);
+
+private:
+  TensorFilterOpenvinoTest ();
+};
+
+TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (std::string path_model_xml,
+    std::string path_model_bin) : super (path_model_xml, path_model_bin)
+{
+  // Nothing to do
+  ;
+}
+
+TensorFilterOpenvinoTest::~TensorFilterOpenvinoTest ()
+{
+  // Nothing to do
+  ;
+}
+
+InferenceEngine::InputsDataMap &
+TensorFilterOpenvinoTest::getInputsDataMap ()
+{
+  return this->_inputsDataMap;
+}
+
+void
+TensorFilterOpenvinoTest::setInputsDataMap (InferenceEngine::InputsDataMap &map)
+{
+  this->_inputsDataMap = map;
+}
+
+
+InferenceEngine::OutputsDataMap &
+TensorFilterOpenvinoTest::getOutputsDataMap ()
+{
+  return this->_outputsDataMap;
+}
+
+void
+TensorFilterOpenvinoTest::setOutputsDataMap (
+    InferenceEngine::OutputsDataMap &map)
+{
+  this->_outputsDataMap = map;
+}
+
 /**
  * @brief Test cases for open and close callbacks varying the model files
  */
@@ -600,6 +656,296 @@ TEST (tensor_filter_openvino, getTensorDim_0)
   g_free (test_model);
 
   g_free (prop);
+}
+
+/**
+ * @brief A negative test case for getInputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
+ */
+TEST (tensor_filter_openvino, getTensorDim_0_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  std::string str_test_model;
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorsInfo nns_tensors_info;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    // A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT
+    std::string name_input = std::string ("input");
+    InferenceEngine::InputsDataMap inDataMap;
+    InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
+    InferenceEngine::Data *data = new InferenceEngine::Data (name_input, dims,
+        InferenceEngine::Precision::FP32);
+    InferenceEngine::InputInfo *info = new InferenceEngine::InputInfo ();
+    info->setInputData (InferenceEngine::DataPtr (data));
+    inDataMap[name_input] = InferenceEngine::InputInfo::Ptr (info);
+
+    for (int i = 1; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
+      InferenceEngine::InputInfo *info = new InferenceEngine::InputInfo ();
+      std::string name_input_n = std::string((char*) &i);
+      inDataMap[name_input_n] = InferenceEngine::InputInfo::Ptr (info);
+    }
+
+    tfOvTest.setInputsDataMap (inDataMap);
+    ret = tfOvTest.loadModel (ACCL_CPU);
+    private_data = (gpointer) &tfOvTest;
+
+#ifdef __OPENVINO_CPU_EXT__
+    EXPECT_EQ (ret, 0);
+#else
+    EXPECT_NE (ret, 0);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+#endif
+
+    /* prepare properties */
+    prop = g_new0 (GstTensorFilterProperties, 1);
+    ASSERT_TRUE (prop != NULL);
+    prop->fwname = fw_name;
+
+    /* Test getInputDimension () */
+    ASSERT_TRUE (fw->getInputDimension);
+    ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+    EXPECT_NE (ret, 0);
+    g_free (prop);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for the getInputTensorDim callback (A wrong rank)
+ */
+TEST (tensor_filter_openvino, getTensorDim_1_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  std::string str_test_model;
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorsInfo nns_tensors_info;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    // A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT
+    std::string name_input = std::string ("input");
+    InferenceEngine::SizeVector dims;
+    InferenceEngine::InputsDataMap inDataMap;
+    InferenceEngine::Data *data;
+    InferenceEngine::InputInfo *info;
+
+    dims = InferenceEngine::SizeVector (NNS_TENSOR_RANK_LIMIT + 1, 1);
+    data = new InferenceEngine::Data (name_input, dims,
+        InferenceEngine::Precision::FP32, InferenceEngine::ANY);
+    info = new InferenceEngine::InputInfo ();
+    info->setInputData (InferenceEngine::DataPtr (data));
+    inDataMap[name_input] = InferenceEngine::InputInfo::Ptr (info);
+
+    tfOvTest.setInputsDataMap (inDataMap);
+    ret = tfOvTest.loadModel (ACCL_CPU);
+    private_data = (gpointer) &tfOvTest;
+
+#ifdef __OPENVINO_CPU_EXT__
+    EXPECT_EQ (ret, 0);
+#else
+    EXPECT_NE (ret, 0);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+#endif
+
+    /* prepare properties */
+    prop = g_new0 (GstTensorFilterProperties, 1);
+    ASSERT_TRUE (prop != NULL);
+    prop->fwname = fw_name;
+
+    /* Test getInputDimension () */
+    ASSERT_TRUE (fw->getInputDimension);
+    ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+    EXPECT_NE (ret, 0);
+    g_free (prop);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for getOutputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
+ */
+TEST (tensor_filter_openvino, getTensorDim_2_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  std::string str_test_model;
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorsInfo nns_tensors_info;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    // A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT
+    InferenceEngine::OutputsDataMap outDataMap;
+    InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
+
+    for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
+      std::string name_output_n = std::string((char*) &i);
+      InferenceEngine::Data *data = new InferenceEngine::Data (name_output_n,
+          dims, InferenceEngine::Precision::FP32);
+      InferenceEngine::DataPtr outputDataPtr (data);
+
+      outDataMap[name_output_n] = outputDataPtr;
+    }
+
+    tfOvTest.setOutputsDataMap (outDataMap);
+    ret = tfOvTest.loadModel (ACCL_CPU);
+    private_data = (gpointer) &tfOvTest;
+
+#ifdef __OPENVINO_CPU_EXT__
+    EXPECT_EQ (ret, 0);
+#else
+    EXPECT_NE (ret, 0);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+#endif
+
+    /* prepare properties */
+    prop = g_new0 (GstTensorFilterProperties, 1);
+    ASSERT_TRUE (prop != NULL);
+    prop->fwname = fw_name;
+
+    /* Test getOutputDimension () */
+    ASSERT_TRUE (fw->getOutputDimension);
+    ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+    EXPECT_NE (ret, 0);
+    g_free (prop);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for getOutputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
+ */
+TEST (tensor_filter_openvino, getTensorDim_3_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  std::string str_test_model;
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorsInfo nns_tensors_info;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    // A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT
+    std::string name_output = std::string ("output");
+    InferenceEngine::SizeVector dims;
+    InferenceEngine::OutputsDataMap outDataMap;
+    InferenceEngine::Data *data;
+
+    dims = InferenceEngine::SizeVector (NNS_TENSOR_RANK_LIMIT + 1, 1);
+    data = new InferenceEngine::Data (name_output, dims,
+        InferenceEngine::Precision::FP32, InferenceEngine::ANY);
+    outDataMap[name_output] = InferenceEngine::DataPtr (data);
+
+    tfOvTest.setOutputsDataMap (outDataMap);
+    ret = tfOvTest.loadModel (ACCL_CPU);
+    private_data = (gpointer) &tfOvTest;
+
+#ifdef __OPENVINO_CPU_EXT__
+    EXPECT_EQ (ret, 0);
+#else
+    EXPECT_NE (ret, 0);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+#endif
+
+    /* prepare properties */
+    prop = g_new0 (GstTensorFilterProperties, 1);
+    ASSERT_TRUE (prop != NULL);
+    prop->fwname = fw_name;
+
+    /* Test getOutputDimension () */
+    ASSERT_TRUE (fw->getOutputDimension);
+    ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+    EXPECT_NE (ret, 0);
+    g_free (prop);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
 }
 
 /**
