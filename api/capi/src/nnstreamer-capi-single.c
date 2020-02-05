@@ -209,6 +209,38 @@ exit:
 }
 
 /**
+ * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model, and get updated output data information.
+ * @details Note that a model/framework may not support setting such information.
+ * @since_tizen 6.0
+ * @param[in] single The model handle.
+ * @param[in] in_info The handle of input tensors information.
+ * @param[out] out_info The handle of output tensors information. The caller is responsible for freeing the information with ml_tensors_info_destroy().
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
+ *         Use ml_single_get_input_info() and ml_single_get_output_info() instead for this framework.
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ */
+static int
+ml_single_update_info (ml_single_h single,
+    const ml_tensors_info_h in_info, ml_tensors_info_h * out_info)
+{
+  int status;
+
+  if (!single || !in_info || !out_info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *out_info = NULL;
+
+  status = ml_single_set_input_info (single, in_info);
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  return ml_single_get_output_info (single, out_info);
+}
+
+/**
  * @brief Gets the tensors info from tensor-filter.
  */
 static void
@@ -921,26 +953,4 @@ exit:
   }
 
   return status;
-}
-
-/**
- * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
- */
-int
-ml_single_update_info (ml_single_h single,
-    const ml_tensors_info_h in_info, ml_tensors_info_h * out_info)
-{
-  int status;
-
-  if (!single || !in_info || !out_info)
-    return ML_ERROR_INVALID_PARAMETER;
-
-  /* init null */
-  *out_info = NULL;
-
-  status = ml_single_set_input_info (single, in_info);
-  if (status != ML_ERROR_NONE)
-    return status;
-
-  return ml_single_get_output_info (single, out_info);
 }
