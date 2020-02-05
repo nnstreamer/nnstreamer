@@ -949,6 +949,199 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
 }
 
 /**
+ * @brief A test case for the helper function, convertFromIETypeStr ()
+ */
+TEST (tensor_filter_openvino, convertFromIETypeStr_0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const std::vector<std::string> ie_suport_type_strs = {
+    "I8",
+    "I16",
+    "I32",
+    "U8",
+    "U16",
+    "FP32",
+  };
+  const std::vector<tensor_type> nns_support_types = {
+    _NNS_INT8,
+    _NNS_INT16,
+    _NNS_INT32,
+    _NNS_UINT8,
+    _NNS_UINT16,
+    _NNS_FLOAT32,
+  };
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    for (size_t i = 0; i < ie_suport_type_strs.size (); ++i) {
+      tensor_type ret_type;
+
+      ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_strs [i]);
+      EXPECT_EQ (ret_type, nns_support_types[i]);
+    }
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for the helper function, convertFromIETypeStr ()
+ */
+TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const std::vector<std::string> ie_not_suport_type_strs = {
+    "F64",
+  };
+  const std::vector<tensor_type> nns_support_types = {
+    _NNS_FLOAT64,
+  };
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    for (size_t i = 0; i < ie_not_suport_type_strs.size (); ++i) {
+      tensor_type ret_type;
+      ret_type = tfOvTest.convertFromIETypeStr (ie_not_suport_type_strs [i]);
+      EXPECT_NE (ret_type, nns_support_types[i]);
+    }
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for the helper function, convertFromIETypeStr ()
+ */
+TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const std::string ie_suport_type_str ("Q78");
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+    tensor_type ret_type;
+
+    ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_str);
+    EXPECT_EQ (_NNS_END, ret_type);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+#define TEST_BLOB(prec, nns_type) \
+    do { \
+      const InferenceEngine::Precision _prc (prec); \
+      InferenceEngine::TensorDesc tensorTestDesc (_prc, InferenceEngine::ANY); \
+      InferenceEngine::SizeVector dims (NNS_TENSOR_RANK_LIMIT); \
+      TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml), \
+          str_test_model.assign (test_model_bin)); \
+      InferenceEngine::Blob::Ptr ret; \
+      GstTensorMemory mem; \
+      \
+      mem.type = nns_type; \
+      mem.size = gst_tensor_get_element_size (mem.type); \
+      for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) { \
+        dims[i] = MOBINET_V2_IN_DIMS[i]; \
+        mem.size *= MOBINET_V2_IN_DIMS[i]; \
+      } \
+      tensorTestDesc.setDims (dims); \
+      mem.data = (void *) g_malloc0 (mem.size); \
+      \
+      ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem); \
+      EXPECT_EQ (mem.size, ret->byteSize ()); \
+      EXPECT_EQ (gst_tensor_get_element_size (mem.type), ret->element_size ()); \
+      g_free (mem.data); \
+    } while (0);
+
+/**
+ * @brief A test case for the helper function, convertFromIETypeStr ()
+ */
+TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extXml).c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models",
+      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+      .append (TensorFilterOpenvino::extBin).c_str (),
+      NULL);
+
+  TEST_BLOB (InferenceEngine::Precision::FP32, _NNS_FLOAT32);
+  TEST_BLOB (InferenceEngine::Precision::U8, _NNS_UINT8);
+  TEST_BLOB (InferenceEngine::Precision::U16, _NNS_UINT16);
+  TEST_BLOB (InferenceEngine::Precision::I8, _NNS_INT8);
+  TEST_BLOB (InferenceEngine::Precision::I16, _NNS_INT16);
+  TEST_BLOB (InferenceEngine::Precision::I32, _NNS_INT32);
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
