@@ -956,3 +956,125 @@ exit:
 
   return status;
 }
+
+/**
+ * @brief Sets the property value for the given model.
+ */
+int
+ml_single_set_property (ml_single_h single, const char *name, const char *value)
+{
+  ml_single *single_h;
+  int status = ML_ERROR_NONE;
+  char *old_value = NULL;
+
+  check_feature_state ();
+
+  if (!single || !name || !value)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* get old value, also check the property is updatable. */
+  status = ml_single_get_property (single, name, &old_value);
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  /* if sets same value, do not change. */
+  if (g_ascii_strcasecmp (old_value, value) == 0) {
+    g_free (old_value);
+    return ML_ERROR_NONE;
+  }
+
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
+
+  /* update property */
+  if (g_str_equal (name, "is-updatable")) {
+    /* boolean */
+    if (g_ascii_strcasecmp (value, "true") == 0) {
+      if (g_ascii_strcasecmp (old_value, "true") != 0)
+        g_object_set (G_OBJECT (single_h->filter), name, (gboolean) TRUE, NULL);
+    } else if (g_ascii_strcasecmp (value, "false") == 0) {
+      if (g_ascii_strcasecmp (old_value, "false") != 0)
+        g_object_set (G_OBJECT (single_h->filter), name, (gboolean) FALSE, NULL);
+    } else {
+      ml_loge ("The property value (%s) is not available.", value);
+      status = ML_ERROR_INVALID_PARAMETER;
+    }
+  } else if (g_str_equal (name, "input") || g_str_equal (name, "inputtype") || g_str_equal (name, "inputname") ||
+      g_str_equal (name, "output") || g_str_equal (name, "outputtype") || g_str_equal (name, "outputname")) {
+    GstTensorsInfo gst_info;
+    gboolean is_input = g_str_has_prefix (name, "input");
+    guint num;
+
+    ml_single_get_gst_info (single_h, is_input, &gst_info);
+
+    if (g_str_has_suffix (name, "type"))
+      num = gst_tensors_info_parse_types_string (&gst_info, value);
+    else if (g_str_has_suffix (name, "name"))
+      num = gst_tensors_info_parse_names_string (&gst_info, value);
+    else
+      num = gst_tensors_info_parse_dimensions_string (&gst_info, value);
+
+    if (num == gst_info.num_tensors) {
+      ml_tensors_info_h ml_info;
+
+      ml_tensors_info_create_from_gst (&ml_info, &gst_info);
+
+      /* change configuration */
+      status = ml_single_set_gst_info (single_h, ml_info);
+
+      ml_tensors_info_destroy (ml_info);
+    } else {
+      ml_loge ("The property value (%s) is not available.", value);
+      status = ML_ERROR_INVALID_PARAMETER;
+    }
+
+    gst_tensors_info_free (&gst_info);
+  } else {
+    g_object_set (G_OBJECT (single_h->filter), name, value, NULL);
+  }
+
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
+
+  g_free (old_value);
+  return status;
+}
+
+/**
+ * @brief Gets the property value for the given model.
+ */
+int
+ml_single_get_property (ml_single_h single, const char *name, char **value)
+{
+  ml_single *single_h;
+  int status = ML_ERROR_NONE;
+
+  check_feature_state ();
+
+  if (!single || !name || !value)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *value = NULL;
+
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
+
+  if (g_str_equal (name, "input") || g_str_equal (name, "inputtype") ||
+      g_str_equal (name, "inputname") || g_str_equal (name, "inputlayout") ||
+      g_str_equal (name, "output") || g_str_equal (name, "outputtype") ||
+      g_str_equal (name, "outputname") || g_str_equal (name, "outputlayout") ||
+      g_str_equal (name, "accelerator")) {
+    /* string */
+    g_object_get (G_OBJECT (single_h->filter), name, value, NULL);
+  } else if (g_str_equal (name, "is-updatable")) {
+    gboolean bool_value = FALSE;
+
+    /* boolean */
+    g_object_get (G_OBJECT (single_h->filter), name, &bool_value, NULL);
+    *value = (bool_value) ? g_strdup ("true") : g_strdup ("false");
+  } else {
+    ml_loge ("The property %s is not available.", name);
+    status = ML_ERROR_INVALID_PARAMETER;
+  }
+
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
+  return status;
+}

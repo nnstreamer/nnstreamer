@@ -186,6 +186,33 @@ int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
 int ml_single_set_timeout (ml_single_h single, unsigned int timeout);
 
 /**
+ * @brief Sets the property value for the given model.
+ * @details Note that a model/framework may not support to change the property after opening the model.
+ * @since_tizen 6.0
+ * @param[in] single The model handle.
+ * @param[in] name The property name.
+ * @param[in] value The property value.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ */
+int ml_single_set_property (ml_single_h single, const char *name, const char *value);
+
+/**
+ * @brief Gets the property value for the given model.
+ * @since_tizen 6.0
+ * @param[in] single The model handle.
+ * @param[in] name The property name.
+ * @param[out] value The property value. The caller is responsible for freeing the value using g_free().
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
+ */
+int ml_single_get_property (ml_single_h single, const char *name, char **value);
+
+/**
  * @}
  */
 #ifdef __cplusplus
