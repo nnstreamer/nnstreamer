@@ -169,4 +169,7 @@ run_pipeline true:cpu.neon,cpu
 cat info | grep "nnapi = 1, accl = cpu.neon"
 testResult $? 2-17 "NNAPI activation test" 0 1
 
+# Cleanup
+rm info
+
 report

@@ -28,6 +28,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decode
 
 callCompareTest testtflitessd_golden.0 testtflitessd_output.0 0-1 "TFLITESSD Decode 1" 0
 callCompareTest testtflitessd_golden.1 testtflitessd_output.1 0-2 "TFLITESSD Decode 2" 0
+rm testtflitessd_output.*
 
 # tf case: 1, 100:1, 100:1, 4:100:1 --> 4:160:120:1
 
@@ -35,5 +36,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decode
 
 callCompareTest testtfssd_golden.0 testtfssd_output.0 0-1 "TFSSD Decode 1" 0
 callCompareTest testtfssd_golden.1 testtfssd_output.1 0-2 "TFSSD Decode 2" 0
+rm testtfssd_output.*
 
 report
