@@ -811,15 +811,14 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     }
     case PROP_INPUTLAYOUT:
     {
-      /** TODO: allow updating the data layout after fw has been opened */
       guint num_layouts;
-
+#if 0 /** @todo allow updating the data layout after fw has been opened */
       if (priv->prop.fw_opened == TRUE) {
         g_warning
             ("Updating data layout is not supported after opened framework.");
         break;
       }
-
+#endif
       num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
           g_value_get_string (value));
 
@@ -833,15 +832,14 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     }
     case PROP_OUTPUTLAYOUT:
     {
-      /** TODO: allow updating the data layout after fw has been opened */
       guint num_layouts;
-
+#if 0 /** @todo allow updating the data layout after fw has been opened */
       if (priv->prop.fw_opened == TRUE) {
         g_warning
             ("Updating data layout is not supported after opened framework.");
         break;
       }
-
+#endif
       num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
           g_value_get_string (value));
 
@@ -1090,6 +1088,7 @@ gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
     if (priv->fw && priv->fw->close) {
       priv->fw->close (&priv->prop, &priv->privateData);
     }
+    priv->prop.input_configured = priv->prop.output_configured = FALSE;
     priv->prop.fw_opened = FALSE;
     g_free_const (priv->prop.fwname);
     priv->prop.fwname = NULL;
