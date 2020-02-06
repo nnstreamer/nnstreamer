@@ -291,7 +291,7 @@ TEST (cpp_filter_obj, base_03)
 int
 main (int argc, char **argv)
 {
-  int result;
+  int result = 0;
   int delete_path = 0;
 
   if (argc > 3 && !g_strcmp0 (argv[1], "-libpath")) {
@@ -304,10 +304,18 @@ main (int argc, char **argv)
     g_printerr ("LIBPATH = %s\n", path_to_lib);
   }
 
-  testing::InitGoogleTest (&argc, argv);
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
   gst_init (&argc, &argv);
 
-  result = RUN_ALL_TESTS ();
+  try {
+    result = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
 
   if (delete_path)
     g_free (path_to_lib);
