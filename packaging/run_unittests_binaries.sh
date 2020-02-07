@@ -29,15 +29,23 @@ run_entry() {
 
   echo $entry
   ${entry} --gst-plugin-path=. --gtest_output="xml:${entry##*/}.xml"
+
+  return $?
 }
 
+ret=0
 if [ -f "${input}" ]; then
   run_entry $input
+  ret=$?
 elif [ -d "${input}" ]; then
   filelist=(`find "${input}" -mindepth 1 -maxdepth 1 -type f -executable -name "unittest_*"`)
   for entry in "${filelist[@]}"
   do
     run_entry $entry
+    ret=$?
+    if [ $ret -ne 0]; then
+      break
+    fi
   done
 else
   filename=${input##*/}
@@ -46,7 +54,12 @@ else
   for entry in "${filelist[@]}"
   do
     run_entry $entry
+    ret=$?
+    if [ $ret -ne 0 ]; then
+      break
+    fi
   done
 fi
 
 popd
+exit $ret
