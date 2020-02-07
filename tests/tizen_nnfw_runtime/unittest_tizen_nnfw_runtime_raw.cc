@@ -290,7 +290,7 @@ get_argmax (guint8 * array, size_t size)
 /**
  * @brief Test nnfw subplugin with successful invoke for tflite advanced model
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
+TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
 {
   int ret;
   void *data = NULL;
