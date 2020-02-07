@@ -411,6 +411,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
   /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt */
   max_idx = get_argmax ((guint8 *) output.data, output.size);
   EXPECT_EQ (max_idx, 951);
+  EXPECT_EQ (max_idx, 951);
 
   g_free (data_file);
   g_free (output.data);
