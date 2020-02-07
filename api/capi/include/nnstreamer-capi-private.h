@@ -316,6 +316,11 @@ int ml_tensors_info_compare (const ml_tensors_info_h info1, const ml_tensors_inf
 void ml_tensors_info_free (ml_tensors_info_s *info);
 
 /**
+ * @brief Allocates a tensors information handle from gst info.
+ */
+int ml_tensors_info_create_from_gst (ml_tensors_info_h *ml_info, GstTensorsInfo *gst_info);
+
+/**
  * @brief Copies tensor metadata from gst tensors info.
  */
 void ml_tensors_info_copy_from_gst (ml_tensors_info_s *ml_info, const GstTensorsInfo *gst_info);
