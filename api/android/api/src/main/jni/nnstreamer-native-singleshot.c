@@ -259,6 +259,62 @@ done:
  * @brief Native method for single-shot API.
  */
 jboolean
+Java_org_nnsuite_nnstreamer_SingleShot_nativeSetProperty (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name, jstring value)
+{
+  pipeline_info_s *pipe_info;
+  ml_single_h single;
+  jboolean ret = JNI_FALSE;
+
+  const char *prop_name = (*env)->GetStringUTFChars (env, name, NULL);
+  const char *prop_value = (*env)->GetStringUTFChars (env, value, NULL);
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  single = pipe_info->pipeline_handle;
+
+  if (ml_single_set_property (single, prop_name, prop_value) == ML_ERROR_NONE) {
+    ret = JNI_TRUE;
+  } else {
+    nns_loge ("Failed to set the property (%s:%s).", prop_name, prop_value);
+  }
+
+  (*env)->ReleaseStringUTFChars (env, name, prop_name);
+  (*env)->ReleaseStringUTFChars (env, name, prop_value);
+  return ret;
+}
+
+/**
+ * @brief Native method for single-shot API.
+ */
+jstring
+Java_org_nnsuite_nnstreamer_SingleShot_nativeGetProperty (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name)
+{
+  pipeline_info_s *pipe_info;
+  ml_single_h single;
+
+  const char *prop_name = (*env)->GetStringUTFChars (env, name, NULL);
+  char *prop_value = NULL;
+  jstring value = NULL;
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  single = pipe_info->pipeline_handle;
+
+  if (ml_single_get_property (single, prop_name, &prop_value) == ML_ERROR_NONE) {
+    value = (*env)->NewStringUTF (env, prop_value);
+    g_free (prop_value);
+  } else {
+    nns_loge ("Failed to get the property (%s).", prop_name);
+  }
+
+  (*env)->ReleaseStringUTFChars (env, name, prop_name);
+  return value;
+}
+
+/**
+ * @brief Native method for single-shot API.
+ */
+jboolean
 Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env,
     jobject thiz, jlong handle, jint timeout)
 {

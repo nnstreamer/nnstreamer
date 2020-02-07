@@ -320,4 +320,74 @@ public class APITestSingleShot {
             /* expected */
         }
     }
+
+    @Test
+    public void testGetInvalidPropertyName_n() {
+        try {
+            mSingle.getProperty("");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testGetUnknownPropertyName_n() {
+        try {
+            mSingle.getProperty("unknown_prop");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testGetNullPropertyName_n() {
+        try {
+            mSingle.getProperty(null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnknownPropertyName_n() {
+        try {
+            mSingle.setProperty("unknown_prop", "unknown");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSetNullPropertyName_n() {
+        try {
+            mSingle.setProperty(null, "ANY");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSetNullPropertyValue_n() {
+        try {
+            mSingle.setProperty("inputlayout", null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testGetPropertyDimension() {
+        try {
+            assertEquals("3:224:224:1", mSingle.getProperty("input"));
+            assertEquals("1001:1:1:1", mSingle.getProperty("output"));
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }

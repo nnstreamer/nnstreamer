@@ -78,6 +78,10 @@ public class APITestSNAP {
             /* let's ignore timeout (set 60 sec) */
             single.setTimeout(60000);
 
+            /* set layout */
+            single.setProperty("inputlayout", "NHWC");
+            single.setProperty("outputlayout", "NCHW");
+
             /* single-shot invoke */
             for (int i = 0; i < 10; i++) {
                 /* dummy input */
@@ -105,8 +109,8 @@ public class APITestSNAP {
                 "other/tensor,dimension=(string)3:224:224:1,type=(string)float32,framerate=(fraction)0/1 ! " +
                 "tensor_filter framework=snap " +
                     "model=" + models[0].getAbsolutePath() + "," + models[1].getAbsolutePath() + " " +
-                    "input=3:224:224:1 inputtype=float32 inputname=data " +
-                    "output=1:1:1000:1 outputtype=float32 outputname=prob " +
+                    "input=3:224:224:1 inputtype=float32 inputlayout=NHWC inputname=data " +
+                    "output=1:1:1000:1 outputtype=float32 outputlayout=NCHW outputname=prob " +
                     "custom=" + option + " ! " +
                 "tensor_sink name=sinkx";
 
