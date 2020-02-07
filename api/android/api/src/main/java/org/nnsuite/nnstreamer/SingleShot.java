@@ -39,6 +39,8 @@ public final class SingleShot implements AutoCloseable {
     private native TensorsData nativeInvoke(long handle, TensorsData in);
     private native TensorsInfo nativeGetInputInfo(long handle);
     private native TensorsInfo nativeGetOutputInfo(long handle);
+    private native boolean nativeSetProperty(long handle, String name, String value);
+    private native String nativeGetProperty(long handle, String name);
     private native boolean nativeSetInputInfo(long handle, TensorsInfo in);
     private native boolean nativeSetTimeout(long handle, int timeout);
 
@@ -184,6 +186,52 @@ public final class SingleShot implements AutoCloseable {
         }
 
         return info;
+    }
+
+    /**
+     * Sets the property value for the given model.
+     * Note that a model/framework may not support to change the property after opening the model.
+     *
+     * @param name  The property name
+     * @param value The property value
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     */
+    public void setProperty(@NonNull String name, @NonNull String value) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given property name is invalid");
+        }
+
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException("Given property value is invalid");
+        }
+
+        if (!nativeSetProperty(mHandle, name, value)) {
+            throw new IllegalArgumentException("Failed to set the property");
+        }
+    }
+
+    /**
+     * Gets the property value for the given model.
+     *
+     * @param name The property name
+     *
+     * @return The property value
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     */
+    public String getProperty(@NonNull String name) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given property name is invalid");
+        }
+
+        String value = nativeGetProperty(mHandle, name);
+
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException("Failed to get the property");
+        }
+
+        return value;
     }
 
     /**
