@@ -52,6 +52,32 @@ ml_tensors_info_create (ml_tensors_info_h * info)
 }
 
 /**
+ * @brief Allocates a tensors information handle from gst info.
+ */
+int
+ml_tensors_info_create_from_gst (ml_tensors_info_h * ml_info,
+    GstTensorsInfo * gst_info)
+{
+  ml_tensors_info_s *tensors_info;
+
+  check_feature_state ();
+
+  if (!ml_info || !gst_info)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *ml_info = tensors_info = g_new0 (ml_tensors_info_s, 1);
+  if (tensors_info == NULL) {
+    ml_loge ("Failed to allocate the tensors info handle.");
+    return ML_ERROR_OUT_OF_MEMORY;
+  }
+
+  /* init and copy tensors info from gst struct */
+  ml_tensors_info_initialize (tensors_info);
+  ml_tensors_info_copy_from_gst (tensors_info, gst_info);
+  return ML_ERROR_NONE;
+}
+
+/**
  * @brief Frees the given handle of a tensors information.
  */
 int
