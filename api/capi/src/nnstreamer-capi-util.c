@@ -971,11 +971,18 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       break;
     }
     case ML_NNFW_TYPE_MVNC:
-      /** @todo Need to check method for NCSDK2 */
-      ml_loge ("Intel Movidius NCSDK2 is not supported.");
+    case ML_NNFW_TYPE_OPENVINO:
+    case ML_NNFW_TYPE_VIVANTE:
+    case ML_NNFW_TYPE_EDGE_TPU:
+      /** @todo Need to check method to validate model */
+      ml_loge ("Given NNFW is not supported yet.");
       status = ML_ERROR_NOT_SUPPORTED;
       break;
     case ML_NNFW_TYPE_SNAP:
+#if !defined(__ANDROID__)
+      ml_loge ("SNAP only can be included in Android (arm64-v8a only).");
+      status = ML_ERROR_NOT_SUPPORTED;
+#endif
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
     case ML_NNFW_TYPE_ARMNN:
@@ -1031,6 +1038,30 @@ ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
 }
 
 /**
+ * @brief Internal function to get the sub-plugin name.
+ */
+const char *
+ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw)
+{
+  static const char *nnfw_subplugin_name[] = {
+    [ML_NNFW_TYPE_ANY] = "any", /* DO NOT use this name ('any') to get the sub-plugin */
+    [ML_NNFW_TYPE_CUSTOM_FILTER] = "custom",
+    [ML_NNFW_TYPE_TENSORFLOW_LITE] = "tensorflow-lite",
+    [ML_NNFW_TYPE_TENSORFLOW] = "tensorflow",
+    [ML_NNFW_TYPE_NNFW] = "nnfw",
+    [ML_NNFW_TYPE_MVNC] = "movidius-ncsdk2",
+    [ML_NNFW_TYPE_OPENVINO] = "openvino",
+    [ML_NNFW_TYPE_VIVANTE] = "vivante",
+    [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
+    [ML_NNFW_TYPE_ARMNN] = "armnn",
+    [ML_NNFW_TYPE_SNAP] = "snap",
+    NULL
+  };
+
+  return nnfw_subplugin_name[nnfw];
+}
+
+/**
  * @brief Checks the availability of the given execution environments.
  */
 int
@@ -1038,7 +1069,7 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     bool * available)
 {
   const GstTensorFilterFramework *fw;
-  gchar *fw_name = NULL;
+  const char *fw_name = NULL;
 
   check_feature_state ();
 
@@ -1048,33 +1079,10 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   /* init false */
   *available = false;
 
-  switch (nnfw) {
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      fw_name = g_strdup ("custom");
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      fw_name = g_strdup ("tensorflow-lite");
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW:
-      fw_name = g_strdup ("tensorflow");
-      break;
-    case ML_NNFW_TYPE_NNFW:
-      fw_name = g_strdup ("nnfw");
-      break;
-    case ML_NNFW_TYPE_MVNC:
-      /** @todo Condition to support Movidius NCSDK2 */
-      fw_name = g_strdup ("movidius-ncsdk2");
-      break;
-    case ML_NNFW_TYPE_SNAP:
-      fw_name = g_strdup ("snap");
-      break;
-    case ML_NNFW_TYPE_ARMNN:
-      fw_name = g_strdup ("armnn");
-      break;
-    default:
-      /* Default = "Not available!" */
-      break;
-  }
+  if (nnfw == ML_NNFW_TYPE_ANY)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  fw_name = ml_get_nnfw_subplugin_name (nnfw);
 
   if (fw_name) {
     if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
@@ -1086,8 +1094,6 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     } else {
       ml_logw ("%s is not supported.", fw_name);
     }
-
-    g_free (fw_name);
   }
 
   return ML_ERROR_NONE;
