@@ -115,21 +115,21 @@ typedef void *ml_pipeline_valve_h;
 
 /**
  * @brief Types of NNFWs.
+ * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability().
  * @since_tizen 5.5
- * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability()
  */
 typedef enum {
   ML_NNFW_TYPE_ANY = 0,               /**< NNHW is not specified (Try to determine the NNFW with file extension). */
   ML_NNFW_TYPE_CUSTOM_FILTER = 1,     /**< Custom filter (Independent shared object). */
   ML_NNFW_TYPE_TENSORFLOW_LITE = 2,   /**< Tensorflow-lite (.tflite). */
   ML_NNFW_TYPE_TENSORFLOW = 3,        /**< Tensorflow (.pb). */
-  ML_NNFW_TYPE_NNFW = 4,              /**< Neural Network Inference framework, which is developed by Samsung Research. */
-  ML_NNFW_TYPE_MVNC = 5,              /**< Intel NCSDK (libmvnc). */
-  ML_NNFW_TYPE_OPENVINO = 6,          /**< Intel openVINO. */
-  ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante (TBD) */
-  ML_NNFW_TYPE_EDGE_TPU = 8,          /**< Google Coral edge TPU (USB) */
-  ML_NNFW_TYPE_ARMNN = 9,             /**< Arm Neural Network framework (support for caffe and tensorflow-lite) */
-  ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. */
+  ML_NNFW_TYPE_NNFW = 4,              /**< Neural Network Inference framework, which is developed by SR (Samsung Research). */
+  ML_NNFW_TYPE_MVNC = 5,              /**< Intel Movidius Neural Compute SDK (libmvnc). (Since 6.0) */
+  ML_NNFW_TYPE_OPENVINO = 6,          /**< Intel OpenVINO. (Since 6.0) */
+  ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante. (Since 6.0) */
+  ML_NNFW_TYPE_EDGE_TPU = 8,          /**< Google Coral Edge TPU (USB). (Since 6.0) */
+  ML_NNFW_TYPE_ARMNN = 9,             /**< Arm Neural Network framework (support for caffe and tensorflow-lite). (Since 6.0) */
+  ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. (Since 6.0) */
 } ml_nnfw_type_e;
 
 /**
@@ -140,14 +140,14 @@ typedef enum {
   ML_NNFW_HW_ANY          = 0,      /**< Hardware resource is not specified. */
   ML_NNFW_HW_AUTO         = 1,      /**< Try to schedule and optimize if possible. */
   ML_NNFW_HW_CPU          = 0x1000, /**< 0x1000: any CPU. 0x1nnn: CPU # nnn-1. */
-  ML_NNFW_HW_CPU_NEON     = 0x1100, /**< 0x1100: NEON in CPU. */
+  ML_NNFW_HW_CPU_NEON     = 0x1100, /**< 0x1100: NEON in CPU. (Since 6.0) */
   ML_NNFW_HW_GPU          = 0x2000, /**< 0x2000: any GPU. 0x2nnn: GPU # nnn-1. */
   ML_NNFW_HW_NPU          = 0x3000, /**< 0x3000: any NPU. 0x3nnn: NPU # nnn-1. */
-  ML_NNFW_HW_NPU_MOVIDIUS = 0x3001, /**< 0x3001: Intel Movidius Stick. */
-  ML_NNFW_HW_NPU_EDGE_TPU = 0x3002, /**< 0x3002: Google Coral Edge TPU (USB). */
-  ML_NNFW_HW_NPU_VIVANTE  = 0x3003, /**< 0x3003: VeriSilicon's Vivante (TBD). */
-  ML_NNFW_HW_NPU_SRCN     = 0x3004, /**< 0x3004: SRCN backend supported with NNFW-runtime. */
-  ML_NNFW_HW_NPU_SR       = 0x3100, /**< 0x3100: any SR made NPU. */
+  ML_NNFW_HW_NPU_MOVIDIUS = 0x3001, /**< 0x3001: Intel Movidius Stick. (Since 6.0) */
+  ML_NNFW_HW_NPU_EDGE_TPU = 0x3002, /**< 0x3002: Google Coral Edge TPU (USB). (Since 6.0) */
+  ML_NNFW_HW_NPU_VIVANTE  = 0x3003, /**< 0x3003: VeriSilicon's Vivante. (Since 6.0) */
+  ML_NNFW_HW_NPU_SR       = 0x3100, /**< 0x3100: any SR (Samsung Research) made NPU. (Since 6.0) */
+  ML_NNFW_HW_NPU_SRCN     = 0x3101, /**< 0x3101: SRCN (Samsung R&D Institute China-Nanjing) backend supported with NNFW-runtime. (Since 6.0) */
 } ml_nnfw_hw_e;
 
 /**
@@ -182,7 +182,7 @@ typedef enum {
   ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /**< Time out */
   ML_ERROR_NOT_SUPPORTED        = TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
   ML_ERROR_PERMISSION_DENIED    = TIZEN_ERROR_PERMISSION_DENIED, /**< Permission denied */
-  ML_ERROR_OUT_OF_MEMORY        = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory */
+  ML_ERROR_OUT_OF_MEMORY        = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory (Since 6.0) */
 } ml_error_e;
 
 /**
@@ -259,9 +259,9 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the required privilege to access to the media storage, external storage, microphone, or camera.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid. (Pipeline is not negotiated yet.)
  * @retval #ML_ERROR_STREAMS_PIPE Pipeline construction is failed because of wrong parameter or initialization failure.
- * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the required privilege to access to the media storage, external storage, microphone, or camera.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to construct the pipeline.
  *
  * @pre The pipeline state should be #ML_PIPELINE_STATE_UNKNOWN or #ML_PIPELINE_STATE_NULL.

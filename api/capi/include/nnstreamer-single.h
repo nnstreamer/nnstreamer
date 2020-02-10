@@ -58,8 +58,6 @@ typedef void *ml_single_h;
  * @param[in] input_info This is required if the given model has flexible input
  *                      dimension, where the input dimension MUST be given
  *                      before executing the model.
- *                      However, once it's given, the input dimension cannot
- *                      be changed for the given model handle.
  *                      It is required by some custom filters of NNStreamer.
  *                      You may set NULL if it's not required.
  * @param[in] output_info This is required if the given model has flexible output dimension.
@@ -70,9 +68,9 @@ typedef void *ml_single_h;
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the privilege to access to the media storage or external storage.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  * @retval #ML_ERROR_STREAMS_PIPE Failed to start the pipeline.
- * @retval #ML_ERROR_PERMISSION_DENIED The application does not have the privilege to access to the media storage or external storage.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
@@ -108,8 +106,9 @@ int ml_single_close (ml_single_h single);
 int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h *output);
 
 /**
- * @brief Invokes the model with the given input data with the given info.
- * @details This function changes the input data dimensions for the model.
+ * @brief Invokes the model with the given input data with the given tensors information.
+ * @details This function changes the input tensors information for the model, and returns the corresponding output data.
+ *          A model/framework may not support changing the information.
  *          Note that this has a default timeout of 3 seconds. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
  * @since_tizen 6.0
  * @param[in] single The model handle to be inferred.
@@ -161,14 +160,14 @@ int ml_single_get_output_info (ml_single_h single, ml_tensors_info_h *info);
 
 /**
  * @brief Sets the information (tensor dimension, type, name and so on) of required input data for the given model.
- * @details Note that a model/framework may not support setting such information.
+ * @details Note that a model/framework may not support changing the information.
+ *          Use ml_single_get_input_info() and ml_single_get_output_info() instead for this framework.
  * @since_tizen 6.0
  * @param[in] single The model handle.
  * @param[in] info The handle of input tensors information.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
- * @retval #ML_ERROR_NOT_SUPPORTED This implies that the given framework does not support dynamic dimensions.
- *         Use ml_single_get_input_info() and ml_single_get_output_info() instead for this framework.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.
  */
 int ml_single_set_input_info (ml_single_h single, const ml_tensors_info_h info);
@@ -187,7 +186,7 @@ int ml_single_set_timeout (ml_single_h single, unsigned int timeout);
 
 /**
  * @brief Sets the property value for the given model.
- * @details Note that a model/framework may not support to change the property after opening the model.
+ * @details Note that a model/framework may not support changing the property after opening the model.
  * @since_tizen 6.0
  * @param[in] single The model handle.
  * @param[in] name The property name.
