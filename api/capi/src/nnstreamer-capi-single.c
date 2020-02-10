@@ -465,6 +465,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   ml_nnfw_type_e nnfw;
   ml_nnfw_hw_e hw;
+  const char *fw_name;
 
   check_feature_state ();
 
@@ -567,40 +568,9 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     }
   }
 
-  switch (nnfw) {
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      g_object_set (filter_obj, "framework", "custom", NULL);
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      /* We can get the tensor meta from tf-lite model. */
-      g_object_set (filter_obj, "framework", "tensorflow-lite", NULL);
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW:
-      g_object_set (filter_obj, "framework", "tensorflow", NULL);
-      break;
-    case ML_NNFW_TYPE_MVNC:
-      /** @todo Verify this! (this code is not tested) */
-      g_object_set (filter_obj, "framework", "movidius-ncsdk2", NULL);
-      break;
-    case ML_NNFW_TYPE_NNFW:
-      /* We can get the tensor meta from tf-lite model. */
-      g_object_set (filter_obj, "framework", "nnfw", NULL);
-      break;
-    case ML_NNFW_TYPE_SNAP:
-      g_object_set (filter_obj, "framework", "snap", NULL);
-      break;
-    case ML_NNFW_TYPE_ARMNN:
-      g_object_set (filter_obj, "framework", "armnn", NULL);
-      break;
-    default:
-      /** @todo Add other fw later. */
-      ml_loge ("The given nnfw is not supported.");
-      status = ML_ERROR_NOT_SUPPORTED;
-      goto error;
-  }
-
-  /* set model files and custom option */
-  g_object_set (filter_obj, "model", info->models, NULL);
+  /* set framework, model files and custom option */
+  fw_name = ml_get_nnfw_subplugin_name (nnfw);
+  g_object_set (filter_obj, "framework", fw_name, "model", info->models, NULL);
 
   if (info->custom_option) {
     g_object_set (filter_obj, "custom", info->custom_option, NULL);

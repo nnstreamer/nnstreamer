@@ -356,6 +356,11 @@ int ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw);
  */
 int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
 
+/**
+ * @brief Internal function to get the sub-plugin name.
+ */
+const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
+
 #if defined (__TIZEN__)
 /**
  * @brief Checks whether machine_learning.inference feature is enabled or not.
