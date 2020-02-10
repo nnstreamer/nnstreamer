@@ -353,6 +353,7 @@ static gboolean
 ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     ml_tensors_info_s * tensors_info)
 {
+  int status;
   ml_single *single_h;
   ml_tensors_info_h info = NULL;
   ml_tensors_info_s *dest;
@@ -395,7 +396,9 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     ml_tensors_info_clone (dest, info);
     ml_tensors_info_destroy (info);
   } else if (tensors_info) {
-    ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
+    status = ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
+    if (status != ML_ERROR_NONE)
+      goto done;
     ml_tensors_info_clone (dest, tensors_info);
   }
 
