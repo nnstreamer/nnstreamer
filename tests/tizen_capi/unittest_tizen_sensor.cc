@@ -104,6 +104,8 @@ typedef struct {
   int negative;
 } verify_data;
 
+static verify_data data; /* Too big for stack. Use this global var */
+
 /**
  * @brief Test if the sensor-reading matches the golden values.
  */
@@ -163,7 +165,6 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   ml_pipeline_h handle;
   ml_pipeline_sink_h s_handle;
   ml_pipeline_state_e state;
-  verify_data data;
 
   status = sensor_get_default_sensor (SENSOR_LIGHT, &sensor);
   EXPECT_EQ (status, 0);
@@ -254,7 +255,6 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
   ml_pipeline_h handle;
   ml_pipeline_sink_h s_handle;
   ml_pipeline_state_e state;
-  verify_data data;
 
   sensor_get_sensor_list (SENSOR_LIGHT, &sensor_list, &count);
   EXPECT_EQ (count, 3);
@@ -347,7 +347,6 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
   ml_pipeline_h handle;
   ml_pipeline_sink_h s_handle;
   ml_pipeline_state_e state;
-  verify_data data;
 
   sensor_get_sensor_list (SENSOR_LIGHT, &sensor_list, &count);
   EXPECT_EQ (count, 3);
