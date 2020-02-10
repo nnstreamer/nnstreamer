@@ -382,9 +382,9 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
 
     if (tensors_info && !ml_tensors_info_is_equal (tensors_info, info)) {
       /* given input info is not matched with configured */
+      ml_tensors_info_destroy (info);
       if (is_input) {
         /* try to update tensors info */
-        ml_tensors_info_destroy (info);
         if (ml_single_update_info (single, tensors_info, &info) != ML_ERROR_NONE)
           goto done;
       } else {
@@ -393,6 +393,7 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     }
 
     ml_tensors_info_clone (dest, info);
+    ml_tensors_info_destroy (info);
   } else if (tensors_info) {
     ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
     ml_tensors_info_clone (dest, tensors_info);
@@ -401,7 +402,6 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
   is_valid = ml_tensors_info_is_valid (dest);
 
 done:
-  ml_tensors_info_destroy (info);
   return is_valid;
 }
 
