@@ -1,3 +1,29 @@
+1.3.1 -> 1.4.0
+	- Stable release with API changes
+	- *Tensor-filter subplugin API has been updated.*
+	- Stability fixes & added unit test cases
+	- C-API updates
+
+1.3.0 -> 1.3.1
+	- 1.3.1 is a devel version for 1.4.0 release.
+	- Support C++ class custom filters. (C++ class as a NN model)
+	- A tensor-filter instance may have multiple model files easily.
+	- Updated env-var handling logic for non-Tizen devices.
+	- Unit test: higher visibility & behavior correctness fixes.
+	- Auto-generated test cases for tensor-filter sub-plugins (extensions).
+	- Android/Java support with more convinient methods.
+	- Support gcc9
+	- Support openVino as a tensor-filter, allowing to accelerate with Intel NCS/Myriad.
+	- Support NCSDK as a tensor-filter.
+	- Support ARMNN as a tensor-filter. (support TF-Lite and Caffe models)
+	- Reduce asserts and add error handling routines.
+	- Support Androdi/SNAP as a tensor-filter.
+	- Support hardware accelerators & 8-bit quantization for NNFW-Runtime & stabilize NNFW-Runtime support with test cases.
+	- Support Edge-TPU and its runtime as a tensor-filter.
+	- Filter subplugins refactored to have a single source file (.cc)
+	- Support model reload
+	- A lot of fixes for bugs found by Coverity, SVACE, and other static analysis tools
+
 1.2.0 -> 1.3.0:
 	- 1.3.0 is a devel version for 1.4.0 release.
 	- From 1.2.0, 1.even.x is a release and 1.odd.x is a devel version.
