@@ -3734,15 +3734,23 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 int
 main (int argc, char **argv)
 {
-  int result;
+  int result = -1;
 
-  testing::InitGoogleTest (&argc, argv);
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
 
   /* ignore tizen feature status while running the testcases */
   set_feature_state (1);
 
-  result = RUN_ALL_TESTS ();
-
+  try {
+    result = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
+  
   set_feature_state (-1);
 
   return result;
