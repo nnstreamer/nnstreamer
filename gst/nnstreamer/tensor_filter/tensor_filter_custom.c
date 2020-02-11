@@ -37,6 +37,12 @@
 void init_filter_custom (void) __attribute__ ((constructor));
 void fini_filter_custom (void) __attribute__ ((destructor));
 
+static const gchar *custom_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  NULL
+};
+
 /**
  * @brief internal_data
  */
@@ -266,6 +272,18 @@ custom_allocateInInvoke (void **private_data)
   return -EINVAL;
 }
 
+/**
+ * @brief Check support of the backend
+ */
+static int
+custom_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (custom_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_custom[] = "custom";
 
 static GstTensorFilterFramework NNS_support_custom = {
@@ -283,6 +301,7 @@ static GstTensorFilterFramework NNS_support_custom = {
   .close = custom_close,
   .destroyNotify = custom_destroyNotify,        /* if custom filter model supports allocate_in_invoke, this will be set from custom filter. */
   .allocateInInvoke = custom_allocateInInvoke,
+  .checkAvailability = custom_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
