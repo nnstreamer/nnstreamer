@@ -35,6 +35,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+static const gchar *mvncsdk2_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  ACCL_NPU_STR,
+  ACCL_NPU_MOVIDIUS_STR,
+  NULL
+};
+
 void init_filter_mvncsdk2 (void) __attribute__ ((constructor));
 void fini_filter_mvncsdk2 (void) __attribute__ ((destructor));
 
@@ -381,7 +389,6 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
  * @param prop : property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
  * @param[out] info : The dimesions and types of output tensors
- * @todo : fill this function
  */
 static int
 _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
@@ -409,12 +416,27 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
   return 0;
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] hw backend accelerator hardware
+ * @return 0 if supported. -errno if not supported.
+ */
+static int
+_mvncsdk2_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (mvncsdk2_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_movidius_ncsdk2[] = "movidius-ncsdk2";
 
 static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = _mvncsdk2_open,
   .close = _mvncsdk2_close,
+  .checkAvailability = _mvncsdk2_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */

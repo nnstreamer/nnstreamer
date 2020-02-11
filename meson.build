@@ -257,6 +257,21 @@ if get_option('enable-armnn')
   add_project_arguments('-DENABLE_ARMNN=1', language: ['c', 'cpp'])
 endif
 
+# Movidius NCSDK2
+have_movidius_ncsdk2 = false
+if get_option('enable-movidius-ncsdk2')
+  # Explicitly checks mvnc.h in the ncsdk2 directory
+  nns_mvncsdk2_dep = cc.find_library('mvnc', required: false)
+  if not nns_mvncsdk2_dep.found()
+    warning('Failed to find \'libmvnc.so\' despite setting enable-movidius-ncsdk2. This option be ignored.')
+  elif not cc.check_header('mvnc2/mvnc.h')
+    warning('Failed to find \'mvnc2/mvnc.h\' despite setting enable-movidius-ncsdk2. This option be ignored.')
+  else
+    have_movidius_ncsdk2 = true
+    add_project_arguments('-DENABLE_MOVIDIUS_NCSDK2=1', language: ['c', 'cpp'])
+  endif
+endif
+
 # Set configuration to install .ini
 nnstreamer_install_conf = configuration_data()
 nnstreamer_install_conf.merge_from(nnstreamer_conf)

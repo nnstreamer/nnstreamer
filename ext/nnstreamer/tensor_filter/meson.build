@@ -228,39 +228,31 @@ if have_python3
   )
 endif
 
-if get_option('enable-movidius-ncsdk2')
-  # Explicitly checks mvnc.h in the ncsdk2 directory
-  nns_mvncsdk2_dep = cc.find_library('mvnc', required: false)
-  if not nns_mvncsdk2_dep.found()
-    warning('Failed to find \'libmvnc.so\' despite setting enable-movidius-ncsdk2. This option be ignored.')
-  elif not cc.check_header('mvnc2/mvnc.h')
-    warning('Failed to find \'mvnc2/mvnc.h\' despite setting enable-movidius-ncsdk2. This option be ignored.')
-  else
-    filter_sub_mvncsdk2_sources = [
-      'tensor_filter_movidius_ncsdk2.c'
-    ]
+if have_movidius_ncsdk2
+  filter_sub_mvncsdk2_sources = [
+    'tensor_filter_movidius_ncsdk2.c'
+  ]
 
-    nnstreamer_filter_mvncsdk2_sources = []
-    foreach s : filter_sub_mvncsdk2_sources
-      nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
-    endforeach
+  nnstreamer_filter_mvncsdk2_sources = []
+  foreach s : filter_sub_mvncsdk2_sources
+    nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
 
-    nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep, nns_mvncsdk2_dep]
+  nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep, nns_mvncsdk2_dep]
 
-    shared_library('nnstreamer_filter_movidius-ncsdk2',
-      nnstreamer_filter_mvncsdk2_sources,
-      dependencies: nnstreamer_filter_mvncsdk2_deps,
-      install: true,
-      install_dir: filter_subplugin_install_dir
-    )
+  shared_library('nnstreamer_filter_movidius-ncsdk2',
+    nnstreamer_filter_mvncsdk2_sources,
+    dependencies: nnstreamer_filter_mvncsdk2_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
 
-    static_library('nnstreamer_filter_movidius-ncsdk2',
-      nnstreamer_filter_mvncsdk2_sources,
-      dependencies: nnstreamer_filter_mvncsdk2_deps,
-      install: true,
-      install_dir: nnstreamer_libdir
-    )
-  endif
+  static_library('nnstreamer_filter_movidius-ncsdk2',
+    nnstreamer_filter_mvncsdk2_sources,
+    dependencies: nnstreamer_filter_mvncsdk2_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
 endif
 
 if get_option('enable-cppfilter')

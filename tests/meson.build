@@ -156,7 +156,7 @@ if get_option('enable-tensorflow-lite') and get_option('enable-edgetpu')
   subdir('nnstreamer_filter_edgetpu')
 endif
 
-if get_option('enable-movidius-ncsdk2')
+if have_movidius_ncsdk2
   subdir('nnstreamer_filter_mvncsdk2')
 endif
 
