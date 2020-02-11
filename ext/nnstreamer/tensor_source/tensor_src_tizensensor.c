@@ -590,6 +590,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
           "The requested sensor sequence %d for sensor %d is not available. The max-sequence is used instead",
           self->sequence, self->type);
       self->sequence = 0;
+      g_free (list);
       return -EINVAL;
     }
 
@@ -867,8 +868,16 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   gst_base_src_set_dynamic_size (src, FALSE);
 
   /* 3. Fire it up! */
+  if (sensor_listener_start (self->listener) != 0) {
+    /* Failed to start listener. Clean this up */
+    ret = _ts_clean_up_handle (self);
+    if (ret) {
+      GST_ERROR_OBJECT (self, "_ts_clean_up_handle () returns %d", ret);
+    }
+    retval = FALSE;
+    goto exit;
+  }
   self->running = TRUE;
-  sensor_listener_start (self->listener);
 
   /** complete the start of the base src */
   gst_base_src_start_complete (src, GST_FLOW_OK);
