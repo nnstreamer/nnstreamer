@@ -45,6 +45,12 @@
 #define DBG FALSE
 #endif
 
+static const gchar *tf_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  NULL
+};
+
 /**
  * @brief	Internal data structure for tensorflow
  */
@@ -741,6 +747,19 @@ tf_destroyNotify (void **private_data, void *data)
   }
 }
 
+/**
+ * @brief Check support of the backend
+ * @param[in] hw backend to check support of
+ */
+static int
+tf_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (tf_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_tensorflow[] = "tensorflow";
 
 static GstTensorFilterFramework NNS_support_tensorflow = {
@@ -762,6 +781,7 @@ init_filter_tf (void)
   NNS_support_tensorflow.getInputDimension = tf_getInputDim;
   NNS_support_tensorflow.getOutputDimension = tf_getOutputDim;
   NNS_support_tensorflow.destroyNotify = tf_destroyNotify;
+  NNS_support_tensorflow.checkAvailability = tf_checkAvailability;
 
   nnstreamer_filter_probe (&NNS_support_tensorflow);
 }

@@ -1318,7 +1318,7 @@ TEST (nnstreamer_capi_util, availability_01)
 /**
  * @brief Test NNStreamer Utility for checking availability of Tensorflow-lite backend
  */
-TEST (nnstreamer_capi_util, availability_fail_n)
+TEST (nnstreamer_capi_util, availability_fail_01_n)
 {
   bool result;
   int status;
@@ -1344,6 +1344,42 @@ TEST (nnstreamer_capi_util, availability_fail_n)
   EXPECT_EQ (result, false);
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
+
+#ifdef ENABLE_TENSORFLOW
+/**
+ * @brief Test NNStreamer Utility for checking availability of Tensorflow backend
+ */
+TEST (nnstreamer_capi_util, availability_02)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_AUTO, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking availability of Tensorflow backend
+ */
+TEST (nnstreamer_capi_util, availability_fail_02_n)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_CPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_GPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+}
+#endif /** ENABLE_TENSORFLOW */
 
 /**
  * @brief Test NNStreamer Utility for checking tensors info handle
