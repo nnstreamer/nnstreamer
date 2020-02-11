@@ -23,7 +23,7 @@ Summary:	gstreamer plugins for neural networks
 # 2. Tizen  : ./packaging/nnstreamer.spec
 # 3. Android: ./jni/nnstreamer.mk
 # 4. Meson  : ./meson.build
-Version:	1.4.0
+Version:	1.5.0
 Release:	0
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -578,6 +578,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %changelog
+* Tue Feb 11 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Start development of 1.5.0 (1.6.0-RC1)
+
 * Tue Feb 11 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 1.4.0 (Tensor-filter API has been updated!)
 
