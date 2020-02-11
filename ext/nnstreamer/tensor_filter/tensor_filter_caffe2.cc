@@ -42,6 +42,12 @@
 #define DBG FALSE
 #endif
 
+static const gchar *caffe2_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  NULL
+};
+
 using namespace caffe2;
 
 /**
@@ -563,6 +569,20 @@ caffe2_destroyNotify (void **private_data, void *data)
   /* do nothing */
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] hw backend accelerator hardware
+ * @return 0 if supported. -errno if not supported.
+ */
+static int
+caffe2_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (caffe2_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_caffe2[] = "caffe2";
 
 static GstTensorFilterFramework NNS_support_caffe2 = {
@@ -584,6 +604,7 @@ init_filter_caffe2 (void)
   NNS_support_caffe2.getInputDimension = caffe2_getInputDim;
   NNS_support_caffe2.getOutputDimension = caffe2_getOutputDim;
   NNS_support_caffe2.destroyNotify = caffe2_destroyNotify;
+  NNS_support_caffe2.checkAvailability = caffe2_checkAvailability;
 
   nnstreamer_filter_probe (&NNS_support_caffe2);
 }
