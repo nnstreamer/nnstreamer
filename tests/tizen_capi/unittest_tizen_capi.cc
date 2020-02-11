@@ -1382,6 +1382,40 @@ TEST (nnstreamer_capi_util, availability_fail_02_n)
 #endif /** ENABLE_TENSORFLOW */
 
 /**
+ * @brief Test NNStreamer Utility for checking availability of custom backend
+ */
+TEST (nnstreamer_capi_util, availability_03)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_AUTO, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, true);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking availability of custom backend
+ */
+TEST (nnstreamer_capi_util, availability_fail_03_n)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_CPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_GPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, false);
+}
+
+/**
  * @brief Test NNStreamer Utility for checking tensors info handle
  */
 TEST (nnstreamer_capi_util, tensors_info)
