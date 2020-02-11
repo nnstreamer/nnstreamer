@@ -38,6 +38,15 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_conf.h>
 
+static const gchar *armnn_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  ACCL_CPU_NEON_STR,
+  ACCL_CPU_STR,
+  ACCL_GPU_STR,
+  NULL
+};
+
 /**
  * @brief	ring cache structure
  */
@@ -82,6 +91,7 @@ private:
       GstTensorsInfo * tensorMeta);
   tensor_type getGstTensorType (armnn::DataType armType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
+  armnn::Compute getBackend (const accl_hw hw);
 };
 
 /**
@@ -100,8 +110,8 @@ void fini_filter_armnn (void) __attribute__ ((destructor));
  * @param	hw	: hardware accelerator to be used at backend
  */
 ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw):
-runtime (nullptr, &armnn::IRuntime::Destroy),
-network (armnn::INetworkPtr (nullptr, nullptr))
+  accel (hw), runtime (nullptr, &armnn::IRuntime::Destroy),
+  network (armnn::INetworkPtr (nullptr, nullptr))
 {
   model_path = g_strdup (_model_path);
 
@@ -306,6 +316,26 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties * prop)
   return -EINVAL;
 }
 
+armnn::Compute ArmNNCore::getBackend (const accl_hw hw)
+{
+  switch (hw) {
+    case ACCL_GPU:
+      return armnn::Compute::GpuAcc;
+    case ACCL_NONE:
+      /** intended */
+    case ACCL_CPU:
+      return armnn::Compute::CpuRef;
+    case ACCL_CPU_NEON:
+      return armnn::Compute::CpuAcc;
+    case ACCL_AUTO:
+      /** intended */
+    case ACCL_DEFAULT:
+      /** intended */
+    default:
+      return armnn::Compute::CpuAcc;
+  }
+}
+
 /**
  * @brief	load the armnn model
  * @note	the model will be loaded
@@ -334,11 +364,12 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
       throw std::runtime_error ("Error in building the network.");
 
     /* Optimize the network for the given runtime */
-    /** TODO: set the backend based on config received */
-    std::vector < armnn::BackendId > backends = {
-    armnn::Compute::CpuAcc};
-    /** TODO: add option to enable FP32 to FP16 with OptimizerOptions */
-    /** TODO: add GPU based optimizations */
+    std::vector < armnn::BackendId > backends = {getBackend (accel)};
+    /**
+     * TODO: add option to enable FP32 to FP16 with OptimizerOptions
+     * TODO: add GPU based optimizations
+     * Support these with custom_properties from tensor_filter
+     */
     runtime = armnn::IRuntime::Create (options);
     if (!runtime)
       throw std::runtime_error ("Error creating runtime");
@@ -600,7 +631,7 @@ static int
 armnn_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   ArmNNCore *core;
-  accl_hw hw = ACCL_DEFAULT;
+  accl_hw hw;
 
   core = static_cast < ArmNNCore * >(*private_data);
 
@@ -615,6 +646,7 @@ armnn_open (const GstTensorFilterProperties * prop, void **private_data)
   if (prop->model_files[0] == NULL)
     return -EINVAL;
 
+  hw = parse_accl_hw (prop->accl_str, armnn_accl_support);
   try {
     core = new ArmNNCore (prop->model_files[0], hw);
   }
@@ -695,12 +727,26 @@ armnn_getOutputDim (const GstTensorFilterProperties * prop,
   return core->getOutputTensorDim (info);
 }
 
+/**
+ * @brief Check support of the backend
+ * @param hw: backend to check support of
+ */
+static int
+armnn_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (armnn_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_armnn[] = "armnn";
 
 static GstTensorFilterFramework NNS_support_armnn = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = armnn_open,
   .close = armnn_close,
+  .checkAvailability = armnn_checkAvailability,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
