@@ -70,6 +70,12 @@
 
 #define Py_ERRMSG(...) do {PyErr_Print(); g_critical (__VA_ARGS__);} while (0);
 
+static const gchar *python_accl_support[] = {
+  ACCL_AUTO_STR,
+  ACCL_DEFAULT_STR,
+  NULL
+};
+
 /** @brief Callback type for custom filter */
 typedef enum _cb_type
 {
@@ -911,6 +917,19 @@ py_open (const GstTensorFilterProperties * prop, void **private_data)
   return status;
 }
 
+/**
+ * @brief Check support of the backend
+ * @param hw: backend to check support of
+ */
+static int
+py_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (python_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 #if PY_VERSION_HEX >= 0x03000000
 static gchar filter_subplugin_python[] = "python3";
 #else
@@ -921,8 +940,6 @@ static GstTensorFilterFramework NNS_support_python = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = py_open,
   .close = py_close,
-  {
-  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
@@ -940,6 +957,7 @@ init_filter_py (void)
   NNS_support_python.getOutputDimension = py_getOutputDim;
   NNS_support_python.setInputDimension = py_setInputDim;
   NNS_support_python.destroyNotify = py_destroyNotify;
+  NNS_support_python.checkAvailability = py_checkAvailability;
 
   nnstreamer_filter_probe (&NNS_support_python);
   /** Python should be initialized and finalized only once */
