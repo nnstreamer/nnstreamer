@@ -47,6 +47,7 @@
 
 const gchar *openvino_accl_support[] = {
   ACCL_CPU_STR,
+  ACCL_NPU_STR,
   ACCL_NPU_MOVIDIUS_STR,
   NULL
 };
