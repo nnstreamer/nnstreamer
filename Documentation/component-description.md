@@ -115,7 +115,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - Android WIP: JCenter Repository & Daily Build Release
   - macOS WIP: Daily Build Release
 - [Test cases](../tests/): Mandatory unit test cases required to pass for each PR.
-  - Used [SSAT](https://github.com/nnsuite/SSAT).
+  - Used [SSAT](https://github.com/myungjoo/SSAT).
   - Each element and feature is required to register its testcases at [test case directory](../tests/)
 - Examples: Example GStreamer applications using NNStreamer and example sub-plugins for NNStreamer. The binaries from this directory is not supposed to be packaged with the main binary package.
   - [Example GStreamer applications](https://github.com/nnsuite/nnstreamer-example)

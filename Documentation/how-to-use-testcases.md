@@ -10,7 +10,7 @@ $ cd build
 $ ninja test
 ```
 
-For all gst-launch-based test cases ([SSAT](https://github.com/nnsuite/SSAT), mostly golden testing)
+For all gst-launch-based test cases ([SSAT](https://github.com/myungjoo/SSAT), mostly golden testing)
 ```
 $ cd tests
 $ ssat
