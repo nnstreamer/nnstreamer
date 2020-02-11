@@ -42,6 +42,7 @@ void fini_filter_openvino (void) __attribute__ ((destructor));
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
     {ACCL_CPU, "CPU"},
+    {ACCL_NPU, "MYRIAD"},
     {ACCL_NPU_MOVIDIUS, "MYRIAD"},
 };
 
@@ -617,12 +618,27 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
   return tfOv->loadModel (accelerator);
 }
 
+/**
+ * @brief The optional callback for GstTensorFilterFramework
+ * @param[in] hw backend accelerator hardware
+ * @return 0 if supported. -errno if not supported.
+ */
+static int
+ov_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (openvino_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_openvino[] = "openvino";
 
 static GstTensorFilterFramework NNS_support_openvino = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
+  .checkAvailability = ov_checkAvailability,
 };
 
 /**
