@@ -24,20 +24,24 @@
 #include "nnstreamer-native.h"
 
 /* nnstreamer plugins and sub-plugins declaration */
+#if !defined (NNS_SINGLE_ONLY)
 GST_PLUGIN_STATIC_DECLARE (nnstreamer);
 GST_PLUGIN_STATIC_DECLARE (amcsrc);
 extern void init_filter_cpp (void);
 extern void init_filter_custom (void);
 extern void init_filter_custom_easy (void);
 extern void init_filter_tflite (void);
-#if defined (ENABLE_SNAP)
-extern void init_filter_snap (void);
-#endif
 extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);
 extern void init_pose (void);
 extern void init_is (void);
+#endif
+
+extern void init_filter_tflite (void);
+#if defined (ENABLE_SNAP)
+extern void init_filter_snap (void);
+#endif
 
 /**
  * @brief Global lock for native functions.
@@ -97,6 +101,7 @@ nns_free_element_data (gpointer data)
 
   if (item) {
     switch (item->type) {
+#if !defined (NNS_SINGLE_ONLY)
       case NNS_ELEMENT_TYPE_SRC:
         ml_pipeline_src_release_handle ((ml_pipeline_src_h) item->handle);
         break;
@@ -110,6 +115,7 @@ nns_free_element_data (gpointer data)
       case NNS_ELEMENT_TYPE_SWITCH_OUT:
         ml_pipeline_switch_release_handle ((ml_pipeline_switch_h) item->handle);
         break;
+#endif
       default:
         nns_logw ("Given element type %d is unknown.", item->type);
         if (item->handle)
@@ -171,17 +177,19 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
   g_mutex_unlock (&pipe_info->lock);
 
   switch (pipe_info->pipeline_type) {
+#if !defined (NNS_SINGLE_ONLY)
     case NNS_PIPE_TYPE_PIPELINE:
       ml_pipeline_destroy (pipe_info->pipeline_handle);
-      break;
-    case NNS_PIPE_TYPE_SINGLE:
-      ml_single_close (pipe_info->pipeline_handle);
       break;
     case NNS_PIPE_TYPE_CUSTOM:
       /**
        * Do nothing here (no handle to close).
        * The handle is filter-framework and it will be closed in customfilter-destroy function.
        */
+      break;
+#endif
+    case NNS_PIPE_TYPE_SINGLE:
+      ml_single_close (pipe_info->pipeline_handle);
       break;
     default:
       nns_logw ("Given pipe type %d is unknown.", pipe_info->pipeline_type);
@@ -585,6 +593,7 @@ nnstreamer_native_initialize (void)
 
   if (nns_is_initilaized == FALSE) {
     /* register nnstreamer plugins */
+#if !defined (NNS_SINGLE_ONLY)
     GST_PLUGIN_STATIC_REGISTER (nnstreamer);
 
     /* Android MediaCodec */
@@ -594,10 +603,6 @@ nnstreamer_native_initialize (void)
     init_filter_cpp ();
     init_filter_custom ();
     init_filter_custom_easy ();
-    init_filter_tflite ();
-#if defined (ENABLE_SNAP)
-    init_filter_snap ();
-#endif
 
     /* tensor-decoder sub-plugins */
     init_dv ();
@@ -605,6 +610,12 @@ nnstreamer_native_initialize (void)
     init_il ();
     init_pose ();
     init_is ();
+#endif
+
+    init_filter_tflite ();
+#if defined (ENABLE_SNAP)
+    init_filter_snap ();
+#endif
 
     nns_is_initilaized = TRUE;
   }

@@ -27,12 +27,16 @@ GST_REQUIRED_PLUGINS := $(GSTREAMER_PLUGINS_CORE) \
     $(GSTREAMER_PLUGINS_NET_RESTRICTED) \
     $(GSTREAMER_PLUGINS_GES)
 GST_REQUIRED_DEPS := gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-app-1.0
-GST_REQUIRED_LIBS := -liconv
+GST_REQUIRED_LIBS :=
 else ifeq ($(NNSTREAMER_API_OPTION),lite)
 # Build with core plugins
 GST_REQUIRED_PLUGINS := $(GSTREAMER_PLUGINS_CORE)
 GST_REQUIRED_DEPS := gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-app-1.0
-GST_REQUIRED_LIBS := -liconv
+GST_REQUIRED_LIBS :=
+else ifeq ($(NNSTREAMER_API_OPTION),single)
+GST_REQUIRED_PLUGINS :=
+GST_REQUIRED_DEPS :=
+GST_REQUIRED_LIBS :=
 else
 $(error Unknown build option: $(NNSTREAMER_API_OPTION))
 endif

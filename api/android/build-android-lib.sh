@@ -23,13 +23,14 @@
 #
 
 # API build option ('lite' to build with GStreamer core plugins)
-nnstreamer_api_option=all
+nnstreamer_api_option='all'
+include_assets='no'
 
 # Set target ABI ('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
 nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
 
 # Set tensorflow-lite version (available: 1.9 and 1.13)
-nnstreamer_tf_lite_ver=1.13
+nnstreamer_tf_lite_ver='1.13'
 
 # Run instrumentation test after build procedure is done
 run_test='no'
@@ -79,6 +80,14 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# Check build option
+if [[ $nnstreamer_api_option == 'internal' ]]; then
+    # Enable SNAP and include single-shot only
+    nnstreamer_api_option='single'
+    include_assets='no'
+    enable_snap='yes'
+fi
 
 if [[ $enable_snap == 'yes' ]]; then
     [ -z "$SNAP_DIRECTORY" ] && echo "Need to set SNAP_DIRECTORY, to build sub-plugin for SNAP." && exit 1
@@ -159,6 +168,11 @@ sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nns
 # Update API build option
 sed -i "s|NNSTREAMER_API_OPTION := all|NNSTREAMER_API_OPTION := $nnstreamer_api_option|" api/src/main/jni/Android.mk
 
+if [[ $include_assets == 'yes' ]]; then
+    sed -i "s|GSTREAMER_INCLUDE_FONTS := no|GSTREAMER_INCLUDE_FONTS := yes|" api/src/main/jni/Android.mk
+    sed -i "s|GSTREAMER_INCLUDE_CA_CERTIFICATES := no|GSTREAMER_INCLUDE_CA_CERTIFICATES := yes|" api/src/main/jni/Android.mk
+fi
+
 # Update SNAP option
 if [[ $enable_snap == 'yes' ]]; then
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" ext-files/jni/Android-nnstreamer-prebuilt.mk
@@ -185,6 +199,14 @@ publish {\n\
 }|" api/build.gradle
 fi
 
+# If build option is single-shot only, remove unnecessary files.
+if [[ $nnstreamer_api_option == 'single' ]]; then
+    rm ./api/src/main/java/org/nnsuite/nnstreamer/CustomFilter.java
+    rm ./api/src/main/java/org/nnsuite/nnstreamer/Pipeline.java
+    rm ./api/src/androidTest/java/org/nnsuite/nnstreamer/APITestCustomFilter.java
+    rm ./api/src/androidTest/java/org/nnsuite/nnstreamer/APITestPipeline.java
+fi
+
 echo "Starting gradle build for Android library."
 
 chmod +x gradlew
@@ -209,28 +231,35 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     # Prepare native libraries and header files for C-API
     unzip $nnstreamer_android_api_lib -d aar_extracted
 
-    mkdir -p main/assets
     mkdir -p main/java/org/freedesktop
     mkdir -p main/jni/nnstreamer/lib
     mkdir -p main/jni/nnstreamer/include
 
+    # assets
+    if [[ $include_assets == 'yes' ]]; then
+        mkdir -p main/assets
+        cp -r aar_extracted/assets/* main/assets
+    fi
+
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
-    cp -r aar_extracted/assets/* main/assets
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp ext-files/jni/Android-nnstreamer-prebuilt.mk main/jni
     # header for C-API
     cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
     cp $NNSTREAMER_ROOT/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
+
     # header for plugin
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
+    if [[ $nnstreamer_api_option != 'single' ]]; then
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
+        cp $NNSTREAMER_ROOT/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
+    fi
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
     zip -r $nnstreamer_native_files main

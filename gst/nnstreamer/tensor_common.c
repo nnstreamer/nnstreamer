@@ -1171,6 +1171,7 @@ replace_string (gchar * source, const gchar * what, const gchar * to,
   return result;
 }
 
+#if !defined (NNS_SINGLE_ONLY) /** @todo remove this definition (android release) */
 static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_NOSYNC] = "nosync",
   [SYNC_SLOWEST] = "slowest",
@@ -1457,7 +1458,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   /* not eos */
   return FALSE;
 }
-
+#endif
 /**
  * @brief Get the version of NNStreamer.
  * @return Newly allocated string. The returned string should be freed with g_free().

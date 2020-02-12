@@ -20,13 +20,13 @@ NNSTREAMER_INCLUDES := \
 
 # nnstreamer common sources
 NNSTREAMER_COMMON_SRCS := \
-    $(NNSTREAMER_GST_HOME)/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
     $(NNSTREAMER_GST_HOME)/tensor_common.c
 
 # nnstreamer plugins
 NNSTREAMER_PLUGINS_SRCS := \
+    $(NNSTREAMER_GST_HOME)/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
     $(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
     $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
@@ -55,6 +55,13 @@ NNSTREAMER_CAPI_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
     $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
+
+# nnstreamer c-api for single-shot only
+NNSTREAMER_SINGLE_SRCS := \
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
+    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c
 
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \

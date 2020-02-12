@@ -390,4 +390,63 @@ public class APITestSingleShot {
             fail();
         }
     }
+
+    /**
+     * Run SNAP with Caffe model.
+     */
+    private void runSNAPCaffe(boolean useGPU) {
+        File[] models = APITestCommon.getSNAPCaffeModel();
+        String option = APITestCommon.getSNAPCaffeOption(useGPU);
+
+        try {
+            TensorsInfo in = new TensorsInfo();
+            in.addTensorInfo("data", NNStreamer.TensorType.FLOAT32, new int[]{3,224,224,1});
+
+            TensorsInfo out = new TensorsInfo();
+            out.addTensorInfo("prob", NNStreamer.TensorType.FLOAT32, new int[]{1,1,1000,1});
+
+            SingleShot single = new SingleShot(models, in, out, NNStreamer.NNFWType.SNAP, option);
+
+            /* let's ignore timeout (set 60 sec) */
+            single.setTimeout(60000);
+
+            /* set layout */
+            single.setProperty("inputlayout", "NHWC");
+            single.setProperty("outputlayout", "NCHW");
+
+            /* single-shot invoke */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                TensorsData output = single.invoke(in.allocate());
+
+                /* output: float32 1:1:1000:1 (NCHW format) */
+                assertEquals(1, output.getTensorsCount());
+                assertEquals(4000, output.getTensorData(0).capacity());
+
+                Thread.sleep(30);
+            }
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSNAPCaffeCPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNAPCaffe(false);
+    }
+
+    @Test
+    public void testSNAPCaffeGPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNAPCaffe(true);
+    }
 }
