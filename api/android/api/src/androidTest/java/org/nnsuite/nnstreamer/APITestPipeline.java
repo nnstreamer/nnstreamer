@@ -820,4 +820,90 @@ public class APITestPipeline {
             fail();
         }
     }
+
+    /**
+     * Run SNAP with Caffe model.
+     */
+    private void runSNAPCaffe(boolean useGPU) {
+        File[] models = APITestCommon.getSNAPCaffeModel();
+        String option = APITestCommon.getSNAPCaffeOption(useGPU);
+
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:224:224:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snap " +
+                    "model=" + models[0].getAbsolutePath() + "," + models[1].getAbsolutePath() + " " +
+                    "input=3:224:224:1 inputtype=float32 inputlayout=NHWC inputname=data " +
+                    "output=1:1:1000:1 outputtype=float32 outputlayout=NCHW outputname=prob " +
+                    "custom=" + option + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,224,224,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                    } else {
+                        ByteBuffer output = data.getTensorData(0);
+
+                        if (!APITestCommon.isValidBuffer(output, 4000)) {
+                            mInvalidState = true;
+                        }
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(100);
+            }
+
+            /* sleep 500 to invoke */
+            Thread.sleep(500);
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSNAPCaffeCPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNAPCaffe(false);
+    }
+
+    @Test
+    public void testSNAPCaffeGPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNAPCaffe(true);
+    }
 }

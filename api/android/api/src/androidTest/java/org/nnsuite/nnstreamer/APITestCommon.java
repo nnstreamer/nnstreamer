@@ -66,6 +66,41 @@ public class APITestCommon {
     }
 
     /**
+     * Gets the File objects of Caffe model for SNAP.
+     */
+    public static File[] getSNAPCaffeModel() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+        File model = new File(root + "/nnstreamer/snap_data/prototxt/squeezenet.prototxt");
+        File weight = new File(root + "/nnstreamer/snap_data/model/squeezenet.caffemodel");
+
+        if (!model.exists() || !weight.exists()) {
+            fail();
+        }
+
+        return new File[]{model, weight};
+    }
+
+    /**
+     * Gets the option string to run Caffe model for SNAP.
+     *
+     * CPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:CPU"
+     * GPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:GPU,GpuCacheSource:/sdcard/nnstreamer/"
+     */
+    public static String getSNAPCaffeOption(boolean useGPU) {
+        String option = "ModelFWType:CAFFE,ExecutionDataType:FLOAT32,";
+
+        if (useGPU) {
+            String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+            option = option + "ComputingUnit:GPU,GpuCacheSource:" + root + "/nnstreamer/";
+        } else {
+            option = option + "ComputingUnit:CPU";
+        }
+
+        return option;
+    }
+
+    /**
      * Verifies the byte buffer is direct buffer with native order.
      *
      * @param buffer   The byte buffer
