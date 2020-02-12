@@ -995,6 +995,10 @@ TEST (nnstreamer_capi_src, failure_03_n)
 
   status = ml_tensors_data_destroy (data);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_destroy (info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
 }
 
 /**
@@ -2618,6 +2622,9 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_tensors_info_destroy (in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   g_free (test_model);
 }
 
@@ -2671,6 +2678,9 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
@@ -2736,6 +2746,9 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
   ml_tensors_data_destroy (input);
 
   status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
