@@ -2958,6 +2958,9 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
+  
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -2978,8 +2981,6 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close);
 
   /* open tf-lite model */
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
@@ -3106,6 +3107,9 @@ TEST (test_tensor_filter, reload_tflite_model_not_found_n)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -3126,8 +3130,6 @@ TEST (test_tensor_filter, reload_tflite_model_not_found_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
 
   /* open tf-lite model */
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
@@ -3168,6 +3170,9 @@ TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -3188,8 +3193,6 @@ TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
 
   /* open tf-lite model */
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
@@ -3223,6 +3226,9 @@ TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
   gchar *test_model;
   gchar *test_model_renamed;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -3246,9 +3252,7 @@ TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
   prop->model_files = model_files;
   prop->num_models = 1;
 
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
-
-  /* open tf-lite model */
+    /* open tf-lite model */
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
 
   /* reload tf-lite model again */
@@ -3286,6 +3290,9 @@ TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
   gchar *test_model_backup;
   gchar *test_model_renamed;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -3310,8 +3317,6 @@ TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
 
   /* open tf-lite model */
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
