@@ -891,10 +891,27 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       }
       break;
     case ML_NNFW_TYPE_NNFW:
-      /** @todo Need to check method for NNFW */
-      ml_loge ("NNFW is not supported.");
-      status = ML_ERROR_NOT_SUPPORTED;
+    {
+      gchar *model_path = NULL;
+      gchar *meta = NULL;
+
+      if (!g_str_has_suffix (path_down, ".tflite")) {
+        ml_loge ("The given model [%s] has invalid extension.", model);
+        status = ML_ERROR_INVALID_PARAMETER;
+        break;
+      }
+
+      model_path = g_path_get_dirname (model);
+      meta = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
+      if (!g_file_test (meta, G_FILE_TEST_IS_REGULAR)) {
+        ml_loge ("The given model path [%s] is missing metadata.", model_path);
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+
+      g_free (model_path);
+      g_free (meta);
       break;
+    }
     default:
       status = ML_ERROR_INVALID_PARAMETER;
       break;
@@ -933,9 +950,8 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
       }
       break;
     case ML_NNFW_TYPE_NNFW:
-      {
-        /** @todo Need to check method for NNFW */
-        ml_logw ("NNFW is not supported.");
+      if (nnstreamer_filter_find ("nnfw") == NULL) {
+        ml_logw ("Tensorflow is not supported.");
         goto done;
       }
       break;

@@ -6,12 +6,13 @@ if get_option('enable-nnfw-runtime')
     nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
+  json_glib_dep = dependency('json-glib-1.0', required: true)
   nnfw_dep = dependency('nnfw', required: false)
   if not nnfw_dep.found()
     # Until nnfw supports pkg-config, we need to do this primitively.
     nnfw_dep = cc.find_library('nnfw-dev')
   endif
-  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, nnfw_dep]
+  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, nnfw_dep, json_glib_dep]
 
 
   nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
@@ -23,8 +24,8 @@ if get_option('enable-nnfw-runtime')
   static_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
-    install: false,
-    install_dir: filter_subplugin_install_dir
+    install: true,
+    install_dir: nnstreamer_libdir
   )
 
   nnfw_plugin_dep = declare_dependency(link_with: nnfw_plugin_lib,

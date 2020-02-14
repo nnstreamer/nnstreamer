@@ -83,6 +83,7 @@ BuildRequires:	gst-plugins-base-devel
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
+BuildRequires:  json-glib-devel
 %define		enable_nnfw_runtime	-Denable-nnfw-runtime=true
 %define		enable_nnfw_r	1
 %endif

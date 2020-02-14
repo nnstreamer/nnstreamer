@@ -1,8 +1,8 @@
 unittest_nnfw_runtime_raw = executable('unittest_nnfw_runtime_raw',
   'unittest_tizen_nnfw_runtime_raw.cpp',
-  dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, nnfw_plugin_dep],
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, nnfw_plugin_dep, nnstreamer_capi_dep],
   install: get_option('install-test'),
-  install_dir: unittest_install_dir,
+  install_dir: join_paths(unittest_install_dir,'tests'),
 )
 
 test('unittest_nnfw_runtime_raw', unittest_nnfw_runtime_raw, args: ['--gst-plugin-path=../..'])

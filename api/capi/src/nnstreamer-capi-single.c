@@ -328,6 +328,13 @@ ml_single_open (ml_single_h * single, const char *model,
         return ML_ERROR_INVALID_PARAMETER;
       }
       break;
+    case ML_NNFW_TYPE_NNFW:
+      /* We can get the tensor meta from tf-lite model. */
+      pipeline_desc =
+          g_strdup_printf
+          ("appsrc name=srcx ! tensor_filter name=filterx framework=nnfw model=%s ! appsink name=sinkx sync=false",
+          model);
+      break;
     default:
       /** @todo Add other fw later. */
       ml_loge ("The given nnfw is not supported.");
