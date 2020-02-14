@@ -98,6 +98,9 @@ TEST (tensor_filter_openvino, open_and_close_0)
   gchar *test_model;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -116,8 +119,6 @@ TEST (tensor_filter_openvino, open_and_close_0)
     };
 
     prop->model_files = model_files;
-
-    ASSERT_TRUE (fw && fw->open && fw->close);
 
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
@@ -147,8 +148,6 @@ TEST (tensor_filter_openvino, open_and_close_0)
     prop->num_models = 2;
     prop->model_files = model_files;
 
-    ASSERT_TRUE (fw && fw->open && fw->close);
-
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -174,8 +173,6 @@ TEST (tensor_filter_openvino, open_and_close_0)
     prop->num_models = 1;
     prop->model_files = model_files;
 
-    ASSERT_TRUE (fw && fw->open && fw->close);
-
     ret = fw->open (prop, &private_data);
 
 #ifdef __OPENVINO_CPU_EXT__
@@ -200,8 +197,6 @@ TEST (tensor_filter_openvino, open_and_close_0)
 
     prop->num_models = 1;
     prop->model_files = model_files;
-
-    ASSERT_TRUE (fw && fw->open && fw->close);
 
     ret = fw->open (prop, &private_data);
 
@@ -234,6 +229,9 @@ TEST (tensor_filter_openvino, open_and_close_1)
   gchar *test_model_xml;
   gchar *test_model_bin;
   gint ret;
+
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -272,8 +270,6 @@ TEST (tensor_filter_openvino, open_and_close_1)
 
     prop->model_files = model_files;
 
-    ASSERT_TRUE (fw && fw->open && fw->close);
-
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -306,6 +302,9 @@ TEST (tensor_filter_openvino, open_and_close_2)
   gchar *test_model_bin;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -336,8 +335,6 @@ TEST (tensor_filter_openvino, open_and_close_2)
 
     prop->model_files = model_files;
 
-    ASSERT_TRUE (fw && fw->open && fw->close);
-
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -367,6 +364,9 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
   gchar *test_model;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -385,8 +385,6 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
   prop->model_files = model_files;
   prop->num_models = 1;
   prop->accl_str = "true:cpu";
-
-  ASSERT_TRUE (fw && fw->open && fw->close);
 
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -413,8 +411,6 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
 
     prop->num_models = 2;
     prop->model_files = model_files;
-
-    ASSERT_TRUE (fw && fw->open && fw->close);
 
     ret = fw->open (prop, &private_data);
     EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -444,8 +440,6 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
     prop->num_models = 2;
     prop->model_files = model_files;
 
-    ASSERT_TRUE (fw && fw->open && fw->close);
-
     ret = fw->open (prop, &private_data);
     EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
     EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
@@ -472,6 +466,9 @@ TEST (tensor_filter_openvino, open_and_close_1_n)
   gchar *test_model;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -489,8 +486,6 @@ TEST (tensor_filter_openvino, open_and_close_1_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close);
 
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -540,6 +535,9 @@ TEST (tensor_filter_openvino, open_and_close_2_n)
   gchar *test_model;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -557,8 +555,6 @@ TEST (tensor_filter_openvino, open_and_close_2_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-
-  ASSERT_TRUE (fw && fw->open && fw->close);
 
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -597,6 +593,9 @@ TEST (tensor_filter_openvino, getTensorDim_0)
   gchar *test_model;
   gint ret;
 
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -615,8 +614,6 @@ TEST (tensor_filter_openvino, getTensorDim_0)
     };
 
     prop->model_files = model_files;
-
-    ASSERT_TRUE (fw && fw->open && fw->close);
 
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
