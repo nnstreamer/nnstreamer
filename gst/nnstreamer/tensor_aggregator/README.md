@@ -35,6 +35,11 @@ Outgoing buffer
 
 Please be informed that, to ensure the tensor configuration, you have to change the dimension if input and output frames are different. (See the property ```frames-dim```.)
 
+### Dis-aggregation
+
+With larger ```frames-in``` values and smaller ```frames-out``` values, the output stream may have more frames than its input stream: ```dis-aggregation```.
+For example, if a neural network model multiplies picture frames of a video stream, generating 120FPS from 30FPS video, aggregated in a single video (in tensor format) stream output, we can generate a 120FPS stream from a 30FPS (4 frames per buffer) stream. If the model generates 4 video (tensor format) streams with other/tensors, we may merge them first and apply aggregator for the same effect.
+
 ## Sink Pads
 
 One "Always" sink pad exists. The capability of sink pad is ```other/tensor```.
