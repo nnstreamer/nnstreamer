@@ -284,7 +284,7 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
-  nnstreamer_test_conf.set('NNFW_RUNTIME_BACKEND', 'cpu')
+  nnstreamer_test_conf.set('NNFW_RUNTIME_ARM_BACKEND', 'cpu')
   nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
 
   # meson 0.50 supports install argument in configure_file()
