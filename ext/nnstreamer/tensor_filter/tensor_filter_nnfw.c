@@ -31,6 +31,7 @@
 #include <json-glib/json-glib.h>
 
 #include <tensor_common.h>
+#include "nnstreamer_conf.h"
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnfw.h>
 
@@ -128,6 +129,36 @@ nnfw_metadata_verify (const char *meta_file, const char *model_file)
 }
 
 /**
+ * @brief get backend to be set for nnfw based on ini configuration
+ */
+static const char *
+nnfw_get_backend (void)
+{
+  const char * nnfw_backend;
+
+#if defined(__arm__) || defined(__aarch64__)
+  const char * nnfw_arm_backend_ini;
+
+  nnfw_arm_backend_ini = nnsconf_get_custom_value_string ("nnfwruntime",
+      "arm_backend");
+  if (g_ascii_strncasecmp ("cpu", nnfw_arm_backend_ini, 3) == 0)
+    nnfw_backend = NNFW_CPU_BACKEND;
+  else if (g_ascii_strncasecmp ("gpu", nnfw_arm_backend_ini, 3) == 0)
+    nnfw_backend = NNFW_GPU_BACKEND;
+  else if (g_ascii_strncasecmp ("neon", nnfw_arm_backend_ini, 4) == 0)
+    nnfw_backend = NNFW_NEON_BACKEND;
+  else if (g_ascii_strncasecmp ("srcn", nnfw_arm_backend_ini, 4) == 0)
+    nnfw_backend = NNFW_SRCN_BACKEND;
+  else
+    nnfw_backend = NNFW_DEFAULT_BACKEND;
+#else
+  nnfw_backend = NNFW_DEFAULT_BACKEND;
+#endif
+
+  return nnfw_backend;
+}
+
+/**
  * @brief The standard tensor_filter callback
  */
 static int
@@ -138,6 +169,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   nnfw_pdata *pdata;
   char *model_path = NULL;
   char *meta_file = NULL;
+  const char *nnfw_backend;
 
   if (*private_data != NULL) {
     pdata = *private_data;
@@ -161,10 +193,12 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  status = nnfw_set_default_backend (pdata->session, NNFW_DEFAULT_BACKEND);
+  /** choose backend based on ini configuration and default values */
+  nnfw_backend = nnfw_get_backend ();
+  status = nnfw_set_default_backend (pdata->session, nnfw_backend);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot set nnfw-runtime backend to %s", NNFW_DEFAULT_BACKEND);
+    g_printerr ("Cannot set nnfw-runtime backend to %s", nnfw_backend);
     goto session_exit;
   }
 

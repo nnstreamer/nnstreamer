@@ -19,4 +19,8 @@ enable_nnapi=False
 [pytorch]
 enable_use_gpu=@TORCH_USE_GPU@
 
+# Set cpu/gpu/neon/srcn as backend for nnfw runtime for arm devices. By default, accelerated neon is used as backend in arm devices.
+[nnfwruntime]
+arm_backend=@NNFW_RUNTIME_ARM_BACKEND@
+
 @ELEMENT_RESTRICTION_CONFIG@

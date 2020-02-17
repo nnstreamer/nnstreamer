@@ -223,6 +223,22 @@ if get_option('enable-python')
   endif
 endif
 
+# NNFW-runtime
+if get_option('enable-nnfw-runtime')
+  json_glib_dep = dependency('json-glib-1.0', required: true)
+  nnfw_dep = dependency('nnfw', required: false)
+  if not nnfw_dep.found()
+    # Until nnfw supports pkg-config, we need to do this primitively.
+    nnfw_dep = cc.find_library('nnfw-dev')
+  endif
+
+  if nnfw_dep.found() and json_glib_dep.found()
+    add_project_arguments('-DENABLE_NNFW_RUNTIME=1', language: ['c', 'cpp'])
+  else
+    error('Cannot find nnfw-runtime Dependencies')
+  endif
+endif
+
 # nnfw ( details in https://review.tizen.org/gerrit/p/platform/core/ml/nnfw )
 if get_option('enable-nnfw')
   add_project_arguments('-DENABLE_NNFW=1', language: ['c', 'cpp'])
@@ -268,6 +284,7 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
+  nnstreamer_test_conf.set('NNFW_RUNTIME_BACKEND', 'cpu')
   nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
 
   # meson 0.50 supports install argument in configure_file()
@@ -290,6 +307,7 @@ nnstreamer_install_conf.merge_from(nnstreamer_conf)
 nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
 nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
 nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
+nnstreamer_install_conf.set('NNFW_RUNTIME_ARM_BACKEND', get_option('nnfw-runtime-arm-backend'))
 
 # Element restriction
 restriction_config = ''

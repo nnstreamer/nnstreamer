@@ -1236,6 +1236,7 @@ TEST (nnstreamer_capi_switch, failure_01_n)
   g_free (pipeline);
 }
 
+#ifdef ENABLE_NNFW_RUNTIME
 /**
  * @brief Test NNStreamer Utility for checking availability of NNFW
  * @todo After adding sub-plugin for NNFW, this testcase should be fixed.
@@ -1245,16 +1246,17 @@ TEST (nnstreamer_capi_util, availability_00)
   bool result;
   int status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, false);
+  EXPECT_EQ (result, true);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_AUTO, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, false);
+  EXPECT_EQ (result, true);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_NPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, false);
+  EXPECT_EQ (result, true);
 }
+#endif
 
 /**
  * @brief Test NNStreamer Utility for checking tensors info handle
