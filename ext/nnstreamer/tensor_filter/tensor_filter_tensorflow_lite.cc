@@ -320,6 +320,7 @@ TFLiteInterpreter::getTensorType (TfLiteType tfType)
     case kTfLiteInt32:
       return _NNS_INT32;
     case kTfLiteBool:
+    case kTfLiteInt8:
       return _NNS_INT8;
     case kTfLiteInt64:
       return _NNS_INT64;
