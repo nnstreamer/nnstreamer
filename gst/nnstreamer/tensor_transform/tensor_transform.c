@@ -190,7 +190,7 @@ gst_tensor_transform_mode_get_type (void)
           "dimchg"},
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
-      {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor"
+      {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor, "
             "option=[typecast:TYPE,]add|mul|div:NUMBER..., ...",
           "arithmetic"},
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
