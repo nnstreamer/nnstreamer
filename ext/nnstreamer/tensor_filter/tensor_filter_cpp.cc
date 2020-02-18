@@ -90,7 +90,7 @@ G_END_DECLS
 /**
  * @brief Class constructor
  */
-tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name)), ref_count(0)
+tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name)), ref_count(0), prop(NULL)
 {
 }
 
