@@ -437,14 +437,25 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
  */
 int main (int argc, char **argv)
 {
-  int result;
+  int result = -1;
 
-  testing::InitGoogleTest (&argc, argv);
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
+  
+  /* ignore tizen feature status while running the testcases */
   set_feature_state (1);
 
   gst_init (&argc, &argv);
-  result = RUN_ALL_TESTS ();
+  try {
+    result = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
 
   set_feature_state (-1);
+
   return result;
 }
