@@ -244,7 +244,8 @@ custom_destroyNotify (void **private_data, void *data)
 {
   internal_data *ptr = *private_data;
 
-  if (ptr && ptr->methods->allocate_invoke && ptr->methods->destroy_notify) {
+  if (ptr && ptr->methods->allocate_invoke && ptr->methods->destroy_notify &&
+      data) {
     ptr->methods->destroy_notify (data);
   } else {
     g_free (data);
