@@ -594,9 +594,13 @@ failed:
 void
 TFCore::freeOutputTensor (void *data)
 {
-  TF_Tensor *output_tensor = outputTensorMap.find (data)->second;
-  TF_DeleteTensor (output_tensor);
-  outputTensorMap.erase (data);
+  if (data != nullptr) {
+    std::map<void *, TF_Tensor *>::iterator it = outputTensorMap.find (data);
+    if (it != outputTensorMap.end()) {
+      TF_DeleteTensor (it->second);
+      outputTensorMap.erase (data);
+    }
+  }
 }
 
 /**

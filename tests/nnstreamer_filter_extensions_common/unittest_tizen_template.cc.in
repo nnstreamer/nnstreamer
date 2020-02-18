@@ -5,6 +5,7 @@
  * @see         https://github.com/nnsuite/nnstreamer
  * @author      Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug         No known bugs
+ * @todo        Add support for GstTensorFilterFramework V1
  */
 
 #include <gtest/gtest.h>
@@ -567,6 +568,129 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
 
     g_free (input.data);
     g_free (output.data);
+
+    sp->close (&prop, &data);
+  }
+
+  g_strfreev (model_files);
+}
+
+/**
+ * @brief Validate destroy notify with @EXT_ABBRV@ subplugin
+ */
+TEST (nnstreamer_@EXT_ABBRV@_basic_functions, destroyNotify_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar **model_files;
+
+  model_files = get_model_files ();
+  ASSERT_TRUE (model_files != nullptr);
+
+  GstTensorFilterProperties prop = {
+    .fwname = "@EXT_NAME@",
+    .fw_opened = 0,
+    .model_files = const_cast<const char **>(model_files),
+    .num_models = (int) g_strv_length (model_files),
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
+  EXPECT_NE (sp, (void *) NULL);
+
+  if (sp->destroyNotify) {
+    /** must not crash */
+    sp->destroyNotify (&data, NULL);
+
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0);
+
+    /** must not crash */
+    sp->destroyNotify (&data, NULL);
+
+    sp->close (&prop, &data);
+  }
+
+  g_strfreev (model_files);
+}
+
+/**
+ * @brief Check allocate in invoke with @EXT_ABBRV@ subplugin
+ */
+TEST (nnstreamer_@EXT_ABBRV@_basic_functions, allocateInInvoke_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar **model_files;
+
+  model_files = get_model_files ();
+  ASSERT_TRUE (model_files != nullptr);
+
+  GstTensorFilterProperties prop = {
+    .fwname = "@EXT_NAME@",
+    .fw_opened = 0,
+    .model_files = const_cast<const char **>(model_files),
+    .num_models = (int) g_strv_length (model_files),
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
+  EXPECT_NE (sp, (void *) NULL);
+
+  if (sp->allocateInInvoke) {
+    ret = sp->allocateInInvoke (&data);
+    EXPECT_NE (ret, 0);
+
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0);
+
+    /** must not crash */
+    ret = sp->allocateInInvoke (&data);
+
+    sp->close (&prop, &data);
+  }
+
+  g_strfreev (model_files);
+}
+
+/**
+ * @brief Check availability of accelerator support with @EXT_ABBRV@ subplugin
+ */
+TEST (nnstreamer_@EXT_ABBRV@_basic_functions, checkAvailability)
+{
+  int ret;
+  void *data = NULL;
+  gchar **model_files;
+
+  model_files = get_model_files ();
+  ASSERT_TRUE (model_files != nullptr);
+
+  GstTensorFilterProperties prop = {
+    .fwname = "@EXT_NAME@",
+    .fw_opened = 0,
+    .model_files = const_cast<const char **>(model_files),
+    .num_models = (int) g_strv_length (model_files),
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
+  EXPECT_NE (sp, (void *) NULL);
+
+  if (sp->checkAvailability) {
+    /** auto and default should be supported by all the extensions */
+    ret = sp->checkAvailability (ACCL_AUTO);
+    EXPECT_EQ (ret, 0);
+
+    ret = sp->checkAvailability (ACCL_DEFAULT);
+    EXPECT_EQ (ret, 0);
+
+    /** Once opened, the behavior should not change */
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0);
+
+    /** auto and default should be supported by all the extensions */
+    ret = sp->checkAvailability (ACCL_AUTO);
+    EXPECT_EQ (ret, 0);
+
+    ret = sp->checkAvailability (ACCL_DEFAULT);
+    EXPECT_EQ (ret, 0);
 
     sp->close (&prop, &data);
   }
