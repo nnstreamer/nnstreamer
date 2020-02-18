@@ -31,10 +31,10 @@ else
     TESTBINDIR="../../build/tests"
 fi
 
-${TESTBINDIR}/unittest_filter_reload --input_img=${PATH_TO_INPUT} --first_model=${PATH_TO_MODEL1} --second_model=${PATH_TO_MODEL1}
+${TESTBINDIR}/nnstreamer_filter_reload/unittest_filter_reload --input_img=${PATH_TO_INPUT} --first_model=${PATH_TO_MODEL1} --second_model=${PATH_TO_MODEL1}
 testResult $? 1 "reload tflite model case 1 (same model)" 0 1
 
-${TESTBINDIR}/unittest_filter_reload --input_img=${PATH_TO_INPUT} --first_model=${PATH_TO_MODEL1} --second_model=${PATH_TO_MODEL2}
+${TESTBINDIR}/nnstreamer_filter_reload/unittest_filter_reload --input_img=${PATH_TO_INPUT} --first_model=${PATH_TO_MODEL1} --second_model=${PATH_TO_MODEL2}
 testResult $? 2 "reload tflite model case 2 (diff model)" 0 1
 
 report
