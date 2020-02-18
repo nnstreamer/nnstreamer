@@ -33,20 +33,10 @@ if libpng_dep.found()
 endif
 
 # ssat repo_dynamic
-executable('unittest_repo',
-  join_paths('nnstreamer_repo_dynamicity', 'tensor_repo_dynamic_test.c'),
-  dependencies: [nnstreamer_dep, gst_dep, glib_dep],
-  install: get_option('install-test'),
-  install_dir: unittest_install_dir
-)
+subdir('nnstreamer_repo_dynamicity')
 
 # filter_reload
-executable('unittest_filter_reload',
-  join_paths('nnstreamer_filter_reload', 'tensor_filter_reload_test.c'),
-  dependencies: [nnstreamer_dep, gst_dep, glib_dep],
-  install: get_option('install-test'),
-  install_dir: unittest_install_dir
-)
+subdir('nnstreamer_filter_reload')
 
 # gtest
 gtest_dep = dependency('gtest', required: false)

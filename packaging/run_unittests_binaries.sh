@@ -43,7 +43,7 @@ elif [ -d "${input}" ]; then
   do
     run_entry $entry
     ret=$?
-    if [ $ret -ne 0]; then
+    if [ $ret -ne 0 ]; then
       break
     fi
   done
