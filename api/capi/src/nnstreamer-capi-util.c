@@ -902,14 +902,17 @@ ml_initialize_gstreamer (void)
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int
-ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
+ml_validate_model_file (char **model, unsigned int num_models,
+    ml_nnfw_type_e * nnfw)
 {
-  gchar *path_down;
+  /** @todo This is a hotfix. Make a general mechanism instead! (n paths) */
+  gchar *path_down, *path_down_2 = NULL;
   int status = ML_ERROR_NONE;
 
-  if (!model || !g_file_test (model, G_FILE_TEST_IS_REGULAR)) {
+  if (!model || num_models < 1 || !*model ||
+      !g_file_test (model[0], G_FILE_TEST_IS_REGULAR)) {
     ml_loge ("The given param, model path [%s] is invalid.",
-        GST_STR_NULL (model));
+        GST_STR_NULL (model[0]));
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -917,10 +920,15 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
     return ML_ERROR_INVALID_PARAMETER;
 
   /* Check file extention. */
-  path_down = g_ascii_strdown (model, -1);
+  path_down = g_ascii_strdown (model[0], -1);
+  if (num_models == 2)
+    path_down_2 = g_ascii_strdown (model[1], -1);
+  else if (num_models > 2)
+    return ML_ERROR_INVALID_PARAMETER; /** We do not have such a case, yet */
 
   switch (*nnfw) {
     case ML_NNFW_TYPE_ANY:
+      /** @todo Make sure num_models is correct */
       if (g_str_has_suffix (path_down, ".tflite")) {
         /**
          * .tflite is supported by both tensorflow and nnfw.
@@ -933,20 +941,26 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
 
         if ((nnfw_runtime_priority && available_nnfw) ||
             (!nnfw_runtime_priority && !available_tflite)) {
-          ml_logi ("The given model [%s] is supposed a nnfw model.", model);
+          ml_logi ("The given model [%s] is supposed a nnfw model.", model[0]);
           *nnfw = ML_NNFW_TYPE_NNFW;
         } else {
-          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model);
+          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model[0]);
           *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
         }
+      } else if ((g_str_has_suffix (path_down, ".so") &&
+          g_str_has_suffix (path_down_2, ".nb")) ||
+          (g_str_has_suffix (path_down, ".nb") &&
+          g_str_has_suffix (path_down_2, ".so"))) {
+        ml_logi ("The given model [%s,%s] looks like a Vivante model.", model[0], model[1]);
+        *nnfw = ML_NNFW_TYPE_VIVANTE;
       } else if (g_str_has_suffix (path_down, ".pb")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow model.", model);
+        ml_logi ("The given model [%s] is supposed a tensorflow model.", model[0]);
         *nnfw = ML_NNFW_TYPE_TENSORFLOW;
       } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_logi ("The given model [%s] is supposed a custom filter model.", model);
+        ml_logi ("The given model [%s] is supposed a custom filter model.", model[0]);
         *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
       } else {
-        ml_loge ("The given model [%s] has unknown extension.", model);
+        ml_loge ("The given model [%s] has unknown extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
 
@@ -957,35 +971,39 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
 
       break;
     case ML_NNFW_TYPE_CUSTOM_FILTER:
+      /** @todo Make sure num_models is correct */
       if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
+        ml_loge ("The given model [%s] has invalid extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
+      /** @todo Make sure num_models is correct */
       if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
+        ml_loge ("The given model [%s] has invalid extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
+      /** @todo Make sure num_models is correct */
       if (!g_str_has_suffix (path_down, ".pb")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
+        ml_loge ("The given model [%s] has invalid extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_NNFW:
     {
+      /** @todo Make sure num_models is correct */
       gchar *model_path = NULL;
       gchar *meta = NULL;
 
       if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
+        ml_loge ("The given model [%s] has invalid extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
         break;
       }
 
-      model_path = g_path_get_dirname (model);
+      model_path = g_path_get_dirname (model[0]);
       meta = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
       if (!g_file_test (meta, G_FILE_TEST_IS_REGULAR)) {
         ml_loge ("The given model path [%s] is missing metadata.", model_path);
@@ -996,15 +1014,28 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       g_free (meta);
       break;
     }
+    case ML_NNFW_TYPE_VIVANTE:
+    {
+      if ((g_str_has_suffix (path_down, ".so") &&
+          g_str_has_suffix (path_down_2, ".nb")) ||
+          (g_str_has_suffix (path_down, ".nb") &&
+          g_str_has_suffix (path_down_2, ".so"))) {
+        break;
+      }
+      ml_loge ("The given model [%s,%s] does not appear Vivante model.", model[0],model[1]);
+      status = ML_ERROR_INVALID_PARAMETER;
+
+      break;
+    }
     case ML_NNFW_TYPE_MVNC:
     case ML_NNFW_TYPE_OPENVINO:
-    case ML_NNFW_TYPE_VIVANTE:
     case ML_NNFW_TYPE_EDGE_TPU:
       /** @todo Need to check method to validate model */
       ml_loge ("Given NNFW is not supported yet.");
       status = ML_ERROR_NOT_SUPPORTED;
       break;
     case ML_NNFW_TYPE_SNAP:
+      /** @todo Make sure num_models is correct */
 #if !defined(__ANDROID__)
       ml_loge ("SNAP only can be included in Android (arm64-v8a only).");
       status = ML_ERROR_NOT_SUPPORTED;
@@ -1012,11 +1043,12 @@ ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw)
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
     case ML_NNFW_TYPE_ARMNN:
+      /** @todo Make sure num_models is correct */
       if (!g_str_has_suffix (path_down, ".caffemodel") &&
           !g_str_has_suffix (path_down, ".tflite") &&
           !g_str_has_suffix (path_down, ".pb") &&
           !g_str_has_suffix (path_down, ".prototxt")) {
-        ml_loge ("The given model [%s] has invalid extension.", model);
+        ml_loge ("The given model [%s] has invalid extension.", model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
