@@ -347,14 +347,15 @@ int ml_initialize_gstreamer (void);
 /**
  * @brief Validates the nnfw model file.
  * @since_tizen 5.5
- * @param[in] model The path of model file.
+ * @param[in] model List of model file paths.
+ * @param[in] num_models The number of model files. There are a few frameworks that require multiple model files for a single model.
  * @param[in/out] nnfw The type of NNFW.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_validate_model_file (const char *model, ml_nnfw_type_e * nnfw);
+int ml_validate_model_file (char **model, unsigned int num_models, ml_nnfw_type_e * nnfw);
 
 /**
  * @brief Checks the availability of the plugin.

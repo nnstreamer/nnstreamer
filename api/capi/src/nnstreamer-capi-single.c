@@ -560,17 +560,15 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
    */
   if (info->models) {
     gchar **list_models;
-    guint m, num_models;
+    guint num_models;
 
     list_models = g_strsplit (info->models, ",", -1);
     num_models = g_strv_length (list_models);
 
-    for (m = 0; m < num_models; ++m) {
-      status = ml_validate_model_file (list_models[m], &nnfw);
-      if (status != ML_ERROR_NONE) {
-        g_strfreev (list_models);
-        return status;
-      }
+    status = ml_validate_model_file (list_models, num_models, &nnfw);
+    if (status != ML_ERROR_NONE) {
+      g_strfreev (list_models);
+      return status;
     }
 
     g_strfreev (list_models);
