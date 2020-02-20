@@ -85,12 +85,12 @@ ml_tensors_info_destroy (ml_tensors_info_h info)
 {
   ml_tensors_info_s *tensors_info;
 
+  if (!info)
+    return ML_ERROR_NONE;
+
   check_feature_state ();
 
   tensors_info = (ml_tensors_info_s *) info;
-
-  if (!tensors_info)
-    return ML_ERROR_INVALID_PARAMETER;
 
   ml_tensors_info_free (tensors_info);
   g_free (tensors_info);
@@ -538,10 +538,10 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
   ml_tensors_data_s *_data;
   guint i;
 
-  check_feature_state ();
-
   if (!data)
-    return ML_ERROR_INVALID_PARAMETER;
+    return ML_ERROR_NONE;
+
+  check_feature_state ();
 
   _data = (ml_tensors_data_s *) data;
 
