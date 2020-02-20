@@ -334,6 +334,28 @@ verify_model_path (const GstTensorFilterPrivate * priv)
   return ret;
 }
 
+/**
+ * @brief Initialize the GstTensorFilterProperties object
+ */
+static void
+gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
+{
+  prop->fwname = NULL;
+  prop->fw_opened = FALSE;
+  prop->model_files = NULL;
+  prop->num_models = 0;
+
+  prop->input_configured = FALSE;
+  gst_tensors_info_init (&prop->input_meta);
+  gst_tensors_layout_init (prop->input_layout);
+
+  prop->output_configured = FALSE;
+  gst_tensors_info_init (&prop->output_meta);
+  gst_tensors_layout_init (prop->output_layout);
+
+  prop->custom_properties = NULL;
+  prop->accl_str = NULL;
+}
 
 /**
  * @brief Validate filter sub-plugin's data.
@@ -341,19 +363,48 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 static gboolean
 nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
 {
-  if (!tfsp || !tfsp->name) {
-    /* invalid fw name */
+  if (!tfsp)
     return FALSE;
-  }
 
-  if (!tfsp->invoke_NN) {
-    /* no invoke function */
-    return FALSE;
-  }
+  if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
+          GST_TENSOR_FILTER_FRAMEWORK_V0)) {
+    if (!tfsp->name) {
+      /* invalid fw name */
+      return FALSE;
+    }
 
-  if (!(tfsp->getInputDimension && tfsp->getOutputDimension) &&
-      !tfsp->setInputDimension) {
-    /* no method to get tensor info */
+    if (!tfsp->invoke_NN) {
+      /* no invoke function */
+      return FALSE;
+    }
+
+    if (!(tfsp->getInputDimension && tfsp->getOutputDimension) &&
+        !tfsp->setInputDimension) {
+      /* no method to get tensor info */
+      return FALSE;
+    }
+  } else if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
+          GST_TENSOR_FILTER_FRAMEWORK_V1)) {
+    GstTensorFilterFrameworkInfo info;
+    GstTensorFilterProperties prop;
+
+    if (!tfsp->invoke || !tfsp->getFrameworkInfo || !tfsp->getModelInfo ||
+        !tfsp->eventHandler) {
+      /** Mandatory callbacks are not defined */
+      return FALSE;
+    }
+
+    gst_tensor_filter_properties_init (&prop);
+    if (tfsp->getFrameworkInfo (&prop, NULL, &info) != 0) {
+      /* unable to get framework info */
+      return FALSE;
+    }
+
+    if (!info.name) {
+      /* invalid fw name */
+      return FALSE;
+    }
+  } else {
     return FALSE;
   }
 
@@ -368,8 +419,22 @@ nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
 int
 nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 {
+  GstTensorFilterFrameworkInfo info;
+  GstTensorFilterProperties prop;
+  char *name;
+
   g_return_val_if_fail (nnstreamer_filter_validate (tfsp), FALSE);
-  return register_subplugin (NNS_SUBPLUGIN_FILTER, tfsp->name, tfsp);
+
+  if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
+          GST_TENSOR_FILTER_FRAMEWORK_V0)) {
+    name = tfsp->name;
+  } else {
+    gst_tensor_filter_properties_init (&prop);
+    g_assert (tfsp->getFrameworkInfo (&prop, NULL, &info) == 0);
+    name = info.name;
+  }
+
+  return register_subplugin (NNS_SUBPLUGIN_FILTER, name, tfsp);
 }
 
 /**
@@ -580,23 +645,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
 void
 gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 {
-  GstTensorFilterProperties *prop;
-
-  prop = &priv->prop;
-
   /* init NNFW properties */
-  prop->fwname = NULL;
-  prop->fw_opened = FALSE;
-  prop->input_configured = FALSE;
-  prop->output_configured = FALSE;
-  prop->model_files = NULL;
-  prop->num_models = 0;
-  prop->accl_str = NULL;
-  prop->custom_properties = NULL;
-  gst_tensors_info_init (&prop->input_meta);
-  gst_tensors_info_init (&prop->output_meta);
-  gst_tensors_layout_init (prop->input_layout);
-  gst_tensors_layout_init (prop->output_layout);
+  gst_tensor_filter_properties_init (&priv->prop);
 
   /* init internal properties */
   priv->fw = NULL;
@@ -618,6 +668,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   prop = &priv->prop;
 
   g_free_const (prop->fwname);
+  /** TODO: free on the basis of the version of GstTensorFilterFramework */
   g_free_const (prop->accl_str);
   g_free_const (prop->custom_properties);
   g_strfreev_const (prop->model_files);
@@ -636,6 +687,8 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
+ *
+ * TODO: update these based on V0 or V1
  */
 gboolean
 gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
@@ -663,10 +716,10 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
       fw = nnstreamer_filter_find (fw_name);
 
-      /* See if mandatory methods are filled in */
-      if (nnstreamer_filter_validate (fw)) {
+      if (fw) {
         priv->fw = fw;
         prop->fwname = g_strdup (fw_name);
+        /** TODO: update the accelerator if already set based on v0 or v1 */
       } else {
         g_warning ("Cannot identify the given neural network framework, %s\n",
             fw_name);
@@ -821,6 +874,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
         break;
       }
 
+      /** TODO: set this property based on the framework version V0 or V1 */
       prop->accl_str = g_value_dup_string (value);
       break;
     }
@@ -886,6 +940,8 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
+ *
+ * TODO: update these based on V0 or V1
  */
 gboolean
 gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
