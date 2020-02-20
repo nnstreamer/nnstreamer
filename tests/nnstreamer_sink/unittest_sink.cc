@@ -3510,6 +3510,7 @@ TEST (tensor_stream_test, custom_filter_passthrough)
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
   ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
   fw->name = g_strdup ("custom-passthrough");
   fw->run_without_model = TRUE;
   fw->invoke_NN = test_custom_invoke;

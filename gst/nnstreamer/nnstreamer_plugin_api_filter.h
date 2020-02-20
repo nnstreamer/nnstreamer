@@ -445,6 +445,8 @@ typedef struct _GstTensorFilterFramework
  * @brief Filter's sub-plugin should call this function to register itself.
  * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.
+ *
+ * @note Do not change the subplugins callbacks after probing the filter.
  */
 extern int
 nnstreamer_filter_probe (GstTensorFilterFramework * tfsp);
