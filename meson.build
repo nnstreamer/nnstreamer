@@ -170,6 +170,13 @@ if get_option('enable-tensorflow-lite')
   else
     error('Cannot find tensorflow-lite')
   endif
+
+  tflite_datatype_arr = get_option('enable-additional-tflite-types')
+  foreach tflite_data_type : tflite_datatype_arr
+    message('data type [@0@] is added for TFLite'.format(tflite_data_type))
+    add_project_arguments('-DTFLITE_@0@=1'.format(tflite_data_type), language: ['c', 'cpp'])
+  endforeach
+
 endif
 
 # PyTorch
