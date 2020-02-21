@@ -217,7 +217,6 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-
 /**
  * @brief Test NNStreamer pipeline construct & destruct
  */
@@ -3158,16 +3157,6 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   EXPECT_STREQ (prop_value, "false");
-  g_free (prop_value);
-
-  /* set layout (tf-lite does not require the layout) */
-  status = ml_single_set_property (single, "inputlayout", "NHWC");
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_single_get_property (single, "inputlayout", &prop_value);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  EXPECT_STREQ (prop_value, "NHWC");
   g_free (prop_value);
 
   /* get input info */

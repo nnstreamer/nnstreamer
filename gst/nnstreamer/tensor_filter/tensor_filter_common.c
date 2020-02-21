@@ -69,6 +69,12 @@ static const gchar *regex_accl_elem_utils[] = {
 #define g_strfreev_const(x) g_strfreev((void*)(long)(x))
 
 /**
+ * @brief parse user given string to extract list of accelerators based on given regex
+ */
+static GList *parse_accl_hw_all (const gchar * accelerators,
+    const gchar ** supported_accelerators);
+
+/**
  * @brief GstTensorFilter properties.
  */
 enum
@@ -308,7 +314,7 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 {
   const GstTensorFilterProperties *prop;
   gboolean ret = TRUE;
-  int i;
+  int verify_model_path = 0, i;
 
   if (priv == NULL)
     return FALSE;
@@ -321,7 +327,13 @@ verify_model_path (const GstTensorFilterPrivate * priv)
   if (g_strcmp0 (prop->fwname, "custom-easy") == 0)
     return TRUE;
 
-  if ((prop->model_files != NULL) && (priv->fw->verify_model_path == TRUE)) {
+  if (GST_TF_FW_V0 (priv->fw)) {
+    verify_model_path = priv->fw->verify_model_path;
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    verify_model_path = priv->info.verify_model_path;
+  }
+
+  if ((prop->model_files != NULL) && (verify_model_path == TRUE)) {
     for (i = 0; i < prop->num_models; i++) {
       if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
         g_critical ("Cannot find the model file [%d]: %s\n",
@@ -363,11 +375,7 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 static gboolean
 nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
 {
-  if (!tfsp)
-    return FALSE;
-
-  if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
-          GST_TENSOR_FILTER_FRAMEWORK_V0)) {
+  if (GST_TF_FW_V0 (tfsp)) {
     if (!tfsp->name) {
       /* invalid fw name */
       return FALSE;
@@ -383,8 +391,7 @@ nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
       /* no method to get tensor info */
       return FALSE;
     }
-  } else if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
-          GST_TENSOR_FILTER_FRAMEWORK_V1)) {
+  } else if (GST_TF_FW_V1 (tfsp)) {
     GstTensorFilterFrameworkInfo info;
     GstTensorFilterProperties prop;
 
@@ -421,14 +428,13 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 {
   GstTensorFilterFrameworkInfo info;
   GstTensorFilterProperties prop;
-  char *name;
+  char *name = NULL;
 
   g_return_val_if_fail (nnstreamer_filter_validate (tfsp), FALSE);
 
-  if (checkGstTensorFitlerFrameworkVersion (tfsp->version,
-          GST_TENSOR_FILTER_FRAMEWORK_V0)) {
+  if (GST_TF_FW_V0 (tfsp)) {
     name = tfsp->name;
-  } else {
+  } else if (GST_TF_FW_V1 (tfsp)) {
     gst_tensor_filter_properties_init (&prop);
     g_assert (tfsp->getFrameworkInfo (&prop, NULL, &info) == 0);
     name = info.name;
@@ -489,15 +495,19 @@ gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
 gboolean
 gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv)
 {
-  int allocate_in_invoke;
+  int allocate_in_invoke = 0;
 
-  allocate_in_invoke = priv->fw->allocate_in_invoke;
-  if (allocate_in_invoke == TRUE && priv->fw->allocateInInvoke) {
-    if (priv->fw->allocateInInvoke (&priv->privateData) == 0) {
-      allocate_in_invoke = TRUE;
-    } else {
-      allocate_in_invoke = FALSE;
+  if (GST_TF_FW_V0 (priv->fw)) {
+    allocate_in_invoke = priv->fw->allocate_in_invoke;
+    if (allocate_in_invoke == TRUE && priv->fw->allocateInInvoke) {
+      if (priv->fw->allocateInInvoke (&priv->privateData) == 0) {
+        allocate_in_invoke = TRUE;
+      } else {
+        allocate_in_invoke = FALSE;
+      }
     }
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    allocate_in_invoke = priv->info.allocate_in_invoke;
   }
 
   return allocate_in_invoke;
@@ -647,6 +657,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 {
   /* init NNFW properties */
   gst_tensor_filter_properties_init (&priv->prop);
+  priv->info.name = NULL;
 
   /* init internal properties */
   priv->fw = NULL;
@@ -668,8 +679,11 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   prop = &priv->prop;
 
   g_free_const (prop->fwname);
-  /** TODO: free on the basis of the version of GstTensorFilterFramework */
-  g_free_const (prop->accl_str);
+  if (GST_TF_FW_V0 (priv->fw)) {
+    g_free_const (prop->accl_str);
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    g_free (prop->hw_list);
+  }
   g_free_const (prop->custom_properties);
   g_strfreev_const (prop->model_files);
 
@@ -681,19 +695,71 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 }
 
 /**
+ * @brief Parse the accelerator hardwares to be used for this framework
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] prop Struct containing the properties of the framework
+ * @param[in] accelerators user given input for hardare accelerators
+ * @note The order of preference set by the user is maintained
+ */
+static void
+gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const char *accelerators)
+{
+  gint status, idx;
+  GstTensorFilterFrameworkInfo *info;
+  const gchar **accl_support;
+  GList *match_accl, *iter;
+
+  info = &priv->info;
+  prop->num_hw = 0;
+  g_free (prop->hw_list);
+  prop->hw_list = NULL;
+
+  /** Get h/w accelerators supported by framework */
+  if (info->name == NULL) {
+    status = priv->fw->getFrameworkInfo (prop, priv->privateData, info);
+    if (status != 0 || info->hw_list == NULL) {
+      g_warning ("Unable to fetch accelerators supported by the framework.");
+      return;
+    }
+  }
+
+  /** Convert the list to string format */
+  accl_support = g_malloc (sizeof (gchar *) * (info->num_hw + 1));
+  if (!accl_support)
+    return;
+
+  for (idx = 0; idx < info->num_hw; idx++) {
+    accl_support[idx] = get_accl_hw_str (info->hw_list[idx]);
+  }
+  accl_support[info->num_hw] = NULL;
+
+  /** Parse the user given h/w accelerators intersected with supported h/w */
+  match_accl = parse_accl_hw_all (accelerators, accl_support);
+  g_free (accl_support);
+
+  /** Convert the GList to regular array */
+  prop->num_hw = g_list_length (match_accl);
+  prop->hw_list = g_malloc (sizeof (accl_hw) * prop->num_hw);
+  for (iter = match_accl, idx = 0; iter != NULL; iter = iter->next, idx++) {
+    prop->hw_list[idx] = GPOINTER_TO_INT (iter->data);
+  }
+  g_list_free (match_accl);
+}
+
+/**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
- *
- * TODO: update these based on V0 or V1
  */
 gboolean
 gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     guint prop_id, const GValue * value, GParamSpec * pspec)
 {
+  gint status = 0;
   GstTensorFilterProperties *prop;
 
   prop = &priv->prop;
@@ -708,8 +774,14 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       const GstTensorFilterFramework *fw;
 
       if (priv->fw != NULL) {
-        /* close old framework */
-        gst_tensor_filter_common_close_fw (priv);
+        if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
+          /* close old framework, if different */
+          gst_tensor_filter_common_close_fw (priv);
+          priv->fw = NULL;
+        } else {
+          g_debug ("Framework = %s\n", fw_name);
+          break;
+        }
       }
 
       g_debug ("Framework = %s\n", fw_name);
@@ -717,11 +789,27 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       fw = nnstreamer_filter_find (fw_name);
 
       if (fw) {
+        /** Get framework info for v1 */
+        if (GST_TF_FW_V1 (fw) &&
+            priv->fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
+          ml_logw ("Cannot get the given framework info, %s\n", fw_name);
+          break;
+        }
         priv->fw = fw;
         prop->fwname = g_strdup (fw_name);
-        /** TODO: update the accelerator if already set based on v0 or v1 */
+
+        /** update the accelerator if already set based on v0 or v1 */
+        if (GST_TF_FW_V1 (priv->fw)) {
+          if (prop->accl_str) {
+            const gchar *accl_str = prop->accl_str;
+            gst_tensor_filter_parse_accelerator (priv, &priv->prop, accl_str);
+            g_free_const (accl_str);
+          } else {
+            prop->hw_list = NULL;
+          }
+        }
       } else {
-        g_warning ("Cannot identify the given neural network framework, %s\n",
+        ml_logw ("Cannot identify the given neural network framework, %s\n",
             fw_name);
       }
       break;
@@ -729,8 +817,21 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_MODEL:
     {
       const gchar *model_files = g_value_get_string (value);
+      GstTensorFilterProperties _prop;
 
-      g_assert (model_files);
+      if (!model_files) {
+        ml_loge ("Invalid model provided to the tensor-filter.");
+        break;
+      }
+      _prop.model_files = NULL;
+
+      if (prop->fw_opened) {
+        /** Store a copy of the original prop in case the reload fails */
+        memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
+        _prop.model_files =
+            (const gchar **) g_strdupv ((gchar **) prop->model_files);
+      }
+
       gst_tensor_filter_parse_modelpaths_string (prop, model_files);
 
       /**
@@ -738,20 +839,37 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
        * In the case of reloading model files, each priv->fw (tensor filter for each nnfw)
        * has responsibility for the verification of the path regardless of priv->fw->verify_model_path.
        */
-      if (priv->prop.fw_opened && priv->is_updatable) {
-        if (priv->fw && priv->fw->reloadModel) {
-          if (priv->fw->reloadModel (&priv->prop, &priv->privateData) != 0) {
-            g_critical ("Fail to reload model\n");
+      if (prop->fw_opened) {
+        if (GST_TF_FW_V0 (priv->fw) && priv->is_updatable) {
+          if (priv->fw->reloadModel &&
+              priv->fw->reloadModel (prop, &priv->privateData) != 0) {
+            status = -1;
           }
+        } else if (GST_TF_FW_V1 (priv->fw) && priv->is_updatable) {
+          GstTensorFilterFrameworkEventData data;
+          data.model_files = prop->model_files;
+          data.num_models = prop->num_models;
+          /** original prop is sent and not the updated prop */
+          if (priv->fw->eventHandler (&_prop, priv->privateData, RELOAD_MODEL,
+                  &data) != 0) {
+            status = -1;
+          }
+        }
+
+        if (status == 0) {
+          g_strfreev_const (_prop.model_files);
+        } else {
+          g_critical ("Fail to reload model\n");
+          g_strfreev_const (prop->model_files);
+          prop->model_files = _prop.model_files;
+          prop->num_models = _prop.num_models;
         }
       }
 
       break;
     }
     case PROP_INPUT:
-      g_assert (!prop->input_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->input_configured && value) {
         guint num_dims;
 
         num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
@@ -759,17 +877,19 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->input_meta.num_tensors > 0 &&
             prop->input_meta.num_tensors != num_dims) {
-          g_warning
+          ml_logw
               ("Invalid input-dim, given param does not match with old value.");
         }
 
         prop->input_meta.num_tensors = num_dims;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change input-dim once the element/pipeline is configured.");
       }
       break;
     case PROP_OUTPUT:
-      g_assert (!prop->output_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->output_configured && value) {
         guint num_dims;
 
         num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
@@ -777,17 +897,19 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->output_meta.num_tensors > 0 &&
             prop->output_meta.num_tensors != num_dims) {
-          g_warning
+          ml_logw
               ("Invalid output-dim, given param does not match with old value.");
         }
 
         prop->output_meta.num_tensors = num_dims;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change output-dim once the element/pipeline is configured.");
       }
       break;
     case PROP_INPUTTYPE:
-      g_assert (!prop->input_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->input_configured && value) {
         guint num_types;
 
         num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
@@ -795,17 +917,19 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->input_meta.num_tensors > 0 &&
             prop->input_meta.num_tensors != num_types) {
-          g_warning
+          ml_logw
               ("Invalid input-type, given param does not match with old value.");
         }
 
         prop->input_meta.num_tensors = num_types;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change input-type once the element/pipeline is configured.");
       }
       break;
     case PROP_OUTPUTTYPE:
-      g_assert (!prop->output_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->output_configured && value) {
         guint num_types;
 
         num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
@@ -813,18 +937,20 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->output_meta.num_tensors > 0 &&
             prop->output_meta.num_tensors != num_types) {
-          g_warning
+          ml_logw
               ("Invalid output-type, given param does not match with old value.");
         }
 
         prop->output_meta.num_tensors = num_types;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change output-type once the element/pipeline is configured.");
       }
       break;
     case PROP_INPUTNAME:
       /* INPUTNAME is required by tensorflow to designate the order of tensors */
-      g_assert (!prop->input_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->input_configured && value) {
         guint num_names;
 
         num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
@@ -832,18 +958,20 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->input_meta.num_tensors > 0 &&
             prop->input_meta.num_tensors != num_names) {
-          g_warning
+          ml_logw
               ("Invalid input-name, given param does not match with old value.");
         }
 
         prop->input_meta.num_tensors = num_names;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change input-name once the element/pipeline is configured.");
       }
       break;
     case PROP_OUTPUTNAME:
       /* OUTPUTNAME is required by tensorflow to designate the order of tensors */
-      g_assert (!prop->output_configured && value);
-      /* Once configures, it cannot be changed in runtime */
-      {
+      if (!prop->output_configured && value) {
         guint num_names;
 
         num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
@@ -851,79 +979,181 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 
         if (prop->output_meta.num_tensors > 0 &&
             prop->output_meta.num_tensors != num_names) {
-          g_warning
+          ml_logw
               ("Invalid output-name, given param does not match with old value.");
         }
 
         prop->output_meta.num_tensors = num_names;
+      } else if (value) {
+        /** Once configured, it cannot be changed in runtime for now */
+        ml_loge
+            ("Cannot change output-name once the element/pipeline is configured.");
       }
       break;
     case PROP_CUSTOM:
-      /* In case updated custom properties in runtime! */
-      g_free_const (prop->custom_properties);
-      prop->custom_properties = g_value_dup_string (value);
-      g_debug ("Custom Option = %s\n", prop->custom_properties);
+    {
+      if (!priv->prop.fw_opened) {
+        g_free_const (prop->custom_properties);
+        prop->custom_properties = g_value_dup_string (value);
+      } else {
+        if (GST_TF_FW_V0 (priv->fw)) {
+          ml_loge
+              ("Cannot change custom-prop once the element/pipeline is configured.");
+        } else if (GST_TF_FW_V1 (priv->fw)) {
+          GstTensorFilterFrameworkEventData data;
+
+          data.custom_properties = g_value_dup_string (value);
+          status = priv->fw->eventHandler
+              (prop, &priv->privateData, CUSTOM_PROP, &data);
+          if (status == 0) {
+            g_free_const (prop->custom_properties);
+            prop->custom_properties = g_value_dup_string (value);
+          }
+
+          g_free_const (data.custom_properties);
+        }
+      }
+
       break;
+    }
     case PROP_ACCELERATOR:
     {
-      /**
-       * TODO: allow updating the subplugin accelerator after it has been init
-       * by reopening
-       */
+      gchar *accelerators = g_value_dup_string (value);
+
       if (priv->prop.fw_opened == TRUE) {
+        if (GST_TF_FW_V0 (priv->fw)) {
+          ml_loge
+              ("Cannot change accelerator once the element/pipeline is configured.");
+        } else if (GST_TF_FW_V1 (priv->fw)) {
+          GstTensorFilterProperties _prop;
+          GstTensorFilterFrameworkEventData data;
+          memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
+
+          prop->hw_list = NULL;
+          gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
+          data.num_hw = prop->num_hw;
+          data.hw_list = prop->hw_list;
+
+          status = priv->fw->eventHandler
+              (&_prop, priv->privateData, SET_ACCELERATOR, &data);
+          if (status == 0) {
+            g_free (_prop.hw_list);
+          } else {
+            prop->num_hw = _prop.num_hw;
+            g_free (prop->hw_list);
+            prop->hw_list = _prop.hw_list;
+          }
+
+          g_free (accelerators);
+        }
         break;
       }
 
-      /** TODO: set this property based on the framework version V0 or V1 */
-      prop->accl_str = g_value_dup_string (value);
+      if (GST_TF_FW_V0 (priv->fw)) {
+        prop->accl_str = accelerators;
+      } else if (GST_TF_FW_V1 (priv->fw)) {
+        gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
+        g_free (accelerators);
+      }
       break;
     }
     case PROP_IS_UPDATABLE:
     {
-      if (priv->fw->reloadModel != NULL)
-        priv->is_updatable = g_value_get_boolean (value);
+      if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
+        break;
+      } else if (GST_TF_FW_V1 (priv->fw) &&
+          priv->fw->eventHandler (prop, priv->privateData, RELOAD_MODEL, NULL)
+          == -ENOENT) {
+        break;
+      }
+
+      priv->is_updatable = g_value_get_boolean (value);
       break;
     }
     case PROP_INPUTLAYOUT:
     {
       guint num_layouts;
-#if 0 /** @todo allow updating the data layout after fw has been opened */
-      if (priv->prop.fw_opened == TRUE) {
-        g_warning
-            ("Updating data layout is not supported after opened framework.");
-        break;
-      }
-#endif
-      num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
-          g_value_get_string (value));
 
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_layouts) {
-        g_warning ("Invalid input-layout, given param does not fit.");
-      }
+      if (!prop->output_configured && value) {
+        num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
+            g_value_get_string (value));
 
-      prop->input_meta.num_tensors = num_layouts;
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_layouts) {
+          ml_logw ("Invalid input-layout, given param does not fit.");
+        }
+
+        prop->input_meta.num_tensors = num_layouts;
+      } else if (value) {
+        /** Update the properties */
+        if (GST_TF_FW_V0 (priv->fw)) {
+          /* Once configured, it cannot be changed in runtime */
+          ml_loge
+              ("Cannot change input-layout once the element/pipeline is configured.");
+        } else if (GST_TF_FW_V1 (priv->fw)) {
+          GstTensorFilterFrameworkEventData data;
+
+          data.info = NULL;
+          num_layouts = gst_tensors_parse_layouts_string (data.layout,
+              g_value_get_string (value));
+
+          if (prop->input_meta.num_tensors > 0 &&
+              prop->input_meta.num_tensors != num_layouts) {
+            ml_logw ("Invalid input-layout, given param does not fit.");
+          }
+
+          if (priv->fw->eventHandler
+              (prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
+            memcpy (priv->prop.input_layout, data.layout,
+                sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+          } else {
+            ml_logw ("Unable to update input layout.");
+          }
+        }
+      }
       break;
     }
     case PROP_OUTPUTLAYOUT:
     {
       guint num_layouts;
-#if 0 /** @todo allow updating the data layout after fw has been opened */
-      if (priv->prop.fw_opened == TRUE) {
-        g_warning
-            ("Updating data layout is not supported after opened framework.");
-        break;
-      }
-#endif
-      num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
-          g_value_get_string (value));
 
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_layouts) {
-        g_warning ("Invalid output-layout, given param does not fit.");
-      }
+      if (!prop->output_configured && value) {
+        num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
+            g_value_get_string (value));
 
-      prop->output_meta.num_tensors = num_layouts;
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_layouts) {
+          ml_logw ("Invalid output-layout, given param does not fit.");
+        }
+
+        prop->output_meta.num_tensors = num_layouts;
+      } else if (value) {
+        /** Update the properties */
+        if (GST_TF_FW_V0 (priv->fw)) {
+          /* Once configured, it cannot be changed in runtime */
+          ml_loge
+              ("Cannot change output-layout once the element/pipeline is configured.");
+        } else if (GST_TF_FW_V1 (priv->fw)) {
+          GstTensorFilterFrameworkEventData data;
+
+          data.info = NULL;
+          num_layouts = gst_tensors_parse_layouts_string (data.layout,
+              g_value_get_string (value));
+
+          if (prop->output_meta.num_tensors > 0 &&
+              prop->output_meta.num_tensors != num_layouts) {
+            ml_logw ("Invalid output-layout, given param does not fit.");
+          }
+
+          if (priv->fw->eventHandler
+              (prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
+            memcpy (priv->prop.output_layout, data.layout,
+                sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+          } else {
+            ml_logw ("Unable to update output layout.");
+          }
+        }
+      }
       break;
     }
     default:
@@ -940,8 +1170,6 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
  * @param[in] value Container to return the asked property
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
- *
- * TODO: update these based on V0 or V1
  */
 gboolean
 gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
@@ -1087,12 +1315,30 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     }
     case PROP_ACCELERATOR:
-      if (prop->accl_str != NULL) {
-        g_value_set_string (value, prop->accl_str);
-      } else {
-        g_value_set_string (value, "");
+    {
+      gint idx;
+      GString *accl;
+
+      if (priv->fw == NULL || GST_TF_FW_V0 (priv->fw)) {
+        if (prop->accl_str != NULL) {
+          g_value_set_string (value, prop->accl_str);
+        } else {
+          g_value_set_string (value, "");
+        }
+      } else if (GST_TF_FW_V1 (priv->fw)) {
+        if (prop->num_hw == 0) {
+          g_value_set_string (value, "");
+        } else {
+          accl = g_string_new (NULL);
+
+          for (idx = 0; idx < prop->num_hw; idx++) {
+            g_string_append (accl, get_accl_hw_str (prop->hw_list[idx]));
+          }
+          g_value_take_string (value, g_string_free (accl, FALSE));
+        }
       }
       break;
+    }
     case PROP_IS_UPDATABLE:
       g_value_set_boolean (value, priv->is_updatable);
       break;
@@ -1136,17 +1382,33 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 void
 gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 {
+  int run_without_model = 0;
+
   if (!priv->prop.fw_opened && priv->fw) {
     if (priv->fw->open) {
       /* at least one model should be configured before opening fw */
-      if (G_UNLIKELY (!priv->fw->run_without_model) &&
+      if (GST_TF_FW_V0 (priv->fw)) {
+        run_without_model = priv->fw->run_without_model;
+      } else if (GST_TF_FW_V1 (priv->fw)) {
+        run_without_model = priv->info.run_without_model;
+      }
+
+      if (G_UNLIKELY (!run_without_model) &&
           G_UNLIKELY (!(priv->prop.model_files &&
-                  priv->prop.num_models > 0 && priv->prop.model_files[0])))
+                  priv->prop.num_models > 0 && priv->prop.model_files[0]))) {
         return;
+      }
       /* 0 if successfully loaded. 1 if skipped (already loaded). */
-      if (priv->fw->open (&priv->prop, &priv->privateData) >= 0) {
-        if (verify_model_path (priv)) {
-          priv->prop.fw_opened = TRUE;
+      if (verify_model_path (priv)) {
+        if (priv->fw->open (&priv->prop, &priv->privateData) >= 0) {
+          /* Update the framework info once it has been opened */
+          if (GST_TF_FW_V1 (priv->fw) &&
+              priv->fw->getFrameworkInfo (&priv->prop, priv->privateData,
+                  &priv->info) != 0) {
+            priv->fw->close (&priv->prop, &priv->privateData);
+          } else {
+            priv->prop.fw_opened = TRUE;
+          }
         }
       }
     } else {
@@ -1216,13 +1478,14 @@ get_accl_hw_str (const accl_hw key)
 }
 
 /**
- * @brief parse user given string to extract accelerator based on given regex
+ * @brief parse user given string to extract list of accelerators based on given regex
  * @param[in] accelerators user given input
- * @param[in] supported_accelerators list ofi supported accelerators
- * @return Corresponding string. Returns ACCL_NONE_STR if not found.
+ * @param[in] supported_accelerators list of supported accelerators
+ * @return Corresponding list of accelerators maintaining given order
+ * @note Returned list must be freed by the caller
  */
-accl_hw
-parse_accl_hw (const gchar * accelerators,
+static GList *
+parse_accl_hw_all (const gchar * accelerators,
     const gchar ** supported_accelerators)
 {
   GRegex *nnapi_elem;
@@ -1231,10 +1494,12 @@ parse_accl_hw (const gchar * accelerators,
   accl_hw accl;
   gchar *regex_accl = NULL;
   gchar *regex_accl_elem = NULL;
-  gboolean supported;
+  GList *match_accl = NULL;
 
-  if (accelerators == NULL)
-    return ACCL_DEFAULT;
+  if (accelerators == NULL) {
+    match_accl = g_list_append (match_accl, GINT_TO_POINTER (ACCL_DEFAULT));
+    return match_accl;
+  }
 
   /* If set by user, get the precise accelerator */
   regex_accl = create_regex (supported_accelerators, regex_accl_utils);
@@ -1258,20 +1523,44 @@ parse_accl_hw (const gchar * accelerators,
       while (g_match_info_matches (match_info)) {
         gchar *word = g_match_info_fetch (match_info, 0);
         accl = get_accl_hw_type (word);
-        supported = g_strv_contains (supported_accelerators, word);
         g_free (word);
-        if (!supported)
-          continue;
-        break;
+        match_accl = g_list_append (match_accl, GINT_TO_POINTER (accl));
+        g_match_info_next (match_info, NULL);
       }
     }
     g_match_info_free (match_info);
     g_regex_unref (nnapi_elem);
+
+    if (g_list_length (match_accl) == 0) {
+      match_accl = g_list_append (match_accl, GINT_TO_POINTER (ACCL_AUTO));
+    }
   } else {
-    return ACCL_NONE;
+    match_accl = g_list_append (match_accl, GINT_TO_POINTER (ACCL_NONE));
   }
 
-  return accl;
+  return match_accl;
+}
+
+/**
+ * @brief parse user given string to extract accelerator based on given regex
+ * @param[in] accelerators user given input
+ * @param[in] supported_accelerators list ofi supported accelerators
+ * @return Corresponding accelerator. Returns ACCL_NONE if not found.
+ */
+accl_hw
+parse_accl_hw (const gchar * accelerators,
+    const gchar ** supported_accelerators)
+{
+  GList *match_accl;
+  accl_hw hw;
+
+  match_accl = parse_accl_hw_all (accelerators, supported_accelerators);
+  g_assert (g_list_length (match_accl) > 0);
+
+  hw = GPOINTER_TO_INT (match_accl->data);
+  g_list_free (match_accl);
+
+  return hw;
 }
 
 /**

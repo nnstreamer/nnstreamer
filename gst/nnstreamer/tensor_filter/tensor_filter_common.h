@@ -29,6 +29,12 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+/** Check tensor_filter framework version */
+#define GST_TF_FW_VN(fw, vn) \
+    (fw && checkGstTensorFilterFrameworkVersion (fw->version, vn))
+#define GST_TF_FW_V0(fw) GST_TF_FW_VN (fw, 0)
+#define GST_TF_FW_V1(fw) GST_TF_FW_VN (fw, 1)
+
 /**
  * @brief Structure definition for common tensor-filter properties.
  */
@@ -36,6 +42,7 @@ typedef struct _GstTensorFilterPrivate
 {
   void *privateData; /**< NNFW plugin's private data is stored here */
   GstTensorFilterProperties prop; /**< NNFW plugin's properties */
+  GstTensorFilterFrameworkInfo info; /**< NNFW framework info */
   const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
   /* internal properties for tensor-filter */
