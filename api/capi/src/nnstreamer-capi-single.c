@@ -1070,7 +1070,7 @@ ml_single_get_property (ml_single_h single, const char *name, char **value)
     *value = (bool_value) ? g_strdup ("true") : g_strdup ("false");
   } else {
     ml_loge ("The property %s is not available.", name);
-    status = ML_ERROR_INVALID_PARAMETER;
+    status = ML_ERROR_NOT_SUPPORTED;
   }
 
   ML_SINGLE_HANDLE_UNLOCK (single_h);
