@@ -171,12 +171,28 @@ if get_option('enable-tensorflow-lite')
     error('Cannot find tensorflow-lite')
   endif
 
-  tflite_datatype_arr = get_option('enable-additional-tflite-types')
-  foreach tflite_data_type : tflite_datatype_arr
-    message('data type [@0@] is added for TFLite'.format(tflite_data_type))
-    add_project_arguments('-DTFLITE_@0@=1'.format(tflite_data_type), language: ['c', 'cpp'])
-  endforeach
+  TFLite_version = tflite_dep.version().split('.')
+  TFLite_major = TFLite_version[0].to_int()
+  TFLite_minor = TFLite_version[1].to_int()
 
+  if TFLite_major == 1
+    if TFLite_minor >= 10
+      add_project_arguments('-DTFLITE_INT16=1', language: ['c', 'cpp'])
+      add_project_arguments('-DTFLITE_COMPLEX64=1', language: ['c', 'cpp'])
+      message('data type [INT16] is added for TFLite')
+      message('data type [COMPLEX64] is added for TFLite')
+    endif
+
+    if TFLite_minor >= 13
+      add_project_arguments('-DTFLITE_INT8=1', language: ['c', 'cpp'])
+      message('data type [INT8] is added for TFLite')
+    endif
+
+    if TFLite_minor >= 14
+      add_project_arguments('-DTFLITE_FLOAT16=1', language: ['c', 'cpp'])
+      message('data type [FLOAT16] is added for TFLite')
+    endif
+  endif
 endif
 
 # PyTorch
