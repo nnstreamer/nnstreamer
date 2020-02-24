@@ -1299,12 +1299,12 @@ gst_nnstreamer_tizen_sensor_init (GstPlugin * plugin)
 }
 
 #ifndef PACKAGE
-#define PACKAGE "nnstreamer"
+#define PACKAGE "nnstreamer_tizen_sensor"
 #endif
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    nnstreamer_tizensensor,
+    nnstreamer_tizen_sensor,
     "nnstreamer Tizen sensor framework extension",
     gst_nnstreamer_tizen_sensor_init, VERSION, "LGPL", "nnstreamer",
     "https://github.com/nnsuite/nnstreamer");
