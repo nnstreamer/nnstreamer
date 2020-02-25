@@ -320,12 +320,25 @@ TFLiteInterpreter::getTensorType (TfLiteType tfType)
     case kTfLiteInt32:
       return _NNS_INT32;
     case kTfLiteBool:
+#ifdef TFLITE_INT8
     case kTfLiteInt8:
+#endif
       return _NNS_INT8;
+#ifdef TFLITE_INT16
+    case kTfLiteInt16:
+      return _NNS_INT16;
+#endif
     case kTfLiteInt64:
       return _NNS_INT64;
     case kTfLiteString:
+#ifdef TFLITE_COMPLEX64
+    case kTfLiteComplex64:
+#endif
+#ifdef TFLITE_FLOAT16
+    case kTfLiteFloat16:
+#endif
     default:
+      g_critical ("Not supported Tensorflow Data Type: [%d].", tfType);
       /** @todo Support other types */
       break;
   }
