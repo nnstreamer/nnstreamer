@@ -9,7 +9,7 @@
 * @date        14 May 2020
 * @brief       NNStreamer tensor-converter subplugin, "flatbuffer",
 *              which converts flatbuufers byte stream to tensors.
-* @see         https://github.com/nnsuite/nnstreamer
+* @see         https://github.com/nnstreamer/nnstreamer
 * @author      Gichan Jang <gichan2.jang@samsung.com>
 * @bug         No known bugs except for NYI items
 *
