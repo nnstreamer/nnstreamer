@@ -117,3 +117,29 @@ static_library('nnstreamer_decoder_image_segment',
   install: true,
   install_dir: nnstreamer_libdir
 )
+
+# flatbuffer
+if flatbuf_support_is_available
+  decoder_sub_flatbuf_sources = [
+    'tensordec-flatbuf.cc',
+  ]
+
+  nnstreamer_decoder_flatbuf_sources = [fb_gen_src]
+  foreach s : decoder_sub_flatbuf_sources
+    nnstreamer_decoder_flatbuf_sources += join_paths(meson.current_source_dir(), s)
+  endforeach  
+
+  static_library('nnstreamer_decoder_flatbuf',
+    nnstreamer_decoder_flatbuf_sources,
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+    install: true,
+    install_dir: nnstreamer_libdir,
+  )
+
+  shared_library('nnstreamer_decoder_flatbuf',
+    nnstreamer_decoder_flatbuf_sources,
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+    install: true,
+    install_dir: decoder_subplugin_install_dir,
+  )
+endif
