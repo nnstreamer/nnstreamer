@@ -131,14 +131,27 @@ if protobuf_support_is_available
   
   shared_library('nnstreamer_decoder_protobuf',
     nnstreamer_decoder_protobuf_sources,
-    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep, thread_dep],
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep],
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
-  static_library('nnstreamer_decoder_protobuf',
-    nnstreamer_decoder_protobuf_sources,
-    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep, thread_dep],
+endif
+
+# flatbuffer
+if flatbuf_support_is_available
+  decoder_sub_flatbuf_sources = [
+    'tensordec-flatbuf.cc',
+  ]
+
+  nnstreamer_decoder_flatbuf_sources = [fb_gen_src]
+  foreach s : decoder_sub_flatbuf_sources
+    nnstreamer_decoder_flatbuf_sources += join_paths(meson.current_source_dir(), s)
+  endforeach  
+
+  shared_library('nnstreamer_decoder_flatbuf',
+    nnstreamer_decoder_flatbuf_sources,
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, flatbuf_dep],
     install: true,
-    install_dir: nnstreamer_libdir
+    install_dir: decoder_subplugin_install_dir,
   )
 endif
