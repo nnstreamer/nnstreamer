@@ -62,13 +62,6 @@
 #define EVENT_NAME_UPDATE_MODEL "evt_update_model"
 
 /**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG (!priv->silent)
-#endif
-
-/**
  * @brief Macro for debug message.
  */
 #define silent_debug(...) do { \
@@ -157,17 +150,6 @@ static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_sink_event (GstBaseTransform * trans,
     GstEvent * event);
-
-/**
- * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
- */
-#define gst_tensor_filter_call(priv,ret,funcname,...) do { \
-      gst_tensor_filter_common_open_fw (priv); \
-      ret = -1; \
-      if (priv->prop.fw_opened && priv->fw && priv->fw->funcname) { \
-        ret = priv->fw->funcname (&priv->prop, &priv->privateData, __VA_ARGS__); \
-      } \
-    } while (0)
 
 /**
  * @brief initialize the tensor_filter's class
@@ -485,80 +467,6 @@ unknown_invoke:
 }
 
 /**
- * @brief Load tensor info from NN model.
- * (both input and output tensor)
- */
-static void
-gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
-{
-  GstTensorFilterPrivate *priv;
-  GstTensorFilterProperties *prop;
-  GstTensorsInfo in_info, out_info;
-  int res_in = -1, res_out = -1;
-
-  priv = &self->priv;
-  prop = &priv->prop;
-
-  gst_tensors_info_init (&in_info);
-  gst_tensors_info_init (&out_info);
-
-  if (GST_TF_FW_V1 (priv->fw)) {
-    if (!prop->input_configured || !prop->output_configured) {
-      gst_tensor_filter_call (priv, res_in, getModelInfo, GET_IN_OUT_INFO,
-          &in_info, &out_info);
-      res_out = res_in;
-    }
-  } else {
-    if (!prop->input_configured)
-      gst_tensor_filter_call (priv, res_in, getInputDimension, &in_info);
-    if (!prop->output_configured)
-      gst_tensor_filter_call (priv, res_out, getOutputDimension, &out_info);
-  }
-
-  /* supposed fixed in-tensor info if getInputDimension was success. */
-  if (!prop->input_configured && res_in == 0) {
-    g_assert (in_info.num_tensors > 0);
-
-    /** if set-property called and already has info, verify it! */
-    if (prop->input_meta.num_tensors > 0) {
-      if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
-        GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
-        goto done;
-      }
-    } else {
-      gst_tensors_info_copy (&prop->input_meta, &in_info);
-    }
-
-    prop->input_configured = TRUE;
-    silent_debug_info (&in_info, "input tensor");
-  }
-
-  /* supposed fixed out-tensor info if getOutputDimension was success. */
-  if (!prop->output_configured && res_out == 0) {
-    g_assert (out_info.num_tensors > 0);
-
-    /** if set-property called and already has info, verify it! */
-    if (prop->output_meta.num_tensors > 0) {
-      if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-        GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
-        goto done;
-      }
-    } else {
-      gst_tensors_info_copy (&prop->output_meta, &out_info);
-    }
-
-    prop->output_configured = TRUE;
-    silent_debug_info (&out_info, "output tensor");
-  }
-
-done:
-  gst_tensors_info_free (&in_info);
-  gst_tensors_info_free (&out_info);
-}
-
-/**
  * @brief Configure input and output tensor info from incaps.
  * @param self "this" pointer
  * @param incaps received caps for sink pad
@@ -586,7 +494,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
    * 2. If these functions are not defined, call setInputDimension with parsed info from caps.
    * 3. If set-prop configured dimension, verify the dimension with fw callbacks.
    */
-  gst_tensor_filter_load_tensor_info (self);
+  gst_tensor_filter_load_tensor_info (&self->priv);
 
   structure = gst_caps_get_structure (incaps, 0);
   gst_tensors_config_from_structure (&in_config, structure);
@@ -755,7 +663,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
    *
    * @todo how to set the framerate of output tensors
    */
-  gst_tensor_filter_load_tensor_info (self);
+  gst_tensor_filter_load_tensor_info (&self->priv);
 
   structure = gst_caps_get_structure (caps, 0);
   gst_tensors_config_from_structure (&config, structure);

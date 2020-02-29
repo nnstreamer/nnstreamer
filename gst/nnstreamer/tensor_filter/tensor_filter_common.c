@@ -29,6 +29,19 @@
 
 #include "tensor_filter_common.h"
 
+#define silent_debug_info(i,msg) do { \
+  if (DBG) { \
+    guint info_idx; \
+    gchar *dim_str; \
+    g_debug (msg " total %d", (i)->num_tensors); \
+    for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
+      dim_str = gst_tensor_get_dimension_string ((i)->info[info_idx].dimension); \
+      g_debug ("[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
+      g_free (dim_str); \
+    } \
+  } \
+} while (0)
+
 /**
  * Basic elements to form accelerator regex forming
  */
@@ -1505,6 +1518,78 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
   }
 
   return TRUE;
+}
+
+/**
+ * @brief Load tensor info from NN model.
+ * (both input and output tensor)
+ */
+void
+gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
+{
+  GstTensorFilterProperties *prop;
+  GstTensorsInfo in_info, out_info;
+  int res_in = -1, res_out = -1;
+
+  prop = &priv->prop;
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  if (GST_TF_FW_V1 (priv->fw)) {
+    if (!prop->input_configured || !prop->output_configured) {
+      gst_tensor_filter_call (priv, res_in, getModelInfo, GET_IN_OUT_INFO,
+          &in_info, &out_info);
+      res_out = res_in;
+    }
+  } else {
+    if (!prop->input_configured)
+      gst_tensor_filter_call (priv, res_in, getInputDimension, &in_info);
+    if (!prop->output_configured)
+      gst_tensor_filter_call (priv, res_out, getOutputDimension, &out_info);
+  }
+
+  /* supposed fixed in-tensor info if getInputDimension was success. */
+  if (!prop->input_configured && res_in == 0) {
+    g_assert (in_info.num_tensors > 0);
+
+    /** if set-property called and already has info, verify it! */
+    if (prop->input_meta.num_tensors > 0) {
+      if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
+        g_critical ("The input tensor is not compatible.");
+        gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+        goto done;
+      }
+    } else {
+      gst_tensors_info_copy (&prop->input_meta, &in_info);
+    }
+
+    prop->input_configured = TRUE;
+    silent_debug_info (&in_info, "input tensor");
+  }
+
+  /* supposed fixed out-tensor info if getOutputDimension was success. */
+  if (!prop->output_configured && res_out == 0) {
+    g_assert (out_info.num_tensors > 0);
+
+    /** if set-property called and already has info, verify it! */
+    if (prop->output_meta.num_tensors > 0) {
+      if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
+        g_critical ("The output tensor is not compatible.");
+        gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+        goto done;
+      }
+    } else {
+      gst_tensors_info_copy (&prop->output_meta, &out_info);
+    }
+
+    prop->output_configured = TRUE;
+    silent_debug_info (&out_info, "output tensor");
+  }
+
+done:
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 }
 
 /**

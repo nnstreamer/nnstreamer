@@ -29,11 +29,29 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG (!priv->silent)
+#endif
+
 /** Check tensor_filter framework version */
 #define GST_TF_FW_VN(fw, vn) \
     (fw && checkGstTensorFilterFrameworkVersion (fw->version, vn))
 #define GST_TF_FW_V0(fw) GST_TF_FW_VN (fw, 0)
 #define GST_TF_FW_V1(fw) GST_TF_FW_VN (fw, 1)
+
+/**
+ * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
+ */
+#define gst_tensor_filter_call(priv,ret,funcname,...) do { \
+      gst_tensor_filter_common_open_fw (priv); \
+      ret = -1; \
+      if (priv->prop.fw_opened && priv->fw && priv->fw->funcname) { \
+        ret = priv->fw->funcname (&priv->prop, &priv->privateData, __VA_ARGS__); \
+      } \
+    } while (0)
 
 /**
  * @brief Structure definition for common tensor-filter properties.
@@ -130,6 +148,13 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 extern gboolean
 gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     guint prop_id, GValue * value, GParamSpec * pspec);
+
+/**
+ * @brief Load tensor info from NN model.
+ * (both input and output tensor)
+ */
+extern void
+gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Open NN framework.
