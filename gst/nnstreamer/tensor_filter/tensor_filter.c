@@ -329,11 +329,19 @@ gst_tensor_filter_destroy_notify (void *data)
 {
   GPtrArray *array = (GPtrArray *) data;
   GstTensorFilter *self = (GstTensorFilter *) g_ptr_array_index (array, 0);
+  GstTensorFilterPrivate *priv = &self->priv;
   void *tensor_data = (void *) g_ptr_array_index (array, 1);
+  GstTensorFilterFrameworkEventData event_data;
   g_ptr_array_free (array, TRUE);
 
-  if (self->priv.fw->destroyNotify) {
-    self->priv.fw->destroyNotify (&self->priv.privateData, tensor_data);
+  if (GST_TF_FW_V0 (priv->fw) && priv->fw->destroyNotify) {
+    priv->fw->destroyNotify (&priv->privateData, tensor_data);
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    event_data.data = tensor_data;
+    if (priv->fw->eventHandler (&priv->prop, &priv->privateData,
+            DESTROY_NOTIFY, &event_data) == -ENOENT) {
+      g_free (tensor_data);
+    }
   } else {
     g_free (tensor_data);
   }
@@ -371,7 +379,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       G_UNLIKELY (!(prop->model_files &&
               prop->num_models > 0 && prop->model_files[0])))
     goto unknown_model;
-  if (G_UNLIKELY (!priv->fw->invoke_NN))
+  if (GST_TF_FW_V0 (priv->fw) && G_UNLIKELY (!priv->fw->invoke_NN))
+    goto unknown_invoke;
+  if (GST_TF_FW_V1 (priv->fw) && G_UNLIKELY (!priv->fw->invoke))
     goto unknown_invoke;
 
   /* 0. Check all properties. */
@@ -410,7 +420,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 3. Call the filter-subplugin callback, "invoke" */
-  gst_tensor_filter_call (priv, ret, invoke_NN, in_tensors, out_tensors);
+  if (GST_TF_FW_V0 (priv->fw))
+    gst_tensor_filter_call (priv, ret, invoke_NN, in_tensors, out_tensors);
+  else
+    gst_tensor_filter_call (priv, ret, invoke, in_tensors, out_tensors);
   /** @todo define enum to indicate status code */
   g_assert (ret >= 0);
 
@@ -481,7 +494,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
   GstTensorsInfo in_info, out_info;
-  int res;
+  int res_in = -1, res_out = -1;
 
   priv = &self->priv;
   prop = &priv->prop;
@@ -489,50 +502,55 @@ gst_tensor_filter_load_tensor_info (GstTensorFilter * self)
   gst_tensors_info_init (&in_info);
   gst_tensors_info_init (&out_info);
 
-  /* supposed fixed in-tensor info if getInputDimension is defined. */
-  if (!prop->input_configured) {
-    gst_tensor_filter_call (priv, res, getInputDimension, &in_info);
-
-    if (res == 0) {
-      g_assert (in_info.num_tensors > 0);
-
-      /** if set-property called and already has info, verify it! */
-      if (prop->input_meta.num_tensors > 0) {
-        if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
-          GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
-          gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
-          goto done;
-        }
-      } else {
-        gst_tensors_info_copy (&prop->input_meta, &in_info);
-      }
-
-      prop->input_configured = TRUE;
-      silent_debug_info (&in_info, "input tensor");
+  if (GST_TF_FW_V1 (priv->fw)) {
+    if (!prop->input_configured || !prop->output_configured) {
+      gst_tensor_filter_call (priv, res_in, getModelInfo, GET_IN_OUT_INFO,
+          &in_info, &out_info);
+      res_out = res_in;
     }
+  } else {
+    if (!prop->input_configured)
+      gst_tensor_filter_call (priv, res_in, getInputDimension, &in_info);
+    if (!prop->output_configured)
+      gst_tensor_filter_call (priv, res_out, getOutputDimension, &out_info);
   }
 
-  /* supposed fixed out-tensor info if getOutputDimension is defined. */
-  if (!prop->output_configured) {
-    gst_tensor_filter_call (priv, res, getOutputDimension, &out_info);
+  /* supposed fixed in-tensor info if getInputDimension was success. */
+  if (!prop->input_configured && res_in == 0) {
+    g_assert (in_info.num_tensors > 0);
 
-    if (res == 0) {
-      g_assert (out_info.num_tensors > 0);
-
-      /** if set-property called and already has info, verify it! */
-      if (prop->output_meta.num_tensors > 0) {
-        if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-          GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
-          gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
-          goto done;
-        }
-      } else {
-        gst_tensors_info_copy (&prop->output_meta, &out_info);
+    /** if set-property called and already has info, verify it! */
+    if (prop->input_meta.num_tensors > 0) {
+      if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
+        GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
+        gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+        goto done;
       }
-
-      prop->output_configured = TRUE;
-      silent_debug_info (&out_info, "output tensor");
+    } else {
+      gst_tensors_info_copy (&prop->input_meta, &in_info);
     }
+
+    prop->input_configured = TRUE;
+    silent_debug_info (&in_info, "input tensor");
+  }
+
+  /* supposed fixed out-tensor info if getOutputDimension was success. */
+  if (!prop->output_configured && res_out == 0) {
+    g_assert (out_info.num_tensors > 0);
+
+    /** if set-property called and already has info, verify it! */
+    if (prop->output_meta.num_tensors > 0) {
+      if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
+        GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
+        gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+        goto done;
+      }
+    } else {
+      gst_tensors_info_copy (&prop->output_meta, &out_info);
+    }
+
+    prop->output_configured = TRUE;
+    silent_debug_info (&out_info, "output tensor");
   }
 
 done:
@@ -597,8 +615,13 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       int res;
 
       gst_tensors_info_init (&out_info);
-      gst_tensor_filter_call (priv, res, setInputDimension, &in_config.info,
-          &out_info);
+      if (GST_TF_FW_V0 (priv->fw)) {
+        gst_tensor_filter_call (priv, res, setInputDimension, &in_config.info,
+            &out_info);
+      } else {
+        gst_tensor_filter_call (priv, res, getModelInfo, SET_INPUT_INFO,
+            &in_config.info, &out_info);
+      }
 
       if (res == 0) {
         /** if set-property called and already has info, verify it! */
@@ -751,8 +774,13 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
         /* call setInputDimension with given input tensor */
         gst_tensors_info_init (&out_info);
-        gst_tensor_filter_call (priv, res, setInputDimension, &config.info,
-            &out_info);
+        if (GST_TF_FW_V0 (priv->fw)) {
+          gst_tensor_filter_call (priv, res, setInputDimension, &config.info,
+              &out_info);
+        } else {
+          gst_tensor_filter_call (priv, res, getModelInfo, SET_INPUT_INFO,
+              &config.info, &out_info);
+        }
 
         if (res == 0) {
           config.info = out_info;
