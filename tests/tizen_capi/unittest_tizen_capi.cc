@@ -462,7 +462,8 @@ static int
 file_cmp (const gchar * f1, const gchar * f2)
 {
   gboolean r;
-  gchar *content1, *content2;
+  gchar *content1 = NULL;
+  gchar *content2 = NULL;
   gsize len1, len2;
   int cmp = 0;
 
@@ -768,7 +769,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   int i;
   uint8_t *uintarray1[10];
   uint8_t *uintarray2[10];
-  uint8_t *content;
+  uint8_t *content = NULL;
   gsize len;
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
@@ -4100,7 +4101,7 @@ main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
-  
+
   set_feature_state (-1);
 
   return result;

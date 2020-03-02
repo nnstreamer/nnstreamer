@@ -362,7 +362,9 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   void *data = NULL;
   gchar *model_file, *data_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  GstTensorMemory input_uint8, output, input;
+  gchar *input_uint8_data = NULL;
+  gsize input_uint8_size = 0;
+  GstTensorMemory output, input;
   ssize_t max_idx;
   const unsigned int num_labels = 10;
 
@@ -394,16 +396,16 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   prop.input_meta.num_tensors = 1;
   prop.input_meta.info[0].name = g_strdup ("data");
 
-  EXPECT_TRUE (g_file_get_contents (data_file, (gchar **) &input_uint8.data,
-        &input_uint8.size, NULL));
+  EXPECT_TRUE (g_file_get_contents (data_file, &input_uint8_data,
+        &input_uint8_size, NULL));
 
   /** Convert the data from uint8 to float */
   input.type = _NNS_FLOAT32;
-  input.size = input_uint8.size * gst_tensor_get_element_size (input.type);
+  input.size = input_uint8_size * gst_tensor_get_element_size (input.type);
   input.data = g_malloc (input.size);
-  for (unsigned int idx=0; idx < input_uint8.size; idx ++) {
+  for (gsize idx=0; idx < input_uint8_size; idx ++) {
     ((float *) input.data)[idx] =
-      static_cast<float> (((guint8 *) input_uint8.data)[idx]);
+      static_cast<float> (((guint8 *) input_uint8_data)[idx]);
     ((float *) input.data)[idx] -= 127.5;
     ((float *) input.data)[idx] /= 127.5;
   }
@@ -456,7 +458,7 @@ TEST (nnstreamer_filter_armnn, invoke_01)
 
   g_free (data_file);
   g_free (input.data);
-  g_free (input_uint8.data);
+  g_free (input_uint8_data);
   g_free (output.data);
   g_free (prop.output_meta.info[0].name);
   g_free (prop.input_meta.info[0].name);
@@ -481,6 +483,6 @@ main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
-  
+
   return result;
 }
