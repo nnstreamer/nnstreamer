@@ -4466,7 +4466,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
@@ -4531,7 +4531,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
@@ -4597,7 +4597,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
     uint32_t lastval;
 
@@ -4680,7 +4680,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
@@ -4745,7 +4745,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
@@ -4811,7 +4811,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
 
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
-    gchar *data;
+    gchar *data = NULL;
     gsize read, i;
     uint32_t lastval;
 

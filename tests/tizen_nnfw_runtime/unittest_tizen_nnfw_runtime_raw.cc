@@ -396,7 +396,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   output.type = res.info[0].type;
   output.size = gst_tensor_info_get_size (&res.info[0]);
 
-  input.data = g_malloc (input.size);
+  input.data = NULL;
   output.data = g_malloc (output.size);
 
   data_file = g_build_filename (root_path, "tests", "test_models", "data",
