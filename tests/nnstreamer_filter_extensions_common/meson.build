@@ -1,3 +1,7 @@
+if not gtest_dep.found()
+    error('Cannot find gtest library')
+endif
+
 tizen_apptest_deps = [
   gtest_dep,
   glib_dep
