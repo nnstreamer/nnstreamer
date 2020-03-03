@@ -150,8 +150,7 @@ if have_movidius_ncsdk2
   subdir('nnstreamer_filter_mvncsdk2')
 endif
 
-
-if get_option('enable-cppfilter')
+if get_option('enable-cppfilter') and gtest_dep.found()
   subdir('cpp_methods')
 endif
 
