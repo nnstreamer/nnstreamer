@@ -227,6 +227,7 @@ Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject
     goto done;
   }
 
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
   fw->name = g_strdup (filter_name);
   fw->allocate_in_invoke = TRUE;
   fw->run_without_model = TRUE;
