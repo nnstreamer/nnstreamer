@@ -754,7 +754,7 @@ TEST (nnstreamer_capi_src, dummy_01)
   gchar *file1 = g_build_path ("/", dir, "output", NULL);
   gchar *pipeline =
       g_strdup_printf
-      ("appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! filesink location=\"%s\"",
+      ("appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! filesink location=\"%s\" buffer-mode=unbuffered",
       file1);
   ml_pipeline_h handle;
   ml_pipeline_state_e state;
