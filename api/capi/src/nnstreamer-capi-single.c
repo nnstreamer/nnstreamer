@@ -738,8 +738,18 @@ ml_single_invoke (ml_single_h single,
 
   check_feature_state ();
 
-  if (!single || !input || !output) {
-    ml_loge ("The given param is invalid.");
+  if (!single) {
+    ml_loge ("The first argument of ml_single_invoke() is not valid. Please check the single handle.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!input) {
+    ml_loge ("The second argument of ml_single_invoke() is not valid. Please check the input data handle.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!output) {
+    ml_loge ("The third argument of ml_single_invoke() is not valid. Please check the output data handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -748,32 +758,53 @@ ml_single_invoke (ml_single_h single,
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
 
-  if (!single_h->filter || single_h->state >= JOIN_REQUESTED) {
-    ml_loge ("The given param is invalid, model is missing.");
+  if (!single_h->filter) {
+    ml_loge ("The tensor_filter element is not valid. It is not correctly created or already freed.");
     status = ML_ERROR_INVALID_PARAMETER;
+    goto exit;
+  }
+
+  if (single_h->state == JOIN_REQUESTED) {
+    ml_loge ("The handle is closed or being closed.");
+    status = ML_ERROR_STREAMS_PIPE;
+    goto exit;
+  }
+
+  if (single_h->state == ERROR) {
+    ml_loge ("There was error on getting tesnor_filter element.");
+    status = ML_ERROR_STREAMS_PIPE;
     goto exit;
   }
 
   /* Validate input data */
   if (in_data->num_tensors != single_h->in_info.num_tensors) {
-    ml_loge ("The given param input is invalid, \
-        different number of memory blocks.");
+    ml_loge ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
+        in_data->num_tensors, single_h->in_info.num_tensors);
     status = ML_ERROR_INVALID_PARAMETER;
     goto exit;
   }
 
   for (i = 0; i < in_data->num_tensors; i++) {
-    size_t raw_size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
+    size_t raw_size;
 
-    if (!in_data->tensors[i].tensor || in_data->tensors[i].size != raw_size) {
-      ml_loge ("The given param input is invalid, \
-          different size of memory block.");
+    if (!in_data->tensors[i].tensor) {
+      ml_loge ("The %d-th input tensor is not valid.", i);
+      status = ML_ERROR_INVALID_PARAMETER;
+      goto exit;
+    }
+
+    raw_size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
+
+    if (in_data->tensors[i].size != raw_size) {
+      ml_loge ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
+          i, in_data->tensors[i].size, raw_size, single_h->in_info.info[i].type);
       status = ML_ERROR_INVALID_PARAMETER;
       goto exit;
     }
   }
 
   if (single_h->state != IDLE) {
+    ml_loge ("The single invoking thread is not idle.");
     status = ML_ERROR_TRY_AGAIN;
     goto exit;
   }
