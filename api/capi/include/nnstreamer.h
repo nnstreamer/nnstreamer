@@ -146,8 +146,7 @@ typedef enum {
   ML_NNFW_HW_NPU_MOVIDIUS = 0x3001, /**< 0x3001: Intel Movidius Stick. (Since 6.0) */
   ML_NNFW_HW_NPU_EDGE_TPU = 0x3002, /**< 0x3002: Google Coral Edge TPU (USB). (Since 6.0) */
   ML_NNFW_HW_NPU_VIVANTE  = 0x3003, /**< 0x3003: VeriSilicon's Vivante. (Since 6.0) */
-  ML_NNFW_HW_NPU_SR       = 0x3100, /**< 0x3100: any SR (Samsung Research) made NPU. (Since 6.0) */
-  ML_NNFW_HW_NPU_SRCN     = 0x3101, /**< 0x3101: SRCN (Samsung R&D Institute China-Nanjing) backend supported with NNFW-runtime. (Since 6.0) */
+  ML_NNFW_HW_NPU_SR       = 0x13000, /**< 0x13000: any SR (Samsung Research) made NPU. (Since 6.0) */
 } ml_nnfw_hw_e;
 
 /**
