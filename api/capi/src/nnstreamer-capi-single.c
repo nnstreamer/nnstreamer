@@ -120,7 +120,8 @@ invoke_thread (void *arg)
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   ml_tensors_data_s *in_data, *out_data;
-  int i, status = ML_ERROR_NONE;
+  unsigned int i;
+  int status = ML_ERROR_NONE;
 
   single_h = (ml_single *) arg;
 
@@ -734,7 +735,8 @@ ml_single_invoke (ml_single_h single,
   ml_single *single_h;
   ml_tensors_data_s *in_data;
   gint64 end_time;
-  int i, status = ML_ERROR_NONE;
+  unsigned int i;
+  int status = ML_ERROR_NONE;
 
   check_feature_state ();
 
