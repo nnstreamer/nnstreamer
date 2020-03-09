@@ -1086,9 +1086,8 @@ ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
       return ACCL_NPU_EDGE_TPU;
     case ML_NNFW_HW_NPU_VIVANTE:
       return ACCL_NPU_VIVANTE;
-    case ML_NNFW_HW_NPU_SRCN:
-      return ACCL_NPU_SRCN;
     case ML_NNFW_HW_NPU_SR:
+      /** @todo how to get srcn npu */
       return ACCL_NPU_SR;
     default:
       return ACCL_AUTO;

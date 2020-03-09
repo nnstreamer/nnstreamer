@@ -1335,10 +1335,6 @@ TEST (nnstreamer_capi_util, availability_fail_01_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SRCN, &result);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, false);
-
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SR, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
