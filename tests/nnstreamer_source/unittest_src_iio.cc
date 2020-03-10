@@ -21,18 +21,6 @@
 #define ELEMENT_NAME "tensor_src_iio"
 
 /**
- * @brief original location of iio to be modified for testing
- */
-extern gchar *IIO_BASE_DIR;
-extern gchar *IIO_DEV_DIR;
-
-/**
- * @brief to store the original location for iio
- */
-gchar *PREV_IIO_BASE_DIR;
-gchar *PREV_IIO_DEV_DIR;
-
-/**
  * @brief iio default and test values
  */
 #define DEFAULT_BUFFER_CAPACITY (1U)
@@ -154,16 +142,13 @@ make_iio_dev_structure (int num)
   iio_dev->iio_base_dir_sim =
       g_build_filename (iio_dev->iio_dir, "devices", NULL);
 
-  PREV_IIO_BASE_DIR = IIO_BASE_DIR;
-  IIO_BASE_DIR = g_strdup (iio_dev->iio_base_dir_sim);
-
   device_folder_name = g_strdup_printf ("%s%d", "iio:device", num);
-  iio_dev->device = g_build_filename (IIO_BASE_DIR, device_folder_name, NULL);
+  iio_dev->device = g_build_filename (iio_dev->iio_base_dir_sim, device_folder_name, NULL);
   iio_dev->name = g_build_filename (iio_dev->device, "name", NULL);
 
   trigger_folder_name = g_strdup_printf ("%s%d", "iio:trigger", num);
   iio_dev->trigger_dev =
-      g_build_filename (IIO_BASE_DIR, trigger_folder_name, NULL);
+      g_build_filename (iio_dev->iio_base_dir_sim, trigger_folder_name, NULL);
   iio_dev->trigger_name = g_build_filename (iio_dev->trigger_dev, "name", NULL);
 
   iio_dev->trigger = g_build_filename (iio_dev->device, "trigger", NULL);
@@ -218,9 +203,6 @@ make_iio_dev_structure (int num)
   iio_dev->log_file = NULL;
   iio_dev->dev_device_dir_fd = -1;
   iio_dev->dev_device_dir_fd_read = -1;
-
-  PREV_IIO_DEV_DIR = IIO_DEV_DIR;
-  IIO_DEV_DIR = g_strdup (iio_dev->dev_dir);
 
   g_free (device_folder_name);
   g_free (trigger_folder_name);
@@ -663,12 +645,6 @@ build_dev_dir_timestamp (const iio_dev_dir_struct * iio_dev)
 static void
 clean_iio_dev_structure (iio_dev_dir_struct * iio_dev)
 {
-  g_free (IIO_BASE_DIR);
-  g_free (IIO_DEV_DIR);
-
-  IIO_BASE_DIR = PREV_IIO_BASE_DIR;
-  IIO_DEV_DIR = PREV_IIO_DEV_DIR;
-
   g_free (iio_dev->base_dir);
   g_free (iio_dev->sys_dir);
   g_free (iio_dev->bus_dir);
@@ -1001,6 +977,8 @@ TEST (test_tensor_src_iio, start_stop)
   ASSERT_TRUE (src_iio != NULL);
 
   /** setup properties */
+  g_object_set (src_iio, "iio-base-dir", dev0->iio_base_dir_sim, NULL);
+  g_object_set (src_iio, "dev-dir", dev0->dev_dir, NULL);
   g_object_set (src_iio, "device", DEVICE_NAME, NULL);
   g_object_set (src_iio, "silent", FALSE, NULL);
 
@@ -1087,8 +1065,8 @@ TEST (test_tensor_src_iio, \
   samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10); \
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL); \
   parse_launch =  g_strdup_printf ( \
-      "%s device=%s silent=FALSE ! multifilesink location=%s", \
-      ELEMENT_NAME, DEVICE_NAME, dev0->log_file); \
+      "%s iio-base-dir=%s dev-dir=%s device=%s silent=FALSE ! multifilesink location=%s", \
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, DEVICE_NAME, dev0->log_file); \
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL); \
   /** state transition test upwards */ \
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING); \
@@ -1298,9 +1276,9 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
-      ("%s device-number=%d trigger=%s silent=FALSE "
+      ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE "
       "name=my-src-iio ! multifilesink location=%s",
-      ELEMENT_NAME, 0, TRIGGER_NAME, dev0->log_file);
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, TRIGGER_NAME, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
   /** state transition test upwards */
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
@@ -1389,9 +1367,9 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
-      ("%s device-number=%d trigger=%s silent=FALSE channels=1,3,5 "
+      ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE channels=1,3,5 "
       "name=my-src-iio ! multifilesink location=%s",
-      ELEMENT_NAME, 0, TRIGGER_NAME, dev0->log_file);
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, TRIGGER_NAME, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
   /** state transition test upwards */
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
@@ -1487,9 +1465,9 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch =
       g_strdup_printf
-      ("%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "
+      ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "
       "merge-channels-data=False name=my-src-iio ! multifilesink location=%s",
-      ELEMENT_NAME, 0, 0, samp_freq, dev0->log_file);
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, 0, samp_freq, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
 
   /** move channel specific type for channel 1 to generic */

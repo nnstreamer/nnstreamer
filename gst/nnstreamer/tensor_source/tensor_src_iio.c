@@ -149,6 +149,8 @@ enum
   PROP_0,
   PROP_MODE,
   PROP_SILENT,
+  PROP_BASE_DIRECTORY,
+  PROP_DEV_DIRECTORY,
   PROP_DEVICE,
   PROP_DEVICE_NUM,
   PROP_TRIGGER,
@@ -160,14 +162,11 @@ enum
   PROP_POLL_TIMEOUT
 };
 
-static gchar nns_iio_base_dir_default[] = "/sys/bus/iio/devices/";
-static gchar nns_iio_dev_dir_default[] = "/dev/";
-
 /**
  * @brief IIO system paths
  */
-gchar *IIO_BASE_DIR = nns_iio_base_dir_default;
-gchar *IIO_DEV_DIR = nns_iio_dev_dir_default;
+#define DEFAULT_PROP_BASE_DIRECTORY "/sys/bus/iio/devices"
+#define DEFAULT_PROP_DEV_DIRECTORY "/dev"
 
 /**
  * @brief iio device channel enabled mode
@@ -336,6 +335,16 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           "Mode for the device to run in - one-shot or continuous",
           DEFAULT_OPERATING_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_BASE_DIRECTORY,
+      g_param_spec_string ("iio-base-dir", "IIO Base Dir",
+          "Base directory for IIO devices", DEFAULT_PROP_BASE_DIRECTORY,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_DEV_DIRECTORY,
+      g_param_spec_string ("dev-dir", "Dev Dir",
+          "Directory for device files", DEFAULT_PROP_DEV_DIRECTORY,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_DEVICE,
       g_param_spec_string ("device", "Device Name",
           "Name of the device to be opened", DEFAULT_PROP_STRING,
@@ -450,6 +459,8 @@ gst_tensor_src_iio_init (GstTensorSrcIIO * self)
   self->custom_channel_table = NULL;
   self->mode = g_strdup (DEFAULT_OPERATING_MODE);
   self->channels_enabled = CHANNELS_ENABLED_AUTO;
+  self->base_dir = g_strdup (DEFAULT_PROP_BASE_DIRECTORY);
+  self->dev_dir = g_strdup (DEFAULT_PROP_DEV_DIRECTORY);
   gst_tensor_src_iio_device_properties_init (&self->trigger);
   gst_tensor_src_iio_device_properties_init (&self->device);
   self->silent = DEFAULT_PROP_SILENT;
@@ -1125,6 +1136,32 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
       self->silent = g_value_get_boolean (value);
       break;
 
+    case PROP_BASE_DIRECTORY:
+    {
+      const gchar *base_dir = g_value_get_string (value);
+
+      if (g_path_is_absolute (base_dir)) {
+        g_free (self->base_dir);
+        self->base_dir = g_strdup (base_dir);
+      } else {
+        GST_ERROR_OBJECT (self, "%s is not an absolute path.", base_dir);
+      }
+
+      break;
+    }
+    case PROP_DEV_DIRECTORY:
+    {
+      const gchar *dev_dir = g_value_get_string (value);
+
+      if (g_path_is_absolute (dev_dir)) {
+        g_free (self->dev_dir);
+        self->dev_dir = g_strdup (dev_dir);
+      } else {
+        GST_ERROR_OBJECT (self, "%s is not an absolute path.", dev_dir);
+      }
+
+      break;
+    }
     case PROP_MODE:
     {
       if (self->mode != NULL) {
@@ -1244,6 +1281,14 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, self->mode);
       break;
 
+    case PROP_BASE_DIRECTORY:
+      g_value_set_string (value, self->base_dir);
+      break;
+
+    case PROP_DEV_DIRECTORY:
+      g_value_set_string (value, self->dev_dir);
+      break;
+
     case PROP_DEVICE:
       g_value_set_string (value, self->device.name);
       break;
@@ -1323,6 +1368,8 @@ gst_tensor_src_iio_finalize (GObject * object)
   g_free (self->mode);
   g_free (self->device.name);
   g_free (self->trigger.name);
+  g_free (self->base_dir);
+  g_free (self->dev_dir);
   if (self->custom_channel_table) {
     g_hash_table_destroy (self->custom_channel_table);
   }
@@ -1580,10 +1627,10 @@ gst_tensor_src_iio_setup_device_properties (GstTensorSrcIIO * self)
   /** Find the device */
   if (self->device.name != NULL) {
     self->device.id =
-        gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->device.name,
+        gst_tensor_src_iio_get_id_by_name (self->base_dir, self->device.name,
         DEVICE_PREFIX);
   } else if (self->device.id >= 0) {
-    self->device.name = gst_tensor_src_iio_get_name_by_id (IIO_BASE_DIR,
+    self->device.name = gst_tensor_src_iio_get_name_by_id (self->base_dir,
         self->device.id, DEVICE_PREFIX);
   } else {
     GST_ERROR_OBJECT (self, "IIO device information not provided.");
@@ -1594,7 +1641,7 @@ gst_tensor_src_iio_setup_device_properties (GstTensorSrcIIO * self)
     goto error_return;
   }
   dirname = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
-  self->device.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
+  self->device.base_dir = g_build_filename (self->base_dir, dirname, NULL);
   g_free (dirname);
 
   return TRUE;
@@ -1631,11 +1678,11 @@ gst_tensor_src_iio_setup_trigger_properties (GstTensorSrcIIO * self)
     /** find if the provided trigger exists */
     if (self->trigger.name != NULL) {
       self->trigger.id =
-          gst_tensor_src_iio_get_id_by_name (IIO_BASE_DIR, self->trigger.name,
+          gst_tensor_src_iio_get_id_by_name (self->base_dir, self->trigger.name,
           TRIGGER_PREFIX);
     } else {
       self->trigger.name =
-          gst_tensor_src_iio_get_name_by_id (IIO_BASE_DIR, self->trigger.id,
+          gst_tensor_src_iio_get_name_by_id (self->base_dir, self->trigger.id,
           TRIGGER_PREFIX);
     }
     if (G_UNLIKELY (self->trigger.name == NULL || self->trigger.id < 0)) {
@@ -1643,7 +1690,7 @@ gst_tensor_src_iio_setup_trigger_properties (GstTensorSrcIIO * self)
       goto error_return;
     }
     dirname = g_strdup_printf ("%s%d", TRIGGER_PREFIX, self->trigger.id);
-    self->trigger.base_dir = g_build_filename (IIO_BASE_DIR, dirname, NULL);
+    self->trigger.base_dir = g_build_filename (self->base_dir, dirname, NULL);
     g_free (dirname);
 
     /** get the default trigger, if any */
@@ -1895,12 +1942,13 @@ gst_tensor_src_iio_setup_device_buffer (GstTensorSrcIIO * self)
 
   /** open the buffer to read and ready the file descriptor */
   device_name = g_strdup_printf ("%s%d", DEVICE_PREFIX, self->device.id);
-  filename = g_build_filename (IIO_DEV_DIR, device_name, NULL);
+  filename = g_build_filename (self->dev_dir, device_name, NULL);
   g_free (device_name);
 
   self->buffer_data_fp = g_new (struct pollfd, 1);
   if (self->buffer_data_fp == NULL) {
     GST_ERROR_OBJECT (self, "Failed to allocate the file descriptor.");
+    g_free (filename);
     goto error_return;
   }
 

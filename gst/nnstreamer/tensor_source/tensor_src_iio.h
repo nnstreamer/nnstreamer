@@ -49,12 +49,6 @@ typedef struct _GstTensorSrcIIO GstTensorSrcIIO;
 typedef struct _GstTensorSrcIIOClass GstTensorSrcIIOClass;
 
 /**
- * @brief IIO system paths
- */
-extern gchar *IIO_BASE_DIR;
-extern gchar *IIO_DEV_DIR;
-
-/**
  * @brief iio device channel enabled mode
  */
 typedef enum
@@ -117,6 +111,8 @@ struct _GstTensorSrcIIO
 
   /** linux IIO related properties */
   gchar *mode; /**< IIO device operating mode */
+  gchar *base_dir; /**< Base directory for IIO devices */
+  gchar *dev_dir; /**< Directory for device files */
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
   GList *channels; /**< list of enabled channels */
