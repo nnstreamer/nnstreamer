@@ -8,6 +8,10 @@ enable_symlink=@ENABLE_SYMBOLIC_LINK@
 filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
 customfilters=@SUBPLUGIN_INSTALL_PREFIX@/customfilters/
 
+# Set framework priority about model file extension when automatically selecting framework for tensor filter.
+# A comma separated prioritized list of neural network frameworks to open .tflite file
+framework_priority_tflite=@FRAMEWORK_PRIORITY_TFLITE@
+
 [decoder]
 decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
 
