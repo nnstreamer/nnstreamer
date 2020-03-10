@@ -106,7 +106,7 @@ struct _GstTensorSrcTIZENSENSORClass
 };
 
 /**
- * @brief Function to get type of tensor_src_iio.
+ * @brief Function to get type of tensor_src_tizensensor.
  */
 GType gst_tensor_src_tizensensor_get_type (void);
 

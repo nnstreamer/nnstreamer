@@ -105,7 +105,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_tizensensor_debug);
 #define GST_CAT_DEFAULT gst_tensor_src_tizensensor_debug
 
 /**
- * @brief tensor_src_iio properties.
+ * @brief tensor_src_tizensensor properties.
  */
 enum
 {
