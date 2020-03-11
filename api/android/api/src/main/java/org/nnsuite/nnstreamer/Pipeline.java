@@ -134,12 +134,12 @@ public final class Pipeline implements AutoCloseable {
      * @param callback    The function to be called when the pipeline state is changed.
      *                    You may set null if it is not required.
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to construct the pipeline
      */
     public Pipeline(@NonNull String description, @Nullable StateChangeCallback callback) {
-        if (description == null) {
-            throw new IllegalArgumentException("Given description is null");
+        if (description == null || description.isEmpty()) {
+            throw new IllegalArgumentException("Given description is invalid");
         }
 
         mHandle = nativeConstruct(description, (callback != null));
@@ -208,14 +208,14 @@ public final class Pipeline implements AutoCloseable {
      * @param name The name of source node
      * @param data The input data (a single frame, tensor/tensors)
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to push data to source node
      */
     public void inputData(@NonNull String name, @NonNull TensorsData data) {
         checkPipelineHandle();
 
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
         if (data == null) {
@@ -234,14 +234,14 @@ public final class Pipeline implements AutoCloseable {
      *
      * @return The list of pad names
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to get the list of pad names
      */
     public String[] getSwitchPads(@NonNull String name) {
         checkPipelineHandle();
 
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
         String[] pads = nativeGetSwitchPads(mHandle, name);
@@ -259,18 +259,18 @@ public final class Pipeline implements AutoCloseable {
      * @param name The name of switch node
      * @param pad  The name of the chosen pad to be activated
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to select the switch pad
      */
     public void selectSwitchPad(@NonNull String name, @NonNull String pad) {
         checkPipelineHandle();
 
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
-        if (pad == null) {
-            throw new IllegalArgumentException("Given pad is null");
+        if (pad == null || pad.isEmpty()) {
+            throw new IllegalArgumentException("Given pad is invalid");
         }
 
         if (!nativeSelectSwitchPad(mHandle, name, pad)) {
@@ -285,14 +285,14 @@ public final class Pipeline implements AutoCloseable {
      * @param name The name of valve node
      * @param open The flag to control the flow
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to change the valve state
      */
     public void controlValve(@NonNull String name, boolean open) {
         checkPipelineHandle();
 
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
         if (!nativeControlValve(mHandle, name, open)) {
@@ -307,12 +307,12 @@ public final class Pipeline implements AutoCloseable {
      * @param name     The name of sink node
      * @param callback The callback for new data
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to register the callback to sink node in the pipeline
      */
     public void registerSinkCallback(@NonNull String name, @NonNull NewDataCallback callback) {
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
         if (callback == null) {
@@ -345,12 +345,12 @@ public final class Pipeline implements AutoCloseable {
      * @param name     The name of sink node
      * @param callback The callback object to be unregistered
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to unregister the callback from sink node
      */
     public void unregisterSinkCallback(@NonNull String name, @NonNull NewDataCallback callback) {
-        if (name == null) {
-            throw new IllegalArgumentException("Given name is null");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
         }
 
         if (callback == null) {

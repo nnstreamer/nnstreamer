@@ -197,12 +197,12 @@ public final class SingleShot implements AutoCloseable {
      *
      * @throws IllegalArgumentException if given param is invalid
      */
-    public void setProperty(@NonNull String name, @NonNull String value) {
+    public void setValue(@NonNull String name, @NonNull String value) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Given property name is invalid");
         }
 
-        if (value == null || value.isEmpty()) {
+        if (value == null) {
             throw new IllegalArgumentException("Given property value is invalid");
         }
 
@@ -220,14 +220,14 @@ public final class SingleShot implements AutoCloseable {
      *
      * @throws IllegalArgumentException if given param is invalid
      */
-    public String getProperty(@NonNull String name) {
+    public String getValue(@NonNull String name) {
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Given property name is invalid");
         }
 
         String value = nativeGetProperty(mHandle, name);
 
-        if (value == null || value.isEmpty()) {
+        if (value == null) {
             throw new IllegalArgumentException("Failed to get the property");
         }
 
