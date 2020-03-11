@@ -1009,7 +1009,7 @@ ml_single_set_property (ml_single_h single, const char *name, const char *value)
     return status;
 
   /* if sets same value, do not change. */
-  if (g_ascii_strcasecmp (old_value, value) == 0) {
+  if (old_value != NULL && g_ascii_strcasecmp (old_value, value) == 0) {
     g_free (old_value);
     return ML_ERROR_NONE;
   }
@@ -1092,7 +1092,7 @@ ml_single_get_property (ml_single_h single, const char *name, char **value)
       g_str_equal (name, "inputname") || g_str_equal (name, "inputlayout") ||
       g_str_equal (name, "output") || g_str_equal (name, "outputtype") ||
       g_str_equal (name, "outputname") || g_str_equal (name, "outputlayout") ||
-      g_str_equal (name, "accelerator")) {
+      g_str_equal (name, "accelerator") || g_str_equal (name, "custom")) {
     /* string */
     g_object_get (G_OBJECT (single_h->filter), name, value, NULL);
   } else if (g_str_equal (name, "is-updatable")) {
