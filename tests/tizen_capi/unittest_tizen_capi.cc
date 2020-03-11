@@ -3226,6 +3226,27 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
   status = ml_single_set_property (single, "unknown_prop", "INVALID");
   EXPECT_NE (status, ML_ERROR_NONE);
 
+  /* null params */
+  status = ml_single_set_property (single, "input", NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_single_set_property (single, NULL, "INVALID");
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_single_get_property (single, "input", NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_single_get_property (single, NULL, &prop_value);
+  EXPECT_NE (status, ML_ERROR_NONE);
+  g_free (prop_value);
+
+  /* dimension should be valid */
+  status = ml_single_get_property (single, "input", &prop_value);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_STREQ (prop_value, "3:224:224:1");
+  g_free (prop_value);
+
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
