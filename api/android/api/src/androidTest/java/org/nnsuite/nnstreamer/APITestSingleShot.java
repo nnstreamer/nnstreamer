@@ -29,7 +29,7 @@ public class APITestSingleShot {
         APITestCommon.initNNStreamer();
 
         try {
-            mSingle = new SingleShot(APITestCommon.getTestModel());
+            mSingle = new SingleShot(APITestCommon.getTFLiteImgModel());
         } catch (Exception e) {
             fail();
         }
@@ -80,15 +80,8 @@ public class APITestSingleShot {
 
     @Test
     public void testSetInputInfo() {
-        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        File model = new File(root + "/nnstreamer/test/add.tflite");
-
-        if (!model.exists()) {
-            fail();
-        }
-
         try {
-            SingleShot addSingle = new SingleShot(model);
+            SingleShot addSingle = new SingleShot(APITestCommon.getTFLiteAddModel());
             TensorsInfo info = addSingle.getInputInfo();
 
             /* input: float32 with dimension 1 */
@@ -143,15 +136,8 @@ public class APITestSingleShot {
 
     @Test
     public void testInvokeDynamicVary() {
-        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        File model = new File(root + "/nnstreamer/test/add.tflite");
-
-        if (!model.exists()) {
-            fail();
-        }
-
         try {
-            SingleShot addSingle = new SingleShot(model);
+            SingleShot addSingle = new SingleShot(APITestCommon.getTFLiteAddModel());
 
             /* single-shot invoke */
             for (int i = 1; i < 2; i++) {
@@ -228,7 +214,7 @@ public class APITestSingleShot {
         info.addTensorInfo(NNStreamer.TensorType.UINT16, new int[]{3,224,224,1});
 
         try {
-            new SingleShot(APITestCommon.getTestModel(), info, null);
+            new SingleShot(APITestCommon.getTFLiteImgModel(), info, null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -242,7 +228,7 @@ public class APITestSingleShot {
         info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,224,224});
 
         try {
-            new SingleShot(APITestCommon.getTestModel(), info, null);
+            new SingleShot(APITestCommon.getTFLiteImgModel(), info, null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -256,7 +242,7 @@ public class APITestSingleShot {
         info.addTensorInfo(NNStreamer.TensorType.INT16, new int[]{1001,1});
 
         try {
-            new SingleShot(APITestCommon.getTestModel(), null, info);
+            new SingleShot(APITestCommon.getTFLiteImgModel(), null, info);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -270,7 +256,7 @@ public class APITestSingleShot {
         info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{1001,2,1,1});
 
         try {
-            new SingleShot(APITestCommon.getTestModel(), null, info);
+            new SingleShot(APITestCommon.getTFLiteImgModel(), null, info);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -324,7 +310,7 @@ public class APITestSingleShot {
     @Test
     public void testGetInvalidPropertyName_n() {
         try {
-            mSingle.getProperty("");
+            mSingle.getValue("");
             fail();
         } catch (Exception e) {
             /* expected */
@@ -334,7 +320,7 @@ public class APITestSingleShot {
     @Test
     public void testGetUnknownPropertyName_n() {
         try {
-            mSingle.getProperty("unknown_prop");
+            mSingle.getValue("unknown_prop");
             fail();
         } catch (Exception e) {
             /* expected */
@@ -344,7 +330,7 @@ public class APITestSingleShot {
     @Test
     public void testGetNullPropertyName_n() {
         try {
-            mSingle.getProperty(null);
+            mSingle.getValue(null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -354,7 +340,7 @@ public class APITestSingleShot {
     @Test
     public void testUnknownPropertyName_n() {
         try {
-            mSingle.setProperty("unknown_prop", "unknown");
+            mSingle.setValue("unknown_prop", "unknown");
             fail();
         } catch (Exception e) {
             /* expected */
@@ -364,7 +350,7 @@ public class APITestSingleShot {
     @Test
     public void testSetNullPropertyName_n() {
         try {
-            mSingle.setProperty(null, "ANY");
+            mSingle.setValue(null, "ANY");
             fail();
         } catch (Exception e) {
             /* expected */
@@ -374,7 +360,7 @@ public class APITestSingleShot {
     @Test
     public void testSetNullPropertyValue_n() {
         try {
-            mSingle.setProperty("inputlayout", null);
+            mSingle.setValue("inputlayout", null);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -384,8 +370,8 @@ public class APITestSingleShot {
     @Test
     public void testGetPropertyDimension() {
         try {
-            assertEquals("3:224:224:1", mSingle.getProperty("input"));
-            assertEquals("1001:1:1:1", mSingle.getProperty("output"));
+            assertEquals("3:224:224:1", mSingle.getValue("input"));
+            assertEquals("1001:1:1:1", mSingle.getValue("output"));
         } catch (Exception e) {
             fail();
         }
@@ -411,8 +397,8 @@ public class APITestSingleShot {
             single.setTimeout(60000);
 
             /* set layout */
-            single.setProperty("inputlayout", "NHWC");
-            single.setProperty("outputlayout", "NCHW");
+            single.setValue("inputlayout", "NHWC");
+            single.setValue("outputlayout", "NCHW");
 
             /* single-shot invoke */
             for (int i = 0; i < 10; i++) {

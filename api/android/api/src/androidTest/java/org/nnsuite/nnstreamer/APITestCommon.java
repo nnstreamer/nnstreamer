@@ -51,10 +51,10 @@ public class APITestCommon {
     }
 
     /**
-     * Gets the File object of tensorflow-lite image classification model.
-     * Note that, to invoke tensorflow-lite model in the storage, the permission READ_EXTERNAL_STORAGE is required.
+     * Gets the File object of tensorflow-lite model.
+     * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
      */
-    public static File getTestModel() {
+    public static File getTFLiteImgModel() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
         File model = new File(root + "/nnstreamer/test/mobilenet_v1_1.0_224_quant.tflite");
 
@@ -66,7 +66,23 @@ public class APITestCommon {
     }
 
     /**
+     * Gets the File object of tensorflow-lite model.
+     * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
+     */
+    public static File getTFLiteAddModel() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File model = new File(root + "/nnstreamer/test/add.tflite");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        return model;
+    }
+
+    /**
      * Gets the File objects of Caffe model for SNAP.
+     * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
      */
     public static File[] getSNAPCaffeModel() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();

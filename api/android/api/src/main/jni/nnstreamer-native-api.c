@@ -30,7 +30,6 @@ GST_PLUGIN_STATIC_DECLARE (amcsrc);
 extern void init_filter_cpp (void);
 extern void init_filter_custom (void);
 extern void init_filter_custom_easy (void);
-extern void init_filter_tflite (void);
 extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);

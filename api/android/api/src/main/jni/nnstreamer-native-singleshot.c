@@ -301,6 +301,11 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeGetProperty (JNIEnv * env,
   single = pipe_info->pipeline_handle;
 
   if (ml_single_get_property (single, prop_name, &prop_value) == ML_ERROR_NONE) {
+    if (!prop_value) {
+      /* null string means error in java, return empty string. */
+      prop_value = g_strdup ("");
+    }
+
     value = (*env)->NewStringUTF (env, prop_value);
     g_free (prop_value);
   } else {

@@ -95,6 +95,16 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testConstructEmptyDescription_n() {
+        try {
+            new Pipeline("");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testConstructNullStateCb() {
         String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
                 "tensor_converter ! tensor_sink";
@@ -358,7 +368,7 @@ public class APITestPipeline {
 
     @Test
     public void testRunModel() {
-        File model = APITestCommon.getTestModel();
+        File model = APITestCommon.getTFLiteImgModel();
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)3:224:224:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
                 "tensor_filter framework=tensorflow-lite model=" + model.getAbsolutePath() + " ! " +
