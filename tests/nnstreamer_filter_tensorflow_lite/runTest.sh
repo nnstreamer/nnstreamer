@@ -78,6 +78,15 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 # Fail test for invalid output properties
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} output=1:7 outputtype=int8 ! filesink location=tensorfilter.out.log" 3F_n 0 1 $PERFORMANCE
 
+PATH_TO_MULTI_TENSOR_OUTPUT_MODEL="../test_models/models/multi_person_mobilenet_v1_075_float.tflite"
+
+# Simple tests for multi-tensor output model
+# This should emit error because of invalid width and height size
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=353,height=257 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MULTI_TENSOR_OUTPUT_MODEL} ! fakesink" 4_n 0 1 $PERFORMANCE
+
+# This won't fail, but not much meaningful
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=257,height=353 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MULTI_TENSOR_OUTPUT_MODEL} ! fakesink" 5 0 0 $PERFORMANCE
+
 # Test the backend setting done with tensorflow-lite
 # This also performs tests for generic backend configuration parsing
 function run_pipeline() {
