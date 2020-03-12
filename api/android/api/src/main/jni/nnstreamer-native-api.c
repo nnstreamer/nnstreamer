@@ -37,7 +37,9 @@ extern void init_pose (void);
 extern void init_is (void);
 #endif
 
+#if defined (ENABLE_TENSORFLOW_LITE)
 extern void init_filter_tflite (void);
+#endif
 #if defined (ENABLE_SNAP)
 extern void init_filter_snap (void);
 #endif
@@ -557,6 +559,11 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
   /* enumeration defined in NNStreamer.java */
   if (fw_type == 0) {
     *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+
+#if !defined (ENABLE_TENSORFLOW_LITE)
+    nns_logw ("tensorflow-lite is not supported.");
+    is_supported = FALSE;
+#endif
   } else if (fw_type == 1) {
     *nnfw = ML_NNFW_TYPE_SNAP;
 
@@ -576,7 +583,7 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
  * @brief Initialize NNStreamer, register required plugins.
  */
 jboolean
-nnstreamer_native_initialize (void)
+nnstreamer_native_initialize (JNIEnv * env, jobject context)
 {
   jboolean result = JNI_FALSE;
   static gboolean nns_is_initilaized = FALSE;
@@ -611,7 +618,9 @@ nnstreamer_native_initialize (void)
     init_is ();
 #endif
 
+#if defined (ENABLE_TENSORFLOW_LITE)
     init_filter_tflite ();
+#endif
 #if defined (ENABLE_SNAP)
     init_filter_snap ();
 #endif
@@ -642,7 +651,7 @@ jboolean
 Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
     jobject context)
 {
-  return nnstreamer_native_initialize ();
+  return nnstreamer_native_initialize (env, context);
 }
 
 /**
