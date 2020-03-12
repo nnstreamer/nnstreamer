@@ -11,9 +11,11 @@
 #------------------------------------------------------
 LOCAL_PATH := $(call my-dir)
 
-include $(CLEAR_VARS)
+ifndef NNSTREAMER_ROOT
+$(error NNSTREAMER_ROOT is not defined!)
+endif
 
-LOCAL_MODULE := tensorflow-lite
+include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
 
 TF_LITE_DIR := $(LOCAL_PATH)/tensorflow-lite
 TF_LITE_INCLUDES := $(TF_LITE_DIR)/include
@@ -30,6 +32,26 @@ else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
 
+#------------------------------------------------------
+# tensorflow-lite (prebuilt static library)
+#------------------------------------------------------
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := tensorflow-lite-lib
 LOCAL_SRC_FILES := $(TF_LITE_LIB_PATH)/libtensorflow-lite.a
 
 include $(PREBUILT_STATIC_LIBRARY)
+
+#------------------------------------------------------
+# tensor-filter sub-plugin for tensorflow-lite
+#------------------------------------------------------
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := tensorflow-lite
+LOCAL_SRC_FILES := $(NNSTREAMER_FILTER_TFLITE_SRCS)
+LOCAL_CFLAGS += -O2 -DNDEBUG
+LOCAL_CXXFLAGS += -std=c++11 -frtti -fexceptions -O2 -DNDEBUG
+LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(TF_LITE_INCLUDES) $(GST_HEADERS_COMMON)
+LOCAL_STATIC_LIBRARIES := tensorflow-lite-lib
+
+include $(BUILD_STATIC_LIBRARY)

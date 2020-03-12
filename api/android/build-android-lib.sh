@@ -13,24 +13,28 @@
 # - SNAP_DIRECTORY: Absolute path for SNAP, tensor-filter sub-plugin and prebuilt library.
 #
 # Build options
-# --api_option (default 'all', 'lite' to build with GStreamer core plugins)
-# --target_abi (default 'armv7, arm64')
+# --build_type (default 'all', 'lite' to build with GStreamer core plugins)
+# --target_abi (default 'arm64-v8a', 'armeabi-v7a' available)
 # --run_test (default 'no', 'yes' to run the instrumentation test)
-# --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
+# --enable_snap (default 'yes' to build with sub-plugin for SNAP)
+# --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
 #
 # For example, to build library with core plugins for arm64-v8a
-# ./build-android-lib.sh --api_option=lite --target_abi=arm64
+# ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
 #
 
-# API build option ('lite' to build with GStreamer core plugins)
+# API build option
+# 'all' : default
+# 'lite' : with GStreamer core plugins
+# 'single' : no plugins, single-shot only
+# 'internal' : no plugins, single-shot only, disable SNAP and tf-lite
+build_type='all'
+
 nnstreamer_api_option='all'
 include_assets='no'
 
 # Set target ABI ('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
-nnstreamer_target_abi="'armeabi-v7a', 'arm64-v8a'"
-
-# Set tensorflow-lite version (available: 1.9 and 1.13)
-nnstreamer_tf_lite_ver='1.13'
+target_abi='arm64-v8a'
 
 # Run instrumentation test after build procedure is done
 run_test='no'
@@ -39,21 +43,23 @@ run_test='no'
 release_bintray='no'
 
 # Enable SNAP
-enable_snap='no'
+enable_snap='yes'
+
+# Enable tensorflow-lite
+enable_tflite='yes'
+
+# Set tensorflow-lite version (available: 1.9 and 1.13)
+nnstreamer_tf_lite_ver='1.13'
 
 # Parse args
 for arg in "$@"; do
     case $arg in
-        --api_option=*)
-            nnstreamer_api_option=${arg#*=}
+        --build_type=*)
+            build_type=${arg#*=}
             ;;
         --target_abi=*)
             target_abi=${arg#*=}
-            if [[ $target_abi == 'armv7' ]]; then
-                nnstreamer_target_abi="'armeabi-v7a'"
-            elif [[ $target_abi == 'arm64' ]]; then
-                nnstreamer_target_abi="'arm64-v8a'"
-            else
+            if [ $target_abi != 'armeabi-v7a' ] && [ $target_abi != 'arm64-v8a' ]; then
                 echo "Unknown target ABI." && exit 1
             fi
             ;;
@@ -72,29 +78,42 @@ for arg in "$@"; do
         --run_test=*)
             run_test=${arg#*=}
             ;;
-        --result_directory=*)
-            result_directory=${arg#*=}
+        --nnstreamer_dir=*)
+            nnstreamer_dir=${arg#*=}
+            ;;
+        --result_dir=*)
+            result_dir=${arg#*=}
             ;;
         --enable_snap=*)
             enable_snap=${arg#*=}
             ;;
+        --enable_tflite=*)
+            enable_tflite=${arg#*=}
+            ;;
     esac
 done
 
-# Check build option
-if [[ $nnstreamer_api_option == 'internal' ]]; then
-    # Enable SNAP and include single-shot only
+# Check build type
+if [[ $build_type == 'single' ]]; then
     nnstreamer_api_option='single'
-    include_assets='no'
-    enable_snap='yes'
+elif [[ $build_type == 'lite' ]]; then
+    nnstreamer_api_option='lite'
+elif [[ $build_type == 'internal' ]]; then
+    nnstreamer_api_option='single'
+
+    enable_snap='no'
+    enable_tflite='no'
+
+    target_abi='arm64-v8a'
+elif [[ $build_type != 'all' ]]; then
+    echo "Failed, unknown build type $build_type." && exit 1
 fi
 
 if [[ $enable_snap == 'yes' ]]; then
     [ -z "$SNAP_DIRECTORY" ] && echo "Need to set SNAP_DIRECTORY, to build sub-plugin for SNAP." && exit 1
+    [ $target_abi != 'arm64-v8a' ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNAP." && exit 1
 
-    echo "Set target ABI arm64-v8a, including SNAP: $SNAP_DIRECTORY"
-    target_abi='arm64'
-    nnstreamer_target_abi="'arm64-v8a'"
+    echo "Build with SNAP: $SNAP_DIRECTORY"
 fi
 
 if [[ $release_bintray == 'yes' ]]; then
@@ -107,12 +126,8 @@ fi
 # Set library name
 nnstreamer_lib_name="nnstreamer"
 
-if [[ $nnstreamer_api_option != 'all' ]]; then
-    nnstreamer_lib_name="$nnstreamer_lib_name-$nnstreamer_api_option"
-fi
-
-if [[ -n $target_abi ]]; then
-    nnstreamer_lib_name="$nnstreamer_lib_name-$target_abi"
+if [[ $build_type != 'all' ]]; then
+    nnstreamer_lib_name="$nnstreamer_lib_name-$build_type"
 fi
 
 echo "NNStreamer library name: $nnstreamer_lib_name"
@@ -142,12 +157,15 @@ echo "Android SDK: $ANDROID_HOME"
 echo "GStreamer binaries: $GSTREAMER_ROOT_ANDROID"
 
 # NNStreamer root directory
-[ -z "$NNSTREAMER_ROOT" ] && echo "Need to set NNSTREAMER_ROOT." && exit 1
+if [[ -z $nnstreamer_dir ]]; then
+    [ -z "$NNSTREAMER_ROOT" ] && echo "Need to set NNSTREAMER_ROOT." && exit 1
+    nnstreamer_dir=$NNSTREAMER_ROOT
+fi
 
-echo "NNStreamer root directory: $NNSTREAMER_ROOT"
+echo "NNStreamer root directory: $nnstreamer_dir"
 
 echo "Start to build NNStreamer library for Android."
-pushd $NNSTREAMER_ROOT
+pushd $nnstreamer_dir
 
 # Make directory to build NNStreamer library
 mkdir -p build_android_lib
@@ -160,10 +178,8 @@ svn --force export https://github.com/nnsuite/nnstreamer-android-resource/trunk/
 
 pushd ./build_android_lib
 
-tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
-
 # Update target ABI
-sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters $nnstreamer_target_abi|" api/build.gradle
+sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters '$target_abi'|" api/build.gradle
 
 # Update API build option
 sed -i "s|NNSTREAMER_API_OPTION := all|NNSTREAMER_API_OPTION := $nnstreamer_api_option|" api/src/main/jni/Android.mk
@@ -178,6 +194,12 @@ if [[ $enable_snap == 'yes' ]]; then
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" ext-files/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
     cp -r $SNAP_DIRECTORY/* api/src/main/jni
+fi
+
+# Update tf-lite option
+if [[ $enable_tflite == 'yes' ]]; then
+    sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
+    tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
 fi
 
 # Add dependency for release
@@ -209,8 +231,8 @@ fi
 
 echo "Starting gradle build for Android library."
 
-chmod +x gradlew
 # Build Android library.
+chmod +x gradlew
 ./gradlew api:build
 
 # Check if build procedure is done.
@@ -218,15 +240,15 @@ nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
 
 result=1
 if [[ -e $nnstreamer_android_api_lib ]]; then
-    if [[ -z $result_directory ]]; then
-        result_directory=../android_lib
+    if [[ -z $result_dir ]]; then
+        result_dir=../android_lib
     fi
     today=$(date '+%Y-%m-%d')
     result=0
 
-    echo "Build procedure is done, copy NNStreamer library to $result_directory directory."
-    mkdir -p $result_directory
-    cp $nnstreamer_android_api_lib $result_directory/$nnstreamer_lib_name-$today.aar
+    echo "Build procedure is done, copy NNStreamer library to $result_dir directory."
+    mkdir -p $result_dir
+    cp $nnstreamer_android_api_lib $result_dir/$nnstreamer_lib_name-$today.aar
 
     # Prepare native libraries and header files for C-API
     unzip $nnstreamer_android_api_lib -d aar_extracted
@@ -245,25 +267,25 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp ext-files/jni/Android-nnstreamer-prebuilt.mk main/jni
     # header for C-API
-    cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
-    cp $NNSTREAMER_ROOT/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
+    cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
+    cp $nnstreamer_dir/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
+    cp $nnstreamer_dir/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
 
     # header for plugin
     if [[ $nnstreamer_api_option != 'single' ]]; then
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
-        cp $NNSTREAMER_ROOT/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
     fi
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
     zip -r $nnstreamer_native_files main
-    cp $nnstreamer_native_files $result_directory
+    cp $nnstreamer_native_files $result_dir
 
     rm -rf aar_extracted main
 
@@ -280,7 +302,7 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
 
         test_result="$nnstreamer_lib_name-test-$today.zip"
         zip -r $test_result api/build/reports
-        cp $test_result $result_directory
+        cp $test_result $result_dir
     fi
 else
     echo "Failed to build NNStreamer library."

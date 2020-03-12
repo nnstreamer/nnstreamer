@@ -126,8 +126,8 @@ $ git clone https://github.com/nnsuite/nnstreamer.git
 Run the build script in NNStreamer.
 
 - Build options
-  1. target_abi: Specify the ABI (armv7, arm64) to be built for with `--target_abi={TARGET-ABI}`.
-  2. api_option: Get the minimized library with GStreamer core elements `--api_option=lite`.
+  1. target_abi: Default arm64-v8a, specify the ABI (armeabi-v7a, arm64-v8a) to be built for with `--target_abi={TARGET-ABI}`.
+  2. build_type: Get the minimized library with GStreamer core elements `--build_type=lite`.
   3. run_test: Run the instrumentation test `--run_test=yes`.
 
 ```bash
