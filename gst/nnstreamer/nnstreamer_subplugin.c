@@ -24,7 +24,9 @@
  */
 
 #include <dlfcn.h>
+#if !defined(__clang__) && (defined(__GNUC__) || defined(__GNUG__))
 #include <features.h>           /* Check libc version for dlclose-related workaround */
+#endif
 #include <glib.h>
 
 #include "nnstreamer_subplugin.h"
