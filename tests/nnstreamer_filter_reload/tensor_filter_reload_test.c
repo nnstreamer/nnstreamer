@@ -12,7 +12,7 @@
 #include <gst/gst.h>
 #include <tensor_common.h>
 
-#define print_log(...) if (!silent) g_message (__VA_ARGS__)
+#define _print_log(...) if (!silent) g_message (__VA_ARGS__)
 #define make_gst_element(element) do{\
   element = gst_element_factory_make(#element, #element);\
   if (!element) {\
@@ -40,7 +40,7 @@ static gint return_val = 0;
 static gboolean
 bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 {
-  print_log ("Got %s message\n", GST_MESSAGE_TYPE_NAME (message));
+  _print_log ("Got %s message\n", GST_MESSAGE_TYPE_NAME (message));
 
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR:{
@@ -48,7 +48,7 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer data)
       gchar *debug;
 
       gst_message_parse_error (message, &err, &debug);
-      print_log ("Error: %s\n", err->message);
+      _print_log ("Error: %s\n", err->message);
       g_error_free (err);
       g_free (debug);
 
@@ -142,7 +142,7 @@ reload_model (GstElement *tensor_filter)
 
   g_object_set (G_OBJECT (tensor_filter), "model", model_path, NULL);
 
-  print_log ("Model %s is just reloaded\n", model_path);
+  _print_log ("Model %s is just reloaded\n", model_path);
 
   is_first = !is_first;
 
@@ -161,7 +161,7 @@ stop_loop (GMainLoop *loop)
 
   g_main_loop_quit (loop);
 
-  print_log ("Now stop the loop\n");
+  _print_log ("Now stop the loop\n");
 
   /* stop */
   return FALSE;

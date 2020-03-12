@@ -25,29 +25,15 @@
 #define __NNSTREAMER_ANDROID_NATIVE_H__
 
 #include <jni.h>
-#include <android/log.h>
 
 #include <gst/gst.h>
 
 #include "nnstreamer.h"
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
+#include "nnstreamer_log.h"
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
-
-#define TAG "NNStreamer-native"
-
-#define nns_logi(...) \
-    __android_log_print (ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-
-#define nns_logw(...) \
-    __android_log_print (ANDROID_LOG_WARN, TAG, __VA_ARGS__)
-
-#define nns_loge(...) \
-    __android_log_print (ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-
-#define nns_logd(...) \
-    __android_log_print (ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
 
 #if GLIB_SIZEOF_VOID_P == 8
 #define CAST_TO_LONG(p) (jlong)(p)

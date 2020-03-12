@@ -35,6 +35,7 @@
 #include <gst/base/gstcollectpads.h>
 
 #include "tensor_typedef.h"
+#include "nnstreamer_log.h"
 #include "nnstreamer_plugin_api.h"
 
 #ifdef HAVE_ORC
