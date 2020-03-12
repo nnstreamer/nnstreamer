@@ -16,7 +16,11 @@ nnstreamer_base_deps = [
 ]
 
 if have_orcc
-  nnstreamer_base_deps += [orc_dep]
+  nnstreamer_base_deps += orc_dep
+endif
+
+if build_platform == 'tizen'
+  nnstreamer_base_deps += dependency('dlog')
 endif
 
 # Internal dependencies

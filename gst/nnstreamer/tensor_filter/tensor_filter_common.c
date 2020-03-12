@@ -558,7 +558,7 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
 
   if (result) {
     /* print warning message */
-    g_warning ("Tensor info :\n%s", result);
+    nns_logw ("Tensor info :\n%s", result);
     g_free (result);
   }
 }

@@ -106,6 +106,7 @@ LOCAL_CFLAGS += -DNO_AUDIO
 LOCAL_CXXFLAGS += -DNO_AUDIO
 endif
 
+LOCAL_LDLIBS        := -llog
 LOCAL_LDFLAGS       += -fuse-ld=bfd
 LOCAL_MODULE_TAGS   := optional
 

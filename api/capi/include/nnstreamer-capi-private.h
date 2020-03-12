@@ -30,6 +30,7 @@
 #include "nnstreamer.h"
 #include "nnstreamer-single.h"
 #include "tensor_typedef.h"
+#include "nnstreamer_log.h"
 
 /* Tizen ML feature */
 #if defined (__TIZEN__)
@@ -52,45 +53,6 @@
 #define convert_tizen_element(...) ML_ERROR_NONE
 #define get_tizen_resource(...) ML_ERROR_NONE
 #define release_tizen_resource(...)
-#endif
-
-#define TAG_NAME "nnstreamer-capi"
-
-#if defined(__TIZEN__)
-  #include <dlog.h>
-
-  #define ml_logi(...) \
-      dlog_print (DLOG_INFO, TAG_NAME, __VA_ARGS__)
-
-  #define ml_logw(...) \
-      dlog_print (DLOG_WARN, TAG_NAME, __VA_ARGS__)
-
-  #define ml_loge(...) \
-      dlog_print (DLOG_ERROR, TAG_NAME, __VA_ARGS__)
-
-  #define ml_logd(...) \
-      dlog_print (DLOG_DEBUG, TAG_NAME, __VA_ARGS__)
-
-#elif defined(__ANDROID__)
-  #include <android/log.h>
-
-  #define ml_logi(...) \
-      __android_log_print (ANDROID_LOG_INFO, TAG_NAME, __VA_ARGS__)
-
-  #define ml_logw(...) \
-      __android_log_print (ANDROID_LOG_WARN, TAG_NAME, __VA_ARGS__)
-
-  #define ml_loge(...) \
-      __android_log_print (ANDROID_LOG_ERROR, TAG_NAME, __VA_ARGS__)
-
-  #define ml_logd(...) \
-      __android_log_print (ANDROID_LOG_DEBUG, TAG_NAME, __VA_ARGS__)
-
-#else /* Linux distro */
-  #define ml_logi g_info
-  #define ml_logw g_warning
-  #define ml_loge g_critical
-  #define ml_logd g_debug
 #endif
 
 #ifdef __cplusplus
