@@ -23,16 +23,13 @@
  *
  */
 
-#include <dlfcn.h>
-#if !defined(__clang__) && (defined(__GNUC__) || defined(__GNUG__))
-#include <features.h>           /* Check libc version for dlclose-related workaround */
-#endif
 #include <glib.h>
+#include <gmodule.h>
 
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
-/** @brief Array of dlopen-ed handles */
+/** @brief Array of dynamic loaded handles */
 static GPtrArray *handles = NULL;
 
 static void init_subplugin (void) __attribute__ ((constructor));
@@ -101,27 +98,27 @@ static subpluginData *
 _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
 {
   subpluginData *spdata = NULL;
-  void *handle;
+  GModule *module;
 
   g_return_val_if_fail (name != NULL, NULL);
   g_return_val_if_fail (path != NULL, NULL);
 
-  dlerror ();
-  handle = dlopen (path, RTLD_NOW);
+  module = g_module_open (path, 0);
   /* If this is a correct subplugin, it will register itself */
-  if (handle == NULL) {
-    g_critical ("Cannot dlopen %s(%s) with error %s.", name, path, dlerror ());
+  if (module == NULL) {
+    g_critical ("Cannot open %s(%s) with error %s.", name, path,
+        g_module_error ());
     return NULL;
   }
 
   spdata = _get_subplugin_data (type, name);
   if (spdata) {
-    g_ptr_array_add (handles, (gpointer) handle);
+    g_ptr_array_add (handles, (gpointer) module);
   } else {
     g_critical
         ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
         name, path);
-    dlclose (handle);
+    g_module_close (module);
   }
 
   return spdata;
@@ -229,9 +226,9 @@ unregister_subplugin (subpluginType type, const char *name)
   return ret;
 }
 
-/** @brief dlclose as dealloc function for handles */
+/** @brief dealloc function for handles */
 static void
-_dlclose (gpointer data)
+_close_handle (gpointer data)
 {
 /**
  * Ubuntu 16.04 / GLIBC 2.23 Workaround
@@ -242,11 +239,10 @@ _dlclose (gpointer data)
  * Inconsistency detected by ld.so: dl-close.c: 811:
  * _dl_close: Assertion `map->l_init_called' failed!
  */
-#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ == 23)
-  return;                       /* Do not call dlclose and return */
+#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 23)
+  return;                       /* Do not call close and return */
 #else
-  void *ptr = data;
-  dlclose (ptr);
+  g_module_close ((GModule *) data);
 #endif
 }
 
@@ -256,7 +252,7 @@ init_subplugin (void)
 {
   G_LOCK (splock);
   g_assert (NULL == handles);
-  handles = g_ptr_array_new_full (16, _dlclose);
+  handles = g_ptr_array_new_full (16, _close_handle);
   G_UNLOCK (splock);
 }
 
@@ -267,7 +263,7 @@ fini_subplugin (void)
   G_LOCK (splock);
   g_assert (handles);
 
-  /* iterate and call dlclose by calling g_array_clear */
+  /* iterate and call close by calling g_array_clear */
   g_ptr_array_free (handles, TRUE);
   handles = NULL;
   G_UNLOCK (splock);

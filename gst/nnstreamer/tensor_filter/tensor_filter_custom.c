@@ -28,7 +28,7 @@
 
 #include <errno.h>
 #include <glib.h>
-#include <dlfcn.h>
+#include <gmodule.h>
 
 #include "tensor_filter_custom.h"
 #include "nnstreamer_plugin_api_filter.h"
@@ -48,7 +48,7 @@ static const gchar *custom_accl_support[] = {
  */
 struct _internal_data
 {
-  void *handle;
+  GModule *module;
   NNStreamer_custom_class *methods;
 
   void *customFW_private_data;
@@ -63,7 +63,7 @@ static int
 custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 {
   internal_data *ptr;
-  const char *dlsym_error;
+  gpointer custom_cls;
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
@@ -89,24 +89,22 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   /* Load .so if this is the first time for this instance. */
-  ptr->handle = dlopen (prop->model_files[0], RTLD_NOW);
-  if (!ptr->handle) {
+  ptr->module = g_module_open (prop->model_files[0], 0);
+  if (!ptr->module) {
     g_free (ptr);
     *private_data = NULL;
     return -1;
   }
 
-  dlerror ();
-  ptr->methods =
-      *((NNStreamer_custom_class **) dlsym (ptr->handle, "NNStreamer_custom"));
-  dlsym_error = dlerror ();
-  if (dlsym_error) {
-    g_critical ("tensor_filter_custom:loadlib error: %s\n", dlsym_error);
-    dlclose (ptr->handle);
+  if (!g_module_symbol (ptr->module, "NNStreamer_custom", &custom_cls)) {
+    g_critical ("tensor_filter_custom:loadlib error: %s\n", g_module_error ());
+    g_module_close (ptr->module);
     g_free (ptr);
     *private_data = NULL;
     return -1;
   }
+
+  ptr->methods = *(NNStreamer_custom_class **) custom_cls;
 
   g_assert (ptr->methods->initfunc);
   ptr->customFW_private_data = ptr->methods->initfunc (prop);

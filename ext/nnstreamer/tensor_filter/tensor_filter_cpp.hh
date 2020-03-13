@@ -82,7 +82,7 @@ class tensor_filter_cpp {
     std::atomic_uint ref_count;
     static std::unordered_map<std::string, tensor_filter_cpp*> filters;
     static std::vector<void *> handles;
-    static bool dlclose_all_called;
+    static bool close_all_called;
 
   protected:
     const GstTensorFilterProperties *prop;
@@ -136,7 +136,7 @@ class tensor_filter_cpp {
     static int invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output);
     static int open (const GstTensorFilterProperties *prop, void **private_data);
     static void close (const GstTensorFilterProperties *prop, void **private_data);
-    static void dlclose_all (void);
+    static void close_all_handles (void);
 };
 
 #endif /* __cplusplus */

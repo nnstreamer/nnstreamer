@@ -29,10 +29,10 @@
 #include <string>
 #include <assert.h>
 
-#include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
 #include <glib.h>
+#include <gmodule.h>
 
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
@@ -44,7 +44,7 @@ std::vector<void *> tensor_filter_cpp::handles;
 G_LOCK_DEFINE_STATIC (lock_handles);
 
 static gchar filter_subplugin_cpp[] = "cpp";
-bool tensor_filter_cpp::dlclose_all_called = false;
+bool tensor_filter_cpp::close_all_called = false;
 
 static GstTensorFilterFramework NNS_support_cpp = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
@@ -77,13 +77,13 @@ void
 fini_filter_cpp (void)
 {
   nnstreamer_filter_exit (NNS_support_cpp.name);
-  tensor_filter_cpp::dlclose_all ();
+  tensor_filter_cpp::close_all_handles ();
 }
 G_END_DECLS
 
 #define loadClass(name, ptr) \
   class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
-  assert (false == dlclose_all_called); \
+  assert (false == close_all_called); \
   assert (*(ptr)); \
   assert (name->isValid());
 
@@ -216,19 +216,19 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
   }
 
   if (filters.find(prop->model_files[0]) == filters.end()) {
-    /* model_files may be really path to .so file. try to dlopen it */
+    /* model_files may be really path to .so file. try to open it */
     if (prop->num_models < 2)
       return -EINVAL;
 
-    void *handle = dlopen (prop->model_files[1], RTLD_NOW);
-    if (!handle) {
+    GModule *module = g_module_open (prop->model_files[1], (GModuleFlags) 0);
+    if (!module) {
       g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s cannot be found: opening %s failed\n", prop->model_files[0], prop->model_files[1]);
       return -EINVAL; /** Model file / name not found */
     }
 
     if (filters.find(prop->model_files[0]) == filters.end()) {
       /** It's still not found. it's not there. */
-      dlclose (handle);
+      g_module_close (module);
       g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s is not found in %s.\n",
           prop->model_files[0], prop->model_files[1]);
       return -EINVAL;
@@ -238,7 +238,7 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
       * invoke functions from it at anytime while the pipeline is not
       * closed */
     G_LOCK (lock_handles);
-    handles.push_back (handle);
+    handles.push_back ((void *) module);
     G_UNLOCK (lock_handles);
 
   }
@@ -267,9 +267,9 @@ void tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **pri
 /**
  * @brief Call dlclose for all handle
  */
-void tensor_filter_cpp::dlclose_all ()
+void tensor_filter_cpp::close_all_handles ()
 {
-  assert (false == dlclose_all_called);
+  assert (false == close_all_called);
 /**
  * Ubuntu 16.04 / GLIBC 2.23 Workaround
  * If we do dlclose at exit() function, it may incur
@@ -279,14 +279,14 @@ void tensor_filter_cpp::dlclose_all ()
  * Inconsistency detected by ld.so: dl-close.c: 811:
  * _dl_close: Assertion `map->l_init_called' failed!
  */
-#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ == 23)
+#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 23)
   /* Do not call dlclose */
 #else
   G_LOCK (lock_handles);
   for (void *handle : handles) {
-    dlclose (handle);
+    g_module_close ((GModule *) handle);
   }
   G_UNLOCK (lock_handles);
 #endif
-  dlclose_all_called = true;
+  close_all_called = true;
 }
