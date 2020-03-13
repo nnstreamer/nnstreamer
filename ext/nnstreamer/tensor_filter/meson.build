@@ -319,7 +319,7 @@ if get_option('enable-edgetpu')
 
     shared_library('nnstreamer_filter_edgetpu',
       nnstreamer_filter_edgetpu_sources,
-      dependencies: [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, tflite_dep],
+      dependencies: [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, tflite_dep, libdl_dep],
       install: true,
       install_dir: filter_subplugin_install_dir
     )

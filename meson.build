@@ -106,6 +106,7 @@ add_project_arguments('-DNNSTREAMER_CONF_FILE="' + join_paths(nnstreamer_inidir,
 # Dependencies
 glib_dep = dependency('glib-2.0')
 gobject_dep = dependency('gobject-2.0')
+gmodule_dep = dependency('gmodule-2.0')
 gst_dep = dependency('gstreamer-' + gst_api_verision)
 gst_base_dep = dependency('gstreamer-base-' + gst_api_verision)
 gst_controller_dep = dependency('gstreamer-controller-' + gst_api_verision)

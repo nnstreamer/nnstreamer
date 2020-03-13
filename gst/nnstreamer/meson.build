@@ -5,13 +5,13 @@ nnstreamer_headers = []
 # Dependencies
 nnstreamer_base_deps = [
   glib_dep,
+  gmodule_dep,
   gst_dep,
   gst_base_dep,
   gst_controller_dep,
   gst_video_dep,
   gst_audio_dep,
   libm_dep,
-  libdl_dep,
   thread_dep
 ]
 
