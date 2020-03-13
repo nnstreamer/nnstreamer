@@ -745,6 +745,163 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Get available framework from given file when user selects auto option
+ * @param[in] model_files the prediction model paths
+ * @param[in] num_models the number of model files
+ * @return Detected framework name (NULL if it fails to detect automatically)
+ */
+gchar *
+gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
+    unsigned int num_models)
+{
+  const GstTensorFilterFramework *fw = NULL;
+  gchar *file_extension, *file_extension_2;
+  gchar *fw_priority_str = NULL, *detected_fw = NULL;
+  gchar **fw_priority_str_arr;
+  guint i;
+
+  file_extension = strrchr (model_files[0], '.');
+
+  /* Detect framework based on file extension */
+  if (num_models == 1) {
+    if (g_ascii_strcasecmp (file_extension, ".tflite") == 0)
+      fw_priority_str =
+          nnsconf_get_custom_value_string ("filter",
+          "framework_priority_tflite");
+    else if (g_ascii_strcasecmp (file_extension, ".pb") == 0)
+      detected_fw = g_strdup ("tensorflow");
+    else if (g_ascii_strcasecmp (file_extension, ".pt") == 0)
+      detected_fw = g_strdup ("pytorch");
+    else if (g_ascii_strcasecmp (file_extension, ".py") == 0)
+      detected_fw = g_strdup ("python");
+    else if (g_ascii_strcasecmp (file_extension, ".graph") == 0)
+      detected_fw = g_strdup ("movidius-ncsdk2");
+    else if (g_ascii_strcasecmp (file_extension, ".circle") == 0)
+      detected_fw = g_strdup ("nnfw");
+    else if (g_ascii_strcasecmp (file_extension,
+            NNSTREAMER_SO_FILE_EXTENSION) == 0)
+      detected_fw = g_strdup ("custom");
+    else if (g_ascii_strcasecmp (file_extension, ".bin") == 0
+        || g_ascii_strcasecmp (file_extension, ".xml") == 0)
+      detected_fw = g_strdup ("openvino");
+  } else if (num_models == 2) {
+    file_extension_2 = strrchr (model_files[1], '.');
+    if (g_ascii_strcasecmp (file_extension, ".pb") == 0
+        && g_ascii_strcasecmp (file_extension_2, ".pb") == 0
+        && g_ascii_strcasecmp (model_files[0], model_files[1]))
+      detected_fw = g_strdup ("caffe2");
+    else if ((g_ascii_strcasecmp (file_extension, ".so") == 0
+            && g_ascii_strcasecmp (file_extension_2, ".nb") == 0)
+        || (g_ascii_strcasecmp (file_extension_2, ".so") == 0
+            && g_ascii_strcasecmp (file_extension, ".nb") == 0))
+      detected_fw = g_strdup ("vivante");
+  } else {
+    nns_logw ("Invalid the number of models");
+    return detected_fw;
+  }
+
+  /* .tflite have multiple framework. */
+  if (fw_priority_str != NULL) {
+    fw_priority_str_arr = g_strsplit (fw_priority_str, ",", -1);
+
+    for (i = 0; i < g_strv_length (fw_priority_str_arr); i++) {
+      fw = nnstreamer_filter_find (fw_priority_str_arr[i]);
+
+      if (fw) {
+        detected_fw = g_strdup (fw_priority_str_arr[i]);
+        break;
+      } else {
+        nns_logd ("Cannot identify the neural network framework. %s\n",
+            fw_priority_str_arr[i]);
+      }
+    }
+
+    g_free (fw_priority_str);
+    g_strfreev (fw_priority_str_arr);
+  }
+
+  if (detected_fw) {
+    nns_logi ("Automatically detected framework is %s.", detected_fw);
+    nns_logd
+        ("If you want to change priority of framework for auto detection, Please edit meson_option.txt. You can find the file at root path of nnstreamer. \n");
+  } else {
+    nns_logw ("Cannot get any neural network framework of %s. \n",
+        file_extension);
+  }
+
+  return detected_fw;
+}
+
+/**
+ * @brief automatically selecting framework for tensor filter
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] fw_name Framework name
+ */
+void
+gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
+    const char *fw_name)
+{
+  GstTensorFilterProperties *prop;
+  const GstTensorFilterFramework *fw;
+  gchar *detected_fw = NULL;
+
+  if (fw_name == NULL)
+    return;
+
+  prop = &priv->prop;
+
+  if (g_ascii_strcasecmp (fw_name, "auto") == 0) {
+    if (prop->model_files == NULL) {
+      /* If model file is not loaded, get framework after loading the model */
+      prop->fwname = g_strdup (fw_name);
+      return;
+    }
+
+    detected_fw =
+        gst_tensor_filter_framework_auto_detection (prop->model_files,
+        prop->num_models);
+  } else {
+    detected_fw = g_strdup (fw_name);
+  }
+
+  /* init fw-name (case if fw-name is auto) */
+  if (prop->fwname) {
+    g_free_const (prop->fwname);
+    prop->fwname = NULL;
+  }
+
+  nns_logd ("Framework = %s\n", fw_name);
+
+  fw = nnstreamer_filter_find (detected_fw);
+
+  if (fw) {
+    /** Get framework info for v1 */
+    if (GST_TF_FW_V1 (fw) && fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
+      nns_logw ("Cannot get the given framework info, %s\n", fw_name);
+      g_free (detected_fw);
+      return;
+    }
+    priv->fw = fw;
+    prop->fwname = detected_fw;
+
+    /** update the accelerator if already set based on v0 or v1 */
+    if (GST_TF_FW_V1 (priv->fw)) {
+      if (prop->accl_str) {
+        const gchar *accl_str = prop->accl_str;
+        gst_tensor_filter_parse_accelerator (priv, &priv->prop, accl_str);
+        g_free_const (accl_str);
+      } else {
+        prop->hw_list = NULL;
+      }
+    }
+  } else {
+    nns_logw ("Cannot identify the given neural network framework, %s\n",
+        fw_name);
+    g_free (detected_fw);
+  }
+}
+
+/**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
@@ -768,7 +925,6 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_FRAMEWORK:
     {
       const gchar *fw_name = g_value_get_string (value);
-      const GstTensorFilterFramework *fw;
 
       if (priv->fw != NULL) {
         if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
@@ -781,34 +937,8 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
         }
       }
 
-      g_debug ("Framework = %s\n", fw_name);
+      gst_tensor_filter_get_available_framework (priv, fw_name);
 
-      fw = nnstreamer_filter_find (fw_name);
-
-      if (fw) {
-        /** Get framework info for v1 */
-        if (GST_TF_FW_V1 (fw) &&
-            fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
-          ml_logw ("Cannot get the given framework info, %s\n", fw_name);
-          break;
-        }
-        priv->fw = fw;
-        prop->fwname = g_strdup (fw_name);
-
-        /** update the accelerator if already set based on v0 or v1 */
-        if (GST_TF_FW_V1 (priv->fw)) {
-          if (prop->accl_str) {
-            const gchar *accl_str = prop->accl_str;
-            gst_tensor_filter_parse_accelerator (priv, &priv->prop, accl_str);
-            g_free_const (accl_str);
-          } else {
-            prop->hw_list = NULL;
-          }
-        }
-      } else {
-        ml_logw ("Cannot identify the given neural network framework, %s\n",
-            fw_name);
-      }
       break;
     }
     case PROP_MODEL:
@@ -830,6 +960,10 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       }
 
       gst_tensor_filter_parse_modelpaths_string (prop, model_files);
+
+      if (prop->fwname != NULL
+          && g_ascii_strcasecmp (prop->fwname, "auto") == 0)
+        gst_tensor_filter_get_available_framework (priv, prop->fwname);
 
       /**
        * Reload model if FW has been already opened;

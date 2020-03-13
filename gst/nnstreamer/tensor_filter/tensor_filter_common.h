@@ -75,8 +75,7 @@ gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv);
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */
-extern void
-gst_tensor_filter_install_properties (GObjectClass * gobject_class);
+extern void gst_tensor_filter_install_properties (GObjectClass * gobject_class);
 
 /**
  * @brief Initialize the properties for tensor-filter.
@@ -89,6 +88,24 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv);
  */
 extern void
 gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
+
+/**
+ * @brief Get available framework from given file when user selects auto option
+ * @param[in] model_files the prediction model paths
+ * @param[in] num_models the number of model files
+ * @return Detected framework name (NULL if it fails to detect automatically)
+ */
+gchar *gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
+    unsigned int num_models);
+
+/**
+ * @brief automatically selecting framework for tensor filter
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] fw_name Framework name
+ */
+void
+gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
+    const char *fw_name);
 
 /**
  * @brief Set the properties for tensor_filter
@@ -117,13 +134,11 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 /**
  * @brief Open NN framework.
  */
-extern void
-gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
+extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Close NN framework.
  */
-extern void
-gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
+extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */
