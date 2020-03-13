@@ -104,6 +104,36 @@ if get_option('enable-tensorflow-lite')
     endif
   endif
 
+  TFLite_version = tflite_dep.version().split('.')
+  TFLite_major = TFLite_version[0].to_int()
+  TFLite_minor = TFLite_version[1].to_int()
+
+  tflite_compile_args = []
+  if TFLite_major == 1
+    if TFLite_minor >= 10
+      tflite_compile_args += '-DTFLITE_INT16=1'
+      tflite_compile_args += '-DTFLITE_COMPLEX64=1'
+      message('data type [INT16] is added for TFLite')
+      message('data type [COMPLEX64] is added for TFLite')
+    endif
+
+    if TFLite_minor >= 13
+      tflite_compile_args += '-DTFLITE_INT8=1'
+      message('data type [INT8] is added for TFLite')
+    endif
+
+    if TFLite_minor >= 14
+      tflite_compile_args += '-DTFLITE_FLOAT16=1'
+      message('data type [FLOAT16] is added for TFLite')
+    endif
+  endif
+
+  tflite_extra_dep = declare_dependency(
+    compile_args : tflite_compile_args,
+  )
+
+  nnstreamer_filter_tflite_deps += tflite_extra_dep
+
   shared_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
