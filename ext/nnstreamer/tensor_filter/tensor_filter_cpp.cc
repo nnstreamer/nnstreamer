@@ -182,6 +182,7 @@ int tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop, void **pri
 /**
  * @brief Printout only once for a given error
  */
+__attribute__((format(printf, 3, 4)))
 static void g_printerr_once (const char *file, int line, const char *fmt,
     ...)
 {
