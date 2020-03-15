@@ -194,7 +194,7 @@ main (int argc, char *argv[])
     {"second_model", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &second_model_path,
       "The path of second model file",
       "e.g., models/mobilenet_v2_1.0_224_quant.tflite"},
-    {"silent", 's', G_OPTION_FLAG_NONE, G_OPTION_FLAG_NONE, &silent,
+    {"silent", 's', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &silent,
       "Hide debug message", "TRUE (default)"},
     {NULL}
   };

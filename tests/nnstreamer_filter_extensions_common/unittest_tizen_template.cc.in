@@ -370,8 +370,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
   gchar **model_files;
 
   model_files = get_model_files ();
@@ -422,8 +422,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
   int ret;
   int ret_get_in, ret_get_out, ret_set_in;
   void *data = NULL;
-  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
   gchar **model_files;
   GstTensorsInfo input_info, output_info;
   guint i;
