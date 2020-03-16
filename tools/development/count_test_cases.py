@@ -44,12 +44,12 @@ def readSSAT(filename):
         with open(filename, "r") as f:
             r = f.readlines()
             for line in r:
-                res = re.match(r'passed=(\d+), failed=(\d+), ignored=(\d+)', line)
+                res = re.match(r'passed=(\d+), failed=(\d+), ignored=(\d+), negative=(\d+)', line)
                 if res:
-                    return (int(res.group(1)) + int(res.group(2)) + int(res.group(3)), int(res.group(1)), int(res.group(2)), int(res.group(3)))
+                    return (int(res.group(1)) + int(res.group(2)) + int(res.group(3)), int(res.group(1)), int(res.group(2)), int(res.group(3)), int(res.group(4)))
     except:
         print("No SSAT results.")
-    return (0, 0, 0, 0)
+    return (0, 0, 0, 0, 0)
 
 def main():
     if len(sys.argv) != 3:
@@ -76,13 +76,13 @@ def main():
                 ng = ng + n
     posg = pg + fg + ig - ng
 
-    (t, p, f, i) = readSSAT(sys.argv[2])
+    (t, p, f, i, n) = readSSAT(sys.argv[2])
 
     print("GTest (total " + str(tg) + " cases)")
     print("  Passed: " + str(pg) + " / Failed: " + str(fg) + " / Ignored: " + str(ig) + " | Positive: " + str(posg) + " / Negative: " + str(ng))
     print("SSAT (total " + str(t) + " cases)")
-    print("  Passed: " + str(p) + " / Failed: " + str(f) + " / Ignored: " + str(i))
-    print("Grand Total: " + str(pg + t) + " cases")
+    print("  Passed: " + str(p) + " / Failed: " + str(f) + " / Ignored: " + str(i) + " | Positive: " + str(t - n) + " / Negative: " + str(n))
+    print("Grand Total: " + str(pg + t) + " cases (negatives : " + str(ng + n) + ")")
     print("  Passed: " + str(pg+p) + " / Failed: " + str(fg + f) + " / Ignored: " + str(ig + i))
     return 0
 
