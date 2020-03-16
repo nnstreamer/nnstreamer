@@ -3559,6 +3559,26 @@ TEST (tensor_stream_test, custom_filter_passthrough)
 }
 
 /**
+ * @brief Test for preserved sub-plugin name.
+ */
+TEST (tensor_stream_test, subplugin_preserved_name_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = g_strdup ("auto"); /* preserved name 'auto' */
+  fw->run_without_model = TRUE;
+  fw->invoke_NN = test_custom_invoke;
+  fw->setInputDimension = test_custom_setdim;
+
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw->name);
+  g_free (fw);
+}
+
+/**
  * @brief Test for tensors (mixed, video and audio).
  */
 TEST (tensor_stream_test, tensors_mix)

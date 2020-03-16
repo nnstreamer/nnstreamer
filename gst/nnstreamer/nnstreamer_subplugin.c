@@ -184,6 +184,12 @@ register_subplugin (subpluginType type, const char *name, const void *data)
       return FALSE;
   }
 
+  /* check the sub-pugin name */
+  if (g_ascii_strcasecmp (name, "auto") == 0) {
+    g_critical ("Failed, the name %s is not allowed.", name);
+    return FALSE;
+  }
+
   spdata = _get_subplugin_data (type, name);
   if (spdata) {
     /* already exists */

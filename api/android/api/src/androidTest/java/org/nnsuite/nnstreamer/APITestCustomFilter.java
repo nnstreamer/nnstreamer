@@ -311,4 +311,26 @@ public class APITestCustomFilter {
             /* expected */
         }
     }
+
+    @Test
+    public void testRegisterPreservedName_n() {
+        try {
+            CustomFilter.registerCustomFilter("auto",
+                new CustomFilter.CustomFilterCallback() {
+                    @Override
+                    public TensorsInfo getOutputInfo(TensorsInfo in) {
+                        return in;
+                    }
+
+                    @Override
+                    public TensorsData invoke(TensorsData in) {
+                        return in;
+                    }
+                });
+
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
 }
