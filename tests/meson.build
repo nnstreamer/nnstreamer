@@ -35,8 +35,10 @@ endif
 # ssat repo_dynamic
 subdir('nnstreamer_repo_dynamicity')
 
-# filter_reload
-subdir('nnstreamer_filter_reload')
+# filter_reload (Currently, the reload test for tensor filter requires tflite)
+if get_option('enable-tensorflow-lite')
+  subdir('nnstreamer_filter_reload')
+endif
 
 # gtest
 gtest_dep = dependency('gtest', required: false)
