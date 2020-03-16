@@ -117,7 +117,7 @@ BuildRequires:  json-glib-devel
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
-BuildRequires: ssat
+BuildRequires: ssat >= 1.1.0
 %endif
 
 # For ORC (Oil Runtime Compiler)
@@ -392,7 +392,7 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     LD_LIBRARY_PATH=./tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif #ifarch 64
     pushd tests
-    ssat -n --summary summary.txt
+    ssat -n --summary summary.txt -cn _n
     popd
 %endif #if unit_test
 
