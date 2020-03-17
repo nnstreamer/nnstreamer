@@ -15,6 +15,10 @@ if [[ "$SSATAPILOADED" != "1" ]]; then
 "
 fi
 
+if [ -z ${SO_EXT} ]; then
+    SO_EXT="so"
+fi
+
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
@@ -24,7 +28,7 @@ PATH_TO_PLUGIN="../../build"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep tensorflow.so)
+        check=$(ls ${ini_path} | grep tensorflow.${SO_EXT})
         if [[ ! $check ]]; then
             echo "Cannot find tensorflow shared lib"
             report
@@ -47,7 +51,7 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep tensorflow.so)
+            check=$(ls ${value} | grep tensorflow.${SO_EXT})
             if [[ ! $check ]]; then
                 echo "Cannot find tensorflow shared lib"
                 report
