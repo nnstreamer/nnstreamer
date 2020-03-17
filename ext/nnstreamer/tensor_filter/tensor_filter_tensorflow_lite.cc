@@ -99,13 +99,11 @@ private:
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
-  std::vector <TfLiteTensor *> input_tensor_ptr;
-  std::vector <TfLiteTensor *> output_tensor_ptr;
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
   int setTensorProp (const std::vector<int> &tensor_idx_list,
-      GstTensorsInfo * tensorMeta, std::vector <TfLiteTensor *>& tensor_ptrs);
+      GstTensorsInfo * tensorMeta);
 };
 
 /**
@@ -183,18 +181,30 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   gint64 start_time = g_get_real_time ();
 #endif
 
+  std::vector <int> tensors_idx;
+  int tensor_idx;
+  TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
   bool size_mismatch = FALSE;
 
-  for (unsigned int i = 0; i < input_tensor_ptr.size (); i++) {
-    if (input_tensor_ptr[i]->bytes != input[i].size)
+  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    tensor_idx = interpreter->outputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    if (tensor_ptr->bytes != output[i].size)
       size_mismatch = TRUE;
-    input_tensor_ptr[i]->data.raw = (char *) input[i].data;
+    tensor_ptr->data.raw = (char *) output[i].data;
+    tensors_idx.push_back (tensor_idx);
   }
-  for (unsigned int i = 0; i < output_tensor_ptr.size (); i++) {
-    if (output_tensor_ptr[i]->bytes != output[i].size)
+
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    tensor_idx = interpreter->inputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    if (tensor_ptr->bytes != input[i].size)
       size_mismatch = TRUE;
-    output_tensor_ptr[i]->data.raw = (char *) output[i].data;
+    tensor_ptr->data.raw = (char *) input[i].data;
+    tensors_idx.push_back (tensor_idx);
   }
 
   if (!size_mismatch) {
@@ -209,11 +219,9 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   }
 
   /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
-  for (unsigned int i = 0; i < input_tensor_ptr.size (); ++i) {
-    input_tensor_ptr[i]->data.raw = nullptr;
-  }
-  for (unsigned int i = 0; i < output_tensor_ptr.size (); ++i) {
-    output_tensor_ptr[i]->data.raw = nullptr;
+  int tensorSize = tensors_idx.size ();
+  for (int i = 0; i < tensorSize; ++i) {
+    interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
   }
 
 #if (DBG)
@@ -372,12 +380,10 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
  */
 int
 TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
-    GstTensorsInfo * tensorMeta, std::vector <TfLiteTensor *>& tensor_ptrs)
+    GstTensorsInfo * tensorMeta)
 {
   tensorMeta->num_tensors = tensor_idx_list.size ();
 
-  tensor_ptrs.clear ();
-  tensor_ptrs.reserve (tensorMeta->num_tensors);
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     if (getTensorDim (tensor_idx_list[i], tensorMeta->info[i].dimension)) {
       g_critical ("failed to get the dimension of input tensors");
@@ -385,7 +391,6 @@ TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
     }
     tensorMeta->info[i].type =
         getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
-    tensor_ptrs.push_back (interpreter->tensor (tensor_idx_list[i]));
 
 #if (DBG)
     gchar *dim_str =
@@ -405,7 +410,7 @@ TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
 int
 TFLiteInterpreter::setInputTensorProp ()
 {
-  return setTensorProp (interpreter->inputs (), &inputTensorMeta, input_tensor_ptr);
+  return setTensorProp (interpreter->inputs (), &inputTensorMeta);
 }
 
 /**
@@ -415,7 +420,7 @@ TFLiteInterpreter::setInputTensorProp ()
 int
 TFLiteInterpreter::setOutputTensorProp ()
 {
-  return setTensorProp (interpreter->outputs (), &outputTensorMeta, output_tensor_ptr);
+  return setTensorProp (interpreter->outputs (), &outputTensorMeta);
 }
 
 /**
@@ -505,8 +510,6 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
 #ifdef ENABLE_TFLITE_NNAPI_DELEGATE
   nnfw_delegate = std::move (interp.nnfw_delegate);
 #endif
-  input_tensor_ptr.swap (interp.input_tensor_ptr);
-  output_tensor_ptr.swap (interp.output_tensor_ptr);
   setModelPath (interp.getModelPath ());
 }
 
