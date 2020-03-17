@@ -39,7 +39,7 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=BGR,width=224,height=224 "
       "! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-104.0069877 "
-      "! tensor_filter framework=movidius-ncsdk2 model=\"%s\" ! fakesink",
+      "! tensor_filter name=tfilter framework=movidius-ncsdk2 model=\"%s\" ! fakesink",
       test_model);
 
   NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
@@ -48,7 +48,10 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
   if (gstpipe) {
     GstState state;
     GstStateChangeReturn ret;
+    GstElement *filter;
     bool test = false;
+    guint changed;
+    gchar *fw_name;
 
     ret = gst_element_get_state (gstpipe, &state, nullptr, GST_SECOND);
     EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
@@ -76,10 +79,26 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
     EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
     EXPECT_EQ (state, GST_STATE_NULL);
 
+    /* Check framework auto option */
+    pipeline = replace_string (pipeline, "movidius-ncsdk2", "auto", NULL, &changed);
+    EXPECT_EQ (changed, 1U);
+
+    gstpipe = gst_parse_launch (pipeline, &err);
+    EXPECT_TRUE (gstpipe != NULL);
+
+    filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter");
+    ASSERT_NE (filter, nullptr);
+
+    /* Check framework */
+    g_object_get (filter, "framework", &fw_name, NULL);
+    EXPECT_TRUE (g_str_equal (fw_name, "movidius-ncsdk2"));
+
+    g_free (fw_name);
+    gst_object_unref (filter);
     gst_object_unref (gstpipe);
   } else {
     status = -1;
-    g_printerr("Failed to launch the pipeline, %s : %s\n", pipeline,
+    g_printerr ("Failed to launch the pipeline, %s : %s\n", pipeline,
         (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
