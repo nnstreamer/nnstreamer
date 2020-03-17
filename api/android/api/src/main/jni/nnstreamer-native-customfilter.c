@@ -245,6 +245,9 @@ Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject
   pipe_info = nns_construct_pipe_info (env, thiz, fw, NNS_PIPE_TYPE_CUSTOM);
   if (pipe_info == NULL) {
     nns_loge ("Failed to create pipe info.");
+    nnstreamer_filter_exit (fw->name);
+    g_free (fw->name);
+    g_free (fw);
     goto done;
   }
 
