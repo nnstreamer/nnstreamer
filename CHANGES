@@ -1,3 +1,19 @@
+1.5.0 -> 1.5.1
+	- Filter subplugin APIs updated. Both V0 (minor changes to the conventional) and V1 (refactored API set) are supported.
+	- Fixed major issue: now, each instance of a filter subplugin may have different property values.
+	- Tizen 6.0 API ACR preparations
+	- Allow to build Single-API-only Android build for minimal ML-API usage.
+	- Compatibility fix for GStreamer 1.16; Gst 1.16 has additional audit that blacklists behaviors of older NNStreamer.
+	- Met Linux Foundation / AI requirements (policy files)
+	- Compatibility fix for LLVM/Clang and macOS.
+
+	- Verisilicon-Vivante: Vivante is supported with private proprietary plugin. There was a minor infrastructural updates to assist it. We will work on opening this code; we may need assistance from Verisilicon (they need to open source a few headers for general public to build Vivante-subplugin.)
+	- TensorFlow-lite: recently added data types of Tensorflow-lite is supported.
+	- OpenVINO/Caffe2/Tensorflow/NNFW/NCSDK2/ARMNN/Python: refactored hardware acceleration options.
+
+	- Fixed issues found by static analyzers.
+	- Added unit tests to widen coverages and to test exception cases.
+
 1.4.0 -> 1.5.0
 	- 1.5.0 is a devel version for 1.6.0 release.
 
