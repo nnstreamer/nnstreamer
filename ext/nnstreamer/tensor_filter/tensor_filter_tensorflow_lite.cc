@@ -432,7 +432,7 @@ TFLiteInterpreter::setOutputTensorProp ()
 int
 TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
 {
-  TfLiteStatus status;
+  TfLiteStatus status = kTfLiteOk;
   const std::vector<int> &input_idx_list = interpreter->inputs();
 
   /** Cannot change the number of inputs */
