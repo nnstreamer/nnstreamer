@@ -909,9 +909,13 @@ ml_validate_model_file (char **model, unsigned int num_models,
   gchar *path_down, *path_down_2 = NULL;
   int status = ML_ERROR_NONE;
 
-  if (!model || num_models < 1 || !*model ||
+  if (!model) {
+    ml_loge ("The required param, model is not provided (null).");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+  if (num_models < 1 || !*model ||
       !g_file_test (model[0], G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid.",
+    ml_loge ("The given param, model path [%s] is invalid or not given.",
         GST_STR_NULL (model[0]));
     return ML_ERROR_INVALID_PARAMETER;
   }
