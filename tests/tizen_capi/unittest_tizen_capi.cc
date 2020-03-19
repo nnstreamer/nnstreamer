@@ -4299,6 +4299,350 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 }
 
 /**
+ * @brief Test NNStreamer single shot (tflite)
+ * @detail run the `ml_single_invoke_dynamic` api works properly.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
+{
+  ml_single_h single;
+  int status;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+
+  unsigned int tmp_count;
+  ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
+  ml_tensor_dimension tmp_dim;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* dynamic dimension supported */
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  float tmp_input[] = { 1.0 };
+  float *output_buf;
+  size_t data_size;
+  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
+      1 * sizeof (float));
+
+  ml_tensors_info_get_count (in_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 1);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status =
+      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
+      &data_size);
+
+  EXPECT_EQ (output_buf[0], 3.0f);
+  EXPECT_EQ (data_size, sizeof (float));
+
+  ml_tensors_info_get_count (out_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 1);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  status = ml_single_set_property (single, "input", "5:1:1:1");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+  float *output_buf2;
+  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
+      5 * sizeof (float));
+
+  ml_tensors_info_get_count (in_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 5);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status =
+      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
+      &data_size);
+
+  EXPECT_EQ (output_buf2[0], 3.0f);
+  EXPECT_EQ (output_buf2[1], 4.0f);
+  EXPECT_EQ (output_buf2[2], 5.0f);
+  EXPECT_EQ (output_buf2[3], 6.0f);
+  EXPECT_EQ (output_buf2[4], 7.0f);
+  EXPECT_EQ (data_size, 5 * sizeof (float));
+
+  ml_tensors_info_get_count (out_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 5);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tflite)
+ * @detail run the `ml_single_invoke_dynamic` api works properly.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
+{
+  ml_single_h single;
+  int status;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+
+  unsigned int tmp_count;
+  ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
+  ml_tensor_dimension tmp_dim, in_dim;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* dynamic dimension supported */
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  float tmp_input[] = { 1.0 };
+  float *output_buf;
+  size_t data_size;
+  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
+      1 * sizeof (float));
+
+  ml_tensors_info_get_count (in_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 1);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status =
+      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
+      &data_size);
+
+  EXPECT_EQ (output_buf[0], 3.0f);
+  EXPECT_EQ (data_size, sizeof (float));
+
+  ml_tensors_info_get_count (out_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 1);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  in_dim[0] = 5;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+
+  status = ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim); 
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+  float *output_buf2;
+  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
+      5 * sizeof (float));
+
+  ml_tensors_info_get_count (in_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 5);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status =
+      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
+      &data_size);
+
+  EXPECT_EQ (output_buf2[0], 3.0f);
+  EXPECT_EQ (output_buf2[1], 4.0f);
+  EXPECT_EQ (output_buf2[2], 5.0f);
+  EXPECT_EQ (output_buf2[3], 6.0f);
+  EXPECT_EQ (output_buf2[4], 7.0f);
+  EXPECT_EQ (data_size, 5 * sizeof (float));
+
+  ml_tensors_info_get_count (out_info, &tmp_count);
+  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+
+  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+  EXPECT_EQ (tmp_dim[0], 5);
+  EXPECT_EQ (tmp_dim[1], 1);
+  EXPECT_EQ (tmp_dim[2], 1);
+  EXPECT_EQ (tmp_dim[3], 1);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tflite)
+ * @detail check the `ml_single_invoke_dynamic` api handles exception cases well.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
+{
+  ml_single_h single;
+  int status;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* dynamic dimension supported */
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_invoke_dynamic (NULL, input, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke_dynamic (single, NULL, in_info, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke_dynamic (single, input, NULL, &output, &out_info);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke_dynamic (single, input, in_info, NULL, &out_info);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke_dynamic (single, input, in_info, &output, NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+
+  g_free (test_model);
+}
+
+/**
  * @brief Main gtest
  */
 int
