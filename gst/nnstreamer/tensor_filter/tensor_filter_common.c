@@ -321,9 +321,6 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 
   prop = &(priv->prop);
 
-  if (prop == NULL)
-    return FALSE;
-
   if (g_strcmp0 (prop->fwname, "custom-easy") == 0)
     return TRUE;
 
