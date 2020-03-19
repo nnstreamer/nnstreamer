@@ -319,13 +319,13 @@ gst_tensor_reposink_query (GstBaseSink * sink, GstQuery * query)
 /**
  * @brief Push GstBuffer
  */
-static void
+static gboolean
 gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
 {
   GstClockTime now = GST_CLOCK_TIME_NONE;
   guint signal_rate;
   gboolean notify = FALSE;
-  g_return_if_fail (GST_IS_TENSOR_REPOSINK (self));
+  g_return_val_if_fail (GST_IS_TENSOR_REPOSINK (self), FALSE);
 
   signal_rate = self->signal_rate;
 
@@ -357,8 +357,11 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
             self->in_caps)) {
       GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
           ("Cannot Set buffer into repo [key: %d]", self->myid), NULL);
+      return FALSE;
     }
   }
+
+  return TRUE;
 }
 
 /**
@@ -371,7 +374,8 @@ gst_tensor_reposink_render (GstBaseSink * sink, GstBuffer * buffer)
 
   self = GST_TENSOR_REPOSINK (sink);
 
-  gst_tensor_reposink_render_buffer (self, buffer);
+  if (!gst_tensor_reposink_render_buffer (self, buffer))
+    return GST_FLOW_ERROR;
   return GST_FLOW_OK;
 }
 
@@ -392,7 +396,8 @@ gst_tensor_reposink_render_list (GstBaseSink * sink,
 
   for (i = 0; i < num_buffers; i++) {
     buffer = gst_buffer_list_get (buffer_list, i);
-    gst_tensor_reposink_render_buffer (self, buffer);
+    if (!gst_tensor_reposink_render_buffer (self, buffer))
+      return GST_FLOW_ERROR;
   }
 
   return GST_FLOW_OK;
