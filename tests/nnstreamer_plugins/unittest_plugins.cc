@@ -1979,7 +1979,7 @@ TEST (test_tensor_transform, orc_conv_s8)
   int8_t data_s8[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = (i + 1) * -1;
+    data_s8[i] = ((int8_t) (i + 1)) * -1;
   }
 
   /* convert s8 */
@@ -2153,7 +2153,7 @@ TEST (test_tensor_transform, orc_conv_s16)
   int16_t data_s16[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = (i + 1) * -1;
+    data_s16[i] = ((int16_t) (i + 1)) * -1;
   }
 
   /* convert s8 */
@@ -2327,7 +2327,7 @@ TEST (test_tensor_transform, orc_conv_s32)
   int32_t data_s32[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = (i + 1) * -1;
+    data_s32[i] = ((int32_t) (i + 1)) * -1;
   }
 
   /* convert s8 */
@@ -2501,7 +2501,7 @@ TEST (test_tensor_transform, orc_conv_f32)
   float data_f32[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_f32[i] = (i + 1.) * -1.;
+    data_f32[i] = (((float) i) + 1.) * -1.;
   }
 
   /* convert s8 */
@@ -2591,7 +2591,7 @@ TEST (test_tensor_transform, orc_conv_f64)
   double data_f64[array_size] = { 0, };
 
   for (i = 0; i < array_size; i++) {
-    data_f64[i] = (i + 1.) * -1.;
+    data_f64[i] = (((double) i) + 1.) * -1.;
   }
 
   /* convert s8 */
