@@ -198,7 +198,7 @@ foreach s : filter_sub_python_sources
 endforeach
 
 if have_python2
-  nnstreamer_filter_python2_deps = [python2_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_python2_deps = [python2_deps, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_python2',
     nnstreamer_filter_python_sources,
@@ -224,7 +224,7 @@ if have_python2
 endif
 
 if have_python3
-  nnstreamer_filter_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_python3_deps = [python3_deps, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_python3',
     nnstreamer_filter_python_sources,

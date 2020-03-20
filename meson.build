@@ -201,16 +201,25 @@ have_python3 = false
 
 if get_option('enable-python')
   pg_pkgconfig = find_program('pkg-config')
-
   # Check python 2.7
   python2_dep = dependency('python-2.7', required: false)
   if python2_dep.found()
-    python2_incs = []
-    python2_incs += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
-    python2_incs += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-    python2_incs += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-    if cc.has_header('numpy/arrayobject.h', args: python2_incs)
-      have_python2 = true
+    python2_inc_args = []
+    python2_inc_args += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
+    python2_inc_args += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+    python2_inc_args += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+    python2_inc_valid_args = []
+    foreach python2_inc_arg : python2_inc_args
+      if cxx.has_argument(python2_inc_arg) and \
+          cxx.check_header('numpy/arrayobject.h', args: python2_inc_arg, dependencies : python2_dep)
+        python2_inc_valid_args += python2_inc_arg
+        have_python2 = true
+        break
+      endif
+    endforeach
+    if have_python2
+      python2_deps = declare_dependency(dependencies: python2_dep,
+          compile_args : python2_inc_valid_args)
     else
       warning('Found python2.7, but failed to find numpy.')
       warning('Disable nnstreamer-python2.')
@@ -220,12 +229,25 @@ if get_option('enable-python')
   # Check python 3.x
   python3_dep = dependency('python3', required: false)
   if python3_dep.found()
-    python3_incs = []
-    python3_incs += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
-    python3_incs += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-    python3_incs += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-    if cc.has_header('numpy/arrayobject.h', args: python3_incs)
-      have_python3 = true
+    message('Finding numpy for python3')
+    numpy_arryobj_h = 'numpy/arrayobject.h'
+
+    python3_inc_args = []
+    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+    python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+    python3_inc_valid_args = []
+    foreach python3_inc_arg : python3_inc_args
+      if cxx.has_argument(python3_inc_arg) and \
+          cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
+        python3_inc_valid_args += python3_inc_arg
+        have_python3 = true
+        break
+      endif
+    endforeach
+    if have_python3
+      python3_deps = declare_dependency(dependencies: python3_dep,
+          compile_args : python3_inc_valid_args)
     else
       warning('Found python3, but failed to find numpy.')
       warning('Disable nnstreamer-python3.')
