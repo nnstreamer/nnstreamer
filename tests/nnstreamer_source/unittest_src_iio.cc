@@ -510,7 +510,7 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
   num_bytes++;
 
   data_size = num_bytes * iio_dev->num_scan_elements / skip;
-  scan_el_data = (char *) malloc (data_size);
+  scan_el_data = (char *) g_malloc0 (data_size);
   if (scan_el_data == NULL) {
     return -1;
   }
@@ -583,7 +583,7 @@ build_dev_dir_scan_elements (iio_dev_dir_struct * iio_dev,
     }
   }
 
-  gchar *copied_scan_el_data = (gchar *) malloc (data_size * BUF_LENGTH);
+  gchar *copied_scan_el_data = (gchar *) g_malloc (data_size * BUF_LENGTH);
   if (copied_scan_el_data == NULL) {
     g_free (scan_el_data);
     return -1;
