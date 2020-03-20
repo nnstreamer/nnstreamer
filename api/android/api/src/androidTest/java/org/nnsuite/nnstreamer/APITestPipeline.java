@@ -368,6 +368,11 @@ public class APITestPipeline {
 
     @Test
     public void testRunModel() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
         File model = APITestCommon.getTFLiteImgModel();
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)3:224:224:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
