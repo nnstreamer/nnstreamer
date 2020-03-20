@@ -886,16 +886,19 @@ TEST (nnstreamer_capi_src, dummy_01)
 
   EXPECT_TRUE (g_file_get_contents (file1, (gchar **) &content, &len, NULL));
   EXPECT_EQ (len, 8U * 11);
+  EXPECT_TRUE (content != nullptr);
 
-  for (i = 0; i < 10; i++) {
-    EXPECT_EQ (content[i * 8 + 0 + 8], i + 4);
-    EXPECT_EQ (content[i * 8 + 1 + 8], i + 1);
-    EXPECT_EQ (content[i * 8 + 2 + 8], i + 3);
-    EXPECT_EQ (content[i * 8 + 3 + 8], i + 2);
-    EXPECT_EQ (content[i * 8 + 4 + 8], i + 3);
-    EXPECT_EQ (content[i * 8 + 5 + 8], i + 2);
-    EXPECT_EQ (content[i * 8 + 6 + 8], i + 1);
-    EXPECT_EQ (content[i * 8 + 7 + 8], i + 4);
+  if (content && len == 88U) {
+    for (i = 0; i < 10; i++) {
+      EXPECT_EQ (content[i * 8 + 0 + 8], i + 4);
+      EXPECT_EQ (content[i * 8 + 1 + 8], i + 1);
+      EXPECT_EQ (content[i * 8 + 2 + 8], i + 3);
+      EXPECT_EQ (content[i * 8 + 3 + 8], i + 2);
+      EXPECT_EQ (content[i * 8 + 4 + 8], i + 3);
+      EXPECT_EQ (content[i * 8 + 5 + 8], i + 2);
+      EXPECT_EQ (content[i * 8 + 6 + 8], i + 1);
+      EXPECT_EQ (content[i * 8 + 7 + 8], i + 4);
+    }
   }
 
   g_free (content);
