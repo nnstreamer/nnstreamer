@@ -104,7 +104,7 @@ public class APITestCommon {
      * GPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:GPU,GpuCacheSource:/sdcard/nnstreamer/"
      */
     public static String getSNAPCaffeOption(boolean useGPU) {
-        String option = "ModelFWType:CAFFE,ExecutionDataType:FLOAT32,";
+        String option = "ModelFWType:CAFFE,ExecutionDataType:FLOAT32,InputFormat:NHWC,OutputFormat:NCHW,";
 
         if (useGPU) {
             String root = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -166,11 +166,5 @@ public class APITestCommon {
         assertEquals(NNStreamer.NNFWType.TENSORFLOW_LITE, NNStreamer.NNFWType.valueOf("TENSORFLOW_LITE"));
         assertEquals(NNStreamer.NNFWType.SNAP, NNStreamer.NNFWType.valueOf("SNAP"));
         assertEquals(NNStreamer.NNFWType.UNKNOWN, NNStreamer.NNFWType.valueOf("UNKNOWN"));
-    }
-
-    @Test
-    public void testAvailability() {
-        /* tensorflow-lite is always available */
-        assertTrue(NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE));
     }
 }
