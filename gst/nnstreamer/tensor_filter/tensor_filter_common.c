@@ -788,7 +788,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       if (fw) {
         /** Get framework info for v1 */
         if (GST_TF_FW_V1 (fw) &&
-            priv->fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
+            fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
           ml_logw ("Cannot get the given framework info, %s\n", fw_name);
           break;
         }
