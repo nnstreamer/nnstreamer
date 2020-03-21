@@ -275,14 +275,8 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
 
     # header for plugin
     if [[ $nnstreamer_api_option != 'single' ]]; then
-        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_converter.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_decoder.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/nnstreamer_plugin_api_filter.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/tensor_filter_custom.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/tensor_filter_custom_easy.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/gst/nnstreamer/tensor_typedef.h main/jni/nnstreamer/include
-        cp $nnstreamer_dir/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/include/*.h main/jni/nnstreamer/include
+        cp $nnstreamer_dir/gst/nnstreamer/include/*.hh main/jni/nnstreamer/include
     fi
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"

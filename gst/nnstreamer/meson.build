@@ -1,4 +1,4 @@
-nnstreamer_inc = include_directories('.')
+nnstreamer_inc = include_directories('.', './include/')
 nnstreamer_sources = []
 nnstreamer_headers = []
 
@@ -38,21 +38,6 @@ foreach s : nnst_common_sources
   nnstreamer_sources += join_paths(meson.current_source_dir(), s)
 endforeach
 
-# Common headers to be installed
-nnst_common_headers = [
-  'tensor_typedef.h',
-  'tensor_filter_custom.h',
-  'tensor_filter_custom_easy.h',
-  'nnstreamer_plugin_api_filter.h',
-  'nnstreamer_plugin_api_decoder.h',
-  'nnstreamer_plugin_api_converter.h',
-  'nnstreamer_plugin_api.h'
-]
-
-foreach h : nnst_common_headers
-  nnstreamer_headers += join_paths(meson.current_source_dir(), h)
-endforeach
-
 # Add plugins
 nnst_plugins = [
   'tensor_aggregator',
@@ -72,6 +57,8 @@ nnst_plugins = [
 foreach p : nnst_plugins
   subdir(p)
 endforeach
+
+subdir('include')
 
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
@@ -98,8 +85,3 @@ endif
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
   dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc)
-
-# Install headers into /{includedir}/nnstreamer
-install_headers(nnstreamer_headers,
-  subdir: 'nnstreamer'
-)

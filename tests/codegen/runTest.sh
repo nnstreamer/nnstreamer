@@ -37,7 +37,7 @@ Description: temporary nnstreamer pkgconfig for unittesting during build
 Version: 0.1.2
 Requires:
 Libs: -L${pwd}/../../build/gst/nnstreamer -lnnstreamer
-Cflags: -I${pwd}/../../gst/nnstreamer
+Cflags: -I${pwd}/../../gst/nnstreamer -I${pwd}/../../gst/nnstreamer/include
 EOF
 
 function do_test() {

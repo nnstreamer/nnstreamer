@@ -16,7 +16,8 @@ NNSTREAMER_CAPI_HOME := $(NNSTREAMER_ROOT)/api/capi
 
 # nnstreamer common headers
 NNSTREAMER_INCLUDES := \
-    $(NNSTREAMER_GST_HOME)
+    $(NNSTREAMER_GST_HOME) \
+    $(NNSTREAMER_GST_HOME)/include
 
 # nnstreamer common sources
 NNSTREAMER_COMMON_SRCS := \
