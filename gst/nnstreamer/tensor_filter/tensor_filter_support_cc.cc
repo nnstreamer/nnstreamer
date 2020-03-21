@@ -33,17 +33,18 @@
 #include <assert.h>
 #include <errno.h>
 
-#if __cplusplus < 201103L
-#warn C++11 is required for safe execution
-#else
-#include <type_traits>
-#endif
-
 #define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef __NO_ANONYMOUS_NESTED_STRUCT
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+
+/** Android NDK does not support exception handling by default */
+#ifdef __ANDROID__
+#define throw
+#define try	if(true)
+#define catch(...)	if(false)
+#endif
 
 namespace nnstreamer {
 
@@ -70,22 +71,37 @@ int tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties * prop,
 
   /* 2. Spawn another empty object and configure the empty object */
   tensor_filter_subplugin &obj = sp->getEmptyInstance();
-  obj.configure_instance (prop);
+  try {
+    obj.configure_instance (prop);
+  } catch (const std::exception & e) {
+    /* @todo Write exception handlers. */
+  }
 
   /* 3. Mark that this is not a representative (found by nnstreamer_filter_find) empty object */
   obj.fwdesc.v1.subplugin_data = nullptr;
 
   /* 4. Save the object as *private_data */
-  *private_data = &obj;
+#if __GNUC__ < 5 || __cpllusplus < 201103L
+  *private_data = &(obj);
+#else /* It is safer w/ addressof, but old gcc doesn't appear to support it */
+  *private_data = std::addressof (obj);
+#endif
 
   return 0;
 }
 
-#define start_up(t, p) \
-  tensor_filter_subplugin *t = (tensor_filter_subplugin *) p; \
-  assert (t); \
-  assert (t->sanity == _SANITY_CHECK); \
+/**
+ * @brief Get tensor_filter_subplugin pointer with some sanity checks
+ */
+tensor_filter_subplugin * tensor_filter_subplugin::get_tfsp_with_checks (
+    void * ptr)
+{
+  tensor_filter_subplugin *t = (tensor_filter_subplugin *) ptr;
+  assert (t);
+  assert (t->sanity == _SANITY_CHECK);
   assert (t->fwdesc.v1.subplugin_data == nullptr);
+  return t;
+}
 
 /**
  * @brief C tensor-filter wrapper callback function, "close"
@@ -93,7 +109,7 @@ int tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties * prop,
 void tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties * prop,
     void **private_data)
 {
-  start_up (obj, *private_data);
+  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
 
   *private_data = nullptr;
   delete obj;
@@ -102,42 +118,80 @@ void tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties * prop,
 /**
  * @brief C V1 tensor-filter wrapper callback function, "invoke"
  */
-int tensor_filter_subplugin::cpp_invoke (const GstTensorFilterProperties *prop,
-    void *private_data, const GstTensorMemory *input,
-    GstTensorMemory *output)
+int tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework * tf,
+    const GstTensorFilterProperties *prop, void *private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  start_up (obj, private_data);
-  return obj->invoke (*input, *output);
+  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
+
+  try {
+    obj->invoke (input, output);
+  } catch (const std::exception & e) {
+    /** @todo Write exception handlers. */
+
+    return -EINVAL;
+    /** @todo return different error codes according to exceptions */
+  }
+  return 0;
 }
 
 /**
  * @brief C V1 tensor-filter wrapper callback function, "getFrameworkInfo"
  */
-int tensor_filter_subplugin::cpp_getFrameworkInfo (const GstTensorFilterProperties * prop,
-    void *private_data, GstTensorFilterFrameworkInfo *fw_info)
+int tensor_filter_subplugin::cpp_getFrameworkInfo (
+    const GstTensorFilterFramework * tf,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo *fw_info)
 {
-  start_up (obj, private_data);
-  return obj->getFrameworkInfo (*fw_info);
+  tensor_filter_subplugin *obj;
+
+  if (private_data == nullptr) {
+    /** generate an emptyInstance and make query to it */
+    const GstTensorFilterFramework * tfsp = tf;
+
+    if (tfsp == nullptr)
+      tfsp = nnstreamer_filter_find (prop->fwname);
+
+    assert (tfsp);
+    assert (tfsp->version == GST_TENSOR_FILTER_FRAMEWORK_V1);
+
+    obj = (tensor_filter_subplugin *) tfsp->v1.subplugin_data;
+  } else {
+    obj = get_tfsp_with_checks (private_data);
+  }
+
+  try {
+    obj->getFrameworkInfo (*fw_info);
+  } catch (const std::exception & e) {
+    /** @todo Write exception handlers. */
+
+    return -EINVAL;
+    /** @todo return different error codes according to exceptions */
+  }
+  return 0;
 }
 
 /**
  * @brief C V1 tensor-filter wrapper callback function, "getModelInfo"
  */
-int tensor_filter_subplugin::cpp_getModelInfo (const GstTensorFilterProperties * prop,
-    void *private_data, model_info_ops ops,
-    GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+int tensor_filter_subplugin::cpp_getModelInfo (
+    const GstTensorFilterFramework * tf,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
-  start_up (obj, private_data);
+  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
   return obj->getModelInfo (ops, *in_info, *out_info);
 }
 
 /**
  * @brief C V1 tensor-filter wrapper callback function, "eventHandler"
  */
-int tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterProperties * prop,
-    void *private_data, event_ops ops, GstTensorFilterFrameworkEventData *data)
+int tensor_filter_subplugin::cpp_eventHandler (
+    const GstTensorFilterFramework * tf,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData *data)
 {
-  start_up (obj, private_data);
+  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
   return obj->eventHandler (ops, *data);
 }
 
@@ -158,65 +212,6 @@ const GstTensorFilterFramework tensor_filter_subplugin::fwdesc_template = {
     }
   }
 };
-
-/**
- * @brief Register the subplugin "derived" class.
- * @detail A derived class MUST register itself with this function in order
- *         to be available for nnstreamer pipelines, i.e., at its init().
- *         The derived class type should be the template typename.
- * @retval Returns an "emptyInstnace" of the derived class. It is recommended
- *         to keep the object and feed to the unregister function.
- */
-template<typename T>
-T * tensor_filter_subplugin::register_subplugin ()
-{
-#if __cplusplus < 201103L
-#warn C++11 is required for safe execution
-#else
-  /** The given class T should be derived from tensor_filter_subplugin */
-  assert ((std::is_base_of<tensor_filter_subplugin, T>::value));
-#endif
-
-  T *emptyInstance = T::T();
-
-  assert (emptyInstance);
-
-  memcpy (&emptyInstance->fwdesc, &fwdesc_template, sizeof (fwdesc_template));
-  emptyInstance->fwdesc.subplugin_data = emptyInstance;
-
-  nnstreamer_filter_probe (&emptyInstance->fwdesc);
-
-  return emptyInstance;
-}
-
-/**
- * @brief Unregister the registered "derived" class.
- * @detail The registered derived class may unregister itself if it can
- *         guarantee that the class won't be used anymore; i.e., at its exit().
- *         The derived class type should be the template typename.
- * @param [in] emptyInstance An emptyInstance that mey be "delete"d by this
- *             function. It may be created by getEmptyInstance() or the one
- *             created by register_subplugin(); It is recommended to keep
- *             the object created by register_subplugin() and feed it to
- *             unregister_subplugin().
- */
-template<typename T>
-void tensor_filter_subplugin::unregister_subplugin (T * emptyInstance)
-{
-  GstTensorFilterFrameworkInfo info;
-#if __cplusplus < 201103L
-#warn C++11 is required for safe execution
-#else
-  /** The given class T should be derived from tensor_filter_subplugin */
-  assert((std::is_base_of<tensor_filter_subplugin, T>::value));
-#endif
-  assert (emptyInstance);
-
-  emptyInstance->getFrameworkInfo (&info);
-  nnstreamer_filter_exit (info.name);
-
-  delete emptyInstance;
-}
 
 /**
  * @brief Base constructor. The object represents a non-functional empty anchor
@@ -240,7 +235,7 @@ tensor_filter_subplugin::~tensor_filter_subplugin ()
  */
 int tensor_filter_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
-  return 0;
+  return -ENOENT;
 }
 
 } /* namespace nnstreamer */

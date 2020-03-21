@@ -36,8 +36,16 @@
 #define __NNS_TENSOR_FILTER_CPP_SUBPLUGIN_SUPPORT_H__
 #ifdef __cplusplus
 
+#include <stdexcept>
 #include <stdint.h>
+#include <assert.h>
 #include <nnstreamer_plugin_api_filter.h>
+#if __cplusplus < 201103L
+#warn C++11 is required for safe execution
+#else
+#include <type_traits>
+#endif
+
 
 namespace nnstreamer {
 /**
@@ -61,25 +69,73 @@ class tensor_filter_subplugin {
 
     static const GstTensorFilterFramework fwdesc_template; /**< Template for fwdesc. Each subclass or object may have different subplugin_data while the C callbacks are identical. Thus, we copy C callbacks from this template to fwdesc and let each subplugin start customizing based on fwdesc, not on fwdesc_template */
 
+    /** Helper function */
+    static inline tensor_filter_subplugin * get_tfsp_with_checks (void * ptr);
     /** tensor_filter/C wrapper functions */
     static int cpp_open (const GstTensorFilterProperties * prop, void **private_data); /**< C wrapper func, open */
     static void cpp_close (const GstTensorFilterProperties * prop, void **private_data); /**< C wrapper func, close */
-    static int cpp_invoke (const GstTensorFilterProperties *prop, void *private_data, const GstTensorMemory *input, GstTensorMemory *output); /**< C V1 wrapper func, invoke */
-    static int cpp_getFrameworkInfo (const GstTensorFilterProperties * prop, void *private_data, GstTensorFilterFrameworkInfo *fw_info); /**< C V1 wrapper func, getFrameworkInfo */
-    static int cpp_getModelInfo (const GstTensorFilterProperties * prop, void *private_data, model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info); /**< C V1 wrapper func, getModelInfo */
-    static int cpp_eventHandler (const GstTensorFilterProperties * prop, void *private_data, event_ops ops, GstTensorFilterFrameworkEventData *data); /**< C V1 wrapper func, eventHandler */
+    static int cpp_invoke (const GstTensorFilterFramework *tf, const GstTensorFilterProperties *prop, void *private_data, const GstTensorMemory *input, GstTensorMemory *output); /**< C V1 wrapper func, invoke */
+    static int cpp_getFrameworkInfo (const GstTensorFilterFramework *tf, const GstTensorFilterProperties * prop, void *private_data, GstTensorFilterFrameworkInfo *fw_info); /**< C V1 wrapper func, getFrameworkInfo */
+    static int cpp_getModelInfo (const GstTensorFilterFramework *tf, const GstTensorFilterProperties * prop, void *private_data, model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info); /**< C V1 wrapper func, getModelInfo */
+    static int cpp_eventHandler (const GstTensorFilterFramework *tf, const GstTensorFilterProperties * prop, void *private_data, event_ops ops, GstTensorFilterFrameworkEventData *data); /**< C V1 wrapper func, eventHandler */
 
     GstTensorFilterFramework fwdesc; /**< Represents C/V1 wrapper for the derived class and its objects. Derived should not access this anyway; the base class will handle this with the C wrapper functions, base static-functions, and base constructors/destructors. */
 
   protected: /** Derived classes should call these at init/exit */
+/**
+ * @brief Register the subplugin "derived" class.
+ * @detail A derived class MUST register itself with this function in order
+ *         to be available for nnstreamer pipelines, i.e., at its init().
+ *         The derived class type should be the template typename.
+ * @retval Returns an "emptyInstnace" of the derived class. It is recommended
+ *         to keep the object and feed to the unregister function.
+ */
     template<typename T>
-    static T * register_subplugin ();
-        /**< Register this subplugin class (not object) (usually at so-init)
-          * @retval: an empty instance for unregister_subplugin */
+    static T * register_subplugin () {
+#if __cplusplus < 201103L
+#warn C++11 is required for safe execution
+#else
+      /** The given class T should be derived from tensor_filter_subplugin */
+      assert ((std::is_base_of<tensor_filter_subplugin, T>::value));
+#endif
+      T *emptyInstance = new T();
 
+      assert (emptyInstance);
+      memcpy (&emptyInstance->fwdesc, &fwdesc_template,
+          sizeof (fwdesc_template));
+      emptyInstance->fwdesc.subplugin_data = emptyInstance;
+      nnstreamer_filter_probe (&emptyInstance->fwdesc);
+
+      return emptyInstance;
+    }
+
+/**
+ * @brief Unregister the registered "derived" class.
+ * @detail The registered derived class may unregister itself if it can
+ *         guarantee that the class won't be used anymore; i.e., at its exit().
+ *         The derived class type should be the template typename.
+ * @param [in] emptyInstance An emptyInstance that mey be "delete"d by this
+ *             function. It may be created by getEmptyInstance() or the one
+ *             created by register_subplugin(); It is recommended to keep
+ *             the object created by register_subplugin() and feed it to
+ *             unregister_subplugin().
+ */
     template<typename T>
-    static void unregister_subplugin (T * emptyInstance);
-        /**< Unregister this subplugin class (not object) (usually at so-exit) */
+    static void unregister_subplugin (T * emptyInstance) {
+      GstTensorFilterFrameworkInfo info;
+#if __cplusplus < 201103L
+#warn C++11 is required for safe execution
+#else
+      /** The given class T should be derived from tensor_filter_subplugin */
+      assert ((std::is_base_of<tensor_filter_subplugin, T>::value));
+#endif
+      assert (emptyInstance);
+
+      emptyInstance->getFrameworkInfo (info);
+      nnstreamer_filter_exit (info.name);
+
+      delete emptyInstance;
+    }
 
   public:
     /*************************************************************
@@ -95,18 +151,27 @@ class tensor_filter_subplugin {
 
     virtual void configure_instance (const GstTensorFilterProperties *prop) = 0;
         /**< Configure a non-functional "empty" object as a
-             functional "filled" object ready to be invoked */
+             functional "filled" object ready to be invoked.
+
+             Possible exceptions: ... @todo describe them!
+         */
 
     virtual ~tensor_filter_subplugin (); /**< called by Close */
 
-    virtual int invoke (const GstTensorMemory &input, GstTensorMemory &output) = 0;
-        /**< Mandatory virtual method.  Invoke NN */
+    virtual void invoke (const GstTensorMemory *input, GstTensorMemory *output) = 0;
+        /**< Mandatory virtual method.  Invoke NN.
 
-    virtual int getFrameworkInfo (GstTensorFilterFrameworkInfo &info) = 0;
+             Possible exceptions: ... @todo describe them!
+         */
+
+    virtual void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) = 0;
         /**< Mandatory virtual method.
           * An empty instance created by derived() should support this with
           * its default info value.
           * "name" property of info should NEVER be changed.
+          * info.name is deleted and reallocated if info.name is not null.
+          *
+          * Possible exceptions: ... @todo describe them!
           */
 
     virtual int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) = 0;
@@ -114,10 +179,16 @@ class tensor_filter_subplugin {
           *  For a given opened model (an instance of the derived class),
           * provide input/output dimensions.
           *  At least one of the two possible ops should be available.
-          *  Return -ENOENT if an operation is not available */
+          *  Return -ENOENT if the ops is not available by this object
+          *  Return -EINVAL if it is an invalid request.
+          */
 
     virtual int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
-        /**< Optional. If not implemented, no event is handled */
+        /**< Optional. If not implemented, no event is handled
+          *  Return -ENOENT if the ops is not to be handled by this object
+          *                 (e.g., let the framework do "free")
+          *  Return -EINVAL if it is an invalid request.
+          */
 };
 
 } /* namespace nnstreamer */
