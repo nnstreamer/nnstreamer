@@ -43,7 +43,7 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef __NO_ANONYMOUS_NESTED_STRUCT
 
-#include "tensor_filter_support_cc.hh"
+#include <nnstreamer_cppplugin_api_filter.hh>
 
 namespace nnstreamer {
 

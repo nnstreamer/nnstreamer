@@ -34,7 +34,6 @@
 #include <glib.h>
 #include <gmodule.h>
 
-#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 #include "tensor_filter_cpp.hh"
