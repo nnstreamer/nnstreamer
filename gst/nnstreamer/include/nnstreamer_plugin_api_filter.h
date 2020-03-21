@@ -1,17 +1,7 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * NNStreamer API for Tensor_Filter Sub-Plugins
  * Copyright (C) 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
  */
 /**
  * @file  nnstreamer_plugin_api_filter.h
@@ -175,12 +165,12 @@ typedef struct _GstTensorFilterProperties
  */
 typedef struct _GstTensorFilterFrameworkInfo
 {
-  const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
+  const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property. Subplugin is supposed to allocate/deallocate. */
   int allow_in_place; /**< TRUE(nonzero) if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
   int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
   int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
-  accl_hw *hw_list; /**< List of supported hardwares by the framework.  Positive response of this check does not guarantee successful running of model with this accelerator. */
+  const accl_hw *hw_list; /**< List of supported hardwares by the framework.  Positive response of this check does not guarantee successful running of model with this accelerator. Subplugin is supposed to allocate/deallocate. */
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework */
 } GstTensorFilterFrameworkInfo;
 
@@ -458,7 +448,7 @@ struct _GstTensorFilterFramework
        * @param[in/out] data user sata for the supported handlers (can be NULL)
        * @return 0 if OK. non-zero if error. -ENOENT if operation is not supported. -EINVAL if operation is supported but provided arguments are invalid.
        */
-      void *subplugin_data; /**< A subplugin may store its own private global data here as well. Do not store data of each instance here, it is shared across all instances of a subplugin. */
+      void *subplugin_data; /**< This is used by tensor_filter infrastructure. Subplugin authors should NEVER update this. Only the files in /gst/nnstreamer/tensor_filter/ are allowed to access this. */
     }
 #ifdef __NO_ANONYMOUS_NESTED_STRUCT
         v1
