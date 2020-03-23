@@ -15,6 +15,7 @@
 #include <nnstreamer-capi-private.h>
 
 #define SINGLE_DEF_TIMEOUT_MSEC 10000
+#define MAX_PATH_LEN 2048
 
 /**
  * @brief Struct to check the pipeline state changes.
@@ -1039,7 +1040,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
-    gchar *name = NULL;
+  gchar *name = NULL;
     guint idx = 0;
 
     while ((name = node_list[idx]) != NULL) {
@@ -1133,7 +1134,7 @@ TEST (nnstreamer_capi_switch, dummy_02)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   if (node_list) {
-    gchar *name = NULL;
+  gchar *name = NULL;
     guint idx = 0;
 
     while ((name = node_list[idx]) != NULL) {
@@ -1718,14 +1719,16 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -1817,7 +1820,6 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -1836,14 +1838,16 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -1873,7 +1877,6 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
 }
 
@@ -1892,14 +1895,16 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   gint64 start, end;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -1968,7 +1973,6 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -1990,15 +1994,17 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  tmp = g_build_filename (root_path, "build", "nnstreamer_example",
       "custom_example_passthrough",
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -2069,7 +2075,6 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -2095,20 +2100,24 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model, *test_file;
   gchar *contents = NULL;
   gsize len = 0;
+  gchar *tmp, test_model[MAX_PATH_LEN], test_file[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "conv_actions_frozen.pb", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  test_file = g_build_filename (root_path, "tests", "test_models", "data",
+  tmp = g_build_filename (root_path, "tests", "test_models", "data",
       "yes.wav", NULL);
+  g_strlcpy (test_file, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -2229,8 +2238,6 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
-  g_free (test_file);
   g_free (contents);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -2249,14 +2256,16 @@ TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "conv_actions_frozen.pb", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -2287,7 +2296,6 @@ TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
 
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-  g_free (test_model);
 }
 #endif /* ENABLE_TENSORFLOW */
 
@@ -2302,14 +2310,16 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   /* invalid file path */
@@ -2344,7 +2354,6 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -2359,14 +2368,16 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -2438,7 +2449,6 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -2457,15 +2467,16 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -2504,7 +2515,6 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -2611,14 +2621,16 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -2677,7 +2689,6 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -2688,19 +2699,21 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
 TEST (nnstreamer_capi_singleshot, parallel_runs)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
   const gint num_threads = 3;
   const gint num_cases = 3;
   pthread_t thread[num_threads * num_cases];
   single_shot_thread_data ss_data[num_cases];
   guint i, j;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   for (i=0; i<num_cases; i++) {
@@ -2732,7 +2745,6 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
     pthread_join(thread[i], NULL);
   }
 
-  g_free (test_model);
 }
 
 /**
@@ -2743,16 +2755,18 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
 TEST (nnstreamer_capi_singleshot, close_while_running)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
   pthread_t thread;
   single_shot_thread_data ss_data;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ss_data.test_model = test_model;
@@ -2779,7 +2793,6 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
 
   pthread_join(thread, NULL);
 
-  g_free (test_model);
 }
 
 /**
@@ -2794,14 +2807,16 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
   ml_tensor_dimension in_dim;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -2831,7 +2846,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -2847,15 +2861,16 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -2889,7 +2904,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -2907,14 +2921,16 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
   ml_tensors_data_h input, output;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -2957,7 +2973,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -2978,15 +2993,16 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   float *data;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3109,7 +3125,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -3131,14 +3146,16 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -3189,7 +3206,6 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -3203,14 +3219,16 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
   char *prop_value = NULL;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -3229,7 +3247,6 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -3251,14 +3268,16 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -3346,7 +3365,6 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 
 /**
@@ -3365,15 +3383,16 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   float *data;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -3440,7 +3459,6 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
 
@@ -3461,14 +3479,16 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   int status;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3560,7 +3580,6 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -3589,21 +3608,25 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model, *test_file;
   guint8 *contents_uint8 = NULL;
   gfloat *contents_float = NULL;
   gsize len = 0;
+  gchar *tmp, test_model[MAX_PATH_LEN], test_file[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "lenet_iter_9000.caffemodel", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  test_file = g_build_filename (root_path, "tests", "test_models", "data",
+  tmp = g_build_filename (root_path, "tests", "test_models", "data",
       "9.raw", NULL);
+  g_strlcpy (test_file, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3733,8 +3756,6 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
-  g_free (test_file);
   g_free (contents_uint8);
   g_free (contents_float);
   ml_tensors_info_destroy (in_info);
@@ -3762,14 +3783,16 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3869,7 +3892,6 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -3887,14 +3909,16 @@ TEST (nnstreamer_capi_singleshot, open_fail_03_n)
   ml_tensor_dimension in_dim, out_dim;
   int status;
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "lenet_iter_9000.caffemodel", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3943,7 +3967,6 @@ TEST (nnstreamer_capi_singleshot, open_fail_03_n)
   EXPECT_NE (status, ML_ERROR_NONE);
   ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -3962,15 +3985,18 @@ TEST (nnstreamer_capi_singleshot, invoke_08_n)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
   gfloat *contents_float = NULL;
+
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "lenet_iter_9000.caffemodel", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4024,7 +4050,6 @@ TEST (nnstreamer_capi_singleshot, invoke_08_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   g_free (contents_float);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -4045,15 +4070,17 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
   size_t data_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
   gfloat *contents_float = NULL;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "lenet_iter_9000.caffemodel", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4108,7 +4135,6 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   g_free (contents_float);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -4133,16 +4159,18 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   int status, tensor_size;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
   /* custom-passthrough */
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  tmp = g_build_filename (root_path, "build", "nnstreamer_example",
       "custom_example_passthrough",
       "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4267,7 +4295,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -4290,15 +4317,17 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensor_dimension tmp_dim;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -4411,8 +4440,6 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-
-  g_free (test_model);
 }
 
 /**
@@ -4573,15 +4600,17 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
   ml_tensors_data_h input, output;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
-  gchar *test_model;
+  gchar *tmp, test_model[MAX_PATH_LEN];
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+  tmp = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
+  g_strlcpy (test_model, tmp, MAX_PATH_LEN);
+  g_free (tmp);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -4614,8 +4643,6 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
 
   ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
-
-  g_free (test_model);
 }
 
 /**
