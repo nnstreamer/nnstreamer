@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter Example 4. Average
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnstreamer_customfilter_example_average.c
  * @date  02 Jul 2018

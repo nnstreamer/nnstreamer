@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter Example 3. Scaler
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnstreamer_customfilter_example_scaler.c
  * @date  22 Jun 2018

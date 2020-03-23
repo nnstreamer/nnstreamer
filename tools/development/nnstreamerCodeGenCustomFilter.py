@@ -43,7 +43,7 @@ common_head = """/**
 * NNStreamer Custom Filter, {name}, created by codegen
 * Copyright (C) 2019 Samsung Electronics
 *
-* LICENSE: LGPL-2.1
+* SPDX-License-Identifier: LGPL-2.1-only
 *
 * @file     nnstreamer_customfilter_{fname}.c
 * @date     {today}

@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter LSTM Example, "dummyLSTM"
  * Copyright (C) 2018 Jijoong Moon <jijoong.moon@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file	dummy_LSTM.c
  * @date	28 Nov 2018

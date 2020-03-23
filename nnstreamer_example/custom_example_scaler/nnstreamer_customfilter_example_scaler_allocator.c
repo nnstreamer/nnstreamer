@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter Example 3. Scaler - Allocator, to test "allocate_in_invoke" option
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnstreamer_customfilter_example_scaler_allocator.c
  * @date  22 Jun 2018

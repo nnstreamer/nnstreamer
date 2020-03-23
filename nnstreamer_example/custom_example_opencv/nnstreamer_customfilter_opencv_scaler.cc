@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2018 Sangjung Woo <sangjung.woo@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnstreamer_customfilter_opencv_scaler.cc
  * @date  22 Oct 2018

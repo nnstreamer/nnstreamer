@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter RNN Example, "dummyRNN"
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file	dummy_RNN.c
  * @date	02 Nov 2018
