@@ -2,7 +2,7 @@
  * NNStreamer Custom Filter Example 1. Pass-Through
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file	nnstreamer_customfilter_example_passthrough.c
  * @date	11 Jun 2018

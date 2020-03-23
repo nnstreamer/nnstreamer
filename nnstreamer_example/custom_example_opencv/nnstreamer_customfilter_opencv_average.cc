@@ -2,7 +2,7 @@
  * NNStreamer OpenCV Custom Filter Example: Average
  * Copyright (C) 2018 Sangjung Woo <sangjung.woo@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnstreamer_customfilter_opencv_average.cc
  * @date  25 Oct 2018

@@ -3,7 +3,7 @@
  * NNStreamer Custom Filter for Multistream Synchronization Test
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnscustom_framecounter.c
  * @date  08 Nov 2018

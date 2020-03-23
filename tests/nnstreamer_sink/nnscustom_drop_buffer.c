@@ -2,7 +2,7 @@
  * NNStreamer custom filter to test buffer-drop
  * Copyright (C) 2018 Jaeyun Jung <jy1210.jung@samsung.com>
  *
- * LICENSE: LGPL-2.1
+ * SPDX-License-Identifier: LGPL-2.1-only
  *
  * @file  nnscustom_drop_buffer.c
  * @date  25 Jan 2019
