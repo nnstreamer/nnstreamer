@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 ## @file runTest.sh
 ## @author MyungJoo Ham <myungjoo.ham@gmail.com>
 ## @date Mar 06 2019

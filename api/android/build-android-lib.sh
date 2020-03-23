@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 # @file  build-android-lib.sh
 # @brief A script to build NNStreamer API library for Android
 #

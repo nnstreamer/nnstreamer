@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 ## @file runTest.sh
 ## @author Dongju Chae <dongju.chae@samsung.com>
 ## @date Dec 19 2019

@@ -3,6 +3,8 @@
 # Do not append a license statement in the configuration file for a differnet license-based repository.
 
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 # @file     config-plugins-audit.sh
 # @brief    Configuraiton file to maintain audit modules (after completing a build procedure)
 # @see      https://github.com/nnsuite/TAOS-CI

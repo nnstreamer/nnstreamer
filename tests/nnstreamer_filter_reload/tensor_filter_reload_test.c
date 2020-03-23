@@ -1,4 +1,6 @@
 /**
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
  * @file    tensor_filter_reload_test.c
  * @data    19 Dec 2019
  * @brief   test case to test a filter's model reload

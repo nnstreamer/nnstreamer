@@ -3,6 +3,8 @@
 # Do not append a license statement in the configuration file for a differnet license-based repository.
 
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 # @file     config-environment.sh
 # @brief    The configuration file to maintain all scripts
 # @see      https://github.com/nnsuite/TAOS-CI

@@ -1,4 +1,6 @@
 /**
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
  * @file	sensor.h
  * @date	28 Nov 2019
  * @brief	Tizen Sensor Framework Simulator

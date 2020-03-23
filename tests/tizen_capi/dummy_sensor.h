@@ -1,4 +1,6 @@
 /**
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
  * @file	dummy_sensor.h
  * @date	28 Nov 2019
  * @brief	Dummy Tizen Sensor API support for unit tests.

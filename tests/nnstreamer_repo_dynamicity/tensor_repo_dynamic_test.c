@@ -1,4 +1,6 @@
 /**
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
  * @file    tensor_repo_dynamic_test.c
  * @date    03 Dec 2018
  * @brief   test case to test tensor repo plugin dynamism
