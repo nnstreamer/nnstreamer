@@ -425,7 +425,7 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
 {
   GstTensorFilterFrameworkInfo info;
   GstTensorFilterProperties prop;
-  char *name = NULL;
+  const char *name = NULL;
 
   g_return_val_if_fail (nnstreamer_filter_validate (tfsp), FALSE);
 
