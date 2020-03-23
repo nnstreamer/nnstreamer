@@ -186,7 +186,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   data.negative = 0;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=-1 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=-1 num-buffers=30 framerate=60/1 ! tensor_sink name=getv");
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -222,6 +222,14 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (state == ML_PIPELINE_STATE_PLAYING ||
       state == ML_PIPELINE_STATE_PAUSED);
+
+  count = 0;
+  while (data.checked < 2 && count < 50 && state == ML_PIPELINE_STATE_PLAYING) {
+    count++;
+    g_usleep (100000); /** Another 100ms if the system is too slow */
+    g_printerr("Waited 100ms for 60FPS data flow. The system may be too slow or thrashing. Count: %d / Checked: %d\n", count, data.checked);
+  }
+
   EXPECT_GT (data.checked, 1);
 
   status = ml_pipeline_stop (handle);
