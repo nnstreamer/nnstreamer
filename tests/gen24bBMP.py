@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # Copyright (C) 2018 Samsung Electronics
-# License: LGPL-2.1
 #
 # @file gen24bBMP.py
 # @brief Generate 24bpp .bmp files for test cases

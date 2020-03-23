@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # Copyright (C) 2018 Samsung Electronics
 # License: LGPL-2.1
 #

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # GTest / SSAT Test Result Aggregator
 # Copyright (c) 2019 Samsung Electronics
 #
-# You may use this under either LGPL 2.1+ or Apache-2.0.
-
 ##
 # @file   count_test_cases.py
 # @brief  A unit test result aggregator

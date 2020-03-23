@@ -1,4 +1,6 @@
 /**
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
  * @file        unittest_util.h
  * @date        15 Jan 2019
  * @brief       Unit test utility.

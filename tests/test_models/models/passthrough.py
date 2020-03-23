@@ -1,6 +1,7 @@
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # Copyright (C) 2019 Samsung Electronics
-# License: LGPL-2.1
 #
 # @file    Passthrough.py
 # @brief   Python custom filter example: passthrough

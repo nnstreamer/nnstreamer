@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # Copyright (C) 2019 Samsung Electronics
-# License: LGPL-2.1
 #
 # @file checkLabel.py
 # @brief Check the result label of pytorch model

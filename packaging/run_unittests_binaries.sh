@@ -1,5 +1,7 @@
 #!/bin/bash
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 ## @file run_unittests.sh
 ## @author Parichay Kapoor <pk.kapoor@gmail.com>
 ## @date Dec 20 2019

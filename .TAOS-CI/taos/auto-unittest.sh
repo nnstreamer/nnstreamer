@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 ##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
 # @file auto-unittest.sh
 # @brief Auto-generate unit test result
 # @how to append this script to /etc/crontab
