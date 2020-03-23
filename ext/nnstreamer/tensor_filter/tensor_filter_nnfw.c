@@ -376,8 +376,8 @@ nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
  * @return 0 on success, errno on failure
  */
 static int
-nnfw_tensor_info_set (const nnfw_pdata *pdata, const GstTensorsInfo * tensors_info,
-    guint tensor_idx)
+nnfw_tensor_info_set (const nnfw_pdata * pdata,
+    const GstTensorsInfo * tensors_info, guint tensor_idx)
 {
   struct nnfw_tensorinfo nnfw_info;
   gint err;
@@ -391,10 +391,10 @@ nnfw_tensor_info_set (const nnfw_pdata *pdata, const GstTensorsInfo * tensors_in
   nnfw_info.rank = gst_tensor_info_get_rank (info);
 
   /** reverse the order of dimension */
-  for (idx = nnfw_info.rank-1; idx >= 0; idx--)
+  for (idx = nnfw_info.rank - 1; idx >= 0; idx--)
     nnfw_info.dims[nnfw_info.rank - idx - 1] = info->dimension[idx];
 
-  for (idx = NNFW_TENSOR_RANK_LIMIT-1; idx >= nnfw_info.rank; idx--)
+  for (idx = NNFW_TENSOR_RANK_LIMIT - 1; idx >= nnfw_info.rank; idx--)
     nnfw_info.dims[idx] = 0;
 
   nnfw_apply_tensorinfo (pdata->session, tensor_idx, nnfw_info);
@@ -500,7 +500,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (in_info != NULL, -EINVAL);
   g_return_val_if_fail (out_info != NULL, -EINVAL);
 
-  pdata = (nnfw_pdata *) *private_data;
+  pdata = (nnfw_pdata *) * private_data;
   g_return_val_if_fail (pdata != NULL, -EINVAL);
 
   if (in_info->num_tensors != pdata->in_info.num_tensors)
@@ -509,7 +509,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /** Return -ENOENT till nnfw supports set input dimension internally */
   return -ENOENT;
 
-  for (idx = 0; idx < pdata->in_info.num_tensors; idx ++) {
+  for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     err = nnfw_tensor_info_set (pdata, in_info, idx);
     if (err)
       goto error;
@@ -531,7 +531,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
 error:
   g_printerr ("Unable to set the provided input tensor info");
   /** Reset input dimensions */
-  for (idx = 0; idx < pdata->in_info.num_tensors; idx ++) {
+  for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     nnfw_tensor_info_set (pdata, &pdata->in_info, idx);
   }
 

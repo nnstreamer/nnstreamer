@@ -73,7 +73,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
     models_count = (*env)->GetArrayLength (env, models);
 
     for (i = 0; i < models_count; i++) {
-      jstring model_obj = (jstring) (*env)->GetObjectArrayElement (env, models, i);
+      jstring model_obj =
+          (jstring) (*env)->GetObjectArrayElement (env, models, i);
       const char *model_path = (*env)->GetStringUTFChars (env, model_obj, NULL);
 
       g_string_append (model_str, model_path);
@@ -129,7 +130,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
 {
   pipeline_info_s *pipe_info;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   nns_destroy_pipe_info (pipe_info, env);
 }
@@ -148,7 +149,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
   int status;
   jobject result = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
   cur_info = in_info = out_info = NULL;
   in_data = out_data = NULL;
@@ -173,7 +174,9 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
     status = ml_single_invoke (single, in_data, &out_data);
   } else {
     /* input tensors info changed, call dynamic */
-    status = ml_single_invoke_dynamic (single, in_data, in_info, &out_data, &out_info);
+    status =
+        ml_single_invoke_dynamic (single, in_data, in_info, &out_data,
+        &out_info);
   }
 
   if (status != ML_ERROR_NONE) {
@@ -207,7 +210,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeGetInputInfo (JNIEnv * env,
   ml_tensors_info_h info;
   jobject result = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (ml_single_get_input_info (single, &info) != ML_ERROR_NONE) {
@@ -237,7 +240,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env,
   ml_tensors_info_h info;
   jobject result = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (ml_single_get_output_info (single, &info) != ML_ERROR_NONE) {
@@ -269,7 +272,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetProperty (JNIEnv * env,
   const char *prop_name = (*env)->GetStringUTFChars (env, name, NULL);
   const char *prop_value = (*env)->GetStringUTFChars (env, value, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (ml_single_set_property (single, prop_name, prop_value) == ML_ERROR_NONE) {
@@ -297,7 +300,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeGetProperty (JNIEnv * env,
   char *prop_value = NULL;
   jstring value = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (ml_single_get_property (single, prop_name, &prop_value) == ML_ERROR_NONE) {
@@ -326,7 +329,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env,
   pipeline_info_s *pipe_info;
   ml_single_h single;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (ml_single_set_timeout (single, (unsigned int) timeout) != ML_ERROR_NONE) {
@@ -350,7 +353,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetInputInfo (JNIEnv * env,
   ml_tensors_info_h in_info = NULL;
   jboolean ret = JNI_FALSE;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
 
   if (!nns_parse_tensors_info (pipe_info, env, in, &in_info)) {

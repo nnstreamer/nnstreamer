@@ -51,17 +51,17 @@
 #include <tensor_typedef.h>
 
 /** @brief object structure for custom Python type: TensorShape */
-typedef struct {
-  PyObject_HEAD
-  PyObject *dims;
-  PyArray_Descr* type;
+typedef struct
+{
+  PyObject_HEAD PyObject * dims;
+  PyArray_Descr *type;
 } TensorShapeObject;
 
 /** @brief define a prototype for this python module */
 #if PY_VERSION_HEX >= 0x03000000
-PyMODINIT_FUNC PyInit_nnstreamer_python(void);
+PyMODINIT_FUNC PyInit_nnstreamer_python (void);
 #else
-PyMODINIT_FUNC initnnstreamer_python(void);
+PyMODINIT_FUNC initnnstreamer_python (void);
 #endif
 
 /**
@@ -70,28 +70,29 @@ PyMODINIT_FUNC initnnstreamer_python(void);
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_setDims(TensorShapeObject *self, PyObject *args) {
+TensorShape_setDims (TensorShapeObject * self, PyObject * args)
+{
   PyObject *dims = args;
   PyObject *new_dims;
 
   /** PyArg_ParseTuple() returns borrowed references */
-  if (!PyArg_ParseTuple(args, "O", &dims))
+  if (!PyArg_ParseTuple (args, "O", &dims))
     Py_RETURN_NONE;
 
-  if (PyList_Size(dims) < NNS_TENSOR_RANK_LIMIT) {
+  if (PyList_Size (dims) < NNS_TENSOR_RANK_LIMIT) {
     int i;
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT - PyList_Size(dims); i++)
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT - PyList_Size (dims); i++)
       /** fill '1's in remaining slots */
-      PyList_Append(dims, PyLong_FromLong(1));
+      PyList_Append (dims, PyLong_FromLong (1));
     new_dims = dims;
-    Py_XINCREF(new_dims);
+    Py_XINCREF (new_dims);
   } else {
     /** PyList_GetSlice() returns new reference */
-    new_dims = PyList_GetSlice(dims, 0, NNS_TENSOR_RANK_LIMIT);
+    new_dims = PyList_GetSlice (dims, 0, NNS_TENSOR_RANK_LIMIT);
   }
 
   /** swap 'self->dims' */
-  Py_XDECREF(self->dims);
+  Py_XDECREF (self->dims);
   self->dims = new_dims;
 
   Py_RETURN_NONE;
@@ -103,8 +104,9 @@ TensorShape_setDims(TensorShapeObject *self, PyObject *args) {
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_getDims(TensorShapeObject *self, PyObject *args) {
-  return Py_BuildValue("O", self->dims);
+TensorShape_getDims (TensorShapeObject * self, PyObject * args)
+{
+  return Py_BuildValue ("O", self->dims);
 }
 
 /**
@@ -113,8 +115,9 @@ TensorShape_getDims(TensorShapeObject *self, PyObject *args) {
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_getType(TensorShapeObject *self, PyObject *args) {
-  return Py_BuildValue("O", self->type);
+TensorShape_getType (TensorShapeObject * self, PyObject * args)
+{
+  return Py_BuildValue ("O", self->type);
 }
 
 /**
@@ -124,15 +127,16 @@ TensorShape_getType(TensorShapeObject *self, PyObject *args) {
  * @param kw : keywords for the arguments
  */
 static PyObject *
-TensorShape_new(PyTypeObject *type, PyObject *args, PyObject *kw) {
-  TensorShapeObject *self = (TensorShapeObject *) type->tp_alloc(type, 0);
+TensorShape_new (PyTypeObject * type, PyObject * args, PyObject * kw)
+{
+  TensorShapeObject *self = (TensorShapeObject *) type->tp_alloc (type, 0);
 
-  g_assert(self);
+  g_assert (self);
 
   /** Assign default values */
-  self->dims = PyList_New(0);
-  self->type = PyArray_DescrFromType(NPY_UINT8);
-  Py_XINCREF(self->type);
+  self->dims = PyList_New (0);
+  self->type = PyArray_DescrFromType (NPY_UINT8);
+  Py_XINCREF (self->type);
 
   return (PyObject *) self;
 }
@@ -144,28 +148,31 @@ TensorShape_new(PyTypeObject *type, PyObject *args, PyObject *kw) {
  * @param kw : keywords for the arguments
  */
 static int
-TensorShape_init(TensorShapeObject *self, PyObject *args, PyObject *kw) {
-  char *keywords[] = {(char*) "dims", (char*) "type", NULL};
+TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
+{
+  char *keywords[] = { (char *) "dims", (char *) "type", NULL };
   PyObject *dims = NULL;
   PyObject *type = NULL;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kw, "|OO", keywords, &dims, &type))
+  if (!PyArg_ParseTupleAndKeywords (args, kw, "|OO", keywords, &dims, &type))
     return -1;
 
   if (dims) {
-    PyObject *none = PyObject_CallMethod((PyObject*) self, (char*) "setDims", (char*) "O", dims);
-    Py_XDECREF(none);
+    PyObject *none =
+        PyObject_CallMethod ((PyObject *) self, (char *) "setDims",
+        (char *) "O", dims);
+    Py_XDECREF (none);
   }
 
   if (type) {
-    PyArray_Descr* dtype;
-    if (PyArray_DescrConverter(type, &dtype) != NPY_FAIL) {
+    PyArray_Descr *dtype;
+    if (PyArray_DescrConverter (type, &dtype) != NPY_FAIL) {
       /** swap 'self->type' */
-      Py_XDECREF(self->type);
+      Py_XDECREF (self->type);
       self->type = dtype;
-      Py_XINCREF(dtype);
+      Py_XINCREF (dtype);
     } else
-      g_critical("Wrong data type");
+      g_critical ("Wrong data type");
   }
 
   return 0;
@@ -176,32 +183,36 @@ TensorShape_init(TensorShapeObject *self, PyObject *args, PyObject *kw) {
  * @param self : Python type object
  */
 static void
-TensorShape_dealloc(TensorShapeObject *self) {
-  Py_XDECREF(self->dims);
-  Py_XDECREF(self->type);
-  Py_TYPE(self)->tp_free((PyObject *) self);
+TensorShape_dealloc (TensorShapeObject * self)
+{
+  Py_XDECREF (self->dims);
+  Py_XDECREF (self->type);
+  Py_TYPE (self)->tp_free ((PyObject *) self);
 }
 
 /** @brief members for custom type object */
 static PyMemberDef TensorShape_members[] = {
-  {(char*) "dims", T_OBJECT_EX, offsetof(TensorShapeObject, dims), 0, NULL},
-  {(char*) "type", T_OBJECT_EX, offsetof(TensorShapeObject, type), 0, NULL}
+  {(char *) "dims", T_OBJECT_EX, offsetof (TensorShapeObject, dims), 0, NULL},
+  {(char *) "type", T_OBJECT_EX, offsetof (TensorShapeObject, type), 0, NULL}
 };
 
 /** @brief methods for custom type object */
 static PyMethodDef TensorShape_methods[] = {
-  {(char*) "setDims", (PyCFunction)TensorShape_setDims, METH_VARARGS | METH_KEYWORDS, NULL},
-  {(char*) "getDims", (PyCFunction)TensorShape_getDims, METH_VARARGS | METH_KEYWORDS, NULL},
-  {(char*) "getType", (PyCFunction)TensorShape_getType, METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char *) "setDims", (PyCFunction) TensorShape_setDims,
+        METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char *) "getDims", (PyCFunction) TensorShape_getDims,
+        METH_VARARGS | METH_KEYWORDS, NULL},
+  {(char *) "getType", (PyCFunction) TensorShape_getType,
+        METH_VARARGS | METH_KEYWORDS, NULL},
   {NULL, NULL, 0, NULL}
 };
 
 /** @brief Structure for custom type object */
 static PyTypeObject TensorShapeType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-  .tp_name = "nnstreamer_python.TensorShape",
+  PyVarObject_HEAD_INIT (NULL, 0)
+      .tp_name = "nnstreamer_python.TensorShape",
   .tp_doc = "TensorShape type",
-  .tp_basicsize = sizeof(TensorShapeObject),
+  .tp_basicsize = sizeof (TensorShapeObject),
   .tp_itemsize = 0,
   .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
   .tp_new = TensorShape_new,
@@ -216,36 +227,40 @@ static PyTypeObject TensorShapeType = {
 static PyModuleDef nnstreamer_python_module = {
   PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL
 };
+
 /** @brief module initialization (python 3.x) */
 PyMODINIT_FUNC
-PyInit_nnstreamer_python(void) {
+PyInit_nnstreamer_python (void)
+{
 #else
 #define RETVAL(x)
 static PyMethodDef nnstreamer_python_methods[] = {
   {NULL, NULL}
 };
+
 /** @brief module initialization (python 2.x) */
 PyMODINIT_FUNC
-initnnstreamer_python(void) {
+initnnstreamer_python (void)
+{
 #endif
-  PyObject *type_object = (PyObject*) &TensorShapeType;
+  PyObject *type_object = (PyObject *) & TensorShapeType;
   PyObject *module;
 #if PY_VERSION_HEX >= 0x03000000
-  module = PyModule_Create(&nnstreamer_python_module);
+  module = PyModule_Create (&nnstreamer_python_module);
 #else
-  module = Py_InitModule("nnstreamer_python", nnstreamer_python_methods);
+  module = Py_InitModule ("nnstreamer_python", nnstreamer_python_methods);
 #endif
   if (module == NULL)
-    return RETVAL(NULL);
+    return RETVAL (NULL);
 
   /** For numpy array init. */
-  import_array();
+  import_array ();
 
   /** Check TensorShape type */
-  g_assert(!(PyType_Ready(&TensorShapeType) < 0));
+  g_assert (!(PyType_Ready (&TensorShapeType) < 0));
 
-  Py_INCREF(type_object);
-  PyModule_AddObject(module, "TensorShape", type_object);
+  Py_INCREF (type_object);
+  PyModule_AddObject (module, "TensorShape", type_object);
 
-  return RETVAL(module);
+  return RETVAL (module);
 }

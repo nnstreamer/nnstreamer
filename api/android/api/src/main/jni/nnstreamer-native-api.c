@@ -133,7 +133,8 @@ nns_free_element_data (gpointer data)
  * @brief Construct pipeline info.
  */
 gpointer
-nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, nns_pipe_type_e type)
+nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle,
+    nns_pipe_type_e type)
 {
   pipeline_info_s *pipe_info;
   jclass cls_data, cls_info;
@@ -143,7 +144,9 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, nns_pipe_t
 
   pipe_info->pipeline_type = type;
   pipe_info->pipeline_handle = handle;
-  pipe_info->element_handles = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, nns_free_element_data);
+  pipe_info->element_handles =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      nns_free_element_data);
   g_mutex_init (&pipe_info->lock);
 
   (*env)->GetJavaVM (env, &pipe_info->jvm);
@@ -283,9 +286,14 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   data = (ml_tensors_data_s *) data_h;
 
   /* method to generate tensors data */
-  mid_init = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "<init>", "()V");
-  mid_add_data = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "addTensorData", "([B)V");
-  mid_set_info = (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "setTensorsInfo", "(Lorg/nnsuite/nnstreamer/TensorsInfo;)V");
+  mid_init =
+      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "<init>", "()V");
+  mid_add_data =
+      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "addTensorData",
+      "([B)V");
+  mid_set_info =
+      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "setTensorsInfo",
+      "(Lorg/nnsuite/nnstreamer/TensorsInfo;)V");
 
   obj_data = (*env)->NewObject (env, pipe_info->cls_tensors_data, mid_init);
   if (!obj_data) {
@@ -311,7 +319,8 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     jsize buffer_size = (jsize) data->tensors[i].size;
     jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
 
-    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size, (jbyte *) data->tensors[i].tensor);
+    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
+        (jbyte *) data->tensors[i].tensor);
 
     (*env)->CallVoidMethod (env, obj_data, mid_add_data, buffer);
     (*env)->DeleteLocalRef (env, buffer);
@@ -347,28 +356,35 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   data = (ml_tensors_data_s *) (*data_h);
 
   /* get field 'mDataList' */
-  jfieldID fid_arraylist = (*env)->GetFieldID (env, pipe_info->cls_tensors_data, "mDataList", "Ljava/util/ArrayList;");
+  jfieldID fid_arraylist =
+      (*env)->GetFieldID (env, pipe_info->cls_tensors_data, "mDataList",
+      "Ljava/util/ArrayList;");
   jobject obj_arraylist = (*env)->GetObjectField (env, obj_data, fid_arraylist);
 
   /* method to get tensors data */
   jclass cls_arraylist = (*env)->GetObjectClass (env, obj_arraylist);
   jmethodID mid_size = (*env)->GetMethodID (env, cls_arraylist, "size", "()I");
-  jmethodID mid_get = (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
+  jmethodID mid_get =
+      (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
 
   /* number of tensors data */
-  data->num_tensors = (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
+  data->num_tensors =
+      (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
 
   /* set tensor data */
   for (i = 0; i < data->num_tensors; i++) {
-    jobject tensor_data = (*env)->CallObjectMethod (env, obj_arraylist, mid_get, i);
+    jobject tensor_data =
+        (*env)->CallObjectMethod (env, obj_arraylist, mid_get, i);
 
     if (tensor_data) {
-      size_t data_size = (size_t) (*env)->GetDirectBufferCapacity (env, tensor_data);
+      size_t data_size =
+          (size_t) (*env)->GetDirectBufferCapacity (env, tensor_data);
       gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor_data);
 
       data->tensors[i].tensor = g_malloc (data_size);
       if (data->tensors[i].tensor == NULL) {
-        nns_loge ("Failed to allocate memory %zd, data index %d.", data_size, i);
+        nns_loge ("Failed to allocate memory %zd, data index %d.", data_size,
+            i);
         (*env)->DeleteLocalRef (env, tensor_data);
         failed = TRUE;
         goto done;
@@ -383,7 +399,8 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
 
   /* parse tensors info in data class */
   if (info_h) {
-    jmethodID mid_get_info = (*env)->GetMethodID (env, pipe_info->cls_tensors_data,
+    jmethodID mid_get_info =
+        (*env)->GetMethodID (env, pipe_info->cls_tensors_data,
         "getTensorsInfo", "()Lorg/nnsuite/nnstreamer/TensorsInfo;");
     jobject obj_info = (*env)->CallObjectMethod (env, obj_data, mid_get_info);
 
@@ -425,8 +442,11 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
   info = (ml_tensors_info_s *) info_h;
 
   /* method to generate tensors info */
-  mid_init = (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "<init>", "()V");
-  mid_add = (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "appendInfo", "(Ljava/lang/String;I[I)V");
+  mid_init =
+      (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "<init>", "()V");
+  mid_add =
+      (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "appendInfo",
+      "(Ljava/lang/String;I[I)V");
 
   obj_info = (*env)->NewObject (env, pipe_info->cls_tensors_info, mid_init);
   if (!obj_info) {
@@ -488,25 +508,32 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
   info = (ml_tensors_info_s *) (*info_h);
 
   /* get field 'mInfoList' */
-  jfieldID fid_arraylist = (*env)->GetFieldID (env, pipe_info->cls_tensors_info, "mInfoList", "Ljava/util/ArrayList;");
+  jfieldID fid_arraylist =
+      (*env)->GetFieldID (env, pipe_info->cls_tensors_info, "mInfoList",
+      "Ljava/util/ArrayList;");
   jobject obj_arraylist = (*env)->GetObjectField (env, obj_info, fid_arraylist);
 
   /* method to get tensors info */
   jclass cls_arraylist = (*env)->GetObjectClass (env, obj_arraylist);
   jmethodID mid_size = (*env)->GetMethodID (env, cls_arraylist, "size", "()I");
-  jmethodID mid_get = (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
+  jmethodID mid_get =
+      (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
 
   /* number of tensors info */
-  info->num_tensors = (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
+  info->num_tensors =
+      (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
 
   /* read tensor info */
   for (i = 0; i < info->num_tensors; i++) {
     jobject item = (*env)->CallObjectMethod (env, obj_arraylist, mid_get, i);
     jclass cls_info = (*env)->GetObjectClass (env, item);
 
-    jmethodID mid_name = (*env)->GetMethodID (env, cls_info, "getName", "()Ljava/lang/String;");
-    jmethodID mid_type = (*env)->GetMethodID (env, cls_info, "getTypeValue", "()I");
-    jmethodID mid_dimension = (*env)->GetMethodID (env, cls_info, "getDimension", "()[I");
+    jmethodID mid_name =
+        (*env)->GetMethodID (env, cls_info, "getName", "()Ljava/lang/String;");
+    jmethodID mid_type =
+        (*env)->GetMethodID (env, cls_info, "getTypeValue", "()I");
+    jmethodID mid_dimension =
+        (*env)->GetMethodID (env, cls_info, "getDimension", "()[I");
 
     /* tensor name */
     jstring name_str = (jstring) (*env)->CallObjectMethod (env, item, mid_name);
@@ -519,10 +546,12 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     }
 
     /* tensor type */
-    info->info[i].type = (ml_tensor_type_e) (*env)->CallIntMethod (env, item, mid_type);
+    info->info[i].type =
+        (ml_tensor_type_e) (*env)->CallIntMethod (env, item, mid_type);
 
     /* tensor dimension */
-    jintArray dim = (jintArray) (*env)->CallObjectMethod (env, item, mid_dimension);
+    jintArray dim =
+        (jintArray) (*env)->CallObjectMethod (env, item, mid_dimension);
     jsize length = (*env)->GetArrayLength (env, dim);
     jint *dimension = (*env)->GetIntArrayElements (env, dim, NULL);
 
@@ -634,7 +663,8 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
   gchar *gst_ver = gst_version_string ();
   gchar *nns_ver = nnstreamer_version_string ();
 
-  nns_logi ("%s %s GLib %d.%d.%d", nns_ver, gst_ver, GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
+  nns_logi ("%s %s GLib %d.%d.%d", nns_ver, gst_ver, GLIB_MAJOR_VERSION,
+      GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
 
   g_free (gst_ver);
   g_free (nns_ver);
@@ -648,8 +678,8 @@ done:
  * @brief Native method to initialize NNStreamer.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass clazz,
-    jobject context)
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env,
+    jclass clazz, jobject context)
 {
   return nnstreamer_native_initialize (env, context);
 }
@@ -658,8 +688,8 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env, jclass cl
  * @brief Native method to check the availability of NNFW.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env, jclass clazz,
-    jint fw_type)
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env,
+    jclass clazz, jint fw_type)
 {
   ml_nnfw_type_e nnfw;
 
@@ -674,7 +704,8 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env, jc
  * @brief Native method to get the version string of NNStreamer.
  */
 jstring
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env, jclass clazz)
+Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env,
+    jclass clazz)
 {
   gchar *nns_ver = nnstreamer_version_string ();
   jstring version = (*env)->NewStringUTF (env, nns_ver);

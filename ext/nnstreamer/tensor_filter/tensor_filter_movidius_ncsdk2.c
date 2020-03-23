@@ -162,7 +162,8 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
    */
   ret_code = ncGraphCreate (prop->model_files[0], &handle_graph);
   if (ret_code != NC_OK) {
-    g_printerr ("Cannot create graph handle for \"%s\"\n", prop->model_files[0]);
+    g_printerr ("Cannot create graph handle for \"%s\"\n",
+        prop->model_files[0]);
     goto err_destroy_device_h;
   }
 
@@ -311,14 +312,14 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
 
   /* Warning: conversion unsigned long to unsigned int */
   buf_size = (guint32) input->size;
-  ret_code = ncFifoWriteElem(pdata->handle_fifo_input, input->data,
+  ret_code = ncFifoWriteElem (pdata->handle_fifo_input, input->data,
       &buf_size, 0);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot write input data to the FIFO buffer in the device");
     goto err_destroy;
   }
 
-  ret_code = ncGraphQueueInference(pdata->handle_graph,
+  ret_code = ncGraphQueueInference (pdata->handle_graph,
       &(pdata->handle_fifo_input), NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED,
       &(pdata->handle_fifo_output), NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED);
   if (ret_code != NC_OK) {
@@ -328,7 +329,7 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
 
   /* Warning: conversion unsigned long to unsigned int */
   buf_size = (guint32) output->size;
-  ret_code = ncFifoReadElem(pdata->handle_fifo_output, output->data, &buf_size,
+  ret_code = ncFifoReadElem (pdata->handle_fifo_output, output->data, &buf_size,
       NULL);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot fetch inference results from the device\n");
@@ -368,7 +369,8 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
-  nns_input_tensor_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED -1]);
+  nns_input_tensor_info =
+      &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1]);
   /**
    * MVNCSDK only supports data types of FP32 and FP16. If the data type of
    * input tensor is set to FP32, NCSDK automatically convert it to FP16 as
@@ -400,7 +402,7 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
-  nns_output_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED -1]);
+  nns_output_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1]);
   /**
    * MVNCSDK only supports data types of FP32 and FP16. If the data type of
    * input tensor is set to FP32, NCSDK automatically convert it to FP16 as
