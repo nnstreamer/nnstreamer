@@ -57,22 +57,7 @@ $ git commit -s <file-name>
 
 ### What does it mean to sign off commits for authors?
 
-It means that you are legally responsible for the given commit that, according to your best knowledge,
-- It is the original work of the author (no plagiarism or copy-pasting from external work)
-- It does not have any patents, license, or copyright issues.
-- You are granting all related rights to the community or project (depending on the licenses)
-
-Usually, you are not allowed to push commits of other's work; however, you may do so if you
-- Maintain the original authorship in the git commit (you can edit authors of a given commit: ```$ man git commit```)
-- You can sure there are no patents, licenses, or copyright issues.
-- You can grant all related rights to the community or project (depending on the licenses)
-
-From Torvalds' (original author of Linux and git) git repo, (documentation about git commit message tags)[https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/Documentation/process/5.Posting.rst]
-> Signed-off-by: this is a developer's certification that he or she has
-   the right to submit the patch for inclusion into the kernel.  It is an
-   agreement to the Developer's Certificate of Origin, the full text of
-   which can be found in Documentation/process/submitting-patches.rst.  Code without a
-   proper signoff cannot be merged into the mainline.
+Including a "Signed-off-by:" tag in your commit means that you are making the Developer Certificate of Origin (DCO) certification for that commit. A copy of the DCO text can be found at https://developercertificate.org/
 
 ## How to contribute to GStreamer community
 * https://gstreamer.freedesktop.org/documentation/contribute/index.html
