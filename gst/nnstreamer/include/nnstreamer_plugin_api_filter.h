@@ -175,7 +175,7 @@ typedef struct _GstTensorFilterProperties
  */
 typedef struct _GstTensorFilterFrameworkInfo
 {
-  char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
+  const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
   int allow_in_place; /**< TRUE(nonzero) if InPlace transfer of input-to-output is allowed. Not supported in main, yet */
   int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
   int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
