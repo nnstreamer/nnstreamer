@@ -37,8 +37,9 @@ static GHashTable *g_customfilters = NULL;
  * @return 0 if OK. Non-zero if error.
  */
 static int
-nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+nns_customfilter_invoke (const GstTensorFilterProperties * prop,
+    void **private_data, const GstTensorMemory * input,
+    GstTensorMemory * output)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_tensors_data_h in_data, out_data;
@@ -88,12 +89,15 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop, void **private_
   ml_tensors_info_copy_from_gst (in_info, &prop->input_meta);
 
   /* call invoke callback */
-  if (!nns_convert_tensors_data (pipe_info, env, in_data, in_info, &obj_in_data)) {
+  if (!nns_convert_tensors_data (pipe_info, env, in_data, in_info,
+          &obj_in_data)) {
     nns_loge ("Failed to convert input data to data-object.");
     goto done;
   }
 
-  obj_out_data = (*env)->CallObjectMethod (env, pipe_info->instance, mid_invoke, obj_in_data);
+  obj_out_data =
+      (*env)->CallObjectMethod (env, pipe_info->instance, mid_invoke,
+      obj_in_data);
 
   if (!nns_parse_tensors_data (pipe_info, env, obj_out_data, &out_data, NULL)) {
     nns_loge ("Failed to parse output data.");
@@ -137,8 +141,9 @@ done:
  * @return 0 if OK. Non-zero if error.
  */
 static int
-nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+nns_customfilter_set_dimension (const GstTensorFilterProperties * prop,
+    void **private_data, const GstTensorsInfo * in_info,
+    GstTensorsInfo * out_info)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_tensors_info_h in, out;
@@ -177,7 +182,9 @@ nns_customfilter_set_dimension (const GstTensorFilterProperties * prop, void **p
     goto done;
   }
 
-  obj_out_info = (*env)->CallObjectMethod (env, pipe_info->instance, mid_info, obj_in_info);
+  obj_out_info =
+      (*env)->CallObjectMethod (env, pipe_info->instance, mid_info,
+      obj_in_info);
 
   if (!nns_parse_tensors_info (pipe_info, env, obj_out_info, &out)) {
     nns_loge ("Failed to parse output info.");
@@ -206,8 +213,8 @@ done:
  * @brief Native method for custom filter.
  */
 jlong
-Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject thiz,
-    jstring name)
+Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env,
+    jobject thiz, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   GstTensorFilterFramework *fw = NULL;
@@ -255,10 +262,12 @@ Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env, jobject
   g_mutex_lock (&pipe_info->lock);
 
   if (g_customfilters == NULL) {
-    g_customfilters = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+    g_customfilters =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   }
 
-  g_assert (g_hash_table_insert (g_customfilters, g_strdup (filter_name), pipe_info));
+  g_assert (g_hash_table_insert (g_customfilters, g_strdup (filter_name),
+          pipe_info));
 
   g_mutex_unlock (&pipe_info->lock);
 
@@ -271,13 +280,13 @@ done:
  * @brief Native method for custom filter.
  */
 void
-Java_org_nnsuite_nnstreamer_CustomFilter_nativeDestroy (JNIEnv * env, jobject thiz,
-    jlong handle)
+Java_org_nnsuite_nnstreamer_CustomFilter_nativeDestroy (JNIEnv * env,
+    jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
   GstTensorFilterFramework *fw = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   g_return_if_fail (pipe_info);
 
   fw = (GstTensorFilterFramework *) pipe_info->pipeline_handle;

@@ -144,70 +144,71 @@ struct _GstAMCSrcPrivate
 
 G_DEFINE_TYPE_WITH_CODE (GstAMCSrc, gst_amc_src, GST_TYPE_PUSH_SRC,
     G_ADD_PRIVATE (GstAMCSrc)
-    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "amcsrc", 0, "Android MediaCodec (AMC) Source"))
+    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "amcsrc", 0,
+        "Android MediaCodec (AMC) Source"))
 
 /** GObject method implementation */
-static void gst_amc_src_set_property (GObject * object, guint prop_id,
+     static void gst_amc_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
-static void gst_amc_src_get_property (GObject * object, guint prop_id,
+     static void gst_amc_src_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_amc_src_finalize (GObject * object);
+     static void gst_amc_src_finalize (GObject * object);
 
 /** GstBaseSrc method implementation */
-static gboolean gst_amc_src_start (GstBaseSrc * src);
-static gboolean gst_amc_src_stop (GstBaseSrc * src);
-static GstCaps *gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter);
-static gboolean gst_amc_src_is_seekable (GstBaseSrc * src);
-static gboolean gst_amc_src_unlock (GstBaseSrc * src);
-static gboolean gst_amc_src_unlock_stop (GstBaseSrc * src);
+     static gboolean gst_amc_src_start (GstBaseSrc * src);
+     static gboolean gst_amc_src_stop (GstBaseSrc * src);
+     static GstCaps *gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter);
+     static gboolean gst_amc_src_is_seekable (GstBaseSrc * src);
+     static gboolean gst_amc_src_unlock (GstBaseSrc * src);
+     static gboolean gst_amc_src_unlock_stop (GstBaseSrc * src);
 
 /** GstPushSrc method implementation */
-static GstFlowReturn gst_amc_src_create (GstPushSrc * src, GstBuffer ** buf);
+     static GstFlowReturn gst_amc_src_create (GstPushSrc * src,
+    GstBuffer ** buf);
 
 /** GstElement method implementation */
-static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
+     static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
     GstStateChange transition);
 
 /**
  * @brief enum for propery
  */
-typedef enum
-{
-  PROP_0,
-  PROP_LOCATION
-} GstAMCSrcProperty;
+     typedef enum
+     {
+       PROP_0,
+       PROP_LOCATION
+     } GstAMCSrcProperty;
 
 /**
  * @brief enum for codec message
  */
-typedef enum
-{
-  MSG_0,
-  MSG_CODEC_BUFFER,
-  MSG_CODEC_DONE,
-  MSG_CODEC_SEEK,
-  MSG_CODEC_PAUSE,
-  MSG_CODEC_PAUSE_ACK,
-  MSG_CODEC_RESUME
-} GstAMCSrcMsg;
+     typedef enum
+     {
+       MSG_0,
+       MSG_CODEC_BUFFER,
+       MSG_CODEC_DONE,
+       MSG_CODEC_SEEK,
+       MSG_CODEC_PAUSE,
+       MSG_CODEC_PAUSE_ACK,
+       MSG_CODEC_RESUME
+     } GstAMCSrcMsg;
 
 /**
  * @brief structure for a wrapped buffer
  */
-typedef struct
-{
-  gsize refcount;
-  GstAMCSrc *amcsrc;
-  guint8 *buf;
-  gint idx;
-} GstWrappedBuf;
+     typedef struct
+     {
+       gsize refcount;
+       GstAMCSrc *amcsrc;
+       guint8 *buf;
+       gint idx;
+     } GstWrappedBuf;
 
 /**
  * @brief callback for increasing the refcount in a wrapped buffer
  * @param[in] a wrapped buffer
  */
-static GstWrappedBuf *
-gst_wrapped_buf_ref (GstWrappedBuf * self)
+     static GstWrappedBuf *gst_wrapped_buf_ref (GstWrappedBuf * self)
 {
   g_return_val_if_fail (self != NULL, NULL);
   g_return_val_if_fail (self->amcsrc != NULL, NULL);
@@ -236,7 +237,7 @@ gst_wrapped_buf_unref (GstWrappedBuf * self)
     /** it's now released */
     GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self->amcsrc);
 
-    AMediaCodec_releaseOutputBuffer(priv->codec, self->idx, 0);
+    AMediaCodec_releaseOutputBuffer (priv->codec, self->idx, 0);
     gst_object_unref (self->amcsrc);
   }
 }
@@ -250,9 +251,10 @@ G_DEFINE_BOXED_TYPE (GstWrappedBuf, gst_wrapped_buf,
 /**
  * @brief get system's nanotime
  */
-int64_t systemnanotime() {
+     int64_t systemnanotime ()
+{
   struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
+  clock_gettime (CLOCK_MONOTONIC, &now);
   return now.tv_sec * 1000000000LL + now.tv_nsec;
 }
 
@@ -273,9 +275,9 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "File Location",
-        "Location of the media file to play", NULL,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-        GST_PARAM_MUTABLE_READY));
+          "Location of the media file to play", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   /** GstBaseSrcClass members */
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_amc_src_start);
@@ -302,14 +304,16 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
  * @brief config media codec settings; set the media source and obtain its format
  */
 static gboolean
-gst_amc_src_codec_config (GstAMCSrc *self)
+gst_amc_src_codec_config (GstAMCSrc * self)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
   media_status_t err;
   gint i, num_tracks;
 
-  priv->ex = AMediaExtractor_new();
-  err = AMediaExtractor_setDataSourceFd(priv->ex, priv->fd, priv->pos, priv->size);
+  priv->ex = AMediaExtractor_new ();
+  err =
+      AMediaExtractor_setDataSourceFd (priv->ex, priv->fd, priv->pos,
+      priv->size);
 
   /** it's safe to close fd after setDataSourceFd() */
   close (priv->fd);
@@ -320,38 +324,41 @@ gst_amc_src_codec_config (GstAMCSrc *self)
   }
 
   /** find a video track to feed */
-  num_tracks = AMediaExtractor_getTrackCount(priv->ex);
+  num_tracks = AMediaExtractor_getTrackCount (priv->ex);
 
   for (i = 0; i < num_tracks; i++) {
-    AMediaFormat *format = AMediaExtractor_getTrackFormat(priv->ex, i);
+    AMediaFormat *format = AMediaExtractor_getTrackFormat (priv->ex, i);
     const char *mime;
-    if (AMediaFormat_getString(format, AMEDIAFORMAT_KEY_MIME, &mime)) {
+    if (AMediaFormat_getString (format, AMEDIAFORMAT_KEY_MIME, &mime)) {
       if (g_ascii_strncasecmp (mime, "video/", 6) == 0) {
         /** Use this video track */
-        LOGI ("Video track found: %s", AMediaFormat_toString(format));
+        LOGI ("Video track found: %s", AMediaFormat_toString (format));
 
-        priv->codec = AMediaCodec_createDecoderByType(mime);
+        priv->codec = AMediaCodec_createDecoderByType (mime);
         priv->renderstart = -1;
         priv->renderonce = TRUE;
         priv->sawInputEOS = FALSE;
         priv->sawOutputEOS = FALSE;
         priv->isPlaying = FALSE;
 
-        AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_WIDTH, &priv->width);
-        AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_HEIGHT, &priv->height);
-        AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, &priv->framerate);
-        AMediaFormat_getInt64(format, AMEDIAFORMAT_KEY_DURATION, &priv->duration);
+        AMediaFormat_getInt32 (format, AMEDIAFORMAT_KEY_WIDTH, &priv->width);
+        AMediaFormat_getInt32 (format, AMEDIAFORMAT_KEY_HEIGHT, &priv->height);
+        AMediaFormat_getInt32 (format, AMEDIAFORMAT_KEY_FRAME_RATE,
+            &priv->framerate);
+        AMediaFormat_getInt64 (format, AMEDIAFORMAT_KEY_DURATION,
+            &priv->duration);
 
-        AMediaCodec_configure(priv->codec, format, NULL /** surface */, NULL /** crypto */, 0);
-        AMediaExtractor_selectTrack(priv->ex, i);
-        AMediaFormat_delete(format);
+        AMediaCodec_configure (priv->codec, format, NULL /** surface */ ,
+            NULL /** crypto */ , 0);
+        AMediaExtractor_selectTrack (priv->ex, i);
+        AMediaFormat_delete (format);
 
         return TRUE;
       }
     } else
       LOGE ("No mime type");
 
-    AMediaFormat_delete(format);
+    AMediaFormat_delete (format);
   }
 
   return FALSE;
@@ -360,7 +367,8 @@ gst_amc_src_codec_config (GstAMCSrc *self)
 /**
  * @brief open the target file and check its stats
  */
-static gboolean gst_amc_src_media_open (GstAMCSrc *self)
+static gboolean
+gst_amc_src_media_open (GstAMCSrc * self)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
   struct stat stat_results;
@@ -470,7 +478,7 @@ gst_amc_src_set_property (GObject * object, guint prop_id,
  */
 static void
 gst_amc_src_get_property (GObject * object, guint prop_id,
-    GValue *value, GParamSpec * pspec)
+    GValue * value, GParamSpec * pspec)
 {
   GstAMCSrc *self = GST_AMC_SRC (object);
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
@@ -531,8 +539,8 @@ gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter)
   GST_OBJECT_LOCK (self);
 
   /** width, height, and framerate were obtained from the media format */
-  format = gst_structure_new ("video/x-raw",
-      "format", G_TYPE_STRING, "NV12",  /** TODO Support other formats? */
+  format = gst_structure_new ("video/x-raw", "format", G_TYPE_STRING, "NV12",
+                                        /** TODO Support other formats? */
       "width", G_TYPE_INT, priv->width,
       "height", G_TYPE_INT, priv->height,
       "interlaced", G_TYPE_BOOLEAN, FALSE,
@@ -543,7 +551,7 @@ gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter)
 
   if (current_caps) {
     GstCaps *intersection =
-      gst_caps_intersect_full (current_caps, caps, GST_CAPS_INTERSECT_FIRST);
+        gst_caps_intersect_full (current_caps, caps, GST_CAPS_INTERSECT_FIRST);
 
     gst_caps_unref (current_caps);
     gst_caps_unref (caps);
@@ -580,8 +588,8 @@ gst_amc_src_create (GstPushSrc * src, GstBuffer ** buffer)
  * @brief change state function for this element
  * each trainsition sends the corresponding message to a looper
  */
-static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
-    GstStateChange transition)
+static GstStateChangeReturn
+gst_amc_src_change_state (GstElement * element, GstStateChange transition)
 {
   GstAMCSrc *self;
   GstAMCSrcPrivate *priv;
@@ -589,7 +597,7 @@ static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
   gchar *dirname = NULL;
 
   self = GST_AMC_SRC (element);
-  priv  = GST_AMC_SRC_GET_PRIVATE (self);
+  priv = GST_AMC_SRC_GET_PRIVATE (self);
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -633,7 +641,8 @@ data_queue_item_free (GstDataQueueItem * item)
  * @param[in] buf_size codec's output buffer size
  */
 static void
-feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize buf_size)
+feed_frame_buf (GstAMCSrc * self, guint8 * buf, gint idx, gsize real_size,
+    gsize buf_size)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
   GstElement *element = GST_ELEMENT (self);
@@ -647,7 +656,8 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
   GstWrappedBuf *wrapped_buf;
 
   if ((clock = gst_element_get_clock (element))) {
-    current_ts = gst_clock_get_time (clock) - gst_element_get_base_time (element);
+    current_ts =
+        gst_clock_get_time (clock) - gst_element_get_base_time (element);
     gst_object_unref (clock);
   }
 
@@ -660,8 +670,9 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
     priv->previous_ts = current_ts;
 
     /** Dropping first image to calculate duration */
-    AMediaCodec_releaseOutputBuffer(priv->codec, idx, 0);
-    LOGI ("Drop buf %d (reason: %s)", idx, priv->started ? "first frame" : "not yet started");
+    AMediaCodec_releaseOutputBuffer (priv->codec, idx, 0);
+    LOGI ("Drop buf %d (reason: %s)", idx,
+        priv->started ? "first frame" : "not yet started");
     g_mutex_unlock (&priv->mutex);
 
     return;
@@ -707,7 +718,7 @@ feed_frame_buf (GstAMCSrc *self, guint8 *buf, gint idx, gsize real_size, gsize b
  * @brief check codec's input/output buffers to monitor/control its progress
  */
 static void
-check_codec_buf (GstAMCSrc *self)
+check_codec_buf (GstAMCSrc * self)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
   gint64 delay, presentation_time;
@@ -715,66 +726,69 @@ check_codec_buf (GstAMCSrc *self)
   gsize buf_size;
 
   if (!priv->sawInputEOS) {
-    buf_idx = AMediaCodec_dequeueInputBuffer(priv->codec, 2000);
+    buf_idx = AMediaCodec_dequeueInputBuffer (priv->codec, 2000);
     if (buf_idx > 0) {
-      guint8 *buf = AMediaCodec_getInputBuffer(priv->codec, buf_idx, &buf_size);
-      gint sample_size = AMediaExtractor_readSampleData(priv->ex, buf, buf_size);
+      guint8 *buf =
+          AMediaCodec_getInputBuffer (priv->codec, buf_idx, &buf_size);
+      gint sample_size =
+          AMediaExtractor_readSampleData (priv->ex, buf, buf_size);
 
       if (sample_size < 0) {
-        LOGI("input EOS");
+        LOGI ("input EOS");
         sample_size = 0;
         priv->sawInputEOS = TRUE;
       }
 
-      presentation_time = AMediaExtractor_getSampleTime(priv->ex);
+      presentation_time = AMediaExtractor_getSampleTime (priv->ex);
 
-      AMediaCodec_queueInputBuffer(priv->codec, buf_idx, 0, sample_size, presentation_time,
+      AMediaCodec_queueInputBuffer (priv->codec, buf_idx, 0, sample_size,
+          presentation_time,
           priv->sawInputEOS ? AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM : 0);
-      AMediaExtractor_advance(priv->ex);
+      AMediaExtractor_advance (priv->ex);
     }
   }
 
   if (!priv->sawOutputEOS) {
     AMediaCodecBufferInfo info;
-    buf_idx = AMediaCodec_dequeueOutputBuffer(priv->codec, &info, 0);
+    buf_idx = AMediaCodec_dequeueOutputBuffer (priv->codec, &info, 0);
     if (buf_idx >= 0) {
       if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) {
-        LOGI("output EOS");
+        LOGI ("output EOS");
         priv->sawOutputEOS = TRUE;
       }
 
       presentation_time = info.presentationTimeUs * 1000;
       if (priv->renderstart < 0)
-        priv->renderstart = systemnanotime() - presentation_time;
+        priv->renderstart = systemnanotime () - presentation_time;
 
-      delay = (priv->renderstart + presentation_time) - systemnanotime();
+      delay = (priv->renderstart + presentation_time) - systemnanotime ();
       if (delay > 0)
-        usleep(delay / 1000);
+        usleep (delay / 1000);
 
       if (info.size > 0) {
         /**
          * we do not release this output buffer here.
          * it will be returned to the media codec when its wrapped buf is deallocated.
          */
-        feed_frame_buf (self, AMediaCodec_getOutputBuffer (priv->codec, buf_idx, &buf_size),
-                        buf_idx, info.size, buf_size);
+        feed_frame_buf (self, AMediaCodec_getOutputBuffer (priv->codec, buf_idx,
+                &buf_size), buf_idx, info.size, buf_size);
       } else
-        AMediaCodec_releaseOutputBuffer(priv->codec, buf_idx, 0);
+        AMediaCodec_releaseOutputBuffer (priv->codec, buf_idx, 0);
 
       if (priv->renderonce) {
         priv->renderonce = FALSE;
         return;
       }
     } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-      LOGI("Output buffers changed");
+      LOGI ("Output buffers changed");
     } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-      AMediaFormat* format = AMediaCodec_getOutputFormat(priv->codec);
-      LOGI("format changed to: %s", AMediaFormat_toString(format));
-      AMediaFormat_delete(format);
+      AMediaFormat *format = AMediaCodec_getOutputFormat (priv->codec);
+      LOGI ("format changed to: %s", AMediaFormat_toString (format));
+      AMediaFormat_delete (format);
     } else if (buf_idx == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
       /** No output buffer right now */
     } else {
-      LOGE("Unexpected info code: %zd", buf_idx);
+      LOGE ("Unexpected info code: %zd", buf_idx);
     }
   }
 
@@ -786,7 +800,8 @@ check_codec_buf (GstAMCSrc *self)
 /**
  * @brief looper internal function to handle each command
  */
-static void looper_handle (gint cmd, void *data)
+static void
+looper_handle (gint cmd, void *data)
 {
   if (data != NULL) {
     GstAMCSrc *self = GST_AMC_SRC (data);
@@ -861,14 +876,14 @@ gst_amc_src_start (GstBaseSrc * src)
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
 
   /** setup a looper */
-  priv->looper = Looper_new();
+  priv->looper = Looper_new ();
   Looper_set_handle (priv->looper, looper_handle);
 
   priv->previous_ts = GST_CLOCK_TIME_NONE;
   priv->started = TRUE;
 
   /** start media codec */
-  AMediaCodec_start(priv->codec);
+  AMediaCodec_start (priv->codec);
   Looper_post (priv->looper, MSG_CODEC_BUFFER, self, false);
 
   return TRUE;
@@ -877,7 +892,8 @@ gst_amc_src_start (GstBaseSrc * src)
 /**
  * @brief stop function, called when state changed ready to null
  */
-static gboolean gst_amc_src_stop (GstBaseSrc * src)
+static gboolean
+gst_amc_src_stop (GstBaseSrc * src)
 {
   GstAMCSrc *self = GST_AMC_SRC (src);
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
@@ -901,7 +917,8 @@ static gboolean gst_amc_src_stop (GstBaseSrc * src)
 /**
  * @brief check if source supports seeking
  */
-gboolean gst_amc_src_is_seekable (GstBaseSrc * src)
+gboolean
+gst_amc_src_is_seekable (GstBaseSrc * src)
 {
   GstAMCSrc *self = GST_AMC_SRC_CAST (src);
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
@@ -928,7 +945,8 @@ gst_amc_src_init (GstAMCSrc * self)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
 
-  priv->outbound_queue = gst_data_queue_new (data_queue_check_full_cb, NULL, NULL, NULL);
+  priv->outbound_queue =
+      gst_data_queue_new (data_queue_check_full_cb, NULL, NULL, NULL);
   priv->filename = NULL;
 
   priv->width = 0;
@@ -987,4 +1005,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     amcsrc,
     "NNStreamer Android MediaCodec (AMC) Source",
-    plugin_init, VERSION, "LGPL", "nnstreamer", "https://github.com/nnsuite/nnstreamer/")
+    plugin_init, VERSION, "LGPL", "nnstreamer",
+    "https://github.com/nnsuite/nnstreamer/")

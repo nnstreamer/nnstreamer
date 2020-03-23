@@ -40,7 +40,8 @@ nns_pipeline_state_cb (ml_pipeline_state_e state, void *user_data)
   }
 
   jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-  jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "stateChanged", "(I)V");
+  jmethodID mid_callback =
+      (*env)->GetMethodID (env, cls_pipeline, "stateChanged", "(I)V");
   jint new_state = (jint) state;
 
   (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, new_state);
@@ -57,7 +58,8 @@ nns_pipeline_state_cb (ml_pipeline_state_e state, void *user_data)
  * @brief New data callback for sink node.
  */
 static void
-nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
+nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
+    void *user_data)
 {
   element_data_s *cb_data;
   pipeline_info_s *pipe_info;
@@ -75,11 +77,13 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, vo
   if (nns_convert_tensors_data (pipe_info, env, data, info, &obj_data)) {
     /* method for sink callback */
     jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-    jmethodID mid_callback = (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
+    jmethodID mid_callback =
+        (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
         "(Ljava/lang/String;Lorg/nnsuite/nnstreamer/TensorsData;)V");
     jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
 
-    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name, obj_data);
+    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name,
+        obj_data);
 
     if ((*env)->ExceptionCheck (env)) {
       nns_loge ("Failed to call the callback method.");
@@ -107,7 +111,8 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
+  handle =
+      (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
   if (handle == NULL) {
     /* get sink handle and register to table */
     element_data_s *item = g_new0 (element_data_s, 1);
@@ -116,7 +121,9 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
       return NULL;
     }
 
-    status = ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb, item, &handle);
+    status =
+        ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb, item,
+        &handle);
     if (status != ML_ERROR_NONE) {
       nns_loge ("Failed to get sink node %s.", element_name);
       g_free (item);
@@ -196,10 +203,13 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle = (ml_pipeline_switch_h) nns_get_element_handle (pipe_info, element_name);
+  handle =
+      (ml_pipeline_switch_h) nns_get_element_handle (pipe_info, element_name);
   if (handle == NULL) {
     /* get switch handle and register to table */
-    status = ml_pipeline_switch_get_handle (pipe, element_name, &switch_type, &handle);
+    status =
+        ml_pipeline_switch_get_handle (pipe, element_name, &switch_type,
+        &handle);
     if (status != ML_ERROR_NONE) {
       nns_loge ("Failed to get switch %s.", element_name);
       return NULL;
@@ -243,7 +253,8 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle = (ml_pipeline_valve_h) nns_get_element_handle (pipe_info, element_name);
+  handle =
+      (ml_pipeline_valve_h) nns_get_element_handle (pipe_info, element_name);
   if (handle == NULL) {
     /* get valve handle and register to table */
     status = ml_pipeline_valve_get_handle (pipe, element_name, &handle);
@@ -278,8 +289,8 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
  * @brief Native method for pipeline API.
  */
 jlong
-Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz,
-    jstring description, jboolean add_state_cb)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env,
+    jobject thiz, jstring description, jboolean add_state_cb)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_h pipe;
@@ -293,7 +304,9 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env, jobject thiz
   }
 
   if (add_state_cb)
-    status = ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info, &pipe);
+    status =
+        ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info,
+        &pipe);
   else
     status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
 
@@ -319,7 +332,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
 {
   pipeline_info_s *pipe_info = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   nns_destroy_pipe_info (pipe_info, env);
 }
@@ -335,7 +348,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
   ml_pipeline_h pipe;
   int status;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   pipe = pipe_info->pipeline_handle;
 
   status = ml_pipeline_start (pipe);
@@ -358,7 +371,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
   ml_pipeline_h pipe;
   int status;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   pipe = pipe_info->pipeline_handle;
 
   status = ml_pipeline_stop (pipe);
@@ -382,7 +395,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
   ml_pipeline_state_e state;
   int status;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   pipe = pipe_info->pipeline_handle;
 
   status = ml_pipeline_get_state (pipe, &state);
@@ -398,8 +411,8 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jobject in)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name, jobject in)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_src_h src;
@@ -408,7 +421,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env, jobject thiz
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   src = (ml_pipeline_src_h) nns_get_src_handle (pipe_info, element_name);
   if (src == NULL) {
@@ -438,8 +451,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jobjectArray
-Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_switch_h node;
@@ -449,7 +462,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject 
   guint i, total = 0;
   jobjectArray result = NULL;
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   node = (ml_pipeline_switch_h) nns_get_switch_handle (pipe_info, element_name);
   if (node == NULL) {
@@ -469,7 +482,9 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject 
     while (pad_list[total] != NULL)
       total++;
 
-    result = (*env)->NewObjectArray (env, total, cls_string, (*env)->NewStringUTF (env, ""));
+    result =
+        (*env)->NewObjectArray (env, total, cls_string,
+        (*env)->NewStringUTF (env, ""));
     if (result == NULL) {
       nns_loge ("Failed to allocate string array.");
       (*env)->DeleteLocalRef (env, cls_string);
@@ -477,7 +492,8 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env, jobject 
     }
 
     for (i = 0; i < total; i++) {
-      (*env)->SetObjectArrayElement (env, result, i, (*env)->NewStringUTF (env, pad_list[i]));
+      (*env)->SetObjectArrayElement (env, result, i, (*env)->NewStringUTF (env,
+              pad_list[i]));
       g_free (pad_list[i]);
     }
 
@@ -505,8 +521,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jstring pad)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name, jstring pad)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_switch_h node;
@@ -515,7 +531,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env, jobjec
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
   const char *pad_name = (*env)->GetStringUTFChars (env, pad, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   node = (ml_pipeline_switch_h) nns_get_switch_handle (pipe_info, element_name);
   if (node == NULL) {
@@ -540,8 +556,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name, jboolean open)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name, jboolean open)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_valve_h node;
@@ -549,7 +565,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env, jobject t
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   node = (ml_pipeline_valve_h) nns_get_valve_handle (pipe_info, element_name);
   if (node == NULL) {
@@ -573,15 +589,15 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_sink_h sink;
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   sink = (ml_pipeline_sink_h) nns_get_sink_handle (pipe_info, element_name);
   if (sink == NULL) {
@@ -599,15 +615,15 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env, jobject thiz,
-    jlong handle, jstring name)
+Java_org_nnsuite_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env,
+    jobject thiz, jlong handle, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_sink_h sink;
   jboolean res = JNI_FALSE;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
 
-  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s*);
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   /* get handle from table */
   sink = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);

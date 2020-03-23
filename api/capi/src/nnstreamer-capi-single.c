@@ -82,7 +82,8 @@ G_LOCK_DEFINE_STATIC (magic);
 #define CONCAT_MACRO_STR(STR1,STR2) STR1 STR2
 
 /** States for invoke thread */
-typedef enum {
+typedef enum
+{
   IDLE = 0,           /**< ready to accept next input */
   RUNNING,            /**< running an input, cannot accept more input */
   JOIN_REQUESTED,     /**< should join the thread, will exit soon */
@@ -338,8 +339,9 @@ ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
       ml_tensors_info_copy_from_ml (&gst_in_info, info);
 
       klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-      if (klass == NULL || klass->set_input_info (
-            single_h->filter, &gst_in_info, &gst_out_info) == FALSE) {
+      if (klass == NULL
+          || klass->set_input_info (single_h->filter, &gst_in_info,
+              &gst_out_info) == FALSE) {
         status = ML_ERROR_INVALID_PARAMETER;
         goto exit;
       }
@@ -415,7 +417,7 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
   gboolean configured = FALSE;
   gboolean is_valid = FALSE;
   GTensorFilterSingleClass *klass;
-  GObject * filter_obj;
+  GObject *filter_obj;
 
   single_h = (ml_single *) single;
   filter_obj = G_OBJECT (single_h->filter);
@@ -458,7 +460,8 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
     ml_tensors_info_clone (dest, info);
     ml_tensors_info_destroy (info);
   } else if (tensors_info) {
-    status = ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
+    status =
+        ml_single_set_inout_tensors_info (filter_obj, is_input, tensors_info);
     if (status != ML_ERROR_NONE)
       goto done;
     ml_tensors_info_clone (dest, tensors_info);
@@ -503,7 +506,8 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
   g_mutex_init (&single_h->mutex);
   g_cond_init (&single_h->cond);
 
-  single_h->thread = g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
+  single_h->thread =
+      g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
   if (single_h->thread == NULL) {
     ml_loge ("Failed to create the invoke thread, error: %s.", error->message);
     g_clear_error (&error);
@@ -601,27 +605,34 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   if (nnfw == ML_NNFW_TYPE_TENSORFLOW || nnfw == ML_NNFW_TYPE_SNAP) {
     /* set input and output tensors information */
     if (in_tensors_info && out_tensors_info) {
-      status = ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
+      status =
+          ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
       if (status != ML_ERROR_NONE)
         goto error;
 
-      status = ml_single_set_inout_tensors_info (filter_obj, FALSE, out_tensors_info);
+      status =
+          ml_single_set_inout_tensors_info (filter_obj, FALSE,
+          out_tensors_info);
       if (status != ML_ERROR_NONE)
         goto error;
     } else {
-      ml_loge ("To run the pipeline, input and output information should be initialized.");
+      ml_loge
+          ("To run the pipeline, input and output information should be initialized.");
       status = ML_ERROR_INVALID_PARAMETER;
       goto error;
     }
   } else if (nnfw == ML_NNFW_TYPE_ARMNN) {
     /* set input and output tensors information, if available */
     if (in_tensors_info) {
-      status = ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
+      status =
+          ml_single_set_inout_tensors_info (filter_obj, TRUE, in_tensors_info);
       if (status != ML_ERROR_NONE)
         goto error;
     }
     if (out_tensors_info) {
-      status = ml_single_set_inout_tensors_info (filter_obj, FALSE, out_tensors_info);
+      status =
+          ml_single_set_inout_tensors_info (filter_obj, FALSE,
+          out_tensors_info);
       if (status != ML_ERROR_NONE)
         goto error;
     }
@@ -741,17 +752,20 @@ ml_single_invoke (ml_single_h single,
   check_feature_state ();
 
   if (!single) {
-    ml_loge ("The first argument of ml_single_invoke() is not valid. Please check the single handle.");
+    ml_loge
+        ("The first argument of ml_single_invoke() is not valid. Please check the single handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (!input) {
-    ml_loge ("The second argument of ml_single_invoke() is not valid. Please check the input data handle.");
+    ml_loge
+        ("The second argument of ml_single_invoke() is not valid. Please check the input data handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
   if (!output) {
-    ml_loge ("The third argument of ml_single_invoke() is not valid. Please check the output data handle.");
+    ml_loge
+        ("The third argument of ml_single_invoke() is not valid. Please check the output data handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
@@ -761,7 +775,8 @@ ml_single_invoke (ml_single_h single,
   *output = NULL;
 
   if (!single_h->filter) {
-    ml_loge ("The tensor_filter element is not valid. It is not correctly created or already freed.");
+    ml_loge
+        ("The tensor_filter element is not valid. It is not correctly created or already freed.");
     status = ML_ERROR_INVALID_PARAMETER;
     goto exit;
   }
@@ -780,7 +795,8 @@ ml_single_invoke (ml_single_h single,
 
   /* Validate input data */
   if (in_data->num_tensors != single_h->in_info.num_tensors) {
-    ml_loge ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
+    ml_loge
+        ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
         in_data->num_tensors, single_h->in_info.num_tensors);
     status = ML_ERROR_INVALID_PARAMETER;
     goto exit;
@@ -798,8 +814,10 @@ ml_single_invoke (ml_single_h single,
     raw_size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
 
     if (in_data->tensors[i].size != raw_size) {
-      ml_loge ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
-          i, in_data->tensors[i].size, raw_size, single_h->in_info.info[i].type);
+      ml_loge
+          ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
+          i, in_data->tensors[i].size, raw_size,
+          single_h->in_info.info[i].type);
       status = ML_ERROR_INVALID_PARAMETER;
       goto exit;
     }
@@ -817,7 +835,7 @@ ml_single_invoke (ml_single_h single,
   single_h->ignore_output = FALSE;
 
   end_time = g_get_monotonic_time () +
-    single_h->timeout * G_TIME_SPAN_MILLISECOND;
+      single_h->timeout * G_TIME_SPAN_MILLISECOND;
 
   g_cond_broadcast (&single_h->cond);
   if (g_cond_wait_until (&single_h->cond, &single_h->mutex, end_time)) {
@@ -830,7 +848,7 @@ ml_single_invoke (ml_single_h single,
 
     /** Free if any output memory was allocated */
     if (*single_h->output != NULL) {
-      ml_tensors_data_destroy ((ml_tensors_data_h) *single_h->output);
+      ml_tensors_data_destroy ((ml_tensors_data_h) * single_h->output);
       *single_h->output = NULL;
     }
   }
@@ -1024,13 +1042,15 @@ ml_single_set_property (ml_single_h single, const char *name, const char *value)
         g_object_set (G_OBJECT (single_h->filter), name, (gboolean) TRUE, NULL);
     } else if (g_ascii_strcasecmp (value, "false") == 0) {
       if (g_ascii_strcasecmp (old_value, "false") != 0)
-        g_object_set (G_OBJECT (single_h->filter), name, (gboolean) FALSE, NULL);
+        g_object_set (G_OBJECT (single_h->filter), name, (gboolean) FALSE,
+            NULL);
     } else {
       ml_loge ("The property value (%s) is not available.", value);
       status = ML_ERROR_INVALID_PARAMETER;
     }
-  } else if (g_str_equal (name, "input") || g_str_equal (name, "inputtype") || g_str_equal (name, "inputname") ||
-      g_str_equal (name, "output") || g_str_equal (name, "outputtype") || g_str_equal (name, "outputname")) {
+  } else if (g_str_equal (name, "input") || g_str_equal (name, "inputtype")
+      || g_str_equal (name, "inputname") || g_str_equal (name, "output")
+      || g_str_equal (name, "outputtype") || g_str_equal (name, "outputname")) {
     GstTensorsInfo gst_info;
     gboolean is_input = g_str_has_prefix (name, "input");
     guint num;

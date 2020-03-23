@@ -237,7 +237,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
   gsize bpe = gst_tensor_get_element_size (config->info.info[0].type);
   tensor_element max_val;
   guint max_index = 0;
-  gsize num_data;              /* Size / bpe */
+  gsize num_data;               /* Size / bpe */
   void *input_data;
 
   gsize size;

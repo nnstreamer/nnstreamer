@@ -28,7 +28,7 @@
 #include <glib.h>
 
 #include <system_info.h>
-#include <restriction.h> /* device policy manager */
+#include <restriction.h>        /* device policy manager */
 #include <privacy_privilege_manager.h>
 #include <mm_resource_manager.h>
 #include <mm_camcorder.h>
@@ -92,16 +92,21 @@ typedef struct _camera_conf
 #define MMFW_CONFIG_MAIN_FILE "mmfw_camcorder.ini"
 
 extern int
-_mmcamcorder_conf_get_info (MMHandleType handle, int type, const char *ConfFile, camera_conf ** configure_info);
+_mmcamcorder_conf_get_info (MMHandleType handle, int type, const char *ConfFile,
+    camera_conf ** configure_info);
 
 extern void
-_mmcamcorder_conf_release_info (MMHandleType handle, camera_conf ** configure_info);
+_mmcamcorder_conf_release_info (MMHandleType handle,
+    camera_conf ** configure_info);
 
 extern int
-_mmcamcorder_conf_get_element (MMHandleType handle, camera_conf * configure_info, int category, const char *name, type_element ** element);
+_mmcamcorder_conf_get_element (MMHandleType handle,
+    camera_conf * configure_info, int category, const char *name,
+    type_element ** element);
 
 extern int
-_mmcamcorder_conf_get_value_element_name (type_element * element, const char **value);
+_mmcamcorder_conf_get_value_element_name (type_element * element,
+    const char **value);
 
 /**
  * @brief Internal structure for tizen mm framework.
@@ -203,7 +208,8 @@ ml_tizen_get_feature_enabled (void)
     return ML_ERROR_NOT_SUPPORTED;
   } else if (-1 == feature_enabled) {
     bool ml_inf_supported = false;
-    ret = system_info_get_platform_bool (ML_INF_FEATURE_PATH, &ml_inf_supported);
+    ret =
+        system_info_get_platform_bool (ML_INF_FEATURE_PATH, &ml_inf_supported);
     if (0 == ret) {
       if (false == ml_inf_supported) {
         ml_loge ("machine_learning.inference NOT supported");
@@ -215,7 +221,8 @@ ml_tizen_get_feature_enabled (void)
     } else {
       switch (ret) {
         case SYSTEM_INFO_ERROR_INVALID_PARAMETER:
-          ml_loge ("failed to get feature value because feature key is not vaild");
+          ml_loge
+              ("failed to get feature value because feature key is not vaild");
           ret = ML_ERROR_NOT_SUPPORTED;
           break;
 
@@ -274,10 +281,10 @@ ml_tizen_check_dpm_restriction (device_policy_manager_h dpm_handle, int type)
   int dpm_is_allowed = 0;
 
   switch (type) {
-    case 1: /* camera */
+    case 1:                    /* camera */
       err = dpm_restriction_get_camera_state (dpm_handle, &dpm_is_allowed);
       break;
-    case 2: /* mic */
+    case 2:                    /* mic */
       err = dpm_restriction_get_microphone_state (dpm_handle, &dpm_is_allowed);
       break;
     default:
@@ -297,7 +304,8 @@ ml_tizen_check_dpm_restriction (device_policy_manager_h dpm_handle, int type)
  * @brief Callback to be called when device policy is changed.
  */
 static void
-ml_tizen_dpm_policy_changed_cb (const char *name, const char *state, void *user_data)
+ml_tizen_dpm_policy_changed_cb (const char *name, const char *state,
+    void *user_data)
 {
   ml_pipeline *p;
 
@@ -390,7 +398,8 @@ ml_tizen_mm_res_release_cb (mm_resource_manager_h rm,
   p = (ml_pipeline *) user_data;
   g_mutex_lock (&p->lock);
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res) {
     /* rm handle is not registered or removed */
     goto done;
@@ -427,7 +436,8 @@ ml_tizen_mm_res_status_cb (mm_resource_manager_h rm,
   p = (ml_pipeline *) user_data;
   g_mutex_lock (&p->lock);
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res) {
     /* rm handle is not registered or removed */
     goto done;
@@ -543,7 +553,8 @@ ml_tizen_mm_res_release (gpointer handle, gboolean destroy)
  * @brief Function to initialize mm resource manager.
  */
 static int
-ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean has_audio_src)
+ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src,
+    gboolean has_audio_src)
 {
   ml_pipeline *p;
   pipeline_resource_s *res;
@@ -552,7 +563,8 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean
 
   p = (ml_pipeline *) pipe;
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
 
   /* register new resource handle of tizen mmfw */
   if (!res) {
@@ -582,7 +594,8 @@ ml_tizen_mm_res_initialize (ml_pipeline_h pipe, gboolean has_video_src, gboolean
     /* device policy manager */
     mm_handle->dpm_h = dpm_manager_create ();
     if (dpm_add_policy_changed_cb (mm_handle->dpm_h, "camera",
-        ml_tizen_dpm_policy_changed_cb, pipe, &mm_handle->dpm_cb_id) != DPM_ERROR_NONE) {
+            ml_tizen_dpm_policy_changed_cb, pipe,
+            &mm_handle->dpm_cb_id) != DPM_ERROR_NONE) {
       ml_loge ("Failed to add device policy callback.");
       status = ML_ERROR_PERMISSION_DENIED;
       goto rm_error;
@@ -622,7 +635,8 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
 
   p = (ml_pipeline *) pipe;
 
-  res = (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
+  res =
+      (pipeline_resource_s *) g_hash_table_lookup (p->resources, TIZEN_RES_MM);
   if (!res)
     goto rm_error;
 
@@ -632,12 +646,16 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
 
   /* check dpm state */
   if (mm_handle->has_video_src &&
-      (status = ml_tizen_check_dpm_restriction (mm_handle->dpm_h, 1)) != ML_ERROR_NONE) {
+      (status =
+          ml_tizen_check_dpm_restriction (mm_handle->dpm_h,
+              1)) != ML_ERROR_NONE) {
     goto rm_error;
   }
 
   if (mm_handle->has_audio_src &&
-      (status = ml_tizen_check_dpm_restriction (mm_handle->dpm_h, 2)) != ML_ERROR_NONE) {
+      (status =
+          ml_tizen_check_dpm_restriction (mm_handle->dpm_h,
+              2)) != ML_ERROR_NONE) {
     goto rm_error;
   }
 
@@ -655,7 +673,9 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
       goto rm_error;
 
     /* add state change callback */
-    err = mm_resource_manager_set_status_cb (rm_h, ml_tizen_mm_res_status_cb, pipe);
+    err =
+        mm_resource_manager_set_status_cb (rm_h, ml_tizen_mm_res_status_cb,
+        pipe);
     if (err != MM_RESOURCE_MANAGER_ERROR_NONE) {
       mm_resource_manager_destroy (rm_h);
       goto rm_error;
@@ -679,7 +699,9 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
 
         type = ml_tizen_mm_res_get_type (mm_res->type);
         if (type != MM_RESOURCE_MANAGER_RES_TYPE_MAX) {
-          status = ml_tizen_mm_res_get_handle (mm_handle->rm_h, type, &mm_res->handle);
+          status =
+              ml_tizen_mm_res_get_handle (mm_handle->rm_h, type,
+              &mm_res->handle);
           if (status != ML_ERROR_NONE)
             goto rm_error;
         }
@@ -690,7 +712,9 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
     if (res_key) {
       pipeline_resource_s *mm_res;
 
-      mm_res = (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles, res_key);
+      mm_res =
+          (pipeline_resource_s *) g_hash_table_lookup (mm_handle->res_handles,
+          res_key);
       if (!mm_res) {
         mm_res = g_new0 (pipeline_resource_s, 1);
         if (mm_res == NULL) {
@@ -701,13 +725,16 @@ ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
         }
 
         mm_res->type = g_strdup (res_key);
-        g_hash_table_insert (mm_handle->res_handles, g_strdup (res_key), mm_res);
+        g_hash_table_insert (mm_handle->res_handles, g_strdup (res_key),
+            mm_res);
       }
 
       g_free (res_key);
 
       if (!mm_res->handle) {
-        status = ml_tizen_mm_res_get_handle (mm_handle->rm_h, res_type, &mm_res->handle);
+        status =
+            ml_tizen_mm_res_get_handle (mm_handle->rm_h, res_type,
+            &mm_res->handle);
         if (status != ML_ERROR_NONE)
           goto rm_error;
       }
@@ -725,8 +752,8 @@ rm_error:
  * @brief Gets element name from mm conf and replaces element.
  */
 static int
-ml_tizen_mm_replace_element (MMHandleType * handle, camera_conf * conf, gint category,
-    const gchar * name, const gchar * what, gchar ** description)
+ml_tizen_mm_replace_element (MMHandleType * handle, camera_conf * conf,
+    gint category, const gchar * name, const gchar * what, gchar ** description)
 {
   type_element *element = NULL;
   const gchar *src_name = NULL;
@@ -754,7 +781,8 @@ ml_tizen_mm_replace_element (MMHandleType * handle, camera_conf * conf, gint cat
  * @brief Converts predefined mmfw element.
  */
 static int
-ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
+ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result,
+    gboolean is_internal)
 {
   gchar *video_src, *audio_src;
   MMHandleType hcam = NULL;
@@ -772,12 +800,16 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     if (!is_internal) {
       /* ignore permission when runs as internal mode */
       if (video_src &&
-          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) != ML_ERROR_NONE) {
+          (status =
+              ml_tizen_check_privilege (TIZEN_PRIVILEGE_CAMERA)) !=
+          ML_ERROR_NONE) {
         goto mm_error;
       }
 
       if (audio_src &&
-          (status = ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) != ML_ERROR_NONE) {
+          (status =
+              ml_tizen_check_privilege (TIZEN_PRIVILEGE_RECODER)) !=
+          ML_ERROR_NONE) {
         goto mm_error;
       }
     }
@@ -796,7 +828,8 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
     }
 
     /* read ini, type CONFIGURE_TYPE_MAIN */
-    err = _mmcamcorder_conf_get_info (hcam, 0, MMFW_CONFIG_MAIN_FILE, &cam_conf);
+    err =
+        _mmcamcorder_conf_get_info (hcam, 0, MMFW_CONFIG_MAIN_FILE, &cam_conf);
     if (err != MM_ERROR_NONE || !cam_conf) {
       ml_loge ("Failed to load conf %s.", MMFW_CONFIG_MAIN_FILE);
       goto mm_error;
@@ -804,7 +837,8 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 
     if (video_src) {
       /* category CONFIGURE_CATEGORY_MAIN_VIDEO_INPUT */
-      status = ml_tizen_mm_replace_element (hcam, cam_conf, 1, "VideosrcElement",
+      status =
+          ml_tizen_mm_replace_element (hcam, cam_conf, 1, "VideosrcElement",
           ML_TIZEN_CAM_VIDEO_SRC, result);
       if (status != ML_ERROR_NONE)
         goto mm_error;
@@ -812,19 +846,23 @@ ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_in
 
     if (audio_src) {
       /* category CONFIGURE_CATEGORY_MAIN_AUDIO_INPUT */
-      status = ml_tizen_mm_replace_element (hcam, cam_conf, 2, "AudiosrcElement",
+      status =
+          ml_tizen_mm_replace_element (hcam, cam_conf, 2, "AudiosrcElement",
           ML_TIZEN_CAM_AUDIO_SRC, result);
       if (status != ML_ERROR_NONE)
         goto mm_error;
     }
 
     /* initialize rm handle */
-    status = ml_tizen_mm_res_initialize (pipe, (video_src != NULL), (audio_src != NULL));
+    status =
+        ml_tizen_mm_res_initialize (pipe, (video_src != NULL),
+        (audio_src != NULL));
     if (status != ML_ERROR_NONE)
       goto mm_error;
 
     /* get the camera resource using mm resource manager */
-    status = ml_tizen_mm_res_acquire (pipe, MM_RESOURCE_MANAGER_RES_TYPE_CAMERA);
+    status =
+        ml_tizen_mm_res_acquire (pipe, MM_RESOURCE_MANAGER_RES_TYPE_CAMERA);
     if (status != ML_ERROR_NONE)
       goto mm_error;
   }
@@ -873,7 +911,8 @@ ml_tizen_get_resource (ml_pipeline_h pipe, const gchar * res_type)
  * @brief Converts predefined element for Tizen.
  */
 int
-ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result, gboolean is_internal)
+ml_tizen_convert_element (ml_pipeline_h pipe, gchar ** result,
+    gboolean is_internal)
 {
   int status;
 

@@ -149,7 +149,8 @@ ml_tensor_info_validate (const ml_tensor_info_s * info)
  * @brief Compares the given tensor info.
  */
 static gboolean
-ml_tensor_info_compare (const ml_tensor_info_s * i1, const ml_tensor_info_s * i2)
+ml_tensor_info_compare (const ml_tensor_info_s * i1,
+    const ml_tensor_info_s * i2)
 {
   guint i;
 
@@ -477,7 +478,7 @@ ml_tensor_info_get_size (const ml_tensor_info_s * info)
  */
 int
 ml_tensors_info_get_tensor_size (ml_tensors_info_h info,
-    int index, size_t *data_size)
+    int index, size_t * data_size)
 {
   ml_tensors_info_s *tensors_info;
 
@@ -599,8 +600,7 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
  */
 int
-ml_tensors_data_create (const ml_tensors_info_h info,
-    ml_tensors_data_h * data)
+ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h * data)
 {
   gint status = ML_ERROR_STREAMS_PIPE;
   ml_tensors_data_s *_data = NULL;
@@ -611,7 +611,8 @@ ml_tensors_data_create (const ml_tensors_info_h info,
   if (info == NULL || data == NULL)
     return ML_ERROR_INVALID_PARAMETER;
 
-  status = ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) &_data);
+  status =
+      ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) & _data);
 
   if (status != ML_ERROR_NONE) {
     return status;
@@ -938,30 +939,37 @@ ml_validate_model_file (char **model, unsigned int num_models,
          * .tflite is supported by both tensorflow and nnfw.
          * Priority decided with ini file.
          */
-        gboolean nnfw_runtime_priority = nnsconf_get_custom_value_bool (
-            "nnfw-runtime", "prioritize_tflite_ext", FALSE);
-        gboolean available_nnfw = ml_nnfw_is_available (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
-        gboolean available_tflite = ml_nnfw_is_available (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+        gboolean nnfw_runtime_priority =
+            nnsconf_get_custom_value_bool ("nnfw-runtime",
+            "prioritize_tflite_ext", FALSE);
+        gboolean available_nnfw =
+            ml_nnfw_is_available (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+        gboolean available_tflite =
+            ml_nnfw_is_available (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
 
         if ((nnfw_runtime_priority && available_nnfw) ||
             (!nnfw_runtime_priority && !available_tflite)) {
           ml_logi ("The given model [%s] is supposed a nnfw model.", model[0]);
           *nnfw = ML_NNFW_TYPE_NNFW;
         } else {
-          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.", model[0]);
+          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.",
+              model[0]);
           *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
         }
       } else if ((g_str_has_suffix (path_down, ".so") &&
-          g_str_has_suffix (path_down_2, ".nb")) ||
+              g_str_has_suffix (path_down_2, ".nb")) ||
           (g_str_has_suffix (path_down, ".nb") &&
-          g_str_has_suffix (path_down_2, ".so"))) {
-        ml_logi ("The given model [%s,%s] looks like a Vivante model.", model[0], model[1]);
+              g_str_has_suffix (path_down_2, ".so"))) {
+        ml_logi ("The given model [%s,%s] looks like a Vivante model.",
+            model[0], model[1]);
         *nnfw = ML_NNFW_TYPE_VIVANTE;
       } else if (g_str_has_suffix (path_down, ".pb")) {
-        ml_logi ("The given model [%s] is supposed a tensorflow model.", model[0]);
+        ml_logi ("The given model [%s] is supposed a tensorflow model.",
+            model[0]);
         *nnfw = ML_NNFW_TYPE_TENSORFLOW;
       } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_logi ("The given model [%s] is supposed a custom filter model.", model[0]);
+        ml_logi ("The given model [%s] is supposed a custom filter model.",
+            model[0]);
         *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
       } else {
         ml_loge ("The given model [%s] has unknown extension.", model[0]);
@@ -1021,12 +1029,13 @@ ml_validate_model_file (char **model, unsigned int num_models,
     case ML_NNFW_TYPE_VIVANTE:
     {
       if ((g_str_has_suffix (path_down, ".so") &&
-          g_str_has_suffix (path_down_2, ".nb")) ||
+              g_str_has_suffix (path_down_2, ".nb")) ||
           (g_str_has_suffix (path_down, ".nb") &&
-          g_str_has_suffix (path_down_2, ".so"))) {
+              g_str_has_suffix (path_down_2, ".so"))) {
         break;
       }
-      ml_loge ("The given model [%s,%s] does not appear Vivante model.", model[0],model[1]);
+      ml_loge ("The given model [%s,%s] does not appear Vivante model.",
+          model[0], model[1]);
       status = ML_ERROR_INVALID_PARAMETER;
 
       break;
@@ -1147,8 +1156,10 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
 
   if (fw_name) {
     if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
-      if (fw->checkAvailability && fw->checkAvailability (ml_nnfw_to_accl_hw (hw)) != 0) {
-        ml_logw ("%s is supported but not with the specified hardware.", fw_name);
+      if (fw->checkAvailability
+          && fw->checkAvailability (ml_nnfw_to_accl_hw (hw)) != 0) {
+        ml_logw ("%s is supported but not with the specified hardware.",
+            fw_name);
       } else {
         *available = true;
       }
@@ -1177,12 +1188,16 @@ ml_check_plugin_availability (const char *plugin_name, const char *element_name)
   if (!list_loaded) {
     gboolean restricted;
 
-    restricted = nnsconf_get_custom_value_bool ("element-restriction", "enable_element_restriction", FALSE);
+    restricted =
+        nnsconf_get_custom_value_bool ("element-restriction",
+        "enable_element_restriction", FALSE);
     if (restricted) {
       gchar *elements;
 
       /* check white-list of available plugins */
-      elements = nnsconf_get_custom_value_string ("element-restriction", "restricted_elements");
+      elements =
+          nnsconf_get_custom_value_string ("element-restriction",
+          "restricted_elements");
       if (elements) {
         restricted_elements = g_strsplit_set (elements, " ,;", -1);
         g_free (elements);

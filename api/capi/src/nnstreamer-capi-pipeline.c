@@ -364,7 +364,8 @@ cleanup_resource (gpointer data)
  * @brief Converts predefined element in pipeline description.
  */
 static int
-convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result, gboolean is_internal)
+convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result,
+    gboolean is_internal)
 {
   gchar *converted;
   int status = ML_ERROR_NONE;
@@ -425,7 +426,8 @@ iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
             const gchar *element_name = gst_plugin_feature_get_name (feature);
 
             /* validate the availability of the plugin */
-            if (ml_check_plugin_availability (plugin_name, element_name) != ML_ERROR_NONE) {
+            if (ml_check_plugin_availability (plugin_name,
+                    element_name) != ML_ERROR_NONE) {
               status = ML_ERROR_NOT_SUPPORTED;
               done = TRUE;
               break;
@@ -495,7 +497,8 @@ iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
  */
 static int
 construct_pipeline_internal (const char *pipeline_description,
-    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe, gboolean is_internal)
+    ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe,
+    gboolean is_internal)
 {
   GError *err = NULL;
   GstElement *pipeline;
@@ -531,7 +534,9 @@ construct_pipeline_internal (const char *pipeline_description,
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_resource);
 
   /* convert predefined element and launch the pipeline */
-  status = convert_element ((ml_pipeline_h) pipe_h, pipeline_description, &description, is_internal);
+  status =
+      convert_element ((ml_pipeline_h) pipe_h, pipeline_description,
+      &description, is_internal);
   if (status != ML_ERROR_NONE)
     goto failed;
 
@@ -592,7 +597,8 @@ ml_pipeline_construct (const char *pipeline_description,
     ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
 {
   /* not an internal pipeline construction */
-  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe, FALSE);
+  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe,
+      FALSE);
 }
 
 #if defined (__TIZEN__)
@@ -604,7 +610,8 @@ ml_pipeline_construct_internal (const char *pipeline_description,
     ml_pipeline_state_cb cb, void *user_data, ml_pipeline_h * pipe)
 {
   /* Tizen internal pipeline construction */
-  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe, TRUE);
+  return construct_pipeline_internal (pipeline_description, cb, user_data, pipe,
+      TRUE);
 }
 #endif /* __TIZEN__ */
 
@@ -696,7 +703,7 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   *state = ML_PIPELINE_STATE_UNKNOWN;
 
   g_mutex_lock (&p->lock);
-  scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND); /* Do it within 1ms! */
+  scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND);       /* Do it within 1ms! */
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE)
@@ -839,13 +846,17 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
     /* set callback for new data */
     if (elem->type == ML_PIPELINE_ELEMENT_SINK) {
       /* tensor_sink */
-      g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE, NULL);
-      elem->handle_id = g_signal_connect (elem->element, "new-data",
+      g_object_set (G_OBJECT (elem->element), "emit-signal", (gboolean) TRUE,
+          NULL);
+      elem->handle_id =
+          g_signal_connect (elem->element, "new-data",
           G_CALLBACK (cb_sink_event), elem);
     } else {
       /* appsink */
-      g_object_set (G_OBJECT (elem->element), "emit-signals", (gboolean) TRUE, NULL);
-      elem->handle_id = g_signal_connect (elem->element, "new-sample",
+      g_object_set (G_OBJECT (elem->element), "emit-signals", (gboolean) TRUE,
+          NULL);
+      elem->handle_id =
+          g_signal_connect (elem->element, "new-sample",
           G_CALLBACK (cb_appsink_new_sample), elem);
     }
 
@@ -1080,7 +1091,8 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   ret = ml_pipeline_src_parse_tensors_info (elem);
 
   if (ret != ML_ERROR_NONE) {
-    ml_logw ("The pipeline is not ready to accept inputs. The input is ignored.");
+    ml_logw
+        ("The pipeline is not ready to accept inputs. The input is ignored.");
     goto destroy_data;
   }
 
@@ -1130,7 +1142,8 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   }
 
   if (gret == GST_FLOW_FLUSHING) {
-    ml_logw ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
+    ml_logw
+        ("The pipeline is not in PAUSED/PLAYING. The input may be ignored.");
     ret = ML_ERROR_TRY_AGAIN;
   } else if (gret == GST_FLOW_EOS) {
     ml_logw ("THe pipeline is in EOS state. The input is ignored.");
@@ -1150,8 +1163,7 @@ destroy_data:
  * @brief Gets a handle for the tensors metadata of given src node.
  */
 int
-ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h,
-    ml_tensors_info_h * info)
+ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h, ml_tensors_info_h * info)
 {
   handle_init (src, src, h);
 
@@ -1312,7 +1324,8 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   g_object_set (G_OBJECT (elem->element), "active-pad", new_pad, NULL);
   gst_object_unref (new_pad);
 
-  ml_logi ("Switched to [%s] successfully at switch [%s].", pad_name, elem->name);
+  ml_logi ("Switched to [%s] successfully at switch [%s].", pad_name,
+      elem->name);
 
   handle_exit (h);
 }
@@ -1448,7 +1461,8 @@ ml_pipeline_valve_get_handle (ml_pipeline_h pipe, const char *valve_name,
   elem = g_hash_table_lookup (p->namednodes, valve_name);
 
   if (elem == NULL) {
-    ml_loge ("There is no valve element named [%s] in the pipeline.", valve_name);
+    ml_loge ("There is no valve element named [%s] in the pipeline.",
+        valve_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }

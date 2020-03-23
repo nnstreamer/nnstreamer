@@ -235,7 +235,7 @@ g_tensor_filter_load_tensor_info (GTensorFilterSingle * self)
     res = -1;
     if (priv->prop.fw_opened && priv->fw && priv->fw->getInputDimension) {
       res = priv->fw->getInputDimension
-        (&priv->prop, &priv->privateData, &in_info);
+          (&priv->prop, &priv->privateData, &in_info);
     }
 
     if (res == 0) {
@@ -262,7 +262,7 @@ g_tensor_filter_load_tensor_info (GTensorFilterSingle * self)
     res = -1;
     if (priv->prop.fw_opened && priv->fw && priv->fw->getOutputDimension) {
       res = priv->fw->getOutputDimension
-        (&priv->prop, &priv->privateData, &out_info);
+          (&priv->prop, &priv->privateData, &out_info);
     }
 
     if (res == 0) {
@@ -354,7 +354,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     return FALSE;
   if (G_UNLIKELY (!priv->fw->run_without_model) &&
       G_UNLIKELY (!(priv->prop.model_files &&
-          priv->prop.num_models > 0 && priv->prop.model_files[0])))
+              priv->prop.num_models > 0 && priv->prop.model_files[0])))
     return FALSE;
 
   /** start if not already started */
@@ -411,8 +411,8 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
       in_info, out_info);
   if (status == 0) {
-    gst_tensors_info_copy(&priv->prop.input_meta, in_info);
-    gst_tensors_info_copy(&priv->prop.output_meta, out_info);
+    gst_tensors_info_copy (&priv->prop.input_meta, in_info);
+    gst_tensors_info_copy (&priv->prop.output_meta, out_info);
     ret = TRUE;
   }
 
