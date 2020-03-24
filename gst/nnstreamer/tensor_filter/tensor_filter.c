@@ -1,6 +1,6 @@
 /**
  * GStreamer Tensor_Filter
- * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
+ * Copyright (C) 2006 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
