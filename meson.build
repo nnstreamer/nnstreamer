@@ -129,6 +129,9 @@ thread_dep = dependency('threads') # pthread for tensorflow-lite
 # Protobuf
 protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 
+# Protobuf compiler
+pb_comp = find_program('protoc', required: get_option('protobuf-support'))
+
 json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support')) 
 
 #orc
@@ -223,6 +226,9 @@ features = {
     'extra_deps': [ snpe_dep ],
     'project_args': { 'ENABLE_SNPE' : 1 },
     'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
+  },
+  'protobuf-support': {
+    'extra_deps': [ pb_comp ]
   }
 }
 
