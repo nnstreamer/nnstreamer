@@ -36,6 +36,16 @@ extern "C" {
 ************************************************/
 
 /**
+ * @brief GstTensorConvert's properties (internal data structure)
+ */
+typedef struct _GstTensorConverterProperties
+{
+  GstTensorsConfig config; /**< tensor info */
+
+
+} GstTensorConverterProperties;
+
+/**
  * @brief Converter's subplugin implementation.
  */
 struct _NNStreamerExternalConverter {
