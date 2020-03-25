@@ -3,8 +3,6 @@
 # Do not append a license statement in the configuration file for a differnet license-based repository.
 
 ##
-## SPDX-License-Identifier: LGPL-2.1-only
-##
 # @file config-server-administrator.sh
 # @brief configuration file to declare contents that a server administrator installed.
 # @see      https://github.com/nnsuite/TAOS-CI
@@ -14,7 +12,7 @@
 ########### Caution: If you are not server administrator, do not modify this file #################
 
 # Note that administrator of a server has to specify the location of eSDK at first.
-# In order to know how to install eSDK, please read plugins-base/pr-audit-build-yocto.sh file.
+# In order to know how to install eSDK, please read plugins-base/pr-postbuild-build-yocto.sh file.
 # It is environment variables that are imported from eSDK to use devtool command.
 # - YOCTO_ESDK_DIR="/var/www"
 # - YOCTO_ESDK_NAME="kairos_sdk" or YOCTO_ESDK_NAME="poky_sdk"
