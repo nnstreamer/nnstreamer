@@ -36,6 +36,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc \
     $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
     $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_repo.c \
