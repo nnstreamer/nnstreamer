@@ -41,7 +41,16 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
 
+/**
+ * NOTE: This workaround is only for python2.7. If we are going to use external
+ * open-source projects written in cpp with the 'register' keyword, we need to
+ * project-widely apply this.
+ */
+#if __cplusplus > 199711L
+#define register          /* Deprecated in C++11 */
+#endif /* __cplusplus > 199711L */
 #include <Python.h>
+
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <structmember.h>
