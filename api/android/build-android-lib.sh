@@ -7,7 +7,8 @@
 # @brief A script to build NNStreamer API library for Android
 #
 # Before running this script, below variables must be set.
-# - ANDROID_HOME: Android SDK
+# - ANDROID_SDK_ROOT: Android SDK
+# - ANDROID_NDK_ROOT: Android NDK
 # - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
@@ -30,28 +31,28 @@
 # 'lite' : with GStreamer core plugins
 # 'single' : no plugins, single-shot only
 # 'internal' : no plugins, single-shot only, disable SNAP and tf-lite
-build_type='all'
+build_type="all"
 
-nnstreamer_api_option='all'
-include_assets='no'
+nnstreamer_api_option="all"
+include_assets="no"
 
-# Set target ABI ('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64')
-target_abi='arm64-v8a'
+# Set target ABI ('armeabi-v7a', 'arm64-v8a')
+target_abi="arm64-v8a"
 
 # Run instrumentation test after build procedure is done
-run_test='no'
+run_test="no"
 
 # Variables to release library (GROUP:ARTIFACT:VERSION)
-release_bintray='no'
+release_bintray="no"
 
 # Enable SNAP
-enable_snap='yes'
+enable_snap="yes"
 
 # Enable tensorflow-lite
-enable_tflite='yes'
+enable_tflite="yes"
 
-# Set tensorflow-lite version (available: 1.9 and 1.13)
-nnstreamer_tf_lite_ver='1.13'
+# Set tensorflow-lite version (available: 1.9/1.13.1/1.15.2)
+nnstreamer_tf_lite_ver="1.15.2"
 
 # Parse args
 for arg in "$@"; do
@@ -61,7 +62,7 @@ for arg in "$@"; do
             ;;
         --target_abi=*)
             target_abi=${arg#*=}
-            if [ $target_abi != 'armeabi-v7a' ] && [ $target_abi != 'arm64-v8a' ]; then
+            if [ $target_abi != "armeabi-v7a" ] && [ $target_abi != "arm64-v8a" ]; then
                 echo "Unknown target ABI." && exit 1
             fi
             ;;
@@ -86,6 +87,15 @@ for arg in "$@"; do
         --result_dir=*)
             result_dir=${arg#*=}
             ;;
+        --gstreamer_dir=*)
+            gstreamer_dir=${arg#*=}
+            ;;
+        --android_sdk_dir=*)
+            android_sdk_dir=${arg#*=}
+            ;;
+        --android_ndk_dir=*)
+            android_ndk_dir=${arg#*=}
+            ;;
         --enable_snap=*)
             enable_snap=${arg#*=}
             ;;
@@ -96,29 +106,29 @@ for arg in "$@"; do
 done
 
 # Check build type
-if [[ $build_type == 'single' ]]; then
-    nnstreamer_api_option='single'
-elif [[ $build_type == 'lite' ]]; then
-    nnstreamer_api_option='lite'
-elif [[ $build_type == 'internal' ]]; then
-    nnstreamer_api_option='single'
+if [[ $build_type == "single" ]]; then
+    nnstreamer_api_option="single"
+elif [[ $build_type == "lite" ]]; then
+    nnstreamer_api_option="lite"
+elif [[ $build_type == "internal" ]]; then
+    nnstreamer_api_option="single"
 
-    enable_snap='no'
-    enable_tflite='no'
+    enable_snap="no"
+    enable_tflite="no"
 
-    target_abi='arm64-v8a'
-elif [[ $build_type != 'all' ]]; then
+    target_abi="arm64-v8a"
+elif [[ $build_type != "all" ]]; then
     echo "Failed, unknown build type $build_type." && exit 1
 fi
 
-if [[ $enable_snap == 'yes' ]]; then
+if [[ $enable_snap == "yes" ]]; then
     [ -z "$SNAP_DIRECTORY" ] && echo "Need to set SNAP_DIRECTORY, to build sub-plugin for SNAP." && exit 1
-    [ $target_abi != 'arm64-v8a' ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNAP." && exit 1
+    [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNAP." && exit 1
 
     echo "Build with SNAP: $SNAP_DIRECTORY"
 fi
 
-if [[ $release_bintray == 'yes' ]]; then
+if [[ $release_bintray == "yes" ]]; then
     [ -z "$release_version" ] && echo "Set release version." && exit 1
     [ -z "$bintray_user_name" ] || [ -z "$bintray_user_key" ] && echo "Set user info to release." && exit 1
 
@@ -128,45 +138,51 @@ fi
 # Set library name
 nnstreamer_lib_name="nnstreamer"
 
-if [[ $build_type != 'all' ]]; then
+if [[ $build_type != "all" ]]; then
     nnstreamer_lib_name="$nnstreamer_lib_name-$build_type"
 fi
 
 echo "NNStreamer library name: $nnstreamer_lib_name"
 
-# Function to check if a package is installed
-function check_package() {
-    which "$1" 2>/dev/null || {
-        echo "Need to install $1."
-        exit 1
-    }
-}
-
-# Check required packages
-check_package svn
-check_package sed
-check_package zip
-
 # Android SDK (Set your own path)
-[ -z "$ANDROID_HOME" ] && echo "Need to set ANDROID_HOME." && exit 1
+if [[ -z "$android_sdk_dir" ]]; then
+    [ -z "$ANDROID_SDK_ROOT" ] && echo "Need to set ANDROID_SDK_ROOT." && exit 1
+    android_sdk_dir=$ANDROID_SDK_ROOT
+fi
 
-echo "Android SDK: $ANDROID_HOME"
+if [[ -z "$android_ndk_dir" ]]; then
+    [ -z "$ANDROID_NDK_ROOT" ] && echo "Need to set ANDROID_NDK_ROOT." && exit 1
+    android_ndk_dir=$ANDROID_NDK_ROOT
+fi
+
+echo "Android SDK: $android_sdk_dir"
+echo "Android NDK: $android_ndk_dir"
 
 # GStreamer prebuilt libraries for Android
 # Download from https://gstreamer.freedesktop.org/data/pkg/android/
-[ -z "$GSTREAMER_ROOT_ANDROID" ] && echo "Need to set GSTREAMER_ROOT_ANDROID." && exit 1
+if [[ -z "$gstreamer_dir" ]]; then
+    [ -z "$GSTREAMER_ROOT_ANDROID" ] && echo "Need to set GSTREAMER_ROOT_ANDROID." && exit 1
+    gstreamer_dir=$GSTREAMER_ROOT_ANDROID
+fi
 
-echo "GStreamer binaries: $GSTREAMER_ROOT_ANDROID"
+echo "GStreamer binaries: $gstreamer_dir"
 
 # NNStreamer root directory
-if [[ -z $nnstreamer_dir ]]; then
+if [[ -z "$nnstreamer_dir" ]]; then
     [ -z "$NNSTREAMER_ROOT" ] && echo "Need to set NNSTREAMER_ROOT." && exit 1
     nnstreamer_dir=$NNSTREAMER_ROOT
 fi
 
 echo "NNStreamer root directory: $nnstreamer_dir"
 
-echo "Start to build NNStreamer library for Android."
+# Build result directory
+if [[ -z "$result_dir" ]]; then
+    result_dir=$nnstreamer_dir/android_lib
+fi
+
+mkdir -p $result_dir
+
+echo "Start to build NNStreamer library for Android (build $build_type)"
 pushd $nnstreamer_dir
 
 # Make directory to build NNStreamer library
@@ -176,7 +192,11 @@ mkdir -p build_android_lib
 cp -r ./api/android/* ./build_android_lib
 
 # Get the prebuilt libraries and build-script
+mkdir -p build_android_lib/external
+
 svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./build_android_lib
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz ./build_android_lib/external
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/jni/Android-nnstreamer-prebuilt.mk ./build_android_lib/external
 
 pushd ./build_android_lib
 
@@ -186,26 +206,32 @@ sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters '$ta
 # Update API build option
 sed -i "s|NNSTREAMER_API_OPTION := all|NNSTREAMER_API_OPTION := $nnstreamer_api_option|" api/src/main/jni/Android.mk
 
-if [[ $include_assets == 'yes' ]]; then
+if [[ $include_assets == "yes" ]]; then
     sed -i "s|GSTREAMER_INCLUDE_FONTS := no|GSTREAMER_INCLUDE_FONTS := yes|" api/src/main/jni/Android.mk
     sed -i "s|GSTREAMER_INCLUDE_CA_CERTIFICATES := no|GSTREAMER_INCLUDE_CA_CERTIFICATES := yes|" api/src/main/jni/Android.mk
 fi
 
+# Update NNStreamer, GStreamer and Android SDK
+sed -i "s|nnstreamerRoot=nnstreamer-path|nnstreamerRoot=$nnstreamer_dir|" gradle.properties
+sed -i "s|gstAndroidRoot=gstreamer-path|gstAndroidRoot=$gstreamer_dir|" gradle.properties
+sed -i "s|ndk.dir=ndk-path|ndk.dir=$android_ndk_dir|" local.properties
+sed -i "s|sdk.dir=sdk-path|sdk.dir=$android_sdk_dir|" local.properties
+
 # Update SNAP option
-if [[ $enable_snap == 'yes' ]]; then
-    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" ext-files/jni/Android-nnstreamer-prebuilt.mk
+if [[ $enable_snap == "yes" ]]; then
+    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
     cp -r $SNAP_DIRECTORY/* api/src/main/jni
 fi
 
 # Update tf-lite option
-if [[ $enable_tflite == 'yes' ]]; then
+if [[ $enable_tflite == "yes" ]]; then
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
-    tar xJf ./ext-files/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
+    tar xJf ./external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
 fi
 
 # Add dependency for release
-if [[ $release_bintray == 'yes' ]]; then
+if [[ $release_bintray == "yes" ]]; then
     sed -i "s|// add dependency (bintray)|classpath 'com.novoda:bintray-release:0.9.1'|" build.gradle
 
     sed -i "s|// add plugin (bintray)|apply plugin: 'com.novoda.bintray-release'\n\
@@ -224,7 +250,7 @@ publish {\n\
 fi
 
 # If build option is single-shot only, remove unnecessary files.
-if [[ $nnstreamer_api_option == 'single' ]]; then
+if [[ $nnstreamer_api_option == "single" ]]; then
     rm ./api/src/main/java/org/nnsuite/nnstreamer/CustomFilter.java
     rm ./api/src/main/java/org/nnsuite/nnstreamer/Pipeline.java
     rm ./api/src/androidTest/java/org/nnsuite/nnstreamer/APITestCustomFilter.java
@@ -235,22 +261,15 @@ echo "Starting gradle build for Android library."
 
 # Build Android library.
 chmod +x gradlew
-./gradlew api:build
+sh ./gradlew api:build
 
 # Check if build procedure is done.
 nnstreamer_android_api_lib=./api/build/outputs/aar/api-release.aar
 
-result=1
-if [[ -e $nnstreamer_android_api_lib ]]; then
-    if [[ -z $result_dir ]]; then
-        result_dir=../android_lib
-    fi
-    today=$(date '+%Y-%m-%d')
-    result=0
-
-    echo "Build procedure is done, copy NNStreamer library to $result_dir directory."
-    mkdir -p $result_dir
-    cp $nnstreamer_android_api_lib $result_dir/$nnstreamer_lib_name-$today.aar
+android_lib_build_res=1
+if [[ -e "$nnstreamer_android_api_lib" ]]; then
+    today=$(date "+%Y-%m-%d")
+    android_lib_build_res=0
 
     # Prepare native libraries and header files for C-API
     unzip $nnstreamer_android_api_lib -d aar_extracted
@@ -260,21 +279,21 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
     mkdir -p main/jni/nnstreamer/include
 
     # assets
-    if [[ $include_assets == 'yes' ]]; then
+    if [[ $include_assets == "yes" ]]; then
         mkdir -p main/assets
         cp -r aar_extracted/assets/* main/assets
     fi
 
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
-    cp ext-files/jni/Android-nnstreamer-prebuilt.mk main/jni
+    cp external/Android-nnstreamer-prebuilt.mk main/jni
     # header for C-API
     cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
 
     # header for plugin
-    if [[ $nnstreamer_api_option != 'single' ]]; then
+    if [[ $nnstreamer_api_option != "single" ]]; then
         cp $nnstreamer_dir/gst/nnstreamer/include/*.h main/jni/nnstreamer/include
         cp $nnstreamer_dir/gst/nnstreamer/include/*.hh main/jni/nnstreamer/include
         cp $nnstreamer_dir/ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh main/jni/nnstreamer/include
@@ -282,24 +301,48 @@ if [[ -e $nnstreamer_android_api_lib ]]; then
 
     nnstreamer_native_files="$nnstreamer_lib_name-native-$today.zip"
     zip -r $nnstreamer_native_files main
-    cp $nnstreamer_native_files $result_dir
 
-    rm -rf aar_extracted main
+    # Prepare static libs in ndk build
+    mkdir -p ndk_static/debug
+    mkdir -p ndk_static/release
+
+    cp api/build/intermediates/ndkBuild/debug/obj/local/$target_abi/*.a ndk_static/debug
+    cp api/build/intermediates/ndkBuild/release/obj/local/$target_abi/*.a ndk_static/release
+
+    nnstreamer_static_libs="$nnstreamer_lib_name-static-libs-$today.zip"
+    zip -r $nnstreamer_static_libs ndk_static
+
+    rm -rf aar_extracted main ndk_static
 
     # Upload to jcenter
-    if [[ $release_bintray == 'yes' ]]; then
+    if [[ $release_bintray == "yes" ]]; then
         echo "Upload NNStreamer library to Bintray."
-        ./gradlew api:bintrayUpload -PbintrayUser=$bintray_user_name -PbintrayKey=$bintray_user_key -PdryRun=false
+        sh ./gradlew api:bintrayUpload -PbintrayUser=$bintray_user_name -PbintrayKey=$bintray_user_key -PdryRun=false
     fi
 
     # Run instrumentation test
-    if [[ $run_test == 'yes' ]]; then
+    if [[ $run_test == "yes" ]]; then
         echo "Run instrumentation test."
-        ./gradlew api:connectedCheck
+        sh ./gradlew api:connectedCheck
 
         test_result="$nnstreamer_lib_name-test-$today.zip"
         zip -r $test_result api/build/reports
         cp $test_result $result_dir
+
+        test_summary=$(sed -n "/<div class=\"percent\">/p" api/build/reports/androidTests/connected/index.html)
+        if [[ $test_summary != "<div class=\"percent\">100%</div>" ]]; then
+            echo "Instrumentation test failed."
+            android_lib_build_res=1
+        fi
+    fi
+
+    # Copy build result
+    if [[ $android_lib_build_res == 0 ]]; then
+        echo "Build procedure is done, copy NNStreamer library to $result_dir directory."
+
+        cp $nnstreamer_android_api_lib $result_dir/$nnstreamer_lib_name-$today.aar
+        cp $nnstreamer_native_files $result_dir
+        cp $nnstreamer_static_libs $result_dir
     fi
 else
     echo "Failed to build NNStreamer library."
@@ -313,4 +356,4 @@ rm -rf build_android_lib
 popd
 
 # exit with success/failure status
-exit $result
+exit $android_lib_build_res
