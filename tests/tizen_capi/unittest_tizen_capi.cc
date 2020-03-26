@@ -1754,7 +1754,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -1851,7 +1851,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1934,7 +1934,7 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   /** Initial run to warm up the cache */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -1945,7 +1945,7 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
         ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
     end = g_get_real_time();
     open_duration += end - start;
-    EXPECT_EQ (status, ML_ERROR_NONE);
+    ASSERT_EQ (status, ML_ERROR_NONE);
 
     status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
     EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
@@ -2024,7 +2024,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   input = output = NULL;
 
@@ -2144,7 +2144,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -2436,7 +2436,7 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   /* Successfully opened unknown fw type (tf-lite) */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2484,7 +2484,7 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   /* open with input tensor info (1:1:1:1 > 5:1:1:1) */
   status = ml_single_open (&single, test_model, in_info, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* validate output info */
   status = ml_single_get_output_info (single, &out_info);
@@ -2540,6 +2540,8 @@ single_shot_loop_test (void *arg)
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   if (ss_data->expect) {
     EXPECT_EQ (status, ML_ERROR_NONE);
+    if (status != ML_ERROR_NONE)
+      return NULL;
   }
   ss_data->single = &single;
 
@@ -2626,7 +2628,7 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* set timeout 5 ms */
   status = ml_single_set_timeout (single, 5);
@@ -2809,7 +2811,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_set_input_info (single, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
@@ -2863,7 +2865,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2922,7 +2924,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_set_input_info (single, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
@@ -3017,7 +3019,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3146,7 +3148,7 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* get layout */
   status = ml_single_get_property (single, "inputlayout", &prop_value);
@@ -3218,7 +3220,7 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* get invalid property */
   status = ml_single_get_property (single, "unknown_prop", &prop_value);
@@ -3287,7 +3289,7 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* failed to set dimension */
   status = ml_single_set_property (single, "input", "3:4:4:1");
@@ -3402,7 +3404,7 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_set_property (single, "input", "5:1:1:1");
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3518,7 +3520,7 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -3670,7 +3672,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -3819,7 +3821,7 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -4021,7 +4023,7 @@ TEST (nnstreamer_capi_singleshot, invoke_08_n)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   input = output = NULL;
 
@@ -4105,7 +4107,7 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   input = output = NULL;
 
@@ -4193,7 +4195,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* Run the model once with the original input/output info */
   input = output = NULL;
@@ -4327,7 +4329,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4468,7 +4470,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4610,7 +4612,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
