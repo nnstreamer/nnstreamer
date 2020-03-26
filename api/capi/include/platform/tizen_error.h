@@ -24,6 +24,14 @@
 #define __NTZN_TIZEN_ERROR_H__
 
 #include <errno.h>
+
+/**
+ @ref: https://gitlab.freedesktop.org/dude/gst-plugins-base/commit/89095e7f91cfbfe625ec2522da49053f1f98baf8
+ */
+#if !defined(ESTRPIPE)
+#define ESTRPIPE EPIPE
+#endif /* !defined(ESTRPIPE) */
+
 #define TIZEN_ERROR_NONE (0)
 #define TIZEN_ERROR_INVALID_PARAMETER (-EINVAL)
 #define TIZEN_ERROR_STREAMS_PIPE (-ESTRPIPE)
