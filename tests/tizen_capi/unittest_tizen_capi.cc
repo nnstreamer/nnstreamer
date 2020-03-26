@@ -4345,12 +4345,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 1U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status =
       ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
@@ -4366,12 +4366,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 1U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
@@ -4396,12 +4396,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 5U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status =
       ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
@@ -4421,12 +4421,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 5U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4486,12 +4486,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 1U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status =
       ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
@@ -4507,12 +4507,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 1U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
@@ -4542,12 +4542,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 5U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status =
       ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
@@ -4567,12 +4567,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
   ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1);
+  EXPECT_EQ (tmp_count, 1U);
   EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5);
-  EXPECT_EQ (tmp_dim[1], 1);
-  EXPECT_EQ (tmp_dim[2], 1);
-  EXPECT_EQ (tmp_dim[3], 1);
+  EXPECT_EQ (tmp_dim[0], 5U);
+  EXPECT_EQ (tmp_dim[1], 1U);
+  EXPECT_EQ (tmp_dim[2], 1U);
+  EXPECT_EQ (tmp_dim[3], 1U);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
