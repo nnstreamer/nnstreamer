@@ -54,15 +54,26 @@ capi_deps = [
 if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
 
-  tizen_deps = [
-    dependency('dpm'),
-    dependency('mm-resource-manager'),
-    dependency('mm-camcorder'),
-    dependency('capi-privacy-privilege-manager'),
-    dependency('capi-base-common'),
-    dependency('capi-system-info'),
-    dependency('dlog')
-  ]
+  if (tizenVmajor == 4)
+    tizen_deps = [
+      dependency('dpm'),
+      dependency('mm-camcorder'),
+      dependency('capi-privacy-privilege-manager'),
+      dependency('capi-base-common'),
+      dependency('capi-system-info'),
+      dependency('dlog')
+    ]
+  else
+    tizen_deps = [
+      dependency('dpm'),
+      dependency('mm-resource-manager'),
+      dependency('mm-camcorder'),
+      dependency('capi-privacy-privilege-manager'),
+      dependency('capi-base-common'),
+      dependency('capi-system-info'),
+      dependency('dlog')
+    ]
+  endif
 
   capi_deps += tizen_deps
 endif
