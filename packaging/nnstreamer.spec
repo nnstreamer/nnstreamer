@@ -5,7 +5,28 @@
 %define		tensorflow_support	0
 %define		tensorflow_lite_support	1
 %define		armnn_support 0
+
+%if 0%{tizen_version_major} >= 5
 %define		python_support 1
+%else
+%define		python_support 0
+%endif
+
+%if 0%{tizen_version_major} >= 6
+%define		mvncsdk2_support 1
+
+%ifarch aarch64 x86_64
+# This supports 64bit systems only
+%define		edgetpu_support 1
+%else
+%define		edgetpu_support 0
+%endif
+
+%else
+%define		mvncsdk2_support 0
+%define		edgetpu_support 0
+%endif
+
 %define		pytorch_support 0
 %define		caffe2_support 0
 
@@ -79,8 +100,7 @@ BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
 %endif
 
-%ifarch aarch64 x86_64
-# This supports 64bit systems only
+%if 0%{?edgetpu_support}
 BuildRequires:	pkgconfig(edgetpu)
 %endif
 
@@ -90,6 +110,9 @@ BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
 %endif
 
+%if 0%{mvncsdk2_support}
+BuildRequires:	pkgconfig(libmvnc)
+%endif
 %if %{with tizen}
 BuildRequires:	pkgconfig(dpm)
 BuildRequires:	pkgconfig(mm-resource-manager)
@@ -98,7 +121,6 @@ BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
-BuildRequires:	pkgconfig(libmvnc)
 BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	gst-plugins-base-devel
 # For tizen sensor support
@@ -263,7 +285,7 @@ Requires:	capi-system-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
 %endif # tizen
 
-%ifarch aarch64 x86_64
+%if 0%{?edgetpu_support}
 %package edgetpu
 Summary:	NNStreamer plugin for Google-Coral Edge TPU
 Requires:	libedgetpu1
@@ -279,10 +301,13 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_nnfw_runtime -Denable-nnfw-runtime=false
 %define element_restriction -Denable-element-restriction=false
 
+%if 0%{mvncsdk2_support}
+%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
+%endif
+
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
 %define enable_api -Denable-capi=true
-%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
 %ifarch %arm aarch64
 %define enable_nnfw_runtime -Denable-nnfw-runtime=true
 %endif
@@ -333,7 +358,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %endif
 
 # Support edgetpu
-%ifarch aarch64 x86_64
+%if 0%{?edgetpu_support}
 %define enable_edgetpu -Denable-edgetpu=true
 %else
 %define enable_edgetpu -Denable-edgetpu=false
@@ -572,7 +597,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
 %{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
-%ifarch aarch64 x86_64
+%if 0%{?edgetpu_support}
 %files edgetpu
 %manifest nnstreamer.manifest
 %license LICENSE
