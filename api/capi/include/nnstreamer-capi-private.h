@@ -45,8 +45,17 @@
 
 #define set_feature_state(...) ml_tizen_set_feature_state(__VA_ARGS__)
 #define convert_tizen_element(...) ml_tizen_convert_element(__VA_ARGS__)
+
+#if (TIZENVERSION >= 5) && (TIZENVERSION < 9999)
 #define get_tizen_resource(...) ml_tizen_get_resource(__VA_ARGS__)
 #define release_tizen_resource(...) ml_tizen_release_resource(__VA_ARGS__)
+#elif (TIZENVERSION < 5)
+#define get_tizen_resource(...) (0)
+#define release_tizen_resource(...) do { } while (0)
+#else
+#error Tizen version is not defined.
+#endif
+
 #else
 #define check_feature_state()
 #define set_feature_state(...)

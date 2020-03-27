@@ -23,6 +23,10 @@ if get_option('enable-tizen')
   # Pass __TIZEN__ to the compiler
   add_project_arguments('-D__TIZEN__=1', language: ['c', 'cpp'])
   build_platform = 'tizen'
+
+  tizenVmajor = get_option('tizen-version-major')
+  add_project_arguments('-DTIZENVERSION='+tizenVmajor.to_string(), language: ['c', 'cpp'])
+
 elif not meson.is_cross_build()
   if cc.get_id() == 'clang' and cxx.get_id() == 'clang'
     if build_machine.system() == 'darwin'

@@ -65,7 +65,9 @@ BuildRequires:	meson >= 0.50.0
 
 # To run test cases, we need gst plugins
 BuildRequires:	gst-plugins-good
+%if 0%{tizen_version_major} >= 5
 BuildRequires:	gst-plugins-good-extra
+%endif
 BuildRequires:	gst-plugins-base
 # and gtest
 BuildRequires:	gtest-devel
@@ -115,7 +117,9 @@ BuildRequires:	pkgconfig(libmvnc)
 %endif
 %if %{with tizen}
 BuildRequires:	pkgconfig(dpm)
+%if 0%{tizen_version_major} >= 5
 BuildRequires:	pkgconfig(mm-resource-manager)
+%endif
 BuildRequires:	pkgconfig(mm-camcorder)
 BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 BuildRequires:	pkgconfig(capi-system-info)
@@ -306,7 +310,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %endif
 
 %if %{with tizen}
-%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true
+%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
 %ifarch %arm aarch64
 %define enable_nnfw_runtime -Denable-nnfw-runtime=true
