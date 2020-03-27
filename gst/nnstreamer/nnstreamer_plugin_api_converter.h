@@ -48,7 +48,7 @@ typedef struct _GstTensorConverterProperties
 /**
  * @brief Converter's subplugin implementation.
  */
-struct _NNStreamerExternalConverter {
+typefef struct _NNStreamerExternalConverter {
   const char *media_type_name;
 
   /** 1. chain func, data handling. */
@@ -79,7 +79,7 @@ struct _NNStreamerExternalConverter {
        * @param[in] config The config of output tensor/tensors
        * @param[in/out] st The gstcap of input to be filtered with config.
        */
-};
+} NNStreamerExternalConverter;
 
 
 /**
