@@ -49,9 +49,15 @@
 #if (TIZENVERSION >= 5) && (TIZENVERSION < 9999)
 #define get_tizen_resource(...) ml_tizen_get_resource(__VA_ARGS__)
 #define release_tizen_resource(...) ml_tizen_release_resource(__VA_ARGS__)
+#define TIZEN5PLUS 1
+
 #elif (TIZENVERSION < 5)
 #define get_tizen_resource(...) (0)
 #define release_tizen_resource(...) do { } while (0)
+typedef void * mm_resource_manager_h;
+typedef enum { MM_RESOURCE_MANAGER_RES_TYPE_MAX } mm_resource_manager_res_type_e;
+#define TIZEN5PLUS 0
+
 #else
 #error Tizen version is not defined.
 #endif
@@ -62,6 +68,7 @@
 #define convert_tizen_element(...) ML_ERROR_NONE
 #define get_tizen_resource(...) ML_ERROR_NONE
 #define release_tizen_resource(...)
+#define TIZEN5PLUS 0
 #endif
 
 #ifdef __cplusplus
