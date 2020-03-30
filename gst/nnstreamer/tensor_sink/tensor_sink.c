@@ -100,10 +100,12 @@ enum
 /**
  * @brief Template for sink pad.
  */
+#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT));
+#endif
 
 /**
  * @brief Variable for signal ids.
@@ -236,7 +238,22 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
       "Sink element to handle tensor stream", "Samsung Electronics Co., Ltd.");
 
   /** pad template */
+#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
   gst_element_class_add_static_pad_template (element_class, &sink_template);
+#elif (GST_VERSION_MAJOR == 1)  /* 1.0 ~ 1.8 */
+  {
+    GstPadTemplate *pad_template;
+    GstCaps *pad_caps;
+    pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
+        GST_TENSORS_CAP_DEFAULT);
+    pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+        pad_caps);
+    gst_element_class_add_pad_template (element_class, pad_template);
+    gst_caps_unref (pad_caps);
+  }
+#else
+#error We support GStreamer 1.x only.
+#endif
 
   /** GstBaseSink methods */
   bsink_class->event = GST_DEBUG_FUNCPTR (gst_tensor_sink_event);
