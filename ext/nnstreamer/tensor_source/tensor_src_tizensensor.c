@@ -150,12 +150,14 @@ enum
  * @brief Template for src pad.
  * @todo Narrow down allowed tensors/tensor.
  */
+#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8) /* >= 1.8 */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; "
         "other/tensors, num_tensors = 1, "
         "framerate = " GST_TENSOR_RATE_RANGE));
+#endif
 
 /** GObject method implementation */
 static void gst_tensor_src_tizensensor_set_property (GObject * object,
@@ -403,7 +405,22 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
           DEFAULT_PROP_FREQ_N, DEFAULT_PROP_FREQ_D,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8) /* >= 1.8 */
   gst_element_class_add_static_pad_template (gstelement_class, &src_factory);
+#elif (GST_VERSION_MAJOR == 1) /* 1.0 ~ 1.8 */
+  {
+    GstPadTemplate *pad_template;
+    GstCaps *pad_caps;
+    pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT
+        "; other/tensors, num_tensors = 1, framerate = " GST_TENSOR_RATE_RANGE);
+    pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+        pad_caps);
+    gst_element_class_add_pad_template (gstelement_class, pad_template);
+    gst_caps_unref (pad_caps);
+  }
+#else
+#error We support GStreamer 1.x only.
+#endif
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorSrcTizenSensor", "Source/Tizen-Sensor-FW/Tensor",
       "Creates tensor(s) stream from a given Tizen sensour framework node",
