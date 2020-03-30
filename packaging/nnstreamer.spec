@@ -382,12 +382,12 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
     ln -s ext/nnstreamer/tensor_source/*.so .
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
-    LD_LIBRARY_PATH=./tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+    LD_LIBRARY_PATH=./tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %ifarch aarch64 x86_64
     LD_LIBRARY_PATH=./tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif #ifarch 64
