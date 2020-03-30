@@ -30,11 +30,13 @@
 #include <system_info.h>
 #include <restriction.h>        /* device policy manager */
 #include <privacy_privilege_manager.h>
+#include "nnstreamer-capi-private.h"
+#if TIZEN5PLUS
 #include <mm_resource_manager.h>
+#endif
 #include <mm_camcorder.h>
 
 #include "nnstreamer.h"
-#include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
 
 /* Tizen multimedia framework */
@@ -248,6 +250,8 @@ ml_tizen_get_feature_enabled (void)
   return ML_ERROR_NONE;
 }
 
+/** The following functions are either not used or supported in Tizen 4 */
+#if TIZEN5PLUS
 /**
  * @brief Function to check tizen privilege.
  */
@@ -879,6 +883,35 @@ mm_error:
 
   return status;
 }
+#else
+/**
+ * @brief A dummy function for Tizen 4.0
+ */
+static void
+ml_tizen_mm_res_release (gpointer handle, gboolean destroy)
+{
+}
+
+/**
+ * @brief A dummy function for Tizen 4.0
+ */
+static int
+ml_tizen_mm_res_acquire (ml_pipeline_h pipe,
+    mm_resource_manager_res_type_e res_type)
+{
+  return ML_ERROR_NOT_SUPPORTED;
+}
+
+/**
+ * @brief A dummy function for Tizen 4.0
+ */
+static int
+ml_tizen_mm_convert_element (ml_pipeline_h pipe, gchar ** result,
+    gboolean is_internal)
+{
+  return ML_ERROR_NOT_SUPPORTED;
+}
+#endif
 
 /**
  * @brief Releases the resource handle of Tizen.
