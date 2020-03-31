@@ -22,7 +22,7 @@ option('restricted-elements', type: 'string', value: '')
 option('enable-tflite-nnapi-delegation', type: 'boolean', value: false) # true to enable tensorflow-lite to delegate nnapi interpretation to nnfw backend in tizen
 option('enable-nnfw-runtime', type: 'boolean', value: false) # true to enable nnfw tensor filter element
 option('enable-cppfilter', type: 'boolean', value: true) # Allows C++ custom filters
-option('enable-filter-cpp-class', type: 'boolean', value: false) # Allows to accept C++ classes as filter subplugin implementation.
+option('enable-filter-cpp-class', type: 'boolean', value: true) # Allows to accept C++ classes as filter subplugin implementation.
 option('enable-tizen-sensor', type: 'boolean', value: false)
 option('enable-edgetpu', type: 'boolean', value: false)
 option('enable-armnn', type: 'boolean', value: false)
