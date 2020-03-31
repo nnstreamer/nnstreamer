@@ -17,7 +17,7 @@
  * @file	nnstreamer_subplugin.h
  * @date	27 Nov 2018
  * @brief	Subplugin Manager for NNStreamer
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

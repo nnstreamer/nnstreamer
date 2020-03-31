@@ -17,7 +17,7 @@
  * @file	tensor_filter_cpp.cc
  * @date	26 Sep 2019
  * @brief	Tensor_filter subplugin for C++ custom filters.
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

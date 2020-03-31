@@ -29,7 +29,7 @@ import org.freedesktop.gstreamer.GStreamer;
  * Note that, to open a machine learning model in the storage,
  * the permission <code>Manifest.permission.READ_EXTERNAL_STORAGE</code> is required before constructing the pipeline.
  * <br>
- * See <a href="https://github.com/nnsuite/nnstreamer">https://github.com/nnsuite/nnstreamer</a> for the details.
+ * See <a href="https://github.com/nnstreamer/nnstreamer">https://github.com/nnstreamer/nnstreamer</a> for the details.
  */
 public final class NNStreamer {
     /**

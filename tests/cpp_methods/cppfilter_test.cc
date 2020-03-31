@@ -2,7 +2,7 @@
  * @file        cppfilter_test.cc
  * @date        15 Jan 2019
  * @brief       Unit test cases for tensor_filter::cpp
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  */

@@ -39,7 +39,7 @@
  * @date 20 Nov 2018
  * @brief imported from font.c of https://courses.cs.washington.edu/courses/cse457/98a/tech/OpenGL/font.c
  *        and modified to support tensordec-boundingbox.c
- * @see https://github.com/nnsuite/nnstreamer
+ * @see https://github.com/nnstreamer/nnstreamer
  * @see https://courses.cs.washington.edu/courses/cse457/98a/tech/OpenGL/font.c
  * @bug No known bugs.
  * @author Silicon Graphics Inc. (imported and modified by MyungJoo Ham <myungjoo.ham@samsung.com>)

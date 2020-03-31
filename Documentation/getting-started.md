@@ -57,7 +57,7 @@ Refer to [PbuilderHowto](https://wiki.ubuntu.com/PbuilderHowto) for more about p
 ```bash
 $ git clone https://github.com/myungjoo/SSAT ssat
 $ git clone https://git.tizen.org/cgit/platform/upstream/tensorflow
-$ git clone https://github.com/nnsuite/nnstreamer
+$ git clone https://github.com/nnstreamer/nnstreamer
 ```
 
 Alternatively, you may simply download binary packages from PPA (ssat and tensorflow):

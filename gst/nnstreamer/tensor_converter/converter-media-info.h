@@ -17,7 +17,7 @@
  * @file  converter-media-info.h
  * @date  26 Mar 2019
  * @brief Define collection of media type and functions to parse media info for the case of no audio/video support
- * @see https://github.com/nnsuite/nnstreamer
+ * @see https://github.com/nnstreamer/nnstreamer
  * @author  Jijoong Moon <jijoong.moon@samsung.com>
  * @bug No known bugs except for NYI items
  */

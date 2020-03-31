@@ -176,7 +176,7 @@ mkdir -p build_android_lib
 cp -r ./api/android/* ./build_android_lib
 
 # Get the prebuilt libraries and build-script
-svn --force export https://github.com/nnsuite/nnstreamer-android-resource/trunk/android_api ./build_android_lib
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./build_android_lib
 
 pushd ./build_android_lib
 
@@ -217,9 +217,9 @@ publish {\n\
     artifactId = '$nnstreamer_lib_name'\n\
     publishVersion = '$release_version'\n\
     desc = 'NNStreamer API for Android'\n\
-    website = 'https://github.com/nnsuite/nnstreamer'\n\
-    issueTracker = 'https://github.com/nnsuite/nnstreamer/issues'\n\
-    repository = 'https://github.com/nnsuite/nnstreamer.git'\n\
+    website = 'https://github.com/nnstreamer/nnstreamer'\n\
+    issueTracker = 'https://github.com/nnstreamer/nnstreamer/issues'\n\
+    repository = 'https://github.com/nnstreamer/nnstreamer.git'\n\
 }|" api/build.gradle
 fi
 

@@ -19,7 +19,7 @@
  * @file	tensor_src_iio.c
  * @date	27 Feb 2019
  * @brief	GStreamer plugin to capture sensor data as tensor(s)
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
  * @todo  support specific channels as input

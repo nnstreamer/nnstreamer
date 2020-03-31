@@ -16,7 +16,7 @@
  * @file	nnstreamer_conf.c
  * @date	26 Nov 2018
  * @brief	NNStreamer Configuration (conf file, env-var) Management.
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

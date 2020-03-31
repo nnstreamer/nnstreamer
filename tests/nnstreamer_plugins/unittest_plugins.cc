@@ -2,7 +2,7 @@
  * @file	unittest_plugins.cc
  * @date	7 November 2018
  * @brief	Unit test for nnstreamer plugins. (testcases to check data conversion or buffer transfer)
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs.
  */

@@ -19,7 +19,7 @@
  * @file   tensor_filter_tensorflow.cc
  * @date   02 Aug 2018
  * @brief  Tensorflow module for tensor_filter gstreamer plugin
- * @see    http://github.com/nnsuite/nnstreamer
+ * @see    http://github.com/nnstreamer/nnstreamer
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>
  * @author Jijoong Moon <jijoong.moon@samsung.com>
  * @bug    No known bugs except for NYI items

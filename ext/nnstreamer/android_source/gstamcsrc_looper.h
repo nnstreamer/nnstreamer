@@ -18,7 +18,7 @@
  * @file	  gstamcsrc_looper.h
  * @date	  19 May 2019
  * @brief   A looper thread to perform event messages between amcsrc and media codec
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Dongju Chae <dongju.chae@samsung.com>
  * @bug     No known bugs except for NYI items
  */

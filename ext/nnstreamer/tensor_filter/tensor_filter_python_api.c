@@ -17,7 +17,7 @@
  * @file	tensor_filter_python_api.c
  * @date	10 Apr 2019
  * @brief	python helper structure for nnstreamer tensor_filter
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Dongju Chae <dongju.chae@samsung.com>
  * @bug		No known bugs except for NYI items
  */

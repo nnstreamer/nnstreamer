@@ -16,7 +16,7 @@
  * @file	tensor_filter_common.h
  * @date	28 Aug 2019
  * @brief	Common functions for various tensor_filters
- * @see	  http://github.com/nnsuite/nnstreamer
+ * @see	  http://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug	  No known bugs except for NYI items

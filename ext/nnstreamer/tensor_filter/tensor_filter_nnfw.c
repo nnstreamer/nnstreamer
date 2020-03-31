@@ -17,7 +17,7 @@
  * @file	tensor_filter_nnfw.c
  * @date	24 Sep 2019
  * @brief	Tizen-NNFW module for tensor_filter gstreamer plugin
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

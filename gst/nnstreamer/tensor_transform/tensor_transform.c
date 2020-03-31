@@ -19,7 +19,7 @@
  * @file	tensor_transform.c
  * @date	10 Jul 2018
  * @brief	GStreamer plugin to transform tensor dimension or type
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		This is NYI.
  *

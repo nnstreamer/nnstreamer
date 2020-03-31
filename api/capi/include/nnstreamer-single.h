@@ -16,7 +16,7 @@
  * @date 29 March 2019
  * @brief NNStreamer single-shot invocation C-API Header.
  *        This allows to invoke a neural network model directly.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  *

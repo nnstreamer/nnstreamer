@@ -17,7 +17,7 @@
  * @file  nnstreamer_plugin_api_converter.h
  * @date  09 Dec 2019
  * @brief Mandatory APIs for NNStreamer Converter sub-plugins (Need Gst Devel)
- * @see https://github.com/nnsuite/nnstreamer
+ * @see https://github.com/nnstreamer/nnstreamer
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

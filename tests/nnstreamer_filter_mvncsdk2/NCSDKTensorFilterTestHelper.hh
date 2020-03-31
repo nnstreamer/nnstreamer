@@ -3,7 +3,7 @@
  * @date 8 Jan 2020
  * @author  Wook Song <wook16.song@samsung.com>
  * @brief Helper class for testing tensor_filter_mvncsdk2 without an actual device
- * @see https://github.com/nnsuite/nnstreamer
+ * @see https://github.com/nnstreamer/nnstreamer
  * @bug	No known bugs except for NYI items
  *
  *  Copyright 2020 Samsung Electronics

@@ -11,7 +11,7 @@
 # @todo Generate corresponding golden results
 # @author MyungJoo Ham <myungjoo.ham@samsung.com>
 # @author Jijoong Moon <jijoong.moon@samsung.com>
-# @url https://github.com/nnsuite/nnstreamer/issues/738
+# @url https://github.com/nnstreamer/nnstreamer/issues/738
 
 
 from __future__ import print_function

@@ -16,7 +16,7 @@
  * @file	tensor_filter_armnn.cc
  * @date	20 Nov 2019
  * @brief	ARM NN module for tensor_filter gstreamer plugin
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
  *

@@ -42,4 +42,4 @@ One "Always" sink pad exists. The capability of sink pad is ```other/tensor``` a
 $ gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_sink
 ```
 
-For more details, see the [examples](https://github.com/nnsuite/nnstreamer/tree/master/nnstreamer_example/example_sink) to handle the buffer from GstTensorSink.
+For more details, see the [examples](https://github.com/nnstreamer/nnstreamer/tree/master/nnstreamer_example/example_sink) to handle the buffer from GstTensorSink.

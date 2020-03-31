@@ -17,7 +17,7 @@
  * @file	tensor_src_tizensensor.c
  * @date	07 Nov 2019
  * @brief	GStreamer plugin to support Tizen sensor framework (sensord)
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  */
@@ -1307,4 +1307,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     nnstreamer_tizen_sensor,
     "nnstreamer Tizen sensor framework extension",
     gst_nnstreamer_tizen_sensor_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer");
+    "https://github.com/nnstreamer/nnstreamer");

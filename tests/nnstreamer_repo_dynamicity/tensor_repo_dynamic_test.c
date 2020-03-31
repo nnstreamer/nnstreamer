@@ -4,7 +4,7 @@
  * @file    tensor_repo_dynamic_test.c
  * @date    03 Dec 2018
  * @brief   test case to test tensor repo plugin dynamism
- * @see     https://github.com/nnsuite/nnstreamer
+ * @see     https://github.com/nnstreamer/nnstreamer
  * @author  Jijoong Moon <jijoong.moon@samsung.com>
  * @bug     No known bugs except NYI.
  *

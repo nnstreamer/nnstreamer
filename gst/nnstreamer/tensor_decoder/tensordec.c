@@ -19,7 +19,7 @@
  * @file        tensordec.c
  * @date        26 Mar 2018
  * @brief       GStreamer plugin to convert tensors (as a filter for other general neural network filters) to other media types
- * @see    	https://github.com/nnsuite/nnstreamer
+ * @see    	https://github.com/nnstreamer/nnstreamer
  * @author      Jijoong Moon <jijoong.moon@samsung.com>
  * @bug         gst_tensordec_transform_size () may be incorrect if direction is SINK.
  *

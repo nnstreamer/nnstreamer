@@ -17,7 +17,7 @@
  * @file	tensor_filter_edgetpu.c
  * @date	10 Dec 2019
  * @brief	Edge-TPU module for tensor_filter gstreamer plugin
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

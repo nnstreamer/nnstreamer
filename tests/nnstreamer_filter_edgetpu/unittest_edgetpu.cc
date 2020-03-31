@@ -2,7 +2,7 @@
  * @file        unittest_edgetpu.cpp
  * @date        16 Dec 2019
  * @brief       Unit test for tensor_filter::edgetpu.
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  */

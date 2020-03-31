@@ -15,7 +15,7 @@
  * @file nnstreamer-capi-util.c
  * @date 10 June 2019
  * @brief NNStreamer/Utilities C-API Wrapper.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

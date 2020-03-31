@@ -4,7 +4,7 @@
 - other/tensors
 - other/tensorsave (planned --> canceled)
 
-The findtype specifics: refer to the wiki ([other/tensorsave (canceled)](https://github.com/nnsuite/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind))
+The findtype specifics: refer to the wiki ([other/tensorsave (canceled)](https://github.com/nnstreamer/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind))
 
 Each frame of an other/tensor or other/tensors stream should have only ONE instance of other/tensor or other/tensors.
 
@@ -54,7 +54,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - ARMNN (stable)
   - WIP: Verisilicon-Vivante, SNAP (Exynos-NPU & Qualcomm-SNPE), ...
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
-  - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnsuite/nnstreamer-example/tree/master/templates)
+  - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/master/templates)
 - [tensor\_sink](../gst/nnstreamer/tensor_sink) (stable)
 - [tensor\_transform](../gst/nnstreamer/tensor_transform) (stable)
   - Supported features
@@ -83,8 +83,8 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_repo\_src](../gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_src\_iio](../gst/nnstreamer/tensor_source) (stable)
 - [tensor\_src\_tizensensor](../ext/nnstreamer/tensor_source) (stable)
-- [tensor\_ros\_sink](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
-- [tensor\_ros\_src](https://github.com/nnsuite/nnstreamer-ros) (stable for ROS1)
+- [tensor\_ros\_sink](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
+- [tensor\_ros\_src](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
 - tensor\_save and tensor\_load canceled.
 
 
@@ -101,9 +101,9 @@ Note that test elements in /tests/ are not elements for applications. They exist
     - Single API: Tizen 5.5 M2
     - Pipeline API: Tizen 6.0 M1
 - JAVA-API (Android)
-  - [Android sample app](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
+  - [Android sample app](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
   - [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
-  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnsuite/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
+  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 - Web API (HTML5) Planned (Tizen 7.0?)
 
 # Other Components
@@ -118,7 +118,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - Used [SSAT](https://github.com/myungjoo/SSAT).
   - Each element and feature is required to register its testcases at [test case directory](../tests/)
 - Examples: Example GStreamer applications using NNStreamer and example sub-plugins for NNStreamer. The binaries from this directory is not supposed to be packaged with the main binary package.
-  - [Example GStreamer applications](https://github.com/nnsuite/nnstreamer-example)
+  - [Example GStreamer applications](https://github.com/nnstreamer/nnstreamer-example)
   - [Example sub-plugins](../nnstreamer_example)
 - Packaing for Distros / SW-Platform Compatibility.
   - [Tizen](../packaging) (stable): RPM packaging for Tizen 5.0+. It is expected to be compatible with other RPM-based distros; however, it is not tested or guaranteed.

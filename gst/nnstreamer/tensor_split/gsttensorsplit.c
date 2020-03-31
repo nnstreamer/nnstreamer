@@ -19,7 +19,7 @@
  * @file	gsttensorsplit.c
  * @date	27 Aug 2018
  * @brief	GStreamer plugin to split tensor (as a filter for other general neural network filters)
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

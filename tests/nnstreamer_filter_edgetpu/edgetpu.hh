@@ -2,7 +2,7 @@
  * @file        edgetpu.hh
  * @date        16 Dec 2019
  * @brief       Dummy implementation of tflite and edgetpu for unit tests.
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  *

@@ -15,7 +15,7 @@
  * @file tizen_error.h
  * @date 24 October 2019
  * @brief C-API internal header emulating tizen_error.h for Non-Tizen platforms
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author Wook Song <wook16.song@samsung.com>
  * @bug No known bugs except for NYI items
  */

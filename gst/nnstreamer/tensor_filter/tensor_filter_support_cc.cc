@@ -17,7 +17,7 @@
  * @file	tensor_filter_support_cc.cc
  * @date	22 Jan 2020
  * @brief	Base class for tensor_filter subplugins of C++ classes.
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

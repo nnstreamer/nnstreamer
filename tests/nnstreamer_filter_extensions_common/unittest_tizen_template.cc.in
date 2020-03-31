@@ -2,7 +2,7 @@
  * @file        unittest_tizen_@EXT_NAME@.cc
  * @date        19 Dec 2019
  * @brief       Failure Unit tests for tensor filter extension (@EXT_NAME@).
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug         No known bugs
  * @todo        Add support for GstTensorFilterFramework V1

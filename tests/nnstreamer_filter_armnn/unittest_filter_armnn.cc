@@ -2,7 +2,7 @@
  * @file        unittest_filter_armnn.cc
  * @date        13 Dec 2019
  * @brief       Unit test for armnn tensor filter plugin.
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug         No known bugs
  */

@@ -16,7 +16,7 @@
  * @date 07 March 2019
  * @brief NNStreamer/Pipeline(main) C-API Private Header.
  *        This file should NOT be exported to SDK or devel package.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

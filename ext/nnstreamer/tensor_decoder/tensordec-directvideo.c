@@ -20,7 +20,7 @@
  * @brief	NNStreamer tensor-decoder subplugin, "direct video",
  *              which converts tensors to video directly.
  *
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
  * @bug		No known bugs except for NYI items
  *

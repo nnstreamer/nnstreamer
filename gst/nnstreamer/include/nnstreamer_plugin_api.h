@@ -18,7 +18,7 @@
  * @file  nnstreamer_plugin_api.h
  * @date  24 Jan 2019
  * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (Need Glib)
- * @see https://github.com/nnsuite/nnstreamer
+ * @see https://github.com/nnstreamer/nnstreamer
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com> and Wook Song <wook16.song@samsung.com>
  * @bug No known bugs except for NYI items
  *

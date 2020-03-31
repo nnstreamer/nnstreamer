@@ -8,7 +8,7 @@
 # @brief Generate a sequence of video/x-raw frames & golden
 # @todo Generate corresponding golden results
 # @author Jijoong Moon <jijoong.moon@samsung.com>
-# @url https://github.com/nnsuite/nnstreamer/
+# @url https://github.com/nnstreamer/nnstreamer/
 #
 
 from __future__ import print_function

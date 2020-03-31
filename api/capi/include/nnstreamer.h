@@ -16,7 +16,7 @@
  * @date 07 March 2019
  * @brief NNStreamer/Pipeline(main) C-API Header.
  *        This allows to construct and control NNStreamer pipelines.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */
@@ -251,7 +251,7 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @remarks http://tizen.org/privilege/externalstorage is needed if @a pipeline_description is relevant to external storage.
  * @remarks http://tizen.org/privilege/camera is needed if @a pipeline_description accesses the camera device.
  * @remarks http://tizen.org/privilege/recorder is needed if @a pipeline_description accesses the recorder device.
- * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (https://github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
+ * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (https://github.com/nnstreamer/nnstreamer) documentation for examples and the grammar.
  * @param[in] cb The function to be called when the pipeline state is changed. You may set NULL if it's not required.
  * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
  * @param[out] pipe The NNStreamer pipeline handler from the given description.

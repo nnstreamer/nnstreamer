@@ -20,7 +20,7 @@
  * @brief	NNStreamer tensor-decoder subplugin, "image segment",
  *              which detects objects and paints their regions.
  *
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author  Jihoon Lee <ulla4571@gmail.com>
  *          niklasjang <niklasjang@gmail.com>
  * @bug		No known bugs except for NYI items

@@ -15,10 +15,10 @@ NNStreamer is a set of Gstreamer plugins that allow
 Gstreamer developers to adopt neural network models easily and efficiently and
 neural network developers to manage neural network pipelines and their filters easily and efficiently.
 
-[Architectural Description](https://github.com/nnsuite/nnstreamer/wiki/Architectural-Description) (WIP)<br /> <br />
+[Architectural Description](https://github.com/nnstreamer/nnstreamer/wiki/Architectural-Description) (WIP)<br /> <br />
 
 [NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf/tech report](https://arxiv.org/pdf/1901.04985)]<br />
-[GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnsuite/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf/slides](https://github.com/nnsuite/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]<br />
+[GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnstreamer/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf/slides](https://github.com/nnstreamer/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]<br />
 [Naver Tech Talk (Korean), 2018](https://www.facebook.com/naverengineering/posts/2255360384531425) [[media](https://youtu.be/XvXxcnbRjgU)] [[pdf/slides](https://www.slideshare.net/NaverEngineering/nnstreamer-stream-pipeline-for-arbitrary-neural-networks)]<br />
 [Samsung Developer Conference 2019, NNStreamer](https://www.samsungdeveloperconference.com/schedule/session/1089245) [[media](https://youtu.be/wVbMbpOjbkw)]<br />
 [ResearchGate Page of NNStreamer](https://www.researchgate.net/project/Neural-Network-Streamer-nnstreamer)
@@ -82,8 +82,8 @@ For more details, please access the following manuals.
 * To build an API library for Android, press [here](api/android/README.md).
 
 ## Usage Examples
-- [Example apps](https://github.com/nnsuite/nnstreamer-example) (stable)
-- Wiki page [usage example screenshots](https://github.com/nnsuite/nnstreamer/wiki/usage-examples-screenshots) (stable)
+- [Example apps](https://github.com/nnstreamer/nnstreamer-example) (stable)
+- Wiki page [usage example screenshots](https://github.com/nnstreamer/nnstreamer/wiki/usage-examples-screenshots) (stable)
 
 ## CI Server
 
