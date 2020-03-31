@@ -60,16 +60,16 @@ However, please try to stick with the same indentation rules (2 spaces) and comm
 - **tests**: Unit test cases. We have SSAT test cases and GTEST test cases. There are a lot of subdirectories, which are groups of unit test cases.
 - **tools**: Various developmental tools and scripts of NNStreamer.
 
-## Related git repositories in nnsuite
+## Related git repositories
 
 - [NNStreamer Examplie Applications \& Documents](https://github.com/nnstreamer/nnstreamer-example)
-- [TAOS-CI, CI Service for On-Device AI Systems](https://github.com/nnsuite/TAOS-CI)
+- [TAOS-CI, CI Service for On-Device AI Systems](https://github.com/nnstreamer/TAOS-CI)
 - [NNStreamer ROS (Robot OS) Support](https://github.com/nnstreamer/nnstreamer-ros)
 - [NNStreamer Android Build Resource](https://github.com/nnstreamer/nnstreamer-android-resource): additional files required by Android builds.
 - [ORC, aarch64 support](https://github.com/nnsuite/orc): we are going to support aarch64-ORC to accelerate transform operations of nnstreamer in aarch64 devices.
 - [NNStreamer-Edge](https://github.com/nnstreamer/nnstreamer-edge): WIP
-- [NNStreamer Yocto/OpenEmbedded Layer](https://github.com/nnsuite/meta-neural-network): refer to [Openembedded layer page](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)
-- [NNStreamer/NNSuite Web Page](https://github.com/nnsuite/nnsuite.github.io): WIP
+- [NNStreamer Yocto/OpenEmbedded Layer](https://github.com/nnstreamer/meta-neural-network): refer to [Openembedded layer page](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)
+- [NNStreamer Web Page](https://github.com/nnstreamer/nnstreamer.github.io): WIP
 - **tizenport-\* **: Tizen-ROS support. Refer to [build.tizen.org](https://build.tizen.org/project/show/devel:AIC:Tizen:5.0:nnsuite)
 
 
