@@ -13,6 +13,7 @@
 %endif
 
 %if 0%{tizen_version_major} >= 6
+%define		tizen_sensor_support 1
 %define		mvncsdk2_support 1
 
 %ifarch aarch64 x86_64
@@ -23,6 +24,7 @@
 %endif
 
 %else
+%define		tizen_sensor_support 0
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
 %endif
@@ -247,6 +249,9 @@ Note that there is no .pc file for this package because nnstreamer.pc file may b
 Summary:	Tizen Native API for NNStreamer
 Group:		Multimedia/Framework
 Requires:	%{name} = %{version}-%{release}
+%if 0%{tizen_sensor_support}
+Requires:	%{name}-tizen-sensor = %{version}-%{release}
+%endif
 %description -n capi-nnstreamer
 Tizen Native API wrapper for NNStreamer.
 You can construct a data stream pipeline with neural networks easily.
@@ -279,15 +284,17 @@ Summary:	NNStreamer Intel Movidius NCSDK2 support
 Group:		Multimedia/Framework
 %description	ncsdk2
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
+%endif # tizen
 
 # Add Tizen's sensor framework API integration
+%if 0%{tizen_sensor_support}
 %package tizen-sensor
 Summary:	NNStreamer integration of tizen sensor framework (tensor_src_tizensensor)
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	capi-system-sensor
 %description tizen-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
-%endif # tizen
+%endif # tizen_sensor_support
 
 %if 0%{?edgetpu_support}
 %package edgetpu
@@ -299,7 +306,8 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %endif
 
 ## Define build options ##
-%define enable_tizen -Denable-tizen=false -Denable-tizen-sensor=false
+%define enable_tizen -Denable-tizen=false
+%define enable_tizen_sensor -Denable-tizen-sensor=false
 %define enable_api -Denable-capi=false
 %define enable_mvncsdk2 -Denable-movidius-ncsdk2=false
 %define enable_nnfw_runtime -Denable-nnfw-runtime=false
@@ -309,8 +317,12 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
 %endif
 
+%if 0%{tizen_sensor_support}
+%define enable_tizen_sensor -Denable-tizen-sensor=true
+%endif
+
 %if %{with tizen}
-%define enable_tizen -Denable-tizen=true -Denable-tizen-sensor=true -Dtizen-version-major=0%{tizen_version_major}
+%define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
 %ifarch %arm aarch64
 %define enable_nnfw_runtime -Denable-nnfw-runtime=true
@@ -395,6 +407,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu} \
+	%{enable_tizen_sensor} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -586,11 +599,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_movidius-ncsdk2.so
+%endif  # tizen
 
+%if 0%{tizen_sensor_support}
 %files tizen-sensor
 %manifest nnstreamer.manifest
 %{gstlibdir}/libnnstreamer-tizen-sensor.so
-%endif  # tizen
+%endif  # tizen_sensor_support
 
 %files cpp
 %manifest nnstreamer.manifest
