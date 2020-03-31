@@ -82,6 +82,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_repo\_sink](../gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_repo\_src](../gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_src\_iio](../gst/nnstreamer/tensor_source) (stable)
+  - Requires GStreamer 1.8 or above.
 - [tensor\_src\_tizensensor](../ext/nnstreamer/tensor_source) (stable)
 - [tensor\_ros\_sink](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
 - [tensor\_ros\_src](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
