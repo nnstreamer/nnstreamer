@@ -278,13 +278,15 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer-devel = %{version}-%{release}
 %description -n nnstreamer-tizen-internal-capi-devel
 Tizen internal API to construct the pipeline without the permissions.
+%endif # tizen
 
+%if 0%{mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
 Group:		Multimedia/Framework
 %description	ncsdk2
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
-%endif # tizen
+%endif # mvncsdk2_support
 
 # Add Tizen's sensor framework API integration
 %if 0%{tizen_sensor_support}
@@ -594,12 +596,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_armnn.so
 %endif
+%endif  # tizen
 
+%if 0%{mvncsdk2_support}
 %files -n nnstreamer-ncsdk2
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_movidius-ncsdk2.so
-%endif  # tizen
+%endif  # mvncsdk2_support
 
 %if 0%{tizen_sensor_support}
 %files tizen-sensor
