@@ -19,7 +19,7 @@
  * @file	tensor_src_iio.h
  * @date	26 Feb 2019
  * @brief	GStreamer plugin to support linux IIO as tensor(s)
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs except for NYI items
  */

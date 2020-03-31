@@ -18,7 +18,7 @@
  * @file    tensor_filter_pytorch.cc
  * @date    24 April 2019
  * @brief   PyTorch module for tensor_filter gstreamer plugin
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug     No known bugs except for NYI items
  *

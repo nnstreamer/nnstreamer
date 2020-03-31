@@ -19,7 +19,7 @@
  * @file	tensor_converter.c
  * @date	26 Mar 2018
  * @brief	GStreamer plugin to convert media types to tensors (as a filter for other general neural network filters)
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  * @todo        For flatbuffers, support other/tensors with properties

@@ -2,7 +2,7 @@
  * @file	unittest_tizen_sensor.cc
  * @date	25 Nov 2019
  * @brief	Unit test for NNStreamer's tensor-src-tizensensor.
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  */

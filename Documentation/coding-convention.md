@@ -55,19 +55,19 @@ However, please try to stick with the same indentation rules (2 spaces) and comm
 - **gst/nnstreamer**: All core nnstreamer codes are located here.
     - **tensor\_\* **: Plugins of nnstreamer.
 - **jni**: Android/Java build scripts.
-- **nnstreamer\_example**: Example custom filters required by test cases. In the old days, we used to have all nnstreamer examples here. Most of such examples are moved to [Example git](https://github.com/nnsuite/nnstreamer-example) except for those who required by test cases.
+- **nnstreamer\_example**: Example custom filters required by test cases. In the old days, we used to have all nnstreamer examples here. Most of such examples are moved to [Example git](https://github.com/nnstreamer/nnstreamer-example) except for those who required by test cases.
 - **packaging**: Tizen RPM build scripts. OpenSUSE/Redhat Linux may reuse this.
 - **tests**: Unit test cases. We have SSAT test cases and GTEST test cases. There are a lot of subdirectories, which are groups of unit test cases.
 - **tools**: Various developmental tools and scripts of NNStreamer.
 
 ## Related git repositories in nnsuite
 
-- [NNStreamer Examplie Applications \& Documents](https://github.com/nnsuite/nnstreamer-example)
+- [NNStreamer Examplie Applications \& Documents](https://github.com/nnstreamer/nnstreamer-example)
 - [TAOS-CI, CI Service for On-Device AI Systems](https://github.com/nnsuite/TAOS-CI)
-- [NNStreamer ROS (Robot OS) Support](https://github.com/nnsuite/nnstreamer-ros)
-- [NNStreamer Android Build Resource](https://github.com/nnsuite/nnstreamer-android-resource): additional files required by Android builds.
+- [NNStreamer ROS (Robot OS) Support](https://github.com/nnstreamer/nnstreamer-ros)
+- [NNStreamer Android Build Resource](https://github.com/nnstreamer/nnstreamer-android-resource): additional files required by Android builds.
 - [ORC, aarch64 support](https://github.com/nnsuite/orc): we are going to support aarch64-ORC to accelerate transform operations of nnstreamer in aarch64 devices.
-- [NNStreamer-Edge](https://github.com/nnsuite/nnstreamer-edge): WIP
+- [NNStreamer-Edge](https://github.com/nnstreamer/nnstreamer-edge): WIP
 - [NNStreamer Yocto/OpenEmbedded Layer](https://github.com/nnsuite/meta-neural-network): refer to [Openembedded layer page](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)
 - [NNStreamer/NNSuite Web Page](https://github.com/nnsuite/nnsuite.github.io): WIP
 - **tizenport-\* **: Tizen-ROS support. Refer to [build.tizen.org](https://build.tizen.org/project/show/devel:AIC:Tizen:5.0:nnsuite)

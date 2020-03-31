@@ -118,7 +118,7 @@ copyjavasource_$(TARGET_ARCH_ABI):
 
 ```bash
 $ cd $ANDROID_DEV_ROOT/workspace
-$ git clone https://github.com/nnsuite/nnstreamer.git
+$ git clone https://github.com/nnstreamer/nnstreamer.git
 ```
 
 #### Build Android API

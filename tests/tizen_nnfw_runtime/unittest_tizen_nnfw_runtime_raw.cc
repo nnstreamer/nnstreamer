@@ -2,7 +2,7 @@
  * @file        unittest_tizen_nnfw_runtime_raw.cc
  * @date        07 Oct 2019
  * @brief       Unit test for Tizen nnfw tensor filter plugin.
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  */

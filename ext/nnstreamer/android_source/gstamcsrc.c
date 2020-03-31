@@ -18,7 +18,7 @@
  * @file	  gstamcsrc.c
  * @date	  19 May 2019
  * @brief	  GStreamer source element for Android MediaCodec (AMC)
- * @see		  http://github.com/nnsuite/nnstreamer
+ * @see		  http://github.com/nnstreamer/nnstreamer
  * @author	Dongju Chae <dongju.chae@samsung.com>
  * @bug		  No known bugs except for NYI items
  */
@@ -1006,4 +1006,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     amcsrc,
     "NNStreamer Android MediaCodec (AMC) Source",
     plugin_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnsuite/nnstreamer/")
+    "https://github.com/nnstreamer/nnstreamer/")

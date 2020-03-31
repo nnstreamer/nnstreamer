@@ -2,7 +2,7 @@
  * @file	unittest_src_iio.cc
  * @date	22 March 2019
  * @brief	Unit test for tensor_src_iio
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug		No known bugs.
  */

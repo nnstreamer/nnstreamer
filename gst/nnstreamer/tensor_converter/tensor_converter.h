@@ -26,7 +26,7 @@
  *               uint8[height][width][RGB]. Note that if rstride=RU4, you need
  *               to add the case in "remove_stride_padding_per_row".
  *
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  */

@@ -16,7 +16,7 @@
  * @file	nnstreamer_log.h
  * @date	12 Mar 2020
  * @brief	Internal log util for NNStreamer plugins and native APIs.
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items
  */

@@ -48,7 +48,7 @@ $ brew install meson ninja pkg-config cmake libffi glib gstreamer gst-plugins-ba
 Clone the master (default) branch of the GitHub repository of NNStreamer.
 
 ```bash
-$ git clone https://github.com/nnsuite/nnstreamer.git
+$ git clone https://github.com/nnstreamer/nnstreamer.git
 Cloning into 'nnstreamer'...
 ...omission...
 Checking out files: 100% (326/326), done.

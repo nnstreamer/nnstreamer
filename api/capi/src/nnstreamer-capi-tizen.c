@@ -16,7 +16,7 @@
  * @file nnstreamer-capi-tizen.c
  * @date 26 August 2019
  * @brief NNStreamer/C-API Tizen dependent functions.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

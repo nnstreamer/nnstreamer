@@ -18,7 +18,7 @@
  * @file    tensor_filter_caffe2.cc
  * @date    27 May 2019
  * @brief   Caffe2 module for tensor_filter gstreamer plugin
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  HyoungJoo Ahn <hello.ahn@samsung.com>
  * @bug     No known bugs except for NYI items
  *

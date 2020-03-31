@@ -3,7 +3,7 @@
  * @date 31 May 2018
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @brief Unit test module for NNStreamer common library
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @bug		No known bugs.
  *
  *  @brief Unit test module for NNStreamer common library

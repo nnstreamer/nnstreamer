@@ -17,7 +17,7 @@
  * @file	tensor_filter_custom_easy.c
  * @date	24 Oct 2019
  * @brief	Custom tensor processing interface for simple functions
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  */

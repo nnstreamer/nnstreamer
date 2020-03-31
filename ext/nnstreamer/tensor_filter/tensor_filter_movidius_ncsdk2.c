@@ -19,7 +19,7 @@
  * @file    tensor_filter_movidius_ncsdk2.c
  * @date    13 May 2019
  * @brief   NCSDK2 module for tensor_filter gstreamer plugin
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Wook16.song <wook16.song@samsung.com>
  * @bug     No known bugs except for NYI items
  *

@@ -180,7 +180,7 @@ class PyApp(gtk.Window):
 
       about.set_copyright("(c) Samsung Electronics")
       about.set_comments("About NNStreamer Toolkit")
-      about.set_website("https://github.com/nnsuite/nnstreamer")
+      about.set_website("https://github.com/nnstreamer/nnstreamer")
       about.run()
       about.destroy()
 

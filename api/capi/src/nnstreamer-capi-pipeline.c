@@ -16,7 +16,7 @@
  * @date 11 March 2019
  * @brief NNStreamer/Pipeline(main) C-API Wrapper.
  *        This allows to construct and control NNStreamer pipelines.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

@@ -17,7 +17,7 @@
  * @file    tensor_filter_openvino.hh
  * @date    23 Dec 2019
  * @brief   Tensor_filter subplugin for OpenVino (DLDT).
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Wook Song <wook16.song@samsung.com>
  * @bug     No known bugs except for NYI items
  *

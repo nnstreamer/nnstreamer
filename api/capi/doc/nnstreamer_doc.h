@@ -15,7 +15,7 @@
  * @file nnstreamer_doc.h
  * @date 06 March 2019
  * @brief Tizen C-API Declaration for Tizen SDK
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */

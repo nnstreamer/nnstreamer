@@ -4,7 +4,7 @@
  * @file	dummy_sensor.h
  * @date	28 Nov 2019
  * @brief	Dummy Tizen Sensor API support for unit tests.
- * @see		https://github.com/nnsuite/nnstreamer
+ * @see		https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  * @details	The sensor framework source plugin should be

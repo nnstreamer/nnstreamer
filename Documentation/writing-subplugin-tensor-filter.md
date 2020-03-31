@@ -11,7 +11,7 @@ It is called "**subplugin**" because it is a plugin for a GStreamer plugin, ```t
 You can start writing a ```tensor_filter``` subplugin easily by using code-template/generator from nnstreamer-example.git. It is in ```/templates/tensor_filter_subplugin``` of ```nnstreamer-example.git```. The following is how to start writing a subplugin with the template for Tizen devices (5.5 M2 +). In this example, the target subplugin name is ```example```.
 
 ```
-$ git clone https://github.com/nnsuite/nnstreamer-example.git
+$ git clone https://github.com/nnstreamer/nnstreamer-example.git
 ...
 $ cd nnstreamer-example
 $ cd templates/tensor_filter_subplugin

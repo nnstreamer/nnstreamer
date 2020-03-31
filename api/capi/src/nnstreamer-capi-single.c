@@ -16,7 +16,7 @@
  * @date 29 Aug 2019
  * @brief NNStreamer/Single C-API Wrapper.
  *        This allows to invoke individual input frame with NNStreamer.
- * @see	https://github.com/nnsuite/nnstreamer
+ * @see	https://github.com/nnstreamer/nnstreamer
  * @author MyungJoo Ham <myungjoo.ham@samsung.com>
  * @author Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug No known bugs except for NYI items

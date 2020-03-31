@@ -20,7 +20,7 @@ There are three features as following:
 - Profiling(in progress)
 
 If you are interested in the tool technology to optimize your application using NNStremaer, please refer to the below issues.
-* https://github.com/nnsuite/nnstreamer/issues/132
+* https://github.com/nnstreamer/nnstreamer/issues/132
 
 
 ## Development 

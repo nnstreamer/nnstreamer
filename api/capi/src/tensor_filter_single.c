@@ -16,7 +16,7 @@
  * @file	tensor_filter_single.c
  * @date	28 Aug 2019
  * @brief	Element to use general neural network framework directly without gstreamer pipeline
- * @see	  http://github.com/nnsuite/nnstreamer
+ * @see	  http://github.com/nnstreamer/nnstreamer
  * @author	Parichay Kapoor <pk.kapoor@samsung.com>
  * @bug	  No known bugs except for NYI items
  *

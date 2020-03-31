@@ -17,7 +17,7 @@
  * @file	bmp2png.c
  * @date	13 Jul 2018
  * @brief	Simple bmp2png converter for testcases
- * @see		http://github.com/nnsuite/nnstreamer
+ * @see		http://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug		No known bugs except for NYI items
  *

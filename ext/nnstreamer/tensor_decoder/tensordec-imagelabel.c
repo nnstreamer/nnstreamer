@@ -20,7 +20,7 @@
  * @brief       NNStreamer tensor-decoder subplugin, "image labeling",
  *              which converts image label tensors to text stream.
  *
- * @see         https://github.com/nnsuite/nnstreamer
+ * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs except for NYI items
  *

@@ -2,7 +2,7 @@
  * @file    unittest_filter_mvncsdk2.cc
  * @date    10 Jan 2020
  * @brief   Unit test for the tensor filter sub-plugin for MVNCSDK2
- * @see     https://github.com/nnsuite/nnstreamer
+ * @see     https://github.com/nnstreamer/nnstreamer
  * @author  Wook Song <wook16.song@samsung.com>
  * @bug     No known bugs.
  */

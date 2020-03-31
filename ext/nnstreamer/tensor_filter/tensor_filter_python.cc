@@ -18,7 +18,7 @@
  * @file    tensor_filter_python.cc
  * @date    10 Apr 2019
  * @brief   Python module for tensor_filter gstreamer plugin
- * @see     http://github.com/nnsuite/nnstreamer
+ * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Dongju Chae <dongju.chae@samsung.com>
  * @bug     No known bugs except for NYI items
  */
