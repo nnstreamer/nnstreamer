@@ -188,14 +188,14 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   pdata = *private_data = g_new0 (nnfw_pdata, 1);
   if (pdata == NULL) {
-    g_printerr ("Failed to allocate memory for filter subplugin.");
+    g_printerr ("Failed to allocate memory for filter subplugin.\n");
     return -ENOMEM;
   }
 
   status = nnfw_create_session (&pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot create nnfw-runtime session");
+    g_printerr ("Cannot create nnfw-runtime session\n");
     goto unalloc_exit;
   }
 
@@ -203,7 +203,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   status = nnfw_set_available_backends (pdata->session, accelerator);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot set nnfw-runtime backend to %s", accelerator);
+    g_printerr ("Cannot set nnfw-runtime backend to %s\n", accelerator);
     goto unalloc_exit;
   }
 
@@ -214,7 +214,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR) ||
       !g_file_test (meta_file, G_FILE_TEST_IS_REGULAR)) {
     err = -EINVAL;
-    g_printerr ("Model file (%s) or its metadata is not valid (not regular).",
+    g_printerr ("Model file (%s) or its metadata is not valid (not regular).\n",
         prop->model_files[0]);
     goto session_exit;
   }
@@ -222,7 +222,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   /** ensure the provided filename matches with info in metadata */
   if (nnfw_metadata_verify (meta_file, prop->model_files[0]) != 0) {
     err = -EINVAL;
-    g_printerr ("Provided model file (%s) and its metadata mismatch.",
+    g_printerr ("Provided model file (%s) and its metadata mismatch.\n",
         prop->model_files[0]);
     goto session_exit;
   }
@@ -230,27 +230,27 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   status = nnfw_load_model_from_file (pdata->session, model_path);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot load the model file: %s", prop->model_files[0]);
+    g_printerr ("Cannot load the model file: %s\n", prop->model_files[0]);
     goto session_exit;
   }
 
   status = nnfw_prepare (pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("nnfw-runtime cannot prepare the session for %s",
+    g_printerr ("nnfw-runtime cannot prepare the session for %s\n",
         prop->model_files[0]);
     goto session_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info);
   if (err) {
-    g_printerr ("Error retrieving input info from nnfw-runtime.");
+    g_printerr ("Error retrieving input info from nnfw-runtime.\n");
     goto session_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info);
   if (err) {
-    g_printerr ("Error retrieving output info from nnfw-runtime.");
+    g_printerr ("Error retrieving output info from nnfw-runtime.\n");
     goto session_exit;
   }
 
@@ -263,7 +263,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 session_exit:
   status = nnfw_close_session (pdata->session);
   if (status != NNFW_STATUS_NO_ERROR)
-    g_printerr ("Closing the session just opened by %s has failed", __func__);
+    g_printerr ("Closing the session just opened by %s has failed\n", __func__);
   g_free (meta_file);
   g_free (model_path);
 unalloc_exit:
@@ -286,11 +286,11 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
     NNFW_STATUS status = nnfw_close_session (pdata->session);
 
     if (status != NNFW_STATUS_NO_ERROR) {
-      g_printerr ("cannot close nnfw-runtime session for %s",
+      g_printerr ("cannot close nnfw-runtime session for %s\n",
           pdata->model_file);
     }
   } else {
-    g_printerr ("nnfw_close called without proper nnfw_open");
+    g_printerr ("nnfw_close called without proper nnfw_open\n");
     if (pdata == NULL)
       return;
   }
@@ -529,7 +529,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   return 0;
 
 error:
-  g_printerr ("Unable to set the provided input tensor info");
+  g_printerr ("Unable to set the provided input tensor info\n");
   /** Reset input dimensions */
   for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     nnfw_tensor_info_set (pdata, &pdata->in_info, idx);
