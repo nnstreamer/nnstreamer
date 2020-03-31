@@ -624,6 +624,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files cpp-devel
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
+%{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
 %{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
 %if 0%{?edgetpu_support}
