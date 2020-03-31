@@ -90,7 +90,11 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, split, SPLIT);
   NNSTREAMER_INIT (plugin, transform, TRANSFORM);
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
+  /* IIO requires Linux / non-Android */
+#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)
+  /* SRC-IIO code uses GST 1.8+ APIs. */
   NNSTREAMER_INIT (plugin, src_iio, SRC_IIO);
+#endif
 #endif /* __gnu_linux__ && !__ANDROID__ */
   return TRUE;
 }

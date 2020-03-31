@@ -77,35 +77,38 @@ if gtest_dep.found()
   test('unittest_common', unittest_common)
 
   # Run unittest_sink
-  unittest_sink = executable('unittest_sink',
-    join_paths('nnstreamer_sink', 'unittest_sink.cc'),
-    dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
+  gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
+  if gst18_dep.found()
+    unittest_sink = executable('unittest_sink',
+      join_paths('nnstreamer_sink', 'unittest_sink.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
 
-  test('unittest_sink', unittest_sink, timeout: 120, args: ['--gst-plugin-path=..'])
+    test('unittest_sink', unittest_sink, timeout: 120, args: ['--gst-plugin-path=..'])
 
-  # Run unittest_plugins
-  unittest_plugins = executable('unittest_plugins',
-    join_paths('nnstreamer_plugins', 'unittest_plugins.cc'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
-
-  test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
-
-  # Run unittest_src_iio
-  if build_platform != 'macos'
-    unittest_src_iio = executable('unittest_src_iio',
-      join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
+    # Run unittest_plugins
+    unittest_plugins = executable('unittest_plugins',
+      join_paths('nnstreamer_plugins', 'unittest_plugins.cc'),
       dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
 
-    test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
+    test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
+
+  # Run unittest_src_iio
+    if build_platform != 'macos'
+      unittest_src_iio = executable('unittest_src_iio',
+        join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
+        dependencies: [nnstreamer_unittest_deps],
+        install: get_option('install-test'),
+        install_dir: unittest_install_dir
+      )
+
+      test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
+    endif
   endif
 
   # Armnn unittest
