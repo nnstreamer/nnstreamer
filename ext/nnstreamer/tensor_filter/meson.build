@@ -304,6 +304,9 @@ if get_option('enable-cppfilter')
 endif
 
 if get_option('enable-edgetpu')
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for Edge TPU.')
+  endif
   if get_option('enable-tensorflow-lite')
     edgetpu_dep = dependency('edgetpu', required: false)
     if not edgetpu_dep.found()

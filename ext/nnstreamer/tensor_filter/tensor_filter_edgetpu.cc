@@ -1,17 +1,7 @@
+// SPDX-License-Identifier: LGPL-2.1-only
 /**
  * GStreamer Tensor_Filter, Edge-TPU Module
  * Copyright (C) 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
  */
 /**
  * @file	tensor_filter_edgetpu.c
@@ -28,11 +18,13 @@
  *       We may be able to embed this code into tf-lite filter code.
  */
 #include <iostream>
+#include <string>
+#include <stdexcept>
 
 #include <stdint.h>
 
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <tensor_common.h>
 #include <glib.h>
 
@@ -42,18 +34,23 @@
 #include <tensorflow/lite/builtin_op_data.h>
 #include <tensorflow/lite/kernels/register.h>
 
-void init_filter_edgetpu (void) __attribute__ ((constructor));
-void fini_filter_edgetpu (void) __attribute__ ((destructor));
+using nnstreamer::tensor_filter_subplugin;
+using edgetpu::EdgeTpuContext;
 
-/**
- * @brief Internal data structure
- */
-typedef struct {
+namespace nnstreamer {
+namespace tensorfilter_edgetpu {
+
+void _init_filter_edgetpu (void) __attribute__ ((constructor));
+void _fini_filter_edgetpu (void) __attribute__ ((destructor));
+
+class edgetpu_subplugin final : public tensor_filter_subplugin {
+private:
+  bool empty_model;
   char *model_path; /**< The model *.tflite file */
-  GstTensorsInfo input; /**< Input tensors metadata */
-  GstTensorsInfo output; /**< Output tensors metadata */
+  GstTensorsInfo inputInfo; /**< Input tensors metadata */
+  GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
-  /* EdgeTPU + Tensorflow-lite Execution */
+  /** Edge-TPU + TFLite Library Properties & Functions ******************/
   std::unique_ptr<tflite::Interpreter> model_interpreter;
       /**< TFLite interpreter */
   tflite::Interpreter *interpreter;
@@ -62,14 +59,237 @@ typedef struct {
       /**< EdgeTPU Device context */
   std::unique_ptr<tflite::FlatBufferModel> model;
       /**< Loaded TF Lite model (from model_path) */
-} pdata;
+  static std::unique_ptr<tflite::Interpreter>
+      BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
+          edgetpu::EdgeTpuContext* edgetpu_context);
+
+
+  /** Internal Utility Functions & Properties ***************************/
+  void cleanup ();
+  static void setTensorProp (tflite::Interpreter *interpreter,
+      const std::vector<int> &tensor_idx_list, GstTensorsInfo & tensorMeta);
+  static int getTensorDim ( tflite::Interpreter *interpreter, int tensor_idx,
+      tensor_dim dim);
+  static tensor_type getTensorType (TfLiteType tfType);
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw = 1;
+  static edgetpu_subplugin *registeredRepresentation;
+
+public:
+  static void init_filter_edgetpu ();
+  static void fini_filter_edgetpu ();
+
+  edgetpu_subplugin ();
+  ~edgetpu_subplugin ();
+
+  tensor_filter_subplugin & getEmptyInstance();
+  void configure_instance (const GstTensorFilterProperties *prop);
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
+};
+
+const char *edgetpu_subplugin::name = "edgetpu";
+const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU };
+
+edgetpu_subplugin::edgetpu_subplugin () :
+    tensor_filter_subplugin (),
+    empty_model (true),
+    model_path (nullptr),
+    model_interpreter (nullptr),
+    edgetpu_context (nullptr),
+    model (nullptr)
+{
+  inputInfo.num_tensors = 0;
+  outputInfo.num_tensors = 0;
+  /** Nothing to do. Just let it have an empty instance */
+}
+
+void edgetpu_subplugin::cleanup ()
+{
+  if (empty_model)
+    return; /* Nothing to do if it is an empty model */
+
+  if (model_interpreter) {
+    model_interpreter = nullptr; /* delete unique_ptr */
+  }
+  if (interpreter) {
+    interpreter = nullptr; /* it's already freed with model_interpreter */
+  }
+  if (edgetpu_context) {
+    edgetpu_context.reset();
+    edgetpu_context = nullptr;
+  }
+  if (model) {
+    model = nullptr; /* delete unique_ptr */
+  }
+
+  if (model_path)
+    delete model_path;
+
+  model_path = nullptr;
+  inputInfo.num_tensors = 0;
+  outputInfo.num_tensors = 0;
+  empty_model = true;
+}
+
+edgetpu_subplugin::~edgetpu_subplugin ()
+{
+  cleanup ();
+}
+
+tensor_filter_subplugin & edgetpu_subplugin::getEmptyInstance ()
+{
+  return *(new edgetpu_subplugin());
+}
+
+void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+{
+  const std::string _model_path = prop->model_files[0];
+
+  if (!empty_model) {
+    /* Already opened */
+
+    if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
+      std::cerr << "Model path is not given." << std::endl;
+      throw std::invalid_argument ("Model path is not given.");
+    }
+
+    cleanup();
+  }
+
+  assert (model_path == nullptr);
+
+  model_path = g_strdup (prop->model_files[0]);
+
+  /** Read a model */
+  model = tflite::FlatBufferModel::BuildFromFile(_model_path.c_str());
+  if (nullptr == model) {
+    std::cerr << "Cannot load the model file: " << _model_path << std::endl;
+    cleanup();
+    throw std::invalid_argument ("Cannot load the given model file.");
+  }
+
+  /** Build an interpreter */
+  edgetpu_context = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
+  if (nullptr == edgetpu_context) {
+    std::cerr << "Cannot open edge-TPU device." << std::endl;
+    cleanup();
+    throw std::system_error (ENODEV, std::system_category(), "Cannot open edge-TPU device.");
+  }
+
+  model_interpreter = BuildEdgeTpuInterpreter(*model, edgetpu_context.get());
+  if (nullptr == model_interpreter) {
+    std::cerr << "Edge-TPU device is opened, but cannot get its interpreter."
+        << std::endl;
+    cleanup();
+    throw std::system_error (ENODEV, std::system_category(), "Edge-TPU device is opened, but cannot get its interpreter.");
+  }
+
+  interpreter = model_interpreter.get();
+
+  try {
+    setTensorProp (interpreter, interpreter->inputs (), inputInfo);
+  } catch (const std::invalid_argument& ia) {
+    std::cerr << "Invalid input tensor specification: " << ia.what() << '\n';
+    cleanup();
+    throw std::invalid_argument ("Input tensor of the given model is incompatible or invalid");
+  }
+
+  try {
+    setTensorProp (interpreter, interpreter->outputs (), outputInfo);
+  } catch (const std::invalid_argument& ia) {
+    std::cerr << "Invalid output tensor specification: " << ia.what() << '\n';
+    cleanup();
+    throw std::invalid_argument ("Output tensor of the given model is incompatible or invalid");
+  }
+
+  empty_model = false;
+}
+
+void edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+{
+  unsigned int i;
+
+  std::vector <int> tensors_idx;
+  int tensor_idx;
+  TfLiteTensor *tensor_ptr;
+  TfLiteStatus status;
+
+  assert (!empty_model);
+  assert (interpreter);
+
+  /* Configure inputs */
+  for (i = 0; i < inputInfo.num_tensors; i++) {
+    tensor_idx = interpreter->inputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    assert (tensor_ptr->bytes == input[i].size);
+    tensor_ptr->data.raw = (char *) input[i].data;
+    tensors_idx.push_back (tensor_idx);
+  }
+
+  /* Configure outputs */
+  for (i = 0; i < outputInfo.num_tensors; ++i) {
+    tensor_idx = interpreter->outputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    assert (tensor_ptr->bytes == output[i].size);
+    tensor_ptr->data.raw = (char *) output[i].data;
+    tensors_idx.push_back (tensor_idx);
+  }
+
+  status = interpreter->Invoke ();
+
+  /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
+  int tensorSize = tensors_idx.size ();
+  for (int i = 0; i < tensorSize; ++i) {
+    interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
+  }
+
+  if (status != kTfLiteOk) {
+    std::cerr << "Failed to invoke tensorflow-lite + edge-tpu." << std::endl;
+    throw std::runtime_error ("Invoking tensorflow-lite with edge-tpu delgation failed.");
+  }
+}
+
+void edgetpu_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+{
+  info.name = name;
+  info.allow_in_place = 0;
+  info.allocate_in_invoke = 0;
+  info.run_without_model = 0;
+  info.verify_model_path = 1;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+}
+
+int edgetpu_subplugin::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+{
+  if (ops == GET_IN_OUT_INFO) {
+    gst_tensors_info_copy (std::addressof (in_info),
+        std::addressof (inputInfo));
+    gst_tensors_info_copy (std::addressof (out_info),
+        std::addressof (outputInfo));
+    return 0;
+  }
+  return -ENOENT;
+}
+
+int edgetpu_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
+{
+  return -ENOENT;
+}
 
 /**
  * @brief Get TF-Lite interpreter w/ edgetpu context
  */
-static std::unique_ptr<tflite::Interpreter>
-BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
-      edgetpu::EdgeTpuContext* edgetpu_context)
+std::unique_ptr<tflite::Interpreter>
+edgetpu_subplugin::BuildEdgeTpuInterpreter(
+    const tflite::FlatBufferModel &model,
+    edgetpu::EdgeTpuContext* edgetpu_context)
 {
   tflite::ops::builtin::BuiltinOpResolver resolver;
   resolver.AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
@@ -88,48 +308,12 @@ BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
   return interpreter;
 }
 
-static void
-edgetpu_close (const GstTensorFilterProperties * prop, void **private_data);
-
-/**
- * @brief Configure private_data
- */
-static int
-allocateData (const GstTensorFilterProperties * prop, void **private_data)
-{
-  pdata *data;
-  if (*private_data != NULL) {
-    /* Already opened */
-    data = (pdata *) *private_data;
-
-    if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
-      std::cerr << "Model path is not given." << std::endl;
-      return -EINVAL;
-    }
-    if (data->model_path && g_strcmp0 (prop->model_files[0],
-            data->model_path) == 0) {
-      return 0; /* Already opened with same file. Skip ops */
-    }
-
-    edgetpu_close (prop, private_data); /* Close before opening one. */
-  }
-
-  *private_data = data = g_new0 (pdata, 1);
-  if (data == NULL) {
-    std::cerr << "Failed to allocate memory for edge-tpu tensor_filer."
-        << std::endl;
-    return -ENOMEM;
-  }
-  return 0;
-}
-
 /**
  * @brief from tflite-core
  * @todo Remove this func or make them shared
  */
-static int
-getTensorDim (tflite::Interpreter *interpreter, int tensor_idx,
-    tensor_dim dim)
+int edgetpu_subplugin::getTensorDim (tflite::Interpreter *interpreter,
+    int tensor_idx, tensor_dim dim)
 {
   TfLiteIntArray *tensor_dims = interpreter->tensor (tensor_idx)->dims;
   int len = tensor_dims->size;
@@ -150,8 +334,7 @@ getTensorDim (tflite::Interpreter *interpreter, int tensor_idx,
  * @brief From tflite-core.cc
  * @todo Remove this or make them shared
  */
-static tensor_type
-getTensorType (TfLiteType tfType)
+tensor_type edgetpu_subplugin::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
     case kTfLiteFloat32:
@@ -175,229 +358,55 @@ getTensorType (TfLiteType tfType)
 
 /**
  * @brief extract and store the information of given tensor list
+ * @param interpreter The edgetpu tflite delegation interpreter
  * @param tensor_idx_list list of index of tensors in tflite interpreter
  * @param[out] tensorMeta tensors to set the info into
- * @return 0 if OK. non-zero if error.
+ * @throws std::invalid_argument if a given argument is not valid.
  */
-int
-setTensorProp (tflite::Interpreter *interpreter,
+void edgetpu_subplugin::setTensorProp (tflite::Interpreter *interpreter,
     const std::vector<int> &tensor_idx_list,
-    GstTensorsInfo * tensorMeta)
+    GstTensorsInfo & tensorMeta)
 {
-  tensorMeta->num_tensors = tensor_idx_list.size ();
-  if (tensorMeta->num_tensors > NNS_TENSOR_SIZE_LIMIT)
-    return -EINVAL;
+  tensorMeta.num_tensors = tensor_idx_list.size ();
+  if (tensorMeta.num_tensors > NNS_TENSOR_SIZE_LIMIT)
+    throw std::invalid_argument ("The number of tensors required by the given model exceeds the nnstreamer tensor limit (16 by default).");
 
-  for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
-    if (getTensorDim (interpreter, tensor_idx_list[i], tensorMeta->info[i].dimension)) {
+  for (unsigned int i = 0; i < tensorMeta.num_tensors; ++i) {
+    if (getTensorDim (interpreter, tensor_idx_list[i], tensorMeta.info[i].dimension)) {
       std::cerr << "failed to get the dimension of tensors" << std::endl;
-      return -EINVAL;
+      throw std::invalid_argument ("Cannot get the dimensions of given tensors at the tensor ");
     }
-    tensorMeta->info[i].type =
+    tensorMeta.info[i].type =
         getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
+    tensorMeta.info[i].name = nullptr; /** @todo tensor name is not retrieved */
   }
-  return 0;
 }
 
-/**
- * @brief Standard tensor_filter callback
- */
-static int
-edgetpu_open (const GstTensorFilterProperties * prop, void **private_data)
-{
-  int ret = allocateData (prop, private_data);
-  pdata *data = (pdata *) *private_data;
-  const std::string model_path = prop->model_files[0];
-
-  if (ret)
-    goto err;
-
-  g_free (data->model_path);
-  data->model_path = g_strdup (prop->model_files[0]);
-
-  /** Read a model */
-  data->model =
-    tflite::FlatBufferModel::BuildFromFile(model_path.c_str());
-  if (NULL == data->model) {
-    std::cerr << "Cannot load the model file: " << model_path << std::endl;
-    ret = -EINVAL;
-    goto err;
-  }
-
-  /** Build an interpreter */
-  data->edgetpu_context =
-    edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
-  if (NULL == data->edgetpu_context) {
-    std::cerr << "Cannot open edge-TPU device." << std::endl;
-    ret = -ENODEV;
-    goto err;
-  }
-
-  data->model_interpreter =
-    BuildEdgeTpuInterpreter(*data->model, data->edgetpu_context.get());
-  if (NULL == data->model_interpreter) {
-    std::cerr << "Edge-TPU device is opened, but cannot get its interpreter."
-        << std::endl;
-    ret = -ENODEV;
-    goto err;
-  }
-
-  data->interpreter = data->model_interpreter.get();
-
-  ret = setTensorProp (data->interpreter, data->interpreter->inputs (),
-      &data->input);
-  if (ret)
-    goto err;
-
-  ret = setTensorProp (data->interpreter, data->interpreter->outputs (),
-      &data->output);
-  if (ret)
-    goto err;
-
-  return 0;
-err:
-  edgetpu_close (prop, private_data);
-  return ret;
-}
-
-/**
- * @brief Standard tensor_filter callback
- */
-static void
-edgetpu_close (const GstTensorFilterProperties * prop,
-    void **private_data)
-{
-  pdata *data = (pdata *) *private_data;
-
-  if (data->model_interpreter) {
-    data->model_interpreter = NULL; /* delete unique_ptr */
-  }
-  if (data->interpreter) {
-    data->interpreter = NULL; /* it's already freed with model_interpreter */
-  }
-  if (data->edgetpu_context) {
-    data->edgetpu_context.reset();
-    data->edgetpu_context = NULL;
-  }
-  if (data->model) {
-    data->model = NULL; /* delete unique_ptr */
-  }
-
-  g_free (data->model_path);
-  g_free (*private_data);
-  *private_data = NULL;
-}
-
-/**
- * @brief Standard tensor_filter callback
- * @details Same with tensor_filter_tensorflow_lite.
- */
-static int
-edgetpu_invoke (const GstTensorFilterProperties *prop,
-    void **private_data, const GstTensorMemory *input,
-    GstTensorMemory *output)
-{
-  pdata *data = (pdata *) *private_data;
-  unsigned int i;
-
-  std::vector <int> tensors_idx;
-  int tensor_idx;
-  TfLiteTensor *tensor_ptr;
-  TfLiteStatus status;
-
-  if (!data)
-    return -1;
-  g_assert (data->interpreter);
-
-  /* Configure inputs */
-  for (i = 0; i < data->input.num_tensors; i++) {
-    tensor_idx = data->interpreter->inputs ()[i];
-    tensor_ptr = data->interpreter->tensor (tensor_idx);
-
-    g_assert (tensor_ptr->bytes == input[i].size);
-    tensor_ptr->data.raw = (char *) input[i].data;
-    tensors_idx.push_back (tensor_idx);
-  }
-
-  /* Configure outputs */
-  for (i = 0; i < data->output.num_tensors; ++i) {
-    tensor_idx = data->interpreter->outputs ()[i];
-    tensor_ptr = data->interpreter->tensor (tensor_idx);
-
-    g_assert (tensor_ptr->bytes == output[i].size);
-    tensor_ptr->data.raw = (char *) output[i].data;
-    tensors_idx.push_back (tensor_idx);
-  }
-
-  status = data->interpreter->Invoke ();
-
-  /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
-  int tensorSize = tensors_idx.size ();
-  for (int i = 0; i < tensorSize; ++i) {
-    data->interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
-  }
-
-  if (status != kTfLiteOk) {
-    ml_loge ("Failed to invoke");
-    return -1;
-  }
-
-  return 0;
-}
-
-/**
- * @brief Standard tensor_filter callback
- */
-static int
-edgetpu_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
-{
-  pdata *data = (pdata *) *private_data;
-  if (!data)
-    return -1;
-  gst_tensors_info_copy (info, &data->input);
-  return 0;
-}
-
-/**
- * @brief Standard tensor_filter callback
- */
-static int
-edgetpu_getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
-{
-  pdata *data = (pdata *) *private_data;
-  if (!data)
-    return -1;
-  gst_tensors_info_copy (info, &data->output);
-  return 0;
-}
-
-static gchar filter_subplugin_edgetpu[] = "edgetpu";
-
-static GstTensorFilterFramework NNS_support_edgetpu = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .open = edgetpu_open,
-  .close = edgetpu_close,
-};
+edgetpu_subplugin *edgetpu_subplugin::registeredRepresentation = nullptr;
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
-void
-init_filter_edgetpu (void)
+void edgetpu_subplugin::init_filter_edgetpu (void)
 {
-  NNS_support_edgetpu.name = filter_subplugin_edgetpu;
-  NNS_support_edgetpu.allow_in_place = FALSE;
-  NNS_support_edgetpu.allocate_in_invoke = FALSE;
-  NNS_support_edgetpu.run_without_model = FALSE;
-  NNS_support_edgetpu.verify_model_path = FALSE;
-  NNS_support_edgetpu.invoke_NN = edgetpu_invoke;
-  NNS_support_edgetpu.getInputDimension = edgetpu_getInputDim;
-  NNS_support_edgetpu.getOutputDimension = edgetpu_getOutputDim;
+  registeredRepresentation =
+      tensor_filter_subplugin::register_subplugin<edgetpu_subplugin> ();
+}
 
-  nnstreamer_filter_probe (&NNS_support_edgetpu);
+void _init_filter_edgetpu ()
+{
+  edgetpu_subplugin::init_filter_edgetpu();
 }
 
 /** @brief Destruct the subplugin */
-void
-fini_filter_edgetpu (void)
+void edgetpu_subplugin::fini_filter_edgetpu (void)
 {
-  nnstreamer_filter_exit (NNS_support_edgetpu.name);
+  assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
+
+void _fini_filter_edgetpu ()
+{
+  edgetpu_subplugin::fini_filter_edgetpu();
+}
+
+} /* namespace nnstreamer::tensorfilter_edgetpu */
+} /* namespace nnstreamer */
