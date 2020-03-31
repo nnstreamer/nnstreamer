@@ -5,9 +5,9 @@
 <a href="https://scan.coverity.com/projects/nnsuite-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://img.shields.io/endpoint?url=https://nnsuite.mooo.com/nnstreamer/ci/badge/badge_coverity.json" />
 </a> 
-![GitHub repo size](https://img.shields.io/github/repo-size/nnsuite/nnstreamer) 
-![GitHub issues](https://img.shields.io/github/issues/nnsuite/nnstreamer) 
-![GitHub pull requests](https://img.shields.io/github/issues-pr/nnsuite/nnstreamer) 
+![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
+![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
 
 Neural Network Support as Gstreamer Plugins.
 
@@ -26,7 +26,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 ## Official Releases
 
-|     | [Tizen](http://download.tizen.org/live/devel%3A/AIC%3A/Tizen%3A/5.0%3A/nnsuite/standard/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
+|     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | -- | -- | -- | -- | -- | -- |
 |     | 5.5M2 and later | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
 | arm | Available  | Available  | Ready | Available| Ready | N/A |
@@ -38,7 +38,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
-- Daily Release: [(WIP)](https://github.com/nnsuite/TAOS-CI/issues/452)
+- Daily Release: [(WIP)](https://github.com/nnstreamer/TAOS-CI/issues/452)
 - SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
 
 

@@ -30,7 +30,7 @@ TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # Write an account name (or organization name) of the '{master|upstream}' branch
 # e.g., https://github-website/{account_name}/{project_name}/
-GITHUB_ACCOUNT="nnsuite"
+GITHUB_ACCOUNT="nnstreamer"
 
 # Write a project name of a github website of the '{master|upstream}' branch
 # e.g., https://github-website/{account_name}/{project_name}/
