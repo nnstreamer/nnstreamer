@@ -317,11 +317,22 @@ if get_option('enable-edgetpu')
       nnstreamer_filter_edgetpu_sources += join_paths(meson.current_source_dir(), s)
     endforeach
 
+    rpath_edgetpu_test_helper = ''
+    if get_option('enable-test')
+      '''
+      In order to use the test helper library, add build_rpath.
+      This temporarily overrides the runtime dependency on edge tpu and
+      it is removed after installation.
+      '''
+      rpath_edgetpu_test_helper = join_paths(meson.build_root(), 'tests/nnstreamer_filter_edgetpu')
+
+    endif
     shared_library('nnstreamer_filter_edgetpu',
       nnstreamer_filter_edgetpu_sources,
       dependencies: [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, tflite_dep, libdl_dep],
       install: true,
-      install_dir: filter_subplugin_install_dir
+      install_dir: filter_subplugin_install_dir,
+      build_rpath: rpath_edgetpu_test_helper
     )
   else
     error ('enable-tensorflow-lite should be set as \'true\' to build the tensor filter for Edge TPU.')
