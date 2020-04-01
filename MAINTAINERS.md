@@ -1,20 +1,17 @@
 # Definitions of Roles
 
-## Maintainer (TSC Chairman as of 2020.3.27)
+## Maintainer
 
-- May override to merge a pull-request or push/revert commits.
-- Decide when/where/how to vote which policy/architecture proposals.
-- May propose a committer removal.
-- Have all reviewer privilieges.
+- A committer that is also an arbiter for other committers in the Github/Git repositories.
+- May override merging criteria to merge/close a pull-request or to push/revert a commit.
 
-## Reviewer (Committer)
+## Committer (previously Reviewer)
 
-- May reject a pull-request, which prohibits merging.
+- May reject a pull-request, which prohibits merging. "Veto"
 - May vote for an approval.
-- May merge a pull-request if it has enough number of approval-votes from reviewers or maintainers (2 or more).
+- (Requires merge privilege) May merge a pull-request if it has enough number of approval-votes from committers (2 or more).
 - May propose new committers among well-known contributors and vote for new committers
 - Vote for a committer removal.
-- Propose and vote for policies and architecture.
 - The ability of reject and merge may be limited to a few subdirectories.
 - The list of reviewers and their subdirectories is at [.github/CODEOWNERS].
 
