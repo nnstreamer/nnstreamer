@@ -4,7 +4,6 @@ import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -88,6 +87,26 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testSetInvalidInputInfo_n() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
+
+            TensorsInfo newInfo = new TensorsInfo();
+            newInfo.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,2,2,2});
+
+            single.setInputInfo(newInfo);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testSetInputInfo() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
@@ -150,6 +169,35 @@ public class APITestSingleShot {
                 assertEquals(1001, out.getTensorData(0).capacity());
 
                 Thread.sleep(30);
+            }
+
+            single.close();
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testClassificationResult() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
+
+            /* let's ignore timeout (set 10 sec) */
+            single.setTimeout(10000);
+
+            /* single-shot invoke */
+            TensorsData in = APITestCommon.readRawImageData();
+            TensorsData out = single.invoke(in);
+            int labelIndex = APITestCommon.getMaxScore(out.getTensorData(0));
+
+            /* check label index (orange) */
+            if (labelIndex != 951) {
+                fail();
             }
 
             single.close();
@@ -444,7 +492,7 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testUnknownPropertyName_n() {
+    public void testSetUnknownPropertyName_n() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
             return;
@@ -478,6 +526,23 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testSetEmptyPropertyName_n() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
+
+            single.setValue("", "ANY");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testSetNullPropertyValue_n() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
@@ -491,6 +556,23 @@ public class APITestSingleShot {
             fail();
         } catch (Exception e) {
             /* expected */
+        }
+    }
+
+    @Test
+    public void testSetPropertyDimension() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteAddModel());
+
+            single.setValue("input", "5:1:1:1");
+            single.close();
+        } catch (Exception e) {
+            fail();
         }
     }
 

@@ -14,6 +14,7 @@ import org.junit.runner.RunWith;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 
 import static org.junit.Assert.*;
 
@@ -63,6 +64,62 @@ public class APITestCommon {
         }
 
         return model;
+    }
+
+    /**
+     * Reads raw image file (orange) and returns TensorsData instance.
+     */
+    public static TensorsData readRawImageData() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File raw = new File(root + "/nnstreamer/test/orange.raw");
+
+        if (!raw.exists()) {
+            fail();
+        }
+
+        TensorsInfo info = new TensorsInfo();
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{3,224,224,1});
+
+        int size = info.getTensorSize(0);
+        TensorsData data = TensorsData.allocate(info);
+
+        try {
+            byte[] content = Files.readAllBytes(raw.toPath());
+            if (content.length != size) {
+                fail();
+            }
+
+            ByteBuffer buffer = TensorsData.allocateByteBuffer(size);
+            buffer.put(content);
+
+            data.setTensorData(0, buffer);
+        } catch (Exception e) {
+            fail();
+        }
+
+        return data;
+    }
+
+    /**
+     * Gets the label index with max score, for tensorflow-lite image classification.
+     */
+    public static int getMaxScore(ByteBuffer buffer) {
+        int index = -1;
+        int maxScore = 0;
+
+        if (isValidBuffer(buffer, 1001)) {
+            for (int i = 0; i < 1001; i++) {
+                /* convert unsigned byte */
+                int score = (buffer.get(i) & 0xFF);
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
     }
 
     /**

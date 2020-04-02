@@ -73,6 +73,18 @@ public class APITestTensorsData {
     }
 
     @Test
+    public void testAllocateEmptyInfo_n() {
+        try {
+            TensorsInfo info = new TensorsInfo();
+
+            TensorsData.allocate(info);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testAllocateNullInfo_n() {
         try {
             TensorsData.allocate(null);

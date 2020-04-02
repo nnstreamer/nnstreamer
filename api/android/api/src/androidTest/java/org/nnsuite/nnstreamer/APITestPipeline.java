@@ -177,8 +177,9 @@ public class APITestPipeline {
 
     @Test
     public void testRegisterNullDataCb_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.registerSinkCallback("sinkx", null);
@@ -190,8 +191,9 @@ public class APITestPipeline {
 
     @Test
     public void testRegisterDataCbInvalidName_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.registerSinkCallback("invalid_sink", mSinkCb);
@@ -203,8 +205,9 @@ public class APITestPipeline {
 
     @Test
     public void testRegisterDataCbNullName_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.registerSinkCallback(null, mSinkCb);
@@ -215,9 +218,24 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testRegisterDataCbEmptyName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.registerSinkCallback("", mSinkCb);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testUnregisterNullDataCb_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.unregisterSinkCallback("sinkx", null);
@@ -229,8 +247,9 @@ public class APITestPipeline {
 
     @Test
     public void testUnregisterDataCbNullName_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.unregisterSinkCallback(null, mSinkCb);
@@ -241,11 +260,51 @@ public class APITestPipeline {
     }
 
     @Test
-    public void testUnregisteredDataCb_n() {
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "tensor_converter ! tensor_sink name=sinkx";
+    public void testUnregisterDataCbEmptyName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.unregisterSinkCallback("", mSinkCb);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnregisteredDataCb_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.unregisterSinkCallback("sinkx", mSinkCb);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testUnregisterInvalidCb_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register callback */
+            Pipeline.NewDataCallback cb1 = new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    mReceived++;
+                }
+            };
+
+            pipe.registerSinkCallback("sinkx", cb1);
+
+            /* unregistered callback */
             pipe.unregisterSinkCallback("sinkx", mSinkCb);
             fail();
         } catch (Exception e) {
@@ -303,6 +362,56 @@ public class APITestPipeline {
 
     @Test
     public void testDuplicatedDataCb() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
+
+            pipe.registerSinkCallback("sinkx", mSinkCb);
+
+            /* try to register same cb */
+            pipe.registerSinkCallback("sinkx", mSinkCb);
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", info.allocate());
+                Thread.sleep(50);
+            }
+
+            /* pause pipeline and unregister sink callback */
+            Thread.sleep(100);
+            pipe.stop();
+
+            pipe.unregisterSinkCallback("sinkx", mSinkCb);
+            Thread.sleep(100);
+
+            /* start pipeline again */
+            pipe.start();
+
+            /* push input buffer again */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", info.allocate());
+                Thread.sleep(50);
+            }
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertEquals(10, mReceived);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testMultipleDataCb() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
                 "tensor_sink name=sinkx";
@@ -430,6 +539,62 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testClassificationResult() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getTFLiteImgModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:224:224:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=tensorflow-lite model=" + model.getAbsolutePath() + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{3,224,224,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    ByteBuffer buffer = data.getTensorData(0);
+                    int labelIndex = APITestCommon.getMaxScore(buffer);
+
+                    /* check label index (orange) */
+                    if (labelIndex != 951) {
+                        mInvalidState = true;
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            TensorsData in = APITestCommon.readRawImageData();
+            pipe.inputData("srcx", in);
+
+            /* sleep 1000 to invoke */
+            Thread.sleep(1000);
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testInputBuffer() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
@@ -507,6 +672,26 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testInputEmptyName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{2,10,10,1});
+
+            /* start pipeline */
+            pipe.start();
+
+            pipe.inputData("", TensorsData.allocate(info));
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testInputNullData_n() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
@@ -517,6 +702,29 @@ public class APITestPipeline {
             pipe.start();
 
             pipe.inputData("srcx", null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testInputInvalidData_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
+
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{4,10,10,2});
+
+            TensorsData in = TensorsData.allocate(info);
+
+            /* push data with invalid size */
+            pipe.inputData("srcx", in);
             fail();
         } catch (Exception e) {
             /* expected */
@@ -628,6 +836,26 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testGetSwitchEmptyName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "output-selector name=outs " +
+                "outs.src_0 ! tensor_sink name=sinkx async=false " +
+                "outs.src_1 ! tensor_sink async=false";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
+
+            /* get pad list with empty name */
+            pipe.getSwitchPads("");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testSelectInvalidPad_n() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
@@ -668,6 +896,26 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testSelectEmptyPad_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "output-selector name=outs " +
+                "outs.src_0 ! tensor_sink name=sinkx async=false " +
+                "outs.src_1 ! tensor_sink async=false";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
+
+            /* empty pad name */
+            pipe.selectSwitchPad("outs", "");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testSelectNullSwitchName_n() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
@@ -681,6 +929,26 @@ public class APITestPipeline {
 
             /* null switch name */
             pipe.selectSwitchPad(null, "src_1");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSelectEmptySwitchName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "output-selector name=outs " +
+                "outs.src_0 ! tensor_sink name=sinkx async=false " +
+                "outs.src_1 ! tensor_sink async=false";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
+
+            /* empty switch name */
+            pipe.selectSwitchPad("", "src_1");
             fail();
         } catch (Exception e) {
             /* expected */
@@ -760,8 +1028,28 @@ public class APITestPipeline {
             /* start pipeline */
             pipe.start();
 
-            /* control valve with invalid name */
+            /* control valve with null name */
             pipe.controlValve(null, false);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testControlEmptyValveName_n() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tee name=t " +
+                "t. ! queue ! tensor_sink " +
+                "t. ! queue ! valve name=valvex ! tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* start pipeline */
+            pipe.start();
+
+            /* control valve with empty name */
+            pipe.controlValve("", false);
             fail();
         } catch (Exception e) {
             /* expected */
