@@ -411,56 +411,57 @@ shared_library('{fname}',
 """
 
 
-## This is for debugging. To be removed.
-today = date.today()
+if __name__ == '__main__':
+  ## This is for debugging. To be removed.
+  today = date.today()
 
-## 1. Ask for name.
-name = getinput('Please enter the name of the nnstreamer custom filter: ')
-sname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
-def_fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
-## @todo @warning We may require prefix for all custom filter in later versions.
-## 2. Ask/Check for fname (file & official custom filter name)
-print('Please enter the custom filter name registered to tensor_filter.')
-fname = getinput('Or press enter without name if ['+def_fname+'] is ok: ')
-fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", fname))
-if len(fname) < 1:
-  fname = def_fname
+  ## 1. Ask for name.
+  name = getinput('Please enter the name of the nnstreamer custom filter: ')
+  sname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
+  def_fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
+  ## @todo @warning We may require prefix for all custom filter in later versions.
+  ## 2. Ask/Check for fname (file & official custom filter name)
+  print('Please enter the custom filter name registered to tensor_filter.')
+  fname = getinput('Or press enter without name if ['+def_fname+'] is ok: ')
+  fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", fname))
+  if len(fname) < 1:
+    fname = def_fname
 
-result = common_head
+  result = common_head
 
-## 3. Ask for options (dimension configuration modes)
-while 1:
-  option = getinput('Are dimensions of input/output tensors fixed? (yes/no):')
-  option = option.lower()
-  if option == 'y' or option == 'yes':
-    result += dim_fixed
-    break
-  if option == 'n' or option == 'no':
-    result += dim_variable
-    break
-  print("Please enter yes/y or no/n")
+  ## 3. Ask for options (dimension configuration modes)
+  while 1:
+    option = getinput('Are dimensions of input/output tensors fixed? (yes/no):')
+    option = option.lower()
+    if option == 'y' or option == 'yes':
+      result += dim_fixed
+      break
+    if option == 'n' or option == 'no':
+      result += dim_variable
+      break
+    print("Please enter yes/y or no/n")
 
-## 4. Ask for options (memory allocation modes)
-while 1:
-  option = getinput('Are you going to allocate output buffer in your code? (yes/no):')
-  option = option.lower()
-  if option == 'y' or option == 'yes':
-    result += invoke_allocate
-    break
-  if option == 'n' or option == 'no':
-    result += invoke_no_allocate
-    break
-  print("Please enter yes/y or no/n")
+  ## 4. Ask for options (memory allocation modes)
+  while 1:
+    option = getinput('Are you going to allocate output buffer in your code? (yes/no):')
+    option = option.lower()
+    if option == 'y' or option == 'yes':
+      result += invoke_allocate
+      break
+    if option == 'n' or option == 'no':
+      result += invoke_no_allocate
+      break
+    print("Please enter yes/y or no/n")
 
-## 5. Generate .C file
-result += common_tail
-ccode = result.format(fname=fname, name=name, sname=sname, today=today)
-cfile = open(fname+".c", "w")
-cfile.write(ccode)
-cfile.close()
+  ## 5. Generate .C file
+  result += common_tail
+  ccode = result.format(fname=fname, name=name, sname=sname, today=today)
+  cfile = open(fname+".c", "w")
+  cfile.write(ccode)
+  cfile.close()
 
-## 6. Generate .meson file
-mesoncode = meson_script.format(fname=fname, name=name, sname=sname, today=today)
-mesonfile = open("meson.build", "w")
-mesonfile.write(mesoncode)
-mesonfile.close()
+  ## 6. Generate .meson file
+  mesoncode = meson_script.format(fname=fname, name=name, sname=sname, today=today)
+  mesonfile = open("meson.build", "w")
+  mesonfile.write(mesoncode)
+  mesonfile.close()
