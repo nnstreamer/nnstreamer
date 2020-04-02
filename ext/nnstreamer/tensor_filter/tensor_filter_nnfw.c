@@ -649,6 +649,19 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
   return err;
 }
 
+/**
+ * @brief Check support of the backend
+ * @param hw: backend to check support of
+ */
+static int
+nnfw_checkAvailability (accl_hw hw)
+{
+  if (g_strv_contains (nnfw_accl_support, get_accl_hw_str (hw)))
+    return 0;
+
+  return -ENOENT;
+}
+
 static gchar filter_subplugin_nnfw[] = "nnfw";
 
 static GstTensorFilterFramework NNS_support_nnfw = {
@@ -670,6 +683,7 @@ init_filter_nnfw (void)
   NNS_support_nnfw.getInputDimension = nnfw_getInputDim;
   NNS_support_nnfw.getOutputDimension = nnfw_getOutputDim;
   NNS_support_nnfw.setInputDimension = nnfw_setInputDim;
+  NNS_support_nnfw.checkAvailability = nnfw_checkAvailability;
 
   nnstreamer_filter_probe (&NNS_support_nnfw);
 }
