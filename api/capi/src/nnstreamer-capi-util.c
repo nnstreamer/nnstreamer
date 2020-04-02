@@ -27,6 +27,7 @@
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
+#include <tensor_filter/tensor_filter_common.h>
 
 /**
  * @brief Allocates a tensors information handle with default value.
@@ -909,6 +910,7 @@ ml_validate_model_file (char **model, unsigned int num_models,
   /** @todo This is a hotfix. Make a general mechanism instead! (n paths) */
   gchar *path_down, *path_down_2 = NULL;
   int status = ML_ERROR_NONE;
+  gchar *detected_fw = NULL;
 
   if (!model) {
     ml_loge ("The required param, model is not provided (null).");
@@ -933,46 +935,36 @@ ml_validate_model_file (char **model, unsigned int num_models,
 
   switch (*nnfw) {
     case ML_NNFW_TYPE_ANY:
-      /** @todo Make sure num_models is correct */
-      if (g_str_has_suffix (path_down, ".tflite")) {
-        /**
-         * .tflite is supported by both tensorflow and nnfw.
-         * Priority decided with ini file.
-         */
-        gboolean nnfw_runtime_priority =
-            nnsconf_get_custom_value_bool ("nnfw-runtime",
-            "prioritize_tflite_ext", FALSE);
-        gboolean available_nnfw =
-            ml_nnfw_is_available (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
-        gboolean available_tflite =
-            ml_nnfw_is_available (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+      detected_fw =
+          gst_tensor_filter_framework_auto_detection ((const gchar **) model,
+          num_models);
 
-        if ((nnfw_runtime_priority && available_nnfw) ||
-            (!nnfw_runtime_priority && !available_tflite)) {
-          ml_logi ("The given model [%s] is supposed a nnfw model.", model[0]);
-          *nnfw = ML_NNFW_TYPE_NNFW;
-        } else {
-          ml_logi ("The given model [%s] is supposed a tensorflow-lite model.",
-              model[0]);
-          *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-        }
-      } else if ((g_str_has_suffix (path_down, ".so") &&
-              g_str_has_suffix (path_down_2, ".nb")) ||
-          (g_str_has_suffix (path_down, ".nb") &&
-              g_str_has_suffix (path_down_2, ".so"))) {
+      if (detected_fw == NULL) {
+        ml_loge ("The given model [%s] has unknown or not supported extension.",
+            model[0]);
+        status = ML_ERROR_INVALID_PARAMETER;
+      } else if (g_ascii_strcasecmp (detected_fw, "nnfw") == 0) {
+        ml_logi ("The given model [%s] is supposed a nnfw model.", model[0]);
+        *nnfw = ML_NNFW_TYPE_NNFW;
+      } else if (g_ascii_strcasecmp (detected_fw, "tensorflow-lite") == 0) {
+        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.",
+            model[0]);
+        *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+      } else if (g_ascii_strcasecmp (detected_fw, "vivante") == 0) {
         ml_logi ("The given model [%s,%s] looks like a Vivante model.",
             model[0], model[1]);
         *nnfw = ML_NNFW_TYPE_VIVANTE;
-      } else if (g_str_has_suffix (path_down, ".pb")) {
+      } else if (g_ascii_strcasecmp (detected_fw, "tensorflow") == 0) {
         ml_logi ("The given model [%s] is supposed a tensorflow model.",
             model[0]);
         *nnfw = ML_NNFW_TYPE_TENSORFLOW;
-      } else if (g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
+      } else if (g_ascii_strcasecmp (detected_fw, "custom") == 0) {
         ml_logi ("The given model [%s] is supposed a custom filter model.",
             model[0]);
         *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
       } else {
-        ml_loge ("The given model [%s] has unknown extension.", model[0]);
+        ml_loge ("The given model [%s] has unknown or not supported extension.",
+            model[0]);
         status = ML_ERROR_INVALID_PARAMETER;
       }
 
@@ -980,6 +972,9 @@ ml_validate_model_file (char **model, unsigned int num_models,
         if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY))
           status = ML_ERROR_NOT_SUPPORTED;
       }
+
+      if (detected_fw != NULL)
+        g_free (detected_fw);
 
       break;
     case ML_NNFW_TYPE_CUSTOM_FILTER:

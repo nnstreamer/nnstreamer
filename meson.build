@@ -298,7 +298,6 @@ nnstreamer_install_conf.merge_from(nnstreamer_conf)
 nnstreamer_install_conf.set('ENABLE_ENV_VAR', get_option('enable-env-var'))
 nnstreamer_install_conf.set('ENABLE_SYMBOLIC_LINK', get_option('enable-symbolic-link'))
 nnstreamer_install_conf.set('TORCH_USE_GPU', get_option('enable-pytorch-use-gpu'))
-nnstreamer_install_conf.set('NNFW_RUNTIME_PRIORITIZE', get_option('nnfw-runtime-prioritize'))
 
 # Element restriction
 restriction_config = ''
@@ -349,7 +348,6 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
   nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
-  nnstreamer_test_conf.set('NNFW_RUNTIME_PRIORITIZE', false)
 
   configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
     install: get_option('install-test'),
