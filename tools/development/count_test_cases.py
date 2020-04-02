@@ -51,12 +51,12 @@ def readSSAT(filename):
         print("No SSAT results.")
     return (0, 0, 0, 0, 0)
 
-def main():
+if __name__ == '__main__':
     if len(sys.argv) != 3:
         print("Usage:")
         print(" $ "+sys.argv[0]+" <gtest xml path> <ssat summary path>")
         print("")
-        return 1
+        sys.exit(1)
 
     tg = 0
     pg = 0
@@ -84,6 +84,5 @@ def main():
     print("  Passed: " + str(p) + " / Failed: " + str(f) + " / Ignored: " + str(i) + " | Positive: " + str(t - n) + " / Negative: " + str(n))
     print("Grand Total: " + str(pg + t) + " cases (negatives : " + str(ng + n) + ")")
     print("  Passed: " + str(pg+p) + " / Failed: " + str(fg + f) + " / Ignored: " + str(ig + i))
-    return 0
+    sys.exit(0)
 
-main()
