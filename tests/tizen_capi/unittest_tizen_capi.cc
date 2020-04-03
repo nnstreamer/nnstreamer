@@ -504,10 +504,9 @@ TEST (nnstreamer_capi_sink, dummy_01)
   gchar *file2 = g_build_path ("/", dir, "sink", NULL);
   gchar *pipeline =
       g_strdup_printf
-      ("videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,format=BGRx,width=64,height=48,famerate=60/1 ! tee name=t t. ! queue ! filesink location=\"%s\"  t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
+      ("videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=BGRx,width=64,height=48,famerate=30/1 ! tee name=t t. ! queue ! filesink location=\"%s\" buffer-mode=unbuffered t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
       file1);
   ml_pipeline_h handle;
-  ml_pipeline_state_e state;
   ml_pipeline_sink_h sinkhandle;
   int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -518,24 +517,12 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+  g_usleep (500000); /* 500ms. Let a few frames flow. */
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
-
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
 
   status = ml_pipeline_sink_unregister (sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);

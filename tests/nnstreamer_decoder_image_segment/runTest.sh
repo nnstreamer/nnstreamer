@@ -69,7 +69,7 @@ fi
 PATH_TO_MODEL="../test_models/models/deeplabv3_257_mv_gpu.tflite"
 
 # THIS SHOULD EMIT ERROR
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! videoconvert ! fakesink" 0_n 0 1
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! videoconvert ! fakesink" 0_n 0 1
 
 # THIS WON'T FAIL, BUT NOT MUCH MEANINGFUL.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=257,height=257 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! videoconvert ! fakesink" 0_p 0 0
