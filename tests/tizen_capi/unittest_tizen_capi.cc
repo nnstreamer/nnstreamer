@@ -1415,7 +1415,7 @@ TEST (nnstreamer_capi_util, availability_fail_03_n)
 
 #ifdef ENABLE_NNFW_RUNTIME
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of NNFW
  */
 TEST (nnstreamer_capi_util, availability_04)
 {
@@ -1444,7 +1444,7 @@ TEST (nnstreamer_capi_util, availability_04)
 }
 
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of NNFW
  */
 TEST (nnstreamer_capi_util, availability_fail_04_n)
 {
@@ -1463,7 +1463,7 @@ TEST (nnstreamer_capi_util, availability_fail_04_n)
 
 #ifdef ENABLE_MOVIDIUS_NCSDK2
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of NCSDK2
  */
 TEST (nnstreamer_capi_util, availability_05)
 {
@@ -1488,7 +1488,7 @@ TEST (nnstreamer_capi_util, availability_05)
 }
 
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of NCSDK2
  */
 TEST (nnstreamer_capi_util, availability_fail_05_n)
 {
@@ -1507,7 +1507,7 @@ TEST (nnstreamer_capi_util, availability_fail_05_n)
 
 #ifdef ENABLE_ARMNN
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of ARMNN
  */
 TEST (nnstreamer_capi_util, availability_06)
 {
@@ -1536,7 +1536,7 @@ TEST (nnstreamer_capi_util, availability_06)
 }
 
 /**
- * @brief Test NNStreamer Utility for checking availability of custom backend
+ * @brief Test NNStreamer Utility for checking availability of ARMNN
  */
 TEST (nnstreamer_capi_util, availability_fail_06_n)
 {
