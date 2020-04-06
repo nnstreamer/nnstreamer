@@ -489,6 +489,31 @@ file_cmp (const gchar * f1, const gchar * f2)
 }
 
 /**
+ * @brief Wait until the change in pipeline status is done
+ * @return ML_ERROR_NONE success, ML_ERROR_UNKNOWN if failed, ML_ERROR_TIMED_OUT if timeout happens.
+ */
+int
+waitPipelineStateChange (ml_pipeline_h handle, ml_pipeline_state_e state,
+    guint timeout_ms)
+{
+  int status = ML_ERROR_UNKNOWN;
+  guint counter = 0;
+  ml_pipeline_state_e cur_state = ML_PIPELINE_STATE_NULL;
+
+  do {
+    status = ml_pipeline_get_state (handle, &cur_state);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    if (cur_state == ML_PIPELINE_STATE_UNKNOWN)
+      return ML_ERROR_UNKNOWN;
+    if (cur_state == state)
+      return ML_ERROR_NONE;
+    g_usleep (10000);
+  } while ((timeout_ms / 10) >= counter++);
+
+  return ML_ERROR_TIMED_OUT;
+}
+
+/**
  * @brief Test NNStreamer pipeline sink
  */
 TEST (nnstreamer_capi_sink, dummy_01)
@@ -518,7 +543,11 @@ TEST (nnstreamer_capi_sink, dummy_01)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000); /* 500ms. Let a few frames flow. */
+  status = waitPipelineStateChange (handle, ML_PIPELINE_STATE_PLAYING, 200);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* 200ms. Give enough time for three frames to flow. */
+  g_usleep (200000);
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
