@@ -27,6 +27,7 @@
  * This is the per-NN-framework plugin (tensorflow) for tensor_filter.
  */
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
@@ -134,13 +135,13 @@ TFCore::~TFCore ()
 
     TF_CloseSession (session, status);
     if (TF_GetCode (status) != TF_OK) {
-      g_critical ("Error during session close!! - [Code: %d] %s",
+      ml_loge ("Error during session close!! - [Code: %d] %s",
         TF_GetCode (status), TF_Message (status));
     }
 
     TF_DeleteSession (session, status);
     if (TF_GetCode (status) != TF_OK) {
-      g_critical ("Error during session delete!! - [Code: %d] %s",
+      ml_loge ("Error during session delete!! - [Code: %d] %s",
         TF_GetCode (status), TF_Message (status));
     }
     TF_DeleteStatus (status);
@@ -162,17 +163,17 @@ int
 TFCore::init (const GstTensorFilterProperties * prop)
 {
   if (loadModel ()) {
-    g_critical ("Failed to load model");
+    ml_loge ("Failed to load model");
     return -1;
   }
 
   if (validateTensor (&prop->input_meta, 1)) {
-    g_critical ("Failed to validate input tensor");
+    ml_loge ("Failed to validate input tensor");
     return -2;
   }
 
   if (validateTensor (&prop->output_meta, 0)) {
-    g_critical ("Failed to validate output tensor");
+    ml_loge ("Failed to validate output tensor");
     return -3;
   }
 
@@ -222,12 +223,12 @@ TFCore::loadModel ()
   g_assert (model_path != nullptr);
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path (%s) is not valid (not regular)\n", model_path);
+    ml_loge ("the file of model_path (%s) is not valid (not regular)\n", model_path);
     return -1;
   }
 
   if (!g_file_get_contents (model_path, &content, &file_size, &file_error)) {
-    g_critical ("Error reading model file!! - %s", file_error->message);
+    ml_loge ("Error reading model file!! - %s", file_error->message);
     g_clear_error (&file_error);
     return -2;
   }
@@ -248,7 +249,7 @@ TFCore::loadModel ()
   TF_DeleteBuffer (buffer);
 
   if (TF_GetCode (status) != TF_OK) {
-    g_critical ("Error deleting graph!! - [Code: %d] %s",
+    ml_loge ("Error deleting graph!! - [Code: %d] %s",
       TF_GetCode (status), TF_Message (status));
     TF_DeleteStatus (status);
     TF_DeleteGraph (graph);
@@ -260,7 +261,7 @@ TFCore::loadModel ()
   TF_DeleteSessionOptions (options);
 
   if (TF_GetCode (status) != TF_OK) {
-    g_critical ("Error creating Session!! - [Code: %d] %s",
+    ml_loge ("Error creating Session!! - [Code: %d] %s",
       TF_GetCode (status), TF_Message (status));
     TF_DeleteStatus (status);
     TF_DeleteGraph (graph);
@@ -378,7 +379,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
     tf_tensor_info_s info_s;
 
     if (TF_GetCode (status) != TF_OK) {
-      g_critical ("Error Tensor validation!! - [Code: %d] %s",
+      ml_loge ("Error Tensor validation!! - [Code: %d] %s",
         TF_GetCode (status), TF_Message (status));
       TF_DeleteStatus (status);
       return -1;
@@ -399,7 +400,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
 
       TF_GraphGetTensorShape (graph, output, dims.data (), num_dims, status);
       if (TF_GetCode (status) != TF_OK) {
-        g_critical ("Error Tensor validation!! - [Code: %d] %s",
+        ml_loge ("Error Tensor validation!! - [Code: %d] %s",
           TF_GetCode (status), TF_Message (status));
         TF_DeleteStatus (status);
         return -2;
@@ -503,7 +504,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
       char *input_encoded = (char*) g_malloc0 (total_size);
       if (input_encoded == NULL) {
-        g_critical ("Failed to allocate memory for input tensor.");
+        ml_loge ("Failed to allocate memory for input tensor.");
         ret = -1;
         goto failed;
       }
@@ -515,7 +516,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         encoded_size,
         status); /* fills the rest of tensor data */
       if (TF_GetCode (status) != TF_OK) {
-        g_critical ("Error String Encoding!! - [Code: %d] %s",
+        ml_loge ("Error String Encoding!! - [Code: %d] %s",
           TF_GetCode (status), TF_Message (status));
         g_free (input_encoded);
         ret = -1;
@@ -566,7 +567,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
                 );
 
   if (TF_GetCode (status) != TF_OK) {
-    g_critical ("Error Running Session!! - [Code: %d] %s",
+    ml_loge ("Error Running Session!! - [Code: %d] %s",
       TF_GetCode (status), TF_Message (status));
     ret = -2;
     goto failed;

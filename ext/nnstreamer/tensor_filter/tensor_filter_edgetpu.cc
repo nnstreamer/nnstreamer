@@ -31,6 +31,7 @@
 
 #include <stdint.h>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <tensor_common.h>
 #include <glib.h>
@@ -337,7 +338,7 @@ edgetpu_invoke (const GstTensorFilterProperties *prop,
   }
 
   if (status != kTfLiteOk) {
-    g_critical ("Failed to invoke");
+    ml_loge ("Failed to invoke");
     return -1;
   }
 

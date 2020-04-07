@@ -34,6 +34,7 @@
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 #include <armnnCaffeParser/ICaffeParser.hpp>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_conf.h>
@@ -139,17 +140,17 @@ int
 ArmNNCore::init (const GstTensorFilterProperties * prop)
 {
   if (loadModel (prop)) {
-    g_critical ("Failed to load model\n");
+    ml_loge ("Failed to load model\n");
     return -1;
   }
 
   if (setInputTensorProp ()) {
-    g_critical ("Failed to initialize input tensor\n");
+    ml_loge ("Failed to initialize input tensor\n");
     return -2;
   }
 
   if (setOutputTensorProp ()) {
-    g_critical ("Failed to initialize output tensor\n");
+    ml_loge ("Failed to initialize output tensor\n");
     return -3;
   }
   return 0;
@@ -353,7 +354,7 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
   armnn::Status status;
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path (%s) is not valid (not regular)\n",
+    ml_loge ("the file of model_path (%s) is not valid (not regular)\n",
         model_path);
     return -EINVAL;
   }
@@ -391,15 +392,15 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
       throw;
     }
     catch (const std::runtime_error & re) {
-      g_critical ("Runtime error while loading the network: %s", re.what ());
+      ml_loge ("Runtime error while loading the network: %s", re.what ());
       return -EINVAL;
     }
     catch (const std::exception & ex) {
-      g_critical ("Exception while loading the network : %s", ex.what ());
+      ml_loge ("Exception while loading the network : %s", ex.what ());
       return -EINVAL;
     }
     catch ( ...) {
-      g_critical ("Unknown exception while loading the network");
+      ml_loge ("Unknown exception while loading the network");
       return -EINVAL;
     }
   }
@@ -427,19 +428,19 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
       /** Supported with tf, tflite and caffe */
       return _NNS_FLOAT32;
     case armnn::DataType::Float16:
-      g_warning ("Unsupported armnn datatype Float16.");
+      ml_logw ("Unsupported armnn datatype Float16.");
       break;
     case armnn::DataType::QuantisedAsymm8:
       /** Supported with tflite */
       return _NNS_UINT8;
     case armnn::DataType::Boolean:
-      g_warning ("Unsupported armnn datatype Boolean.");
+      ml_logw ("Unsupported armnn datatype Boolean.");
       break;
     case armnn::DataType::QuantisedSymm16:
-      g_warning ("Unsupported armnn datatype QuantisedSym16.");
+      ml_logw ("Unsupported armnn datatype QuantisedSym16.");
       break;
     default:
-      g_warning ("Unsupported armnn datatype unknown.");
+      ml_logw ("Unsupported armnn datatype unknown.");
       /** @todo Support other types */
       break;
   }
@@ -480,19 +481,19 @@ ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
     if (gst_info->type == _NNS_END) {
       gst_info->type = getGstTensorType (arm_info.GetDataType ());
     } else if (gst_info->type != getGstTensorType (arm_info.GetDataType ())) {
-      g_warning ("Provided data type info does not match with model.");
+      ml_logw ("Provided data type info does not match with model.");
       return -EINVAL;
     }
 
     if (gst_info->type == _NNS_END) {
-      g_warning ("Data type not supported.");
+      ml_logw ("Data type not supported.");
       return -EINVAL;
     }
 
     /* Set the dimensions */
     int num_dim = arm_info.GetNumDimensions ();
     if (num_dim > NNS_TENSOR_RANK_LIMIT) {
-      g_warning ("Data rank exceeds max supported rank.");
+      ml_logw ("Data rank exceeds max supported rank.");
       return -EINVAL;
     }
 

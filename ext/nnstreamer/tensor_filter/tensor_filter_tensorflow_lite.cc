@@ -28,6 +28,7 @@
 #include <limits.h>
 #include <algorithm>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_conf.h>
@@ -231,7 +232,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
 #endif
 
   if (status != kTfLiteOk) {
-    g_critical ("Failed to invoke");
+    ml_loge ("Failed to invoke");
     return -1;
   }
 
@@ -251,7 +252,7 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
 
   model = tflite::FlatBufferModel::BuildFromFile (model_path);
   if (!model) {
-    g_critical ("Failed to mmap model\n");
+    ml_loge ("Failed to mmap model\n");
     return -1;
   }
   /* If got any trouble at model, active below code. It'll be help to analyze. */
@@ -262,7 +263,7 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
   tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder (*model, resolver) (&interpreter);
   if (!interpreter) {
-    g_critical ("Failed to construct interpreter\n");
+    ml_loge ("Failed to construct interpreter\n");
     return -2;
   }
 
@@ -272,7 +273,7 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
   if (use_nnapi) {
     nnfw_delegate.reset (new ::nnfw::tflite::NNAPIDelegate);
     if (nnfw_delegate->BuildGraph (interpreter) != kTfLiteOk) {
-      g_critical ("Fail to BuildGraph");
+      ml_loge ("Fail to BuildGraph");
       return -3;
     }
   }
@@ -294,7 +295,7 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
   }
 
   if (interpreter->AllocateTensors () != kTfLiteOk) {
-    g_critical ("Failed to allocate tensors\n");
+    ml_loge ("Failed to allocate tensors\n");
     return -2;
   }
 #if (DBG)
@@ -338,7 +339,7 @@ TFLiteInterpreter::getTensorType (TfLiteType tfType)
     case kTfLiteFloat16:
 #endif
     default:
-      g_critical ("Not supported Tensorflow Data Type: [%d].", tfType);
+      ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);
       /** @todo Support other types */
       break;
   }
@@ -386,7 +387,7 @@ TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
 
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     if (getTensorDim (tensor_idx_list[i], tensorMeta->info[i].dimension)) {
-      g_critical ("failed to get the dimension of input tensors");
+      ml_loge ("failed to get the dimension of input tensors");
       return -1;
     }
     tensorMeta->info[i].type =
@@ -563,15 +564,15 @@ int
 TFLiteCore::init ()
 {
   if (loadModel ()) {
-    g_critical ("Failed to load model\n");
+    ml_loge ("Failed to load model\n");
     return -1;
   }
   if (setInputTensorProp ()) {
-    g_critical ("Failed to initialize input tensor\n");
+    ml_loge ("Failed to initialize input tensor\n");
     return -2;
   }
   if (setOutputTensorProp ()) {
-    g_critical ("Failed to initialize output tensor\n");
+    ml_loge ("Failed to initialize output tensor\n");
     return -3;
   }
   return 0;
@@ -706,7 +707,7 @@ TFLiteCore::reloadModel (const char * _model_path)
   int err;
 
   if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("The path of model file(s), %s, to reload is invalid.",
+    ml_loge ("The path of model file(s), %s, to reload is invalid.",
         _model_path);
     return -EINVAL;
   }
@@ -720,17 +721,17 @@ TFLiteCore::reloadModel (const char * _model_path)
    */
   err = interpreter_sub.loadModel (use_nnapi);
   if (err != 0) {
-    g_critical ("Failed to load model %s\n", _model_path);
+    ml_loge ("Failed to load model %s\n", _model_path);
     goto out_unlock;
   }
   err = interpreter_sub.setInputTensorProp ();
   if (err != 0) {
-    g_critical ("Failed to initialize input tensor\n");
+    ml_loge ("Failed to initialize input tensor\n");
     goto out_unlock;
   }
   err = interpreter_sub.setOutputTensorProp ();
   if (err != 0) {
-    g_critical ("Failed to initialize output tensor\n");
+    ml_loge ("Failed to initialize output tensor\n");
     goto out_unlock;
   }
 
@@ -741,7 +742,7 @@ TFLiteCore::reloadModel (const char * _model_path)
       !gst_tensors_info_is_equal (
         interpreter.getOutputTensorsInfo (),
         interpreter_sub.getOutputTensorsInfo ())) {
-    g_critical ("The model has unmatched tensors info\n");
+    ml_loge ("The model has unmatched tensors info\n");
     err = -EINVAL;
     goto out_unlock;
   }

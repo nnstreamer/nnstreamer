@@ -57,6 +57,7 @@
 #include <string.h>
 #include <dlfcn.h>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_conf.h>
@@ -77,7 +78,7 @@
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.so.1.0"
 #endif
 
-#define Py_ERRMSG(...) do {PyErr_Print(); g_critical (__VA_ARGS__);} while (0);
+#define Py_ERRMSG(...) do {PyErr_Print(); ml_loge (__VA_ARGS__);} while (0);
 
 static const gchar *python_accl_support[] = {
   ACCL_AUTO_STR,
@@ -592,7 +593,7 @@ PYCore::freeOutputTensors (void *data)
     Py_XDECREF(it->second);
     outputArrayMap.erase (it);
   } else {
-    g_critical("Cannot find output data: 0x%lx", (unsigned long) data);
+    ml_loge("Cannot find output data: 0x%lx", (unsigned long) data);
   }
 }
 
@@ -641,7 +642,7 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         Py_XINCREF(output_array);
         outputArrayMap.insert (std::make_pair (output[i].data, output_array));
       } else {
-        g_critical ("Output tensor type/size is not matched\n");
+        ml_loge ("Output tensor type/size is not matched\n");
         res = -2;
         break;
       }

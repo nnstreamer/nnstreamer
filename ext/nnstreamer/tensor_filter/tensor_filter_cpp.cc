@@ -34,6 +34,7 @@
 #include <glib.h>
 #include <gmodule.h>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 #include "tensor_filter_cpp.hh"
@@ -133,7 +134,7 @@ int tensor_filter_cpp::__unregister (const char *name)
     return -EINVAL; /** Not found */
   if (filters[name]->ref_count > 0) {
     unsigned int cnt = filters[name]->ref_count;
-    g_critical ("The reference counter of c++ filter, %s, is %u. Anyway, we are closing this because this is being closed by destructor of .so file.", name, cnt);
+    ml_loge ("The reference counter of c++ filter, %s, is %u. Anyway, we are closing this because this is being closed by destructor of .so file.", name, cnt);
   }
   size_t num = filters.erase (name);
   if (num != 1)

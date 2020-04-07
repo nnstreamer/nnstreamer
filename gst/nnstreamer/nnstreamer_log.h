@@ -24,8 +24,6 @@
 #ifndef __NNSTREAMER_LOG_H__
 #define __NNSTREAMER_LOG_H__
 
-G_BEGIN_DECLS
-
 #define TAG_NAME "nnstreamer"
 
 #if defined(__TIZEN__)
@@ -72,5 +70,4 @@ G_BEGIN_DECLS
 #define nns_loge ml_loge
 #define nns_logd ml_logd
 
-G_END_DECLS
 #endif /* __NNSTREAMER_LOG_H__ */

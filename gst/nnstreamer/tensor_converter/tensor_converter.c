@@ -47,6 +47,7 @@
 #include <string.h>
 #include "tensor_converter.h"
 #include "converter-media-info.h"
+#include <nnstreamer_log.h>
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_plugin_api_converter.h>
 
@@ -1449,7 +1450,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         frames_dim = 3;
         self->frame_size = GST_VIDEO_INFO_SIZE (&info);
       } else {
-        g_critical
+        ml_loge
             ("\n This binary does not support video type. Please build NNStreamer with disable-video-support : false\n");
         return FALSE;
       }
@@ -1473,7 +1474,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         frames_dim = 1;
         self->frame_size = GST_AUDIO_INFO_BPF (&info);
       } else {
-        g_critical
+        ml_loge
             ("\n This binary does not support audio type. Please build NNStreamer with disable-audio-support : false\n");
         return FALSE;
       }
@@ -1490,7 +1491,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         GST_ERROR_OBJECT (self,
             "Failed to get tensor info, need to update string size.");
 
-        g_critical ("Please set the property input-dim to convert stream.\n"
+        ml_loge ("Please set the property input-dim to convert stream.\n"
             "For example, input-dim=30 to handle up to 30 bytes of string per frame.");
         return FALSE;
       }
@@ -1512,7 +1513,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         GST_ERROR_OBJECT (self,
             "Failed to get tensor info, need to update dimension and type.");
 
-        g_critical
+        ml_loge
             ("Please set the properties input-dim and input-type to convert stream.\n"
             "For example, input-dim=30 input-type=unit8 to handle 30 bytes of bin data.");
         return FALSE;
@@ -1536,7 +1537,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
             GST_ERROR_OBJECT (self,
                 "Failed to get tensor info from %s. Check the given options.",
                 name);
-            g_critical ("Please set the options property correctly.\n");
+            ml_loge ("Please set the options property correctly.\n");
             self->externalConverter = NULL;
             return FALSE;
           }

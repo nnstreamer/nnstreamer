@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <algorithm>
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
@@ -125,7 +126,7 @@ int
 Caffe2Core::init (const GstTensorFilterProperties * prop)
 {
   if (loadModels ()) {
-    g_critical ("Failed to load model\n");
+    ml_loge ("Failed to load model\n");
     return -1;
   }
 
@@ -133,7 +134,7 @@ Caffe2Core::init (const GstTensorFilterProperties * prop)
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
 
   if (initInputTensor ()) {
-    g_critical ("Failed to initialize input tensor\n");
+    ml_loge ("Failed to initialize input tensor\n");
     return -2;
   }
 
@@ -173,7 +174,7 @@ Caffe2Core::initInputTensor ()
         initializeTensor (int32_t);
         break;
       case _NNS_UINT32:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
       case _NNS_INT16:
         initializeTensor (int16_t);
@@ -197,10 +198,10 @@ Caffe2Core::initInputTensor ()
         initializeTensor (int64_t);
         break;
       case _NNS_UINT64:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
       default:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
     }
 
@@ -243,11 +244,11 @@ Caffe2Core::loadModels ()
   gint64 start_time = g_get_real_time ();
 #endif
   if (!g_file_test (init_model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of init_model_path is not valid: %s\n", init_model_path);
+    ml_loge ("the file of init_model_path is not valid: %s\n", init_model_path);
     return -1;
   }
   if (!g_file_test (pred_model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of pred_model_path is not valid: %s\n", pred_model_path);
+    ml_loge ("the file of pred_model_path is not valid: %s\n", pred_model_path);
     return -1;
   }
   CAFFE_ENFORCE (ReadProtoFromFile (init_model_path, &initNet));
@@ -322,7 +323,7 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
         inputTensor->ShareExternalPointer ((int32_t*) input[i].data);
         break;
       case _NNS_UINT32:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
       case _NNS_INT16:
         inputTensor->ShareExternalPointer ((int16_t*) input[i].data);
@@ -346,10 +347,10 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
         inputTensor->ShareExternalPointer ((int64_t*) input[i].data);
         break;
       case _NNS_UINT64:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
       default:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
     }
   }
@@ -363,13 +364,13 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
       workSpace.RunNet (predictNet.name ());
       first_run = false;
     } catch(const std::runtime_error& re) {
-      g_critical ("Runtime error while running the model: %s", re.what());
+      ml_loge ("Runtime error while running the model: %s", re.what());
       return -4;
     } catch(const std::exception& ex)	{
-      g_critical ("Exception while running the model : %s", ex.what());
+      ml_loge ("Exception while running the model : %s", ex.what());
       return -4;
     } catch (...) {
-      g_critical ("Unknown exception while running the model");
+      ml_loge ("Unknown exception while running the model");
       return -4;
     }
   } else {
@@ -385,7 +386,7 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
         output[i].data = out.data<int32_t>();
         break;
       case _NNS_UINT32:
-        g_critical ("invalid data type (uint32) is used");
+        ml_loge ("invalid data type (uint32) is used");
         return -1;
       case _NNS_INT16:
         output[i].data = out.data<int16_t>();
@@ -409,10 +410,10 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
         output[i].data = out.data<int64_t>();
         break;
       case _NNS_UINT64:
-        g_critical ("invalid data type (uint64) is used");
+        ml_loge ("invalid data type (uint64) is used");
         return -1;
       default:
-        g_critical ("invalid data type is used");
+        ml_loge ("invalid data type is used");
         return -1;
     }
   }
@@ -458,7 +459,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
   const gchar *pred_model;
 
   if (prop->num_models != 2) {
-    g_critical ("Caffe2 requires two model files\n");
+    ml_loge ("Caffe2 requires two model files\n");
     return -1;
   }
 
@@ -478,7 +479,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
 
   core = new Caffe2Core (init_model, pred_model);
   if (core == NULL) {
-    g_critical ("Failed to allocate memory for filter subplugin: Caffe2\n");
+    ml_loge ("Failed to allocate memory for filter subplugin: Caffe2\n");
     return -1;
   }
 
@@ -486,7 +487,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     *private_data = NULL;
     delete core;
 
-    g_critical ("failed to initialize the object: Caffe2");
+    ml_loge ("failed to initialize the object: Caffe2");
     return -2;
   }
 

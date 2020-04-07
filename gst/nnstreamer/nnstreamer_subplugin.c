@@ -26,6 +26,7 @@
 #include <glib.h>
 #include <gmodule.h>
 
+#include "nnstreamer_log.h"
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
 
@@ -106,7 +107,7 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
   module = g_module_open (path, 0);
   /* If this is a correct subplugin, it will register itself */
   if (module == NULL) {
-    g_critical ("Cannot open %s(%s) with error %s.", name, path,
+    ml_loge ("Cannot open %s(%s) with error %s.", name, path,
         g_module_error ());
     return NULL;
   }
@@ -115,7 +116,7 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
   if (spdata) {
     g_ptr_array_add (handles, (gpointer) module);
   } else {
-    g_critical
+    ml_loge
         ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
         name, path);
     g_module_close (module);
@@ -183,20 +184,20 @@ register_subplugin (subpluginType type, const char *name, const void *data)
 
   /* check the sub-pugin name */
   if (g_ascii_strcasecmp (name, "auto") == 0) {
-    g_critical ("Failed, the name %s is not allowed.", name);
+    ml_loge ("Failed, the name %s is not allowed.", name);
     return FALSE;
   }
 
   spdata = _get_subplugin_data (type, name);
   if (spdata) {
     /* already exists */
-    g_warning ("Subplugin %s is already registered.", name);
+    ml_logw ("Subplugin %s is already registered.", name);
     return FALSE;
   }
 
   spdata = g_new0 (subpluginData, 1);
   if (spdata == NULL) {
-    g_critical ("Failed to allocate memory for subplugin registration.");
+    ml_loge ("Failed to allocate memory for subplugin registration.");
     return FALSE;
   }
 

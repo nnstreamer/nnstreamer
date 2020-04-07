@@ -26,6 +26,7 @@
  *
  */
 
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
@@ -160,7 +161,7 @@ TorchCore::init (const GstTensorFilterProperties * prop)
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
 
   if (loadModel ()) {
-    g_critical ("Failed to load model\n");
+    ml_loge ("Failed to load model\n");
     return -1;
   }
 
@@ -193,14 +194,14 @@ TorchCore::loadModel ()
 #endif
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("the file of model_path (%s) is not valid (not regular).",
+    ml_loge ("the file of model_path (%s) is not valid (not regular).",
         model_path);
     return -1;
   }
 
   model = torch::jit::load (model_path);
   if (model == nullptr) {
-    g_critical ("Failed to read graph.");
+    ml_loge ("Failed to read graph.");
     return -2;
   }
 
@@ -300,14 +301,14 @@ TorchCore::validateOutputTensor (const at::Tensor output)
   auto tensor_shape = output.sizes ();
 
   if (tensor_shape[0] != 0 && outputTensorMeta.num_tensors != tensor_shape[0]) {
-    g_critical ("Invalid output meta: different size");
+    ml_loge ("Invalid output meta: different size");
     return -1;
   }
 
   if (tensor_shape[0] == 0) {
     tensor_type otype = getTensorTypeFromTorch (output.scalar_type ());
     if (outputTensorMeta.info[0].type != otype) {
-      g_critical ("Invalid output meta: different type");
+      ml_loge ("Invalid output meta: different type");
       return -2;
     }
     goto done;
@@ -330,12 +331,12 @@ TorchCore::validateOutputTensor (const at::Tensor output)
     }
 
     if (outputTensorMeta.info[i].type != otype) {
-      g_critical ("Invalid output meta: different type");
+      ml_loge ("Invalid output meta: different type");
       return -2;
     }
 
     if (num_gst_tensor != num_torch_tensor) {
-      g_critical ("Invalid output meta: different element size");
+      ml_loge ("Invalid output meta: different element size");
       return -3;
     }
   }
@@ -393,7 +394,7 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory * output)
 
   /* validate output tensor once */
   if (!configured && validateOutputTensor (output_tensor)) {
-    g_critical ("Output Tensor Information is not valid");
+    ml_loge ("Output Tensor Information is not valid");
     return -1;
   }
 
@@ -431,7 +432,7 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
         &inputTensorMeta.info[i].dimension[0] + NNS_TENSOR_RANK_LIMIT);
 
     if (!getTensorTypeToTorch (input[i].type, &type)) {
-      g_critical ("This data type is not valid: %d", input[i].type);
+      ml_loge ("This data type is not valid: %d", input[i].type);
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
@@ -457,15 +458,15 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     }
     catch (const std::runtime_error & re)
     {
-      g_critical ("Runtime error while running the model: %s", re.what ());
+      ml_loge ("Runtime error while running the model: %s", re.what ());
       return -4;
     }
     catch (const std::exception & ex) {
-      g_critical ("Exception while running the model : %s", ex.what ());
+      ml_loge ("Exception while running the model : %s", ex.what ());
       return -4;
     }
     catch (...) {
-      g_critical ("Unknown exception while running the model");
+      ml_loge ("Unknown exception while running the model");
       return -4;
     }
   } else {
@@ -475,7 +476,7 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
   if (output_value.isTensor ()) {
     g_assert (outputTensorMeta.num_tensors == 1);
     if (processIValue (output_value, &output[0])) {
-      g_critical ("Output Tensor Information is not valid");
+      ml_loge ("Output Tensor Information is not valid");
       return -2;
     }
   } else if (output_value.isGenericList ()) {
@@ -485,12 +486,12 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     int idx = 0;
   for (auto & ivalue_element:output_list) {
       if (processIValue (ivalue_element, &output[idx++])) {
-        g_critical ("Output Tensor Information is not valid");
+        ml_loge ("Output Tensor Information is not valid");
         return -2;
       }
     }
   } else {
-    g_critical ("Output is not a tensor.");
+    ml_loge ("Output is not a tensor.");
     return -3;
   }
 
