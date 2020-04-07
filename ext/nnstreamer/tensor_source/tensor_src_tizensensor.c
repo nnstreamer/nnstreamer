@@ -580,7 +580,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   /* Based on Tizen Native App (Sensor) Guide */
   /* 1. Check if the sensor supported */
   ret = sensor_is_supported (self->type, &supported);
-  if (ret != 0) {
+  if (ret != SENSOR_ERROR_NONE) {
     ml_loge ("Tizen sensor framework is not working (sensor_is_supported).\n");
     return -ENODEV;
   }
