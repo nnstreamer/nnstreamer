@@ -82,6 +82,7 @@
 
 #include <tensor_typedef.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_log.h>
 
 #include "tensor_src_tizensensor.h"
 
@@ -570,15 +571,19 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
       GINT_TO_POINTER (self->type));
   bool supported = false;
 
-  if (NULL == val)
-    g_printerr ("The given sensor type (%d) is not supported.\n", self->type);
-  g_assert (val);
+  if (NULL == val) {
+    ml_loge ("The given sensor type (%d) is not supported.\n", self->type);
+    return -ENODEV;
+  }
   self->src_spec = val;
 
   /* Based on Tizen Native App (Sensor) Guide */
   /* 1. Check if the sensor supported */
   ret = sensor_is_supported (self->type, &supported);
-  g_assert (ret == 0);
+  if (ret != 0) {
+    ml_loge ("Tizen sensor framework is not working (sensor_is_supported).\n");
+    return -ENODEV;
+  }
 
   if (false == supported) {
     GST_ERROR_OBJECT (self,
