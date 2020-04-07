@@ -25,6 +25,7 @@
 #include <string.h>
 #include <glib.h>
 
+#include "nnstreamer_log.h"
 #include "nnstreamer_conf.h"
 
 /**
@@ -208,7 +209,7 @@ _get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
 {
   if (type >= NNSCONF_PATH_END) {
     /* unknown type */
-    g_critical ("Failed to get sub-plugins, unknown sub-plugin type.");
+    ml_loge ("Failed to get sub-plugins, unknown sub-plugin type.");
     return FALSE;
   }
 
@@ -391,7 +392,7 @@ nnsconf_loadconf (gboolean force_reload)
      * Failed to get the configuration.
      * Note that Android API does not use the configuration.
      */
-    g_warning ("Failed to load the configuration, no config file found.");
+    ml_logw ("Failed to load the configuration, no config file found.");
   }
 
   for (t = 0; t < NNSCONF_PATH_END; t++) {

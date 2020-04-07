@@ -33,6 +33,7 @@
 #include "tensor_filter_custom.h"
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
+#include <nnstreamer_log.h>
 
 void init_filter_custom (void) __attribute__ ((constructor));
 void fini_filter_custom (void) __attribute__ ((destructor));
@@ -84,7 +85,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 
   ptr = *private_data = g_new0 (internal_data, 1);
   if (ptr == NULL) {
-    g_critical ("Failed to allocate memory for custom filter.");
+    ml_loge ("Failed to allocate memory for custom filter.");
     return -1;
   }
 
@@ -97,7 +98,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   if (!g_module_symbol (ptr->module, "NNStreamer_custom", &custom_cls)) {
-    g_critical ("tensor_filter_custom:loadlib error: %s\n", g_module_error ());
+    ml_loge ("tensor_filter_custom:loadlib error: %s\n", g_module_error ());
     g_module_close (ptr->module);
     g_free (ptr);
     *private_data = NULL;

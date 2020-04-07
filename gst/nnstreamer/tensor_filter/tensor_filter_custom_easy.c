@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <glib.h>
 #include <tensor_filter_custom_easy.h>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_subplugin.h>
 
@@ -97,7 +98,7 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   rd->model = get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_files[0]);
 
   if (NULL == rd->model) {
-    g_critical
+    ml_loge
         ("Cannot find the easy-custom model, \"%s\". You should provide a valid model name of easy-custom.",
         prop->model_files[0]);
     g_free (rd);

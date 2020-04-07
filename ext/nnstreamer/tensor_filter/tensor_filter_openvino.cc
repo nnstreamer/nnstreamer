@@ -25,6 +25,7 @@
  */
 
 #include <glib.h>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <tensor_common.h>
 #ifdef __OPENVINO_CPU_EXT__
@@ -223,19 +224,19 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
 
   if (this->_isLoaded) {
     // TODO: Can OpenVino support to replace the loaded model with a new one?
-    g_critical ("The model file is already loaded onto the device.");
+    ml_loge ("The model file is already loaded onto the device.");
     return RetEBusy;
   }
 
   strVector = this->_ieCore.GetAvailableDevices ();
   if (strVector.size () == 0) {
-    g_critical ("No devices found for the OpenVino toolkit; "
+    ml_loge ("No devices found for the OpenVino toolkit; "
         "check your plugin is installed, and the device is also connected.");
     return RetENoDev;
   }
 
   if (!TensorFilterOpenvino::isAcclDevSupported (strVector, hw)) {
-    g_critical ("Failed to find the device (%s) or its plugin (%s)",
+    ml_loge ("Failed to find the device (%s) or its plugin (%s)",
         get_accl_hw_str (hw), _nnsAcclHwToOVDevMap[hw].c_str());
     return RetEInval;
   }
@@ -273,7 +274,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
 
   info->num_tensors = (uint32_t) inputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    g_critical ("The number of input tenosrs in the model "
+    ml_loge ("The number of input tenosrs in the model "
         "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
         NNS_TENSOR_SIZE_LIMIT_STR);
     ret = RetEOverFlow;
@@ -293,7 +294,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
     eachInputTensorDesc = eachInputInfo->getTensorDesc ();
     dimsSizeVec = eachInputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
-      g_critical ("The ranks of dimensions of InputTensor[%d] in the model "
+      ml_loge ("The ranks of dimensions of InputTensor[%d] in the model "
           "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
       ret = RetEOverFlow;
       goto failed;
@@ -310,7 +311,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
     ieTensorTypeStr = eachInputInfo->getPrecision ().name ();
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
     if (nnsTensorType == _NNS_END) {
-      g_critical ("The type of tensor elements, %s, "
+      ml_loge ("The type of tensor elements, %s, "
           "in the model is not supported", ieTensorTypeStr.c_str ());
       ret = RetEInval;
       goto failed;
@@ -324,7 +325,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
   return TensorFilterOpenvino::RetSuccess;
 
 failed:
-  g_critical ("Failed to get dimension information about input tensor");
+  ml_loge ("Failed to get dimension information about input tensor");
 
   return ret;
 }
@@ -345,7 +346,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
 
   info->num_tensors = (uint32_t) outputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    g_critical ("The number of output tenosrs in the model "
+    ml_loge ("The number of output tenosrs in the model "
         "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
         NNS_TENSOR_SIZE_LIMIT_STR);
     ret = RetEOverFlow;
@@ -365,7 +366,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
     eachOutputTensorDesc = eachOutputInfo->getTensorDesc ();
     dimsSizeVec = eachOutputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
-      g_critical ("The ranks of dimensions of OutputTensor[%d] in the model "
+      ml_loge ("The ranks of dimensions of OutputTensor[%d] in the model "
           "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
       ret = RetEOverFlow;
       goto failed;
@@ -382,7 +383,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
     ieTensorTypeStr = eachOutputInfo->getPrecision ().name ();
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
     if (nnsTensorType == _NNS_END) {
-      g_critical ("The type of tensor elements, %s, "
+      ml_loge ("The type of tensor elements, %s, "
           "in the model is not supported", ieTensorTypeStr.c_str ());
       ret = RetEInval;
       goto failed;
@@ -396,7 +397,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
   return TensorFilterOpenvino::RetSuccess;
 
 failed:
-  g_critical ("Failed to get dimension information about output tensor");
+  ml_loge ("Failed to get dimension information about output tensor");
 
   return ret;
 }
@@ -423,7 +424,7 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
         this->_inputTensorDescs[i], &(input[i]));
     if (blob == nullptr) {
-      g_critical ("Failed to create a blob for the input tensor: %u", i);
+      ml_loge ("Failed to create a blob for the input tensor: %u", i);
       return RetEInval;
     }
     inBlobMap.insert (make_pair (std::string(info->name), blob));
@@ -437,7 +438,7 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
         this->_outputTensorDescs[i], &(output[i]));
     outBlobMap.insert (make_pair (std::string(info->name), blob));
     if (blob == nullptr) {
-      g_critical ("Failed to create a blob for the output tensor: %u", i);
+      ml_loge ("Failed to create a blob for the output tensor: %u", i);
       return RetEInval;
     }
   }
@@ -536,17 +537,17 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
   accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support);
 #ifndef __OPENVINO_CPU_EXT__
   if (accelerator == ACCL_CPU) {
-    g_critical ("Accelerating via CPU is not supported on the current platform");
+    ml_loge ("Accelerating via CPU is not supported on the current platform");
     return TensorFilterOpenvino::RetEInval;
   }
 #endif
   if (accelerator == ACCL_NONE || accelerator == ACCL_AUTO
       || accelerator == ACCL_DEFAULT) {
     if (prop->accl_str != NULL) {
-      g_critical("'%s' is not valid value for the 'accelerator' property",
+      ml_loge("'%s' is not valid value for the 'accelerator' property",
           prop->accl_str);
     }
-    g_critical ("The 'accelerator' property is mandatory to use the tensor filter for OpenVino.\n"
+    ml_loge ("The 'accelerator' property is mandatory to use the tensor filter for OpenVino.\n"
         "An acceptable format is as follows: 'true:[cpu|npu.movidius]'. Note that 'cpu' is only for the x86_64 architecture.");
 
     return TensorFilterOpenvino::RetEInval;
@@ -579,22 +580,22 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
       }
 
       if (num_models_xml > 1) {
-        g_critical ("Too many model files in a XML format are provided.");
+        ml_loge ("Too many model files in a XML format are provided.");
         return TensorFilterOpenvino::RetEInval;
       } else if (num_models_bin > 1) {
-        g_critical ("Too many model files in a BIN format are provided.");
+        ml_loge ("Too many model files in a BIN format are provided.");
         return TensorFilterOpenvino::RetEInval;
       }
     }
   }
 
   if (!g_file_test (model_path_xml.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("Failed to open the XML model file, %s",
+    ml_loge ("Failed to open the XML model file, %s",
         model_path_xml.c_str ());
     return TensorFilterOpenvino::RetEInval;
   }
   if (!g_file_test (model_path_bin.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    g_critical ("Failed to open the BIN model file, %s",
+    ml_loge ("Failed to open the BIN model file, %s",
         model_path_bin.c_str ());
     return TensorFilterOpenvino::RetEInval;
   }

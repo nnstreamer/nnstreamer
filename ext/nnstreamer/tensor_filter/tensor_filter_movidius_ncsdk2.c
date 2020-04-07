@@ -31,6 +31,7 @@
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <mvnc2/mvnc.h>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -305,7 +306,7 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
 
   g_return_val_if_fail (prop->input_configured, -1);
   if (prop->input_meta.num_tensors != NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED) {
-    g_critical ("The number of input tensor should be one: "
+    ml_loge ("The number of input tensor should be one: "
         "The MVNCSDK API supports single tensor input and output only");
     goto err_destroy;
   }

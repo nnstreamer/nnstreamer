@@ -49,6 +49,7 @@
 
 #include <glib.h>
 #include <tensor_typedef.h>
+#include <nnstreamer_log.h>
 
 /** @brief object structure for custom Python type: TensorShape */
 typedef struct
@@ -172,7 +173,7 @@ TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
       self->type = dtype;
       Py_XINCREF (dtype);
     } else
-      g_critical ("Wrong data type");
+      ml_loge ("Wrong data type");
   }
 
   return 0;

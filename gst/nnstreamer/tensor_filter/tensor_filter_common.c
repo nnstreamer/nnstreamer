@@ -25,6 +25,7 @@
 
 #include <string.h>
 
+#include <nnstreamer_log.h>
 #include <tensor_common.h>
 
 #include "tensor_filter_common.h"
@@ -333,7 +334,7 @@ verify_model_path (const GstTensorFilterPrivate * priv)
   if ((prop->model_files != NULL) && (verify_model_path == TRUE)) {
     for (i = 0; i < prop->num_models; i++) {
       if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
-        g_critical ("Cannot find the model file [%d]: %s\n",
+        ml_loge ("Cannot find the model file [%d]: %s\n",
             i, prop->model_files[i]);
         ret = FALSE;
       }
@@ -716,7 +717,7 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   if (info->name == NULL) {
     status = priv->fw->getFrameworkInfo (prop, priv->privateData, info);
     if (status != 0 || info->hw_list == NULL) {
-      g_warning ("Unable to fetch accelerators supported by the framework.");
+      ml_logw ("Unable to fetch accelerators supported by the framework.");
       return;
     }
   }
@@ -932,7 +933,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
           gst_tensor_filter_common_close_fw (priv);
           priv->fw = NULL;
         } else {
-          g_debug ("Framework = %s\n", fw_name);
+          ml_logd ("Framework = %s\n", fw_name);
           break;
         }
       }
@@ -990,7 +991,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
         if (status == 0) {
           g_strfreev_const (_prop.model_files);
         } else {
-          g_critical ("Fail to reload model\n");
+          ml_loge ("Fail to reload model\n");
           g_strfreev_const (prop->model_files);
           prop->model_files = _prop.model_files;
           prop->num_models = _prop.num_models;
