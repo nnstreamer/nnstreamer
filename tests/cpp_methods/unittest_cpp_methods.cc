@@ -92,10 +92,11 @@ TEST (cpp_filter_on_demand, pipeline_01)
   }
 
   if (pipeline) {
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, 500000U), 0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     g_usleep (100000);
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, 500000U), 0);
+
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
     g_usleep (100000);
 
     gst_object_unref (pipeline);
@@ -173,7 +174,7 @@ TEST (cpp_filter_obj, base_01_n)
   }
 
   if (pipeline) {
-    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, 500000U), 0);
+    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
 
@@ -215,7 +216,7 @@ TEST (cpp_filter_obj, base_02_n)
   }
 
   if (pipeline) {
-    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, 500000U), 0);
+    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
   }
@@ -264,10 +265,11 @@ TEST (cpp_filter_obj, base_03)
   }
 
   if (pipeline) {
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, 500000U), 0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     g_usleep (300000);
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, 500000U), 0);
+    
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
     g_usleep (300000);
