@@ -35,7 +35,7 @@ setPipelineStateSync (GstElement * pipeline, GstState state,
     if (cur_state == state)
       return 0;
     g_usleep (10000);
-  } while ((timeout_ms / 20) < counter++);
+  } while ((timeout_ms / 20) > counter++);
   return -ETIME;
 }
 

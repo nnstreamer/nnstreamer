@@ -24,6 +24,8 @@ extern "C" {
 #endif
 #define _print_log(...) if (DBG) g_message (__VA_ARGS__)
 
+#define UNITTEST_STATECHANGE_TIMEOUT (500U)
+
 /**
  * @brief Set pipeline state, wait until it's done.
  * @return 0 success, -EPIPE if failed, -ETIME if timeout happens.
