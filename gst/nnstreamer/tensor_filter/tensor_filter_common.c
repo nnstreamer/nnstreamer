@@ -902,6 +902,433 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
   }
 }
 
+/** @brief Handle "PROP_FRAMEWORK" for set-property */
+static gint
+_gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  const gchar *fw_name = g_value_get_string (value);
+
+  if (priv->fw != NULL) {
+    if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
+      /* close old framework, if different */
+      gst_tensor_filter_common_close_fw (priv);
+      priv->fw = NULL;
+    } else {
+      ml_logd ("Framework = %s\n", fw_name);
+      return 0;
+    }
+  }
+
+  gst_tensor_filter_get_available_framework (priv, fw_name);
+  return 0;
+}
+
+/** @brief Handle "PROP_MODEL" for set-property */
+static gint
+_gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  gint status = 0;
+  const gchar *model_files = g_value_get_string (value);
+  GstTensorFilterProperties _prop;
+
+  if (!model_files) {
+    ml_loge ("Invalid model provided to the tensor-filter.");
+    return 0;
+  }
+  _prop.model_files = NULL;
+
+  if (prop->fw_opened) {
+    /** Store a copy of the original prop in case the reload fails */
+    memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
+    _prop.model_files =
+        (const gchar **) g_strdupv ((gchar **) prop->model_files);
+  }
+
+  gst_tensor_filter_parse_modelpaths_string (prop, model_files);
+
+  if (prop->fwname != NULL && g_ascii_strcasecmp (prop->fwname, "auto") == 0)
+    gst_tensor_filter_get_available_framework (priv, prop->fwname);
+
+  /**
+   * Reload model if FW has been already opened;
+   * In the case of reloading model files, each priv->fw (tensor filter for each nnfw)
+   * has responsibility for the verification of the path regardless of priv->fw->verify_model_path.
+   */
+  if (prop->fw_opened) {
+    if (GST_TF_FW_V0 (priv->fw) && priv->is_updatable) {
+      if (priv->fw->reloadModel &&
+          priv->fw->reloadModel (prop, &priv->privateData) != 0) {
+        status = -1;
+      }
+    } else if (GST_TF_FW_V1 (priv->fw) && priv->is_updatable) {
+      GstTensorFilterFrameworkEventData data;
+      data.model_files = prop->model_files;
+      data.num_models = prop->num_models;
+      /** original prop is sent and not the updated prop */
+      if (priv->fw->eventHandler (&_prop, priv->privateData, RELOAD_MODEL,
+              &data) != 0) {
+        status = -1;
+      }
+    }
+
+    if (status == 0) {
+      g_strfreev_const (_prop.model_files);
+    } else {
+      ml_loge ("Fail to reload model\n");
+      g_strfreev_const (prop->model_files);
+      prop->model_files = _prop.model_files;
+      prop->num_models = _prop.num_models;
+    }
+  }
+
+  return 0;
+}
+
+/** @brief Handle "PROP_INPUT" for set-property */
+static gint
+_gtfc_setprop_INPUT (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->input_configured && value) {
+    guint num_dims;
+
+    num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
+        g_value_get_string (value));
+
+    if (prop->input_meta.num_tensors > 0 &&
+        prop->input_meta.num_tensors != num_dims) {
+      ml_logw ("Invalid input-dim, given param does not match with old value.");
+    }
+
+    prop->input_meta.num_tensors = num_dims;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change input-dim once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_OUTPUT" for set-property */
+static gint
+_gtfc_setprop_OUTPUT (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->output_configured && value) {
+    guint num_dims;
+
+    num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
+        g_value_get_string (value));
+
+    if (prop->output_meta.num_tensors > 0 &&
+        prop->output_meta.num_tensors != num_dims) {
+      ml_logw
+          ("Invalid output-dim, given param does not match with old value.");
+    }
+
+    prop->output_meta.num_tensors = num_dims;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change output-dim once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_INPUTTYPE" for set-property */
+static gint
+_gtfc_setprop_INPUTTYPE (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->input_configured && value) {
+    guint num_types;
+
+    num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
+        g_value_get_string (value));
+
+    if (prop->input_meta.num_tensors > 0 &&
+        prop->input_meta.num_tensors != num_types) {
+      ml_logw
+          ("Invalid input-type, given param does not match with old value.");
+    }
+
+    prop->input_meta.num_tensors = num_types;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change input-type once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_OUTPUTTYPE" for set-property */
+static gint
+_gtfc_setprop_OUTPUTTYPE (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->output_configured && value) {
+    guint num_types;
+
+    num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
+        g_value_get_string (value));
+
+    if (prop->output_meta.num_tensors > 0 &&
+        prop->output_meta.num_tensors != num_types) {
+      ml_logw
+          ("Invalid output-type, given param does not match with old value.");
+    }
+
+    prop->output_meta.num_tensors = num_types;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change output-type once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_INPUTNAME" for set-property */
+static gint
+_gtfc_setprop_INPUTNAME (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->input_configured && value) {
+    guint num_names;
+
+    num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
+        g_value_get_string (value));
+
+    if (prop->input_meta.num_tensors > 0 &&
+        prop->input_meta.num_tensors != num_names) {
+      ml_logw
+          ("Invalid input-name, given param does not match with old value.");
+    }
+
+    prop->input_meta.num_tensors = num_names;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change input-name once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_OUTPUTNAME" for set-property */
+static gint
+_gtfc_setprop_OUTPUTNAME (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (!prop->output_configured && value) {
+    guint num_names;
+
+    num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
+        g_value_get_string (value));
+
+    if (prop->output_meta.num_tensors > 0 &&
+        prop->output_meta.num_tensors != num_names) {
+      ml_logw
+          ("Invalid output-name, given param does not match with old value.");
+    }
+
+    prop->output_meta.num_tensors = num_names;
+  } else if (value) {
+    /** Once configured, it cannot be changed in runtime for now */
+    ml_loge
+        ("Cannot change output-name once the element/pipeline is configured.");
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_CUSTOM" for set-property */
+static gint
+_gtfc_setprop_CUSTOM (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  gint status = 0;
+  if (!priv->prop.fw_opened) {
+    g_free_const (prop->custom_properties);
+    prop->custom_properties = g_value_dup_string (value);
+  } else {
+    if (GST_TF_FW_V0 (priv->fw)) {
+      ml_loge
+          ("Cannot change custom-prop once the element/pipeline is configured.");
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      GstTensorFilterFrameworkEventData data;
+
+      data.custom_properties = g_value_dup_string (value);
+      status = priv->fw->eventHandler
+          (prop, &priv->privateData, CUSTOM_PROP, &data);
+      if (status == 0) {
+        g_free_const (prop->custom_properties);
+        prop->custom_properties = g_value_dup_string (value);
+      }
+
+      g_free_const (data.custom_properties);
+    }
+  }
+
+  return 0;
+}
+
+/** @brief Handle "PROP_ACCELERATOR" for set-property */
+static gint
+_gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  gint status = 0;
+  gchar *accelerators = g_value_dup_string (value);
+
+  if (priv->prop.fw_opened == TRUE) {
+    if (GST_TF_FW_V0 (priv->fw)) {
+      ml_loge
+          ("Cannot change accelerator once the element/pipeline is configured.");
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      GstTensorFilterProperties _prop;
+      GstTensorFilterFrameworkEventData data;
+      memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
+
+      prop->hw_list = NULL;
+      gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
+      data.num_hw = prop->num_hw;
+      data.hw_list = prop->hw_list;
+
+      status = priv->fw->eventHandler
+          (&_prop, priv->privateData, SET_ACCELERATOR, &data);
+      if (status == 0) {
+        g_free (_prop.hw_list);
+      } else {
+        prop->num_hw = _prop.num_hw;
+        g_free (prop->hw_list);
+        prop->hw_list = _prop.hw_list;
+      }
+
+      g_free (accelerators);
+    }
+    return 0;
+  }
+
+  if (GST_TF_FW_V0 (priv->fw)) {
+    prop->accl_str = accelerators;
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
+    g_free (accelerators);
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_IS_UPDATABLE" for set-property */
+static gint
+_gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
+    return 0;
+  } else if (GST_TF_FW_V1 (priv->fw) &&
+      priv->fw->eventHandler (prop, priv->privateData, RELOAD_MODEL, NULL)
+      == -ENOENT) {
+    return 0;
+  }
+
+  priv->is_updatable = g_value_get_boolean (value);
+  return 0;
+}
+
+/** @brief Handle "PROP_INPUTLAYOUT" for set-property */
+static gint
+_gtfc_setprop_INPUTLAYOUT (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  guint num_layouts;
+
+  if (!prop->output_configured && value) {
+    num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
+        g_value_get_string (value));
+
+    if (prop->input_meta.num_tensors > 0 &&
+        prop->input_meta.num_tensors != num_layouts) {
+      ml_logw ("Invalid input-layout, given param does not fit.");
+    }
+
+    prop->input_meta.num_tensors = num_layouts;
+  } else if (value) {
+    /** Update the properties */
+    if (GST_TF_FW_V0 (priv->fw)) {
+      /* Once configured, it cannot be changed in runtime */
+      ml_loge
+          ("Cannot change input-layout once the element/pipeline is configured.");
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      GstTensorFilterFrameworkEventData data;
+
+      data.info = NULL;
+      num_layouts = gst_tensors_parse_layouts_string (data.layout,
+          g_value_get_string (value));
+
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_layouts) {
+        ml_logw ("Invalid input-layout, given param does not fit.");
+      }
+
+      if (priv->fw->eventHandler
+          (prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
+        memcpy (priv->prop.input_layout, data.layout,
+            sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+      } else {
+        ml_logw ("Unable to update input layout.");
+      }
+    }
+  }
+  return 0;
+}
+
+/** @brief Handle "PROP_OUTPUTLAYOUT" for set-property */
+static gint
+_gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  guint num_layouts;
+
+  if (!prop->output_configured && value) {
+    num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
+        g_value_get_string (value));
+
+    if (prop->output_meta.num_tensors > 0 &&
+        prop->output_meta.num_tensors != num_layouts) {
+      ml_logw ("Invalid output-layout, given param does not fit.");
+    }
+
+    prop->output_meta.num_tensors = num_layouts;
+  } else if (value) {
+    /** Update the properties */
+    if (GST_TF_FW_V0 (priv->fw)) {
+      /* Once configured, it cannot be changed in runtime */
+      ml_loge
+          ("Cannot change output-layout once the element/pipeline is configured.");
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      GstTensorFilterFrameworkEventData data;
+
+      data.info = NULL;
+      num_layouts = gst_tensors_parse_layouts_string (data.layout,
+          g_value_get_string (value));
+
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_layouts) {
+        ml_logw ("Invalid output-layout, given param does not fit.");
+      }
+
+      if (priv->fw->eventHandler
+          (prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
+        memcpy (priv->prop.output_layout, data.layout,
+            sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+      } else {
+        ml_logw ("Unable to update output layout.");
+      }
+    }
+  }
+  return 0;
+}
+
 /**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -924,373 +1351,53 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       priv->silent = g_value_get_boolean (value);
       break;
     case PROP_FRAMEWORK:
-    {
-      const gchar *fw_name = g_value_get_string (value);
-
-      if (priv->fw != NULL) {
-        if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
-          /* close old framework, if different */
-          gst_tensor_filter_common_close_fw (priv);
-          priv->fw = NULL;
-        } else {
-          ml_logd ("Framework = %s\n", fw_name);
-          break;
-        }
-      }
-
-      gst_tensor_filter_get_available_framework (priv, fw_name);
-
+      status = _gtfc_setprop_FRAMEWORK (priv, prop, value);
       break;
-    }
     case PROP_MODEL:
-    {
-      const gchar *model_files = g_value_get_string (value);
-      GstTensorFilterProperties _prop;
-
-      if (!model_files) {
-        ml_loge ("Invalid model provided to the tensor-filter.");
-        break;
-      }
-      _prop.model_files = NULL;
-
-      if (prop->fw_opened) {
-        /** Store a copy of the original prop in case the reload fails */
-        memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
-        _prop.model_files =
-            (const gchar **) g_strdupv ((gchar **) prop->model_files);
-      }
-
-      gst_tensor_filter_parse_modelpaths_string (prop, model_files);
-
-      if (prop->fwname != NULL
-          && g_ascii_strcasecmp (prop->fwname, "auto") == 0)
-        gst_tensor_filter_get_available_framework (priv, prop->fwname);
-
-      /**
-       * Reload model if FW has been already opened;
-       * In the case of reloading model files, each priv->fw (tensor filter for each nnfw)
-       * has responsibility for the verification of the path regardless of priv->fw->verify_model_path.
-       */
-      if (prop->fw_opened) {
-        if (GST_TF_FW_V0 (priv->fw) && priv->is_updatable) {
-          if (priv->fw->reloadModel &&
-              priv->fw->reloadModel (prop, &priv->privateData) != 0) {
-            status = -1;
-          }
-        } else if (GST_TF_FW_V1 (priv->fw) && priv->is_updatable) {
-          GstTensorFilterFrameworkEventData data;
-          data.model_files = prop->model_files;
-          data.num_models = prop->num_models;
-          /** original prop is sent and not the updated prop */
-          if (priv->fw->eventHandler (&_prop, priv->privateData, RELOAD_MODEL,
-                  &data) != 0) {
-            status = -1;
-          }
-        }
-
-        if (status == 0) {
-          g_strfreev_const (_prop.model_files);
-        } else {
-          ml_loge ("Fail to reload model\n");
-          g_strfreev_const (prop->model_files);
-          prop->model_files = _prop.model_files;
-          prop->num_models = _prop.num_models;
-        }
-      }
-
+      status = _gtfc_setprop_MODEL (priv, prop, value);
       break;
-    }
     case PROP_INPUT:
-      if (!prop->input_configured && value) {
-        guint num_dims;
-
-        num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
-            g_value_get_string (value));
-
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_dims) {
-          ml_logw
-              ("Invalid input-dim, given param does not match with old value.");
-        }
-
-        prop->input_meta.num_tensors = num_dims;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change input-dim once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_INPUT (priv, prop, value);
       break;
     case PROP_OUTPUT:
-      if (!prop->output_configured && value) {
-        guint num_dims;
-
-        num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
-            g_value_get_string (value));
-
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_dims) {
-          ml_logw
-              ("Invalid output-dim, given param does not match with old value.");
-        }
-
-        prop->output_meta.num_tensors = num_dims;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change output-dim once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_OUTPUT (priv, prop, value);
       break;
     case PROP_INPUTTYPE:
-      if (!prop->input_configured && value) {
-        guint num_types;
-
-        num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
-            g_value_get_string (value));
-
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_types) {
-          ml_logw
-              ("Invalid input-type, given param does not match with old value.");
-        }
-
-        prop->input_meta.num_tensors = num_types;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change input-type once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_INPUTTYPE (priv, prop, value);
       break;
     case PROP_OUTPUTTYPE:
-      if (!prop->output_configured && value) {
-        guint num_types;
-
-        num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
-            g_value_get_string (value));
-
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_types) {
-          ml_logw
-              ("Invalid output-type, given param does not match with old value.");
-        }
-
-        prop->output_meta.num_tensors = num_types;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change output-type once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_OUTPUTTYPE (priv, prop, value);
       break;
     case PROP_INPUTNAME:
       /* INPUTNAME is required by tensorflow to designate the order of tensors */
-      if (!prop->input_configured && value) {
-        guint num_names;
-
-        num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
-            g_value_get_string (value));
-
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_names) {
-          ml_logw
-              ("Invalid input-name, given param does not match with old value.");
-        }
-
-        prop->input_meta.num_tensors = num_names;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change input-name once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_INPUTNAME (priv, prop, value);
       break;
     case PROP_OUTPUTNAME:
       /* OUTPUTNAME is required by tensorflow to designate the order of tensors */
-      if (!prop->output_configured && value) {
-        guint num_names;
-
-        num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
-            g_value_get_string (value));
-
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_names) {
-          ml_logw
-              ("Invalid output-name, given param does not match with old value.");
-        }
-
-        prop->output_meta.num_tensors = num_names;
-      } else if (value) {
-        /** Once configured, it cannot be changed in runtime for now */
-        ml_loge
-            ("Cannot change output-name once the element/pipeline is configured.");
-      }
+      status = _gtfc_setprop_OUTPUTNAME (priv, prop, value);
       break;
     case PROP_CUSTOM:
-    {
-      if (!priv->prop.fw_opened) {
-        g_free_const (prop->custom_properties);
-        prop->custom_properties = g_value_dup_string (value);
-      } else {
-        if (GST_TF_FW_V0 (priv->fw)) {
-          ml_loge
-              ("Cannot change custom-prop once the element/pipeline is configured.");
-        } else if (GST_TF_FW_V1 (priv->fw)) {
-          GstTensorFilterFrameworkEventData data;
-
-          data.custom_properties = g_value_dup_string (value);
-          status = priv->fw->eventHandler
-              (prop, &priv->privateData, CUSTOM_PROP, &data);
-          if (status == 0) {
-            g_free_const (prop->custom_properties);
-            prop->custom_properties = g_value_dup_string (value);
-          }
-
-          g_free_const (data.custom_properties);
-        }
-      }
-
+      status = _gtfc_setprop_CUSTOM (priv, prop, value);
       break;
-    }
     case PROP_ACCELERATOR:
-    {
-      gchar *accelerators = g_value_dup_string (value);
-
-      if (priv->prop.fw_opened == TRUE) {
-        if (GST_TF_FW_V0 (priv->fw)) {
-          ml_loge
-              ("Cannot change accelerator once the element/pipeline is configured.");
-        } else if (GST_TF_FW_V1 (priv->fw)) {
-          GstTensorFilterProperties _prop;
-          GstTensorFilterFrameworkEventData data;
-          memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
-
-          prop->hw_list = NULL;
-          gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
-          data.num_hw = prop->num_hw;
-          data.hw_list = prop->hw_list;
-
-          status = priv->fw->eventHandler
-              (&_prop, priv->privateData, SET_ACCELERATOR, &data);
-          if (status == 0) {
-            g_free (_prop.hw_list);
-          } else {
-            prop->num_hw = _prop.num_hw;
-            g_free (prop->hw_list);
-            prop->hw_list = _prop.hw_list;
-          }
-
-          g_free (accelerators);
-        }
-        break;
-      }
-
-      if (GST_TF_FW_V0 (priv->fw)) {
-        prop->accl_str = accelerators;
-      } else if (GST_TF_FW_V1 (priv->fw)) {
-        gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
-        g_free (accelerators);
-      }
+      status = _gtfc_setprop_ACCELERATOR (priv, prop, value);
       break;
-    }
     case PROP_IS_UPDATABLE:
-    {
-      if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
-        break;
-      } else if (GST_TF_FW_V1 (priv->fw) &&
-          priv->fw->eventHandler (prop, priv->privateData, RELOAD_MODEL, NULL)
-          == -ENOENT) {
-        break;
-      }
-
-      priv->is_updatable = g_value_get_boolean (value);
+      status = _gtfc_setprop_IS_UPDATABLE (priv, prop, value);
       break;
-    }
     case PROP_INPUTLAYOUT:
-    {
-      guint num_layouts;
-
-      if (!prop->output_configured && value) {
-        num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
-            g_value_get_string (value));
-
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_layouts) {
-          ml_logw ("Invalid input-layout, given param does not fit.");
-        }
-
-        prop->input_meta.num_tensors = num_layouts;
-      } else if (value) {
-        /** Update the properties */
-        if (GST_TF_FW_V0 (priv->fw)) {
-          /* Once configured, it cannot be changed in runtime */
-          ml_loge
-              ("Cannot change input-layout once the element/pipeline is configured.");
-        } else if (GST_TF_FW_V1 (priv->fw)) {
-          GstTensorFilterFrameworkEventData data;
-
-          data.info = NULL;
-          num_layouts = gst_tensors_parse_layouts_string (data.layout,
-              g_value_get_string (value));
-
-          if (prop->input_meta.num_tensors > 0 &&
-              prop->input_meta.num_tensors != num_layouts) {
-            ml_logw ("Invalid input-layout, given param does not fit.");
-          }
-
-          if (priv->fw->eventHandler
-              (prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
-            memcpy (priv->prop.input_layout, data.layout,
-                sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
-          } else {
-            ml_logw ("Unable to update input layout.");
-          }
-        }
-      }
+      status = _gtfc_setprop_INPUTLAYOUT (priv, prop, value);
       break;
-    }
     case PROP_OUTPUTLAYOUT:
-    {
-      guint num_layouts;
-
-      if (!prop->output_configured && value) {
-        num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
-            g_value_get_string (value));
-
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_layouts) {
-          ml_logw ("Invalid output-layout, given param does not fit.");
-        }
-
-        prop->output_meta.num_tensors = num_layouts;
-      } else if (value) {
-        /** Update the properties */
-        if (GST_TF_FW_V0 (priv->fw)) {
-          /* Once configured, it cannot be changed in runtime */
-          ml_loge
-              ("Cannot change output-layout once the element/pipeline is configured.");
-        } else if (GST_TF_FW_V1 (priv->fw)) {
-          GstTensorFilterFrameworkEventData data;
-
-          data.info = NULL;
-          num_layouts = gst_tensors_parse_layouts_string (data.layout,
-              g_value_get_string (value));
-
-          if (prop->output_meta.num_tensors > 0 &&
-              prop->output_meta.num_tensors != num_layouts) {
-            ml_logw ("Invalid output-layout, given param does not fit.");
-          }
-
-          if (priv->fw->eventHandler
-              (prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
-            memcpy (priv->prop.output_layout, data.layout,
-                sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
-          } else {
-            ml_logw ("Unable to update output layout.");
-          }
-        }
-      }
+      status = _gtfc_setprop_OUTPUTLAYOUT (priv, prop, value);
       break;
-    }
     default:
       return FALSE;
   }
+
+  /** Although no one return !0 at this point, let's enable error handling. */
+  if (0 != status)
+    return FALSE;
 
   return TRUE;
 }
