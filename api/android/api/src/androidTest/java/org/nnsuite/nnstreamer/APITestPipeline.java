@@ -1209,4 +1209,66 @@ public class APITestPipeline {
 
         runSNAPCaffe(true);
     }
+
+    @Test
+    public void testNNFWTFLite() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getTFLiteAddModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=nnfw model=" + model.getAbsolutePath() + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{1,1,1,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    ByteBuffer buffer = data.getTensorData(0);
+                    float expected = buffer.getFloat(0);
+
+                    /* check received data */
+                    if (expected != 3.5f) {
+                        mInvalidState = true;
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            TensorsData input = info.allocate();
+
+            ByteBuffer buffer = input.getTensorData(0);
+            buffer.putFloat(0, 1.5f);
+
+            input.setTensorData(0, buffer);
+
+            pipe.inputData("srcx", input);
+
+            /* sleep 1000 to invoke */
+            Thread.sleep(1000);
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }
