@@ -10,6 +10,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 
 import static org.junit.Assert.*;
 
@@ -648,5 +649,47 @@ public class APITestSingleShot {
         }
 
         runSNAPCaffe(true);
+    }
+
+    @Test
+    public void testNNFWTFLite() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            File model = APITestCommon.getTFLiteAddModel();
+
+            SingleShot single = new SingleShot(model, NNStreamer.NNFWType.NNFW);
+            TensorsInfo in = single.getInputInfo();
+
+            /* let's ignore timeout (set 60 sec) */
+            single.setTimeout(60000);
+
+            /* single-shot invoke */
+            for (int i = 0; i < 5; i++) {
+                /* input data */
+                TensorsData input = in.allocate();
+
+                ByteBuffer buffer = input.getTensorData(0);
+                buffer.putFloat(0, i + 1.5f);
+
+                input.setTensorData(0, buffer);
+
+                /* invoke */
+                TensorsData output = single.invoke(input);
+
+                /* check output */
+                float expected = i + 3.5f;
+                assertTrue(expected == output.getTensorData(0).getFloat(0));
+
+                Thread.sleep(30);
+            }
+
+            single.close();
+        } catch (Exception e) {
+            fail();
+        }
     }
 }

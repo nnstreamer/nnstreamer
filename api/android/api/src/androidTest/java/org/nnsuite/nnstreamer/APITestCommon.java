@@ -129,8 +129,9 @@ public class APITestCommon {
     public static File getTFLiteAddModel() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
         File model = new File(root + "/nnstreamer/test/add.tflite");
+        File meta = new File(root + "/nnstreamer/test/metadata/MANIFEST");
 
-        if (!model.exists()) {
+        if (!model.exists() || !meta.exists()) {
             fail();
         }
 
@@ -222,6 +223,7 @@ public class APITestCommon {
     public void enumNNFWType() {
         assertEquals(NNStreamer.NNFWType.TENSORFLOW_LITE, NNStreamer.NNFWType.valueOf("TENSORFLOW_LITE"));
         assertEquals(NNStreamer.NNFWType.SNAP, NNStreamer.NNFWType.valueOf("SNAP"));
+        assertEquals(NNStreamer.NNFWType.NNFW, NNStreamer.NNFWType.valueOf("NNFW"));
         assertEquals(NNStreamer.NNFWType.UNKNOWN, NNStreamer.NNFWType.valueOf("UNKNOWN"));
     }
 }
