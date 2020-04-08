@@ -13,6 +13,7 @@
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
 #include <nnstreamer-capi-private.h>
+#include <nnstreamer_conf.h> /* NNSTREAMER_SO_FILE_EXTENSION */
 
 #define SINGLE_DEF_TIMEOUT_MSEC 10000
 
@@ -1970,6 +1971,8 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
  */
 TEST (nnstreamer_capi_singleshot, invoke_03)
 {
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
+      NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
@@ -1987,8 +1990,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
     root_path = "..";
 
   test_model = g_build_filename (root_path, "build", "nnstreamer_example",
-      "custom_example_passthrough",
-      "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+      "custom_example_passthrough", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4136,6 +4138,8 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
  */
 TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 {
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
+      NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_info_h in_res, out_res;
@@ -4154,8 +4158,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 
   /* custom-passthrough */
   test_model = g_build_filename (root_path, "build", "nnstreamer_example",
-      "custom_example_passthrough",
-      "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+      "custom_example_passthrough", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
