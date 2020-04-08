@@ -27,6 +27,9 @@ ENABLE_TF_LITE := false
 # SNAP (Samsung Neural Acceleration Platform)
 ENABLE_SNAP := false
 
+# NNFW (On-device neural network inference framework, Samsung Research)
+ENABLE_NNFW := false
+
 NNS_API_FLAGS := -DVERSION=\"$(NNSTREAMER_VERSION)\"
 NNS_API_STATIC_LIBS :=
 
@@ -51,6 +54,13 @@ NNS_API_FLAGS += -DENABLE_SNAP=1
 NNS_API_STATIC_LIBS += snap
 
 include $(LOCAL_PATH)/Android-snap.mk
+endif
+
+ifeq ($(ENABLE_NNFW),true)
+NNS_API_FLAGS += -DENABLE_NNFW=1
+NNS_API_STATIC_LIBS += nnfw
+
+include $(LOCAL_PATH)/Android-nnfw.mk
 endif
 
 #------------------------------------------------------
@@ -96,6 +106,10 @@ GSTREAMER_EXTRA_LIBS     := $(GST_REQUIRED_LIBS) -liconv
 
 GSTREAMER_INCLUDE_FONTS := no
 GSTREAMER_INCLUDE_CA_CERTIFICATES := no
+
+ifeq ($(ENABLE_NNFW),true)
+GSTREAMER_EXTRA_DEPS += json-glib-1.0
+endif
 
 include $(GSTREAMER_NDK_BUILD_PATH)/gstreamer-1.0.mk
 

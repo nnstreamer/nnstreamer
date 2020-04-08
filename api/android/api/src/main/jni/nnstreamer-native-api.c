@@ -43,6 +43,9 @@ extern void init_filter_tflite (void);
 #if defined (ENABLE_SNAP)
 extern void init_filter_snap (void);
 #endif
+#if defined (ENABLE_NNFW)
+extern void init_filter_nnfw (void);
+#endif
 
 /**
  * @brief Global lock for native functions.
@@ -586,23 +589,32 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
   *nnfw = ML_NNFW_TYPE_ANY;
 
   /* enumeration defined in NNStreamer.java */
-  if (fw_type == 0) {
-    *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-
+  switch (fw_type) {
+    case 0: /* NNFWType.TENSORFLOW_LITE */
+      *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
 #if !defined (ENABLE_TENSORFLOW_LITE)
-    nns_logw ("tensorflow-lite is not supported.");
-    is_supported = FALSE;
+      nns_logw ("tensorflow-lite is not supported.");
+      is_supported = FALSE;
 #endif
-  } else if (fw_type == 1) {
-    *nnfw = ML_NNFW_TYPE_SNAP;
-
+      break;
+    case 1: /* NNFWType.SNAP */
+      *nnfw = ML_NNFW_TYPE_SNAP;
 #if !defined (ENABLE_SNAP)
-    nns_logw ("SNAP is not supported.");
-    is_supported = FALSE;
+      nns_logw ("SNAP is not supported.");
+      is_supported = FALSE;
 #endif
-  } else {
-    nns_logw ("Unknown NNFW type (%d).", fw_type);
-    is_supported = FALSE;
+      break;
+    case 2: /* NNFWType.NNFW */
+      *nnfw = ML_NNFW_TYPE_NNFW;
+#if !defined (ENABLE_NNFW)
+      nns_logw ("NNFW is not supported.");
+      is_supported = FALSE;
+#endif
+      break;
+    default: /* Unknown */
+      nns_logw ("Unknown NNFW type (%d).", fw_type);
+      is_supported = FALSE;
+      break;
   }
 
   return is_supported && ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY);
@@ -652,6 +664,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
 #endif
 #if defined (ENABLE_SNAP)
     init_filter_snap ();
+#endif
+#if defined (ENABLE_NNFW)
+    init_filter_nnfw ();
 #endif
 
     nns_is_initilaized = TRUE;
