@@ -7,6 +7,7 @@ option('enable-caffe2', type: 'boolean', value: false)
 option('enable-pytorch', type: 'boolean', value: false)
 option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value, can be specified at run time
 option('enable-movidius-ncsdk2', type: 'boolean', value: false)
+option('enable-mediapipe', type: 'boolean', value: false)
 option('install-example', type: 'boolean', value: false)
 option('disable-video-support', type: 'boolean', value: false)
 option('disable-audio-support', type: 'boolean', value: false)

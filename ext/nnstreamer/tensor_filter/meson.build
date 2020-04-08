@@ -382,3 +382,47 @@ if get_option('enable-openvino')
     include_directories: include_directories('.')
   )
 endif
+
+if get_option('enable-mediapipe')
+
+  cmd = run_command('sh', '-c', 'echo $MEDIAPIPE_HOME')
+  MEDIAPIPE_HOME = cmd.stdout().strip()
+  message('['+MEDIAPIPE_HOME+']')
+
+  mediapipe_env_exist = run_command('[', '-z', MEDIAPIPE_HOME, ']').returncode()
+  mediapipe_dir_exist = run_command('[', '-d', MEDIAPIPE_HOME, ']').returncode()
+
+  if mediapipe_env_exist == 1 and mediapipe_dir_exist == 0
+    message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
+    mediapipe_incdir = include_directories(
+      MEDIAPIPE_HOME,
+      join_paths(MEDIAPIPE_HOME, 'bazel-bin'),
+      join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/eigen_archive'),
+      join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
+    )
+
+    cmd = run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir)
+
+    mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
+    mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)
+    
+    nnstreamer_filter_mediapipe_deps = [glib_dep, gst_dep, nnstreamer_dep, mediapipe_external_dep, mediapipe_internal_dep]
+
+    filter_sub_mp_sources = ['tensor_filter_mediapipe.c']
+
+    nnstreamer_filter_mediapipe_sources = []
+    foreach s : filter_sub_mp_sources
+      nnstreamer_filter_mediapipe_sources += join_paths(meson.current_source_dir(), s)
+    endforeach
+    
+    shared_library('nnstreamer_filter_mediapipe',
+      nnstreamer_filter_mediapipe_sources,
+      dependencies: nnstreamer_filter_mediapipe_deps,
+      include_directories: mediapipe_incdir,
+      install: true,
+      install_dir: filter_subplugin_install_dir
+    )
+  else
+    error('Cannot find MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
+  endif
+endif
