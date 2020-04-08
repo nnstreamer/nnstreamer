@@ -17,6 +17,12 @@
 
 #define SINGLE_DEF_TIMEOUT_MSEC 10000
 
+#if defined (ENABLE_TENSORFLOW_LITE)
+constexpr bool is_enabled_tensorflow_lite = true;
+#else
+constexpr bool is_enabled_tensorflow_lite = false;
+#endif /* defined (ENABLE_TENSORFLOW_LITE) */
+
 /**
  * @brief Struct to check the pipeline state changes.
  */
@@ -1271,7 +1277,6 @@ TEST (nnstreamer_capi_util, availability_00)
 #endif  /* ENABLE_NNFW_RUNTIME */
 }
 
-#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer Utility for checking availability of Tensorflow-lite backend
  */
@@ -1282,27 +1287,27 @@ TEST (nnstreamer_capi_util, availability_01)
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_NEON, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (result, true);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
 }
 
 /**
@@ -1329,7 +1334,6 @@ TEST (nnstreamer_capi_util, availability_fail_01_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 }
-#endif /* ENABLE_TENSORFLOW_LITE */
 
 #ifdef ENABLE_TENSORFLOW
 /**
@@ -1692,7 +1696,6 @@ TEST (nnstreamer_capi_util, compare_info)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  */
@@ -1742,7 +1745,12 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
@@ -1808,6 +1816,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -1839,7 +1848,12 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1864,8 +1878,9 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
   ml_tensors_info_destroy (in_info);
+skip_test:
+  g_free (test_model);
 }
 
 /**
@@ -1922,7 +1937,12 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   /** Initial run to warm up the cache */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -1956,6 +1976,7 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   g_warning ("Time to invoke single = %f us", (invoke_duration * 1.0)/count);
   g_warning ("Time to close single = %f us", (close_duration * 1.0)/count);
 
+skip_test:
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
 
@@ -1963,7 +1984,6 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
-#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Test NNStreamer single shot (custom filter)
@@ -2283,7 +2303,6 @@ TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
 }
 #endif /* ENABLE_TENSORFLOW */
 
-#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Failure case with invalid param.
@@ -2331,11 +2350,17 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   /* Successfully opened unknown fw type (tf-lite) */
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -2385,7 +2410,11 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   /* invalid input dimension (model does not support dynamic dimension) */
   status = ml_single_open (&single, test_model, in_info, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (is_enabled_tensorflow_lite) {
+    EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  } else {
+    EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+  }
 
   in_dim[1] = in_dim[2] = 224;
   ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
@@ -2394,7 +2423,11 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   /* invalid input type */
   status = ml_single_open (&single, test_model, in_info, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (is_enabled_tensorflow_lite) {
+    EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  } else {
+    EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+  }
 
   ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
 
@@ -2409,7 +2442,11 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   /* invalid output dimension */
   status = ml_single_open (&single, test_model, NULL, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (is_enabled_tensorflow_lite) {
+    EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  } else {
+    EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+  }
 
   out_dim[0] = 1001;
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
@@ -2418,18 +2455,28 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   /* invalid output type */
   status = ml_single_open (&single, test_model, NULL, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (is_enabled_tensorflow_lite) {
+    EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  } else {
+    EXPECT_NE (status, ML_ERROR_INVALID_PARAMETER);
+  }
 
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
 
   /* Successfully opened unknown fw type (tf-lite) */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -2473,7 +2520,12 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   /* open with input tensor info (1:1:1:1 > 5:1:1:1) */
   status = ml_single_open (&single, test_model, in_info, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* validate output info */
   status = ml_single_get_output_info (single, &out_info);
@@ -2496,9 +2548,10 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (test_model);
-  ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
+skip_test:
+  ml_tensors_info_destroy (in_info);
+  g_free (test_model);
 }
 
 /**
@@ -2617,7 +2670,12 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* set timeout 5 ms */
   status = ml_single_set_timeout (single, 5);
@@ -2671,6 +2729,7 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -2688,6 +2747,10 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
   pthread_t thread[num_threads * num_cases];
   single_shot_thread_data ss_data[num_cases];
   guint i, j;
+
+  /* Skip this test if enable-tensorflow-lite is false */
+  if (!is_enabled_tensorflow_lite)
+    return;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -2740,6 +2803,10 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
   gchar *test_model;
   pthread_t thread;
   single_shot_thread_data ss_data;
+
+  /* Skip this test if enable-tensorflow-lite is false */
+  if (!is_enabled_tensorflow_lite)
+    return;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -2800,7 +2867,12 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_set_input_info (single, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
@@ -2825,6 +2897,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -2854,7 +2927,12 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2883,6 +2961,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -2913,7 +2992,12 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_set_input_info (single, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
@@ -2951,6 +3035,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
   status = ml_tensors_info_destroy (in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -3008,7 +3093,12 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3103,6 +3193,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
@@ -3137,7 +3228,12 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* get layout */
   status = ml_single_get_property (single, "inputlayout", &prop_value);
@@ -3183,6 +3279,7 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -3209,7 +3306,12 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* get invalid property */
   status = ml_single_get_property (single, "unknown_prop", &prop_value);
@@ -3244,6 +3346,7 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -3278,7 +3381,12 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   /* failed to set dimension */
   status = ml_single_set_property (single, "input", "3:4:4:1");
@@ -3361,6 +3469,7 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
 
@@ -3393,7 +3502,12 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_set_property (single, "input", "5:1:1:1");
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3455,9 +3569,9 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+skip_test:
   g_free (test_model);
 }
-#endif /* ENABLE_TENSORFLOW_LITE */
 
 #ifdef ENABLE_NNFW_RUNTIME
 /**
@@ -4290,7 +4404,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   ml_tensors_info_destroy (out_res);
 }
 
-#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tflite)
  * @detail run the `ml_single_invoke_dynamic` api works properly.
@@ -4301,6 +4414,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   int status;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
+  size_t data_size;
 
   unsigned int tmp_count;
   ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
@@ -4320,56 +4434,62 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_tensors_data_create (in_info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  {
+    float tmp_input[] = { 1.0 };
+    float *output_buf;
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
+        1 * sizeof (float));
 
-  float tmp_input[] = { 1.0 };
-  float *output_buf;
-  size_t data_size;
-  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
-      1 * sizeof (float));
+    ml_tensors_info_get_count (in_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  ml_tensors_info_get_count (in_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 1U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    status =
+        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status =
-      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
+        &data_size);
 
-  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
-      &data_size);
+    EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
+    EXPECT_EQ (data_size, sizeof (float));
 
-  EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
-  EXPECT_EQ (data_size, sizeof (float));
+    ml_tensors_info_get_count (out_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  ml_tensors_info_get_count (out_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 1U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+    ml_tensors_info_destroy (out_info);
+  }
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
 
   status = ml_single_set_property (single, "input", "5:1:1:1");
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4380,55 +4500,57 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   status = ml_tensors_data_create (in_info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
-  float *output_buf2;
-  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
-      5 * sizeof (float));
+  {
+    float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+    float *output_buf2;
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
+        5 * sizeof (float));
 
-  ml_tensors_info_get_count (in_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+    ml_tensors_info_get_count (in_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 5U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  status =
-      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    status =
+        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
-      &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
+        &data_size);
 
-  EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
-  EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
-  EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
-  EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
-  EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
-  EXPECT_EQ (data_size, 5 * sizeof (float));
+    EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
+    EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
+    EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
+    EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
+    EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
+    EXPECT_EQ (data_size, 5 * sizeof (float));
 
-  ml_tensors_info_get_count (out_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+    ml_tensors_info_get_count (out_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 5U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  status = ml_single_close (single);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    status = ml_single_close (single);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
-
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+    ml_tensors_info_destroy (out_info);
+  }
+skip_test:
   g_free (test_model);
 }
 
@@ -4442,6 +4564,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   int status;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
+  size_t data_size;
 
   unsigned int tmp_count;
   ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
@@ -4461,7 +4584,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4469,49 +4597,49 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   status = ml_tensors_data_create (in_info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  float tmp_input[] = { 1.0 };
-  float *output_buf;
-  size_t data_size;
-  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
-      1 * sizeof (float));
+  {
+    float tmp_input[] = { 1.0 };
+    float *output_buf;
 
-  ml_tensors_info_get_count (in_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
+        1 * sizeof (float));
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    ml_tensors_info_get_count (in_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  status =
-      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 1U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
-      &data_size);
+    status =
+        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  EXPECT_FLOAT_EQ (output_buf[0], 3.0f;
-  EXPECT_EQ (data_size, sizeof (float));
+    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
+        &data_size);
+    EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
+    EXPECT_EQ (data_size, sizeof (float));
 
-  ml_tensors_info_get_count (out_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+    ml_tensors_info_get_count (out_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 1U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 1U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
-
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+    ml_tensors_info_destroy (out_info);
+}
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -4526,55 +4654,58 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   status = ml_tensors_data_create (in_info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
-  float *output_buf2;
-  status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
-      5 * sizeof (float));
+  {
+    float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+    float *output_buf2;
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
+        5 * sizeof (float));
 
-  ml_tensors_info_get_count (in_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
+    ml_tensors_info_get_count (in_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (in_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 5U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  status =
-      ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    status =
+        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
-      &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
+        &data_size);
 
-  EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
-  EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
-  EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
-  EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
-  EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
-  EXPECT_EQ (data_size, 5 * sizeof (float));
+    EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
+    EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
+    EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
+    EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
+    EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
+    EXPECT_EQ (data_size, 5 * sizeof (float));
 
-  ml_tensors_info_get_count (out_info, &tmp_count);
-  ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
-  ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
+    ml_tensors_info_get_count (out_info, &tmp_count);
+    ml_tensors_info_get_tensor_type (out_info, 0, &tmp_type);
+    ml_tensors_info_get_tensor_dimension (out_info, 0, tmp_dim);
 
-  EXPECT_EQ (tmp_count, 1U);
-  EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
-  EXPECT_EQ (tmp_dim[0], 5U);
-  EXPECT_EQ (tmp_dim[1], 1U);
-  EXPECT_EQ (tmp_dim[2], 1U);
-  EXPECT_EQ (tmp_dim[3], 1U);
+    EXPECT_EQ (tmp_count, 1U);
+    EXPECT_EQ (tmp_type, ML_TENSOR_TYPE_FLOAT32);
+    EXPECT_EQ (tmp_dim[0], 5U);
+    EXPECT_EQ (tmp_dim[1], 1U);
+    EXPECT_EQ (tmp_dim[2], 1U);
+    EXPECT_EQ (tmp_dim[3], 1U);
 
-  status = ml_single_close (single);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+    status = ml_single_close (single);
+    EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-  ml_tensors_info_destroy (in_info);
-  ml_tensors_info_destroy (out_info);
+    ml_tensors_data_destroy (output);
+    ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+    ml_tensors_info_destroy (out_info);
+  }
 
+skip_test:
   g_free (test_model);
 }
 
@@ -4603,7 +4734,12 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
 
   status = ml_single_open (&single, test_model, NULL, NULL,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-  ASSERT_EQ (status, ML_ERROR_NONE);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
 
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4632,9 +4768,9 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
   ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
 
+skip_test:
   g_free (test_model);
 }
-#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Main gtest
