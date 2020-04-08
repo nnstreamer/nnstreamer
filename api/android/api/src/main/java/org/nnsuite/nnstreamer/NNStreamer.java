@@ -70,6 +70,10 @@ public final class NNStreamer {
          */
         SNAP,
         /**
+         * On-device neural network inference framework, which is developed by SR (Samsung Research).
+         */
+        NNFW,
+        /**
          * Unknown framework (usually error)
          */
         UNKNOWN

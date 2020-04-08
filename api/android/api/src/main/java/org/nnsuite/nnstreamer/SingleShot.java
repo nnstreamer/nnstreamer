@@ -58,6 +58,20 @@ public final class SingleShot implements AutoCloseable {
     }
 
     /**
+     * Creates a new {@link SingleShot} instance with the given model.
+     * If the model has flexible data dimensions, the pipeline will not be constructed and this will make an exception.
+     *
+     * @param model The {@link File} object to the neural network model file
+     * @param fw    The neural network framework
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException if failed to construct the pipeline
+     */
+    public SingleShot(@NonNull File model, NNStreamer.NNFWType fw) {
+        this(new File[]{model}, null, null, fw, null);
+    }
+
+    /**
      * Creates a new {@link SingleShot} instance with the given model for TensorFlow Lite.
      * The input and output tensors information are required if the given model has flexible data dimensions,
      * where the information MUST be given before executing the model.

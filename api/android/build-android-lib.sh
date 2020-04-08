@@ -20,6 +20,7 @@
 # --target_abi (default 'arm64-v8a', 'armeabi-v7a' available)
 # --run_test (default 'no', 'yes' to run the instrumentation test)
 # --enable_snap (default 'yes' to build with sub-plugin for SNAP)
+# --enable_nnfw (default 'yes' to build with sub-plugin for NNFW)
 # --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
 #
 # For example, to build library with core plugins for arm64-v8a
@@ -47,6 +48,9 @@ release_bintray="no"
 
 # Enable SNAP
 enable_snap="yes"
+
+# Enable NNFW
+enable_nnfw="yes"
 
 # Enable tensorflow-lite
 enable_tflite="yes"
@@ -99,6 +103,9 @@ for arg in "$@"; do
         --enable_snap=*)
             enable_snap=${arg#*=}
             ;;
+        --enable_nnfw=*)
+            enable_nnfw=${arg#*=}
+            ;;
         --enable_tflite=*)
             enable_tflite=${arg#*=}
             ;;
@@ -114,6 +121,7 @@ elif [[ $build_type == "internal" ]]; then
     nnstreamer_api_option="single"
 
     enable_snap="no"
+    enable_nnfw="no"
     enable_tflite="no"
 
     target_abi="arm64-v8a"
@@ -126,6 +134,13 @@ if [[ $enable_snap == "yes" ]]; then
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNAP." && exit 1
 
     echo "Build with SNAP: $SNAP_DIRECTORY"
+fi
+
+if [[ $enable_nnfw == "yes" ]]; then
+    [ -z "$NNFW_DIRECTORY" ] && echo "Need to set NNFW_DIRECTORY, to build sub-plugin for NNFW." && exit 1
+    [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for NNFW." && exit 1
+
+    echo "Build with NNFW: $NNFW_DIRECTORY"
 fi
 
 if [[ $release_bintray == "yes" ]]; then
@@ -222,6 +237,13 @@ if [[ $enable_snap == "yes" ]]; then
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
     cp -r $SNAP_DIRECTORY/* api/src/main/jni
+fi
+
+# Update NNFW option
+if [[ $enable_nnfw == "yes" ]]; then
+    sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android.mk
+    cp -r $NNFW_DIRECTORY/* api/src/main/jni
 fi
 
 # Update tf-lite option
