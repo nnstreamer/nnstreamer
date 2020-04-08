@@ -140,15 +140,15 @@ pt_allocate_invoke (void *private_data,
   /* Get Mat object from input tensor */
   memcpy (buffer, input[0].data, in_size);
   img_src = cv::Mat (pdata->in_height, pdata->in_width, CV_8UC3, buffer);
-  cv::cvtColor (img_src, img_src, CV_BGR2RGB);
+  cv::cvtColor (img_src, img_src, cv::COLOR_BGR2RGB);
 
   /* Scale from the shape of input tensor to that of output tensor
    * which is given as custom property */
   cv::resize (img_src, img_dst, cv::Size(pdata->out_width, pdata->out_height),
-            0, 0, CV_INTER_NN);
+            0, 0, cv::INTER_NEAREST);
 
   /* Convert Mat object to output tensor */
-  cv::cvtColor (img_dst, img_dst, CV_RGB2BGR);
+  cv::cvtColor (img_dst, img_dst, cv::COLOR_RGB2BGR);
   memcpy (output[0].data, img_dst.data, out_size);
 
   g_free(buffer);
