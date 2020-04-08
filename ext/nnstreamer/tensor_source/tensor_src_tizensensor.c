@@ -591,7 +591,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   if (self->sequence == -1) {
     /* Get the default sensor */
     ret = sensor_get_default_sensor (self->type, &self->sensor);
-    if (ret)
+    if (ret != SENSOR_ERROR_NONE)
       return ret;
   } else {
     sensor_h *list;
@@ -599,7 +599,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
 
     /* Use the sequence number to choose one */
     ret = sensor_get_sensor_list (self->type, &list, &count);
-    if (ret)
+    if (ret != SENSOR_ERROR_NONE)
       return ret;
 
     if (count <= self->sequence) {
@@ -616,7 +616,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   }
 
   ret = sensor_create_listener (self->sensor, &self->listener);
-  if (ret)
+  if (ret != SENSOR_ERROR_NONE)
     return ret;
 
   /* 3. Configure interval_ms */
@@ -631,7 +631,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
     case TZN_SENSOR_MODE_ACTIVE_POLLING:
       ret = sensor_listener_set_event_cb (listener, self->interval_ms,
           _ts_tizen_sensor_callback, self);
-      if (ret)
+      if (ret != SENSOR_ERROR_NONE)
         return ret;
       break;
 #endif
