@@ -1,3 +1,19 @@
+1.5.1 -> 1.5.2
+	- Use gmodule instead of dlfcn for wider compatibility.
+	- Get/Set properties for tensor-filters & C-API.
+	- Support C++ class as tensor-filter subplugin. (experimental. C++ filter API is not yet fixed).
+	- Highly configurable Android build. (for smaller app binaries).
+	- Tensor-Filter auto framework detection mode (C-API support).
+	- Linux Foundation AI compliance & Github ORG migration.
+	- Upgraded Tensor-Filter API (C).
+	- Applied portable logging mechanism.
+	- Removed assertion failure for Tizen sensor errors.
+
+	- Fixed issues found by static analyzers>
+	- More error/exception handling for robustness.
+	- Shows negative test case statistics.
+	- OpenCV compatibility fixes.
+
 1.5.0 -> 1.5.1
 	- Filter subplugin APIs updated. Both V0 (minor changes to the conventional) and V1 (refactored API set) are supported.
 	- Fixed major issue: now, each instance of a filter subplugin may have different property values.
