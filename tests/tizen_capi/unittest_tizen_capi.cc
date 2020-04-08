@@ -4517,7 +4517,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   in_dim[2] = 1;
   in_dim[3] = 1;
 
-  status = ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim); 
+  status = ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_tensors_data_create (in_info, &input);
