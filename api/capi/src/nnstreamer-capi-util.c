@@ -895,6 +895,36 @@ ml_initialize_gstreamer (void)
 }
 
 /**
+ * @brief Internal helper function to validate arguments
+ */
+static int
+_ml_validate_model_file (char **model, unsigned int num_models,
+    ml_nnfw_type_e * nnfw, gchar ** p1, gchar ** p2)
+{
+  if (!model) {
+    ml_loge ("The required param, model is not provided (null).");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+  if (num_models < 1 || !*model ||
+      !g_file_test (model[0], G_FILE_TEST_IS_REGULAR)) {
+    ml_loge ("The given param, model path [%s] is invalid or not given.",
+        GST_STR_NULL (model[0]));
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!nnfw)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  *p1 = g_ascii_strdown (model[0], -1);
+  if (num_models == 2)
+    *p2 = g_ascii_strdown (model[1], -1);
+  else if (num_models > 2)
+    return ML_ERROR_INVALID_PARAMETER; /** We do not have such a case, yet */
+
+  return ML_ERROR_NONE;
+}
+
+/**
  * @brief Validates the nnfw model file.
  * @since_tizen 5.5
  * @param[in] model The path of model file.
@@ -913,27 +943,14 @@ ml_validate_model_file (char **model, unsigned int num_models,
   int status = ML_ERROR_NONE;
   gchar *detected_fw = NULL;
 
-  if (!model) {
-    ml_loge ("The required param, model is not provided (null).");
-    return ML_ERROR_INVALID_PARAMETER;
+  status =
+      _ml_validate_model_file (model, num_models, nnfw, &path_down,
+      &path_down_2);
+  if (ML_ERROR_NONE != status) {
+    return status;
   }
-  if (num_models < 1 || !*model ||
-      !g_file_test (model[0], G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid or not given.",
-        GST_STR_NULL (model[0]));
-    return ML_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!nnfw)
-    return ML_ERROR_INVALID_PARAMETER;
 
   /* Check file extention. */
-  path_down = g_ascii_strdown (model[0], -1);
-  if (num_models == 2)
-    path_down_2 = g_ascii_strdown (model[1], -1);
-  else if (num_models > 2)
-    return ML_ERROR_INVALID_PARAMETER; /** We do not have such a case, yet */
-
   switch (*nnfw) {
     case ML_NNFW_TYPE_ANY:
       detected_fw =

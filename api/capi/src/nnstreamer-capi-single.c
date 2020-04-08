@@ -519,34 +519,20 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
 }
 
 /**
- * @brief Opens an ML model with the custom options and returns the instance as a handle.
+ * @brief Validate arguments for open
  */
-int
-ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
+static int
+_ml_single_open_custom_validate_arguments (ml_single_h * single,
+    ml_single_preset * info)
 {
-  ml_single *single_h;
-  GObject *filter_obj;
-  int status = ML_ERROR_NONE;
-  ml_tensors_info_s *in_tensors_info, *out_tensors_info;
-  ml_nnfw_type_e nnfw;
-  ml_nnfw_hw_e hw;
-  const char *fw_name;
-
-  check_feature_state ();
-
-  /* Validate the params */
-  if (!single || !info) {
-    ml_loge ("The given param is invalid.");
+  if (!single) {
+    ml_loge ("The given param is invalid: 'single' is NULL.");
     return ML_ERROR_INVALID_PARAMETER;
   }
-
-  /* init null */
-  *single = NULL;
-
-  in_tensors_info = (ml_tensors_info_s *) info->input_info;
-  out_tensors_info = (ml_tensors_info_s *) info->output_info;
-  nnfw = info->nnfw;
-  hw = info->hw;
+  if (!info) {
+    ml_loge ("The given param is invalid: 'info' is NULL.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
 
   /* Validate input tensor info. */
   if (info->input_info && !ml_tensors_info_is_valid (info->input_info)) {
@@ -560,27 +546,58 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     return ML_ERROR_INVALID_PARAMETER;
   }
 
+  if (!info->models) {
+    ml_loge ("The given param, model is invalid: info->models is NULL.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Opens an ML model with the custom options and returns the instance as a handle.
+ */
+int
+ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
+{
+  ml_single *single_h;
+  GObject *filter_obj;
+  int status = ML_ERROR_NONE;
+  ml_tensors_info_s *in_tensors_info, *out_tensors_info;
+  ml_nnfw_type_e nnfw;
+  ml_nnfw_hw_e hw;
+  const char *fw_name;
+  gchar **list_models;
+  guint num_models;
+
+  check_feature_state ();
+
+  /* Validate the params */
+  status = _ml_single_open_custom_validate_arguments (single, info);
+  if (ML_ERROR_NONE != status)
+    return status;
+
+  /* init null */
+  *single = NULL;
+
+  in_tensors_info = (ml_tensors_info_s *) info->input_info;
+  out_tensors_info = (ml_tensors_info_s *) info->output_info;
+  nnfw = info->nnfw;
+  hw = info->hw;
+
   /**
    * 1. Determine nnfw and validate model file
    */
-  if (info->models) {
-    gchar **list_models;
-    guint num_models;
+  list_models = g_strsplit (info->models, ",", -1);
+  num_models = g_strv_length (list_models);
 
-    list_models = g_strsplit (info->models, ",", -1);
-    num_models = g_strv_length (list_models);
-
-    status = ml_validate_model_file (list_models, num_models, &nnfw);
-    if (status != ML_ERROR_NONE) {
-      g_strfreev (list_models);
-      return status;
-    }
-
+  status = ml_validate_model_file (list_models, num_models, &nnfw);
+  if (status != ML_ERROR_NONE) {
     g_strfreev (list_models);
-  } else {
-    ml_loge ("The given param, model is invalid.");
-    return ML_ERROR_INVALID_PARAMETER;
+    return status;
   }
+
+  g_strfreev (list_models);
 
   /**
    * 2. Determine hw
