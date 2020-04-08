@@ -4287,6 +4287,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   ml_tensors_info_destroy (out_res);
 }
 
+#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test NNStreamer single shot (tflite)
  * @detail run the `ml_single_invoke_dynamic` api works properly.
@@ -4630,6 +4631,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
 
   g_free (test_model);
 }
+#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Main gtest
