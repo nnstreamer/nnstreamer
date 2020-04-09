@@ -690,7 +690,8 @@ ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
   if (data_size <= 0 || _data->tensors[index].size < data_size)
     return ML_ERROR_INVALID_PARAMETER;
 
-  memcpy (_data->tensors[index].tensor, raw_data, data_size);
+  if (_data->tensors[index].tensor != raw_data)
+    memcpy (_data->tensors[index].tensor, raw_data, data_size);
   return ML_ERROR_NONE;
 }
 
