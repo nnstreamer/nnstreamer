@@ -297,6 +297,7 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     unzip $nnstreamer_android_api_lib -d aar_extracted
 
     mkdir -p main/java/org/freedesktop
+    mkdir -p main/java/org/nnsuite/nnstreamer
     mkdir -p main/jni/nnstreamer/lib
     mkdir -p main/jni/nnstreamer/include
 
@@ -307,6 +308,7 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     fi
 
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
+    cp -r api/src/main/java/org/nnsuite/nnstreamer/NNStreamer.java main/java/org/nnsuite/nnstreamer
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp external/Android-nnstreamer-prebuilt.mk main/jni
     # header for C-API
