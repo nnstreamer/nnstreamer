@@ -450,3 +450,55 @@ if get_option('enable-mediapipe')
     install_dir: filter_subplugin_install_dir
   )
 endif
+
+if snpe_support_is_available  
+  snpe_env_exist = run_command('[', '-z', snpe_support_SNPE_ROOT, ']').returncode()
+  snpe_dir_not_exist = run_command('[', '-d', snpe_support_SNPE_ROOT, ']').returncode()
+
+  if snpe_env_exist != 1 or snpe_dir_not_exist != 0
+    error('Cannot find $SNPE_ROOT')
+  endif
+
+  snpe_incdir = include_directories(join_paths(snpe_support_SNPE_ROOT, 'include/zdl'))
+
+  snpe_dep = cxx.find_library('libSNPE',
+    dirs: join_paths(snpe_support_SNPE_ROOT, 'lib/x86_64-linux-clang'),
+    required: true
+  )
+
+  snpe_cpp_args = []
+  snpe_cpp_args += '-Wno-terminate'
+
+  filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
+ 
+  nnstreamer_filter_snpe_sources = []
+  foreach s : filter_sub_snpe_sources
+    nnstreamer_filter_snpe_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_snpe_deps = snpe_support_deps + [glib_dep, gst_dep, nnstreamer_dep, snpe_dep]
+
+  nnstreamer_filter_snpe_so_lib = shared_library(
+    'nnstreamer_filter_snpe',
+    nnstreamer_filter_snpe_sources,
+    cpp_args: snpe_cpp_args,
+    dependencies: nnstreamer_filter_snpe_deps,
+    include_directories: snpe_incdir,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_snpe',
+    nnstreamer_filter_snpe_sources,
+    cpp_args: snpe_cpp_args,
+    dependencies: nnstreamer_filter_snpe_deps,
+    include_directories: snpe_incdir,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  nnstreamer_filter_snpe_dep = declare_dependency(
+    link_with: nnstreamer_filter_snpe_so_lib,
+    include_directories: snpe_incdir
+  )
+endif
