@@ -155,6 +155,18 @@ if not get_option('nnfw-runtime-support').disabled()
   endif
 endif
 
+# snpe
+snpe_dep = dependency('', required: false)
+SNPE_ROOT = ''
+if not get_option('snpe-support').disabled()
+  # Check $SNPE_ROOT (where SNPE SDK is located)
+  cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
+  SNPE_ROOT = cmd.stdout().strip()
+  if SNPE_ROOT != ''
+    snpe_dep = declare_dependency()
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -206,6 +218,11 @@ features = {
     'project_args': {'HAVE_ORC': 1},
     'project_args_disabled': { 'DISABLE_ORC': 1 },
     'extra_args': {'orcc_args': [pg_orcc, '--include', 'glib.h'] }
+  },
+  'snpe-support': {
+    'extra_deps': [ snpe_dep ],
+    'project_args': { 'ENABLE_SNPE' : 1 },
+    'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
   }
 }
 
@@ -225,7 +242,7 @@ foreach feature_name, data : features
   if target != ''
     _deps += dependency(target, required: get_option(feature_name))
   endif
-    
+
   foreach dep : _deps
     if not dep.found()
       _available = false
@@ -239,7 +256,7 @@ foreach feature_name, data : features
     message('@0@ is off because it is either not available or disabled'.format(feature_name))
     continue
   endif
-  
+
   # handle when available
   project_args += data.get('project_args', {})
 
