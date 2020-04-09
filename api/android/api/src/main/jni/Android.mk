@@ -4,6 +4,10 @@ ifndef GSTREAMER_ROOT_ANDROID
 $(error GSTREAMER_ROOT_ANDROID is not defined!)
 endif
 
+ifndef NNSTREAMER_ROOT
+$(error NNSTREAMER_ROOT is not defined!)
+endif
+
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
 GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/armv7
 else ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
@@ -15,6 +19,8 @@ GSTREAMER_ROOT        := $(GSTREAMER_ROOT_ANDROID)/x86_64
 else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
+
+include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
 
 #------------------------------------------------------
 # API build option
