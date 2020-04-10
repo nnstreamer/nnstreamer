@@ -239,8 +239,9 @@ _close_handle (gpointer data)
  * The corresponding error message is:
  * Inconsistency detected by ld.so: dl-close.c: 811:
  * _dl_close: Assertion `map->l_init_called' failed!
+ * Note that Tizen 5.5 / GLIBC 2.24 has the same bug!
  */
-#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 23)
+#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 24)
   return;                       /* Do not call close and return */
 #else
   g_module_close ((GModule *) data);
