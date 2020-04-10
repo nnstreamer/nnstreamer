@@ -1297,52 +1297,14 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
 }
 
 /**
- * @brief gst_tensor_time_sync_buffer_from_collectpad's internal function.
- * SYNC helper "SLOWEST"
+ * @brief Common code for both
+ *        gst_tensor_time_sync_buffer_from_collectpad_SYNC_*
  */
 static gboolean
-gst_tensor_time_sync_buffer_from_collectpad_SYNC_SLOWEST (GstBuffer ** buf,
-    GstClockTime current_time, GstTensorCollectPadData * pad,
-    GstCollectPads * collect, GstCollectData * data, gboolean * need_buffer)
-{
-  if (*buf != NULL) {
-    if (GST_BUFFER_PTS (*buf) < current_time) {
-      gst_buffer_unref (*buf);
-      if (pad->buffer != NULL)
-        gst_buffer_unref (pad->buffer);
-      pad->buffer = gst_collect_pads_pop (collect, data);
-      *need_buffer = TRUE;
-      return FALSE;
-    }
-
-    if (pad->buffer != NULL &&
-        (ABS (GST_CLOCK_DIFF (current_time,
-                    GST_BUFFER_PTS (pad->buffer))) <
-            ABS (GST_CLOCK_DIFF (current_time, GST_BUFFER_PTS (*buf))))) {
-      gst_buffer_unref (*buf);
-      *buf = pad->buffer;
-    } else {
-      gst_buffer_unref (*buf);
-      *buf = gst_collect_pads_pop (collect, data);
-      if (pad->buffer != NULL)
-        gst_buffer_unref (pad->buffer);
-      pad->buffer = *buf;
-    }
-  } else {
-    *buf = pad->buffer;
-  }
-  return TRUE;
-}
-
-/**
- * @brief gst_tensor_time_sync_buffer_from_collectpad's internal function.
- * SYNC helper "BASEPAD"
- */
-static gboolean
-gst_tensor_time_sync_buffer_from_collectpad_SYNC_BASEPAD (GstBuffer ** buf,
+_gst_tensor_time_sync_buffer_from_collectpad_SYNC (GstBuffer ** buf,
     GstClockTime current_time, GstTensorCollectPadData * pad,
     GstCollectPads * collect, GstCollectData * data, gboolean * need_buffer,
-    GstClockTime base)
+    GstClockTime base, tensor_time_sync_mode mode)
 {
   if (*buf != NULL) {
     if (GST_BUFFER_PTS (*buf) < current_time) {
@@ -1354,7 +1316,10 @@ gst_tensor_time_sync_buffer_from_collectpad_SYNC_BASEPAD (GstBuffer ** buf,
       return FALSE;
     }
 
-    if ((pad->buffer != NULL &&
+    if ((mode == SYNC_SLOWEST && pad->buffer != NULL &&
+            (ABS (GST_CLOCK_DIFF (current_time, GST_BUFFER_PTS (pad->buffer))) <
+                ABS (GST_CLOCK_DIFF (current_time, GST_BUFFER_PTS (*buf))))) ||
+        (mode == SYNC_BASEPAD && pad->buffer != NULL &&
             (ABS (GST_CLOCK_DIFF (current_time,
                         GST_BUFFER_PTS (*buf))) > base))) {
       gst_buffer_unref (*buf);
@@ -1441,9 +1406,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
     switch (sync->mode) {
       case SYNC_SLOWEST:
+                        /** fall-through */
+      case SYNC_BASEPAD:
         if (FALSE ==
-            gst_tensor_time_sync_buffer_from_collectpad_SYNC_SLOWEST (&buf,
-                current_time, pad, collect, data, need_buffer))
+            _gst_tensor_time_sync_buffer_from_collectpad_SYNC (&buf,
+                current_time, pad, collect, data, need_buffer, base,
+                sync->mode))
           return FALSE;
         break;
       case SYNC_NOSYNC:
@@ -1451,12 +1419,6 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           gst_buffer_unref (buf);
           buf = gst_collect_pads_pop (collect, data);
         }
-        break;
-      case SYNC_BASEPAD:
-        if (FALSE ==
-            gst_tensor_time_sync_buffer_from_collectpad_SYNC_BASEPAD (&buf,
-                current_time, pad, collect, data, need_buffer, base))
-          return FALSE;
         break;
       default:
         break;
