@@ -4381,7 +4381,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
       &data_size);
 
-  EXPECT_EQ (output_buf[0], 3.0f);
+  EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
   EXPECT_EQ (data_size, sizeof (float));
 
   ml_tensors_info_get_count (out_info, &tmp_count);
@@ -4432,11 +4432,11 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
       &data_size);
 
-  EXPECT_EQ (output_buf2[0], 3.0f);
-  EXPECT_EQ (output_buf2[1], 4.0f);
-  EXPECT_EQ (output_buf2[2], 5.0f);
-  EXPECT_EQ (output_buf2[3], 6.0f);
-  EXPECT_EQ (output_buf2[4], 7.0f);
+  EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
+  EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
+  EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
+  EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
+  EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
   EXPECT_EQ (data_size, 5 * sizeof (float));
 
   ml_tensors_info_get_count (out_info, &tmp_count);
@@ -4522,7 +4522,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
       &data_size);
 
-  EXPECT_EQ (output_buf[0], 3.0f);
+  EXPECT_FLOAT_EQ (output_buf[0], 3.0f;
   EXPECT_EQ (data_size, sizeof (float));
 
   ml_tensors_info_get_count (out_info, &tmp_count);
@@ -4578,11 +4578,11 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
       &data_size);
 
-  EXPECT_EQ (output_buf2[0], 3.0f);
-  EXPECT_EQ (output_buf2[1], 4.0f);
-  EXPECT_EQ (output_buf2[2], 5.0f);
-  EXPECT_EQ (output_buf2[3], 6.0f);
-  EXPECT_EQ (output_buf2[4], 7.0f);
+  EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
+  EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
+  EXPECT_FLOAT_EQ (output_buf2[2], 5.0f);
+  EXPECT_FLOAT_EQ (output_buf2[3], 6.0f);
+  EXPECT_FLOAT_EQ (output_buf2[4], 7.0f);
   EXPECT_EQ (data_size, 5 * sizeof (float));
 
   ml_tensors_info_get_count (out_info, &tmp_count);
