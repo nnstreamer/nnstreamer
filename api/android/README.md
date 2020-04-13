@@ -9,7 +9,7 @@ We assume that you already have experienced Android application developments wit
    * Android Studio: Ubuntu version
    * Android SDK: Min version 24 (Nougat)
    * Android NDK: Use default ndk-bundle in Android Studio
-   * GStreamer: gstreamer-1.0-android-universal-1.16.1
+   * GStreamer: gstreamer-1.0-android-universal-1.16.2
 
 ## Build library
 
@@ -20,6 +20,7 @@ First of all, you need to set-up the development environment as following:
 ```bash
 $ export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
 $ mkdir -p $ANDROID_DEV_ROOT/tools/sdk
+$ mkdir -p $ANDROID_DEV_ROOT/tools/ndk
 $ mkdir -p $ANDROID_DEV_ROOT/gstreamer-1.0
 $ mkdir -p $ANDROID_DEV_ROOT/workspace
 $
@@ -30,11 +31,14 @@ export JAVA_HOME=/opt/android-studio/jre            # JRE path in Android Studio
 export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
 #
 # $ANDROID_DEV_ROOT/tools/sdk                    # Android SDK root directory (default location: $HOME/Android/Sdk)
+# $ANDROID_DEV_ROOT/tools/ndk                    # Android NDK root directory (default location: $HOME/Android/Sdk/ndk/<ndk-version>)
 # $ANDROID_DEV_ROOT/gstreamer-1.0                # GStreamer binaries
 # $ANDROID_DEV_ROOT/workspace/nnstreamer         # NNStreamer cloned git repository
 #
-export ANDROID_SDK=$ANDROID_DEV_ROOT/tools/sdk      # Android SDK (The default path will be "$HOME/Android/Sdk".)
-export ANDROID_HOME=$ANDROID_SDK
+export ANDROID_SDK=$ANDROID_DEV_ROOT/tools/sdk
+export ANDROID_NDK=$ANDROID_DEV_ROOT/tools/ndk
+export ANDROID_SDK_ROOT=$ANDROID_SDK
+export ANDROID_NDK_ROOT=$ANDROID_NDK
 export GSTREAMER_ROOT_ANDROID=$ANDROID_DEV_ROOT/gstreamer-1.0
 export NNSTREAMER_ROOT=$ANDROID_DEV_ROOT/workspace/nnstreamer
 ```
@@ -75,8 +79,8 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/gstreamer-1.0
-$ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.1/gstreamer-1.0-android-universal-1.16.1.tar.xz
-$ tar xJf gstreamer-1.0-android-universal-1.16.1.tar.xz
+$ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.0-android-universal-1.16.2.tar.xz
+$ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
 ```
 
 Modify the gstreamer-1.0.mk file for NDK build to prevent build error.
@@ -127,7 +131,9 @@ Run the build script in NNStreamer.
 
 - Build options
   1. target_abi: Default arm64-v8a, specify the ABI (armeabi-v7a, arm64-v8a) to be built for with `--target_abi={TARGET-ABI}`.
-  2. build_type: Get the minimized library with GStreamer core elements `--build_type=lite`.
+  2. build_type: Default all.
+      - `--build_type=single` to enable SingleShot API only.
+      - `--build_type=lite` to get the minimized library with GStreamer core elements.
   3. run_test: Run the instrumentation test `--run_test=yes`.
 
 ```bash

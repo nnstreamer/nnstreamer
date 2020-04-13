@@ -19,8 +19,8 @@
 # --build_type (default 'all', 'lite' to build with GStreamer core plugins)
 # --target_abi (default 'arm64-v8a', 'armeabi-v7a' available)
 # --run_test (default 'no', 'yes' to run the instrumentation test)
-# --enable_snap (default 'yes' to build with sub-plugin for SNAP)
-# --enable_nnfw (default 'yes' to build with sub-plugin for NNFW)
+# --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
+# --enable_nnfw (default 'no', 'yes' to build with sub-plugin for NNFW)
 # --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
 #
 # For example, to build library with core plugins for arm64-v8a
@@ -47,10 +47,10 @@ run_test="no"
 release_bintray="no"
 
 # Enable SNAP
-enable_snap="yes"
+enable_snap="no"
 
 # Enable NNFW
-enable_nnfw="yes"
+enable_nnfw="no"
 
 # Enable tensorflow-lite
 enable_tflite="yes"
