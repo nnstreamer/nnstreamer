@@ -52,7 +52,8 @@ nnst_plugins = [
   'tensor_split',
   'tensor_transform',
   'tensor_filter',
-  'tensor_repo'
+  'tensor_repo',
+  'tensor_if',
 ]
 
 foreach p : nnst_plugins

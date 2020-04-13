@@ -20,6 +20,7 @@
 #define __GST_TENSOR_IF_H__
 
 #include <gst/gst.h>
+#include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
@@ -85,7 +86,6 @@ typedef enum {
   TIFB_REPEAT_PREVIOUS_FRAME,	/**< Resend the previous output frame. If this is the first, send ZERO values. */
   TIFB_END,
 } tensor_if_behavior;
-
 
 /**
  * @brief Tensor If data structure
