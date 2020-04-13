@@ -27,7 +27,7 @@ NNSTREAMER_COMMON_SRCS := \
 
 # nnstreamer plugins
 NNSTREAMER_PLUGINS_SRCS := \
-    $(NNSTREAMER_GST_HOME)/nnstreamer.c \
+    $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
     $(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
     $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \

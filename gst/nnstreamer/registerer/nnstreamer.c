@@ -47,21 +47,21 @@
 
 #include <gst/gst.h>
 
-#include "tensor_aggregator/tensor_aggregator.h"
-#include "tensor_converter/tensor_converter.h"
-#include "tensor_decoder/tensordec.h"
-#include "tensor_demux/gsttensordemux.h"
-#include "tensor_filter/tensor_filter.h"
-#include "tensor_merge/gsttensormerge.h"
-#include "tensor_mux/gsttensormux.h"
-#include "tensor_repo/tensor_reposink.h"
-#include "tensor_repo/tensor_reposrc.h"
-#include "tensor_sink/tensor_sink.h"
+#include <tensor_aggregator/tensor_aggregator.h>
+#include <tensor_converter/tensor_converter.h>
+#include <tensor_decoder/tensordec.h>
+#include <tensor_demux/gsttensordemux.h>
+#include <tensor_filter/tensor_filter.h>
+#include <tensor_merge/gsttensormerge.h>
+#include <tensor_mux/gsttensormux.h>
+#include <tensor_repo/tensor_reposink.h>
+#include <tensor_repo/tensor_reposrc.h>
+#include <tensor_sink/tensor_sink.h>
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
-#include "tensor_source/tensor_src_iio.h"
+#include <tensor_source/tensor_src_iio.h>
 #endif /* __gnu_linux__ && !__ANDROID__ */
-#include "tensor_split/gsttensorsplit.h"
-#include "tensor_transform/tensor_transform.h"
+#include <tensor_split/gsttensorsplit.h>
+#include <tensor_transform/tensor_transform.h>
 
 #define NNSTREAMER_INIT(plugin,name,type) \
   do { \
