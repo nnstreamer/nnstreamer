@@ -62,6 +62,7 @@
 #endif /* __gnu_linux__ && !__ANDROID__ */
 #include <tensor_split/gsttensorsplit.h>
 #include <tensor_transform/tensor_transform.h>
+#include "tensor_if/gsttensorif.h"
 
 #define NNSTREAMER_INIT(plugin,name,type) \
   do { \
@@ -89,6 +90,7 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, sink, SINK);
   NNSTREAMER_INIT (plugin, split, SPLIT);
   NNSTREAMER_INIT (plugin, transform, TRANSFORM);
+  NNSTREAMER_INIT (plugin, if, IF);
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
   /* IIO requires Linux / non-Android */
 #if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)
