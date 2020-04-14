@@ -36,11 +36,18 @@ ENABLE_SNAP := false
 # NNFW (On-device neural network inference framework, Samsung Research)
 ENABLE_NNFW := false
 
+# Set true for profiling log
+ENABLE_PROFILE := false
+
 NNS_API_FLAGS := -DVERSION=\"$(NNSTREAMER_VERSION)\"
 NNS_API_STATIC_LIBS :=
 
 ifeq ($(NNSTREAMER_API_OPTION),single)
 NNS_API_FLAGS += -DNNS_SINGLE_ONLY=1
+endif
+
+ifeq ($(ENABLE_PROFILE),true)
+NNS_API_FLAGS += -DNNS_PROFILE_LOG
 endif
 
 #------------------------------------------------------

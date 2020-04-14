@@ -19,6 +19,10 @@ cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 build_platform = ''
 
+if get_option('enable-profile')
+  add_project_arguments('-DNNS_PROFILE_LOG=1', language: ['c', 'cpp'])
+endif
+
 if get_option('enable-tizen')
   # Pass __TIZEN__ to the compiler
   add_project_arguments('-D__TIZEN__=1', language: ['c', 'cpp'])

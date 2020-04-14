@@ -1,4 +1,5 @@
 option('enable-test', type: 'boolean', value: true)
+option('enable-profile', type: 'boolean', value: false)
 option('enable-orc', type: 'boolean', value: true) # default true, use orc when found orc library
 option('install-test', type: 'boolean', value: false)
 option('enable-tensorflow-lite', type: 'boolean', value: false)

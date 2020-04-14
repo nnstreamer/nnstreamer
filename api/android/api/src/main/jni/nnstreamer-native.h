@@ -32,6 +32,7 @@
 #include "nnstreamer-single.h"
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_log.h"
+#include "nnstreamer_profile.h"
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
 

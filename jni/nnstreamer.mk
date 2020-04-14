@@ -46,6 +46,10 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c
 
+# nnstreamer internal profile
+NNSTREAMER_PROFILE_SRCS := \
+    $(NNSTREAMER_GST_HOME)/nnstreamer_profile.c
+
 # nnstreamer c-api
 NNSTREAMER_CAPI_INCLUDES := \
     $(NNSTREAMER_ROOT)/gst \

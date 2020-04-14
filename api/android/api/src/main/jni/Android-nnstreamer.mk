@@ -30,6 +30,11 @@ NNSTREAMER_SRC_FILES += \
     $(NNSTREAMER_DECODER_IS_SRCS)
 endif
 
+ifeq ($(ENABLE_PROFILE),true)
+NNSTREAMER_SRC_FILES += \
+    $(NNSTREAMER_PROFILE_SRCS)
+endif
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := nnstreamer
