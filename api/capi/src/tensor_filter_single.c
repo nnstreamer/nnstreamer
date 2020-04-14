@@ -44,6 +44,7 @@
 #include <string.h>
 
 #include "tensor_filter_single.h"
+#include "nnstreamer_profile.h"
 
 #define g_tensor_filter_single_parent_class parent_class
 G_DEFINE_TYPE (GTensorFilterSingle, g_tensor_filter_single, G_TYPE_OBJECT);
@@ -247,7 +248,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   GstTensorFilterPrivate *priv;
-  guint i, status;
+  guint i;
+  gint status;
   gboolean allocate_in_invoke;
   gboolean run_without_model;
 
@@ -287,19 +289,26 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     }
   }
 
+  profile_log ("single-invoke", PROFILE_START);
   if (GST_TF_FW_V0 (priv->fw))
     status = priv->fw->invoke_NN
       (&priv->prop, &priv->privateData, input, output);
   else
     status = priv->fw->invoke (&priv->prop, &priv->privateData, input, output);
 
-  if (status == 0)
+  if (status == 0) {
+    profile_log ("single-invoke", PROFILE_END);
     return TRUE;
+  }
 
 error:
-  if (allocate_in_invoke == FALSE)
-    for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
+  /* if failed to invoke the model, release allocated memory. */
+  if (allocate_in_invoke == FALSE) {
+    for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
+      output[i].data = NULL;
+    }
+  }
   return FALSE;
 }
 

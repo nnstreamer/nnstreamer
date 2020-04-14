@@ -149,6 +149,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
   int status;
   jobject result = NULL;
 
+  profile_log ("nativeInvoke", PROFILE_START);
+
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   single = pipe_info->pipeline_handle;
   cur_info = in_info = out_info = NULL;
@@ -195,6 +197,9 @@ done:
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (cur_info);
+
+  if (result != NULL)
+    profile_log ("nativeInvoke", PROFILE_END);
   return result;
 }
 
