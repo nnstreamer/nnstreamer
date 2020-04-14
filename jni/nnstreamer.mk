@@ -19,14 +19,15 @@ NNSTREAMER_INCLUDES := \
     $(NNSTREAMER_GST_HOME) \
     $(NNSTREAMER_GST_HOME)/include
 
-# nnstreamer common sources
+# nnstreamer common sources.
 NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
     $(NNSTREAMER_GST_HOME)/tensor_common.c
 
-# nnstreamer plugins
+# nnstreamer plugins. Not used for SINGLE-only build.
 NNSTREAMER_PLUGINS_SRCS := \
+    $(NNSTREAMER_GST_HOME)/tensor_common_pipeline.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
     $(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
@@ -52,6 +53,7 @@ NNSTREAMER_CAPI_INCLUDES := \
     $(NNSTREAMER_CAPI_HOME)/include/platform \
     $(NNSTREAMER_CAPI_HOME)/include
 
+# nnstreamer c-api (single+pipeline). requires NNSTREAMER_PLUGINS_SRCS as well.
 NNSTREAMER_CAPI_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-pipeline.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
