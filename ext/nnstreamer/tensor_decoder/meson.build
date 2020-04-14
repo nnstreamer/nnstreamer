@@ -23,7 +23,8 @@ static_library('nnstreamer_decoder_direct_video',
 
 # image labeling
 decoder_sub_image_labeling_sources = [
-  'tensordec-imagelabel.c'
+  'tensordec-imagelabel.c',
+  'tensordecutil.c'
 ]
 
 nnstreamer_decoder_image_labeling_sources = []
@@ -47,6 +48,7 @@ static_library('nnstreamer_decoder_image_labeling',
 # bounding boxes
 decoder_sub_bounding_boxes_sources = [
   'tensordec-boundingbox.c',
+  'tensordecutil.c',
   'tensordec-font.c'
 ]
 
@@ -71,6 +73,7 @@ static_library('nnstreamer_decoder_bounding_boxes',
 # pose estimation
 decoder_sub_pose_estimation_sources = [
   'tensordec-pose.c',
+  'tensordecutil.c',
   'tensordec-font.c'
 ]
 

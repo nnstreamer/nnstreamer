@@ -56,6 +56,7 @@
 #include <math.h>               /* expf */
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include "tensordecutil.h"
 
 void init_bb (void) __attribute__ ((constructor));
 void fini_bb (void) __attribute__ ((destructor));
@@ -75,7 +76,7 @@ extern uint8_t rasters[][13];
  * @brief The bitmap of characters
  * [Character (ASCII)][Height][Width]
  */
-static uint32_t singleLineSprite[256][13][8];
+static singleLineSprite_t singleLineSprite;
 
 /**
  * @brief There can be different schemes for bounding boxes.
@@ -119,10 +120,8 @@ typedef struct
   };
 
   /* From option2 */
-  char *label_path; /**< Label file path. */
-  char **labels; /**< The list of loaded labels. Null if not loaded */
-  guint total_labels; /**< The number of loaded labels */
-  guint max_word_length; /**< The max size of labels */
+  imglabel_t labeldata;
+  char *label_path;
 
   /* From option4 */
   guint width; /**< Output Video Width */
@@ -148,32 +147,12 @@ _init_modes (bounding_boxes * bdata)
   return TRUE;
 }
 
-/**
- * @brief Free the allocated lables
- */
-static void
-_free_labels (bounding_boxes * data)
-{
-  guint i;
-
-  if (data->labels) {
-    for (i = 0; i < data->total_labels; i++)
-      g_free (data->labels[i]);
-    g_free (data->labels);
-  }
-
-  data->labels = NULL;
-  data->total_labels = 0;
-  data->max_word_length = 0;
-}
-
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 bb_init (void **pdata)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
   bounding_boxes *bdata;
-  int i, j, k;
 
   bdata = *pdata = g_new0 (bounding_boxes, 1);
   if (bdata == NULL) {
@@ -187,28 +166,7 @@ bb_init (void **pdata)
   bdata->i_width = 0;
   bdata->i_height = 0;
 
-  /** @todo Constify singleLineSprite and remove this loop */
-  for (i = 0; i < 256; i++) {
-    int ch = i;
-    uint8_t val;
-
-    if (ch < 32 || ch >= 127) {
-      /* It's not ASCII */
-      ch = '*';
-    }
-    ch -= 32;
-
-    for (j = 0; j < 13; j++) {
-      val = rasters[ch][j];
-      for (k = 0; k < 8; k++) {
-        if (val & 0x80)
-          singleLineSprite[i][12 - j][k] = PIXEL_VALUE;
-        else
-          singleLineSprite[i][12 - j][k] = 0;
-        val <<= 1;
-      }
-    }
-  }
+  initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
   /* The default values when the user didn't specify */
   return _init_modes (bdata);
@@ -230,7 +188,7 @@ bb_exit (void **pdata)
 {
   bounding_boxes *bdata = *pdata;
 
-  _free_labels (bdata);
+  _free_labels (&bdata->labeldata);
 
   if (bdata->label_path)
     g_free (bdata->label_path);
@@ -238,58 +196,6 @@ bb_exit (void **pdata)
 
   g_free (*pdata);
   *pdata = NULL;
-}
-
-/**
- * @brief Load label file into the internal data
- * @param[in/out] data The given ImageLabelData struct.
- */
-static void
-loadImageLabels (bounding_boxes * data)
-{
-  GError *err = NULL;
-  gchar **labels;
-  gchar *contents = NULL;
-  guint i, len;
-
-  /* Clean up previously configured data first */
-  _free_labels (data);
-
-  /* Read file contents */
-  if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {
-    GST_ERROR ("Unable to read file %s with error %s.",
-        data->label_path, err->message);
-    g_clear_error (&err);
-    return;
-  }
-
-  labels = g_strsplit (contents, "\n", -1);
-  data->total_labels = g_strv_length (labels);
-  data->labels = g_new0 (char *, data->total_labels);
-  if (data->labels == NULL) {
-    GST_ERROR ("Failed to allocate memory for label data.");
-    data->total_labels = 0;
-    goto error;
-  }
-
-  for (i = 0; i < data->total_labels; i++) {
-    data->labels[i] = g_strdup (labels[i]);
-
-    len = strlen (labels[i]);
-    if (len > data->max_word_length) {
-      data->max_word_length = len;
-    }
-  }
-
-error:
-  g_strfreev (labels);
-  g_free (contents);
-
-  if (data->labels != NULL) {
-    GST_INFO ("Loaded image label file successfully. %u labels loaded.",
-        data->total_labels);
-  }
-  return;
 }
 
 /**
@@ -408,9 +314,9 @@ bb_setOption (void **pdata, int opNum, const char *param)
     bdata->label_path = g_strdup (param);
 
     if (NULL != bdata->label_path)
-      loadImageLabels (bdata);
+      loadImageLabels (bdata->label_path, &bdata->labeldata);
 
-    if (bdata->total_labels > 0)
+    if (bdata->labeldata.total_labels > 0)
       return TRUE;
     else
       return FALSE;
@@ -562,11 +468,11 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     /* Check if the second tensor is compatible */
     dim2 = config->info.info[1].dimension;
     max_label = dim2[0];
-    g_return_val_if_fail (max_label <= data->total_labels, NULL);
-    if (max_label < data->total_labels)
+    g_return_val_if_fail (max_label <= data->labeldata.total_labels, NULL);
+    if (max_label < data->labeldata.total_labels)
       GST_WARNING
           ("The given tensor (2nd) has max_label (first dimension: %u) smaller than the number of labels in labels file (%s: %u).",
-          max_label, data->label_path, data->total_labels);
+          max_label, data->label_path, data->labeldata.total_labels);
     g_return_val_if_fail (max_detection == dim2[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
       g_return_val_if_fail (dim2[i] == 1, NULL);
@@ -886,8 +792,8 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     }
 
     /* 2. Write Labels */
-    g_assert (a->class_id > 0 && a->class_id < bdata->total_labels);
-    label = bdata->labels[a->class_id];
+    g_assert (a->class_id > 0 && a->class_id < bdata->labeldata.total_labels);
+    label = bdata->labeldata.labels[a->class_id];
     label_len = strlen (label);
     /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
     y1 = MAX (0, (y1 - 14));

@@ -33,6 +33,7 @@
 #include <gst/gstinfo.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include "tensordecutil.h"
 
 void init_il (void) __attribute__ ((constructor));
 void fini_il (void) __attribute__ ((destructor));
@@ -43,30 +44,9 @@ void fini_il (void) __attribute__ ((destructor));
 /** @brief Internal data structure for image labeling */
 typedef struct
 {
-  char *label_path; /**< Label file path. */
-  char **labels; /**< The list of loaded labels. Null if not loaded */
-  guint total_labels; /**< The number of loaded labels */
-  guint max_word_length; /**< The max size of labels */
+  imglabel_t labels;
+  char *label_path;
 } ImageLabelData;
-
-/**
- * @brief Free the allocated lables
- */
-static void
-_free_labels (ImageLabelData * data)
-{
-  guint i;
-
-  if (data->labels) {
-    for (i = 0; i < data->total_labels; i++)
-      g_free (data->labels[i]);
-    g_free (data->labels);
-  }
-
-  data->labels = NULL;
-  data->total_labels = 0;
-  data->max_word_length = 0;
-}
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
@@ -88,65 +68,13 @@ il_exit (void **pdata)
 {
   ImageLabelData *data = *pdata;
 
-  _free_labels (data);
+  _free_labels (&data->labels);
 
   if (data->label_path)
     g_free (data->label_path);
 
   g_free (*pdata);
   *pdata = NULL;
-}
-
-/**
- * @brief Load label file into the internal data
- * @param[in/out] data The given ImageLabelData struct.
- */
-static void
-loadImageLabels (ImageLabelData * data)
-{
-  GError *err = NULL;
-  gchar **labels;
-  gchar *contents = NULL;
-  guint i, len;
-
-  /* Clean up previously configured data first */
-  _free_labels (data);
-
-  /* Read file contents */
-  if (!g_file_get_contents (data->label_path, &contents, NULL, &err)) {
-    GST_ERROR ("Unable to read file %s with error %s.",
-        data->label_path, err->message);
-    g_clear_error (&err);
-    return;
-  }
-
-  labels = g_strsplit (contents, "\n", -1);
-  data->total_labels = g_strv_length (labels);
-  data->labels = g_new0 (char *, data->total_labels);
-  if (data->labels == NULL) {
-    GST_ERROR ("Failed to allocate memory for label data.");
-    data->total_labels = 0;
-    goto error;
-  }
-
-  for (i = 0; i < data->total_labels; i++) {
-    data->labels[i] = g_strdup (labels[i]);
-
-    len = strlen (labels[i]);
-    if (len > data->max_word_length) {
-      data->max_word_length = len;
-    }
-  }
-
-error:
-  g_strfreev (labels);
-  g_free (contents);
-
-  if (data->labels != NULL) {
-    GST_INFO ("Loaded image label file successfully. %u labels loaded.",
-        data->total_labels);
-  }
-  return;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -162,9 +90,9 @@ il_setOption (void **pdata, int opNum, const char *param)
     data->label_path = g_strdup (param);
 
     if (NULL != data->label_path)
-      loadImageLabels (data);
+      loadImageLabels (data->label_path, &data->labels);
 
-    if (data->total_labels > 0)
+    if (data->labels.total_labels > 0)
       return TRUE;
     else
       return FALSE;
@@ -265,10 +193,10 @@ il_decode (void **pdata, const GstTensorsConfig * config,
       return GST_FLOW_NOT_SUPPORTED;
   }
 
-  g_assert (max_index < data->total_labels);
+  g_assert (max_index < data->labels.total_labels);
 
   /** @todo With option-2, allow to change output format */
-  str = g_strdup_printf ("%s", data->labels[max_index]);
+  str = g_strdup_printf ("%s", data->labels.labels[max_index]);
   size = strlen (str);
 
   /* Ensure we have outbuf properly allocated */
