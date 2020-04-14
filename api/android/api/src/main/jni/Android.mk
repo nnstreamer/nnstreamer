@@ -20,8 +20,6 @@ else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
 
-include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
-
 #------------------------------------------------------
 # API build option
 #------------------------------------------------------
@@ -36,12 +34,15 @@ ENABLE_SNAP := false
 # NNFW (On-device neural network inference framework, Samsung Research)
 ENABLE_NNFW := false
 
-NNS_API_FLAGS := -DVERSION=\"$(NNSTREAMER_VERSION)\"
+NNS_API_FLAGS :=
 NNS_API_STATIC_LIBS :=
 
 ifeq ($(NNSTREAMER_API_OPTION),single)
 NNS_API_FLAGS += -DNNS_SINGLE_ONLY=1
 endif
+
+include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
+NNS_API_FLAGS += -DVERSION=\"$(NNSTREAMER_VERSION)\"
 
 #------------------------------------------------------
 # external libs
