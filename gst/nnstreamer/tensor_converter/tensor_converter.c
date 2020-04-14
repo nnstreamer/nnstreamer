@@ -46,10 +46,37 @@
 
 #include <string.h>
 #include "tensor_converter.h"
-#include "converter-media-info.h"
+
+#ifdef NO_VIDEO
+#include "converter-media-info-no-video.h"
+#else
+#include "converter-media-info-video.h"
+#endif
+
+#ifdef NO_AUDIO
+#include "converter-media-info-no-audio.h"
+#else
+#include "converter-media-info-audio.h"
+#endif
 #include <nnstreamer_log.h>
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_plugin_api_converter.h>
+
+/**
+ * @brief Caps string for text input
+ */
+#define TEXT_CAPS_STR "text/x-raw, format = (string) utf8"
+
+#define append_text_caps_template(caps) \
+    gst_caps_append (caps, gst_caps_from_string (TEXT_CAPS_STR))
+
+/**
+ * @brief Caps string for binary stream
+ */
+#define OCTET_CAPS_STR "application/octet-stream"
+
+#define append_octet_caps_template(caps) \
+    gst_caps_append (caps, gst_caps_from_string (OCTET_CAPS_STR))
 
 /**
  * @brief Macro for debug mode.
