@@ -100,6 +100,7 @@ NNSTREAMER_FILTER_CAFFE2_SRCS := \
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
 # decoder directvideo
@@ -108,11 +109,13 @@ NNSTREAMER_DECODER_DV_SRCS := \
 
 # decoder imagelabel
 NNSTREAMER_DECODER_IL_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagelabel.c
 
 # decoder pose estimation
 NNSTREAMER_DECODER_PE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-pose.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
 # decoder image segment

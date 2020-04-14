@@ -37,6 +37,7 @@
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include "tensordecutil.h"
 
 void init_pose (void) __attribute__ ((constructor));
 void finish_pose (void) __attribute__ ((destructor));
@@ -45,14 +46,14 @@ void finish_pose (void) __attribute__ ((destructor));
 extern uint8_t rasters[][13];
 
 #define POSE_SIZE                  14
-#define PIXEL_VALUE               (0xFFFFFFFF)  /* White 100% in RGBA */
+#define PIXEL_VALUE               (0xFFFFFFFF)
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
  * @brief The bitmap of characters
  * [Character (ASCII)][Height][Width]
  */
-static uint32_t singleLineSprite[256][13][8];
+static singleLineSprite_t singleLineSprite;
 
 /**
  * @brief Data structure for boundig box info.
@@ -73,7 +74,6 @@ typedef struct
 static int
 pose_init (void **pdata)
 {
-  int i, j, k;
   pose_data *data;
 
   data = *pdata = g_new0 (pose_data, 1);
@@ -87,26 +87,7 @@ pose_init (void **pdata)
   data->i_width = 0;
   data->i_height = 0;
 
-  for (i = 0; i < 256; i++) {
-    int ch = i;
-    uint8_t val;
-
-    if (ch < 32 || ch >= 127) {
-      ch = '*';
-    }
-    ch -= 32;
-
-    for (j = 0; j < 13; j++) {
-      val = rasters[ch][j];
-      for (k = 0; k < 8; k++) {
-        if (val & 0x80)
-          singleLineSprite[i][12 - j][k] = PIXEL_VALUE;
-        else
-          singleLineSprite[i][12 - j][k] = 0;
-        val <<= 1;
-      }
-    }
-  }
+  initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
   return TRUE;
 }
