@@ -246,6 +246,8 @@ typedef struct _GstTensorFilterFrameworkEventData
   };
 } GstTensorFilterFrameworkEventData;
 
+typedef struct _GstTensorFilterFramework GstTensorFilterFramework;
+
 /**
  * @brief Tensor_Filter Subplugin definition
  *
@@ -253,7 +255,7 @@ typedef struct _GstTensorFilterFrameworkEventData
  * prop Filter properties. Read Only.
  * private_data Subplugin's private data. Set this (*private_data = XXX) if you want to change filter->private_data.
  */
-typedef struct _GstTensorFilterFramework
+struct _GstTensorFilterFramework
 {
   uint64_t version;
   /**< Version of the struct
@@ -387,7 +389,8 @@ typedef struct _GstTensorFilterFramework
      */
     struct /** _GstTensorFilterFramework_v1 */
     {
-      int (*invoke) (const GstTensorFilterProperties * prop, void *private_data,
+      int (*invoke) (const GstTensorFilterFramework * self,
+          const GstTensorFilterProperties * prop, void *private_data,
           const GstTensorMemory * input, GstTensorMemory * output);
       /**< Mandatory callback. Invoke the given network model.
        *
@@ -398,8 +401,9 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        */
 
-      int (*getFrameworkInfo) (const GstTensorFilterProperties * prop,
-          void *private_data, GstTensorFilterFrameworkInfo *fw_info);
+      int (*getFrameworkInfo) (const GstTensorFilterFramework * self,
+          const GstTensorFilterProperties * prop, void *private_data,
+	  GstTensorFilterFrameworkInfo *fw_info);
       /**< Mandatory callback. Get the frameworks statically determined info. Argument 'private_data' can be NULL. If provided 'private_data' is not NULL, then some info, such as 'allocate_in_invoke', can be updated based on the model being used (inferred from the 'private_data' provided). This updated info is useful for custom filter, as some custom filter's ability to support 'allocate_in_invoke' depends on the opened model.
        *
        * @param[in] prop read-only property values
@@ -410,7 +414,8 @@ typedef struct _GstTensorFilterFramework
        * @note CAUTION: private_data can be NULL if the framework is not yet opened by the caller.
        */
 
-      int (*getModelInfo) (const GstTensorFilterProperties * prop,
+      int (*getModelInfo) (const GstTensorFilterFramework * self,
+          const GstTensorFilterProperties * prop,
           void *private_data, model_info_ops ops,
           GstTensorsInfo *in_info, GstTensorsInfo *out_info);
       /**< Mandatory callback. Gets the model related tensor info.
@@ -434,7 +439,8 @@ typedef struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error. -ENOENT is operation is not supported.
        */
 
-      int (*eventHandler) (const GstTensorFilterProperties * prop,
+      int (*eventHandler) (const GstTensorFilterFramework * self,
+          const GstTensorFilterProperties * prop,
           void *private_data, event_ops ops, GstTensorFilterFrameworkEventData * data);
       /**< Mandatory callback. Runs the event corresponding to the passed operation.
        * If ops == DESTROY_NOTIFY: tensor_filter.c will call it when 'allocate_in_invoke' property of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
@@ -459,7 +465,7 @@ typedef struct _GstTensorFilterFramework
 #endif
     ;
   };
-} GstTensorFilterFramework;
+};
 
 /* extern functions for subplugin management, exist in tensor_filter.c */
 /**

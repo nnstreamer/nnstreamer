@@ -45,11 +45,29 @@
 /**
  * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
  */
-#define gst_tensor_filter_call(priv,ret,funcname,...) do { \
+#define gst_tensor_filter_v0_call(priv,ret,funcname,...) do { \
       gst_tensor_filter_common_open_fw (priv); \
       ret = -1; \
-      if (priv->prop.fw_opened && priv->fw && priv->fw->funcname) { \
-        ret = priv->fw->funcname (&priv->prop, &priv->privateData, __VA_ARGS__); \
+      if ((priv)->prop.fw_opened && (priv)->fw && (priv)->fw->funcname) { \
+        ret = (priv)->fw->funcname (&(priv)->prop, &(priv)->privateData, __VA_ARGS__); \
+      } \
+    } while (0)
+
+#define gst_tensor_filter_v1_call(priv,ret,funcname,...) do { \
+      gst_tensor_filter_common_open_fw (priv); \
+      ret = -1; \
+      if ((priv)->prop.fw_opened && (priv)->fw && (priv)->fw->funcname) { \
+        ret = (priv)->fw->funcname ((priv)->fw, &(priv)->prop, (priv)->privateData, __VA_ARGS__); \
+      } \
+    } while (0)
+
+#define GST_TF_FW_INVOKE_COMPAT(priv,ret,in,out) do { \
+      if (GST_TF_FW_V0 ((priv)->fw)) { \
+        ret = priv->fw->invoke_NN (&(priv)->prop, &(priv)->privateData, (in), (out)); \
+      } else if (GST_TF_FW_V1 ((priv)->fw)) { \
+        ret = priv->fw->invoke ((priv)->fw, &(priv)->prop, (priv)->privateData, (in), (out)); \
+      } else { \
+        g_assert(FALSE); \
       } \
     } while (0)
 

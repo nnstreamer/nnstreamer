@@ -320,7 +320,7 @@ gst_tensor_filter_destroy_notify (void *data)
     priv->fw->destroyNotify (&priv->privateData, tensor_data);
   } else if (GST_TF_FW_V1 (priv->fw)) {
     event_data.data = tensor_data;
-    if (priv->fw->eventHandler (&priv->prop, &priv->privateData,
+    if (priv->fw->eventHandler (priv->fw, &priv->prop, priv->privateData,
             DESTROY_NOTIFY, &event_data) == -ENOENT) {
       g_free (tensor_data);
     }
@@ -407,10 +407,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 3. Call the filter-subplugin callback, "invoke" */
-  if (GST_TF_FW_V0 (priv->fw))
-    gst_tensor_filter_call (priv, ret, invoke_NN, in_tensors, out_tensors);
-  else
-    gst_tensor_filter_call (priv, ret, invoke, in_tensors, out_tensors);
+  GST_TF_FW_INVOKE_COMPAT (priv, ret, in_tensors, out_tensors);
+
   /** @todo define enum to indicate status code */
   g_assert (ret >= 0);
 
@@ -529,10 +527,10 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
       gst_tensors_info_init (&out_info);
       if (GST_TF_FW_V0 (priv->fw)) {
-        gst_tensor_filter_call (priv, res, setInputDimension, &in_config.info,
-            &out_info);
+        gst_tensor_filter_v0_call (priv, res, setInputDimension,
+            &in_config.info, &out_info);
       } else {
-        gst_tensor_filter_call (priv, res, getModelInfo, SET_INPUT_INFO,
+        gst_tensor_filter_v1_call (priv, res, getModelInfo, SET_INPUT_INFO,
             &in_config.info, &out_info);
       }
 
@@ -688,10 +686,10 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
         /* call setInputDimension with given input tensor */
         gst_tensors_info_init (&out_info);
         if (GST_TF_FW_V0 (priv->fw)) {
-          gst_tensor_filter_call (priv, res, setInputDimension, &config.info,
-              &out_info);
+          gst_tensor_filter_v0_call (priv, res, setInputDimension,
+              &config.info, &out_info);
         } else {
-          gst_tensor_filter_call (priv, res, getModelInfo, SET_INPUT_INFO,
+          gst_tensor_filter_v1_call (priv, res, getModelInfo, SET_INPUT_INFO,
               &config.info, &out_info);
         }
 
