@@ -288,11 +288,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     }
   }
 
-  if (GST_TF_FW_V0 (priv->fw))
-    status = priv->fw->invoke_NN
-      (&priv->prop, &priv->privateData, input, output);
-  else
-    status = priv->fw->invoke (&priv->prop, &priv->privateData, input, output);
+  GST_TF_FW_INVOKE_COMPAT (priv, status, input, output);
 
   if (status == 0)
     return TRUE;
@@ -332,7 +328,7 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
       status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
           in_info, out_info);
   } else {
-    status = priv->fw->getModelInfo (&priv->prop, &priv->privateData,
+    status = priv->fw->getModelInfo (priv->fw, &priv->prop, &priv->privateData,
         SET_INPUT_INFO, (GstTensorsInfo *) in_info, out_info);
   }
 

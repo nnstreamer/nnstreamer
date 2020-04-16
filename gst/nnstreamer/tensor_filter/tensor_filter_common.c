@@ -413,7 +413,7 @@ nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
     }
 
     gst_tensor_filter_properties_init (&prop);
-    if (tfsp->getFrameworkInfo (&prop, NULL, &info) != 0) {
+    if (tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info) != 0) {
       /* unable to get framework info */
       return FALSE;
     }
@@ -447,7 +447,7 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
     name = tfsp->name;
   } else if (GST_TF_FW_V1 (tfsp)) {
     gst_tensor_filter_properties_init (&prop);
-    g_assert (tfsp->getFrameworkInfo (&prop, NULL, &info) == 0);
+    g_assert (tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info) == 0);
     name = info.name;
   }
 
@@ -728,7 +728,8 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
 
   /** Get h/w accelerators supported by framework */
   if (info->name == NULL) {
-    status = priv->fw->getFrameworkInfo (prop, priv->privateData, info);
+    status = priv->fw->getFrameworkInfo (priv->fw, prop, priv->privateData,
+        info);
     if (status != 0 || info->hw_list == NULL) {
       ml_logw ("Unable to fetch accelerators supported by the framework.");
       return;
@@ -890,7 +891,8 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
 
   if (fw) {
     /** Get framework info for v1 */
-    if (GST_TF_FW_V1 (fw) && fw->getFrameworkInfo (prop, NULL, &priv->info) < 0) {
+    if (GST_TF_FW_V1 (fw) && fw->getFrameworkInfo (fw, prop, NULL, &priv->info)
+        < 0) {
       nns_logw ("Cannot get the given framework info, %s\n", fw_name);
       g_free (detected_fw);
       return;
@@ -980,8 +982,8 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
       data.model_files = prop->model_files;
       data.num_models = prop->num_models;
       /** original prop is sent and not the updated prop */
-      if (priv->fw->eventHandler (&_prop, priv->privateData, RELOAD_MODEL,
-              &data) != 0) {
+      if (priv->fw->eventHandler (priv->fw, &_prop, priv->privateData,
+              RELOAD_MODEL, &data) != 0) {
         status = -1;
       }
     }
@@ -1172,7 +1174,7 @@ _gtfc_setprop_CUSTOM (GstTensorFilterPrivate * priv,
 
       data.custom_properties = g_value_dup_string (value);
       status = priv->fw->eventHandler
-          (prop, &priv->privateData, CUSTOM_PROP, &data);
+          (priv->fw, prop, priv->privateData, CUSTOM_PROP, &data);
       if (status == 0) {
         g_free_const (prop->custom_properties);
         prop->custom_properties = g_value_dup_string (value);
@@ -1208,7 +1210,7 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       data.hw_list = prop->hw_list;
 
       status = priv->fw->eventHandler
-          (&_prop, priv->privateData, SET_ACCELERATOR, &data);
+          (priv->fw, &_prop, priv->privateData, SET_ACCELERATOR, &data);
       if (status == 0) {
         g_free (_prop.hw_list);
       } else {
@@ -1239,7 +1241,8 @@ _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
   if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
     return 0;
   } else if (GST_TF_FW_V1 (priv->fw) &&
-      priv->fw->eventHandler (prop, priv->privateData, RELOAD_MODEL, NULL)
+      priv->fw->eventHandler (priv->fw, prop, priv->privateData, RELOAD_MODEL,
+          NULL)
       == -ENOENT) {
     return 0;
   }
@@ -1284,7 +1287,7 @@ _gtfc_setprop_INPUTLAYOUT (GstTensorFilterPrivate * priv,
       }
 
       if (priv->fw->eventHandler
-          (prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
+          (priv->fw, prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
         memcpy (priv->prop.input_layout, data.layout,
             sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
       } else {
@@ -1331,7 +1334,7 @@ _gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
       }
 
       if (priv->fw->eventHandler
-          (prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
+          (priv->fw, prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
         memcpy (priv->prop.output_layout, data.layout,
             sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
       } else {
@@ -1646,15 +1649,15 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
 
   if (GST_TF_FW_V1 (priv->fw)) {
     if (!prop->input_configured || !prop->output_configured) {
-      gst_tensor_filter_call (priv, res_in, getModelInfo, GET_IN_OUT_INFO,
+      gst_tensor_filter_v1_call (priv, res_in, getModelInfo, GET_IN_OUT_INFO,
           &in_info, &out_info);
       res_out = res_in;
     }
   } else {
     if (!prop->input_configured)
-      gst_tensor_filter_call (priv, res_in, getInputDimension, &in_info);
+      gst_tensor_filter_v0_call (priv, res_in, getInputDimension, &in_info);
     if (!prop->output_configured)
-      gst_tensor_filter_call (priv, res_out, getOutputDimension, &out_info);
+      gst_tensor_filter_v0_call (priv, res_out, getOutputDimension, &out_info);
   }
 
   /* supposed fixed in-tensor info if getInputDimension was success. */
@@ -1727,8 +1730,8 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
         if (priv->fw->open (&priv->prop, &priv->privateData) >= 0) {
           /* Update the framework info once it has been opened */
           if (GST_TF_FW_V1 (priv->fw) &&
-              priv->fw->getFrameworkInfo (&priv->prop, priv->privateData,
-                  &priv->info) != 0) {
+              priv->fw->getFrameworkInfo (priv->fw, &priv->prop,
+                  priv->privateData, &priv->info) != 0) {
             priv->fw->close (&priv->prop, &priv->privateData);
           } else {
             priv->prop.fw_opened = TRUE;
