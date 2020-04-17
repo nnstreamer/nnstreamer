@@ -227,22 +227,6 @@ Summary:	NNStreamer UnitTest Coverage Analysis Result
 HTML pages of lcov results of NNStreamer generated during rpmbuild
 %endif
 
-%package cpp
-Summary:	NNStreamer Custom Plugin Support for C++ Classes
-Requires:	nnstreamer = %{version}-%{release}
-%description cpp
-With this package, you may use C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
-
-%post cpp -p /sbin/ldconfig
-%postun cpp -p /sbin/ldconfig
-
-%package cpp-devel
-Summary:	NNStreamer Custom Plugin Development Support for C++ Classes
-Requires:	nnstreamer-cpp = %{version}-%{release}
-%description cpp-devel
-With this package, you may write C++ classes as yet another tensor-filter subplugins of nnstreamer pipelines.
-Note that there is no .pc file for this package because nnstreamer.pc file may be used for developing this.
-
 %%%% THIS IS FOR TIZEN ONLY! %%%%
 %if %{with tizen}
 %package -n capi-nnstreamer
@@ -522,6 +506,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini
@@ -558,9 +543,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api.h
+%{_includedir}/nnstreamer/tensor_filter_cpp.hh
+%{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
 %{_libdir}/*.a
 %exclude %{_libdir}/libcapi*.a
 %{_libdir}/pkgconfig/nnstreamer.pc
+%{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
 %if 0%{?testcoverage}
 %files unittest-coverage
@@ -616,16 +604,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %{gstlibdir}/libnnstreamer-tizen-sensor.so
 %endif  # tizen_sensor_support
-
-%files cpp
-%manifest nnstreamer.manifest
-%license LICENSE
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
-
-%files cpp-devel
-%{_includedir}/nnstreamer/tensor_filter_cpp.hh
-%{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
-%{_libdir}/pkgconfig/nnstreamer-cpp.pc
 
 %if 0%{?edgetpu_support}
 %files edgetpu

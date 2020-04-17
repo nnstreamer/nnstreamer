@@ -20,6 +20,6 @@ install_headers(nnstreamer_headers,
 
 if get_option('enable-filter-cpp-class')
   install_headers(['nnstreamer_cppplugin_api_filter.hh'],
-    subdir: 'nnstreamer/cpp'
+    subdir: 'nnstreamer'
   )
 endif
