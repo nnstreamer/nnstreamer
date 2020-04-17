@@ -1,11 +1,11 @@
 # NNStreamer
 
 [![Gitter][gitter-image]][gitter-url] 
-[![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html) 
+[![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg?sanitize=true)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html) 
 <a href="https://scan.coverity.com/projects/nnsuite-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://img.shields.io/endpoint?url=https://nnsuite.mooo.com/nnstreamer/ci/badge/badge_coverity.json" />
 </a> 
-[![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/daily_build_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)
+[![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/daily_build_badge.svg?sanitize=true)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)
 ![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
 ![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
