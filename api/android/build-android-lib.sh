@@ -56,7 +56,7 @@ enable_nnfw="no"
 enable_tflite="yes"
 
 # Set tensorflow-lite version (available: 1.9/1.13.1/1.15.2)
-nnstreamer_tf_lite_ver="1.15.2"
+nnstreamer_tf_lite_ver="1.13.1"
 
 # Parse args
 for arg in "$@"; do
