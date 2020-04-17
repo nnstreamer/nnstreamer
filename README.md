@@ -30,8 +30,8 @@ neural network developers to manage neural network pipelines and their filters e
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | -- | -- | -- | -- | -- | -- |
 |     | 5.5M2 and later | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
-| arm | Available  | Available  | Ready | Available| Ready | N/A |
-| arm64 | Available  | Available  | Ready | Available | Planned | N/A |
+| arm | Available [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
+| arm64 | Available [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Planned | N/A |
 | x64 | Available  | Available  | Ready  | Ready | Ready | Available |
 | x86 | Available  | N/A  | N/A  | N/A  | N/A | N/A |
 | Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
