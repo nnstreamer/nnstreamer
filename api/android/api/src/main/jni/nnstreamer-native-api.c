@@ -48,6 +48,11 @@ extern void init_filter_nnfw (void);
 #endif
 
 /**
+ * @brief External function from GStreamer Android.
+ */
+extern void gst_android_init (JNIEnv * env, jobject context);
+
+/**
  * @brief Global lock for native functions.
  */
 G_LOCK_DEFINE_STATIC (nns_native_lock);
@@ -632,6 +637,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
   nns_logi ("Called native initialize.");
 
   G_LOCK (nns_native_lock);
+
+  if (!gst_is_initialized ())
+    gst_android_init (env, context);
 
   if (!gst_is_initialized ()) {
     nns_loge ("GStreamer is not initialized.");
