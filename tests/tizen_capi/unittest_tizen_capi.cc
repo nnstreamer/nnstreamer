@@ -1038,7 +1038,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   ml_pipeline_switch_e type;
   ml_pipeline_state_e state;
   gchar *pipeline;
-  int status;
+  int status, timeout_count = 0;
   guint *count_sink;
   TestPipeState *pipe_state;
   gchar **node_list = NULL;
@@ -1093,7 +1093,19 @@ TEST (nnstreamer_capi_switch, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   wait_for_start (handle, state, status);
 
-  g_usleep (300000); /* 300ms. Let a few frames flow. */
+  /* Waiting for 3 frames to arrive */
+  while (*count_sink < 3) {
+    timeout_count++;
+    g_usleep (10000);
+    if (timeout_count > 100) {
+      EXPECT_TRUE (false);
+      break;
+    }
+  } 
+
+  g_usleep (300000); /* To check if more frames are coming in  */
+
+  EXPECT_EQ (*count_sink, 3U);
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1106,8 +1118,6 @@ TEST (nnstreamer_capi_switch, dummy_01)
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
-
-  EXPECT_EQ (*count_sink, 3U);
 
   EXPECT_TRUE (pipe_state->paused);
   EXPECT_TRUE (pipe_state->playing);
