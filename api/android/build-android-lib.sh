@@ -308,7 +308,6 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     fi
 
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
-    cp -r api/src/main/java/org/nnsuite/nnstreamer/NNStreamer.java main/java/org/nnsuite/nnstreamer
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp external/Android-nnstreamer-prebuilt.mk main/jni
     # header for C-API
