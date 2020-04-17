@@ -384,45 +384,74 @@ if get_option('enable-openvino')
 endif
 
 if get_option('enable-mediapipe')
-
+  if host_machine.system() != 'linux' and host_machine.cpu_family() != 'x86_64'
+    error('Not Supported System & Architecture. Linux x86_64 is required')
+  endif
+  
   cmd = run_command('sh', '-c', 'echo $MEDIAPIPE_HOME')
   MEDIAPIPE_HOME = cmd.stdout().strip()
-  message('['+MEDIAPIPE_HOME+']')
 
   mediapipe_env_exist = run_command('[', '-z', MEDIAPIPE_HOME, ']').returncode()
   mediapipe_dir_exist = run_command('[', '-d', MEDIAPIPE_HOME, ']').returncode()
 
-  if mediapipe_env_exist == 1 and mediapipe_dir_exist == 0
-    message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
-    mediapipe_incdir = include_directories(
-      MEDIAPIPE_HOME,
-      join_paths(MEDIAPIPE_HOME, 'bazel-bin'),
-      join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/eigen_archive'),
-      join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
-    )
-
-    cmd = run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir)
-
-    mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
-    mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)
-    
-    nnstreamer_filter_mediapipe_deps = [glib_dep, gst_dep, nnstreamer_dep, mediapipe_external_dep, mediapipe_internal_dep]
-
-    filter_sub_mp_sources = ['tensor_filter_mediapipe.c']
-
-    nnstreamer_filter_mediapipe_sources = []
-    foreach s : filter_sub_mp_sources
-      nnstreamer_filter_mediapipe_sources += join_paths(meson.current_source_dir(), s)
-    endforeach
-    
-    shared_library('nnstreamer_filter_mediapipe',
-      nnstreamer_filter_mediapipe_sources,
-      dependencies: nnstreamer_filter_mediapipe_deps,
-      include_directories: mediapipe_incdir,
-      install: true,
-      install_dir: filter_subplugin_install_dir
-    )
-  else
+  if mediapipe_env_exist != 1 and mediapipe_dir_exist != 0
     error('Cannot find MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
   endif
+
+  message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
+  mediapipe_incdir = include_directories(
+    MEDIAPIPE_HOME,
+    join_paths(MEDIAPIPE_HOME, 'bazel-bin'),
+    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/eigen_archive'),
+    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
+  )
+
+  cmd = run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir)
+  if cmd.returncode() != 0
+    error(cmd.stderr().strip())
+  endif
+
+  mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
+  mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)
+
+  opencv_path = 'bazel-bin/_solib_k8/_U@linux_Uopencv_S_S_Copencv___Uexternal_Slinux_Uopencv_Slib_Sx86_U64-linux-gnu'
+  opencv_core_dep = cc.find_library('opencv_core', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_video_dep = cc.find_library('opencv_video', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_imgcodecs_dep = cc.find_library('opencv_imgcodecs', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_imgproc_dep = cc.find_library('opencv_imgproc', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_calib3d_dep = cc.find_library('opencv_calib3d', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_highgui_dep = cc.find_library('opencv_highgui', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_videoio_dep = cc.find_library('opencv_videoio', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  opencv_features2d_dep = cc.find_library('opencv_features2d', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
+  
+  nnstreamer_filter_mediapipe_deps = [
+    glib_dep,
+    gst_dep,
+    nnstreamer_dep,
+    opencv_core_dep,
+    opencv_video_dep,
+    opencv_imgcodecs_dep,
+    opencv_imgproc_dep,
+    opencv_calib3d_dep,
+    opencv_highgui_dep,
+    opencv_videoio_dep,
+    opencv_features2d_dep,
+    mediapipe_external_dep,
+    mediapipe_internal_dep
+  ]
+
+  filter_sub_mp_sources = ['tensor_filter_mediapipe.cc']
+
+  nnstreamer_filter_mediapipe_sources = []
+  foreach s : filter_sub_mp_sources
+    nnstreamer_filter_mediapipe_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+  
+  shared_library('nnstreamer_filter_mediapipe',
+    nnstreamer_filter_mediapipe_sources,
+    dependencies: nnstreamer_filter_mediapipe_deps,
+    include_directories: mediapipe_incdir,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
 endif
