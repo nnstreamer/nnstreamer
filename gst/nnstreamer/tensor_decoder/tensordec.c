@@ -460,6 +460,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       const GstTensorDecoderDef *decoder;
       const gchar *mode_string;
       guint i;
+      int status;
 
       mode_string = g_value_get_string (value);
       decoder = nnstreamer_decoder_find (mode_string);
@@ -479,7 +480,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
           self->decoder = decoder;
         }
 
-        g_assert (self->decoder->init (&self->plugin_data));
+        status = self->decoder->init (&self->plugin_data);
+        /** @todo Do proper error handling */
+        g_assert (status);
 
         for (i = 0; i < TensorDecMaxOpNum; i++)
           if (!gst_tensordec_process_plugin_options (self, i))
@@ -656,6 +659,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
 {
   GstTensorDec *self;
   GstFlowReturn res;
+  gboolean status;
 
   self = GST_TENSOR_DECODER_CAST (trans);
 
@@ -675,7 +679,8 @@ gst_tensordec_transform (GstBaseTransform * trans,
 
     for (i = 0; i < num_tensors; i++) {
       in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-      g_assert (gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ));
+      status = gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ);
+      g_assert (status);
 
       input[i].data = in_info[i].data;
       input[i].size = in_info[i].size;

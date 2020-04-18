@@ -150,6 +150,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   /* Direct video uses the first tensor only even if it's multi-tensor */
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
   size_t size = _get_video_xraw_bufsize (dim);
+  gboolean status;
 
   g_assert (outbuf);
   if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
@@ -163,7 +164,8 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   } else {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   }
-  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
+  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
+  g_assert (status);
 
   if (0 == ((dim[0] * dim[1]) % 4)) {
     /* No Padding Required */

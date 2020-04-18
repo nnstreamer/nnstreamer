@@ -1211,6 +1211,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         gint64 val;
         gchar **strv;
         gchar *endptr = NULL;
+        gboolean status;
 
         /**
          * using direct as we only need to store keys
@@ -1230,8 +1231,9 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
             self->custom_channel_table = NULL;
             break;
           }
-          g_assert (g_hash_table_insert (self->custom_channel_table,
-                  GINT_TO_POINTER (val), NULL));
+          status = g_hash_table_insert (self->custom_channel_table,
+              GINT_TO_POINTER (val), NULL);
+          g_assert (status);
         }
         self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
         g_strfreev (strv);

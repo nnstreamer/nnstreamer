@@ -233,6 +233,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
   ImageLabelData *data = *pdata;
   GstMapInfo out_info;
   GstMemory *out_mem;
+  gboolean status;
 
   gsize bpe = gst_tensor_get_element_size (config->info.info[0].type);
   tensor_element max_val;
@@ -279,7 +280,8 @@ il_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
+  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
+  g_assert (status);
 
   memcpy (out_info.data, str, size);
 

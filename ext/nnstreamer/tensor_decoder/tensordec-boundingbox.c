@@ -922,6 +922,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   GstMemory *out_mem;
   GArray *results = NULL;
   const int num_tensors = config->info.num_tensors;
+  gboolean status;
 
   g_assert (outbuf);
   /* Ensure we have outbuf properly allocated */
@@ -933,7 +934,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
+  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
+  g_assert (status);
 
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
