@@ -456,6 +456,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   const GstTensorMemory *detections = NULL;
   float *arr;
   int index, i, j;
+  gboolean status;
 
   g_assert (outbuf);
   /* Ensure we have outbuf properly allocated */
@@ -467,7 +468,8 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  g_assert (gst_memory_map (out_mem, &out_info, GST_MAP_WRITE));
+  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
+  g_assert (status);
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 

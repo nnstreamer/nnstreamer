@@ -728,12 +728,15 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         int d0, d1;
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
+        gboolean status;
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
 
-        g_assert (gst_buffer_map (buf, &src_info, GST_MAP_READ));
-        g_assert (gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE));
+        status = gst_buffer_map (buf, &src_info, GST_MAP_READ);
+        g_assert (status);
+        status = gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE);
+        g_assert (status);
 
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
@@ -774,14 +777,17 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frames_in = 1;
 
       if (buf_size != frame_size) {
+        gboolean status;
         GstMapInfo src_info, dest_info;
         gsize block_size = MIN (buf_size, frame_size);
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
 
-        g_assert (gst_buffer_map (buf, &src_info, GST_MAP_READ));
-        g_assert (gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE));
+        status = gst_buffer_map (buf, &src_info, GST_MAP_READ);
+        g_assert (status);
+        status = gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE);
+        g_assert (status);
 
         memcpy (dest_info.data, src_info.data, block_size);
 

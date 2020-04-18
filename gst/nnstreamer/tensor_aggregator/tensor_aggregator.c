@@ -567,6 +567,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   gsize block_size;
   gsize src_idx, dest_idx;
   gsize frame_size;
+  gboolean status;
 
   frame_size = gst_tensor_info_get_size (info);
   g_assert (frame_size > 0);
@@ -574,8 +575,10 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   srcbuf = gst_buffer_copy (outbuf);
   outbuf = gst_buffer_make_writable (outbuf);
 
-  g_assert (gst_buffer_map (srcbuf, &src_info, GST_MAP_READ));
-  g_assert (gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE));
+  status = gst_buffer_map (srcbuf, &src_info, GST_MAP_READ);
+  g_assert (status);
+  status = gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
+  g_assert (status);
 
   /**
    * Concatenate output buffer with given axis (frames-dim)

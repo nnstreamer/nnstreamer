@@ -372,6 +372,7 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   GstClockTime dts_time = GST_CLOCK_TIME_NONE;
   GstClockTime time = 0;
   gboolean isEOS = FALSE;
+  gboolean status;
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
   if (tensor_mux->need_stream_start) {
     gchar s_id[32];
@@ -408,7 +409,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
           gst_buffer_n_memory (tensors_buf);
     }
 
-    g_assert (gst_tensors_config_validate (&tensor_mux->tensors_config));
+    status = gst_tensors_config_validate (&tensor_mux->tensors_config);
+    if (FALSE == status)
+      return GST_FLOW_ERROR;
+
     newcaps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
 
     if (!gst_pad_set_caps (tensor_mux->srcpad, newcaps)) {

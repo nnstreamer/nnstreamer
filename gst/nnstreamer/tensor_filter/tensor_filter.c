@@ -375,8 +375,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   g_assert (gst_buffer_n_memory (inbuf) == prop->input_meta.num_tensors);
 
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
+    gboolean status;
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-    g_assert (gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ));
+    status = gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ);
+    g_assert (status);
+    /** @todo Do proper error handling (clean up and error return) */
 
     in_tensors[i].data = in_info[i].data;
     in_tensors[i].size = in_info[i].size;
@@ -388,6 +391,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   g_assert (gst_buffer_get_size (outbuf) == 0);
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    gboolean status;
     out_tensors[i].data = NULL;
     out_tensors[i].size = gst_tensor_filter_get_output_size (self, i);
     out_tensors[i].type = prop->output_meta.info[i].type;
@@ -395,7 +399,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     /* allocate memory if allocate_in_invoke is FALSE */
     if (allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
-      g_assert (gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE));
+      status = gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE);
+      g_assert (status);
 
       out_tensors[i].data = out_info[i].data;
     }

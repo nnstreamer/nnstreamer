@@ -479,6 +479,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   gsize element_size;
   tensor_dim dim;
   tensor_type type;
+  gboolean status;
 
   memcpy (&dim, &tensor_merge->tensors_config.info.info[0].dimension,
       sizeof (tensor_dim));
@@ -487,12 +488,14 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
 
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
-    g_assert (gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ));
+    status = gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ);
+    g_assert (status); /** @todo Do proper error handling */
     outSize += mInfo[i].size;
   }
 
   outMem = gst_allocator_alloc (NULL, outSize, NULL);
-  g_assert (gst_memory_map (outMem, &outInfo, GST_MAP_WRITE));
+  status = gst_memory_map (outMem, &outInfo, GST_MAP_WRITE);
+  g_assert (status); /** @todo Do proper error handling */
   outptr = outInfo.data;
 
   switch (tensor_merge->mode) {
@@ -654,6 +657,7 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     if (gst_tensor_merge_get_merged_config (tensor_merge,
             &tensor_merge->tensors_config, &config)) {
       g_assert (gst_tensor_config_validate (&config));
+      /** @todo Do proper error handling */
       newcaps = gst_tensor_caps_from_config (&config);
     } else {
       goto nego_error;
