@@ -241,7 +241,7 @@ static void
 _g_list_foreach_vstr_helper (gpointer data, gpointer user_data)
 {
   vstr_helper *helper = (vstr_helper *) user_data;
-  g_assert (helper->cursor < helper->size);
+  g_assert (helper->cursor < helper->size); /** library error? internal logic error? */
   helper->vstr[helper->cursor] = data;
   helper->cursor++;
 }
@@ -276,9 +276,9 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
   lstB = g_slist_reverse (lstB);
 
   *fullpath_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  g_assert (*fullpath_vstr != NULL);
+  g_assert (*fullpath_vstr != NULL);    /* This won't happen, but doesn't hurt either */
   *basename_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  g_assert (*basename_vstr != NULL);
+  g_assert (*basename_vstr != NULL);    /* This won't happen, but doesn't hurt either */
 
   vstrF.vstr = *fullpath_vstr;
   vstrB.vstr = *basename_vstr;
@@ -360,7 +360,7 @@ nnsconf_loadconf (gboolean force_reload)
 
   if (conf.conffile) {
     key_file = g_key_file_new ();
-    g_assert (key_file != NULL);
+    g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
 
     /* Read the conf file. It's ok even if we cannot load it. */
     if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
@@ -536,7 +536,7 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
     if (NULL == value && conf.conffile) {
       g_autoptr (GKeyFile) key_file = g_key_file_new ();
 
-      g_assert (key_file != NULL);
+      g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
 
       if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
               NULL)) {

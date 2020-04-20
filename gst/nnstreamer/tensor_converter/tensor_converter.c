@@ -332,6 +332,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   gst_tensor_info_init (&self->tensor_info);
 
   self->adapter = gst_adapter_new ();
+  g_assert (self->adapter != NULL);
   gst_tensor_converter_reset (self);
 }
 
@@ -607,6 +608,7 @@ _gst_tensor_converter_chain_segment (GstTensorConverter * self,
     GstSegment seg;
     guint64 start;
 
+    /** This is an internal logic error. */
     g_assert (self->have_segment);
     start = self->segment.start;
 
@@ -697,6 +699,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   self = GST_TENSOR_CONVERTER (parent);
 
+  /** This is an internal logic error. */
   g_assert (self->tensor_configured);
   config = &self->tensor_config;
 
@@ -728,22 +731,28 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         int d0, d1;
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
-        gboolean status;
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
 
-        status = gst_buffer_map (buf, &src_info, GST_MAP_READ);
-        g_assert (status);
-        status = gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE);
-        g_assert (status);
+        if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
+          ml_logf ("Cannot map src buffer at tensor_converter/video.\n");
+          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
+          return GST_FLOW_ERROR;
+        }
+        if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
+          ml_logf ("Cannot map dest buffer at tensor_converter/video.\n");
+          gst_buffer_unmap (buf, &src_info);
+          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
+          return GST_FLOW_ERROR;
+        }
 
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
          */
         size = offset = color * width * type;
 
-        g_assert (offset % 4);
+        g_assert (offset % 4); /** Internal logic error! */
         if (offset % 4) {
           offset += 4 - (offset % 4);
         }
@@ -777,17 +786,22 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frames_in = 1;
 
       if (buf_size != frame_size) {
-        gboolean status;
         GstMapInfo src_info, dest_info;
         gsize block_size = MIN (buf_size, frame_size);
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
 
-        status = gst_buffer_map (buf, &src_info, GST_MAP_READ);
-        g_assert (status);
-        status = gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE);
-        g_assert (status);
+        if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
+          ml_logf ("Cannot map src buffer at tensor_converter/text.\n");
+          return GST_FLOW_ERROR;
+        }
+        if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
+          ml_logf ("Cannot map dest buffer at tensor_converter/text.\n");
+          gst_buffer_unmap (buf, &src_info);
+          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
+          return GST_FLOW_ERROR;
+        }
 
         memcpy (dest_info.data, src_info.data, block_size);
 
@@ -822,7 +836,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     }
     default:
       GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
-      g_assert (0);
       return GST_FLOW_ERROR;
   }
 
@@ -1381,7 +1394,12 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
 
             /** @todo What if this is inconsistent with self->ex? */
 
-            g_assert (ex->query_caps);
+            if (NULL == ex->query_caps) {
+              ml_logf
+                  ("The given conveter subplugin, \"%s\", does not have a valid query_caps callback.\n",
+                  name);
+              break;
+            }
             if (ex->query_caps (self, &config, st) == FALSE) {
               GST_ERROR_OBJECT (self,
                   "Failed to filter GstCap structure with the given config");

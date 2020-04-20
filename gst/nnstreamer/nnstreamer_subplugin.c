@@ -253,7 +253,7 @@ static void
 init_subplugin (void)
 {
   G_LOCK (splock);
-  g_assert (NULL == handles);
+  g_assert (NULL == handles); /** Internal error (duplicated init call?) */
   handles = g_ptr_array_new_full (16, _close_handle);
   G_UNLOCK (splock);
 }
@@ -263,7 +263,7 @@ static void
 fini_subplugin (void)
 {
   G_LOCK (splock);
-  g_assert (handles);
+  g_assert (handles); /** Internal error (init not called?) */
 
   /* iterate and call close by calling g_array_clear */
   g_ptr_array_free (handles, TRUE);

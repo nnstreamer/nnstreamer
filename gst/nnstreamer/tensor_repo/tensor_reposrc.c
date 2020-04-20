@@ -310,12 +310,15 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
   num_tensors = self->config.info.num_tensors;
 
   for (i = 0; i < num_tensors; i++) {
-    gboolean status;
     size = gst_tensor_info_get_size (&self->config.info.info[i]);
     mem = gst_allocator_alloc (NULL, size, NULL);
 
-    status = gst_memory_map (mem, &info, GST_MAP_WRITE);
-    g_assert (status); /** @todo Do proper error handling (err return) */
+    if (FALSE == gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+      gst_allocator_free (NULL, mem);
+      ml_logf ("Cannot mep gst memory (tensor-repo-src)\n");
+      gst_buffer_unref (buf);
+      return NULL;
+    }
     memset (info.data, 0, size);
     gst_memory_unmap (mem, &info);
 

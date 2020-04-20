@@ -908,6 +908,13 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
   return core->getOutputTensorDim (info);
 }
 
+#define tryRecovery(failedAt, status, location, exp) do { \
+      status = (exp); \
+      if (status != 0) { \
+        failedAt = location; \
+        goto recovery_fail; \
+      } \
+    } while (0)
 /**
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
@@ -922,7 +929,7 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
   GstTensorsInfo cur_in_info;
-  int status;
+  int status, failedAt, recoveryStatus;
 
   g_return_val_if_fail (core, -EINVAL);
   g_return_val_if_fail (in_info, -EINVAL);
@@ -936,35 +943,48 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /** set new input tensor info */
   status = core->setInputTensorDim (in_info);
   if (status != 0) {
-    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorDim (&cur_in_info));
     return status;
   }
 
   /** update input tensor info */
   if ((status = core->setInputTensorProp ()) != 0) {
-    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (core->setInputTensorProp () == 0);
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorDim (&cur_in_info));
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorProp ());
     return status;
   }
 
   /** update output tensor info */
   if ((status = core->setOutputTensorProp ()) != 0) {
-    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (core->setInputTensorProp () == 0);
-    g_assert (core->setOutputTensorProp () == 0);
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorDim (&cur_in_info));
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorProp ());
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setOutputTensorProp ());
     return status;
   }
 
   /** get output tensor info to be returned */
   status = core->getOutputTensorDim (out_info);
   if (status != 0) {
-    g_assert (core->setInputTensorDim (&cur_in_info) == 0);
-    g_assert (core->setInputTensorProp () == 0);
-    g_assert (core->setOutputTensorProp () == 0);
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorDim (&cur_in_info));
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setInputTensorProp ());
+    tryRecovery (failedAt, recoveryStatus, __LINE__,
+        core->setOutputTensorProp ());
     return status;
   }
 
   return 0;
+recovery_fail:
+  ml_logf
+      ("tensorflow-lite's setInputDim failed (%d) and its recovery failed, too. The behavior will be unstable.\n", failedAt);
+  return status;
 }
 
 /**

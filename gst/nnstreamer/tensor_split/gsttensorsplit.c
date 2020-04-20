@@ -412,7 +412,6 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
   int i;
   gsize size, offset;
   GstMapInfo src_info, dest_info;
-  gboolean status;
 
   size = 0;
   offset = 0;
@@ -421,10 +420,15 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
   size += gst_tensor_get_element_count (*dim) *
       gst_tensor_get_element_size (split->sink_tensor_conf.info.type);
   mem = gst_allocator_alloc (NULL, size, NULL);
-  status = gst_memory_map (mem, &dest_info, GST_MAP_WRITE);
-  g_assert (status);
-  status = gst_buffer_map (buffer, &src_info, GST_MAP_READ);
-  g_assert (status);
+  if (FALSE == gst_memory_map (mem, &dest_info, GST_MAP_WRITE)) {
+    ml_logf ("Cannot map memory for destination buffer.\n");
+    return NULL;
+  }
+  if (FALSE == gst_buffer_map (buffer, &src_info, GST_MAP_READ)) {
+    ml_logf ("Cannot map src-memory to gst buffer at tensor-split.\n");
+    gst_memory_unmap (mem, &dest_info);
+    return NULL;
+  }
 
   for (i = 0; i < nth; i++) {
     dim = g_array_index (split->tensorseg, tensor_dim *, i);

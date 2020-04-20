@@ -56,6 +56,7 @@
 #include <math.h>               /* expf */
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
 void init_bb (void) __attribute__ ((constructor));
@@ -224,7 +225,12 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
   }
 
   priors = g_strsplit (contents, "\n", -1);
-  g_assert (g_strv_length (priors) >= BOX_SIZE);
+  /* If given prior file is inappropriate, report back to tensor-decoder */
+  if (g_strv_length (priors) < BOX_SIZE) {
+    ml_loge ("The given prior file, %s, should have at least %d lines.\n",
+        tflite_ssd->box_prior_path, BOX_SIZE);
+    return FALSE;
+  }
 
   for (row = 0; row < BOX_SIZE; row++) {
     gint column = 0, registered = 0;
@@ -762,6 +768,12 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     int label_len;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
+    if (a->class_id <= 0 || a->class_id >= bdata->labeldata.total_labels) {
+      /** @todo make it "logw_once" after we get logw_once API. */
+      ml_logw ("Invalid class found with tensordec-boundingbox.c.\n");
+      continue;
+    }
+
     /* 1. Draw Boxes */
     x1 = (bdata->width * a->x) / bdata->i_width;
     x2 = MIN (bdata->width - 1,
@@ -792,7 +804,6 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     }
 
     /* 2. Write Labels */
-    g_assert (a->class_id > 0 && a->class_id < bdata->labeldata.total_labels);
     label = bdata->labeldata.labels[a->class_id];
     label_len = strlen (label);
     /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
@@ -828,7 +839,6 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   GstMemory *out_mem;
   GArray *results = NULL;
   const int num_tensors = config->info.num_tensors;
-  gboolean status;
 
   g_assert (outbuf);
   /* Ensure we have outbuf properly allocated */
@@ -840,8 +850,10 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
-  g_assert (status);
+  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    ml_loge ("Cannot map output memory / tensordec-bounding_boxes.\n");
+    return GST_FLOW_ERROR;
+  }
 
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
@@ -855,6 +867,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
      *       For the sake of performance, don't make it too small.
      */
 
+    /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= TFLITE_SSD_MAX_TENSORS);
 
     boxes = &input[0];
@@ -882,6 +895,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
         g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
         TF_SSD_DETECTION_MAX);
 
+    /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= TF_SSD_MAX_TENSORS);
 
     mem_num = &input[0];

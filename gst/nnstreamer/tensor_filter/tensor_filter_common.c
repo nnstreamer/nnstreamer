@@ -447,7 +447,10 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
     name = tfsp->name;
   } else if (GST_TF_FW_V1 (tfsp)) {
     gst_tensor_filter_properties_init (&prop);
-    g_assert (tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info) == 0);
+    if (0 != tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info)) {
+      ml_loge ("getFrameworkInfo() failed.\n");
+      return FALSE;
+    }
     name = info.name;
   }
 
@@ -1882,7 +1885,12 @@ parse_accl_hw (const gchar * accelerators,
   accl_hw hw;
 
   match_accl = parse_accl_hw_all (accelerators, supported_accelerators);
-  g_assert (g_list_length (match_accl) > 0);
+
+  if (NULL == match_accl) {
+    ml_loge ("There is no match hardware accelerators from {%s}.\n",
+        accelerators);
+    return ACCL_NONE;
+  }
 
   hw = GPOINTER_TO_INT (match_accl->data);
   g_list_free (match_accl);
