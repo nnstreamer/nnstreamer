@@ -499,7 +499,7 @@ file_cmp (const gchar * f1, const gchar * f2)
  * @brief Wait until the change in pipeline status is done
  * @return ML_ERROR_NONE success, ML_ERROR_UNKNOWN if failed, ML_ERROR_TIMED_OUT if timeout happens.
  */
-int
+static int
 waitPipelineStateChange (ml_pipeline_h handle, ml_pipeline_state_e state,
     guint timeout_ms)
 {
