@@ -236,6 +236,10 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     GstBuffer *buf;
 
     gst_tensors_config_from_structure (&in_configs, s);
+    /** This is an internal logic error.
+        in_configs should be already confirmed valid at
+        the negotiation phase and this function should be
+        called in a running pipeline */
     g_assert (gst_tensors_config_validate (&in_configs));
 
     if (in_configs.rate_d < old_denominator)
@@ -271,6 +275,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     if (GST_IS_BUFFER (buf)) {
       guint n_mem = gst_buffer_n_memory (buf);
 
+      /** These are internal logic error. If given inputs are incorrect,
+          the negotiation should have been failed before this stage. */
       g_assert (n_mem == in_configs.info.num_tensors);
       g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
 

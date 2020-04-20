@@ -228,13 +228,14 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
 
   GST_REPO_LOCK ();
   ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), data);
-  g_assert (ret);
 
   if (ret) {
     _repo.num_data++;
 
     if (DBG)
       GST_DEBUG ("Successfully added in hash table with key[%d]", nth);
+  } else {
+    ml_logf ("The key[%d] is duplicated. Cannot proceed.\n", nth);
   }
 
   GST_REPO_UNLOCK ();

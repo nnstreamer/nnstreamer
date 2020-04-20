@@ -382,7 +382,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   }
 
   tensors_buf = gst_buffer_new ();
-  g_assert (tensors_buf);
+  if (NULL == tensors_buf) {
+    ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
+    return GST_FLOW_ERROR;
+  }
 
   isEOS =
       gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &pts_time,

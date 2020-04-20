@@ -257,6 +257,7 @@ gst_tensor_filter_get_output_size (GstTensorFilter * self, guint index)
 
   priv = &self->priv;
   info = &priv->prop.output_meta;
+  /* Internal Logic Error */
   g_assert (index < info->num_tensors);
 
   return gst_tensor_info_get_size (&info->info[index]);
@@ -372,14 +373,18 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
   /* 1. Set input tensors from inbuf. */
+  /* Internal Logic Error or GST Bug (sinkcap changed!) */
   g_assert (gst_buffer_n_memory (inbuf) == prop->input_meta.num_tensors);
 
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
-    gboolean status;
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-    status = gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ);
-    g_assert (status);
-    /** @todo Do proper error handling (clean up and error return) */
+    if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+      guint j;
+      for (j = 0; j < i; j++)
+        gst_memory_unmap (in_mem[j], &in_info[j]);
+      ml_logf ("Cannot map input memory buffer(%d)\n", i);
+      return GST_FLOW_ERROR;
+    }
 
     in_tensors[i].data = in_info[i].data;
     in_tensors[i].size = in_info[i].size;
@@ -391,7 +396,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   g_assert (gst_buffer_get_size (outbuf) == 0);
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    gboolean status;
     out_tensors[i].data = NULL;
     out_tensors[i].size = gst_tensor_filter_get_output_size (self, i);
     out_tensors[i].type = prop->output_meta.info[i].type;
@@ -399,8 +403,15 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     /* allocate memory if allocate_in_invoke is FALSE */
     if (allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
-      status = gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE);
-      g_assert (status);
+      if (FALSE == gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
+        guint j;
+        for (j = 0; j < i; j++)
+          gst_memory_unmap (out_mem[j], &out_info[j]);
+        for (j = 0; j < prop->input_meta.num_tensors; j++)
+          gst_memory_unmap (in_mem[j], &in_info[i]);
+        ml_logf ("Cannot map output memory buffer(%d)\n", i);
+        return GST_FLOW_ERROR;
+      }
 
       out_tensors[i].data = out_info[i].data;
     }
@@ -410,7 +421,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GST_TF_FW_INVOKE_COMPAT (priv, ret, in_tensors, out_tensors);
 
   /** @todo define enum to indicate status code */
-  g_assert (ret >= 0);
+
+  if (ret < 0) {
+    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
+    return GST_FLOW_ERROR;
+  }
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
@@ -838,6 +853,7 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
 
+  /** Internal Logic Error. Cannot proceed without configured pipeline */
   g_assert (priv->configured);
 
   /**

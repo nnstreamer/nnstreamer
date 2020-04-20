@@ -22,6 +22,7 @@
  * @see    	https://github.com/nnstreamer/nnstreamer
  * @author      Jijoong Moon <jijoong.moon@samsung.com>
  * @bug         gst_tensordec_transform_size () may be incorrect if direction is SINK.
+ * @bug         If configured = TRUE, it holds TRUE until exit. What if configuration changes in run-time?
  *
  */
 
@@ -416,7 +417,7 @@ gst_tensordec_init (GstTensorDec * self)
 static gboolean
 gst_tensordec_process_plugin_options (GstTensorDec * self, guint opnum)
 {
-  g_assert (opnum < TensorDecMaxOpNum);
+  g_assert (opnum < TensorDecMaxOpNum); /* Internal logic error! */
   if (self->decoder == NULL)
     return TRUE;                /* decoder plugin not available. */
   if (self->decoder->setOption == NULL)
@@ -460,7 +461,6 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       const GstTensorDecoderDef *decoder;
       const gchar *mode_string;
       guint i;
-      int status;
 
       mode_string = g_value_get_string (value);
       decoder = nnstreamer_decoder_find (mode_string);
@@ -480,9 +480,11 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
           self->decoder = decoder;
         }
 
-        status = self->decoder->init (&self->plugin_data);
-        /** @todo Do proper error handling */
-        g_assert (status);
+        if (0 == self->decoder->init (&self->plugin_data)) {
+          ml_loge ("Failed to intialize a decode subplugin, \"%s\".\n",
+              mode_string);
+          break;
+        }
 
         for (i = 0; i < TensorDecMaxOpNum; i++)
           if (!gst_tensordec_process_plugin_options (self, i))
@@ -659,7 +661,6 @@ gst_tensordec_transform (GstBaseTransform * trans,
 {
   GstTensorDec *self;
   GstFlowReturn res;
-  gboolean status;
 
   self = GST_TENSOR_DECODER_CAST (trans);
 
@@ -675,12 +676,19 @@ gst_tensordec_transform (GstBaseTransform * trans,
     guint i, num_tensors;
 
     num_tensors = self->tensor_config.info.num_tensors;
+    /** Internal logic error. Negotation process should prevent this! */
     g_assert (gst_buffer_n_memory (inbuf) == num_tensors);
 
     for (i = 0; i < num_tensors; i++) {
       in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-      status = gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ);
-      g_assert (status);
+      if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+        guint j;
+        ml_logf ("Failed to map in_mem[%u].\n", i);
+
+        for (j = 0; j < i; j++)
+          gst_memory_unmap (in_mem[j], &in_info[j]);
+        return GST_FLOW_ERROR;
+      }
 
       input[i].data = in_info[i].data;
       input[i].size = in_info[i].size;
@@ -748,7 +756,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     /** @todo We may do more specific actions here */
     result = gst_caps_from_string (CAPS_STRING);
   } else {
-    g_assert (0);
+    g_assert (0);               /* Internal logic error! */
     return NULL;
   }
 
@@ -788,8 +796,16 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
   GST_DEBUG_OBJECT (self, "trying to fixate othercaps %" GST_PTR_FORMAT
       " based on caps %" GST_PTR_FORMAT, othercaps, caps);
 
-  /** @todo The code below assumes that direction is GST_PAD_SINK */
-  g_assert (direction == GST_PAD_SINK);
+  /**
+   * In gst_tensordec_transform_caps, we have refused to specify caps
+   * if the direction is GST_PAD_SRC. Thus, gstreamer sholdn't fixate
+   * it with GST_PAD_SRC. If this happens, it's either internal logic
+   * error or GST bUG.
+   */
+  if (direction != GST_PAD_SINK) {
+    ml_logf_stacktrace ("Invalid direction for tensor-decoder fixate caps.\n");
+    return NULL;
+  }
 
   if (gst_tensordec_configure (self, caps)) {
     supposed =

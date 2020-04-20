@@ -68,25 +68,28 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     /** @todo : Check the integrity of filter->data and filter->model_file, nnfw */
-    return 1;
+    ml_loge ("Init is called but it is already initialized.\n");
+    return -EINVAL;
   }
 
   if (!prop->model_files || prop->num_models != 1 ||
       !prop->model_files[0] || prop->model_files[0][0] == '\0') {
     /* The .so file path is not given */
-    return -1;
+    ml_logw ("Custom filter file is not given.\n");
+    return -EINVAL;
   }
 
   if (!nnsconf_validate_file (NNSCONF_PATH_CUSTOM_FILTERS,
           prop->model_files[0])) {
     /* Cannot load the library */
-    return -1;
+    ml_logw ("Custom filter file %s is invalid.\n", prop->model_files[0]);
+    return -EINVAL;
   }
 
   ptr = *private_data = g_new0 (internal_data, 1);
   if (ptr == NULL) {
-    ml_loge ("Failed to allocate memory for custom filter.");
-    return -1;
+    ml_loge ("Failed to allocate memory for custom filter.\n");
+    return -ENOMEM;
   }
 
   /* Load .so if this is the first time for this instance. */
@@ -94,7 +97,8 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   if (!ptr->module) {
     g_free (ptr);
     *private_data = NULL;
-    return -1;
+    ml_logw ("Cannot load custom filter file %s.\n", prop->model_files[0]);
+    return -EINVAL;
   }
 
   if (!g_module_symbol (ptr->module, "NNStreamer_custom", &custom_cls)) {
@@ -102,20 +106,29 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
     g_module_close (ptr->module);
     g_free (ptr);
     *private_data = NULL;
-    return -1;
+    return -EINVAL;
   }
 
   ptr->methods = *(NNStreamer_custom_class **) custom_cls;
 
-  g_assert (ptr->methods->initfunc);
+  if (NULL == ptr->methods->initfunc) {
+    ml_loge ("tensor_filter_custom (%s) requires a valid 'initfunc'.",
+        prop->model_files[0]);
+    return -EINVAL;
+  }
+
   ptr->customFW_private_data = ptr->methods->initfunc (prop);
 
   /* After init func, (getInput XOR setInput) && (getOutput XOR setInput) must hold! */
   /** @todo Double check if this check is really required and safe */
-  g_assert (!ptr->methods->getInputDim != !ptr->methods->setInputDim &&
-      !ptr->methods->getOutputDim != !ptr->methods->setInputDim);
+  if (!ptr->methods->getInputDim != !ptr->methods->setInputDim &&
+      !ptr->methods->getOutputDim != !ptr->methods->setInputDim)
+    return 0;                   /* it holds! */
 
-  return 0;
+  ml_loge
+      ("tensor_filter_custom (%s) requires input/output dimension callbacks.",
+      prop->model_files[0]);
+  return -EINVAL;
 }
 
 /**
@@ -129,12 +142,18 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
 
   /* This must be called only once */
   if (retval != 0)
-    return -1;
+    return retval;
 
   ptr = *private_data;
-  g_assert (!ptr->methods->invoke != !ptr->methods->allocate_invoke);   /* XOR! */
 
-  return 0;
+  /* One of the two is defined. (but not both) */
+  if (!ptr->methods->invoke != !ptr->methods->allocate_invoke)
+    return 0;
+
+  ml_loge
+      ("An invoke callback is not given or both invoke functions are given. Cannot load %s.\n",
+      prop->model_files[0]);
+  return -EINVAL;
 }
 
 /**

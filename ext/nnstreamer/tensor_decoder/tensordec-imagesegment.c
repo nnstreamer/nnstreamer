@@ -61,6 +61,7 @@
 #include <gst/video/video-format.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_log.h>
 
 void init_is (void) __attribute__ ((constructor));
 void fini_is (void) __attribute__ ((destructor));
@@ -262,7 +263,8 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
       int label_idx = idata->segment_map[i][j];
-      g_assert (label_idx >= 0 && label_idx <= 20);
+      if (label_idx > 20)       /* If out-of-range, don't draw it */
+        continue;
       pos = &frame[i * idata->width + j];
       if (label_idx == 0)
         continue;               /*Do not set color for background */
@@ -314,7 +316,6 @@ is_decode (void **pdata, const GstTensorsConfig * config,
   const size_t size = idata->width * idata->height * RGBA_CHANNEL;
   GstMapInfo out_info;
   GstMemory *out_mem;
-  gboolean status;
 
   /* init image segments if seg map is null */
   if (idata->segment_map == NULL) {
@@ -331,8 +332,10 @@ is_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
-  g_assert (status);
+  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    ml_loge ("Cannot map output memory / tensordec-imagesegment.\n");
+    return GST_FLOW_ERROR;
+  }
 
   memset (out_info.data, 0, size);
 

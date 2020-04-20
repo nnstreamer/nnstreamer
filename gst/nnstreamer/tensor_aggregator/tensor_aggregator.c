@@ -534,7 +534,7 @@ gst_tensor_aggregator_check_concat_axis (GstTensorAggregator * self,
 {
   guint i;
 
-  g_assert (info != NULL);
+  g_assert (info != NULL); /** Internal error. Caller should've checked it */
 
   /**
    * Check condition to concatenate data.
@@ -557,7 +557,7 @@ gst_tensor_aggregator_check_concat_axis (GstTensorAggregator * self,
  * @param outbuf buffer to be concatenated
  * @param info tensor info for one frame
  */
-static void
+static gboolean
 gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
     const GstTensorInfo * info)
 {
@@ -567,18 +567,24 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   gsize block_size;
   gsize src_idx, dest_idx;
   gsize frame_size;
-  gboolean status;
 
   frame_size = gst_tensor_info_get_size (info);
-  g_assert (frame_size > 0);
+  g_assert (frame_size > 0); /** Internal error */
 
   srcbuf = gst_buffer_copy (outbuf);
   outbuf = gst_buffer_make_writable (outbuf);
 
-  status = gst_buffer_map (srcbuf, &src_info, GST_MAP_READ);
-  g_assert (status);
-  status = gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE);
-  g_assert (status);
+  if (FALSE == gst_buffer_map (srcbuf, &src_info, GST_MAP_READ)) {
+    ml_logf ("Failed to map source buffer with tensor_aggregator.\n");
+    gst_buffer_unref (srcbuf);
+    return FALSE;
+  }
+  if (FALSE == gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE)) {
+    ml_logf ("Failed to map destination buffer with tensor_aggregator.\n");
+    gst_buffer_unmap (srcbuf, &src_info);
+    gst_buffer_unref (srcbuf);
+    return FALSE;
+  }
 
   /**
    * Concatenate output buffer with given axis (frames-dim)
@@ -780,6 +786,8 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   gst_buffer_unmap (outbuf, &dest_info);
 
   gst_buffer_unref (srcbuf);
+
+  return TRUE;
 }
 
 /**
@@ -796,11 +804,17 @@ gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
   g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
   info.dimension[self->frames_dim] /= self->frames_out;
 
-  g_assert (frame_size == gst_tensor_info_get_size (&info));
+  if (frame_size != gst_tensor_info_get_size (&info) || frame_size == 0U) {
+    ml_logf
+        ("Invalid output capability of tensor_aggregator. Frame size = %"
+        G_GSIZE_FORMAT "\n", frame_size);
+    return GST_FLOW_ERROR;
+  }
 
   if (gst_tensor_aggregator_check_concat_axis (self, &info)) {
     /** change data in buffer with given axis */
-    gst_tensor_aggregator_concat (self, outbuf, &info);
+    if (FALSE == gst_tensor_aggregator_concat (self, outbuf, &info))
+      return GST_FLOW_ERROR;
   }
 
   return gst_pad_push (self->srcpad, outbuf);

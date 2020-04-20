@@ -297,8 +297,7 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   if (tensor_merge->tensors_config.info.num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
     GST_ERROR_OBJECT (tensor_merge,
-        "supposed max size is " NNS_TENSOR_SIZE_LIMIT_STR);
-    g_assert (0);
+        "supposed max number of tensors is " NNS_TENSOR_SIZE_LIMIT_STR);
     return NULL;
   }
 
@@ -479,7 +478,6 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   gsize element_size;
   tensor_dim dim;
   tensor_type type;
-  gboolean status;
 
   memcpy (&dim, &tensor_merge->tensors_config.info.info[0].dimension,
       sizeof (tensor_dim));
@@ -488,14 +486,24 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
 
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
-    status = gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ);
-    g_assert (status); /** @todo Do proper error handling */
+    if (FALSE == gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
+      for (j = 0; j < i; j++) {
+        gst_memory_unmap (mem[j], &mInfo[j]);
+        ml_logf ("Cannot map input memory buffers (%d)\n", i);
+        ret = GST_FLOW_ERROR;
+        goto error_ret;
+      }
+    }
     outSize += mInfo[i].size;
   }
 
   outMem = gst_allocator_alloc (NULL, outSize, NULL);
-  status = gst_memory_map (outMem, &outInfo, GST_MAP_WRITE);
-  g_assert (status); /** @todo Do proper error handling */
+  if (FALSE == gst_memory_map (outMem, &outInfo, GST_MAP_WRITE)) {
+    gst_allocator_free (NULL, outMem);
+    ml_logf ("Cannot map output memory buffer\n");
+    ret = GST_FLOW_ERROR;
+    goto error_unmap_inmem;
+  }
   outptr = outInfo.data;
 
   switch (tensor_merge->mode) {
@@ -599,10 +607,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   gst_buffer_append_memory (tensor_buf, outMem);
   gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
       -1);
+  gst_memory_unmap (outMem, &outInfo);
+error_unmap_inmem:
   for (i = 0; i < num_mem; i++)
     gst_memory_unmap (mem[i], &mInfo[i]);
-  gst_memory_unmap (outMem, &outInfo);
-
+error_ret:
   return ret;
 }
 
@@ -632,7 +641,11 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   }
 
   tensors_buf = gst_buffer_new ();
-  g_assert (tensors_buf != NULL);
+
+  if (NULL == tensors_buf) {
+    ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
+    return GST_FLOW_ERROR;
+  }
 
   isEOS =
       gst_tensor_merge_collect_buffer (tensor_merge, tensors_buf, &pts_time,
@@ -656,8 +669,8 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 
     if (gst_tensor_merge_get_merged_config (tensor_merge,
             &tensor_merge->tensors_config, &config)) {
+      /** Internal Logic Error? */
       g_assert (gst_tensor_config_validate (&config));
-      /** @todo Do proper error handling */
       newcaps = gst_tensor_caps_from_config (&config);
     } else {
       goto nego_error;
@@ -690,7 +703,10 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   }
 
   tensor_buf = gst_buffer_new ();
-  g_assert (tensor_buf != NULL);
+  if (NULL == tensors_buf) {
+    ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
+    return GST_FLOW_ERROR;
+  }
 
   gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
 
@@ -761,26 +777,29 @@ gst_tensor_merge_change_state (GstElement * element, GstStateChange transition)
 /**
  * @brief Setup internal data (data_* in GstTensor_Merge)
  * @param[in/out] filter "this" pointer. mode & option MUST BE set already.
+ * @retval TRUE if ok or not configured, yet.
+ * @retval FALSE if given input is configured invalid.
  */
-static void
+static gboolean
 gst_tensor_merge_set_option_data (GstTensorMerge * filter)
 {
   if (filter->mode == GTT_END || filter->option == NULL)
-    return;
+    return TRUE;
   switch (filter->mode) {
     case GTT_LINEAR:
     {
       filter->data_linear.direction =
           find_key_strv (gst_tensor_merge_linear_string, filter->option);
-      g_assert (filter->data_linear.direction >= 0);
+      if (filter->data_linear.direction < 0)
+        return FALSE;
       filter->loaded = TRUE;
     }
       break;
     default:
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
-      g_assert (0);
-      break;
+      return FALSE;
   }
+  return TRUE;
 }
 
 /**
@@ -797,12 +816,22 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:
       filter->mode = gst_tensor_merge_get_mode (g_value_get_string (value));
-      g_assert (filter->mode != GTT_END);
-      gst_tensor_merge_set_option_data (filter);
+      if (filter->mode == GTT_END) {
+        ml_logw ("Given mode property is not recognized: %s\n",
+            g_value_get_string (value));
+        break;
+      }
+      if (FALSE == gst_tensor_merge_set_option_data (filter)) {
+        filter->loaded = FALSE;
+        ml_logw ("Given mode property is not consistent with its options.\n");
+      }
       break;
     case PROP_OPTION:
       filter->option = g_value_dup_string (value);
-      gst_tensor_merge_set_option_data (filter);
+      if (FALSE == gst_tensor_merge_set_option_data (filter)) {
+        filter->loaded = FALSE;
+        ml_logw ("Given option property is not consistent with its mode.\n");
+      }
       break;
     case PROP_SYNC_MODE:
       filter->sync.mode =

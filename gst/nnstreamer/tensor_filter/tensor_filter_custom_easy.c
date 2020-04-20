@@ -101,16 +101,33 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
     ml_loge
         ("Cannot find the easy-custom model, \"%s\". You should provide a valid model name of easy-custom.",
         prop->model_files[0]);
-    g_free (rd);
-    return -EINVAL;
+    goto errorreturn;
   }
 
-  g_assert (rd->model->func);
-  g_assert (rd->model->in_info);
-  g_assert (rd->model->out_info);
+  if (NULL == rd->model->func) {
+    ml_logf
+        ("A custom-easy filter, \"%s\", should provide invoke function body, 'func'. A null-ptr is supplied instead.\n",
+        prop->model_files[0]);
+    goto errorreturn;
+  }
+  if (NULL == rd->model->in_info) {
+    ml_logf
+        ("A custom-easy filter, \"%s\", should provide input stream metadata, 'in_info'.\n",
+        prop->model_files[0]);
+    goto errorreturn;
+  }
+  if (NULL == rd->model->out_info) {
+    ml_logf
+        ("A custom-easy filter, \"%s\", should provide output stream metadata, 'out_info'.\n",
+        prop->model_files[0]);
+    goto errorreturn;
+  }
 
   *private_data = rd;
   return 0;
+errorreturn:
+  g_free (rd);
+  return -EINVAL;
 }
 
 /**
@@ -122,6 +139,7 @@ custom_invoke (const GstTensorFilterProperties * prop,
     GstTensorMemory * output)
 {
   runtime_data *rd = *private_data;
+  /* Internal Logic Error */
   g_assert (rd && rd->model && rd->model->func);
 
   return rd->model->func (rd->model->data, prop, input, output);
@@ -135,6 +153,7 @@ custom_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   runtime_data *rd = *private_data;
+  /* Internal Logic Error */
   g_assert (rd && rd->model && rd->model->in_info);
   gst_tensors_info_copy (info, rd->model->in_info);
   return 0;
@@ -148,6 +167,7 @@ custom_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   runtime_data *rd = *private_data;
+  /* Internal Logic Error */
   g_assert (rd && rd->model && rd->model->out_info);
   gst_tensors_info_copy (info, rd->model->out_info);
   return 0;

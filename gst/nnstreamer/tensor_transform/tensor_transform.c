@@ -724,13 +724,16 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
 /**
  * @brief Setup internal data (data_* in GstTensorTransform)
  * @param[in/out] filter "this" pointer. mode & option MUST BE set already.
+ * @retval TRUE if OK or operation-skipped, FALSE if fatal-error.
  */
-static void
+static gboolean
 gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 {
   gchar *filter_name;
+  gboolean ret = TRUE;
+
   if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
-    return;
+    return TRUE;
 
   filter_name = gst_object_get_name ((GstObject *) filter);
 
@@ -923,11 +926,11 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     default:
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
-      g_assert (0);
-      break;
+      ret = FALSE;
   }
 
   g_free (filter_name);
+  return ret;
 }
 
 /**
@@ -947,10 +950,19 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       filter->mode = g_value_get_enum (value);
       break;
     case PROP_OPTION:
+    {
+      gchar *backup_option = filter->option;
       filter->option = g_value_dup_string (value);
-      silent_debug ("Option = %s\n", filter->option);
-      gst_tensor_transform_set_option_data (filter);
+      if (TRUE == gst_tensor_transform_set_option_data (filter)) {
+        silent_debug ("Option = %s --> %s\n", backup_option, filter->option);
+        g_free (backup_option);
+      } else {
+        /* ERROR! Revert the change! */
+        g_free (filter->option);
+        filter->option = backup_option;
+      }
       break;
+    }
     case PROP_ACCELERATION:
 #ifdef HAVE_ORC
       filter->acceleration = g_value_get_boolean (value);
@@ -1090,7 +1102,9 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
      * E.g., [N][c][H][W] (W:H:c:N) --> [N][H][W][c] (c:W:H:N)
      * @todo NYI
      */
-    g_assert (0);
+    ml_loge
+        ("tensor-transform/dimchg operation is not permitted if from >= to.\n");
+    return GST_FLOW_ERROR;
   }
 
   return GST_FLOW_OK;
@@ -1368,7 +1382,6 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
     }
     default:
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
-      g_assert (0);
       return GST_FLOW_ERROR;
   }
 
@@ -1388,17 +1401,21 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 {
   GstFlowReturn res;
   GstTensorTransform *filter = GST_TENSOR_TRANSFORM_CAST (trans);
-  gboolean status;
 
   uint8_t *inptr, *outptr;
   GstMapInfo inInfo, outInfo;
 
   g_return_val_if_fail (filter->loaded, GST_FLOW_ERROR);
 
-  status = gst_buffer_map (inbuf, &inInfo, GST_MAP_READ);
-  g_assert (status);
-  status = gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE);
-  g_assert (status);
+  if (FALSE == gst_buffer_map (inbuf, &inInfo, GST_MAP_READ)) {
+    ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
+    return GST_FLOW_ERROR;
+  }
+  if (FALSE == gst_buffer_map (outbuf, &outInfo, GST_MAP_WRITE)) {
+    gst_buffer_unmap (inbuf, &inInfo);
+    ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
+    return GST_FLOW_ERROR;
+  }
 
   inptr = inInfo.data;
   outptr = outInfo.data;

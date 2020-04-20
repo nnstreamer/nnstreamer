@@ -26,7 +26,6 @@
 #include "gstamcsrc.h"
 #include "gstamcsrc_looper.h"
 
-#include <assert.h>
 #include <jni.h>
 #include <pthread.h>
 #include <stdio.h>

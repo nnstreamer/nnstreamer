@@ -37,6 +37,7 @@
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
 void init_pose (void) __attribute__ ((constructor));
@@ -437,9 +438,8 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   const GstTensorMemory *detections = NULL;
   float *arr;
   int index, i, j;
-  gboolean status;
 
-  g_assert (outbuf);
+  g_assert (outbuf); /** GST Internal Bug */
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
@@ -449,8 +449,10 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  status = gst_memory_map (out_mem, &out_info, GST_MAP_WRITE);
-  g_assert (status);
+  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    ml_loge ("Cannot map output memory / tensordec-pose.\n");
+    return GST_FLOW_ERROR;
+  }
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
