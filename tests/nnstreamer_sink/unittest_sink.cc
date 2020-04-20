@@ -35,6 +35,8 @@
     goto error; \
   }
 
+const guint TEST_TIME_OUT_MSEC = 2000;
+const guint DEFAULT_TIME_INTERVAL =10000;
 const gulong MSEC_PER_USEC = 1000;
 const gulong DEFAULT_JITTER = 0UL;
 const gulong DEFAULT_FPS = 30UL;
@@ -409,6 +411,25 @@ _test_src_eos_timer_cb (gpointer user_data)
   }
 
   return FALSE;
+}
+
+/**
+ * @brief Wait until the pipeline processing the buffers
+ * @return TRUE on success, FALSE when a time-out occurs
+ */
+static gboolean
+_wait_pipeline_process_buffers (guint expected_num_buffers)
+{
+  guint timer_count = 0;
+  /* Waiting for expected buffers to arrive */
+  while (g_test_data.received < expected_num_buffers) {
+    timer_count++;
+    g_usleep (DEFAULT_TIME_INTERVAL);
+    if (timer_count > (TEST_TIME_OUT_MSEC / 10)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
 }
 
 /**
@@ -1094,7 +1115,8 @@ TEST (tensor_sink_test, signals)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1286,7 +1308,8 @@ TEST (tensor_sink_test, caps_tensors)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1351,7 +1374,8 @@ TEST (tensor_stream_test, video_rgb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1394,7 +1418,8 @@ TEST (tensor_stream_test, video_bgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1437,7 +1462,8 @@ TEST (tensor_stream_test, video_rgb_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1480,7 +1506,8 @@ TEST (tensor_stream_test, video_bgr_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1523,7 +1550,8 @@ TEST (tensor_stream_test, video_rgb_3f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 3));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1566,7 +1594,8 @@ TEST (tensor_stream_test, video_rgba)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1609,7 +1638,8 @@ TEST (tensor_stream_test, video_bgra)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1652,7 +1682,8 @@ TEST (tensor_stream_test, video_argb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1695,7 +1726,8 @@ TEST (tensor_stream_test, video_abgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1738,7 +1770,8 @@ TEST (tensor_stream_test, video_rgbx)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1781,7 +1814,8 @@ TEST (tensor_stream_test, video_xrgb)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1824,7 +1858,8 @@ TEST (tensor_stream_test, video_xbgr)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1867,7 +1902,8 @@ TEST (tensor_stream_test, video_bgrx)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1910,7 +1946,8 @@ TEST (tensor_stream_test, video_bgrx_2f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 2));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1953,7 +1990,8 @@ TEST (tensor_stream_test, video_gray8)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -1996,7 +2034,8 @@ TEST (tensor_stream_test, video_gray8_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2039,7 +2078,8 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 3));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2082,7 +2122,8 @@ TEST (tensor_stream_test, audio_s8)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2125,7 +2166,8 @@ TEST (tensor_stream_test, audio_u8_100f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 5));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2168,7 +2210,8 @@ TEST (tensor_stream_test, audio_s16)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2211,7 +2254,8 @@ TEST (tensor_stream_test, audio_u16_1000f)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 2));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2254,7 +2298,8 @@ TEST (tensor_stream_test, audio_s32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2297,7 +2342,8 @@ TEST (tensor_stream_test, audio_u32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2340,7 +2386,8 @@ TEST (tensor_stream_test, audio_f32)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2383,7 +2430,8 @@ TEST (tensor_stream_test, audio_f64)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
-  g_usleep (jitter);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2433,6 +2481,7 @@ TEST (tensor_stream_test, text_utf8)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2509,6 +2558,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 3));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2558,6 +2608,7 @@ TEST (tensor_stream_test, octet_current_ts)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2607,6 +2658,7 @@ TEST (tensor_stream_test, octet_framerate_ts)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2683,6 +2735,7 @@ TEST (tensor_stream_test, octet_valid_ts)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2758,7 +2811,8 @@ TEST (tensor_stream_test, octet_invalid_ts)
   timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
-
+  
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2835,6 +2889,7 @@ TEST (tensor_stream_test, octet_2f)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 2));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2877,6 +2932,8 @@ TEST (tensor_stream_test, custom_filter_tensor)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -2936,6 +2993,8 @@ TEST (tensor_stream_test, custom_filter_tensors)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3010,6 +3069,8 @@ TEST (tensor_stream_test, custom_filter_multi)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3518,6 +3579,8 @@ TEST (tensor_stream_test, custom_filter_passthrough)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /* check eos message */
@@ -3585,6 +3648,8 @@ TEST (tensor_stream_test, tensors_mix)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3666,6 +3731,8 @@ TEST (tensor_stream_test, demux_properties_1)
   g_free (pick);
 
   gst_object_unref (demux);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /* check eos message */
@@ -3730,6 +3797,8 @@ TEST (tensor_stream_test, demux_properties_2)
   g_free (pick);
 
   gst_object_unref (demux);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /* check eos message */
@@ -3781,6 +3850,7 @@ TEST (tensor_stream_test, typecast_int32)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3832,6 +3902,7 @@ TEST (tensor_stream_test, typecast_uint32)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3883,6 +3954,7 @@ TEST (tensor_stream_test, typecast_int16)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3934,6 +4006,7 @@ TEST (tensor_stream_test, typecast_uint16)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -3985,6 +4058,7 @@ TEST (tensor_stream_test, typecast_float64)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4036,6 +4110,7 @@ TEST (tensor_stream_test, typecast_float32)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4087,6 +4162,7 @@ TEST (tensor_stream_test, typecast_int64)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4138,6 +4214,7 @@ TEST (tensor_stream_test, typecast_uint64)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4200,6 +4277,8 @@ TEST (tensor_stream_test, video_split)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4242,6 +4321,8 @@ TEST (tensor_stream_test, video_aggregate_1)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers ((num_buffers - 10) / 5 + 1));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4284,6 +4365,8 @@ TEST (tensor_stream_test, video_aggregate_2)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers ((num_buffers - 10) / 5 + 1));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4326,6 +4409,8 @@ TEST (tensor_stream_test, video_aggregate_3)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers ((num_buffers / 10)));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4368,6 +4453,8 @@ TEST (tensor_stream_test, audio_aggregate_s16)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers / 4));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4410,6 +4497,8 @@ TEST (tensor_stream_test, audio_aggregate_u16)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 5));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4456,6 +4545,8 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 10));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4521,6 +4612,8 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 10));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4586,6 +4679,8 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 25 - 1));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4670,6 +4765,8 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 10));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4735,6 +4832,8 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 10));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
@@ -4800,6 +4899,8 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
   g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers * 25 - 1));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
