@@ -129,245 +129,203 @@ thread_dep = dependency('threads') # pthread for tensorflow-lite
 # Protobuf
 protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 
-# Orc
-have_orcc = false
+json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support')) 
 
-if get_option('enable-orc')
-  orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: true)
-  orcc = find_program('orcc', required: true)
-  if orc_dep.found() and orcc.found()
-    have_orcc = true
-    orcc_args = [orcc, '--include', 'glib.h']
-    add_project_arguments('-DHAVE_ORC=1', language: ['c', 'cpp'])
-  else
-    error('Cannot find orc library')
+#orc
+pg_orcc = find_program('orcc', required: get_option('orcc-support'))
+orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
+
+#movidius
+mvncsdk2_dep = dependency('', required: false)
+if not get_option('mvncsdk2-support').disabled() 
+  mvncsdk2_dep = cc.find_library('mvnc', required: false)
+  if not mvncsdk2_dep.found()
+    if cc.check_header('mvnc2/mvnc.h', required: get_option('mvncsdk2-support'))
+      mvncsdk2_dep = declare_dependency()
+    endif
   endif
-else
-  add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
+## nnfw
+nnfw_dep = dependency('', required: false)
+if not get_option('nnfw-runtime-support').disabled()
+  nnfw_dep = dependency('nnfw', required: false)
+  if not nnfw_dep.found()
+    nnfw_dep = cc.find_library('nnfw-dev', required: get_option('nnfw-runtime-support'))
+  endif
+endif
 
 # features registration to be controlled
 #
-# because dict has no ordering guarantees, list is being used instead'
 # register feature as follows
-# [ <string: feature_name>, {
-#      deps: <list: list of dependencies>,
-#      is_available: <boolean: to be used to check availablity,
-#                    defaults to check 'all deps are found' when omitted>
-#      project_args_when_available: <dict: to be converted to #define TOKEN 4 when enable_criteria is true>,
-#      project_args_when_not_available: <dict: to be converted to #define TOKEN 4 when enable_criteria is false>,
-#      message_when_available: <string: info message to be printed when available>,
-#                                  defaults to be "@feature_name@ is available">
-#      message_when_not_available: <string: warning message to be printed when not available
-#                                  defaults to be "@feature_name@ is not available">
-#      extra_args_when_available: <dict: meson variables to be registered when available, 
-#                                        not recommened to use, this exist more for the backward compatibility>
-#      extra_args_when_not_available: <dict: meson variables to be registered when not available, 
-#                                        not recommened to use, this exist more for the backward compatibility>
-# } ]
-
-features = [
-  [
-     'video-support', {
-        'is_available': get_option('video-support').enabled() or get_option('video-support').auto(),
-        'project_args_when_not_available': { 'NO_VIDEO': 1 },
-      }
-  ]
-]
+#  <string: feature_name> :  {
+#      target: <string>, extra_deps: <list>,  project_args: <dict>,
+#      project_args_disabled: <string>, extra_args: <dict: meson variables to be registered>,
+features = {
+  'video-support': {
+    'project_args_disabled': { 'NO_VIDEO': 1 },
+  },
+  'audio-support': {
+    'project_args_disabled': { 'NO_AUDIO': 1 },
+  },
+  'tf-support': {
+    'target': 'tensorflow',
+    'extra_deps': [ protobuf_dep ],
+    'project_args': { 'ENABLE_TENSORFLOW': 1 },
+  },
+  'tflite-support': {
+    'target': 'tensorflow-lite',
+    'project_args': { 'ENABLE_TENSORFLOW_LITE': 1 }
+  },
+  'pytorch-support': {
+    'target': 'pytorch',
+    'project_args': { 'ENABLE_PYTORCH': 1 }
+  },
+  'caffe2-support': {
+    'target': 'caffe2',
+    'project_args': { 'ENABLE_CAFFE2': 1 }
+  },
+  'mvncsdk2-support': {
+    'extra_deps': [ mvncsdk2_dep ],
+    'project_args': { 'ENABLE_MOVIDIUS_NCSDK2' : 1}
+  },
+  'nnfw-runtime-support': {
+    'extra_deps': [ nnfw_dep, json_glib_dep ],
+    'project_args': { 'ENABLE_NNFW_RUNTIME': 1 }
+  },
+  'tflite-nnapi-delegation': {
+    'additional_deps': [ nnfw_dep ],
+    'project_args': { 'ENABLE_TFLITE_NNAPI_DELEGATION': 1 }
+  },
+  'armnn-support': {
+    'target': 'armnn',
+    'project_args': { 'ENABLE_ARMNN': 1 }
+  },
+  'orcc-support': {
+    'extra_deps': [ orc_dep, pg_orcc ],
+    'project_args': {'HAVE_ORC': 1},
+    'project_args_disabled': { 'DISABLE_ORC': 1 },
+    'extra_args': {'orcc_args': [pg_orcc, '--include', 'glib.h'] }
+  }
+}
 
 project_args = {}
 # This section controls the flow of feature registration.
-foreach f : features
-  if f.length() != 2
-    error('registered feature length has to be 2, [<feature name>, <feature object>]')
+foreach feature_name, data : features
+  variable_name = feature_name.underscorify()
+  variable_deps_name = variable_name + '_deps'
+  variable_available_name = variable_name + '_is_available'
+
+  _available = true
+
+  target = data.get('target', '')
+
+  _deps = data.get('extra_deps', [])
+
+  if target != ''
+    _deps += dependency(target, required: get_option(feature_name))
   endif
-
-  _feature_name = f[0]
-  _data = f[1]
-
-  _deps = _data.get('deps', [])
-  
-  _deps_all_found = true
-
+    
   foreach dep : _deps
     if not dep.found()
-      warning('Target dependency is @0@ not found for feature @1@'.format(dep.name(), _feature_name))
-      _deps_all_found = false
+      _available = false
     endif
   endforeach
 
-  _is_available = _data.get('is_available', _deps_all_found) # falling back to _deps_all_found if is_available is not present
-  # todo: expose availabilty by feature name
-  
-  _variable_postfix = _is_available ? '_when_available' : '_when_not_available'
-  _feature_status = _is_available ? 'available' : 'unavailable'
-  
-  # handle_msg and halt with error when not_available and not_enabled at the sametime by definition
-  _msg = _data.get('message' + _variable_postfix, '@0@ is @1@.'.format(_feature_name, _feature_status))
-  if _is_available
-    message(_msg)
-  else # not available
-    get_option(_feature_name).enabled() ? error(_msg) : warning(_msg)
+  if get_option(feature_name).disabled() or not _available
+    project_args += data.get('project_args_disabled', {})
+    set_variable(variable_deps_name, [])
+    set_variable(variable_available_name, false)
+    message('@0@ is off because it is either not available or disabled'.format(feature_name))
+    continue
   endif
-
-  # handle project args
-  project_args += _data.get('project_args' + _variable_postfix, {})
-
-  _extra_args = _data.get('extra_args' + _variable_postfix, {})
   
-  # todo: expose _extra_args
+  # handle when available
+  project_args += data.get('project_args', {})
+
+  set_variable(variable_deps_name, _deps)
+  set_variable(variable_available_name, true)
+
+  foreach name, value : data.get('extra_args', {})
+    set_variable(variable_name + '_' + name, value)
+  endforeach
 
 endforeach
 
-message('following project_args are used')
+
+#Definitions enabled by meson_options.txt 
+message('Following project_args are going to be included')
 message(project_args)
-configure_file(
-  output: 'project_definitions.h',
-  configuration: project_args
-)
-
-# NO Audio support
-if get_option('disable-audio-support')
-  add_project_arguments('-DNO_AUDIO=1', language: ['c', 'cpp'])
-  message('Disable Audio Type Support')
-endif
-
-# Tensorflow
-if get_option('enable-tensorflow')
-  tf_dep = dependency('tensorflow', required: true)
-
-  if tf_dep.found() and protobuf_dep.found()
-    add_project_arguments('-DENABLE_TENSORFLOW=1', language: ['c', 'cpp'])
-  else
-    error('Cannot find tensorflow')
-  endif
-endif
-
-# Tensorflow-lite
-if get_option('enable-tensorflow-lite')
-  tflite_dep = dependency('tensorflow-lite', required: true)
-
-  if tflite_dep.found()
-    add_project_arguments('-DENABLE_TENSORFLOW_LITE=1', language: ['c', 'cpp'])
-  else
-    error('Cannot find tensorflow-lite')
-  endif
-endif
-
-# PyTorch
-if get_option('enable-pytorch')
-  torch_dep = dependency('pytorch', required: true)
-
-  if torch_dep.found()
-    add_project_arguments('-DENABLE_PYTORCH=1', language: ['c', 'cpp'])
-  else
-    error('Cannot find pytorch')
-  endif
-endif
-
-# Caffe2
-if get_option('enable-caffe2')
-  caffe2_dep = dependency('caffe2', required: true)
-
-  if caffe2_dep.found() and protobuf_dep.found()
-    add_project_arguments('-DENABLE_CAFFE2=1', language: ['c', 'cpp'])
-  else
-    error('Cannot find caffe2')
-  endif
-endif
+foreach name, value: project_args
+  add_project_arguments('-D@0@=@1@'.format(name, value), language: ['c', 'cpp'])
+endforeach
 
 # Python
 have_python2 = false
 have_python3 = false
 
-if get_option('enable-python')
-  pg_pkgconfig = find_program('pkg-config')
-  # Check python 2.7
-  python2_dep = dependency('python-2.7', required: false)
-  if python2_dep.found()
-    python2_inc_args = []
-    python2_inc_args += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
-    python2_inc_args += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-    python2_inc_args += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-    python2_inc_valid_args = []
-    foreach python2_inc_arg : python2_inc_args
-      if cxx.has_argument(python2_inc_arg) and \
-          cxx.check_header('numpy/arrayobject.h', args: python2_inc_arg, dependencies : python2_dep)
-        python2_inc_valid_args += python2_inc_arg
-        have_python2 = true
-        break
-      endif
-    endforeach
-    if have_python2
-      python2_deps = declare_dependency(dependencies: python2_dep,
-          compile_args : python2_inc_valid_args)
-    else
-      warning('Found python2.7, but failed to find numpy.')
-      warning('Disable nnstreamer-python2.')
+pg_pkgconfig = find_program('pkg-config')
+
+# Check python 2.7
+python2_dep = dependency('python-2.7', required: get_option('python2-support'))
+if python2_dep.found()
+
+  python2_inc_args = []
+  python2_inc_args += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
+  python2_inc_args += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+  python2_inc_args += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+  python2_inc_valid_args = []
+
+  foreach python2_inc_arg : python2_inc_args
+    if cxx.has_argument(python2_inc_arg) and \
+        cxx.check_header('numpy/arrayobject.h', args: python2_inc_arg, dependencies : python2_dep)
+      python2_inc_valid_args += python2_inc_arg
+      have_python2 = true
+      break
     endif
-  endif
+  endforeach
 
-  # Check python 3.x
-  python3_dep = dependency('python3', required: false)
-  if python3_dep.found()
-    message('Finding numpy for python3')
-    numpy_arryobj_h = 'numpy/arrayobject.h'
-
-    python3_inc_args = []
-    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
-    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-    python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-    python3_inc_valid_args = []
-    foreach python3_inc_arg : python3_inc_args
-      if cxx.has_argument(python3_inc_arg) and \
-          cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
-        python3_inc_valid_args += python3_inc_arg
-        have_python3 = true
-        break
-      endif
-    endforeach
-    if have_python3
-      python3_deps = declare_dependency(dependencies: python3_dep,
-          compile_args : python3_inc_valid_args)
-    else
-      warning('Found python3, but failed to find numpy.')
-      warning('Disable nnstreamer-python3.')
-    endif
-  endif
-endif
-
-# nnfw-runtime ( details in https://review.tizen.org/gerrit/p/platform/core/ml/nnfw )
-if get_option('enable-nnfw-runtime')
-  add_project_arguments('-DENABLE_NNFW_RUNTIME=1', language: ['c', 'cpp'])
-  # This enables nnfw as a subplugin for Tizen.
-endif
-
-# nnfw-runtime ( details in https://review.tizen.org/gerrit/p/platform/core/ml/nnfw )
-if get_option('enable-tflite-nnapi-delegation')
-  add_project_arguments('-DENABLE_TFLITE_NNAPI_DELEGATION=1', language: ['c', 'cpp'])
-  # For tf-lite/nnapi, enable-nnfw allows to use nnfw::tflite::nnapi as a backend.
-endif
-
-# ArmNN
-if get_option('enable-armnn')
-  armnn_dep = dependency('armnn', required: true)
-  add_project_arguments('-DENABLE_ARMNN=1', language: ['c', 'cpp'])
-endif
-
-# Movidius NCSDK2
-have_movidius_ncsdk2 = false
-if get_option('enable-movidius-ncsdk2')
-  # Explicitly checks mvnc.h in the ncsdk2 directory
-  nns_mvncsdk2_dep = cc.find_library('mvnc', required: false)
-  if not nns_mvncsdk2_dep.found()
-    warning('Failed to find \'libmvnc.so\' despite setting enable-movidius-ncsdk2. This option be ignored.')
-  elif not cc.check_header('mvnc2/mvnc.h')
-    warning('Failed to find \'mvnc2/mvnc.h\' despite setting enable-movidius-ncsdk2. This option be ignored.')
+  if have_python2
+    python2_deps = declare_dependency(dependencies: python2_dep,
+        compile_args : python2_inc_valid_args)
   else
-    have_movidius_ncsdk2 = true
-    add_project_arguments('-DENABLE_MOVIDIUS_NCSDK2=1', language: ['c', 'cpp'])
+    warning('Found python2.7, but failed to find numpy.')
+    warning('Disable nnstreamer-python2.')
   endif
+
+else
+  warning('Python2.7 either not found or disabled')
+
+endif
+
+# Check python 3.x
+python3_dep = dependency('python3', required: get_option('python3-support'))
+if python3_dep.found()
+
+  python3_inc_args = []
+  python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+  python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+  python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+  python3_inc_valid_args = []
+
+  foreach python3_inc_arg : python3_inc_args
+    if cxx.has_argument(python3_inc_arg) and \
+        cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
+      python3_inc_valid_args += python3_inc_arg
+      have_python3 = true
+      break
+    endif
+  endforeach
+
+  if have_python3
+    python3_deps = declare_dependency(dependencies: python3_dep,
+        compile_args : python3_inc_valid_args)
+  else
+    warning('Found python3, but failed to find numpy.')
+    warning('Disable nnstreamer-python3.')
+  endif
+else
+  warning('python3 either not found or disabled')
 endif
 
 # Set configuration to install .ini

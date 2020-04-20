@@ -1,7 +1,7 @@
 if get_option('enable-edgetpu')
   unittest_edgetpu_helper = shared_library('edgetpu',
     ['dummy_edgetpu.cc'],
-    dependencies: [tflite_dep],
+    dependencies: tflite_support_deps,
     soversion: 1
   )
 

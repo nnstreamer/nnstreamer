@@ -1,4 +1,4 @@
-if get_option('enable-nnfw-runtime')
+if nnfw_runtime_support_is_available 
   filter_sub_nnfw_sources = ['tensor_filter_nnfw.c']
 
   nnstreamer_filter_nnfw_sources = []
@@ -6,13 +6,8 @@ if get_option('enable-nnfw-runtime')
     nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnfw_dep = dependency('nnfw', required: false)
-  if not nnfw_dep.found()
-    # Until nnfw supports pkg-config, we need to do this primitively.
-    nnfw_dep = cc.find_library('nnfw-dev')
-  endif
-  json_glib_dep = dependency('json-glib-1.0', required: true)
-  nnstreamer_filter_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, json_glib_dep, nnfw_dep]
+
+  nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
@@ -31,7 +26,7 @@ if get_option('enable-nnfw-runtime')
     dependencies: nnstreamer_filter_nnfw_deps)
 endif
 
-if get_option('enable-armnn')
+if armnn_support_is_available
   filter_sub_armnn_sources = [
     'tensor_filter_armnn.cc'
   ]
@@ -41,7 +36,7 @@ if get_option('enable-armnn')
     nnstreamer_filter_armnn_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_armnn_deps = [glib_dep, gst_dep, nnstreamer_dep, armnn_dep]
+  nnstreamer_filter_armnn_deps = armnn_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   armnn_plugin_lib = shared_library('nnstreamer_filter_armnn',
     nnstreamer_filter_armnn_sources,
@@ -60,7 +55,7 @@ if get_option('enable-armnn')
     dependencies: nnstreamer_filter_armnn_deps)
 endif
 
-if get_option('enable-tensorflow')
+if tf_support_is_available
   filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
   nnstreamer_filter_tf_sources = []
@@ -68,7 +63,7 @@ if get_option('enable-tensorflow')
     nnstreamer_filter_tf_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tf_deps = [tf_dep, protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tf_deps = tf_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_tensorflow',
     nnstreamer_filter_tf_sources,
@@ -85,7 +80,7 @@ if get_option('enable-tensorflow')
   )
 endif
 
-if get_option('enable-tensorflow-lite')
+if tflite_support_is_available
   filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
 
   nnstreamer_filter_tflite_sources = []
@@ -93,15 +88,10 @@ if get_option('enable-tensorflow-lite')
     nnstreamer_filter_tflite_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tflite_deps = [tflite_dep, thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
-  if get_option('enable-tflite-nnapi-delegation')
-    nnfw_nnapi_lib = dependency('nnfw', required: true)
-    if nnfw_nnapi_lib.found()
-      nnstreamer_filter_tflite_deps += nnfw_nnapi_lib
-    else
-      error('Cannot find nnfw')
-    endif
+  if tflite_nnapi_delegation_is_available
+      nnstreamer_filter_tflite_deps += tflite_nnapi_delegation_deps
   endif
 
   tflite_compile_args = []
@@ -140,7 +130,7 @@ if get_option('enable-tensorflow-lite')
   )
 endif
 
-if get_option('enable-pytorch')
+if pytorch_support_is_available
   filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
 
   nnstreamer_filter_torch_sources = []
@@ -148,7 +138,7 @@ if get_option('enable-pytorch')
     nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_torch_deps = [torch_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_torch_deps = pytorch_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_pytorch',
     nnstreamer_filter_torch_sources,
@@ -165,7 +155,7 @@ if get_option('enable-pytorch')
   )
 endif
 
-if get_option('enable-caffe2')
+if caffe2_support_is_available
   filter_sub_caffe2_sources = ['tensor_filter_caffe2.cc']
 
   nnstreamer_filter_caffe2_sources = []
@@ -173,7 +163,7 @@ if get_option('enable-caffe2')
     nnstreamer_filter_caffe2_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_caffe2_deps = [caffe2_dep, protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_caffe2_deps = caffe2_support_deps + [protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_caffe2',
     nnstreamer_filter_caffe2_sources,
@@ -249,7 +239,7 @@ if have_python3
   )
 endif
 
-if have_movidius_ncsdk2
+if mvncsdk2_support_is_available
   filter_sub_mvncsdk2_sources = [
     'tensor_filter_movidius_ncsdk2.c'
   ]
@@ -259,7 +249,7 @@ if have_movidius_ncsdk2
     nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_mvncsdk2_deps = [glib_dep, gst_dep, nnstreamer_dep, nns_mvncsdk2_dep]
+  nnstreamer_filter_mvncsdk2_deps = mvncsdk2_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_movidius-ncsdk2',
     nnstreamer_filter_mvncsdk2_sources,
@@ -307,7 +297,8 @@ if get_option('enable-edgetpu')
   if not get_option('enable-filter-cpp-class')
     error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for Edge TPU.')
   endif
-  if get_option('enable-tensorflow-lite')
+
+  if tflite_support_is_available
     edgetpu_dep = dependency('edgetpu', required: false)
     if not edgetpu_dep.found()
       # Ubuntu edgetpu package does not have pkgconfig file
@@ -332,7 +323,7 @@ if get_option('enable-edgetpu')
     endif
     shared_library('nnstreamer_filter_edgetpu',
       nnstreamer_filter_edgetpu_sources,
-      dependencies: [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, tflite_dep, libdl_dep],
+      dependencies: tflite_support_deps + [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep],
       install: true,
       install_dir: filter_subplugin_install_dir,
       build_rpath: rpath_edgetpu_test_helper
