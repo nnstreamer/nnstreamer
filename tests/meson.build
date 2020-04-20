@@ -36,7 +36,7 @@ endif
 subdir('nnstreamer_repo_dynamicity')
 
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
-if get_option('enable-tensorflow-lite')
+if tflite_support_is_available
   subdir('nnstreamer_filter_reload')
 endif
 
@@ -112,7 +112,7 @@ if gtest_dep.found()
   endif
 
   # Armnn unittest
-  if get_option('enable-armnn')
+  if armnn_support_is_available
     unittest_filter_armnn = executable('unittest_filter_armnn',
       join_paths('nnstreamer_filter_armnn', 'unittest_filter_armnn.cc'),
       dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, armnn_plugin_dep],
@@ -128,11 +128,12 @@ endif
 # Install data required for unittest
 unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
 
-tensor_filter_ext_enabled = get_option('enable-tensorflow-lite') or \
-    get_option('enable-python') or get_option('enable-tensorflow') or \
-    get_option('enable-pytorch') or get_option('enable-caffe2') or \
-    get_option('enable-nnfw-runtime') or get_option('enable-edgetpu') or \
-    get_option('enable-movidius-ncsdk2') or get_option('enable-openvino')
+tensor_filter_ext_enabled = tflite_support_is_available or \
+    tf_support_is_available or \
+    have_python2 or have_python3 or \
+    pytorch_support_is_available or caffe2_support_is_available or \
+    nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
+    mvncsdk2_support_is_available or get_option('enable-openvino')
 if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
@@ -143,15 +144,15 @@ if get_option('enable-capi')
 endif
 
 # Tizen NNFW runtime
-if get_option('enable-nnfw-runtime')
+if nnfw_runtime_support_is_available
   subdir('tizen_nnfw_runtime')
 endif
 
-if get_option('enable-tensorflow-lite') and get_option('enable-edgetpu')
+if tflite_support_is_available and get_option('enable-edgetpu')
   subdir('nnstreamer_filter_edgetpu')
 endif
 
-if have_movidius_ncsdk2
+if mvncsdk2_support_is_available
   subdir('nnstreamer_filter_mvncsdk2')
 endif
 
@@ -174,24 +175,24 @@ if get_option('install-test')
   install_subdir('nnstreamer_decoder', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_tests_install_dir)
-  if get_option('enable-tensorflow-lite')
+  if tflite_support_is_available
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_tests_install_dir)
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_tests_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_tests_install_dir)
   endif
-  if get_option('enable-python')
+  if python2_support_is_available or python3_support_is_available
     install_subdir('nnstreamer_filter_python', install_dir: unittest_tests_install_dir)
   endif
-  if get_option('enable-tensorflow')
+  if tf_support_is_available
     install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_tests_install_dir)
   endif
-  if get_option('enable-pytorch')
+  if pytorch_support_is_available
     install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_tests_install_dir)
   endif
-  if get_option('enable-caffe2')
+  if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_tests_install_dir)
   endif
-  if get_option('enable-movidius-ncsdk2')
+  if mvncsdk2_support_is_available
     install_subdir('unittest_filter_mvncsdk2', install_dir: unittest_tests_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_tests_install_dir)

@@ -15,7 +15,7 @@ nnstreamer_base_deps = [
   thread_dep
 ]
 
-if have_orcc
+if orcc_support_is_available
   nnstreamer_base_deps += orc_dep
 endif
 

@@ -14,24 +14,24 @@ extensions = []
 extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.so', 'custom']]
 extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.so', 'custom-set']]
 
-if get_option('enable-tensorflow-lite')
+if tflite_support_is_available
   extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'mobilenet_v1_1.0_224_quant.tflite', 'tensorflow_lite']]
   extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'add.tflite', 'tensorflow_lite-set']]
 endif
 
-if get_option('enable-tensorflow')
+if tf_support_is_available
   extensions += [['tensorflow', 'tf', nnstreamer_filter_tf_deps, 'mnist.pb', 'tensorflow']]
 endif
 
-if get_option('enable-nnfw-runtime')
+if nnfw_runtime_support_is_available
   extensions += [['nnfw', 'nnfw', nnstreamer_filter_nnfw_deps, 'add.tflite', 'nnfw']]
 endif
 
-if get_option('enable-pytorch')
+if pytorch_support_is_available
   extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
 endif
 
-if get_option('enable-caffe2')
+if caffe2_support_is_available
   extensions += [['caffe2', 'caffe2', nnstreamer_filter_caffe2_deps, 'caffe2_init_net.pb,caffe2_predict_net.pb', 'caffe2']]
 endif
 

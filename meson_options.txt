@@ -1,35 +1,37 @@
 # features
 option('video-support', type: 'feature', value: 'enabled')
 option('audio-support', type: 'feature', value: 'enabled')
+option('tf-support', type: 'feature', value: 'auto')
+option('tflite-support', type: 'feature', value: 'auto')
+option('pytorch-support', type: 'feature', value: 'auto')
+option('caffe2-support', type: 'feature', value: 'auto')
+option('python2-support', type: 'feature', value: 'auto')
+option('python3-support', type: 'feature', value: 'auto')
+option('mvncsdk2-support', type: 'feature', value: 'auto')
+# nnfw-runtime ( details in https://review.tizen.org/gerrit/p/platform/core/ml/nnfw )
+# For tf-lite/nnapi, enable-nnfw allows to use nnfw::tflite::nnapi as a backend.
+option('nnfw-runtime-support', type: 'feature', value: 'auto')
+option('tflite-nnapi-delegation', type: 'feature', value: 'auto')
+option('armnn-support', type: 'feature', value: 'auto')
+option('orcc-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)
-option('enable-orc', type: 'boolean', value: true) # default true, use orc when found orc library
 option('install-test', type: 'boolean', value: false)
-option('enable-tensorflow-lite', type: 'boolean', value: false)
-option('enable-tensorflow', type: 'boolean', value: false)
-option('enable-caffe2', type: 'boolean', value: false)
-option('enable-pytorch', type: 'boolean', value: false)
 option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value, can be specified at run time
-option('enable-movidius-ncsdk2', type: 'boolean', value: false)
 option('enable-mediapipe', type: 'boolean', value: false)
 option('install-example', type: 'boolean', value: false)
-# option('disable-video-support', type: 'boolean', value: false)
 option('disable-audio-support', type: 'boolean', value: false)
 option('enable-env-var', type: 'boolean', value: true)
 option('enable-symbolic-link', type: 'boolean', value: true)
 option('enable-capi', type: 'boolean', value: false)
-option('enable-python', type: 'boolean', value: false)
 option('enable-tizen', type: 'boolean', value: false)
 option('tizen-version-major', type: 'integer', min : 4, max : 9999, value: 9999) # 9999 means "not Tizen"
 option('enable-element-restriction', type: 'boolean', value: false) # true to restrict gst-elements in api
 option('restricted-elements', type: 'string', value: '')
-option('enable-tflite-nnapi-delegation', type: 'boolean', value: false) # true to enable tensorflow-lite to delegate nnapi interpretation to nnfw backend in tizen
-option('enable-nnfw-runtime', type: 'boolean', value: false) # true to enable nnfw tensor filter element
 option('enable-cppfilter', type: 'boolean', value: true) # Allows C++ custom filters
 option('enable-filter-cpp-class', type: 'boolean', value: true) # Allows to accept C++ classes as filter subplugin implementation.
 option('enable-tizen-sensor', type: 'boolean', value: false)
 option('enable-edgetpu', type: 'boolean', value: false)
-option('enable-armnn', type: 'boolean', value: false)
 option('enable-openvino', type: 'boolean', value: false)
 option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw,armnn,edgetpu', description: 'A comma separated prioritized list of neural network frameworks to open a .tflite file')
