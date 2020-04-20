@@ -19,6 +19,8 @@
  * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items
+ *
+ * @todo	Provide print-stack internal API as an extension to ml_logf.
  */
 
 #ifndef __NNSTREAMER_LOG_H__
@@ -41,6 +43,9 @@
 #define ml_logd(...) \
     dlog_print (DLOG_DEBUG, TAG_NAME, __VA_ARGS__)
 
+#define ml_logf(...) \
+    dlog_print (DLOG_FATAL, TAG_NAME, __VA_ARGS__)
+
 #elif defined(__ANDROID__)
 #include <android/log.h>
 
@@ -56,6 +61,9 @@
 #define ml_logd(...) \
     __android_log_print (ANDROID_LOG_DEBUG, TAG_NAME, __VA_ARGS__)
 
+#define ml_logf(...) \
+    __android_log_print (ANDROID_LOG_FATAL, TAG_NAME, __VA_ARGS__)
+
 #else /* Linux distro */
 #include <glib.h>
 
@@ -63,7 +71,13 @@
 #define ml_logw g_warning
 #define ml_loge g_critical
 #define ml_logd g_debug
+#define ml_logf g_error
 #endif
+
+#define ml_logf_stacktrace(...) do { \
+      ml_logf (__VA_ARGS__); \
+      /** @todo NYI: Do the stack trace */ \
+    } while (0)
 
 #define nns_logi ml_logi
 #define nns_logw ml_logw
