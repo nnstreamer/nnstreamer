@@ -247,7 +247,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   GstTensorFilterPrivate *priv;
-  guint i, status;
+  guint i;
+  gint status;
   gboolean allocate_in_invoke;
   gboolean run_without_model;
 
@@ -297,9 +298,13 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     return TRUE;
 
 error:
-  if (allocate_in_invoke == FALSE)
-    for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
+  /* if failed to invoke the model, release allocated memory. */
+  if (allocate_in_invoke == FALSE) {
+    for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
+      output[i].data = NULL;
+    }
+  }
   return FALSE;
 }
 

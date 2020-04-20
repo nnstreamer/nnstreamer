@@ -62,7 +62,7 @@
 #endif /* __gnu_linux__ && !__ANDROID__ */
 #include <tensor_split/gsttensorsplit.h>
 #include <tensor_transform/tensor_transform.h>
-#include "tensor_if/gsttensorif.h"
+#include <tensor_if/gsttensorif.h>
 
 #define NNSTREAMER_INIT(plugin,name,type) \
   do { \
