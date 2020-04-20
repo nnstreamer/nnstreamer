@@ -1,3 +1,8 @@
+# features
+option('video-support', type: 'feature', value: 'enabled')
+option('audio-support', type: 'feature', value: 'enabled')
+
+# booleans & other options
 option('enable-test', type: 'boolean', value: true)
 option('enable-orc', type: 'boolean', value: true) # default true, use orc when found orc library
 option('install-test', type: 'boolean', value: false)
@@ -9,7 +14,7 @@ option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value,
 option('enable-movidius-ncsdk2', type: 'boolean', value: false)
 option('enable-mediapipe', type: 'boolean', value: false)
 option('install-example', type: 'boolean', value: false)
-option('disable-video-support', type: 'boolean', value: false)
+# option('disable-video-support', type: 'boolean', value: false)
 option('disable-audio-support', type: 'boolean', value: false)
 option('enable-env-var', type: 'boolean', value: true)
 option('enable-symbolic-link', type: 'boolean', value: true)

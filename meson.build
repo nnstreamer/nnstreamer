@@ -146,11 +146,86 @@ else
   add_project_arguments('-DDISABLE_ORC=1', language: ['c', 'cpp'])
 endif
 
-# NO Video support
-if get_option('disable-video-support')
-  add_project_arguments('-DNO_VIDEO=1', language: ['c', 'cpp'])
-  message('Disable Video Type Support')
-endif
+
+# features registration to be controlled
+#
+# because dict has no ordering guarantees, list is being used instead'
+# register feature as follows
+# [ <string: feature_name>, {
+#      deps: <list: list of dependencies>,
+#      is_available: <boolean: to be used to check availablity,
+#                    defaults to check 'all deps are found' when omitted>
+#      project_args_when_available: <dict: to be converted to #define TOKEN 4 when enable_criteria is true>,
+#      project_args_when_not_available: <dict: to be converted to #define TOKEN 4 when enable_criteria is false>,
+#      message_when_available: <string: info message to be printed when available>,
+#                                  defaults to be "@feature_name@ is available">
+#      message_when_not_available: <string: warning message to be printed when not available
+#                                  defaults to be "@feature_name@ is not available">
+#      extra_args_when_available: <dict: meson variables to be registered when available, 
+#                                        not recommened to use, this exist more for the backward compatibility>
+#      extra_args_when_not_available: <dict: meson variables to be registered when not available, 
+#                                        not recommened to use, this exist more for the backward compatibility>
+# } ]
+
+features = [
+  [
+     'video-support', {
+        'is_available': get_option('video-support').enabled() or get_option('video-support').auto(),
+        'project_args_when_not_available': { 'NO_VIDEO': 1 },
+      }
+  ]
+]
+
+project_args = {}
+# This section controls the flow of feature registration.
+foreach f : features
+  if f.length() != 2
+    error('registered feature length has to be 2, [<feature name>, <feature object>]')
+  endif
+
+  _feature_name = f[0]
+  _data = f[1]
+
+  _deps = _data.get('deps', [])
+  
+  _deps_all_found = true
+
+  foreach dep : _deps
+    if not dep.found()
+      warning('Target dependency is @0@ not found for feature @1@'.format(dep.name(), _feature_name))
+      _deps_all_found = false
+    endif
+  endforeach
+
+  _is_available = _data.get('is_available', _deps_all_found) # falling back to _deps_all_found if is_available is not present
+  # todo: expose availabilty by feature name
+  
+  _variable_postfix = _is_available ? '_when_available' : '_when_not_available'
+  _feature_status = _is_available ? 'available' : 'unavailable'
+  
+  # handle_msg and halt with error when not_available and not_enabled at the sametime by definition
+  _msg = _data.get('message' + _variable_postfix, '@0@ is @1@.'.format(_feature_name, _feature_status))
+  if _is_available
+    message(_msg)
+  else # not available
+    get_option(_feature_name).enabled() ? error(_msg) : warning(_msg)
+  endif
+
+  # handle project args
+  project_args += _data.get('project_args' + _variable_postfix, {})
+
+  _extra_args = _data.get('extra_args' + _variable_postfix, {})
+  
+  # todo: expose _extra_args
+
+endforeach
+
+message('following project_args are used')
+message(project_args)
+configure_file(
+  output: 'project_definitions.h',
+  configuration: project_args
+)
 
 # NO Audio support
 if get_option('disable-audio-support')
