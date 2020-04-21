@@ -44,7 +44,7 @@ LOCAL_C_INCLUDES := \
 # common headers (gstreamer, glib)
 LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
-LOCAL_CFLAGS += -O2 $(NNS_API_FLAGS)
-LOCAL_CXXFLAGS += -std=c++11 -O2 $(NNS_API_FLAGS)
+LOCAL_CFLAGS += -O2 -fPIC $(NNS_API_FLAGS)
+LOCAL_CXXFLAGS += -std=c++11 -O2 -fPIC -frtti -fexceptions $(NNS_API_FLAGS)
 
 include $(BUILD_STATIC_LIBRARY)

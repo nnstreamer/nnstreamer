@@ -97,8 +97,8 @@ include $(CLEAR_VARS)
 
 # Please keep the pthread and openmp library for checking a compatibility
 LOCAL_ARM_NEON      := true
-LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CFLAGS        += -O0 -fPIC -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CXXFLAGS      += -std=c++11 -fPIC -frtti -fexceptions -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CFLAGS        += -pthread -fopenmp
 
 ifeq ($(NO_AUDIO), true)
