@@ -398,8 +398,11 @@ rm -rf ./api/capi/include/platform
 CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-std=gnu++11||"`
 
 %if 0%{?testcoverage}
-CXXFLAGS="${CXXFLAGS} -fprofile-arcs -ftest-coverage"
-CFLAGS="${CFLAGS} -fprofile-arcs -ftest-coverage"
+# To test coverage, disable optimizations (and should unset _FORTIFY_SOURCE to use -O0)
+# also, use --coverage instead of -fprofile-arcs and -ftest-coverage
+%define COVERAGE_FLAGS --coverage -Wp,-U_FORTIFY_SOURCE -Wp,-D_FORTIFY_SOURCE=0 -O0
+CXXFLAGS="${CXXFLAGS} %{COVERAGE_FLAGS}"
+CFLAGS="${CFLAGS} %{COVERAGE_FLAGS}"
 %endif
 
 mkdir -p build
@@ -484,7 +487,6 @@ popd
 # 'lcov' generates the date format with UTC time zone by default. Let's replace UTC with KST.
 # If you ccan get a root privilege, run ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
 TZ='Asia/Seoul'; export TZ
-$(pwd)/tests/unittestcoverage.py module $(pwd)/gst $(pwd)/ext %testtarget
 
 # Get commit info
 VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*\\)|\\1|"`
