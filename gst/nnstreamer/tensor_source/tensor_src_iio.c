@@ -1211,7 +1211,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         gint64 val;
         gchar **strv;
         gchar *endptr = NULL;
-        gboolean status;
+        gboolean status = TRUE;
 
         /**
          * using direct as we only need to store keys
@@ -1225,17 +1225,24 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
           val = g_ascii_strtoll (strv[i], &endptr, 10);
           if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
                   && val == 0)) {
-            GST_ERROR_OBJECT (self, "Cannot parse received custom channels %s",
+            GST_ERROR_OBJECT (self,
+                "Cannot parse received custom channels %s. The property values for CHANNELS are ignored.",
                 param);
             g_hash_table_destroy (self->custom_channel_table);
             self->custom_channel_table = NULL;
+            status = FALSE;
             break;
           }
-          status = g_hash_table_insert (self->custom_channel_table,
-              GINT_TO_POINTER (val), NULL);
-          g_assert (status);
+          if (FALSE == g_hash_table_insert (self->custom_channel_table,
+                  GINT_TO_POINTER (val), NULL)) {
+            /** this means val is duplicated. just skip it, then. */
+            ml_logw
+                ("tensor-src-iio's CHANNELS property value has a duplicated entry, '%s', which is registered only once.\n",
+                strv[i]);
+          }
         }
-        self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
+        if (TRUE == status)
+          self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
         g_strfreev (strv);
         break;
       }
