@@ -1068,6 +1068,8 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
 {
   GstBuffer *buffer;
   GstMemory *mem;
+  gpointer mem_data;
+  gsize mem_size;
   GstFlowReturn gret;
   ml_tensors_data_s *_data;
   unsigned int i;
@@ -1123,10 +1125,17 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   /* Create buffer to be pushed from buf[] */
   buffer = gst_buffer_new ();
   for (i = 0; i < _data->num_tensors; i++) {
+    mem_size = _data->tensors[i].size;
+
+    if (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) {
+      mem_data = _data->tensors[i].tensor;
+    } else {
+      /** @todo later work, remove memcpy() */
+      mem_data = g_memdup (_data->tensors[i].tensor, mem_size);
+    }
+
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        _data->tensors[i].tensor, _data->tensors[i].size, 0,
-        _data->tensors[i].size, _data->tensors[i].tensor,
-        (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) ? g_free : NULL);
+        mem_data, mem_size, 0, mem_size, NULL, NULL);
 
     gst_buffer_append_memory (buffer, mem);
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
