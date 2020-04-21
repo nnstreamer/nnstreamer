@@ -76,7 +76,7 @@ callCompareTest testsequence_6.golden testsequence02_1_6.log 2-16 "Compare 2-16"
 callCompareTest testsequence_7.golden testsequence02_1_7.log 2-17 "Compare 2-17" 1 0
 callCompareTest testsequence_8.golden testsequence02_1_8.log 2-18 "Compare 2-18" 1 0
 callCompareTest testsequence_9.golden testsequence02_1_9.log 2-19 "Compare 2-19" 1 0
-callCompareTest testsequence_10.golden testsequence02_1_10.log 2-10 "Compare 2-20" 1 0
+callCompareTest testsequence_10.golden testsequence02_1_10.log 2-20 "Compare 2-20" 1 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence03_0_%1d.log multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=1 tensor_reposrc silent=false slot-index=1 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence03_1_%1d.log multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=2 tensor_reposrc silent=false slot-index=2 caps=\"other/tensor,dimension=(string)3:16:16:1,type=(string)uint8,framerate=(fraction)30/1\" ! multifilesink location=testsequence03_2_%1d.log" 3 0 0 $PERFORMANCE
 
@@ -100,17 +100,17 @@ callCompareTest testsequence_6.golden testsequence03_1_6.log 3-16 "Compare 3-16"
 callCompareTest testsequence_7.golden testsequence03_1_7.log 3-17 "Compare 3-17" 1 0
 callCompareTest testsequence_8.golden testsequence03_1_8.log 3-18 "Compare 3-18" 1 0
 callCompareTest testsequence_9.golden testsequence03_1_9.log 3-19 "Compare 3-19" 1 0
-callCompareTest testsequence_10.golden testsequence03_1_10.log 3-10 "Compare 3-20" 1 0
+callCompareTest testsequence_10.golden testsequence03_1_10.log 3-20 "Compare 3-20" 1 0
 
-callCompareTest testsequence_1.golden testsequence03_2_1.log 3-11 "Compare 3-21" 1 0
-callCompareTest testsequence_2.golden testsequence03_2_2.log 3-12 "Compare 3-22" 1 0
-callCompareTest testsequence_3.golden testsequence03_2_3.log 3-13 "Compare 3-23" 1 0
-callCompareTest testsequence_4.golden testsequence03_2_4.log 3-14 "Compare 3-24" 1 0
-callCompareTest testsequence_5.golden testsequence03_2_5.log 3-15 "Compare 3-25" 1 0
-callCompareTest testsequence_6.golden testsequence03_2_6.log 3-16 "Compare 3-26" 1 0
-callCompareTest testsequence_7.golden testsequence03_2_7.log 3-17 "Compare 3-27" 1 0
-callCompareTest testsequence_8.golden testsequence03_2_8.log 3-18 "Compare 3-28" 1 0
-callCompareTest testsequence_9.golden testsequence03_2_9.log 3-19 "Compare 3-29" 1 0
-callCompareTest testsequence_10.golden testsequence03_2_10.log 3-10 "Compare 3-30" 1 0
+callCompareTest testsequence_1.golden testsequence03_2_1.log 3-21 "Compare 3-21" 1 0
+callCompareTest testsequence_2.golden testsequence03_2_2.log 3-22 "Compare 3-22" 1 0
+callCompareTest testsequence_3.golden testsequence03_2_3.log 3-23 "Compare 3-23" 1 0
+callCompareTest testsequence_4.golden testsequence03_2_4.log 3-24 "Compare 3-24" 1 0
+callCompareTest testsequence_5.golden testsequence03_2_5.log 3-25 "Compare 3-25" 1 0
+callCompareTest testsequence_6.golden testsequence03_2_6.log 3-26 "Compare 3-26" 1 0
+callCompareTest testsequence_7.golden testsequence03_2_7.log 3-27 "Compare 3-27" 1 0
+callCompareTest testsequence_8.golden testsequence03_2_8.log 3-28 "Compare 3-28" 1 0
+callCompareTest testsequence_9.golden testsequence03_2_9.log 3-29 "Compare 3-29" 1 0
+callCompareTest testsequence_10.golden testsequence03_2_10.log 3-30 "Compare 3-30" 1 0
 
 report
