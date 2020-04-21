@@ -35,14 +35,14 @@
     goto error; \
   }
 
-const guint TEST_TIME_OUT_MSEC = 2000;
-const guint DEFAULT_TIME_INTERVAL =10000;
-const gulong MSEC_PER_USEC = 1000;
-const gulong DEFAULT_JITTER = 0UL;
-const gulong DEFAULT_FPS = 30UL;
-gchar *custom_dir = NULL;
-gulong jitter = DEFAULT_JITTER;
-gulong fps = DEFAULT_FPS;
+static const guint TEST_TIME_OUT_MSEC = 2000;
+static const guint DEFAULT_TIME_INTERVAL =10000;
+static const gulong MSEC_PER_USEC = 1000;
+static const gulong DEFAULT_JITTER = 0UL;
+static const gulong DEFAULT_FPS = 30UL;
+static gchar *custom_dir = NULL;
+static gulong jitter = DEFAULT_JITTER;
+static gulong fps = DEFAULT_FPS;
 
 /**
  * @brief Current status.
