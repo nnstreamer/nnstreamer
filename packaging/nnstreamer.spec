@@ -399,10 +399,14 @@ CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-std=gnu++11||"`
 
 %if 0%{?testcoverage}
 # To test coverage, disable optimizations (and should unset _FORTIFY_SOURCE to use -O0)
-# also, use --coverage instead of -fprofile-arcs and -ftest-coverage
-%define COVERAGE_FLAGS --coverage -Wp,-U_FORTIFY_SOURCE -Wp,-D_FORTIFY_SOURCE=0 -O0
-CXXFLAGS="${CXXFLAGS} %{COVERAGE_FLAGS}"
-CFLAGS="${CFLAGS} %{COVERAGE_FLAGS}"
+CFLAGS=`echo $CFLAGS | sed -e "s|-O[1-9]|-O0|g"`
+CFLAGS=`echo $CFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
+CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-O[1-9]|-O0|g"`
+CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
+# also, use the meson's base option, -Db_coverage, instead of --coverage/-fprofile-arcs and -ftest-coverage
+%define enable_test_coverage -Db_coverage=true
+%else
+%define enable_test_coverage -Db_coverage=false
 %endif
 
 mkdir -p build
@@ -412,7 +416,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu} \
-	%{enable_tizen_sensor} \
+	%{enable_tizen_sensor} %{enable_test_coverage} \
 	build
 
 ninja -C build %{?_smp_mflags}
