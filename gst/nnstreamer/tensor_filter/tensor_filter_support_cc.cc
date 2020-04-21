@@ -39,13 +39,6 @@
 
 #include <nnstreamer_cppplugin_api_filter.hh>
 
-/** Android NDK does not support exception handling by default */
-#ifdef __ANDROID__
-#define throw
-#define try	if(true)
-#define catch(...)	if(false)
-#endif
-
 namespace nnstreamer {
 
 /******************************************************
