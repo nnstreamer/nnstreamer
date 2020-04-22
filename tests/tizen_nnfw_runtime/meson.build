@@ -5,4 +5,4 @@ unittest_nnfw_runtime_raw = executable('unittest_nnfw_runtime_raw',
   install_dir: join_paths(unittest_install_dir,'tests'),
 )
 
-test('unittest_nnfw_runtime_raw', unittest_nnfw_runtime_raw, args: ['--gst-plugin-path=../..'])
+test('unittest_nnfw_runtime_raw', unittest_nnfw_runtime_raw, env: testenv)

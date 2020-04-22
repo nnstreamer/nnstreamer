@@ -74,5 +74,28 @@ foreach ext : extensions
     install_dir: unittest_install_dir
   )
 
-  test(ext_test_template_prefix + ext[4], exec, args: ['--gst-plugin-path=../..'])
+  filter_ext_common_testenv = environment()
+  filter_ext_common_testenv.set('GST_PLUGIN_PATH', path_gst_plugin)
+  filter_ext_common_testenv.set('NNSTREAMER_CONF', path_nns_conf)
+  filter_ext_common_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
+  filter_ext_common_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
+  if ext[0] == 'python2'
+    py2_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
+    run_command('rm', '-rf', py2_module_path, check : true)
+    run_command('mkdir', '-p', py2_module_path, check : true)
+    run_command('ln', '-sf',
+        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python2.so'),
+        py2_module_path + '/nnstreamer_python.so', check : true)
+    filter_ext_common_testenv.set('PYTHONPATH', py2_module_path)
+  elif ext[0] == 'python3'
+    py3_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
+    run_command('rm', '-rf', py3_module_path, check : true)
+    run_command('mkdir', '-p', py3_module_path, check : true)
+    run_command('ln', '-sf',
+        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python3.so'),
+        py3_module_path + '/nnstreamer_python.so', check : true)
+    filter_ext_common_testenv.set('PYTHONPATH', py3_module_path)
+  endif
+
+  test(ext_test_template_prefix + ext[4], exec, env: filter_ext_common_testenv)
 endforeach

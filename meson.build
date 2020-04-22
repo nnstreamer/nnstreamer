@@ -392,8 +392,6 @@ endif
 
 # Build unittests
 if get_option('enable-test')
-  subdir('tests')
-
   # temporary ini file for test, enable env variables.
   nnstreamer_test_conf = configuration_data()
   nnstreamer_test_conf.merge_from(nnstreamer_conf)
@@ -408,4 +406,19 @@ if get_option('enable-test')
     install_dir: unittest_install_dir,
     configuration: nnstreamer_test_conf
   )
+
+  path_gst_plugin = join_paths(meson.build_root(), 'gst', 'nnstreamer')
+  path_nns_conf = join_paths(meson.build_root(), 'nnstreamer-test.ini')
+  path_nns_plugin_filters = join_paths(meson.build_root(), 'ext', 'nnstreamer',
+      'tensor_filter')
+  path_nns_plugin_decoders = join_paths(meson.build_root(), 'ext', 'nnstreamer',
+      'tensor_decoder')
+
+  testenv = environment()
+  testenv.set('GST_PLUGIN_PATH', path_gst_plugin)
+  testenv.set('NNSTREAMER_CONF', path_nns_conf)
+  testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
+  testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
+
+  subdir('tests')
 endif
