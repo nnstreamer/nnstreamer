@@ -74,7 +74,7 @@ if gtest_dep.found()
     install_dir: unittest_install_dir
   )
 
-  test('unittest_common', unittest_common)
+  test('unittest_common', unittest_common, env: testenv)
 
   # Run unittest_sink
   gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
@@ -86,7 +86,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_sink', unittest_sink, timeout: 120, args: ['--gst-plugin-path=..'])
+    test('unittest_sink', unittest_sink, timeout: 120, env: testenv)
 
     # Run unittest_plugins
     unittest_plugins = executable('unittest_plugins',
@@ -96,7 +96,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_plugins', unittest_plugins, args: ['--gst-plugin-path=..'])
+    test('unittest_plugins', unittest_plugins, env: testenv)
 
   # Run unittest_src_iio
     if build_platform != 'macos'
@@ -107,7 +107,7 @@ if gtest_dep.found()
         install_dir: unittest_install_dir
       )
 
-      test('unittest_src_iio', unittest_src_iio, timeout: 120, args: ['--gst-plugin-path=..'])
+      test('unittest_src_iio', unittest_src_iio, timeout: 120, env: testenv)
     endif
   endif
 
@@ -120,7 +120,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_armnn', unittest_filter_armnn, args: ['--gst-plugin-path=../..'])
+    test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
   endif
 
 endif

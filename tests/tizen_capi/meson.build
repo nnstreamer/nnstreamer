@@ -10,7 +10,7 @@ unittest_tizen_capi = executable('unittest_tizen_capi',
   install: get_option('install-test'),
   install_dir: unittest_install_dir
 )
-test('unittest_tizen_capi', unittest_tizen_capi, args: ['--gst-plugin-path=../..'])
+test('unittest_tizen_capi', unittest_tizen_capi, env: testenv)
 
 
 if get_option('enable-tizen-sensor')
@@ -38,5 +38,12 @@ if get_option('enable-tizen-sensor')
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
-  test('unittest_tizen_sensor', unittest_tizen_sensor, args: ['--gst-plugin-path=../..'])
+  tizen_sensor_testenv = environment()
+  tizen_sensor_testenv.set('GST_PLUGIN_PATH', \
+      join_paths(meson.build_root(), 'ext', 'nnstreamer', 'tensor_source'), \
+      path_gst_plugin)
+  tizen_sensor_testenv.set('NNSTREAMER_CONF', path_nns_conf)
+  tizen_sensor_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
+  tizen_sensor_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
+  test('unittest_tizen_sensor', unittest_tizen_sensor, env: tizen_sensor_testenv)
 endif
