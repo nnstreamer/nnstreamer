@@ -8,53 +8,131 @@ tizen_apptest_deps = [
 ]
 
 # Format for adding subplugin into extensions -
-# [name, extension abbreviation, dependencies, model file name/folder path/file path, test name]
-extensions = []
+# {execute_when, name, ext_abbr, test_name, deps, model file/folder, env}
 
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.so', 'custom']]
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.so', 'custom-set']]
+py_env = environment()
 
-if get_option('enable-tensorflow-lite')
-  extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'mobilenet_v1_1.0_224_quant.tflite', 'tensorflow_lite']]
-  extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'add.tflite', 'tensorflow_lite-set']]
-endif
+py_env.append('PYTHONPATH', join_paths(meson.build_root(), 'ext', 'nnstreamer', 'tensor_filter'))
 
-if get_option('enable-tensorflow')
-  extensions += [['tensorflow', 'tf', nnstreamer_filter_tf_deps, 'mnist.pb', 'tensorflow']]
-endif
+nnstreamer_example_dir = join_paths(meson.build_root(), 'nnstreamer_example')
 
-if get_option('enable-nnfw-runtime')
-  extensions += [['nnfw', 'nnfw', nnstreamer_filter_nnfw_deps, 'add.tflite', 'nnfw']]
-endif
-
-if get_option('enable-pytorch')
-  extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
-endif
-
-if get_option('enable-caffe2')
-  extensions += [['caffe2', 'caffe2', nnstreamer_filter_caffe2_deps, 'caffe2_init_net.pb,caffe2_predict_net.pb', 'caffe2']]
-endif
-
-if have_python2
-  extensions += [['python2', 'python2', nnstreamer_filter_python2_deps, 'passthrough.py', 'python2-get']]
-  extensions += [['python2', 'python2', nnstreamer_filter_python2_deps, 'scaler.py', 'python2-set']]
-endif
-
-if have_python3
-  extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'passthrough.py', 'python3-get']]
-  extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'scaler.py', 'python3-set']]
-endif
+extensions = [
+  {
+    'execute_when': true,
+    'name': 'custom',
+    'abbr': 'custom',
+    'test_name': 'custom',
+    'deps': 'nnstreamer_unittest_deps',
+    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough' 'libnnstreamer_customfilter_passthrough.so')
+  },
+  {
+    'execute_when': true,
+    'name': 'custom',
+    'abbr': 'custom',
+    'test_name': 'custom-set',
+    'deps': 'nnstreamer_unittest_deps',
+    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough' 'libnnstreamer_customfilter_passthrough_variable.so')
+  },
+  {
+    'execute_when': get_option('enable-tensorflow-lite'),
+    'name': 'tensorflow-lite',
+    'abbr': 'tflite',
+    'test_name': 'tensorflow_lite',
+    'deps': 'nnstreamer_filter_tflite_deps',
+    'model': 'mobilenet_v1_1.0_224_quant.tflite'
+  },
+  {
+    'execute_when': get_option('enable-tensorflow-lite'),
+    'name': 'tensorflow-lite',
+    'abbr': 'tflite',
+    'test_name': 'tensorflow_lite-set',
+    'deps': 'nnstreamer_filter_tflite_deps',
+    'model': 'add.tflite'
+  },
+  {
+    'execute_when': get_option('enable-tensorflow'),
+    'name': 'tensorflow',
+    'abbr': 'tf',
+    'test_name': 'tensorflow',
+    'deps': 'nnstreamer_filter_tf_deps',
+    'model': 'mnist.pb'
+  },
+  {
+    'execute_when': get_option('enable-nnfw-runtime'),
+    'name': 'nnfw',
+    'abbr': 'nnfw',
+    'test_name': 'nnfw',
+    'deps': 'nnstreamer_filter_nnfw_deps',
+    'model': 'add.tflite'
+  },
+  {
+    'execute_when': get_option('enable-pytorch'),
+    'name': 'pytorch',
+    'abbr': 'torch',
+    'test_name': 'pytorch',
+    'deps': 'nnstreamer_filter_torch_deps',
+    'model': 'pytorch_lenet5.pt'
+  },
+  {
+    'execute_when': get_option('enable-caffe2'),
+    'name': 'caffe2',
+    'abbr': 'caffe2',
+    'test_name': 'caffe2',
+    'deps': 'nnstreamer_filter_caffe2_deps',
+    'model': 'caffe2_init_net.pb,caffe2_predict_net.pb'
+  },
+  {
+    'execute_when': have_python2,
+    'name': 'python2',
+    'abbr': 'python2',
+    'test_name': 'python2-get',
+    'deps': 'nnstreamer_filter_python2_deps',
+    'model': 'passthrough.py',
+    'env': py_env
+  },
+  {
+    'execute_when': have_python2,
+    'name': 'python2',
+    'abbr': 'python2',
+    'test_name': 'python2-set',
+    'deps': 'nnstreamer_filter_python2_deps',
+    'model': 'scaler.py',
+    'env': py_env
+  },  
+  {
+    'execute_when': have_python3,
+    'name': 'python3',
+    'abbr': 'python3',
+    'test_name': 'python3-get',
+    'deps': 'nnstreamer_filter_python3_deps',
+    'model': 'passthrough.py',
+    'env': py_env
+  },
+  {
+    'execute_when': have_python3,
+    'name': 'python3',
+    'abbr': 'python3',
+    'test_name': 'python3-set',
+    'deps': 'nnstreamer_filter_python3_deps',
+    'model': 'scaler.py',
+    'env': py_env
+  },
+]
 
 sed_command = find_program('sed', required: true)
 ext_test_template_prefix = 'unittest_tizen_'
 ext_test_template = files (ext_test_template_prefix + 'template.cc.in')
 
 foreach ext : extensions
-  ext_test_path_each = ext_test_template_prefix + ext[4] + '.cc'
+  if not ext.get('execute_when', false)
+    continue
+  endif
 
-  sed_ext_name_option = 's|@EXT_NAME@|' + ext[0] + '|'
-  sed_ext_abbrv_option = 's|@EXT_ABBRV@|' + ext[1] + '|'
-  sed_ext_mf_option = 's|@MODEL_FILE@|' + ext[3] + '|'
+  ext_test_path_each = ext_test_template_prefix + ext['test_name'] + '.cc'
+
+  sed_ext_name_option = 's|@EXT_NAME@|' + ext['name'] + '|'
+  sed_ext_abbrv_option = 's|@EXT_ABBRV@|' + ext['abbr'] + '|'
+  sed_ext_mf_option = 's|@MODEL_FILE@|' + ext['model'] + '|'
 
   ext_test_each = custom_target (
     ext_test_path_each,
@@ -66,13 +144,19 @@ foreach ext : extensions
       '&&', 'sed', '-i\'.cc\'', sed_ext_mf_option, '@OUTPUT@']
   )
 
+  _deps = get_variable(ext['deps'], [false])
+
+  if false in _deps
+    error('dependencies not found for @0@'.format(ext['test_name']))
+  endif
+
   exec = executable(
-    ext_test_template_prefix + ext[4],
+    ext_test_template_prefix + ext['test_name'],
     ext_test_each,
-    dependencies: [tizen_apptest_deps, ext[2]],
+    dependencies: [tizen_apptest_deps, _deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
 
-  test(ext_test_template_prefix + ext[4], exec, args: ['--gst-plugin-path=../..'])
+  test(ext_test_template_prefix + ext['test_name'], exec, args: ['--gst-plugin-path=../..'], env: ext.get('env', environment()))
 endforeach

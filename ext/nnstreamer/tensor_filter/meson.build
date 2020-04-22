@@ -197,6 +197,7 @@ foreach s : filter_sub_python_sources
   nnstreamer_filter_python_sources += join_paths(meson.current_source_dir(), s)
 endforeach
 
+
 if have_python2
   nnstreamer_filter_python2_deps = [python2_deps, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
@@ -214,7 +215,7 @@ if have_python2
     install_dir: nnstreamer_libdir
   )
 
-  shared_library('nnstreamer_python2',
+  shared_library('nnstreamer_python',
     'tensor_filter_python_api.c',
     name_prefix: '',
     dependencies: nnstreamer_filter_python2_deps,
@@ -240,7 +241,8 @@ if have_python3
     install_dir: nnstreamer_libdir
   )
 
-  shared_library('nnstreamer_python3',
+  ### .abi3 See https://www.python.org/dev/peps/pep-3149/, This does not support python < 3.2
+  shared_library('nnstreamer_python.abi3',
     'tensor_filter_python_api.c',
     name_prefix: '',
     dependencies: nnstreamer_filter_python3_deps,
