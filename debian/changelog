@@ -1,3 +1,9 @@
+nnstreamer (1.0.1.0) unstable xenial bionic; urgency=medium
+
+  * 1.0.1 LTS (1.0 + hotfixes)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 22 Apr 2020 10:54:23 +0900
+
 nnstreamer (1.0.0.0) unstable xenial bionic; urgency=medium
 
   * 1.0.0 Release (1.0 RC2). NNStreamer becomes 1.0 with Tizen 5.5 M2 official release.

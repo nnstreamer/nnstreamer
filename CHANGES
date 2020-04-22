@@ -1,3 +1,6 @@
+1.0.0 -> 1.0.1: Long-Term Stable of 1.0 for Tizen 5.5 Maintanance
+	- Hotfixes
+
 0.3.0 -> 1.0.0:
 	- Tizen Public C-API (Single & Pipeline) Reviewed and Confirmed!
 	- Tizen Public C#-API (Single) Reviewed and Confirmed!
