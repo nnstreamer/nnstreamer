@@ -102,7 +102,7 @@ tensor_filter_subplugin * tensor_filter_subplugin::get_tfsp_with_checks (
 void tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties * prop,
     void **private_data)
 {
-  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
+  tensor_filter_subplugin *obj = get_tfsp_with_checks (*private_data);
 
   *private_data = nullptr;
   delete obj;
