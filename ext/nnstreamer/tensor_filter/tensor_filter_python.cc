@@ -50,6 +50,7 @@
 #define register          /* Deprecated in C++11 */
 #endif /* __cplusplus > 199711L */
 #include <Python.h>
+#include <exception>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
@@ -176,7 +177,8 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
       PY_MAJOR_VERSION, PY_MINOR_VERSION);
 
   handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
-  g_assert(handle);
+  if (nullptr == handle)
+    throw std::runtime_error (dlerror());
 
   _import_array();  /** for numpy */
 
@@ -196,10 +198,12 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
 
   /** Add current/directory path to sys.path */
   PyObject *sys_module = PyImport_ImportModule("sys");
-  g_assert(sys_module);
+  if (nullptr == sys_module)
+    throw std::runtime_error ("Cannot import python module 'sys'.");
 
   PyObject *sys_path = PyObject_GetAttrString(sys_module, "path");
-  g_assert(sys_path);
+  if (nullptr == sys_path)
+    throw std::runtime_error ("Cannot import python module 'path'.");
 
   PyList_Append(sys_path, PyUnicode_FromString("."));
   PyList_Append(sys_path, PyUnicode_FromString(script_path.substr(0, last_idx).c_str()));
@@ -300,7 +304,11 @@ PYCore::loadScript ()
         int argc = 0;
         while (*(args++) != NULL) argc++;
 
-        g_assert(argc > 0);
+        if (argc < 1) {
+          g_strfreev (g_args);
+          ml_loge ("Cannot load python script for python-custom-filter.\n");
+          return -EINVAL;
+        }
 
         py_args = PyTuple_New(argc);
 
@@ -359,8 +367,8 @@ PYCore::loadScript ()
 int
 PYCore::checkTensorType (GstTensorMemory *output, PyArrayObject *array)
 {
-  g_assert (output);
-  g_assert (array);
+  if (nullptr == output || nullptr == array)
+    throw std::invalid_argument ("Null pointers are given to PYCore::checkTensorType().\n");
 
   int nns_type = output->type;
   int np_type = PyArray_TYPE(array);
@@ -390,8 +398,8 @@ PYCore::checkTensorType (GstTensorMemory *output, PyArrayObject *array)
 int
 PYCore::checkTensorSize (GstTensorMemory *output, PyArrayObject *array)
 {
-  g_assert (output);
-  g_assert (array);
+  if (nullptr == output || nullptr == array)
+    throw std::invalid_argument ("Null pointers are given to PYCore::checkTensorSize().\n");
 
   size_t total_size = PyArray_ITEMSIZE(array);
 
@@ -412,7 +420,8 @@ PYCore::getInputTensorDim (GstTensorsInfo * info)
 {
   int res = 0;
 
-  g_assert (info);
+  if (nullptr == info)
+    throw std::invalid_argument ("A null pointer is given to PYCore::getInputTensorDim().\n");
 
   Py_LOCK();
 
@@ -441,7 +450,8 @@ PYCore::getOutputTensorDim (GstTensorsInfo * info)
 {
   int res = 0;
 
-  g_assert (info);
+  if (nullptr == info)
+    throw std::invalid_argument ("A null pointer is given to PYCore::getOutputTensorDim().\n");
 
   Py_LOCK();
 
@@ -471,19 +481,21 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
 {
   int res = 0;
 
-  g_assert (in_info);
-  g_assert (out_info);
+  if (nullptr == in_info || nullptr == out_info)
+    throw std::invalid_argument ("Null pointers are given to PYCore::setInputTensorDim().\n");
 
   Py_LOCK();
 
   /** to Python list object */
   PyObject *param = PyList_New(0);
-  g_assert (param);
+  if (nullptr == param)
+    throw std::runtime_error ("PyList_New(); has failed.");
 
   inputTensorMeta.num_tensors = in_info->num_tensors;
   for (unsigned int i = 0; i < in_info->num_tensors; i++) {
     PyObject *shape = PyTensorShape_New (&in_info->info[i]);
-    assert (shape);
+    if (nullptr == shape)
+      throw std::runtime_error ("PyTensorShape_New(); has failed.");
 
     PyList_Append(param, shape);
   }
@@ -525,9 +537,8 @@ PYCore::PyTensorShape_New (const GstTensorInfo* info)
   PyObject *dims = PyList_New(0);
   PyObject *type = (PyObject*) PyArray_DescrFromType(getNumpyType(info->type));
 
-  g_assert(args);
-  g_assert(dims);
-  g_assert(type);
+  if (nullptr == args || nullptr == dims || nullptr == type)
+    throw std::runtime_error ("PYCore::PyTensorShape_New() has failed (1).");
 
   for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     PyList_Append(dims, PyLong_FromLong((uint64_t) info->dimension[i]));
@@ -535,10 +546,8 @@ PYCore::PyTensorShape_New (const GstTensorInfo* info)
   PyTuple_SetItem(args, 0, dims);
   PyTuple_SetItem(args, 1, type);
 
-  PyObject *obj = PyObject_CallObject(shape_cls, args);
-  g_assert(obj);
-
-  return obj;
+  return PyObject_CallObject(shape_cls, args);
+  /* Its value is checked by setInputTensorDim */
 }
 
 /**
@@ -558,13 +567,17 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
   for (unsigned int i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem(result, (Py_ssize_t) i);
-    g_assert(tensor_shape);
+    if (nullptr == tensor_shape)
+      throw std::runtime_error ("parseOutputTensors() has failed (1).");
 
     PyObject *shape_dims = PyObject_CallMethod(tensor_shape, (char*) "getDims", NULL);
-    g_assert(shape_dims);
+    if (nullptr == shape_dims)
+      throw std::runtime_error ("parseOutputTensors() has failed (2).");
 
     PyObject *shape_type = PyObject_CallMethod(tensor_shape, (char*) "getType", NULL);
-    g_assert(shape_type);
+    if (nullptr == shape_type)
+      throw std::runtime_error ("parseOutputTensors() has failed (3).");
+
 
     /** convert numpy type to tensor type */
     info->info[i].type = getTensorType((NPY_TYPES)(((PyArray_Descr*) shape_type)->type_num));
@@ -614,8 +627,8 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   gint64 start_time = g_get_real_time ();
 #endif
 
-  g_assert(input);
-  g_assert(output);
+  if (nullptr == output || nullptr == input)
+    throw std::invalid_argument ("Null pointers are given to PYCore::run().\n");
 
   Py_LOCK();
 
@@ -630,7 +643,12 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
 
   PyObject *result = PyObject_CallMethod(core_obj, (char*) "invoke", (char*) "(O)", param);
   if (result) {
-    g_assert((unsigned int) PyList_Size(result) == outputTensorMeta.num_tensors);
+    if ((unsigned int) PyList_Size(result) != outputTensorMeta.num_tensors) {
+      res = -EINVAL;
+      ml_logf ("The Python allocated size mismatched. Cannot proceed.\n");
+      Py_XDECREF(result);
+      goto exit_decref;
+    }
 
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject* output_array = (PyArrayObject*) PyList_GetItem(result, (Py_ssize_t) i);
@@ -654,6 +672,7 @@ PYCore::run (const GstTensorMemory * input, GstTensorMemory * output)
     res = -1;
   }
 
+exit_decref:
   /** dereference input param */
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     PyObject *input_array = PyList_GetItem(param, (Py_ssize_t) i);
@@ -921,7 +940,8 @@ py_loadScriptFile (const GstTensorFilterProperties * prop, void **private_data)
 static int
 py_open (const GstTensorFilterProperties * prop, void **private_data)
 {
-  g_assert(Py_IsInitialized());
+  if (!Py_IsInitialized())
+    throw std::runtime_error ("Python is not initialize.");
   int status = py_loadScriptFile (prop, private_data);
 
   return status;
