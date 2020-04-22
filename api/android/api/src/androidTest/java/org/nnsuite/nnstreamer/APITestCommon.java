@@ -138,6 +138,23 @@ public class APITestCommon {
         return model;
     }
 
+    public enum SNAPComputingUnit {
+        CPU("ComputingUnit:CPU"),
+        GPU("ComputingUnit:GPU,GpuCacheSource:/sdcard/nnstreamer/"),
+        DSP("ComputingUnit:DSP"),
+        NPU("ComputingUnit:NPU");
+
+        private String computing_unit_option;
+
+        SNAPComputingUnit(String computing_unit_option) {
+            this.computing_unit_option = computing_unit_option;
+        }
+
+        public String getOptionString() {
+            return computing_unit_option;
+        }
+    }
+
     /**
      * Gets the File objects of Caffe model for SNAP.
      * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
@@ -161,17 +178,56 @@ public class APITestCommon {
      * CPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:CPU"
      * GPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:GPU,GpuCacheSource:/sdcard/nnstreamer/"
      */
-    public static String getSNAPCaffeOption(boolean useGPU) {
+    public static String getSNAPCaffeOption(SNAPComputingUnit CUnit) {
         String option = "ModelFWType:CAFFE,ExecutionDataType:FLOAT32,InputFormat:NHWC,OutputFormat:NCHW,";
-
-        if (useGPU) {
-            String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-            option = option + "ComputingUnit:GPU,GpuCacheSource:" + root + "/nnstreamer/";
-        } else {
-            option = option + "ComputingUnit:CPU";
-        }
+        option = option + CUnit.getOptionString();
 
         return option;
+    }
+
+    /**
+     * Gets the option string to run Tensorflow model for SNAP.
+     *
+     * CPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:CPU"
+     * GPU: Not supported for Tensorflow model
+     * DSP: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:DSP"
+     * NPU: "custom=ModelFWType:CAFFE,ExecutionDataType:FLOAT32,ComputingUnit:NPU"
+     */
+    public static String getSNAPTensorflowOption(SNAPComputingUnit CUnit) {
+        String option = "ModelFWType:TENSORFLOW,ExecutionDataType:FLOAT32,InputFormat:NHWC,OutputFormat:NHWC,";
+        option = option + CUnit.getOptionString();
+        return option;
+    }
+
+    /**
+     * Gets the File objects of Tensorflow model for SNAP.
+     * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
+     */
+    public static File[] getSNAPTensorflowModel(SNAPComputingUnit CUnit) {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        String model_path = "/nnstreamer/snap_data/model/";
+
+        switch (CUnit) {
+            case CPU:
+                model_path = model_path + "yolo_new.pb";
+                break;
+            case DSP:
+                model_path = model_path + "yolo_new_tf_quantized.dlc";
+                break;
+            case NPU:
+                model_path = model_path + "yolo_new_tf_quantized_hta.dlc";
+                break;
+            case GPU:
+            default:
+                fail();
+        }
+
+        File model = new File(root + model_path);
+        if (!model.exists()) {
+            fail();
+        }
+
+        return new File[]{model};
     }
 
     /**
