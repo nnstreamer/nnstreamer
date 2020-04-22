@@ -3,6 +3,7 @@ package org.nnsuite.nnstreamer;
 import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
+import android.os.Build;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -1127,9 +1128,9 @@ public class APITestPipeline {
     /**
      * Run SNAP with Caffe model.
      */
-    private void runSNAPCaffe(boolean useGPU) {
+    private void runSNAPCaffe(APITestCommon.SNAPComputingUnit CUnit) {
         File[] models = APITestCommon.getSNAPCaffeModel();
-        String option = APITestCommon.getSNAPCaffeOption(useGPU);
+        String option = APITestCommon.getSNAPCaffeOption(CUnit);
 
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)3:224:224:1,type=(string)float32,framerate=(fraction)0/1 ! " +
@@ -1140,8 +1141,10 @@ public class APITestPipeline {
                     "custom=" + option + " ! " +
                 "tensor_sink name=sinkx";
 
-        try (Pipeline pipe = new Pipeline(desc)) {
-            TensorsInfo info = new TensorsInfo();
+        try (
+            Pipeline pipe = new Pipeline(desc);
+            TensorsInfo info = new TensorsInfo()
+        ) {
             info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,224,224,1});
 
             /* register sink callback */
@@ -1197,7 +1200,7 @@ public class APITestPipeline {
             return;
         }
 
-        runSNAPCaffe(false);
+        runSNAPCaffe(APITestCommon.SNAPComputingUnit.CPU);
     }
 
     @Test
@@ -1207,7 +1210,123 @@ public class APITestPipeline {
             return;
         }
 
-        runSNAPCaffe(true);
+        runSNAPCaffe(APITestCommon.SNAPComputingUnit.GPU);
+    }
+
+    /**
+     * Run SNAP with Tensorflow model.
+     */
+    private void runSNAPTensorflow(APITestCommon.SNAPComputingUnit CUnit) {
+        File[] model = APITestCommon.getSNAPTensorflowModel(CUnit);
+        String option = APITestCommon.getSNAPTensorflowOption(CUnit);
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:224:224:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snap " +
+                    "model=" + model[0].getAbsolutePath() + " " +
+                    "input=3:224:224:1 inputtype=float32 inputlayout=NHWC inputname=input " +
+                    "output=1001:1 outputtype=float32 outputlayout=NHWC outputname=MobilenetV1/Predictions/Reshape_1:0 " +
+                    "custom=" + option + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (
+            Pipeline pipe = new Pipeline(desc);
+            TensorsInfo info = new TensorsInfo()
+        ) {
+            info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,224,224,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                    } else {
+                        ByteBuffer output = data.getTensorData(0);
+
+                        if (!APITestCommon.isValidBuffer(output, 4004)) {
+                            mInvalidState = true;
+                        }
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(100);
+            }
+
+            /* sleep 500 to invoke */
+            Thread.sleep(500);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSNAPTensorflowCPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNAPTensorflow(APITestCommon.SNAPComputingUnit.CPU);
+    }
+
+    @Test
+    public void testSNAPTensorflowDSP() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        if (!android.os.Build.HARDWARE.equals("qcom")) {
+            /** 
+             * Tensorflow model using DSP runtime can only be executed on 
+             * Snapdragon SoC. Cannot run this test on exynos.
+             */
+            return;
+        }
+
+        runSNAPTensorflow(APITestCommon.SNAPComputingUnit.DSP);
+    }
+
+    @Test
+    public void testSNAPTensorflowNPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
+            /* cannot run the test */
+            return;
+        }
+
+        if (!android.os.Build.HARDWARE.equals("qcom")) {
+            /**
+             * Tensorflow model using NPU runtime can only be executed on 
+             * Snapdragon. Cannot run this test on exynos.
+             */
+            return;
+        }
+
+        runSNAPTensorflow(APITestCommon.SNAPComputingUnit.NPU);
     }
 
     @Test
