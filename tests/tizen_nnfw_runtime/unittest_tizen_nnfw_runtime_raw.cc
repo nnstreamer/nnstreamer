@@ -748,7 +748,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   size_t data_size;
 
   gchar *test_model;
-  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
+  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -825,21 +825,17 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
 }
 
 /**
- * @brief Test nnfw subplugin with successful invoke (pipeline, ML-API)
- * @detail Failure case with invalid parameter
+ * @brief Test nnfw subplugin with invalid model file (pipeline, ML-API)
+ * @detail Failure case with invalid model file
  */
 TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
 {
   gchar *pipeline;
   ml_pipeline_h handle;
-  ml_pipeline_src_h src_handle;
-  ml_tensor_dimension in_dim;
-  ml_tensors_info_h info;
-  ml_pipeline_state_e state;
-  ml_tensors_data_h input;
-
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
+  int status;
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -855,12 +851,41 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
       "tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink",
       test_model);
 
-  int status = ml_pipeline_construct (NULL, NULL, NULL, &handle);
+  status = ml_pipeline_construct (NULL, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
 
+  g_free (pipeline);
+  g_free (test_model);
+}
+
+/**
+ * @brief Test nnfw subplugin with invalid data (pipeline, ML-API)
+ * @detail Failure case with invalid parameter
+ */
+TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
+{
+  gchar *pipeline;
+  ml_pipeline_h handle;
+  ml_pipeline_src_h src_handle;
+  ml_tensor_dimension in_dim;
+  ml_tensors_info_h info;
+  ml_pipeline_state_e state;
+  ml_tensors_data_h input;
+  int status;
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL);
   EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
@@ -870,9 +895,6 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
       "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
       "tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink",
       test_model);
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, NULL);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -895,8 +917,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-
-  /* generate data */
+  /* generate data with invalid type */
   status = ml_tensors_data_create (info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
@@ -907,11 +928,13 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  ml_tensors_data_destroy (input);
+  input = NULL;
 
+  /* generate data with invalid dimension */
   ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_FLOAT32);
   in_dim[0] = 5;
   ml_tensors_info_set_tensor_dimension (info, 0, in_dim);
-  input = NULL;
 
   status = ml_tensors_data_create (info, &input);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -992,8 +1015,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   const gchar *new_model = "mobilenet_v1_1.0_224_quant.tflite";
   gchar *model_file, *manifest_file;
   char *replace_command;
-  
-  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
+
+  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -1126,7 +1149,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   size_t data_size;
 
   gchar *test_model;
-  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
+  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -1223,7 +1246,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   size_t data_size;
 
   gchar *test_model;
-  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
+  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
