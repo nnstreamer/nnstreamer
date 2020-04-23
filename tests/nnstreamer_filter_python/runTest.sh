@@ -42,10 +42,6 @@ else
 fi
 
 FRAMEWORK="python2"
-# This symlink is necessary only for testcases; when installed, symlinks will be made
-pushd ../../build/ext/nnstreamer/tensor_filter
-ln -s nnstreamer_python2.so nnstreamer_python.so
-popd
 
 # Passthrough test
 export PYTHONPATH=../../build/ext/nnstreamer/tensor_filter/:$PYTHONPATH

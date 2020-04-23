@@ -19,16 +19,6 @@ export PYTHONPATH=$(pwd)/ext/nnstreamer/tensor_filter/:$PYTHONPATH
 run_entry() {
   entry=$1
 
-  if [[ $entry == *"python3"* ]]; then
-    pushd ext/nnstreamer/tensor_filter
-    ln -sf nnstreamer_python3.so nnstreamer_python.so
-    popd
-  elif [[ $entry == *"python2"* ]]; then
-    pushd ext/nnstreamer/tensor_filter
-    ln -sf nnstreamer_python2.so nnstreamer_python.so
-    popd
-  fi
-
   echo $entry
   ${entry} --gst-plugin-path=. --gtest_output="xml:${entry##*/}.xml"
 

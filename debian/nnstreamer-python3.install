@@ -1,2 +1,2 @@
 /usr/lib/nnstreamer/filters/libnnstreamer_filter_python3.so
-/usr/lib/nnstreamer/filters/nnstreamer_python3.so
+/usr/lib/nnstreamer/filters/nnstreamer_python.abi3.so

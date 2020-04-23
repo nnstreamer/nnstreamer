@@ -452,7 +452,7 @@ popd
 %if 0%{?python_support}
 mkdir -p %{buildroot}%{python_sitelib}
 pushd %{buildroot}%{python_sitelib}
-ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python.so
+ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python.so nnstreamer_python.so
 popd
 %endif
 
@@ -540,7 +540,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
-%{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
+%{_prefix}/lib/nnstreamer/filters/nnstreamer_python.so
 %{python_sitelib}/nnstreamer_python.so
 %endif
 

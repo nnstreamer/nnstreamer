@@ -23,7 +23,7 @@ extensions = [
     'abbr': 'custom',
     'test_name': 'custom',
     'deps': 'nnstreamer_unittest_deps',
-    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough' 'libnnstreamer_customfilter_passthrough.so')
+    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough', 'libnnstreamer_customfilter_passthrough.so')
   },
   {
     'execute_when': true,
@@ -31,7 +31,7 @@ extensions = [
     'abbr': 'custom',
     'test_name': 'custom-set',
     'deps': 'nnstreamer_unittest_deps',
-    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough' 'libnnstreamer_customfilter_passthrough_variable.so')
+    'model': join_paths(nnstreamer_example_dir, 'custom_example_passthrough', 'libnnstreamer_customfilter_passthrough_variable.so')
   },
   {
     'execute_when': get_option('enable-tensorflow-lite'),
