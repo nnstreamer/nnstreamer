@@ -16,6 +16,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer-single.h>
+#include <unittest_util.h>
 
 /**
  * @brief Get model file after validation checks
@@ -699,6 +700,16 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   ml_tensors_info_destroy (in_res);
 }
 
+#define wait_for_sink(expected_cnt) \
+  do { \
+    guint waiting_time = 0; \
+    while (*sink_called_cnt < expected_cnt) { \
+      g_usleep (TEST_DEFAULT_SLEEP_TIME); \
+      waiting_time += TEST_DEFAULT_SLEEP_TIME; \
+      ASSERT_GT(TEST_TIMEOUT_LIMIT, waiting_time); \
+    } \
+  } while (0);
+
 /**
  * @brief Callback for tensor sink signal.
  */
@@ -709,12 +720,15 @@ new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
   int status;
   float *data_ptr;
   size_t data_size;
+  int *checks = (int *) user_data;
 
   status =
       ml_tensors_data_get_tensor_data (data, 0, (void **) &data_ptr,
       &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (*data_ptr, 12.0);
+
+  *checks = *checks + 1;
 }
 
 /**
@@ -734,6 +748,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   size_t data_size;
 
   gchar *test_model;
+  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -752,7 +767,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
   /* register call back function when new data is arrived on sink pad */
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb, sink_called_cnt,
       &sink_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -793,18 +808,20 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
     g_usleep (100000);
   }
 
+  wait_for_sink(5);
+
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (50000);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
   g_free (test_model);
+  g_free (sink_called_cnt);
 }
 
 /**
@@ -889,7 +906,6 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
       ml_pipeline_src_input_data (src_handle, input,
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  g_usleep (100000);
 
 
   ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_FLOAT32);
@@ -906,7 +922,6 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
       ml_pipeline_src_input_data (src_handle, input,
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  g_usleep (100000);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
@@ -933,6 +948,7 @@ new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
   int status;
   float *data_ptr;
   size_t data_size;
+  int *checks = (int *) user_data;
   ml_tensor_dimension out_dim;
 
   ml_tensors_info_get_count (info, &cnt);
@@ -949,6 +965,8 @@ new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
       &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001);
+
+  *checks = *checks + 1;
 }
 
 /**
@@ -974,6 +992,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   const gchar *new_model = "mobilenet_v1_1.0_224_quant.tflite";
   gchar *model_file, *manifest_file;
   char *replace_command;
+  
+  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -1016,7 +1036,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   /* register call back function when new data is arrived on sink pad */
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb_2, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb_2, sink_called_cnt,
       &sink_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -1032,7 +1052,6 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000);            /* wait for start */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
@@ -1066,7 +1085,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (5000000);
+  wait_for_sink(1);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input_0);
@@ -1086,7 +1105,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   ret = system (replace_command);
   g_free (replace_command);
   g_free (manifest_file);
-
+  g_free (sink_called_cnt);
 }
 
 /**
@@ -1107,6 +1126,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   size_t data_size;
 
   gchar *test_model;
+  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -1127,11 +1147,11 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
 
   /* register call back function when new data is arrived on sink pad */
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
       &sink_handle_0);
   EXPECT_EQ (status, ML_ERROR_NONE);
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, sink_called_cnt,
       &sink_handle_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -1144,7 +1164,6 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000);            /* wait for start */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
@@ -1170,7 +1189,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000);
+  wait_for_sink(2);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
@@ -1183,7 +1202,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
 
   g_free (pipeline);
   g_free (test_model);
-
+  g_free (sink_called_cnt);
 }
 
 /**
@@ -1204,6 +1223,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   size_t data_size;
 
   gchar *test_model;
+  guint *sink_called_cnt  = (guint *) g_malloc (sizeof (guint));
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -1224,11 +1244,11 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
 
   /* register call back function when new data is arrived on sink pad */
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
       &sink_handle_0);
   EXPECT_EQ (status, ML_ERROR_NONE);
   status =
-      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, NULL,
+      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, sink_called_cnt,
       &sink_handle_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -1241,7 +1261,6 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000);            /* wait for start */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
@@ -1267,7 +1286,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
       ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_usleep (500000);
+  wait_for_sink(2);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
@@ -1280,7 +1299,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
 
   g_free (pipeline);
   g_free (test_model);
-
+  g_free (sink_called_cnt);
 }
 
 /**
