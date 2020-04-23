@@ -34,7 +34,7 @@ if get_option('enable-tizen-sensor')
   ]
   unittest_tizen_sensor = executable('unittest_tizen_sensor',
     ['unittest_tizen_sensor.cc'],
-    dependencies: [tizen_sensor_apptest_deps],
+    dependencies: [tizen_sensor_apptest_deps, unittest_util_dep],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
