@@ -77,16 +77,19 @@ getTempFilename (void)
  * @return TRUE on success, FALSE when a time-out occurs
  */
 gboolean
-wait_pipeline_process_buffers (guint *data_received, guint expected_num_buffers, guint timeout_ms)
+wait_pipeline_process_buffers (const guint * data_received,
+    guint expected_num_buffers, guint timeout_ms)
 {
-  guint timer_count = 0;
+  guint timer = 0;
+  guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;
+  if (tick == 0)
+    tick = 1;
   /* Waiting for expected buffers to arrive */
   while (*data_received < expected_num_buffers) {
-    timer_count++;
     g_usleep (TEST_DEFAULT_SLEEP_TIME);
-    if (timer_count > (timeout_ms / 10)) {
+    timer += tick;
+    if (timer > timeout_ms)
       return FALSE;
-    }
   }
   return TRUE;
 }

@@ -43,7 +43,7 @@ extern gchar * getTempFilename (void);
  * @brief Wait until the pipeline processing the buffers
  * @return TRUE on success, FALSE when a time-out occurs
  */
-extern gboolean wait_pipeline_process_buffers (guint *data_received, guint expected_num_buffers, guint timeout_ms);
+extern gboolean wait_pipeline_process_buffers (const guint * data_received, guint expected_num_buffers, guint timeout_ms);
 
 #ifdef __cplusplus
 }
