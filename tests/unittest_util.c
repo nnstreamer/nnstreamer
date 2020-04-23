@@ -71,3 +71,22 @@ getTempFilename (void)
 
   return tmp_fn;
 }
+
+/**
+ * @brief Wait until the pipeline processing the buffers
+ * @return TRUE on success, FALSE when a time-out occurs
+ */
+gboolean
+wait_pipeline_process_buffers (guint *data_received, guint expected_num_buffers, guint timeout_ms)
+{
+  guint timer_count = 0;
+  /* Waiting for expected buffers to arrive */
+  while (*data_received < expected_num_buffers) {
+    timer_count++;
+    g_usleep (TEST_DEFAULT_SLEEP_TIME);
+    if (timer_count > (timeout_ms / 10)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
