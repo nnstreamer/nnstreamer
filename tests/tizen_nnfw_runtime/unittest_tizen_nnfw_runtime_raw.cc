@@ -467,6 +467,10 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
       ML_NNFW_TYPE_NNFW, ML_NNFW_HW_AUTO);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  /* let's ignore timeout (30 sec) */
+  status = ml_single_set_timeout (single, 30000);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* input tensor in filter */
   status = ml_single_get_input_info (single, &in_res);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -640,6 +644,10 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   /* Open model with proper dimension */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* let's ignore timeout (30 sec) */
+  status = ml_single_set_timeout (single, 30000);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
