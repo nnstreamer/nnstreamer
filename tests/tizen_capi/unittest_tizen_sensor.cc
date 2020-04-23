@@ -18,6 +18,20 @@
 #include <gst/gst.h>
 #include <nnstreamer.h>
 #include <nnstreamer-capi-private.h>
+#include <unittest_util.h>
+
+static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS = 10000U; /* timeout occur after 10 seconds */
+
+#define wait_for_start(handle, state, status) \
+do {\
+  int counter = 0;\
+  while (state != ML_PIPELINE_STATE_PLAYING && counter < 100) {\
+    g_usleep (100000);\
+    counter ++;\
+    status = ml_pipeline_get_state (handle, &state);\
+    EXPECT_EQ (status, ML_ERROR_NONE);\
+  }\
+} while (0)
 
 /**
  * @brief Test pipeline creation of it
@@ -100,7 +114,7 @@ typedef struct {
   float golden[256][16];
   ml_tensor_type_e type;
   int dim0;
-  int checked;
+  unsigned int checked;
   int negative;
 } verify_data;
 
@@ -161,7 +175,6 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   sensor_event_s value;
   sensor_h sensor;
   int status = 0;
-  int count;
   ml_pipeline_h handle;
   ml_pipeline_sink_h s_handle;
   ml_pipeline_state_e state;
@@ -203,34 +216,14 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  count = 0;
-  while (state != ML_PIPELINE_STATE_PLAYING) {
-    g_usleep(1000); /* 1ms */
-    status = ml_pipeline_get_state (handle, &state);
-    EXPECT_EQ (status, ML_ERROR_NONE);
-    count++;
-    EXPECT_LE (count, 500);
-    if (count >= 500)
-      break;
-  }
+  wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+
   g_usleep(10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (state == ML_PIPELINE_STATE_PLAYING ||
-      state == ML_PIPELINE_STATE_PAUSED);
-
-  count = 0;
-  while (data.checked < 2 && count < 50 && state == ML_PIPELINE_STATE_PLAYING) {
-    count++;
-    g_usleep (100000); /** Another 100ms if the system is too slow */
-    g_printerr("Waited 100ms for 60FPS data flow. The system may be too slow or thrashing. Count: %d / Checked: %d\n", count, data.checked);
-  }
-
-  EXPECT_GT (data.checked, 1);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -304,25 +297,14 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
   count = 0;
-  while (state != ML_PIPELINE_STATE_PLAYING) {
-    g_usleep(10000); /* 10ms */
-    status = ml_pipeline_get_state (handle, &state);
-    EXPECT_EQ (status, ML_ERROR_NONE);
-    count++;
-    EXPECT_LE (count, 50);
-    if (count >= 50)
-      break;
-  }
+  wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+
   g_usleep(10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (state == ML_PIPELINE_STATE_PLAYING ||
-      state == ML_PIPELINE_STATE_PAUSED);
-  EXPECT_GT (data.checked, 1);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -403,26 +385,14 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  count = 0;
-  while (state != ML_PIPELINE_STATE_PLAYING) {
-    g_usleep(10000); /* 10ms */
-    status = ml_pipeline_get_state (handle, &state);
-    EXPECT_EQ (status, ML_ERROR_NONE);
-    count++;
-    EXPECT_LE (count, 50);
-    if (count >= 50)
-      break;
-  }
+  wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+  
   g_usleep(10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (state == ML_PIPELINE_STATE_PLAYING ||
-      state == ML_PIPELINE_STATE_PAUSED);
-  EXPECT_GT (data.checked, 1);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
