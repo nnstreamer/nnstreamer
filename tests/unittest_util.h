@@ -25,6 +25,7 @@ extern "C" {
 #define _print_log(...) if (DBG) g_message (__VA_ARGS__)
 
 #define UNITTEST_STATECHANGE_TIMEOUT (500U)
+#define TEST_DEFAULT_SLEEP_TIME (10000U)
 
 /**
  * @brief Set pipeline state, wait until it's done.
@@ -38,8 +39,13 @@ extern int setPipelineStateSync (GstElement *pipeline, GstState state, uint32_t 
  */
 extern gchar * getTempFilename (void);
 
+/**
+ * @brief Wait until the pipeline processing the buffers
+ * @return TRUE on success, FALSE when a time-out occurs
+ */
+extern gboolean wait_pipeline_process_buffers (guint *data_received, guint expected_num_buffers, guint timeout_ms);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* _NNS_UNITTEST_UTIL_H__ */
-
