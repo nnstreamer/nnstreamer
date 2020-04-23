@@ -384,7 +384,9 @@ if get_option('enable-openvino')
 endif
 
 if get_option('enable-mediapipe')
-  if host_machine.system() != 'linux' and host_machine.cpu_family() != 'x86_64'
+  if host_machine.system() == 'linux' and host_machine.cpu_family() == 'x86_64'
+    opencv_path = 'bazel-bin/_solib_k8/_U@linux_Uopencv_S_S_Copencv___Uexternal_Slinux_Uopencv_Slib_Sx86_U64-linux-gnu'
+  else
     error('Not Supported System & Architecture. Linux x86_64 is required')
   endif
   
@@ -414,7 +416,6 @@ if get_option('enable-mediapipe')
   mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
   mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)
 
-  opencv_path = 'bazel-bin/_solib_k8/_U@linux_Uopencv_S_S_Copencv___Uexternal_Slinux_Uopencv_Slib_Sx86_U64-linux-gnu'
   opencv_core_dep = cc.find_library('opencv_core', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
   opencv_video_dep = cc.find_library('opencv_video', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
   opencv_imgcodecs_dep = cc.find_library('opencv_imgcodecs', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
