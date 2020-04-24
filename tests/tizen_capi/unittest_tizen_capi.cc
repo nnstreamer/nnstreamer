@@ -14,8 +14,9 @@
 #include <glib/gstdio.h> /* GStatBuf */
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer_conf.h> /* NNSTREAMER_SO_FILE_EXTENSION */
+#include <unittest_util.h>
 
-#define SINGLE_DEF_TIMEOUT_MSEC 10000
+static const unsigned int SINGLE_DEF_TIMEOUT_MSEC = 10000U;
 
 #if defined (ENABLE_TENSORFLOW_LITE)
 constexpr bool is_enabled_tensorflow_lite = true;
@@ -1038,7 +1039,7 @@ TEST (nnstreamer_capi_switch, dummy_01)
   ml_pipeline_switch_e type;
   ml_pipeline_state_e state;
   gchar *pipeline;
-  int status, timeout_count = 0;
+  int status;
   guint *count_sink;
   TestPipeState *pipe_state;
   gchar **node_list = NULL;
@@ -1092,16 +1093,9 @@ TEST (nnstreamer_capi_switch, dummy_01)
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  /* Waiting for 3 frames to arrive */
-  while (*count_sink < 3) {
-    timeout_count++;
-    g_usleep (10000);
-    if (timeout_count > 100) {
-      EXPECT_TRUE (false);
-      break;
-    }
-  } 
+  EXPECT_TRUE (wait_pipeline_process_buffers (count_sink, 3, SINGLE_DEF_TIMEOUT_MSEC));
 
   g_usleep (300000); /* To check if more frames are coming in  */
 
