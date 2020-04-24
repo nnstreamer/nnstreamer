@@ -16,6 +16,7 @@
 package org.nnsuite.nnstreamer;
 
 import android.content.Context;
+import android.os.Build;
 
 import org.freedesktop.gstreamer.GStreamer;
 
@@ -57,7 +58,7 @@ public final class NNStreamer {
          * SNAP (Samsung Neural Acceleration Platform)<br>
          * <br>
          * Supports <a href="https://developer.samsung.com/neural">Samsung Neural SDK</a>
-         * (Version 1.0, run only on Samsung devices)<br>
+         * (Version 2.0, run only on Samsung devices)<br>
          * To construct a pipeline with SNAP, developer should set the custom option string
          * to specify the neural network and data format.<br>
          * <br>
@@ -73,6 +74,13 @@ public final class NNStreamer {
          * On-device neural network inference framework, which is developed by SR (Samsung Research).
          */
         NNFW,
+        /**
+         * SNPE (Snapdragon Neural Processing Engine)<br>
+         * <br>
+         * <a href="https://developer.qualcomm.com/docs/snpe/index.html">SNPE</a> is
+         * a Qualcomm Snapdragon software accelerated runtime for the execution of deep neural networks.
+         */
+        SNPE,
         /**
          * Unknown framework (usually error)
          */
@@ -126,7 +134,31 @@ public final class NNStreamer {
      * @return true if the neural network framework is available
      */
     public static boolean isAvailable(NNFWType fw) {
-        return nativeCheckAvailability(fw.ordinal());
+        boolean available = nativeCheckAvailability(fw.ordinal());
+
+        /* sub-plugin for given framework is available */
+        if (available) {
+            String manufacturer = Build.MANUFACTURER.toLowerCase();
+            String hardware = Build.HARDWARE.toLowerCase();
+
+            switch (fw) {
+                case SNPE:
+                    if (!hardware.startsWith("qcom")) {
+                        available = false;
+                    }
+                    break;
+                case SNAP:
+                    if (!manufacturer.equals("samsung") ||
+                        !(hardware.startsWith("qcom") || hardware.startsWith("exynos"))) {
+                        available = false;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return available;
     }
 
     /**
