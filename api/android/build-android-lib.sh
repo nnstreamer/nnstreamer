@@ -21,6 +21,7 @@
 # --run_test (default 'no', 'yes' to run the instrumentation test)
 # --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
 # --enable_nnfw (default 'no', 'yes' to build with sub-plugin for NNFW)
+# --enable_snpe (default 'no', 'yes' to build with sub-plugin for SNPE)
 # --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
 #
 # For example, to build library with core plugins for arm64-v8a
@@ -52,10 +53,13 @@ enable_snap="no"
 # Enable NNFW
 enable_nnfw="no"
 
+# Enable SNPE
+enable_snpe="no"
+
 # Enable tensorflow-lite
 enable_tflite="yes"
 
-# Set tensorflow-lite version (available: 1.9/1.13.1/1.15.2)
+# Set tensorflow-lite version (available: 1.9.0/1.13.1/1.15.2)
 nnstreamer_tf_lite_ver="1.13.1"
 
 # Parse args
@@ -106,6 +110,9 @@ for arg in "$@"; do
         --enable_nnfw=*)
             enable_nnfw=${arg#*=}
             ;;
+        --enable_snpe=*)
+            enable_snpe=${arg#*=}
+            ;;
         --enable_tflite=*)
             enable_tflite=${arg#*=}
             ;;
@@ -122,6 +129,7 @@ elif [[ $build_type == "internal" ]]; then
 
     enable_snap="no"
     enable_nnfw="no"
+    enable_snpe="no"
     enable_tflite="no"
 
     target_abi="arm64-v8a"
@@ -141,6 +149,13 @@ if [[ $enable_nnfw == "yes" ]]; then
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for NNFW." && exit 1
 
     echo "Build with NNFW: $NNFW_DIRECTORY"
+fi
+
+if [[ $enable_snpe == "yes" ]]; then
+    [ -z "$SNPE_DIRECTORY" ] && echo "Need to set SNPE_DIRECTORY, to build sub-plugin for SNPE." && exit 1
+    [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNPE." && exit 1
+
+    echo "Build with SNPE: $SNPE_DIRECTORY"
 fi
 
 if [[ $release_bintray == "yes" ]]; then
@@ -244,6 +259,13 @@ if [[ $enable_nnfw == "yes" ]]; then
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android.mk
     cp -r $NNFW_DIRECTORY/* api/src/main/jni
+fi
+
+# Update SNPE option
+if [[ $enable_snpe == "yes" ]]; then
+    sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android.mk
+    cp -r $SNPE_DIRECTORY/* api/src/main/jni
 fi
 
 # Update tf-lite option

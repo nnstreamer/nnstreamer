@@ -616,6 +616,13 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
       is_supported = FALSE;
 #endif
       break;
+    case 3: /* NNFWType.SNPE */
+      /** @todo add ML_NNFW_TYPE_SNPE (for android only?) */
+#if !defined (ENABLE_SNPE)
+      nns_logw ("SNPE is not supported.");
+      is_supported = FALSE;
+#endif
+      break;
     default: /* Unknown */
       nns_logw ("Unknown NNFW type (%d).", fw_type);
       is_supported = FALSE;
@@ -675,6 +682,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
 #endif
 #if defined (ENABLE_NNFW)
     init_filter_nnfw ();
+#endif
+#if defined (ENABLE_SNPE)
+    /** @todo register snpe sub-plugin */
 #endif
 
     nns_is_initilaized = TRUE;

@@ -280,6 +280,7 @@ public class APITestCommon {
         assertEquals(NNStreamer.NNFWType.TENSORFLOW_LITE, NNStreamer.NNFWType.valueOf("TENSORFLOW_LITE"));
         assertEquals(NNStreamer.NNFWType.SNAP, NNStreamer.NNFWType.valueOf("SNAP"));
         assertEquals(NNStreamer.NNFWType.NNFW, NNStreamer.NNFWType.valueOf("NNFW"));
+        assertEquals(NNStreamer.NNFWType.SNPE, NNStreamer.NNFWType.valueOf("SNPE"));
         assertEquals(NNStreamer.NNFWType.UNKNOWN, NNStreamer.NNFWType.valueOf("UNKNOWN"));
     }
 }

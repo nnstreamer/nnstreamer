@@ -66,6 +66,8 @@ public final class SingleShot implements AutoCloseable {
      *
      * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to construct the pipeline
+     *
+     * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
      */
     public SingleShot(@NonNull File model, NNStreamer.NNFWType fw) {
         this(new File[]{model}, null, null, fw, null);

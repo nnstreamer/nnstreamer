@@ -34,6 +34,9 @@ ENABLE_SNAP := false
 # NNFW (On-device neural network inference framework, Samsung Research)
 ENABLE_NNFW := false
 
+# SNPE (Snapdragon Neural Processing Engine)
+ENABLE_SNPE := false
+
 NNS_API_FLAGS :=
 NNS_API_STATIC_LIBS :=
 
@@ -68,6 +71,13 @@ NNS_API_FLAGS += -DENABLE_NNFW=1
 NNS_API_STATIC_LIBS += nnfw
 
 include $(LOCAL_PATH)/Android-nnfw.mk
+endif
+
+ifeq ($(ENABLE_SNPE),true)
+NNS_API_FLAGS += -DENABLE_SNPE=1
+NNS_API_STATIC_LIBS += snpe
+
+include $(LOCAL_PATH)/Android-snpe.mk
 endif
 
 #------------------------------------------------------
