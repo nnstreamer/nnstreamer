@@ -44,11 +44,18 @@ fi
 FRAMEWORK="python2"
 # This symlink is necessary only for testcases; when installed, symlinks will be made
 pushd ../../build/ext/nnstreamer/tensor_filter
-ln -s nnstreamer_python2.so nnstreamer_python.so
+TEST_PYTHONPATH=${FRAMEWORK}_pymodule
+mkdir -p ${TEST_PYTHONPATH}
+pushd ${TEST_PYTHONPATH}
+# Covert to an absolute path from the relative path
+export PYTHONPATH=$(pwd)
+if [[ ! -f ./nnstreamer_python.so ]]; then
+    ln -s ../nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+fi
+popd
 popd
 
 # Passthrough test
-export PYTHONPATH=../../build/ext/nnstreamer/tensor_filter/:$PYTHONPATH
 PATH_TO_SCRIPT="../test_models/models/passthrough.py"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"${FRAMEWORK}\" model=\"${PATH_TO_SCRIPT}\" input=\"3:280:40:1\" inputtype=\"uint8\" output=\"3:280:40:1\" outputtype=\"uint8\" ! filesink location=\"testcase1.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase1.direct.log\" sync=true" 1 0 0 $PERFORMANCE
 callCompareTest testcase1.direct.log testcase1.passthrough.log 1 "Compare 1" 0 0
