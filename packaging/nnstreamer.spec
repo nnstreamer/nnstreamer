@@ -295,12 +295,12 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
 %define enable_api -Denable-capi=false
-%define enable_mvncsdk2 -Denable-movidius-ncsdk2=false
-%define enable_nnfw_runtime -Denable-nnfw-runtime=false
+%define enable_mvncsdk2 -Dmvncsdk2-support=disabled
+%define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define element_restriction -Denable-element-restriction=false
 
 %if 0%{mvncsdk2_support}
-%define enable_mvncsdk2 -Denable-movidius-ncsdk2=true
+%define enable_mvncsdk2 -Dmvncsdk2-support=enabled
 %endif
 
 %if 0%{tizen_sensor_support}
@@ -311,7 +311,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
 %ifarch %arm aarch64
-%define enable_nnfw_runtime -Denable-nnfw-runtime=true
+%define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
 %endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink'
@@ -320,43 +320,43 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 
 # Support tensorflow
 %if 0%{?tensorflow_support}
-%define enable_tf -Denable-tensorflow=true
+%define enable_tf -Dtf-support=enabled
 %else
-%define enable_tf -Denable-tensorflow=false
+%define enable_tf -Dtf-support=disabled
 %endif
 # Support tensorflow-lite
 %if 0%{?tensorflow_lite_support}
-%define enable_tf_lite -Denable-tensorflow-lite=true
+%define enable_tf_lite -Dtflite-support=enabled
 %else
-%define enable_tf_lite -Denable-tensorflow-lite=false
+%define enable_tf_lite -Dtflite-support=disabled
 %endif
 
 # Support pytorch
 %if 0%{?pytorch_support}
-%define enable_pytorch -Denable-pytorch=true
+%define enable_pytorch -Dpytorch-support=enabled
 %else
-%define enable_pytorch -Denable-pytorch=false
+%define enable_pytorch -Dpytorch-support=disabled
 %endif
 
 # Support caffe2
 %if 0%{?caffe2_support}
-%define enable_caffe2 -Denable-caffe2=true
+%define enable_caffe2 -Dcaffe2-support=enabled
 %else
-%define enable_caffe2 -Denable-caffe2=false
+%define enable_caffe2 -Dcaffe2-support=disabled
 %endif
 
 # Support ArmNN
 %if 0%{?armnn_support}
-%define enable_armnn -Denable-armnn=true
+%define enable_armnn -Dearmnn_support=enabled
 %else
-%define enable_armnn -Denable-armnn=false
+%define enable_armnn -Dearmnn_support=disabled
 %endif
 
 # Support python
 %if 0%{?python_support}
-%define enable_python -Denable-python=true
+%define enable_python -Dpython2-support=enabled
 %else
-%define enable_python -Denable-python=false
+%define enable_python -Dpython2-support=disabled
 %endif
 
 # Support edgetpu

@@ -23,9 +23,9 @@ export NNSTREAMER_DECODERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_decoder
 export PYTHONIOENCODING=utf-8
 
 ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
-enable_tf=true
+enable_tf=enabled
 else
-enable_tf=false
+enable_tf=disabled
 endif
 
 %:
@@ -37,8 +37,8 @@ override_dh_auto_clean:
 override_dh_auto_configure:
 	mkdir -p build
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Dinstall-example=true -Denable-tensorflow=$(enable_tf) -Denable-tensorflow-lite=true -Denable-pytorch=true -Denable-caffe2=true \
-	-Denable-python=true -Denable-capi=true -Denable-tizen=false build
+	-Dinstall-example=true -Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
+	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-tizen=false build
 
 override_dh_auto_build:
 	ninja -C build
