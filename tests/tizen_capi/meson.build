@@ -6,7 +6,7 @@ tizen_apptest_deps = [
 
 unittest_tizen_capi = executable('unittest_tizen_capi',
   'unittest_tizen_capi.cc',
-  dependencies: [tizen_apptest_deps],
+  dependencies: [tizen_apptest_deps, unittest_util_dep],
   install: get_option('install-test'),
   install_dir: unittest_install_dir
 )
