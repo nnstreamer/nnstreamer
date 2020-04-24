@@ -13,24 +13,29 @@ export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-export PYTHONPATH=$(pwd)/ext/nnstreamer/tensor_filter/:$PYTHONPATH
-
+export _PYTHONPATH=${PYTHONPATH}
 
 run_entry() {
   entry=$1
-
-  if [[ $entry == *"python3"* ]]; then
+  if [[ $entry == *"python3"* || $entry == *"python2"* ]]; then
+    PY=$(echo ${entry} | grep -oP "python[0-9]")
     pushd ext/nnstreamer/tensor_filter
-    ln -sf nnstreamer_python3.so nnstreamer_python.so
+    TEST_PYTHONPATH=${PY}_module
+    rm -rf ${TEST_PYTHONPATH}
+    mkdir -p ${TEST_PYTHONPATH}
+    pushd ${TEST_PYTHONPATH}
+    # Covert to an absolute path from the relative path
+    TEST_PYTHONPATH=$(pwd)
+    export PYTHONPATH=${TEST_PYTHONPATH}
+    if [[ ! -f ${TEST_PYTHONPATH}/nnstreamer_python.so ]]; then
+      ln -sf ../nnstreamer_${PY}.so nnstreamer_python.so
+    fi
     popd
-  elif [[ $entry == *"python2"* ]]; then
-    pushd ext/nnstreamer/tensor_filter
-    ln -sf nnstreamer_python2.so nnstreamer_python.so
     popd
   fi
 
-  echo $entry
-  ${entry} --gst-plugin-path=. --gtest_output="xml:${entry##*/}.xml"
+  ${entry} --gtest_output="xml:${entry##*/}.xml"
+  export PYTHONPATH=${_PYTHONPATH}
 
   return $?
 }
