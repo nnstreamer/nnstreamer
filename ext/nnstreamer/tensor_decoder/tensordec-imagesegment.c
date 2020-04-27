@@ -251,7 +251,7 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 {
   uint32_t *frame = (uint32_t *) out_info->data;
   uint32_t *pos;
-  int i, j;
+  guint i, j, label_idx;
   const uint32_t label_color[21] = {
     0xFF000040, 0xFF800000, 0xFFFFEFD5, 0xFF40E0D0, 0xFFFFA500,
     0xFF00FF00, 0xFFDC143C, 0xFFF0F8FF, 0xFF008000, 0xFFEE82EE,
@@ -262,12 +262,12 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
-      int label_idx = idata->segment_map[i][j];
-      if (label_idx > 20)       /* If out-of-range, don't draw it */
+      label_idx = idata->segment_map[i][j];
+
+      /* If background or out-of-range, don't draw it */
+      if (label_idx == 0 || label_idx > 20)
         continue;
       pos = &frame[i * idata->width + j];
-      if (label_idx == 0)
-        continue;               /*Do not set color for background */
       *pos = label_color[label_idx];
     }
   }
