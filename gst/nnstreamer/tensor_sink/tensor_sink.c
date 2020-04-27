@@ -98,6 +98,13 @@ enum
 #define DEFAULT_QOS TRUE
 
 /**
+ * @brief Flag to synchronize on the clock (Default FALSE).
+ * It may be delayed with tensor_filter element, to invoke neural network model.
+ * See GstBaseSink::sync property for more details.
+ */
+#define DEFAULT_SYNC FALSE
+
+/**
  * @brief Template for sink pad.
  */
 #if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
@@ -282,6 +289,9 @@ gst_tensor_sink_init (GstTensorSink * self)
 
   /** enable qos */
   gst_base_sink_set_qos_enabled (bsink, DEFAULT_QOS);
+
+  /* set 'sync' to synchronize on the clock or not */
+  gst_base_sink_set_sync (bsink, DEFAULT_SYNC);
 }
 
 /**
