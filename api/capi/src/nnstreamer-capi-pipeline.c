@@ -453,6 +453,18 @@ iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
                 /** @todo CRITICAL HANDLE THIS! */
               }
 
+              /* check 'sync' property in sink element */
+              if (element_type == ML_PIPELINE_ELEMENT_SINK ||
+                  element_type == ML_PIPELINE_ELEMENT_APP_SINK) {
+                gboolean sync = FALSE;
+
+                g_object_get (G_OBJECT (elem), "sync", &sync, NULL);
+                if (sync) {
+                  ml_logw
+                      ("It is recommended to apply 'sync=false' property to a sink element in most AI applications. Otherwise, inference results of large neural networks will be frequently dropped by the synchronization mechanism at the sink element.");
+                }
+              }
+
               if (element_type != ML_PIPELINE_ELEMENT_UNKNOWN) {
                 ml_pipeline_element *e;
 
