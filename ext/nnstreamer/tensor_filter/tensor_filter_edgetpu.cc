@@ -92,7 +92,8 @@ public:
 };
 
 const char *edgetpu_subplugin::name = "edgetpu";
-const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU };
+const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU,
+    ACCL_DEFAULT, ACCL_AUTO };
 
 edgetpu_subplugin::edgetpu_subplugin () :
     tensor_filter_subplugin (),
