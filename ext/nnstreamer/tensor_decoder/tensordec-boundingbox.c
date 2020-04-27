@@ -229,7 +229,8 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
   if (g_strv_length (priors) < BOX_SIZE) {
     ml_loge ("The given prior file, %s, should have at least %d lines.\n",
         tflite_ssd->box_prior_path, BOX_SIZE);
-    return FALSE;
+    failed = TRUE;
+    goto error;
   }
 
   for (row = 0; row < BOX_SIZE; row++) {
@@ -268,6 +269,7 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
     prev_reg = registered;
   }
 
+error:
   g_strfreev (priors);
   g_free (contents);
   return !failed;

@@ -794,6 +794,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
           ml_logf ("Cannot map src buffer at tensor_converter/text.\n");
+          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
           return GST_FLOW_ERROR;
         }
         if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {

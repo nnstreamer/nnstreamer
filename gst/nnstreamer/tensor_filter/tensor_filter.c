@@ -408,7 +408,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
         for (j = 0; j < i; j++)
           gst_memory_unmap (out_mem[j], &out_info[j]);
         for (j = 0; j < prop->input_meta.num_tensors; j++)
-          gst_memory_unmap (in_mem[j], &in_info[i]);
+          gst_memory_unmap (in_mem[j], &in_info[j]);
         ml_logf ("Cannot map output memory buffer(%d)\n", i);
         return GST_FLOW_ERROR;
       }
