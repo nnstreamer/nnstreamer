@@ -31,7 +31,7 @@
 #define ML_SINGLE_MAGIC 0xfeedfeed
 
 /**
- * @brief Default time to wait for an output in appsink (3 seconds).
+ * @brief Default time to wait for an output (3 seconds).
  */
 #define SINGLE_DEFAULT_TIMEOUT 3000
 

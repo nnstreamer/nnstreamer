@@ -249,6 +249,7 @@ main (int argc, char *argv[])
   g_object_set (G_OBJECT (tensor_filter), "is-updatable", TRUE, NULL);
 
   g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, NULL);
+  g_object_set (G_OBJECT (appsink), "sync", FALSE, NULL);
   g_signal_connect (appsink, "new-sample", G_CALLBACK (check_output), NULL);
 
   /* link elements to the pipeline */

@@ -183,7 +183,7 @@ Followings are the available elements:
 
     The configuration of the data sink element is required to get the output tensor data:
     ```c
-    char pipeline[] = "videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx";
+    char pipeline[] = "videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false";
     ```
 
     `appsink` element with the name `sinkx` becomes reachable through `ml_pipeline_sink_register()`:
