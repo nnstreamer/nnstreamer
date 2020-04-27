@@ -587,7 +587,7 @@ TEST (nnstreamer_capi_sink, dummy_02)
   TestPipeState *pipe_state;
 
   /* pipeline with appsink */
-  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx");
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
@@ -647,8 +647,7 @@ TEST (nnstreamer_capi_sink, register_duplicated)
   TestPipeState *pipe_state;
 
   /* pipeline with appsink */
-  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx");
-
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
   count_sink0 = (guint *) g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink0 != NULL);
   *count_sink0 = 0;
