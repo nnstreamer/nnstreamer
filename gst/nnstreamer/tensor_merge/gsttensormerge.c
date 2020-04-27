@@ -474,6 +474,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   uint8_t *inptr, *outptr;
   int num_mem = tensor_merge->tensors_config.info.num_tensors;
   int i, j, k, l;
+  size_t c, s;
   gsize outSize = 0;
   gsize element_size;
   tensor_dim dim;
@@ -487,12 +488,12 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
     if (FALSE == gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
-      for (j = 0; j < i; j++) {
+      for (j = 0; j < i; j++)
         gst_memory_unmap (mem[j], &mInfo[j]);
-        ml_logf ("Cannot map input memory buffers (%d)\n", i);
-        ret = GST_FLOW_ERROR;
-        goto error_ret;
-      }
+
+      ml_logf ("Cannot map input memory buffers (%d)\n", i);
+      ret = GST_FLOW_ERROR;
+      goto error_ret;
     }
     outSize += mInfo[i].size;
   }
@@ -516,9 +517,8 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
             for (i = 0; i < dim[2]; i++) {
               for (j = 0; j < dim[1]; j++) {
                 for (k = 0; k < num_mem; k++) {
-                  size_t c =
-                      tensor_merge->tensors_config.info.info[k].dimension[0];
-                  size_t s = element_size * c;
+                  c = tensor_merge->tensors_config.info.info[k].dimension[0];
+                  s = element_size * c;
                   inptr =
                       mInfo[k].data + (l * dim[2] * dim[1] + i * dim[1] +
                       j) * s;
@@ -527,18 +527,14 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
                 }
               }
             }
-
           }
-          ret = TRUE;
-        }
           break;
+        }
         case LINEAR_SECOND:
         {
           for (l = 0; l < dim[3]; l++) {
             for (i = 0; i < dim[2]; i++) {
               for (k = 0; k < num_mem; k++) {
-                size_t c, s;
-
                 c = 1;
                 for (j = 0; j < LINEAR_SECOND + 1; j++)
                   c *= tensor_merge->tensors_config.info.info[k].dimension[j];
@@ -552,15 +548,12 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
               }
             }
           }
-          ret = TRUE;
-        }
           break;
+        }
         case LINEAR_THIRD:
         {
           for (l = 0; l < dim[3]; l++) {
             for (k = 0; k < num_mem; k++) {
-              size_t c, s;
-
               c = 1;
               for (j = 0; j < LINEAR_THIRD + 1; j++)
                 c *= tensor_merge->tensors_config.info.info[k].dimension[j];
@@ -573,14 +566,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
               outptr += s;
             }
           }
-          ret = TRUE;
-        }
           break;
+        }
         case LINEAR_FOURTH:
         {
           for (k = 0; k < num_mem; k++) {
-            size_t c, s;
-
             c = 1;
             for (j = 0; j < LINEAR_FOURTH + 1; j++)
               c *= tensor_merge->tensors_config.info.info[k].dimension[j];
@@ -591,23 +581,22 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
             memcpy (outptr, inptr, s);
             outptr += s;
           }
-
-          ret = TRUE;
-        }
           break;
+        }
         default:
-          ret = FALSE;
+          ret = GST_FLOW_ERROR;
       }
-    }
       break;
+    }
     default:
-      ret = FALSE;
+      ret = GST_FLOW_ERROR;
   }
 
+  gst_memory_unmap (outMem, &outInfo);
   gst_buffer_append_memory (tensor_buf, outMem);
   gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
       -1);
-  gst_memory_unmap (outMem, &outInfo);
+
 error_unmap_inmem:
   for (i = 0; i < num_mem; i++)
     gst_memory_unmap (mem[i], &mInfo[i]);
