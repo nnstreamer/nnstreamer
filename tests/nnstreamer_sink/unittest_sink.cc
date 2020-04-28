@@ -937,7 +937,7 @@ _setup_pipeline (TestOption & option)
           custom_dir ? custom_dir : "./tests", NNSTREAMER_SO_FILE_EXTENSION, option.tmpfile);
       break;
     case TEST_TYPE_ISSUE739_MERGE_PARALLEL_1:
-      /** 4x4 tensor stream, different FPS, tensor_mux them @ slowest */
+      /** 4x4 tensor stream, different FPS, tensor_merge them @ slowest */
       str_pipeline =
           g_strdup_printf
           ("videotestsrc pattern=snow num-buffers=%d ! video/x-raw,format=BGRx,height=4,width=4,framerate=10/1 ! tensor_converter ! tensor_filter framework=custom model=%s/libnnscustom_framecounter%s ! mux.sink_0 "
@@ -1068,7 +1068,7 @@ TEST (tensor_sink_test, properties)
   /** GstBaseSink:sync TRUE */
   g_object_get (g_test_data.sink, "sync", &sync, NULL);
   EXPECT_EQ (sync, TRUE);
- 
+
   g_object_set (g_test_data.sink, "sync", !sync, NULL);
   g_object_get (g_test_data.sink, "sync", &res_sync, NULL);
   EXPECT_EQ (res_sync, !sync);
@@ -2811,7 +2811,7 @@ TEST (tensor_stream_test, octet_invalid_ts)
   timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
-  
+
   EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
@@ -3229,6 +3229,27 @@ TEST (tensor_stream_test, filter_properties_1)
   EXPECT_STREQ (str, "ANY");
   g_free (str);
 
+  /* sub-plugins */
+  g_object_get (filter, "sub-plugins", &str, NULL);
+  /* custom / custom-easy are always available */
+  ASSERT_TRUE (str != NULL);
+  EXPECT_TRUE (strstr (str, "custom") != NULL);
+  EXPECT_TRUE (strstr (str, "custom-easy") != NULL);
+#ifdef ENABLE_TENSORFLOW_LITE
+  EXPECT_TRUE (strstr (str, "tensorflow-lite") != NULL);
+#endif
+  g_free (str);
+
+  /* custom-properties */
+  g_object_get (filter, "custom", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  /* accelerator */
+  g_object_get (filter, "accelerator", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
   gst_object_unref (filter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
@@ -3474,6 +3495,33 @@ TEST (tensor_stream_test, filter_properties_3)
   g_object_get (filter, "outputlayout", &str, NULL);
   EXPECT_STREQ (str, "ANY,NONE,NCHW");
   g_free (str);
+
+  gst_object_unref (filter);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor filter properties.
+ */
+TEST (tensor_stream_test, filter_properties_4_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSOR };
+  GstElement *filter;
+  gchar *str = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  filter = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "test_filter");
+
+  /* try to set/get unknown property */
+  g_object_set (filter, "invalid_prop", "invalid_value", NULL);
+  g_object_get (filter, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
 
   gst_object_unref (filter);
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
@@ -3824,6 +3872,32 @@ TEST (tensor_stream_test, demux_properties_2)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor demux properties.
+ */
+TEST (tensor_stream_test, demux_properties_3_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_3 };
+  GstElement *demux;
+  gchar *str = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+  demux = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "demux");
+
+  /* try to set/get unknown property */
+  g_object_set (demux, "invalid_prop", "invalid_value", NULL);
+  g_object_get (demux, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
+
+  gst_object_unref (demux);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
@@ -4304,6 +4378,35 @@ TEST (tensor_stream_test, video_split)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensor_config.rate_n, (int) fps);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor_split properties.
+ */
+TEST (tensor_stream_test, split_properties_1_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_SPLIT };
+  GstElement *split;
+  gchar *str = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  /** Check properties of tensor_split */
+  split = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "split");
+  ASSERT_TRUE (split != NULL);
+
+  /* try to set/get unknown property */
+  g_object_set (split, "invalid_prop", "invalid_value", NULL);
+  g_object_get (split, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
+
+  gst_object_unref (split);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
@@ -4961,15 +5064,177 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
 }
 
 /**
+ * @brief Test for tensor_mux properties.
+ */
+TEST (tensor_stream_test, mux_properties_1)
+{
+  const guint num_buffers = 2;
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
+  GstElement *mux;
+  gboolean silent, res_silent;
+  gchar *str = NULL;
+
+  option.need_sync = TRUE;
+  option.tmpfile = getTempFilename ();
+  EXPECT_TRUE (option.tmpfile != NULL);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  mux = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "mux");
+  ASSERT_TRUE (mux != NULL);
+
+  /* default silent is TRUE */
+  g_object_get (mux, "silent", &silent, NULL);
+  EXPECT_TRUE (silent);
+  g_object_set (mux, "silent", !silent, NULL);
+  g_object_get (mux, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* sync_mode */
+  g_object_get (mux, "sync_mode", &str, NULL);
+  EXPECT_STREQ (str, "basepad");
+  g_free (str);
+
+  /* sync_mode */
+  g_object_get (mux, "sync_option", &str, NULL);
+  EXPECT_STREQ (str, "0:0");
+  g_free (str);
+
+  gst_object_unref (mux);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor_mux properties.
+ */
+TEST (tensor_stream_test, mux_properties_2_n)
+{
+  const guint num_buffers = 2;
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
+  GstElement *mux;
+  gchar *str = NULL;
+
+  option.need_sync = TRUE;
+  option.tmpfile = getTempFilename ();
+  EXPECT_TRUE (option.tmpfile != NULL);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  mux = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "mux");
+  ASSERT_TRUE (mux != NULL);
+
+  /* try to set/get unknown property */
+  g_object_set (mux, "invalid_prop", "invalid_value", NULL);
+  g_object_get (mux, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
+
+  gst_object_unref (mux);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor_merge properties.
+ */
+TEST (tensor_stream_test, merge_properties_1)
+{
+  const guint num_buffers = 2;
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
+  GstElement *merge;
+  gboolean silent, res_silent;
+  gchar *str = NULL;
+
+  option.need_sync = TRUE;
+  option.tmpfile = getTempFilename ();
+  EXPECT_TRUE (option.tmpfile != NULL);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  merge = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "mux");
+  ASSERT_TRUE (merge != NULL);
+
+  /* default silent is TRUE */
+  g_object_get (merge, "silent", &silent, NULL);
+  EXPECT_TRUE (silent);
+  g_object_set (merge, "silent", !silent, NULL);
+  g_object_get (merge, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
+
+  /* mode */
+  g_object_get (merge, "mode", &str, NULL);
+  EXPECT_STREQ (str, "linear");
+  g_free (str);
+
+  /* option */
+  g_object_get (merge, "option", &str, NULL);
+  EXPECT_STREQ (str, "3");
+  g_free (str);
+
+  /* sync_mode */
+  g_object_get (merge, "sync_mode", &str, NULL);
+  EXPECT_STREQ (str, "basepad");
+  g_free (str);
+
+  /* sync_mode */
+  g_object_get (merge, "sync_option", &str, NULL);
+  EXPECT_STREQ (str, "0:0");
+  g_free (str);
+
+  gst_object_unref (merge);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for tensor_merge properties.
+ */
+TEST (tensor_stream_test, merge_properties_2_n)
+{
+  const guint num_buffers = 2;
+  TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
+  GstElement *merge;
+  gchar *str = NULL;
+
+  option.need_sync = TRUE;
+  option.tmpfile = getTempFilename ();
+  EXPECT_TRUE (option.tmpfile != NULL);
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  merge = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "mux");
+  ASSERT_TRUE (merge != NULL);
+
+  /* try to set/get unknown property */
+  g_object_set (merge, "invalid_prop", "invalid_value", NULL);
+  g_object_get (merge, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
+
+  gst_object_unref (merge);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
  * @brief Test get/set property of tensor_decoder
  */
-TEST (tensor_stream_test, tensor_decoder_property)
+TEST (tensor_stream_test, tensor_decoder_property_1)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_DECODER_PROPERTY };
   GstElement *dec;
   gchar *str;
-  gboolean silent;
+  gboolean silent, res_silent;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
@@ -4983,6 +5248,9 @@ TEST (tensor_stream_test, tensor_decoder_property)
 
   g_object_get (dec, "silent", &silent, NULL);
   EXPECT_EQ (silent, TRUE);
+  g_object_set (dec, "silent", !silent, NULL);
+  g_object_get (dec, "silent", &res_silent, NULL);
+  EXPECT_EQ (res_silent, !silent);
 
   g_object_get (dec, "option1", &str, NULL);
   EXPECT_STREQ (str, "whatthehell");
@@ -5012,6 +5280,13 @@ TEST (tensor_stream_test, tensor_decoder_property)
   EXPECT_STREQ (str, "system=1234");
   g_free (str);
 
+  /* sub-plugins */
+  g_object_get (dec, "sub-plugins", &str, NULL);
+  ASSERT_TRUE (str != NULL);
+  EXPECT_TRUE (strstr (str, "direct_video") != NULL);
+  EXPECT_TRUE (strstr (str, "bounding_boxes") != NULL);
+  g_free (str);
+
   gst_object_unref (dec);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
@@ -5031,6 +5306,35 @@ TEST (tensor_stream_test, tensor_decoder_property)
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test get/set property of tensor_decoder
+ */
+TEST (tensor_stream_test, tensor_decoder_property_2_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_DECODER_PROPERTY };
+  GstElement *dec;
+  gchar *str = NULL;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  /** Check properties of tensor_decoder */
+  dec = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "decoder");
+  ASSERT_TRUE (dec != NULL);
+
+  /* try to set/get unknown property */
+  g_object_set (dec, "invalid_prop", "invalid_value", NULL);
+  g_object_get (dec, "invalid_prop", &str, NULL);
+  /* getting unknown property, str should be null */
+  EXPECT_TRUE (str == NULL);
+
+  gst_object_unref (dec);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();

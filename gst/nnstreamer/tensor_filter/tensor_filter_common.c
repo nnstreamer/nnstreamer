@@ -131,7 +131,6 @@ gst_tensors_layout_init (tensors_layout layout)
 static tensor_layout
 gst_tensor_parse_layout_string (const gchar * layoutstr)
 {
-  gsize len;
   gchar *layout_string;
   tensor_layout layout = _NNS_LAYOUT_ANY;
 
@@ -142,12 +141,9 @@ gst_tensor_parse_layout_string (const gchar * layoutstr)
   layout_string = g_strdup (layoutstr);
   g_strstrip (layout_string);
 
-  len = strlen (layout_string);
-
-  if (len == 0) {
-    g_free (layout_string);
-    return layout;
-  }
+  /* empty string */
+  if (0 == strlen (layout_string))
+    goto done;
 
   if (g_ascii_strcasecmp (layoutstr, "NCHW") == 0) {
     layout = _NNS_LAYOUT_NCHW;
@@ -160,6 +156,7 @@ gst_tensor_parse_layout_string (const gchar * layoutstr)
     layout = _NNS_LAYOUT_NONE;
   }
 
+done:
   g_free (layout_string);
   return layout;
 }
@@ -1442,7 +1439,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       g_value_set_boolean (value, priv->silent);
       break;
     case PROP_FRAMEWORK:
-      g_value_set_string (value, prop->fwname);
+      g_value_set_string (value, (prop->fwname != NULL) ? prop->fwname : "");
       break;
     case PROP_MODEL:
     {
@@ -1536,7 +1533,8 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       }
       break;
     case PROP_CUSTOM:
-      g_value_set_string (value, prop->custom_properties);
+      g_value_set_string (value,
+          (prop->custom_properties != NULL) ? prop->custom_properties : "");
       break;
     case PROP_SUBPLUGINS:
     {
