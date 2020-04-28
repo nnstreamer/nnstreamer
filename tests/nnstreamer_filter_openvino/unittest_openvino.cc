@@ -48,13 +48,13 @@ private:
 TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (std::string path_model_xml,
     std::string path_model_bin) : super (path_model_xml, path_model_bin)
 {
-  // Nothing to do
+  /* Nothing to do */
   ;
 }
 
 TensorFilterOpenvinoTest::~TensorFilterOpenvinoTest ()
 {
-  // Nothing to do
+  /* Nothing to do */
   ;
 }
 
@@ -687,7 +687,7 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    // A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT
+    /* A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::InputsDataMap inDataMap;
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
@@ -762,7 +762,7 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    // A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT
+    /* A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::SizeVector dims;
     InferenceEngine::InputsDataMap inDataMap;
@@ -835,7 +835,7 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    // A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT
+    /* A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT */
     InferenceEngine::OutputsDataMap outDataMap;
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
 
@@ -907,7 +907,7 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    // A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT
+    /* A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_output = std::string ("output");
     InferenceEngine::SizeVector dims;
     InferenceEngine::OutputsDataMap outDataMap;

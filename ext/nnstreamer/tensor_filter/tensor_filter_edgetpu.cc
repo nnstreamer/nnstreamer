@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-only
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * GStreamer Tensor_Filter, Edge-TPU Module
  * Copyright (C) 2019 MyungJoo Ham <myungjoo.ham@samsung.com>

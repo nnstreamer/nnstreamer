@@ -367,8 +367,8 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
     /* Optimize the network for the given runtime */
     std::vector < armnn::BackendId > backends = {getBackend (accel)};
     /**
-     * TODO: add option to enable FP32 to FP16 with OptimizerOptions
-     * TODO: add GPU based optimizations
+     * @todo add option to enable FP32 to FP16 with OptimizerOptions
+     * @todo add GPU based optimizations
      * Support these with custom_properties from tensor_filter
      */
     runtime = armnn::IRuntime::Create (options);

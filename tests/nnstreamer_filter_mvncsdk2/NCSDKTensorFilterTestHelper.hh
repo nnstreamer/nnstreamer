@@ -22,7 +22,7 @@ enum _contants {
   SUPPORT_MAX_NUMS_DEVICES = 8,
 };
 
-// Dimension inforamtion of Google LeNet
+/* Dimension inforamtion of Google LeNet */
 enum _google_lenet {
   GOOGLE_LENET_IN_DIM_C = 3,
   GOOGLE_LENET_IN_DIM_W = 224,
@@ -72,7 +72,7 @@ typedef uint32_t ncsdk_ver_t[NC_VERSION_MAX_SIZE];
 class NCSDKTensorFilterTestHelper
 {
 public:
-  // Make this class as a singletone
+  /* Make this class as a singletone */
   static NCSDKTensorFilterTestHelper &getInstance () {
     call_once (NCSDKTensorFilterTestHelper::mOnceFlag, []() {
       mInstance.reset(new NCSDKTensorFilterTestHelper);
@@ -82,21 +82,21 @@ public:
   ~NCSDKTensorFilterTestHelper ();
   void init (model_t model);
   void release ();
-  // Set/Get fail-stage
+  /* Set/Get fail-stage */
   void setFailStage (const fail_stage_t stage);
   const fail_stage_t getFailStage ();
 
-  // Mock methods that simulate NCSDK2 APIs
-  // Mock Global APIs
+  /* Mock methods that simulate NCSDK2 APIs */
+  /* Mock Global APIs */
   ncStatus_t ncGlobalGetOption (int option, void *data,
       unsigned int *dataLength);
-  // Mock Device APIs
+  /* Mock Device APIs */
   ncStatus_t ncDeviceCreate (int index,struct ncDeviceHandle_t **deviceHandle);
   ncStatus_t ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle);
   ncStatus_t ncDeviceClose(struct ncDeviceHandle_t *deviceHandle);
   ncStatus_t ncDeviceDestroy(struct ncDeviceHandle_t **deviceHandle);
 
-  // Mock Graph APIs
+  /* Mock Graph APIs */
   ncStatus_t ncGraphCreate(const char* name, struct ncGraphHandle_t **graphHandle);
   ncStatus_t ncGraphAllocate(struct ncDeviceHandle_t *deviceHandle,
       struct ncGraphHandle_t *graphHandle, const void *graphBuffer,
@@ -108,7 +108,7 @@ public:
       struct ncFifoHandle_t** fifoOut, unsigned int outFifoCount);
   ncStatus_t ncGraphDestroy(struct ncGraphHandle_t **graphHandle);
 
-  // Mock FIFO APIs (returning only NC_OK)
+  /* Mock FIFO APIs (returning only NC_OK) */
   ncStatus_t ncFifoCreate(const char* name, ncFifoType_t type,
       struct ncFifoHandle_t** fifoHandle);
   ncStatus_t ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
@@ -124,14 +124,14 @@ public:
       void *userParam);
   ncStatus_t ncFifoReadElem(struct ncFifoHandle_t* fifoHandle, void *outputData,
       unsigned int* outputDataLen, void **userParam);
-  ncStatus_t ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle); //not supported yet
+  ncStatus_t ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle); /* not supported yet */
 
 private:
-  // Variables for instance mangement
+  /* Variables for instance mangement */
   static std::unique_ptr<NCSDKTensorFilterTestHelper> mInstance;
   static std::once_flag mOnceFlag;
 
-  // Constructor and destructor
+  /* Constructor and destructor */
   NCSDKTensorFilterTestHelper ();
   NCSDKTensorFilterTestHelper (const NCSDKTensorFilterTestHelper &) = delete;
   NCSDKTensorFilterTestHelper &operator=(const NCSDKTensorFilterTestHelper &)

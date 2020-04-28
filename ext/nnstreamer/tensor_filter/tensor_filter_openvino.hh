@@ -74,7 +74,7 @@ public:
   TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
   ~TensorFilterOpenvino ();
 
-  // TODO: Need to support other acceleration devices
+  /** @todo Need to support other acceleration devices */
   int loadModel (accl_hw hw);
   bool isModelLoaded () {
     return _isLoaded;
@@ -114,4 +114,4 @@ private:
   accl_hw _hw;
 };
 
-#endif // __TENSOR_FILTER_OPENVINO_H__
+#endif /* __TENSOR_FILTER_OPENVINO_H__ */

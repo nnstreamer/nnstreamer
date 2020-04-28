@@ -539,8 +539,8 @@ gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter)
   GST_OBJECT_LOCK (self);
 
   /** width, height, and framerate were obtained from the media format */
+  /** @todo Support other formats? */
   format = gst_structure_new ("video/x-raw", "format", G_TYPE_STRING, "NV12",
-                                        /** TODO Support other formats? */
       "width", G_TYPE_INT, priv->width,
       "height", G_TYPE_INT, priv->height,
       "interlaced", G_TYPE_BOOLEAN, FALSE,

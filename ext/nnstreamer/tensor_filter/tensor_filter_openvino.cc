@@ -223,7 +223,7 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   std::vector<std::string>::iterator strVectorIter;
 
   if (this->_isLoaded) {
-    // TODO: Can OpenVino support to replace the loaded model with a new one?
+    /** @todo Can OpenVino support to replace the loaded model with a new one? */
     ml_loge ("The model file is already loaded onto the device.");
     return RetEBusy;
   }
@@ -248,7 +248,7 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
         _nnsAcclHwToOVDevMap[hw]);
   }
 #endif
-  /** TODO: Catch the IE exception */
+  /** @todo Catch the IE exception */
   this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
       _nnsAcclHwToOVDevMap[hw]);
   this->_hw = hw;
