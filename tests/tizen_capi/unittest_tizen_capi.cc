@@ -1729,6 +1729,185 @@ TEST (nnstreamer_capi_util, compare_info)
 }
 
 /**
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_create_1_n)
+{
+  int status = ml_tensors_info_create (nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_create_2_n)
+{
+  GstTensorsInfo gi;
+  ml_tensors_info_h i;
+  int status = ml_tensors_info_create_from_gst (&i, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  status = ml_tensors_info_create_from_gst (nullptr, &gi);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_destroy_n)
+{
+  int status = ml_tensors_info_destroy (nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_init_n)
+{
+  int status = ml_tensors_info_initialize (nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_valid_n)
+{
+  bool valid;
+  int status = ml_tensors_info_validate (nullptr, &valid);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  status = ml_tensors_info_validate (nullptr, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_comp_n)
+{
+  bool equal;
+  int status = ml_tensors_info_compare (nullptr, nullptr, &equal);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  status = ml_tensors_info_compare (nullptr, nullptr, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_comp_0)
+{
+  bool equal;
+  ml_tensors_info_h info1, info2;
+  ml_tensors_info_s *is;
+  int status = ml_tensors_info_create (&info1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_create (&info2);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  is = (ml_tensors_info_s *) info1;
+  is->num_tensors = 1;
+  is = (ml_tensors_info_s *) info2;
+  is->num_tensors = 2;
+
+  status = ml_tensors_info_compare (info1, info2, &equal);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  ASSERT_FALSE (equal);
+
+  status = ml_tensors_info_destroy (info1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info2);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_count_n)
+{
+  int status = ml_tensors_info_set_count (nullptr, 1);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_count_n)
+{
+  int status = ml_tensors_info_get_count (nullptr, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_tname_0_n)
+{
+  int status = ml_tensors_info_set_tensor_name (nullptr, 0, "fail");
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_tname_1_n)
+{
+  ml_tensors_info_h info;
+  int status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 3);
+  status = ml_tensors_info_set_tensor_name (info, 3, "fail");
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_tname_1)
+{
+  ml_tensors_info_h info;
+  int status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  status = ml_tensors_info_set_tensor_name (info, 0, "first");
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_name (info, 0, "second");
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_tname_n)
+{
+  int status = ml_tensors_info_get_tensor_name (nullptr, 0, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_ttype_n)
+{
+  int status = ml_tensors_info_set_tensor_type (nullptr, 0,
+      ML_TENSOR_TYPE_INT16);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_ttype_n)
+{
+  int status = ml_tensors_info_get_tensor_type (nullptr, 0, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  */
 TEST (nnstreamer_capi_singleshot, invoke_01)
