@@ -12,7 +12,7 @@
 
 #include "NCSDKTensorFilterTestHelper.hh"
 
-// Static member variables for instance management
+/* Static member variables for instance management */
 std::unique_ptr<NCSDKTensorFilterTestHelper>
     NCSDKTensorFilterTestHelper::mInstance;
 std::once_flag NCSDKTensorFilterTestHelper::mOnceFlag;
@@ -32,7 +32,7 @@ static bool compareTensorDesc (const struct ncTensorDescriptor_t &tensor1,
     return false;
   else if (tensor1.dataType != tensor2.dataType)
     return false;
-  // Do not care other member variables
+  /* Do not care other member variables */
 
   return true;
 }
@@ -61,9 +61,9 @@ NCSDKTensorFilterTestHelper::~NCSDKTensorFilterTestHelper ()
 void
 NCSDKTensorFilterTestHelper::init (model_t model)
 {
-  // MAJOR should be 2
+  /* MAJOR should be 2 */
   this->mVer[MAJOR] = 2;
-  // Don't care other indexes, MINOR, HOTFIX, and RC
+  /* Don't care other indexes, MINOR, HOTFIX, and RC */
   this->mVer[MINOR] = 3;
   this->mVer[HOTFIX] = 4;
   this->mVer[RC] = 5;
@@ -157,7 +157,7 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
   if (this->mFailStage == fail_stage_t::WRONG_SDK_VER) {
     ncsdk_ver_t ver;
 
-    // MAJOR version number should be 2
+    /* MAJOR version number should be 2 */
     ver[MAJOR] = 3;
     ver[MINOR] = 4;
     ver[HOTFIX] = 5;
