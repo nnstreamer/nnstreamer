@@ -600,6 +600,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api.h
+%{_includedir}/nnstreamer/nnstreamer_version.h
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
 %{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
 %{_libdir}/*.a

@@ -29,6 +29,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 #include <tensor_typedef.h>
+#include <nnstreamer_version.h>
 
 G_BEGIN_DECLS
 
@@ -358,6 +359,9 @@ replace_string (gchar * source, const gchar * what, const gchar * to, const gcha
  */
 extern gchar *
 nnstreamer_version_string (void);
+
+extern void nnstreamer_version_fetch (guint * major, guint * minor,
+    guint * micro);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

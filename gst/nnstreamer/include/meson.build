@@ -13,6 +13,17 @@ foreach h : nnst_common_headers
   nnstreamer_headers += join_paths(meson.current_source_dir(), h)
 endforeach
 
+version_conf = configuration_data()
+version_conf.set('__NNSTREAMER_VERSION_MAJOR__', version_split[0])
+version_conf.set('__NNSTREAMER_VERSION_MINOR__', version_split[1])
+version_conf.set('__NNSTREAMER_VERSION_MICRO__', version_split[2])
+
+generated_h = configure_file(input: 'nnstreamer_version.h.in',
+  output: 'nnstreamer_version.h',
+  configuration: version_conf
+)
+nnstreamer_headers += generated_h
+
 # Install headers into /{includedir}/nnstreamer
 install_headers(nnstreamer_headers,
   subdir: 'nnstreamer'

@@ -19,6 +19,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <nnstreamer_conf.h>
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief Test for int32 type string.
@@ -947,6 +948,59 @@ TEST (conf_custom, env_str_01)
   g_free (f4);
   g_free (f5);
   g_free (f6);
+}
+
+/**
+ * @brief Test version control (positive)
+ */
+TEST (version_control , get_ver_01)
+{
+  gchar * verstr = nnstreamer_version_string();
+  guint major, minor, micro;
+  gchar * verstr2, * verstr3;
+  nnstreamer_version_fetch (&major, &minor, &micro);
+
+  verstr2 = g_strdup_printf ("NNStreamer %u.%u.%u", major, minor, micro);
+  verstr3 = g_strdup_printf ("%u.%u.%u", major, minor, micro);
+
+  EXPECT_STRCASEEQ (verstr, verstr2);
+
+  EXPECT_STRCASEEQ (VERSION, verstr3);
+
+  EXPECT_EQ ((int) major, NNSTREAMER_VERSION_MAJOR);
+  EXPECT_EQ ((int) minor, NNSTREAMER_VERSION_MINOR);
+  EXPECT_EQ ((int) micro, NNSTREAMER_VERSION_MICRO);
+
+  g_free (verstr);
+  g_free (verstr2);
+  g_free (verstr3);
+}
+
+/**
+ * @brief Test version control (negative)
+ */
+TEST (version_control , get_ver_02_n)
+{
+  guint major, minor, micro;
+  guint m1, m2;
+  nnstreamer_version_fetch (&major, &minor, &micro);
+  nnstreamer_version_fetch (&m1, &m2, nullptr);
+  EXPECT_EQ (m1, major);
+  EXPECT_EQ (m2, minor);
+  nnstreamer_version_fetch (&m1, nullptr, &m2);
+  EXPECT_EQ (m1, major);
+  EXPECT_EQ (m2, micro);
+  nnstreamer_version_fetch (nullptr, &m1, &m2);
+  EXPECT_EQ (m1, minor);
+  EXPECT_EQ (m2, micro);
+}
+
+/**
+ * @brief Test version control (negative)
+ */
+TEST (version_control , get_ver_03_n)
+{
+  nnstreamer_version_fetch (nullptr, nullptr, nullptr);
 }
 
 /**
