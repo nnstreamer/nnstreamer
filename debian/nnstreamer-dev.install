@@ -1,3 +1,4 @@
+/usr/include/nnstreamer/nnstreamer_version.h
 /usr/include/nnstreamer/nnstreamer_plugin_api.h
 /usr/include/nnstreamer/nnstreamer_plugin_api_converter.h
 /usr/include/nnstreamer/nnstreamer_plugin_api_decoder.h

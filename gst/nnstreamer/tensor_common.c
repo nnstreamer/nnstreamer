@@ -1176,7 +1176,7 @@ replace_string (gchar * source, const gchar * what, const gchar * to,
 }
 
 /**
- * @brief Get the version of NNStreamer.
+ * @brief Get the version of NNStreamer (string).
  * @return Newly allocated string. The returned string should be freed with g_free().
  */
 gchar *
@@ -1186,4 +1186,21 @@ nnstreamer_version_string (void)
 
   version = g_strdup_printf ("NNStreamer %s", VERSION);
   return version;
+}
+
+/**
+ * @brief Get the version of NNStreamer (int, divided).
+ * @param[out] major MAJOR.minor.micro, won't set if it's null.
+ * @param[out] minor major.MINOR.micro, won't set if it's null.
+ * @param[out] micro major.minor.MICRO, won't set if it's null.
+ */
+void
+nnstreamer_version_fetch (guint * major, guint * minor, guint * micro)
+{
+  if (major)
+    *major = (NNSTREAMER_VERSION_MAJOR);
+  if (minor)
+    *minor = (NNSTREAMER_VERSION_MINOR);
+  if (micro)
+    *micro = (NNSTREAMER_VERSION_MICRO);
 }

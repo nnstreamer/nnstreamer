@@ -14,6 +14,10 @@ project('nnstreamer', 'c', 'cpp',
 )
 
 add_project_arguments('-DVERSION="' + meson.project_version() + '"', language: ['c', 'cpp'])
+version_split = meson.project_version().split('.')
+add_project_arguments('-DVERSION_MAJOR="' + version_split[0] + '"', language: ['c', 'cpp'])
+add_project_arguments('-DVERSION_MINOR="' + version_split[1] + '"', language: ['c', 'cpp'])
+add_project_arguments('-DVERSION_MICRO="' + version_split[2] + '"', language: ['c', 'cpp'])
 
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')

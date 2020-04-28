@@ -35,10 +35,9 @@
 #define GST_TENSOR_FILTER_FRAMEWORK_V0 (GST_TENSOR_FILTER_FRAMEWORK_BASE)
 #define GST_TENSOR_FILTER_FRAMEWORK_V1 (GST_TENSOR_FILTER_FRAMEWORK_BASE | 0x10000ULL)
 
-/** @todo update this to 1 after supporting version 1 GstTensorFilterFramework in tensor_filter.c */
-#define GST_TENSOR_FILTER_API_VERSION_DEFINED (0)
+#define GST_TENSOR_FILTER_API_VERSION_DEFINED (1)
 #define GST_TENSOR_FILTER_API_VERSION_MIN (0)	/* The minimum API version supported (could be obsolete) */
-#define GST_TENSOR_FILTER_API_VERSION_MAX (0)	/* The maximum API version supported (recommended) */
+#define GST_TENSOR_FILTER_API_VERSION_MAX (1)	/* The maximum API version supported (recommended) */
 
 /**
  * @brief Check the value of the version field of GstTensorFilterFramework
