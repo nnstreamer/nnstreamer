@@ -1565,6 +1565,103 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
 }
 
 /**
+ * @brief test the unusual/exceptional cases.
+ */
+TEST (test_tensor_src_iio, unusual_cases)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio_pipeline;
+  GstElement *src_iio;
+  GstStateChangeReturn status;
+  GstState state;
+  gchar *parse_launch;
+  gint samp_freq;
+  gint data_value;
+  guint data_bits;
+  gchar *ret_device;
+  gchar *ret_trigger;
+  gchar *iio_base_dir;
+  gchar *dev_dir;
+  gchar *ret_channels;
+
+  data_value = DATA;
+  data_bits = 16;
+  gint samp_freq_idx = 1;
+  /** Make device */
+  dev0 = make_full_device (data_value, data_bits);
+  ASSERT_NE (dev0, nullptr);
+  /** setup */
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
+  parse_launch =
+      g_strdup_printf
+      ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "
+      "merge-channels-data=False name=my-src-iio channels=1,3,5 ! multifilesink location=%s",
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, 0, samp_freq, dev0->log_file);
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
+
+  /** get and verify the caps */
+  src_iio = gst_bin_get_by_name (GST_BIN (src_iio_pipeline), "my-src-iio");
+  ASSERT_NE (src_iio, nullptr);
+
+  /** state transition test upwards */
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
+  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  status =
+      gst_element_get_state (src_iio_pipeline, &state, NULL,
+      GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+
+  /** set property at PLAYING state */
+  g_object_set (src_iio, "device", "playing-not-allow", NULL);
+  g_object_get (src_iio, "device", &ret_device, NULL);
+  EXPECT_STREQ (ret_device, DEVICE_NAME);
+  g_free (ret_device);
+
+  status = gst_element_set_state (src_iio, GST_STATE_READY);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (state, GST_STATE_READY);
+
+  /** set new device name */
+  g_object_set (src_iio, "device", "new-device-name", NULL);
+  g_object_get (src_iio, "device", &ret_device, NULL);
+  EXPECT_STREQ (ret_device, "new-device-name");
+  g_free (ret_device);
+
+  /** set new trigger name */
+  g_object_set (src_iio, "trigger", "new-trigger-name", NULL);
+  g_object_get (src_iio, "trigger", &ret_trigger, NULL);
+  EXPECT_STREQ (ret_trigger, "new-trigger-name");
+  g_free (ret_trigger);
+
+  /** set relative path, not allowed */
+  g_object_set (src_iio, "iio-base-dir", "relative/base/path/", NULL);
+  g_object_get (src_iio, "iio-base-dir", &iio_base_dir, NULL);
+  EXPECT_STREQ (iio_base_dir, dev0->iio_base_dir_sim);
+  g_free (iio_base_dir);
+
+  g_object_set (src_iio, "dev-dir", "relative/dev/path/", NULL);
+  g_object_get (src_iio, "dev-dir", &dev_dir, NULL);
+  EXPECT_STREQ (dev_dir, dev0->dev_dir);
+  g_free (dev_dir);
+  
+  /** get custom channel */
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "1,3,5");
+  g_free (ret_channels);
+
+  /** delete device structure */
+  gst_object_unref (src_iio);
+  gst_object_unref (src_iio_pipeline);
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
