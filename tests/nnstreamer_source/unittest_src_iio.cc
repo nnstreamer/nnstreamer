@@ -1662,6 +1662,53 @@ TEST (test_tensor_src_iio, unusual_cases)
 }
 
 /**
+ * @brief test the logic with invalid frequency value
+ */
+TEST (test_tensor_src_iio, set_frequency_n)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio_pipeline;
+  GstElement *src_iio;
+  GstStateChangeReturn status;
+  gchar *parse_launch;
+  gint data_value;
+  guint data_bits;
+  gint ret_freq;
+
+  data_value = DATA;
+  data_bits = 16;
+  /** Make device */
+  dev0 = make_full_device (data_value, data_bits);
+  ASSERT_NE (dev0, nullptr);
+  /** setup */
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
+  parse_launch =
+      g_strdup_printf
+      ("%s iio-base-dir=%s device-number=%d name=my-src-iio ! fakesink",
+      ELEMENT_NAME, dev0->iio_base_dir_sim, 0);
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
+  ASSERT_NE (src_iio_pipeline, nullptr);
+
+  /** get and verify the caps */
+  src_iio = gst_bin_get_by_name (GST_BIN (src_iio_pipeline), "my-src-iio");
+  ASSERT_NE (src_iio, nullptr);
+
+  /** set the invalid frequency */
+  g_object_set (src_iio, "frequency", -1, NULL);
+  g_object_get (src_iio, "frequency", &ret_freq, NULL);
+  EXPECT_EQ (ret_freq, -1);
+
+  /** fail with invalid frequency */
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
+  EXPECT_NE (status, GST_STATE_CHANGE_ASYNC);
+
+  /** delete device structure */
+  gst_object_unref (src_iio);
+  gst_object_unref (src_iio_pipeline);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
