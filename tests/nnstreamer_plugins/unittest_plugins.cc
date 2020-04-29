@@ -201,7 +201,7 @@
 /**
  * @brief Test for setting/getting properties of tensor_transform
  */
-TEST (test_tensor_transform, properties)
+TEST (test_tensor_transform, properties_01)
 {
   const gboolean default_silent = TRUE;
   const gboolean default_accl = DEFAULT_VAL_PROP_ACCELERATION;
@@ -258,6 +258,86 @@ TEST (test_tensor_transform, properties)
 
   g_object_unref (transform);
   gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (test_tensor_transform, properties_02_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  /* invalid option (from:to) */
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "10:11", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (test_tensor_transform, properties_03_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  /* invalid option (typecast:type) */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  /* invalid option (typecast:type) */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast:unknown", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (test_tensor_transform, properties_04_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  /* invalid option (from:to) */
+  g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", "5:2:4:3", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (test_tensor_transform, properties_05_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  /* invalid option (stand mode) */
+  g_object_set (h->element, "mode", GTT_STAND, "option", "invalid", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
 }
 
 /**
@@ -3028,7 +3108,7 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
-  
+
   /* Check if mandatory methods are contained */
   ASSERT_TRUE (fw && fw->open && fw->close);
 
@@ -3590,7 +3670,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_01)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
     "mnist.pb", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));  
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
   data_path = g_build_filename (root_path, "tests", "test_models", "data", "9.raw", NULL);
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
@@ -3671,7 +3751,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
     "caffe2_init_net.pb", NULL);
-  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));  
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
   test_model_2 = g_build_filename (root_path, "tests", "test_models", "models", "caffe2_predict_net.pb", NULL);
   ASSERT_TRUE (g_file_test (test_model_2, G_FILE_TEST_EXISTS));
   data_path = g_build_filename (root_path, "tests", "test_models", "data", "5", NULL);
@@ -3692,7 +3772,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
  * @details Check if pytorch is detected automatically
  */
 TEST (test_tensor_filter, framework_auto_ext_pt_01)
-{  
+{
   gchar *test_model, *str_launch_line, *image_path;
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
 
@@ -3733,7 +3813,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
 
   str_launch_line = g_strdup_printf ("filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=auto model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink", image_path, test_model);
   TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
-  
+
   g_free (image_path);
   g_free (test_model);
 }

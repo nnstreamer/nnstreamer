@@ -730,7 +730,7 @@ static gboolean
 gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 {
   gchar *filter_name;
-  gboolean ret = TRUE;
+  gboolean ret = FALSE;
 
   if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
     return TRUE;
@@ -753,7 +753,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       filter->data_dimchg.from = (int) g_ascii_strtoll (strv[0], NULL, 10);
       filter->data_dimchg.to = (int) g_ascii_strtoll (strv[1], NULL, 10);
-      filter->loaded = TRUE;
+      ret = filter->loaded = TRUE;
       g_strfreev (strv);
       break;
     }
@@ -761,7 +761,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       if (g_regex_match_simple (REGEX_TYPECAST_OPTION, filter->option, 0, 0)) {
         filter->data_typecast.to = gst_tensor_get_type (filter->option);
-        filter->loaded = TRUE;
+        ret = filter->loaded = TRUE;
       } else {
         ml_loge
             ("%s: typecast: \'%s\' is not valid data type for tensor: data type of tensor should be one of %s\n",
@@ -884,7 +884,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         g_strfreev (str_op);
       }
 
-      filter->loaded = (filter->operators != NULL);
+      ret = filter->loaded = (filter->operators != NULL);
       g_strfreev (str_operators);
       g_free (str_option);
       break;
@@ -907,7 +907,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
             (uint8_t) g_ascii_strtoull (strv[i], NULL, 10);
       }
 
-      filter->loaded = TRUE;
+      ret = filter->loaded = TRUE;
       g_strfreev (strv);
       break;
     }
@@ -921,7 +921,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
             filter_name, filter->option);
         break;
       }
-      filter->loaded = TRUE;
+      ret = filter->loaded = TRUE;
       break;
     }
     default:
@@ -948,6 +948,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:
       filter->mode = g_value_get_enum (value);
+      gst_tensor_transform_set_option_data (filter);
       break;
     case PROP_OPTION:
     {
@@ -960,6 +961,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
         /* ERROR! Revert the change! */
         g_free (filter->option);
         filter->option = backup_option;
+        gst_tensor_transform_set_option_data (filter);
       }
       break;
     }
