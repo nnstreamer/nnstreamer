@@ -3573,10 +3573,15 @@ TEST (tensor_stream_test, custom_filter_drop_buffer)
 }
 
 /**
+ * @brief custom fw name to run without model file.
+ */
+static const char test_fw_custom_name[] = "custom-passthrough";
+
+/**
  * @brief The mandatory callback for GstTensorFilterFramework.
  */
 static int
-test_custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
+test_custom_v0_invoke (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   guint i, num;
@@ -3595,7 +3600,7 @@ test_custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework.
  */
 static int
-test_custom_setdim (const GstTensorFilterProperties * prop, void **private_data,
+test_custom_v0_setdim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   gst_tensors_info_copy (out_info, in_info);
@@ -3603,24 +3608,93 @@ test_custom_setdim (const GstTensorFilterProperties * prop, void **private_data,
 }
 
 /**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_invoke (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  return test_custom_v0_invoke (prop, &private_data, input, output);
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_getFWInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  fw_info->name = test_fw_custom_name;
+  fw_info->allow_in_place = 0;
+  fw_info->allocate_in_invoke = 0;
+  fw_info->run_without_model = 1;
+  fw_info->verify_model_path = 0;
+  fw_info->hw_list = NULL;
+  fw_info->num_hw = 0;
+  return 0;
+}
+
+/**
+ * @brief Invalid callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_getFWInfo_f1 (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  memset (fw_info, 0, sizeof (GstTensorFilterFrameworkInfo));
+  fw_info->name = NULL;
+  return 0;
+}
+
+/**
+ * @brief Invalid callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_getFWInfo_f2 (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  memset (fw_info, 0, sizeof (GstTensorFilterFrameworkInfo));
+  return -1;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  if (ops == SET_INPUT_INFO) {
+    return test_custom_v0_setdim (prop, &private_data, in_info, out_info);
+  }
+
+  return -ENOENT;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1).
+ */
+static int
+test_custom_v1_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    event_ops ops, GstTensorFilterFrameworkEventData * data)
+{
+  return -ENOENT;
+}
+
+/**
  * @brief Test for passthrough custom filter without model.
  */
-TEST (tensor_stream_test, custom_filter_passthrough)
+static void
+test_custom_run_pipeline (void)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_PASSTHROUGH };
-
-  /* register custom filter */
-  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
-
-  ASSERT_TRUE (fw != NULL);
-  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
-  fw->name = g_strdup ("custom-passthrough");
-  fw->run_without_model = TRUE;
-  fw->invoke_NN = test_custom_invoke;
-  fw->setInputDimension = test_custom_setdim;
-
-  EXPECT_TRUE (nnstreamer_filter_probe (fw));
 
   /* construct pipeline for test */
   ASSERT_TRUE (_setup_pipeline (option));
@@ -3657,17 +3731,55 @@ TEST (tensor_stream_test, custom_filter_passthrough)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
+}
+
+/**
+ * @brief Test for plugin registration with invalid param.
+ */
+TEST (tensor_stream_test, subplugin_invalid_ver_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = 0; /* invalid ver */
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
+
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw);
+}
+
+/**
+ * @brief Test for passthrough custom filter without model.
+ */
+TEST (tensor_stream_test, subplugin_v0_run)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = (char *) test_fw_custom_name;
+  fw->run_without_model = TRUE;
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = test_custom_v0_setdim;
+
+  /* register custom filter */
+  EXPECT_TRUE (nnstreamer_filter_probe (fw));
+
+  test_custom_run_pipeline ();
 
   /* unregister custom filter */
-  nnstreamer_filter_exit (fw->name);
-  g_free (fw->name);
+  nnstreamer_filter_exit (test_fw_custom_name);
   g_free (fw);
 }
 
 /**
  * @brief Test for preserved sub-plugin name.
  */
-TEST (tensor_stream_test, subplugin_preserved_name_n)
+TEST (tensor_stream_test, subplugin_v0_preserved_name_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3675,12 +3787,140 @@ TEST (tensor_stream_test, subplugin_preserved_name_n)
   fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
   fw->name = g_strdup ("auto"); /* preserved name 'auto' */
   fw->run_without_model = TRUE;
-  fw->invoke_NN = test_custom_invoke;
-  fw->setInputDimension = test_custom_setdim;
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = test_custom_v0_setdim;
 
   EXPECT_FALSE (nnstreamer_filter_probe (fw));
 
   g_free (fw->name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param.
+ */
+TEST (tensor_stream_test, subplugin_v0_null_name_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = NULL; /* failed to register with null */
+  fw->run_without_model = TRUE;
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = test_custom_v0_setdim;
+
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param.
+ */
+TEST (tensor_stream_test, subplugin_v0_null_cb_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = g_strdup ("custom-invalid");
+  fw->run_without_model = TRUE;
+
+  fw->invoke_NN = NULL;
+  fw->setInputDimension = test_custom_v0_setdim;
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = NULL;
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw->name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test for passthrough custom filter without model (v1).
+ */
+TEST (tensor_stream_test, subplugin_v1_run)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
+
+  /* register custom filter */
+  EXPECT_TRUE (nnstreamer_filter_probe (fw));
+
+  test_custom_run_pipeline ();
+
+  /* unregister custom filter */
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param (v1).
+ */
+TEST (tensor_stream_test, subplugin_v1_null_name_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo_f1;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
+
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param (v1).
+ */
+TEST (tensor_stream_test, subplugin_v1_invalid_cb_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo_f2;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
+
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  g_free (fw);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param (v1).
+ */
+TEST (tensor_stream_test, subplugin_v1_null_cb_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo;
+
+  fw->getModelInfo = NULL;
+  fw->eventHandler = test_custom_v1_eventHandler;
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = NULL;
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+
   g_free (fw);
 }
 
