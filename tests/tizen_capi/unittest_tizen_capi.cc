@@ -2197,7 +2197,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   status = ml_tensors_info_get_tensor_name (in_res, 0, &name);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (name, "wav_data"));
+  EXPECT_STREQ (name, "wav_data");
 
   status = ml_tensors_info_get_tensor_type (in_res, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -2219,7 +2219,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   status = ml_tensors_info_get_tensor_name (out_res, 0, &name);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (name, "labels_softmax"));
+  EXPECT_STREQ (name, "labels_softmax");
 
   status = ml_tensors_info_get_tensor_type (out_res, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3819,7 +3819,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
 
   status = ml_tensors_info_get_tensor_name (in_res, 0, &name);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (name, "data"));
+  EXPECT_STREQ (name, "data");
 
   status = ml_tensors_info_get_tensor_type (in_res, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -3841,7 +3841,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
 
   status = ml_tensors_info_get_tensor_name (out_res, 0, &name);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (name, "prob"));
+  EXPECT_STREQ (name, "prob");
 
   status = ml_tensors_info_get_tensor_type (out_res, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);

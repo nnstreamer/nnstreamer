@@ -91,7 +91,7 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
 
     /* Check framework */
     g_object_get (filter, "framework", &fw_name, NULL);
-    EXPECT_TRUE (g_str_equal (fw_name, "movidius-ncsdk2"));
+    EXPECT_STREQ (fw_name, "movidius-ncsdk2");
 
     g_free (fw_name);
     gst_object_unref (filter);
