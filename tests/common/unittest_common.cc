@@ -268,7 +268,7 @@ TEST (common_get_tensor_dimension, case1)
   EXPECT_EQ (dim[3], 177U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:177"));
+  EXPECT_STREQ (dim_str, "345:123:433:177");
   g_free (dim_str);
 }
 
@@ -289,7 +289,7 @@ TEST (common_get_tensor_dimension, case2)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_TRUE (g_str_equal (dim_str, "345:123:433:1"));
+  EXPECT_STREQ (dim_str, "345:123:433:1");
   g_free (dim_str);
 }
 
@@ -310,7 +310,7 @@ TEST (common_get_tensor_dimension, case3)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_TRUE (g_str_equal (dim_str, "345:123:1:1"));
+  EXPECT_STREQ (dim_str, "345:123:1:1");
   g_free (dim_str);
 }
 
@@ -331,7 +331,7 @@ TEST (common_get_tensor_dimension, case4)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_TRUE (g_str_equal (dim_str, "345:1:1:1"));
+  EXPECT_STREQ (dim_str, "345:1:1:1");
   g_free (dim_str);
 }
 
@@ -350,7 +350,7 @@ TEST (common_tensor_info, copy_tensor)
   gst_tensor_info_copy (&dest, &src);
 
   EXPECT_TRUE (dest.name != src.name);
-  EXPECT_TRUE (g_str_equal (dest.name, test_name));
+  EXPECT_STREQ (dest.name, test_name);
   EXPECT_EQ (dest.type, src.type);
   EXPECT_EQ (dest.dimension[0], src.dimension[0]);
   EXPECT_EQ (dest.dimension[1], src.dimension[1]);
@@ -391,7 +391,7 @@ TEST (common_tensor_info, copy_tensors)
 
   for (i = 0; i < src.num_tensors; i++) {
     EXPECT_TRUE (dest.info[i].name != src.info[i].name);
-    EXPECT_TRUE (g_str_equal (dest.info[i].name, test_name));
+    EXPECT_STREQ (dest.info[i].name, test_name);
     EXPECT_EQ (dest.info[i].type, src.info[i].type);
     EXPECT_EQ (dest.info[i].dimension[0], src.info[i].dimension[0]);
     EXPECT_EQ (dest.info[i].dimension[1], src.info[i].dimension[1]);
@@ -615,7 +615,7 @@ TEST (common_tensors_info_string, dimensions)
   info.num_tensors = num_dims;
 
   str_dims = gst_tensors_info_get_dimensions_string (&info);
-  EXPECT_TRUE (g_str_equal (str_dims, "1:2:3:4"));
+  EXPECT_STREQ (str_dims, "1:2:3:4");
   g_free (str_dims);
 
   /* 4 tensors info */
@@ -625,7 +625,7 @@ TEST (common_tensors_info_string, dimensions)
   info.num_tensors = num_dims;
 
   str_dims = gst_tensors_info_get_dimensions_string (&info);
-  EXPECT_TRUE (g_str_equal (str_dims, "1:1:1:1,2:2:1:1,3:3:3:1,4:4:4:4"));
+  EXPECT_STREQ (str_dims, "1:1:1:1,2:2:1:1,3:3:3:1,4:4:4:4");
   g_free (str_dims);
 
   /* max */
@@ -652,7 +652,7 @@ TEST (common_tensors_info_string, types)
   info.num_tensors = num_types;
 
   str_types = gst_tensors_info_get_types_string (&info);
-  EXPECT_TRUE (g_str_equal (str_types, "uint16"));
+  EXPECT_STREQ (str_types, "uint16");
   g_free (str_types);
 
   /* 4 tensors info */
@@ -663,7 +663,7 @@ TEST (common_tensors_info_string, types)
   info.num_tensors = num_types;
 
   str_types = gst_tensors_info_get_types_string (&info);
-  EXPECT_TRUE (g_str_equal (str_types, "int8,int16,int32,int64"));
+  EXPECT_STREQ (str_types, "int8,int16,int32,int64");
   g_free (str_types);
 
   /* max */
@@ -691,7 +691,7 @@ TEST (common_tensors_info_string, names)
   info.num_tensors = num_names;
 
   str_names = gst_tensors_info_get_names_string (&info);
-  EXPECT_TRUE (g_str_equal (str_names, "t1"));
+  EXPECT_STREQ (str_names, "t1");
   g_free (str_names);
 
   /* 4 tensors info */
@@ -702,7 +702,7 @@ TEST (common_tensors_info_string, names)
   info.num_tensors = num_names;
 
   str_names = gst_tensors_info_get_names_string (&info);
-  EXPECT_TRUE (g_str_equal (str_names, "tensor1,tensor2,tensor3,tensor4"));
+  EXPECT_STREQ (str_names, "tensor1,tensor2,tensor3,tensor4");
   g_free (str_names);
 
   /* empty name string */
@@ -715,7 +715,7 @@ TEST (common_tensors_info_string, names)
   }
 
   str_names = gst_tensors_info_get_names_string (&info);
-  EXPECT_TRUE (g_str_equal (str_names, ",,"));
+  EXPECT_STREQ (str_names, ",,");
   g_free (str_names);
 
   /* max */
@@ -737,19 +737,19 @@ TEST (common_string_util, replace_str_01)
 
   result = replace_string (result, "sourceelement", "src", NULL, &changed);
   EXPECT_EQ (changed, 1U);
-  EXPECT_TRUE (g_str_equal (result, "src ! parser ! converter ! format ! converter ! format ! converter ! sink"));
+  EXPECT_STREQ (result, "src ! parser ! converter ! format ! converter ! format ! converter ! sink");
 
   result = replace_string (result, "format", "fmt", NULL, &changed);
   EXPECT_EQ (changed, 2U);
-  EXPECT_TRUE (g_str_equal (result, "src ! parser ! converter ! fmt ! converter ! fmt ! converter ! sink"));
+  EXPECT_STREQ (result, "src ! parser ! converter ! fmt ! converter ! fmt ! converter ! sink");
 
   result = replace_string (result, "converter", "conv", NULL, &changed);
   EXPECT_EQ (changed, 3U);
-  EXPECT_TRUE (g_str_equal (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink"));
+  EXPECT_STREQ (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink");
 
   result = replace_string (result, "invalidname", "invalid", NULL, &changed);
   EXPECT_EQ (changed, 0U);
-  EXPECT_TRUE (g_str_equal (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink"));
+  EXPECT_STREQ (result, "src ! parser ! conv ! fmt ! conv ! fmt ! conv ! sink");
 
   g_free (result);
 }
@@ -766,19 +766,19 @@ TEST (common_string_util, replace_str_02)
 
   result = replace_string (result, "source", "src", " !", &changed);
   EXPECT_EQ (changed, 4U);
-  EXPECT_TRUE (g_str_equal (result, "src! parser ! sources ! mysource ! src ! format !src! conv src"));
+  EXPECT_STREQ (result, "src! parser ! sources ! mysource ! src ! format !src! conv src");
 
   result = replace_string (result, "src", "mysource", "! ", &changed);
   EXPECT_EQ (changed, 4U);
-  EXPECT_TRUE (g_str_equal (result, "mysource! parser ! sources ! mysource ! mysource ! format !mysource! conv mysource"));
+  EXPECT_STREQ (result, "mysource! parser ! sources ! mysource ! mysource ! format !mysource! conv mysource");
 
   result = replace_string (result, "source", "src", NULL, &changed);
   EXPECT_EQ (changed, 6U);
-  EXPECT_TRUE (g_str_equal (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc"));
+  EXPECT_STREQ (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc");
 
   result = replace_string (result, "mysrc", "src", ";", &changed);
   EXPECT_EQ (changed, 0U);
-  EXPECT_TRUE (g_str_equal (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc"));
+  EXPECT_STREQ (result, "mysrc! parser ! srcs ! mysrc ! mysrc ! format !mysrc! conv mysrc");
 
   g_free (result);
 }

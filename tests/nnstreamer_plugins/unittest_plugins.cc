@@ -135,7 +135,7 @@
   filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter"); \
   EXPECT_NE (filter, nullptr); \
   g_object_get (filter, "framework", &prop_string, NULL); \
-  EXPECT_TRUE (g_str_equal (prop_string, #fw_name)); \
+  EXPECT_STREQ (prop_string, #fw_name); \
   \
   g_free (prop_string); \
   g_free (test_model); \
@@ -162,7 +162,7 @@
       filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter"); \
       EXPECT_NE (filter, nullptr); \
       g_object_get (filter, "framework", &prop_string, NULL); \
-      EXPECT_TRUE (g_str_equal (prop_string, fw_name)); \
+      EXPECT_STREQ (prop_string, fw_name); \
       gst_object_unref (filter); \
     } \
     gst_element_set_state (gstpipe, GST_STATE_PLAYING); \
@@ -2992,11 +2992,11 @@ TEST (test_tensor_filter, reopen_tflite_01_p)
 
   /* get properties */
   gst_harness_get (h, "tensor_filter", "framework", &prop_string, NULL);
-  EXPECT_TRUE (g_str_equal (prop_string, "tensorflow-lite"));
+  EXPECT_STREQ (prop_string, "tensorflow-lite");
   g_free (prop_string);
 
   gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
-  EXPECT_TRUE (g_str_equal (prop_string, test_model));
+  EXPECT_STREQ (prop_string, test_model);
   g_free (prop_string);
 
   /* push buffer (dummy input RGB 224x224, output 1001) */
@@ -3116,11 +3116,11 @@ TEST (test_tensor_filter, reload_tflite_set_property)
 
   /* get properties */
   gst_harness_get (h, "tensor_filter", "framework", &prop_string, NULL);
-  EXPECT_TRUE (g_str_equal (prop_string, "tensorflow-lite"));
+  EXPECT_STREQ (prop_string, "tensorflow-lite");
   g_free (prop_string);
 
   gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
-  EXPECT_TRUE (g_str_equal (prop_string, test_model));
+  EXPECT_STREQ (prop_string, test_model);
   g_free (prop_string);
 
   gst_harness_get (h, "tensor_filter", "is-updatable", &prop_updatable, NULL);
@@ -3146,7 +3146,7 @@ TEST (test_tensor_filter, reload_tflite_set_property)
   gst_harness_set (h, "tensor_filter", "model", test_model2, NULL);
 
   gst_harness_get (h, "tensor_filter", "model", &prop_string, NULL);
-  EXPECT_TRUE (g_str_equal (prop_string, test_model2));
+  EXPECT_STREQ (prop_string, test_model2);
   g_free (prop_string);
 
   /* push buffer again */

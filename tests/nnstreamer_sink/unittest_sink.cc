@@ -1128,7 +1128,7 @@ TEST (tensor_sink_test, signals)
   EXPECT_EQ (g_test_data.end, TRUE);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1225,7 +1225,7 @@ TEST (tensor_sink_test, signal_rate)
   EXPECT_TRUE (g_test_data.received < num_buffers);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1321,7 +1321,7 @@ TEST (tensor_sink_test, caps_tensors)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1387,7 +1387,7 @@ TEST (tensor_stream_test, video_rgb)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1431,7 +1431,7 @@ TEST (tensor_stream_test, video_bgr)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1475,7 +1475,7 @@ TEST (tensor_stream_test, video_rgb_padding)
   EXPECT_EQ (g_test_data.received_size, 3U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1519,7 +1519,7 @@ TEST (tensor_stream_test, video_bgr_padding)
   EXPECT_EQ (g_test_data.received_size, 3U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1563,7 +1563,7 @@ TEST (tensor_stream_test, video_rgb_3f)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 * 3);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1607,7 +1607,7 @@ TEST (tensor_stream_test, video_rgba)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1651,7 +1651,7 @@ TEST (tensor_stream_test, video_bgra)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1695,7 +1695,7 @@ TEST (tensor_stream_test, video_argb)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1739,7 +1739,7 @@ TEST (tensor_stream_test, video_abgr)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1783,7 +1783,7 @@ TEST (tensor_stream_test, video_rgbx)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1827,7 +1827,7 @@ TEST (tensor_stream_test, video_xrgb)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1871,7 +1871,7 @@ TEST (tensor_stream_test, video_xbgr)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1915,7 +1915,7 @@ TEST (tensor_stream_test, video_bgrx)
   EXPECT_EQ (g_test_data.received_size, 4U * 162 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1959,7 +1959,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
   EXPECT_EQ (g_test_data.received_size, 4U * 160 * 120 * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2003,7 +2003,7 @@ TEST (tensor_stream_test, video_gray8)
   EXPECT_EQ (g_test_data.received_size, 160U * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2047,7 +2047,7 @@ TEST (tensor_stream_test, video_gray8_padding)
   EXPECT_EQ (g_test_data.received_size, 162U * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2091,7 +2091,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
   EXPECT_EQ (g_test_data.received_size, 162U * 120 * 3);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2135,7 +2135,7 @@ TEST (tensor_stream_test, audio_s8)
   EXPECT_EQ (g_test_data.received_size, 500U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2179,7 +2179,7 @@ TEST (tensor_stream_test, audio_u8_100f)
   EXPECT_EQ (g_test_data.received_size, 100U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2223,7 +2223,7 @@ TEST (tensor_stream_test, audio_s16)
   EXPECT_EQ (g_test_data.received_size, 500U * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2267,7 +2267,7 @@ TEST (tensor_stream_test, audio_u16_1000f)
   EXPECT_EQ (g_test_data.received_size, 500U * 2 * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2311,7 +2311,7 @@ TEST (tensor_stream_test, audio_s32)
   EXPECT_EQ (g_test_data.received_size, 500U * 4);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2355,7 +2355,7 @@ TEST (tensor_stream_test, audio_u32)
   EXPECT_EQ (g_test_data.received_size, 500U * 4);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2399,7 +2399,7 @@ TEST (tensor_stream_test, audio_f32)
   EXPECT_EQ (g_test_data.received_size, 500U * 4);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2443,7 +2443,7 @@ TEST (tensor_stream_test, audio_f64)
   EXPECT_EQ (g_test_data.received_size, 500U * 8);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2493,7 +2493,7 @@ TEST (tensor_stream_test, text_utf8)
   EXPECT_EQ (g_test_data.received_size, 20U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2570,7 +2570,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   EXPECT_EQ (g_test_data.received_size, 30U * 3);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2620,7 +2620,7 @@ TEST (tensor_stream_test, octet_current_ts)
   EXPECT_EQ (g_test_data.received_size, 10U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2670,7 +2670,7 @@ TEST (tensor_stream_test, octet_framerate_ts)
   EXPECT_EQ (g_test_data.received_size, 10U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2747,7 +2747,7 @@ TEST (tensor_stream_test, octet_valid_ts)
   EXPECT_EQ (g_test_data.received_size, 10U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2824,7 +2824,7 @@ TEST (tensor_stream_test, octet_invalid_ts)
   EXPECT_EQ (g_test_data.received_size, 10U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check invalid timestamp */
   EXPECT_TRUE (g_test_data.invalid_timestamp);
@@ -2901,7 +2901,7 @@ TEST (tensor_stream_test, octet_2f)
   EXPECT_EQ (g_test_data.received_size, 5U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -2945,7 +2945,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3006,7 +3006,7 @@ TEST (tensor_stream_test, custom_filter_tensors)
   EXPECT_EQ (g_test_data.received_size, 95616U); /** 160 * 120 * 3 + 120 * 80 * 3 + 64 * 48 * 3 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3082,7 +3082,7 @@ TEST (tensor_stream_test, custom_filter_multi)
   EXPECT_EQ (g_test_data.received_size, 1012800U); /** 160 * 120 * 3 + 280 * 40 * 3 + 640 * 480 * 3 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensors"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3139,7 +3139,7 @@ TEST (tensor_stream_test, filter_properties_1)
 
   /* framework */
   g_object_get (filter, "framework", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "custom"));
+  EXPECT_STREQ (str, "custom");
   g_free (str);
 
   /* model */
@@ -3153,22 +3153,22 @@ TEST (tensor_stream_test, filter_properties_1)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* inputlayout */
@@ -3191,32 +3191,32 @@ TEST (tensor_stream_test, filter_properties_1)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1"));
+  EXPECT_STREQ (str, "3:160:120:1");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8"));
+  EXPECT_STREQ (str, "uint8");
   g_free (str);
 
   /* inputname */
   g_object_get (filter, "inputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1"));
+  EXPECT_STREQ (str, "3:160:120:1");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8"));
+  EXPECT_STREQ (str, "uint8");
   g_free (str);
 
   /* outputname */
   g_object_get (filter, "outputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* inputlayout */
@@ -3259,7 +3259,7 @@ TEST (tensor_stream_test, filter_properties_2)
 
   /* framework */
   g_object_get (filter, "framework", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "custom"));
+  EXPECT_STREQ (str, "custom");
   g_free (str);
 
   /* model */
@@ -3273,22 +3273,22 @@ TEST (tensor_stream_test, filter_properties_2)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ""));
+  EXPECT_STREQ (str, "");
   g_free (str);
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
@@ -3301,32 +3301,32 @@ TEST (tensor_stream_test, filter_properties_2)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* inputname */
   g_object_get (filter, "inputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* outputname */
   g_object_get (filter, "outputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* inputlayout */
@@ -3369,7 +3369,7 @@ TEST (tensor_stream_test, filter_properties_3)
 
   /* framework */
   g_object_get (filter, "framework", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "custom"));
+  EXPECT_STREQ (str, "custom");
   g_free (str);
 
   /* model */
@@ -3388,32 +3388,32 @@ TEST (tensor_stream_test, filter_properties_3)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* inputname */
   g_object_get (filter, "inputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* outputname */
   g_object_get (filter, "outputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* inputlayout */
@@ -3437,32 +3437,32 @@ TEST (tensor_stream_test, filter_properties_3)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* inputtype */
   g_object_get (filter, "inputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* inputname */
   g_object_get (filter, "inputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
+  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
   g_free (str);
 
   /* outputtype */
   g_object_get (filter, "outputtype", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, "uint8,uint8,uint8"));
+  EXPECT_STREQ (str, "uint8,uint8,uint8");
   g_free (str);
 
   /* outputname */
   g_object_get (filter, "outputname", &str, NULL);
-  EXPECT_TRUE (g_str_equal (str, ",,"));
+  EXPECT_STREQ (str, ",,");
   g_free (str);
 
   /* inputlayout */
@@ -3505,7 +3505,7 @@ TEST (tensor_stream_test, custom_filter_drop_buffer)
   EXPECT_EQ (g_test_data.received_size, 200U * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3592,7 +3592,7 @@ TEST (tensor_stream_test, custom_filter_passthrough)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120);
 
   /* check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /* check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3661,7 +3661,7 @@ TEST (tensor_stream_test, tensors_mix)
   EXPECT_EQ (g_test_data.received_size, 500U * 2);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3727,7 +3727,7 @@ TEST (tensor_stream_test, demux_properties_1)
 
   /* tensorpick */
   g_object_get (demux, "tensorpick", &pick, NULL);
-  EXPECT_TRUE (g_str_equal (pick, "0,2"));
+  EXPECT_STREQ (pick, "0,2");
   g_free (pick);
 
   gst_object_unref (demux);
@@ -3744,7 +3744,7 @@ TEST (tensor_stream_test, demux_properties_1)
   EXPECT_EQ (g_test_data.received_size, 3U * 64 * 48);
 
   /* check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /* check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3793,7 +3793,7 @@ TEST (tensor_stream_test, demux_properties_2)
 
   /* tensorpick */
   g_object_get (demux, "tensorpick", &pick, NULL);
-  EXPECT_TRUE (g_str_equal (pick, "1,2"));
+  EXPECT_STREQ (pick, "1,2");
   g_free (pick);
 
   gst_object_unref (demux);
@@ -3810,7 +3810,7 @@ TEST (tensor_stream_test, demux_properties_2)
   EXPECT_EQ (g_test_data.received_size, 500U * 2);
 
   /* check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /* check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3862,7 +3862,7 @@ TEST (tensor_stream_test, typecast_int32)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3914,7 +3914,7 @@ TEST (tensor_stream_test, typecast_uint32)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -3966,7 +3966,7 @@ TEST (tensor_stream_test, typecast_int16)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4018,7 +4018,7 @@ TEST (tensor_stream_test, typecast_uint16)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4070,7 +4070,7 @@ TEST (tensor_stream_test, typecast_float64)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4122,7 +4122,7 @@ TEST (tensor_stream_test, typecast_float32)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4174,7 +4174,7 @@ TEST (tensor_stream_test, typecast_int64)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4226,7 +4226,7 @@ TEST (tensor_stream_test, typecast_uint64)
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4290,7 +4290,7 @@ TEST (tensor_stream_test, video_split)
   EXPECT_EQ (g_test_data.received_size, 160U * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4334,7 +4334,7 @@ TEST (tensor_stream_test, video_aggregate_1)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 * 10);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4378,7 +4378,7 @@ TEST (tensor_stream_test, video_aggregate_2)
   EXPECT_EQ (g_test_data.received_size, 3U * 1600 * 120);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4422,7 +4422,7 @@ TEST (tensor_stream_test, video_aggregate_3)
   EXPECT_EQ (g_test_data.received_size, 3U * 64 * 48 * 8);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4466,7 +4466,7 @@ TEST (tensor_stream_test, audio_aggregate_s16)
   EXPECT_EQ (g_test_data.received_size, 500U * 2 * 4);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4510,7 +4510,7 @@ TEST (tensor_stream_test, audio_aggregate_u16)
   EXPECT_EQ (g_test_data.received_size, 500U * 2 / 5);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4558,7 +4558,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4625,7 +4625,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4693,7 +4693,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4778,7 +4778,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4845,7 +4845,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -4913,7 +4913,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
   EXPECT_EQ (g_test_data.received_size, 4U);    /* uint32_t, 1:1:1:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -5027,7 +5027,7 @@ TEST (tensor_stream_test, tensor_decoder_property)
   EXPECT_EQ (g_test_data.received_size, 64U);   /* uint8_t, 4:4:4:1 */
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -5096,7 +5096,7 @@ TEST (tensor_filter_custom_easy, in_code_func_01)
   EXPECT_EQ (g_test_data.received_size, 10U);
 
   /** check caps name */
-  EXPECT_TRUE (g_str_equal (g_test_data.caps_name, "other/tensor"));
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
