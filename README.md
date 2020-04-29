@@ -5,7 +5,7 @@
 <a href="https://scan.coverity.com/projects/nnsuite-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://img.shields.io/endpoint?url=https://nnsuite.mooo.com/nnstreamer/ci/badge/badge_coverity.json" />
 </a> 
-[![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/daily_build_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)
+[![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/daily_build_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)
 ![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
 ![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
@@ -28,12 +28,12 @@ neural network developers to manage neural network pipelines and their filters e
 ## Official Releases
 
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
-| :-- | -- | -- | -- | -- | -- | -- |
+| :-- | :--: | :--: | :--: | :--: | :--: | :--: |
 |     | 5.5M2 and later | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
-| arm | Available [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
-| arm64 | Available [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Planned | N/A |
-| x64 | Available  | Available  | Ready  | Ready | Ready | Available |
-| x86 | Available  | N/A  | N/A  | N/A  | N/A | N/A |
+| arm | [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
+| arm64 |  [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Planned | N/A |
+| x64 | [![x64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/x86_64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)  | [![ubuntu badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/ubuntu_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
+| x86 | [![x86 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/i586_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)  | N/A  | N/A  | N/A  | N/A | N/A |
 | Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
 | API | C/C# (Official) | C |    | Java | C  | C  |
 
