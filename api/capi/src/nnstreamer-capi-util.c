@@ -324,7 +324,7 @@ ml_tensors_info_get_tensor_name (ml_tensors_info_h info,
   if (tensors_info->num_tensors <= index)
     return ML_ERROR_INVALID_PARAMETER;
 
-  *name = tensors_info->info[index].name;
+  *name = g_strdup (tensors_info->info[index].name);
 
   return ML_ERROR_NONE;
 }
