@@ -272,6 +272,7 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
   /** property-related init */
   gobject_class->set_property = gst_amc_src_set_property;
   gobject_class->get_property = gst_amc_src_get_property;
+  gobject_class->finalize = gst_amc_src_finalize;
 
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "File Location",
