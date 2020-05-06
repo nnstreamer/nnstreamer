@@ -736,7 +736,7 @@ new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
  */
 TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
 {
-  gchar *pipeline;
+  gchar *pipeline, *test_model;
   ml_pipeline_h handle;
   ml_pipeline_src_h src_handle;
   ml_pipeline_sink_h sink_handle;
@@ -746,9 +746,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   ml_tensors_data_h input;
   float *data;
   size_t data_size;
-
-  gchar *test_model;
-  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  guint *sink_called_cnt = NULL;
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -766,6 +764,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   status = ml_pipeline_src_get_handle (handle, "appsrc", &src_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   /* register call back function when new data is arrived on sink pad */
+  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+
   status =
       ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb, sink_called_cnt,
       &sink_handle);
@@ -1009,6 +1009,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   float *data0, *data1;
   size_t data_size0, data_size1;
   unsigned int ret;
+  guint *sink_called_cnt = NULL;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   const gchar *orig_model = "add.tflite";
@@ -1016,7 +1017,6 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   gchar *model_file, *manifest_file;
   char *replace_command;
 
-  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -1057,7 +1057,10 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_pipeline_src_get_handle (handle, "appsrc_1", &src_handle_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* register call back function when new data is arrived on sink pad */
+  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+
   status =
       ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb_2, sink_called_cnt,
       &sink_handle);
@@ -1137,7 +1140,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
  */
 TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
 {
-  gchar *pipeline;
+  gchar *pipeline, *test_model;
   ml_pipeline_h handle;
   ml_pipeline_src_h src_handle;
   ml_pipeline_sink_h sink_handle_0, sink_handle_1;
@@ -1147,9 +1150,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   ml_tensors_data_h input;
   float *data;
   size_t data_size;
-
-  gchar *test_model;
-  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  guint *sink_called_cnt = NULL;
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -1169,6 +1170,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* register call back function when new data is arrived on sink pad */
+  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+
   status =
       ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
       &sink_handle_0);
@@ -1234,7 +1237,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
  */
 TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
 {
-  gchar *pipeline;
+  gchar *pipeline, *test_model;
   ml_pipeline_h handle;
   ml_pipeline_src_h src_handle;
   ml_pipeline_sink_h sink_handle_0, sink_handle_1;
@@ -1244,9 +1247,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   ml_tensors_data_h input;
   float *data;
   size_t data_size;
-
-  gchar *test_model;
-  guint *sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  guint *sink_called_cnt = NULL;
 
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
@@ -1266,6 +1267,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* register call back function when new data is arrived on sink pad */
+  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+
   status =
       ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
       &sink_handle_0);
