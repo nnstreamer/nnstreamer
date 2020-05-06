@@ -196,7 +196,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
   g_assert (max_index < data->labels.total_labels);
 
   /** @todo With option-2, allow to change output format */
-  str = g_strdup_printf ("%s", data->labels.labels[max_index]);
+  str = data->labels.labels[max_index];
   size = strlen (str);
 
   /* Ensure we have outbuf properly allocated */
@@ -208,6 +208,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
+
   if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-imagelabel.\n");
     return GST_FLOW_ERROR;
@@ -219,8 +220,6 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
-
-  g_free (str);
 
   return GST_FLOW_OK;
 }
