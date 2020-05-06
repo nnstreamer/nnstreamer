@@ -4989,6 +4989,113 @@ skip_test:
 }
 
 /**
+ * @brief Test for internal function 'ml_validate_model_file'.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_internal, validate_model_file_01_n)
+{
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
+      NNSTREAMER_SO_FILE_EXTENSION;
+  int status;
+  ml_nnfw_type_e nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_passthrough", cf_name, NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_validate_model_file (NULL, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_validate_model_file (&test_model, 0, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_validate_model_file (&test_model, 1, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test for internal function 'ml_validate_model_file'.
+ * @detail Invalid file extension.
+ */
+TEST (nnstreamer_capi_internal, validate_model_file_02_n)
+{
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
+      NNSTREAMER_SO_FILE_EXTENSION;
+  int status;
+  ml_nnfw_type_e nnfw;
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  gchar *test_model1, *test_model2;
+  gchar *test_models[2];
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model1 = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_passthrough", cf_name, NULL);
+  test_model2 = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model1, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE (g_file_test (test_model2, G_FILE_TEST_EXISTS));
+
+  test_models[0] = test_model1;
+  test_models[1] = test_model2;
+
+  nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
+  status = ml_validate_model_file (&test_model2, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_TENSORFLOW;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_NNFW;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  /* snap only for android */
+  nnfw = ML_NNFW_TYPE_SNAP;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_VIVANTE;
+  status = ml_validate_model_file (test_models, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  /** @todo currently mvnc, openvino and edgetpu always return failure */
+  nnfw = ML_NNFW_TYPE_MVNC;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_OPENVINO;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_EDGE_TPU;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_ARMNN;
+  status = ml_validate_model_file (&test_model1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  g_free (test_model1);
+  g_free (test_model2);
+}
+
+/**
  * @brief Main gtest
  */
 int
