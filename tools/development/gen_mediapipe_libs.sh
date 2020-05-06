@@ -5,16 +5,16 @@ NM=$(which nm)
 
 # check the MEDIAPIPE_HOME
 if [[ -z "${MEDIAPIPE_HOME}" ]]; then
-  echo "Define MEDIAPIPE_HOME First!"
+  >&2 echo "Define MEDIAPIPE_HOME First!"
   exit 1
 fi
 
+# make directories for libs if it is not
 if [ -z "$1" ] || [ ! -d "$1" ]; then
-  echo "[$1] is not existed!"
-  exit 1
+  mkdir -p $1
 fi
 
-# `for the external objects
+# for the external objects
 for ext_obj in $(find ${MEDIAPIPE_HOME}/bazel-bin/external/ -name '*.o' ); do
   ext_obj_arr+=($ext_obj)
 done
