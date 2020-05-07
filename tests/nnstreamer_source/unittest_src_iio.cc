@@ -827,17 +827,21 @@ TEST (test_tensor_src_iio, properties)
   /** operating mode test */
   g_object_get (src_iio, "mode", &ret_mode, NULL);
   EXPECT_STREQ (ret_mode, mode[1]);
+  g_free (ret_mode);
   g_object_set (src_iio, "mode", mode[0], NULL);
   g_object_get (src_iio, "mode", &ret_mode, NULL);
   EXPECT_STREQ (ret_mode, mode[0]);
+  g_free (ret_mode);
   g_object_set (src_iio, "mode", mode[1], NULL);
   g_object_get (src_iio, "mode", &ret_mode, NULL);
   EXPECT_STREQ (ret_mode, mode[1]);
+  g_free (ret_mode);
 
   /** setting device test */
   g_object_set (src_iio, "device", DEVICE_NAME, NULL);
   g_object_get (src_iio, "device", &ret_device, NULL);
   EXPECT_STREQ (ret_device, DEVICE_NAME);
+  g_free (ret_device);
 
   /** setting device num test */
   number = 5;
@@ -849,6 +853,7 @@ TEST (test_tensor_src_iio, properties)
   g_object_set (src_iio, "trigger", TRIGGER_NAME, NULL);
   g_object_get (src_iio, "trigger", &ret_trigger, NULL);
   EXPECT_STREQ (ret_trigger, TRIGGER_NAME);
+  g_free (ret_trigger);
 
   /** setting trigger num test */
   number = 5;
@@ -859,12 +864,15 @@ TEST (test_tensor_src_iio, properties)
   /** setting channels test */
   g_object_get (src_iio, "channels", &ret_channels, NULL);
   EXPECT_STREQ (ret_channels, channels[0]);
+  g_free (ret_channels);
   g_object_set (src_iio, "channels", channels[1], NULL);
   g_object_get (src_iio, "channels", &ret_channels, NULL);
   EXPECT_STREQ (ret_channels, channels[1]);
+  g_free (ret_channels);
   g_object_set (src_iio, "channels", channels[0], NULL);
   g_object_get (src_iio, "channels", &ret_channels, NULL);
   EXPECT_STREQ (ret_channels, channels[0]);
+  g_free (ret_channels);
 
   /** buffer_capacity test */
   g_object_get (src_iio, "buffer-capacity", &ret_buffer_capacity, NULL);
@@ -899,6 +907,7 @@ TEST (test_tensor_src_iio, properties)
   EXPECT_EQ (ret_poll_timeout, poll_timeout);
 
   /** teardown */
+  gst_object_unref (src_iio);
   gst_harness_teardown (hrnss);
 }
 
@@ -1022,6 +1031,7 @@ TEST (test_tensor_src_iio, start_stop)
   EXPECT_EQ (state, GST_STATE_NULL);
 
   /** teardown */
+  gst_object_unref (src_iio);
   gst_harness_teardown (hrnss);
 
   /** delete device structure */
@@ -1068,6 +1078,7 @@ TEST (test_tensor_src_iio, \
       "%s iio-base-dir=%s dev-dir=%s device=%s silent=FALSE ! multifilesink location=%s", \
       ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, DEVICE_NAME, dev0->log_file); \
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL); \
+  g_free (parse_launch); \
   /** state transition test upwards */ \
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING); \
   EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC); \
@@ -1280,6 +1291,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
       "name=my-src-iio ! multifilesink location=%s",
       ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, TRIGGER_NAME, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
   /** state transition test upwards */
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
   EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
@@ -1371,6 +1383,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
       "name=my-src-iio ! multifilesink location=%s",
       ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, TRIGGER_NAME, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
   /** state transition test upwards */
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
   EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
@@ -1469,6 +1482,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
       "merge-channels-data=False name=my-src-iio ! multifilesink location=%s",
       ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, 0, samp_freq, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
 
   /** move channel specific type for channel 1 to generic */
   ASSERT_EQ (g_rename (dev0->scan_el_type[1], dev0->scan_el_type_generic), 0);
@@ -1654,6 +1668,9 @@ TEST (test_tensor_src_iio, unusual_cases)
   EXPECT_STREQ (ret_channels, "1,3,5");
   g_free (ret_channels);
 
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+
   /** delete device structure */
   gst_object_unref (src_iio);
   gst_object_unref (src_iio_pipeline);
@@ -1703,6 +1720,9 @@ TEST (test_tensor_src_iio, set_frequency_n)
   status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
   EXPECT_NE (status, GST_STATE_CHANGE_ASYNC);
 
+  status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL);
+  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+
   /** delete device structure */
   gst_object_unref (src_iio);
   gst_object_unref (src_iio_pipeline);
@@ -1738,6 +1758,7 @@ TEST (test_tensor_src_iio, set_base_dir_n)
   EXPECT_NE (status, GST_STATE_CHANGE_NO_PREROLL);
 
   /** teardown */
+  gst_object_unref (src_iio);
   gst_harness_teardown (hrnss);
 }
 
