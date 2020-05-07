@@ -253,8 +253,15 @@ NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 Summary:	Tizen Native API Devel Kit for NNStreamer
 Group:		Multimedia/Framework
 Requires:	capi-nnstreamer = %{version}-%{release}
+Requires:	capi-ml-common-devel
 %description -n capi-nnstreamer-devel
 Developmental kit for Tizen Native NNStreamer API.
+
+%package -n capi-ml-common-devel
+Summary:	Common headers for Tizen Machine Learning API set.
+Group:		Multimedia/Framework
+%description -n capi-ml-common-devel
+Common headers for Tizen Machine Learning API set.
 
 %package -n nnstreamer-tizen-internal-capi-devel
 Summary:	Tizen internal API to construct the pipeline
@@ -573,6 +580,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 %{_libdir}/libcapi-nnstreamer.a
+
+%files -n capi-ml-common-devel
+%{_includedir}/nnstreamer/ml-api-common.h
 
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
