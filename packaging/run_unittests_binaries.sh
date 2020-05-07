@@ -9,7 +9,6 @@
 input=$1
 
 pushd build
-export GST_PLUGIN_PATH=$(pwd)/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
