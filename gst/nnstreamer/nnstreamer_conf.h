@@ -28,7 +28,7 @@
  * - The configuration file (default: /etc/nnstreamer.ini)
  * - (Lowest) Internal hardcoded values.
  *
- * Do not export this to devel pacakge. This is an internal header.
+ * Do not export this to devel package. This is an internal header.
  */
 #ifndef __GST_NNSTREAMER_CONF_H__
 #define __GST_NNSTREAMER_CONF_H__
@@ -126,6 +126,8 @@ nnsconf_get_subplugin_name_prefix (nnsconf_type_path type);
 
 /**
  * @brief Public function to get the list of sub-plugins name and path
+ * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
+ * @param[out] info The data structure which contains the name and full path of sub-plugins
  * @return total number of sub-plugins for given type
  * @note DO NOT free sub-plugins info
  */
