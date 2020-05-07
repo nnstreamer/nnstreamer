@@ -93,21 +93,22 @@ typedef enum
 /** ML single api data structure for handle */
 typedef struct
 {
-  GTensorFilterSingle *filter;  /**< tensor filter element */
-  ml_tensors_info_s in_info;    /**< info about input */
-  ml_tensors_info_s out_info;   /**< info about output */
-  ml_nnfw_type_e nnfw;          /**< nnfw type for this filter */
-  guint magic;                  /**< code to verify valid handle */
+  GTensorFilterSingleClass *klass;    /**< tensor filter class structure*/
+  GTensorFilterSingle *filter;        /**< tensor filter element */
+  ml_tensors_info_s in_info;          /**< info about input */
+  ml_tensors_info_s out_info;         /**< info about output */
+  ml_nnfw_type_e nnfw;                /**< nnfw type for this filter */
+  guint magic;                        /**< code to verify valid handle */
 
-  GThread *thread;              /**< thread for invoking */
-  GMutex mutex;                 /**< mutex for synchronization */
-  GCond cond;                   /**< condition for synchronization */
-  ml_tensors_data_h input;      /**< input received from user */
-  ml_tensors_data_h *output;    /**< output to be sent back to user */
-  guint timeout;                /**< timeout for invoking */
-  thread_state state;           /**< current state of the thread */
-  gboolean ignore_output;       /**< ignore and free the output */
-  int status;                   /**< status of processing */
+  GThread *thread;                    /**< thread for invoking */
+  GMutex mutex;                       /**< mutex for synchronization */
+  GCond cond;                         /**< condition for synchronization */
+  ml_tensors_data_h input;            /**< input received from user */
+  ml_tensors_data_h *output;          /**< output to be sent back to user */
+  guint timeout;                      /**< timeout for invoking */
+  thread_state state;                 /**< current state of the thread */
+  gboolean ignore_output;             /**< ignore and free the output */
+  int status;                         /**< status of processing */
 } ml_single;
 
 /**
@@ -117,7 +118,6 @@ static void *
 invoke_thread (void *arg)
 {
   ml_single *single_h;
-  GTensorFilterSingleClass *klass;
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   ml_tensors_data_s *in_data, *out_data;
@@ -127,14 +127,6 @@ invoke_thread (void *arg)
   single_h = (ml_single *) arg;
 
   g_mutex_lock (&single_h->mutex);
-
-  /** get the tensor_filter element */
-  klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-  if (!klass) {
-    single_h->state = ERROR;
-    single_h->status = ML_ERROR_STREAMS_PIPE;
-    goto exit;
-  }
 
   while (single_h->state <= RUNNING) {
 
@@ -165,7 +157,7 @@ invoke_thread (void *arg)
     g_mutex_unlock (&single_h->mutex);
 
     /** invoke the thread */
-    if (klass->invoke (single_h->filter, in_tensors, out_tensors) == FALSE) {
+    if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
       status = ML_ERROR_STREAMS_PIPE;
       g_mutex_lock (&single_h->mutex);
       goto wait_for_next;
@@ -244,36 +236,6 @@ ml_single_update_info (ml_single_h single,
 }
 
 /**
- * @brief Internal function to start the filter.
- */
-static gboolean
-ml_single_start (ml_single * single_h)
-{
-  GTensorFilterSingleClass *klass;
-
-  klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-  if (!klass || !single_h)
-    return FALSE;
-
-  return klass->start (single_h->filter);
-}
-
-/**
- * @brief Internal function to stop the filter.
- */
-static gboolean
-ml_single_stop (ml_single * single_h)
-{
-  GTensorFilterSingleClass *klass;
-
-  klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-  if (!klass || !single_h)
-    return FALSE;
-
-  return klass->stop (single_h->filter);
-}
-
-/**
  * @brief Internal function to get the gst info from tensor-filter.
  */
 static void
@@ -329,7 +291,6 @@ ml_single_get_gst_info (ml_single * single_h, gboolean is_input,
 static int
 ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
 {
-  GTensorFilterSingleClass *klass;
   GstTensorsInfo gst_in_info, gst_out_info;
   int status = ML_ERROR_NONE;
 
@@ -338,10 +299,8 @@ ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
     case ML_NNFW_TYPE_CUSTOM_FILTER:
       ml_tensors_info_copy_from_ml (&gst_in_info, info);
 
-      klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-      if (klass == NULL
-          || klass->set_input_info (single_h->filter, &gst_in_info,
-              &gst_out_info) == FALSE) {
+      if (!single_h->klass->set_input_info (single_h->filter, &gst_in_info,
+              &gst_out_info)) {
         status = ML_ERROR_INVALID_PARAMETER;
         goto exit;
       }
@@ -416,22 +375,17 @@ ml_single_set_info_in_handle (ml_single_h single, gboolean is_input,
   ml_tensors_info_s *dest;
   gboolean configured = FALSE;
   gboolean is_valid = FALSE;
-  GTensorFilterSingleClass *klass;
   GObject *filter_obj;
 
   single_h = (ml_single *) single;
   filter_obj = G_OBJECT (single_h->filter);
-  klass = g_type_class_peek (G_TYPE_TENSOR_FILTER_SINGLE);
-  if (!klass) {
-    return FALSE;
-  }
 
   if (is_input) {
     dest = &single_h->in_info;
-    configured = klass->input_configured (single_h->filter);
+    configured = single_h->klass->input_configured (single_h->filter);
   } else {
     dest = &single_h->out_info;
-    configured = klass->output_configured (single_h->filter);
+    configured = single_h->klass->output_configured (single_h->filter);
   }
 
   if (configured) {
@@ -500,11 +454,19 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
   single_h->nnfw = nnfw;
   single_h->state = IDLE;
   single_h->ignore_output = FALSE;
+  single_h->thread = NULL;
 
   ml_tensors_info_initialize (&single_h->in_info);
   ml_tensors_info_initialize (&single_h->out_info);
   g_mutex_init (&single_h->mutex);
   g_cond_init (&single_h->cond);
+
+  single_h->klass = g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+  if (single_h->klass == NULL) {
+    ml_loge ("Failed to get class of the filter.");
+    ml_single_close (single_h);
+    return NULL;
+  }
 
   single_h->thread =
       g_thread_try_new (NULL, invoke_thread, (gpointer) single_h, &error);
@@ -664,7 +626,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   }
 
   /* 4. Start the nnfw to get inout configurations if needed */
-  if (!ml_single_start (single_h)) {
+  if (!single_h->klass->start (single_h->filter)) {
     status = ML_ERROR_STREAMS_PIPE;
     goto error;
   }
@@ -737,10 +699,16 @@ ml_single_close (ml_single_h single)
 
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
-    ml_single_stop (single_h);
+    if (single_h->klass)
+      single_h->klass->stop (single_h->filter);
 
     gst_object_unref (single_h->filter);
     single_h->filter = NULL;
+  }
+
+  if (single_h->klass) {
+    g_type_class_unref (single_h->klass);
+    single_h->klass = NULL;
   }
 
   ml_tensors_info_free (&single_h->in_info);
