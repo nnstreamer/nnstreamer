@@ -293,27 +293,21 @@ ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
 {
   GstTensorsInfo gst_in_info, gst_out_info;
   int status = ML_ERROR_NONE;
+  int ret = -EINVAL;
 
-  switch (single_h->nnfw) {
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      ml_tensors_info_copy_from_ml (&gst_in_info, info);
+  ml_tensors_info_copy_from_ml (&gst_in_info, info);
 
-      if (!single_h->klass->set_input_info (single_h->filter, &gst_in_info,
-              &gst_out_info)) {
-        status = ML_ERROR_INVALID_PARAMETER;
-        goto exit;
-      }
-
-      ml_tensors_info_copy_from_gst (&single_h->in_info, &gst_in_info);
-      ml_tensors_info_copy_from_gst (&single_h->out_info, &gst_out_info);
-      break;
-    default:
-      status = ML_ERROR_NOT_SUPPORTED;
-      break;
+  ret = single_h->klass->set_input_info (single_h->filter, &gst_in_info,
+          &gst_out_info);
+  if (ret == 0) {
+    ml_tensors_info_copy_from_gst (&single_h->in_info, &gst_in_info);
+    ml_tensors_info_copy_from_gst (&single_h->out_info, &gst_out_info);
+  } else if (ret == -ENOENT) {
+    status = ML_ERROR_NOT_SUPPORTED;
+  } else {
+    status = ML_ERROR_INVALID_PARAMETER;
   }
 
-exit:
   return status;
 }
 

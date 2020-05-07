@@ -60,7 +60,7 @@ static gboolean g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     const GstTensorMemory * input, GstTensorMemory * output);
 static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
-static gboolean g_tensor_filter_set_input_info (GTensorFilterSingle * self,
+static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
 
 /* Private functions */
@@ -308,25 +308,28 @@ error:
  * @brief Set input tensor information in the framework
  * @param self "this" pointer
  * @param in_info information on the input tensor
- * @return TRUE if there is no error.
+ * @param out_info updated information on the output tensor
+ * @return 0 for success, -errno for failure.
  */
-static gboolean
+static gint
 g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   GstTensorFilterPrivate *priv;
   gint status = -EINVAL;
-  gboolean ret = FALSE;
 
   priv = &self->priv;
   if (G_UNLIKELY (!priv->fw) || G_UNLIKELY (!priv->prop.fw_opened))
-    return FALSE;
+    return -EINVAL;
 
   gst_tensors_info_init (out_info);
   if (GST_TF_FW_V0 (priv->fw)) {
-    if (G_LIKELY (priv->fw->setInputDimension))
+    if (G_LIKELY (priv->fw->setInputDimension)) {
       status = priv->fw->setInputDimension (&priv->prop, &priv->privateData,
           in_info, out_info);
+    } else {
+      status = -ENOENT;
+    }
   } else {
     status = priv->fw->getModelInfo (priv->fw, &priv->prop, &priv->privateData,
         SET_INPUT_INFO, (GstTensorsInfo *) in_info, out_info);
@@ -335,8 +338,7 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   if (status == 0) {
     gst_tensors_info_copy (&priv->prop.input_meta, in_info);
     gst_tensors_info_copy (&priv->prop.output_meta, out_info);
-    ret = TRUE;
   }
 
-  return ret;
+  return status;
 }
