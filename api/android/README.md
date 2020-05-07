@@ -5,7 +5,7 @@
 We assume that you already have experienced Android application developments with Android Studio.
 
  * Host PC:
-   * OS: Ubuntu 16.04 x86_64 LTS
+   * OS: Ubuntu 18.04 x86_64 LTS
    * Android Studio: Ubuntu version
    * Android SDK: Min version 24 (Nougat)
    * Android NDK: Use default ndk-bundle in Android Studio
@@ -18,23 +18,23 @@ We assume that you already have experienced Android application developments wit
 First of all, you need to set-up the development environment as following:
 
 ```bash
-$ export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
+$ export ANDROID_DEV_ROOT=$HOME/myandroid           # Set your own path (default location: $HOME/Android)
 $ mkdir -p $ANDROID_DEV_ROOT/tools/sdk
 $ mkdir -p $ANDROID_DEV_ROOT/tools/ndk
 $ mkdir -p $ANDROID_DEV_ROOT/gstreamer-1.0
 $ mkdir -p $ANDROID_DEV_ROOT/workspace
 $
 $ vi ~/.bashrc
-# Environment variables for developing a NNStreamer application
+# The environment variables to develop an Android application with NNStreamer
 #
 export JAVA_HOME=/opt/android-studio/jre            # JRE path in Android Studio
-export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (The default path will be "$HOME/Android".)
-#
-# $ANDROID_DEV_ROOT/tools/sdk                    # Android SDK root directory (default location: $HOME/Android/Sdk)
-# $ANDROID_DEV_ROOT/tools/ndk                    # Android NDK root directory (default location: $HOME/Android/Sdk/ndk/<ndk-version>)
-# $ANDROID_DEV_ROOT/gstreamer-1.0                # GStreamer binaries
-# $ANDROID_DEV_ROOT/workspace/nnstreamer         # NNStreamer cloned git repository
-#
+export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (default location: "$HOME/Android".)
+
+# $ANDROID_DEV_ROOT/tools/sdk/: Android SDK root directory (default location: $HOME/Android/Sdk)
+# $ANDROID_DEV_ROOT/tools/ndk/: Android NDK root directory (default location: $HOME/Android/Sdk/ndk/<ndk-version>)
+# $ANDROID_DEV_ROOT/gstreamer-1.0/: GStreamer binaries
+# $ANDROID_DEV_ROOT/workspace/nnstreamer/: The git repository of NNStreamer
+
 export ANDROID_SDK=$ANDROID_DEV_ROOT/tools/sdk
 export ANDROID_NDK=$ANDROID_DEV_ROOT/tools/ndk
 export ANDROID_SDK_ROOT=$ANDROID_SDK
@@ -51,17 +51,25 @@ You can see the installation guide [here](https://developer.android.com/studio/i
 For example,
 ```bash
 $ firefox  https://developer.android.com/studio
-Then, download "Android Studio" in the /opt folder.
+Then, download the **Android Studio** IDE into the /opt folder as follows.
 $ cd /opt
-$ wget https://dl.google.com/dl/android/studio/ide-zips/3.4.0.18/android-studio-ide-183.5452501-linux.tar.gz
-$ tar xvzf ./android-studio-ide-183.5452501-linux.tar.gz
+$ sudo curl -O https://r1---sn-n5hn0ob-pjoe.gvt1.com/edgedl/android/studio/ide-zips/3.6.3.0/android-studio-ide-192.6392135-linux.tar.gz
+$ sudo tar xvzf ./android-studio-ide-183.5452501-linux.tar.gz
 ```
 
-Now, run the android studio from `./android-studio/bin/studio.sh` and install SDK to `$ANDROID_SDK`.
-Next, agree to the licenses for the Android SDK.
+Now, run the **Android Studio** IDE as follows.
+If your network is maintainced a proxy of the office, you need to set-up the proxy  and SSL configuraiton.
+ * Proxy setting: File > Appearance & Behavior > System Settings > HTTP Proxy
+ * SSL Certificate:  File > Settings ... > Tools > Server Certificates > (x) Accept non-trusted certificates automatically 
+```bash
+./android-studio/bin/studio.sh` file.
 ```
+Finally, install SDK into the `$ANDROID_SDK` folder as follows.
+The `yes` command automatically agrees to the license question for the Android SDK.
+```bash
 $ cd $ANDROID_SDK/tools/bin
 $ yes | ./sdkmanager --licenses
+(Proxy environment: yes | sdkmanager --no_https --proxy=http --proxy_host=10.112.1.184 --proxy_port=8080 --licenses)
 ```
 
 #### Download NDK
@@ -79,7 +87,7 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/gstreamer-1.0
-$ wget https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.0-android-universal-1.16.2.tar.xz
+$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.0-android-universal-1.16.2.tar.xz
 $ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
 ```
 
