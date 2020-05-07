@@ -1709,6 +1709,39 @@ TEST (test_tensor_src_iio, set_frequency_n)
 }
 
 /**
+ * @brief test the logic with invalid base dir
+ */
+TEST (test_tensor_src_iio, set_base_dir_n)
+{
+  iio_dev_dir_struct *dev0;
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  GstStateChangeReturn status;
+
+  /** Make device */
+  dev0 = make_full_device (DATA, 16);
+  ASSERT_NE (dev0, nullptr);
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  /** setup properties */
+  g_object_set (src_iio, "iio-base-dir", "/not/existed/path", NULL);
+  g_object_set (src_iio, "dev-dir", dev0->dev_dir, NULL);
+  g_object_set (src_iio, "device", DEVICE_NAME, NULL);
+
+  status = gst_element_set_state (src_iio, GST_STATE_PAUSED);
+  EXPECT_NE (status, GST_STATE_CHANGE_NO_PREROLL);
+
+  /** teardown */
+  gst_harness_teardown (hrnss);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
