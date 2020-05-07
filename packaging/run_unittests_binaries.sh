@@ -34,9 +34,10 @@ run_entry() {
   fi
 
   ${entry} --gtest_output="xml:${entry##*/}.xml"
+  retval=$?
   export PYTHONPATH=${_PYTHONPATH}
 
-  return $?
+  return ${retval}
 }
 
 ret=0
