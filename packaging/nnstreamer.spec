@@ -415,7 +415,6 @@ export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
 
 %if %{with tizen}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
-    ln -s ext/nnstreamer/tensor_source/*.so .
     GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/build/ext/nnstreamer/tensor_source:${GST_PLUGIN_PATH} bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
 %endif #if tizen
 %if 0%{?unit_test}
