@@ -343,6 +343,9 @@ ml_tensors_info_set_tensor_type (ml_tensors_info_h info,
   if (!info)
     return ML_ERROR_INVALID_PARAMETER;
 
+  if (type == ML_TENSOR_TYPE_UNKNOWN)
+    return ML_ERROR_INVALID_PARAMETER;
+
   tensors_info = (ml_tensors_info_s *) info;
 
   if (tensors_info->num_tensors <= index)
