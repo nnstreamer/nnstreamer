@@ -63,7 +63,6 @@ struct _GTensorFilterSingleClass
 {
   GObjectClass parent; /**< inherits GObjectClass */
 
-
   /** Invoke the filter for execution. */
   gboolean (*invoke) (GTensorFilterSingle * self, const GstTensorMemory * input,
       GstTensorMemory * output);
@@ -76,7 +75,7 @@ struct _GTensorFilterSingleClass
   /** Check if the output is already configured */
   gboolean (*output_configured) (GTensorFilterSingle * self);
   /** Set the info about the input tensor */
-  gboolean (*set_input_info) (GTensorFilterSingle * self,
+  gint (*set_input_info) (GTensorFilterSingle * self,
       const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
 };
 
