@@ -26,8 +26,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-
-#include <tizen_error.h>
+#include "ml-api-common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -167,22 +166,6 @@ typedef enum _ml_tensor_type_e
   ML_TENSOR_TYPE_UINT64,         /**< Unsigned integer 64bit */
   ML_TENSOR_TYPE_UNKNOWN         /**< Unknown type */
 } ml_tensor_type_e;
-
-/**
- * @brief Enumeration for the error codes of NNStreamer.
- * @since_tizen 5.5
- */
-typedef enum {
-  ML_ERROR_NONE                 = TIZEN_ERROR_NONE, /**< Success! */
-  ML_ERROR_INVALID_PARAMETER    = TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
-  ML_ERROR_STREAMS_PIPE         = TIZEN_ERROR_STREAMS_PIPE, /**< Cannot create or access the pipeline. */
-  ML_ERROR_TRY_AGAIN            = TIZEN_ERROR_TRY_AGAIN, /**< The pipeline is not ready, yet (not negotiated, yet) */
-  ML_ERROR_UNKNOWN              = TIZEN_ERROR_UNKNOWN,  /**< Unknown error */
-  ML_ERROR_TIMED_OUT            = TIZEN_ERROR_TIMED_OUT,  /**< Time out */
-  ML_ERROR_NOT_SUPPORTED        = TIZEN_ERROR_NOT_SUPPORTED, /**< The feature is not supported */
-  ML_ERROR_PERMISSION_DENIED    = TIZEN_ERROR_PERMISSION_DENIED, /**< Permission denied */
-  ML_ERROR_OUT_OF_MEMORY        = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory (Since 6.0) */
-} ml_error_e;
 
 /**
  * @brief Enumeration for buffer deallocation policies.

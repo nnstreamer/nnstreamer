@@ -39,6 +39,7 @@ endif
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
+capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'ml-api-common.h')
 if get_option('enable-tizen')
   # header for Tizen internal API
   capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-tizen-internal.h')
