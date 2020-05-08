@@ -898,33 +898,74 @@ ml_initialize_gstreamer (void)
 }
 
 /**
- * @brief Internal helper function to validate arguments
+ * @brief Internal helper function to validate model files.
  */
 static int
-_ml_validate_model_file (char **model, unsigned int num_models,
-    ml_nnfw_type_e * nnfw, gchar ** p1, gchar ** p2)
+_ml_validate_model_file (char **model, unsigned int num_models)
 {
-  if (!model) {
+  guint i;
+
+  if (!model || num_models < 1) {
     ml_loge ("The required param, model is not provided (null).");
     return ML_ERROR_INVALID_PARAMETER;
   }
-  if (num_models < 1 || !*model ||
-      !g_file_test (model[0], G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The given param, model path [%s] is invalid or not given.",
-        GST_STR_NULL (model[0]));
+
+  for (i = 0; i < num_models; i++) {
+    if (!model[i] || !g_file_test (model[i], G_FILE_TEST_IS_REGULAR)) {
+      ml_loge ("The given param, model path [%s] is invalid or not given.",
+          GST_STR_NULL (model[i]));
+      return ML_ERROR_INVALID_PARAMETER;
+    }
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Gets available nn framework using file extension.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+static int
+_ml_detect_framework (char **model, unsigned int num_models,
+    ml_nnfw_type_e * nnfw)
+{
+  int status = ML_ERROR_NONE;
+  gchar *detected;
+
+  detected =
+      gst_tensor_filter_framework_auto_detection ((const gchar **) model,
+      num_models);
+  if (detected == NULL) {
+    ml_loge ("The given model has unknown or not supported extension.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (!nnfw)
-    return ML_ERROR_INVALID_PARAMETER;
+  if (g_ascii_strcasecmp (detected, "nnfw") == 0) {
+    *nnfw = ML_NNFW_TYPE_NNFW;
+  } else if (g_ascii_strcasecmp (detected, "tensorflow-lite") == 0) {
+    *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+  } else if (g_ascii_strcasecmp (detected, "vivante") == 0) {
+    *nnfw = ML_NNFW_TYPE_VIVANTE;
+  } else if (g_ascii_strcasecmp (detected, "tensorflow") == 0) {
+    *nnfw = ML_NNFW_TYPE_TENSORFLOW;
+  } else if (g_ascii_strcasecmp (detected, "custom") == 0) {
+    *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
+  } else {
+    ml_loge ("The given model has unknown or not supported extension.");
+    status = ML_ERROR_NOT_SUPPORTED;
+  }
 
-  *p1 = g_ascii_strdown (model[0], -1);
-  if (num_models == 2)
-    *p2 = g_ascii_strdown (model[1], -1);
-  else if (num_models > 2)
-    return ML_ERROR_INVALID_PARAMETER; /** We do not have such a case, yet */
+  if (status == ML_ERROR_NONE) {
+    ml_logi ("The given model is supposed a %s model.", detected);
 
-  return ML_ERROR_NONE;
+    if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY)) {
+      ml_loge ("%s is not available.", detected);
+      status = ML_ERROR_NOT_SUPPORTED;
+    }
+  }
+
+  g_free (detected);
+  return status;
 }
 
 /**
@@ -941,92 +982,56 @@ int
 ml_validate_model_file (char **model, unsigned int num_models,
     ml_nnfw_type_e * nnfw)
 {
-  /** @todo This is a hotfix. Make a general mechanism instead! (n paths) */
-  gchar *path_down, *path_down_2 = NULL;
   int status = ML_ERROR_NONE;
-  gchar *detected_fw = NULL;
+  gchar *pos;
+  gchar **file_ext;
+  guint i;
 
-  status =
-      _ml_validate_model_file (model, num_models, nnfw, &path_down,
-      &path_down_2);
-  if (ML_ERROR_NONE != status) {
+  if ((status = _ml_validate_model_file (model, num_models)) != ML_ERROR_NONE)
     return status;
-  }
+
+  if (!nnfw)
+    return ML_ERROR_INVALID_PARAMETER;
 
   /* Check file extention. */
+  file_ext = g_malloc0 (sizeof (char *) * (num_models + 1));
+  for (i = 0; i < num_models; i++) {
+    if ((pos = strrchr (model[i], '.')) == NULL) {
+      ml_loge ("The given model [%s] has invalid extension.", model[i]);
+      status = ML_ERROR_INVALID_PARAMETER;
+      goto done;
+    }
+
+    file_ext[i] = g_ascii_strdown (pos, -1);
+  }
+
+  /** @todo Make sure num_models is correct for each nnfw type */
   switch (*nnfw) {
     case ML_NNFW_TYPE_ANY:
-      detected_fw =
-          gst_tensor_filter_framework_auto_detection ((const gchar **) model,
-          num_models);
-
-      if (detected_fw == NULL) {
-        ml_loge ("The given model [%s] has unknown or not supported extension.",
-            model[0]);
-        status = ML_ERROR_INVALID_PARAMETER;
-      } else if (g_ascii_strcasecmp (detected_fw, "nnfw") == 0) {
-        ml_logi ("The given model [%s] is supposed a nnfw model.", model[0]);
-        *nnfw = ML_NNFW_TYPE_NNFW;
-      } else if (g_ascii_strcasecmp (detected_fw, "tensorflow-lite") == 0) {
-        ml_logi ("The given model [%s] is supposed a tensorflow-lite model.",
-            model[0]);
-        *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-      } else if (g_ascii_strcasecmp (detected_fw, "vivante") == 0) {
-        ml_logi ("The given model [%s,%s] looks like a Vivante model.",
-            model[0], model[1]);
-        *nnfw = ML_NNFW_TYPE_VIVANTE;
-      } else if (g_ascii_strcasecmp (detected_fw, "tensorflow") == 0) {
-        ml_logi ("The given model [%s] is supposed a tensorflow model.",
-            model[0]);
-        *nnfw = ML_NNFW_TYPE_TENSORFLOW;
-      } else if (g_ascii_strcasecmp (detected_fw, "custom") == 0) {
-        ml_logi ("The given model [%s] is supposed a custom filter model.",
-            model[0]);
-        *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
-      } else {
-        ml_loge ("The given model [%s] has unknown or not supported extension.",
-            model[0]);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-
-      if (status == ML_ERROR_NONE) {
-        if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY))
-          status = ML_ERROR_NOT_SUPPORTED;
-      }
-
-      if (detected_fw != NULL)
-        g_free (detected_fw);
-
+      status = _ml_detect_framework (model, num_models, nnfw);
       break;
     case ML_NNFW_TYPE_CUSTOM_FILTER:
-      /** @todo Make sure num_models is correct */
-      if (!g_str_has_suffix (path_down, NNSTREAMER_SO_FILE_EXTENSION)) {
-        ml_loge ("The given model [%s] has invalid extension.", model[0]);
+      if (g_ascii_strcasecmp (file_ext[0], NNSTREAMER_SO_FILE_EXTENSION) != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      /** @todo Make sure num_models is correct */
-      if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model[0]);
+      if (g_ascii_strcasecmp (file_ext[0], ".tflite") != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_TENSORFLOW:
-      /** @todo Make sure num_models is correct */
-      if (!g_str_has_suffix (path_down, ".pb")) {
-        ml_loge ("The given model [%s] has invalid extension.", model[0]);
+      if (g_ascii_strcasecmp (file_ext[0], ".pb") != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
     case ML_NNFW_TYPE_NNFW:
     {
-      /** @todo Make sure num_models is correct */
       gchar *model_path = NULL;
       gchar *meta = NULL;
 
-      if (!g_str_has_suffix (path_down, ".tflite")) {
-        ml_loge ("The given model [%s] has invalid extension.", model[0]);
+      if (g_ascii_strcasecmp (file_ext[0], ".tflite") != 0 &&
+          g_ascii_strcasecmp (file_ext[0], ".circle") != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
         break;
       }
@@ -1044,16 +1049,22 @@ ml_validate_model_file (char **model, unsigned int num_models,
     }
     case ML_NNFW_TYPE_VIVANTE:
     {
-      if ((g_str_has_suffix (path_down, ".so") &&
-              g_str_has_suffix (path_down_2, ".nb")) ||
-          (g_str_has_suffix (path_down, ".nb") &&
-              g_str_has_suffix (path_down_2, ".so"))) {
+      if (num_models != 2) {
+        ml_loge ("Vivante requires 2 model files.");
+        status = ML_ERROR_INVALID_PARAMETER;
         break;
       }
+
+      if ((g_ascii_strcasecmp (file_ext[0], ".so") == 0 &&
+              g_ascii_strcasecmp (file_ext[1], ".nb") == 0) ||
+          (g_ascii_strcasecmp (file_ext[0], ".nb") == 0 &&
+              g_ascii_strcasecmp (file_ext[1], ".so") == 0)) {
+        break;
+      }
+
       ml_loge ("The given model [%s,%s] does not appear Vivante model.",
           model[0], model[1]);
       status = ML_ERROR_INVALID_PARAMETER;
-
       break;
     }
     case ML_NNFW_TYPE_MVNC:
@@ -1064,7 +1075,6 @@ ml_validate_model_file (char **model, unsigned int num_models,
       status = ML_ERROR_NOT_SUPPORTED;
       break;
     case ML_NNFW_TYPE_SNAP:
-      /** @todo Make sure num_models is correct */
 #if !defined(__ANDROID__)
       ml_loge ("SNAP only can be included in Android (arm64-v8a only).");
       status = ML_ERROR_NOT_SUPPORTED;
@@ -1072,12 +1082,10 @@ ml_validate_model_file (char **model, unsigned int num_models,
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
     case ML_NNFW_TYPE_ARMNN:
-      /** @todo Make sure num_models is correct */
-      if (!g_str_has_suffix (path_down, ".caffemodel") &&
-          !g_str_has_suffix (path_down, ".tflite") &&
-          !g_str_has_suffix (path_down, ".pb") &&
-          !g_str_has_suffix (path_down, ".prototxt")) {
-        ml_loge ("The given model [%s] has invalid extension.", model[0]);
+      if (g_ascii_strcasecmp (file_ext[0], ".caffemodel") != 0 &&
+          g_ascii_strcasecmp (file_ext[0], ".tflite") != 0 &&
+          g_ascii_strcasecmp (file_ext[0], ".pb") != 0 &&
+          g_ascii_strcasecmp (file_ext[0], ".prototxt") != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
@@ -1086,7 +1094,11 @@ ml_validate_model_file (char **model, unsigned int num_models,
       break;
   }
 
-  g_free (path_down);
+done:
+  if (status != ML_ERROR_NONE)
+    ml_loge ("The given model file is invalid.");
+
+  g_strfreev (file_ext);
   return status;
 }
 
