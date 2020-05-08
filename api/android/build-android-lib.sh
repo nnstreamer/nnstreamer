@@ -266,7 +266,9 @@ fi
 if [[ $enable_snpe == "yes" ]]; then
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android.mk
-    cp -r $SNPE_DIRECTORY/* api/src/main/jni
+    mkdir api/src/main/jni/snpe
+    cp -r $SNPE_DIRECTORY/include api/src/main/jni/snpe
+    cp -r $SNPE_DIRECTORY/lib api/src/main/jni/snpe
 fi
 
 # Update tf-lite option

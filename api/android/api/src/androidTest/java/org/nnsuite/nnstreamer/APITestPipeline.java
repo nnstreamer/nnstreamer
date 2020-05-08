@@ -1390,4 +1390,72 @@ public class APITestPipeline {
             fail();
         }
     }
+
+    @Test
+    public void testSNPE() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getSNPEModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:299:299:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snpe " + "model=" + model.getAbsolutePath() + " ! " +
+                "tensor_sink name=sinkx";
+
+        try (
+            Pipeline pipe = new Pipeline(desc);
+            TensorsInfo info = new TensorsInfo()
+        ) {
+            info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,299,299,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                    } else {
+                        ByteBuffer output = data.getTensorData(0);
+
+                        if (!APITestCommon.isValidBuffer(output, 4004)) {
+                            mInvalidState = true;
+                        }
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(100);
+            }
+
+            /* sleep 500 to invoke */
+            Thread.sleep(500);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }

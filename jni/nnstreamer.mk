@@ -97,6 +97,10 @@ NNSTREAMER_FILTER_TORCH_SRCS := \
 NNSTREAMER_FILTER_CAFFE2_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_caffe2.cc
 
+# filter snpe
+NNSTREAMER_FILTER_SNPE_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe.cc
+
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c \

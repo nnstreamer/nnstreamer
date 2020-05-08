@@ -775,4 +775,42 @@ public class APITestSingleShot {
             fail();
         }
     }
+
+    @Test
+    public void testSNPE() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            File model = APITestCommon.getSNPEModel();
+
+            SingleShot single = new SingleShot(model, NNStreamer.NNFWType.SNPE);
+            TensorsInfo in = single.getInputInfo();
+
+            /* let's ignore timeout (set 60 sec) */
+            single.setTimeout(60000);
+
+            /* single-shot invoke */
+            for (int i = 0; i < 5; i++) {
+                /* input data */
+                TensorsData input = in.allocate();
+                
+                /* invoke */
+                TensorsData output = single.invoke(input);
+
+                /* check output: 1 tensor (float32 1:1001) */
+                assertEquals(1, output.getTensorsCount());
+                assertEquals(4004, output.getTensorData(0).capacity());
+
+                Thread.sleep(30);
+            }
+
+            single.close();
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
 }
