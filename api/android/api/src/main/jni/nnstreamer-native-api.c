@@ -46,6 +46,9 @@ extern void init_filter_snap (void);
 #if defined (ENABLE_NNFW)
 extern void init_filter_nnfw (void);
 #endif
+#if defined (ENABLE_SNPE)
+extern void _init_filter_snpe (void);
+#endif
 
 /**
  * @brief External function from GStreamer Android.
@@ -617,7 +620,7 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
 #endif
       break;
     case 3: /* NNFWType.SNPE */
-      /** @todo add ML_NNFW_TYPE_SNPE (for android only?) */
+      *nnfw = ML_NNFW_TYPE_SNPE;
 #if !defined (ENABLE_SNPE)
       nns_logw ("SNPE is not supported.");
       is_supported = FALSE;
@@ -684,7 +687,7 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
     init_filter_nnfw ();
 #endif
 #if defined (ENABLE_SNPE)
-    /** @todo register snpe sub-plugin */
+    _init_filter_snpe ();
 #endif
 
     nns_is_initilaized = TRUE;
@@ -725,7 +728,6 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env,
     jclass clazz, jint fw_type)
 {
   ml_nnfw_type_e nnfw;
-
   if (!nns_get_nnfw_type (fw_type, &nnfw)) {
     return JNI_FALSE;
   }

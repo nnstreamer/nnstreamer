@@ -1081,6 +1081,16 @@ ml_validate_model_file (char **model, unsigned int num_models,
 #endif
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
+    case ML_NNFW_TYPE_SNPE:
+#if !defined(__ANDROID__)
+      ml_loge ("Given framework, SNPE is not supported yet for non Android (arm64-v8a).");
+      status = ML_ERROR_NOT_SUPPORTED;
+      break;
+#endif
+      if (g_ascii_strcasecmp (file_ext[0], ".dlc") != 0) {
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
+      break;
     case ML_NNFW_TYPE_ARMNN:
       if (g_ascii_strcasecmp (file_ext[0], ".caffemodel") != 0 &&
           g_ascii_strcasecmp (file_ext[0], ".tflite") != 0 &&
@@ -1153,6 +1163,7 @@ ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw)
     [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
     [ML_NNFW_TYPE_ARMNN] = "armnn",
     [ML_NNFW_TYPE_SNAP] = "snap",
+    [ML_NNFW_TYPE_SNPE] = "snpe",
     NULL
   };
 

@@ -128,6 +128,7 @@ typedef enum {
   ML_NNFW_TYPE_VIVANTE = 7,           /**< VeriSilicon's Vivante. (Since 6.0) */
   ML_NNFW_TYPE_EDGE_TPU = 8,          /**< Google Coral Edge TPU (USB). (Since 6.0) */
   ML_NNFW_TYPE_ARMNN = 9,             /**< Arm Neural Network framework (support for caffe and tensorflow-lite). (Since 6.0) */
+  ML_NNFW_TYPE_SNPE = 10,             /**< Qualcomm SNPE (Snapdgragon Neural Processing Engine (.dlc). (Since 6.0) */
   ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. (Since 6.0) */
 } ml_nnfw_type_e;
 

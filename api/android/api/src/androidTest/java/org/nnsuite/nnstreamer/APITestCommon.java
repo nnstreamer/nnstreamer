@@ -230,6 +230,18 @@ public class APITestCommon {
         return new File[]{model};
     }
 
+    public static File getSNPEModel() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+        File model = new File(root + "/nnstreamer/snpe_data/inception_v3_quantized.dlc");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        return model;
+    }
+
     /**
      * Verifies the byte buffer is direct buffer with native order.
      *
