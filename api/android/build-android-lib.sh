@@ -27,6 +27,7 @@
 # For example, to build library with core plugins for arm64-v8a
 # ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
 #
+set -e
 
 # API build option
 # 'all' : default
