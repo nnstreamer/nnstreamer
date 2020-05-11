@@ -23,7 +23,7 @@
  *
  * To Packagers:
  *
- * This fils it to be packaged as "devel" package for NN developers. (subplugin writers)
+ * This file is to be packaged as "devel" package for NN developers. (subplugin writers)
  *
  * @note        Any independent subplugin (existing as an independent .so)
  *              should call register_subplugin () (or its wrapper) with the
@@ -47,7 +47,7 @@ typedef enum {
 #define NNS_SUBPLUGIN_CHECKER (0xdeadbeef)
 
 /**
- * @brief Retrieve the resigered data with the subplugin name.
+ * @brief Retrieve the registered data with the subplugin name.
  * @param[in] type Subplugin Type
  * @param[in] name Subplugin Name. The filename should be libnnstreamer_${type}_${name}.so
  * @return The registered data
@@ -60,7 +60,7 @@ get_subplugin (subpluginType type, const char *name);
  * @param[in] type Subplugin Type
  * @param[in] name Subplugin Name. The filename should be subplugin_prefixes[type]${name}.so
  * @param[in] data The registered data
- * @return TRUE if regitered as new. FALSE if duplicated (overwritten/updated).
+ * @return TRUE if registered as new. FALSE if duplicated (overwritten/updated).
  */
 extern gboolean
 register_subplugin (subpluginType type, const char *name, const void *data);
@@ -69,7 +69,7 @@ register_subplugin (subpluginType type, const char *name, const void *data);
  * @brief Unregister the subplugin.
  * @param[in] type Subplugin type
  * @param[in] name Subplugin Name. The filename should be subplugin_prefixes[type]${name}.so
- * @return TRUE if unregitered. FALSE if rejected or error.
+ * @return TRUE if unregistered. FALSE if rejected or error.
  *
  * @warning Subplugins checked out with get_subplugins can still be used after unregister.
  */
