@@ -86,8 +86,7 @@ typedef enum
 {
   IDLE = 0,           /**< ready to accept next input */
   RUNNING,            /**< running an input, cannot accept more input */
-  JOIN_REQUESTED,     /**< should join the thread, will exit soon */
-  ERROR               /**< error on thread, will exit soon */
+  JOIN_REQUESTED      /**< should join the thread, will exit soon */
 } thread_state;
 
 /** ML single api data structure for handle */
@@ -113,6 +112,22 @@ typedef struct
 
 /**
  * @brief thread to execute calls to invoke
+ *
+ * @details The thread behavior is detailed as below:
+ *          - Starting with IDLE state, the thread waits for an input or change
+ *          in state externally.
+ *          - If state is not RUNNING, exit this thread, else process the
+ *          request.
+ *          - Process input, call invoke, process output. Any error in this
+ *          state sets the status to be used by ml_single_invoke().
+ *          - State is set back to IDLE and thread moves back to start.
+ *
+ *          State changes performed by this function when:
+ *          RUNNING -> IDLE - processing is finished.
+ *          JOIN_REQUESTED -> IDLE - close is requested.
+ *
+ * @note Error while processing an input is provided back to requesting
+ *       function, and further processing of invoke_thread is not affected.
  */
 static void *
 invoke_thread (void *arg)
@@ -197,8 +212,7 @@ invoke_thread (void *arg)
   }
 
 exit:
-  if (single_h->state != ERROR)
-    single_h->state = IDLE;
+  single_h->state = IDLE;
   g_mutex_unlock (&single_h->mutex);
   return NULL;
 }
@@ -668,6 +682,12 @@ ml_single_open (ml_single_h * single, const char *model,
 
 /**
  * @brief Closes the opened model handle.
+ *
+ * @details State changes performed by this function:
+ *          ANY STATE -> JOIN REQUESTED - on receiving a request to close
+ *
+ *          Once requested to close, invoke_thread() will exit after processing
+ *          the current input (if any).
  */
 int
 ml_single_close (ml_single_h single)
@@ -717,6 +737,16 @@ ml_single_close (ml_single_h single)
 
 /**
  * @brief Invokes the model with the given input data.
+ *
+ * @details State changes performed by this function:
+ *          IDLE -> RUNNING - on receiving a valid request
+ *
+ *          Invoke returns error if the current state is not IDLE.
+ *          If IDLE, then invoke is requested to the thread.
+ *          Invoke waits for the processing to be complete, and returns back
+ *          the result once notified by the processing thread.
+ *
+ * @note IDLE is the valid thread state before and after this function call.
  */
 int
 ml_single_invoke (ml_single_h single,
@@ -762,12 +792,6 @@ ml_single_invoke (ml_single_h single,
 
   if (single_h->state == JOIN_REQUESTED) {
     ml_loge ("The handle is closed or being closed.");
-    status = ML_ERROR_STREAMS_PIPE;
-    goto exit;
-  }
-
-  if (single_h->state == ERROR) {
-    ml_loge ("There was error on getting tesnor_filter element.");
     status = ML_ERROR_STREAMS_PIPE;
     goto exit;
   }
