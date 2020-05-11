@@ -515,6 +515,7 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
   }
 
+  gst_buffer_unref (buf);
   return res;
 }
 

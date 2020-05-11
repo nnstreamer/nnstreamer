@@ -462,7 +462,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i);
 
     outbuf = gst_buffer_new ();
-    mem = gst_buffer_peek_memory (buf, i);
+    mem = gst_buffer_get_memory (buf, i);
     gst_buffer_append_memory (outbuf, mem);
     ts = GST_BUFFER_TIMESTAMP (buf);
 
@@ -494,6 +494,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
   }
 
+  gst_buffer_unref (buf);
   return res;
 }
 
