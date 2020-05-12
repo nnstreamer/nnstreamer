@@ -378,6 +378,22 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 }
 
 /**
+ * @brief Initialize the GstTensorFilterFrameworkInfo object
+ */
+static void
+gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
+{
+  info->name = NULL;
+  info->allow_in_place = 0;
+  info->allocate_in_invoke = 0;
+  info->run_without_model = 0;
+  info->allocate_in_invoke = 0;
+  info->hw_list = NULL;
+  info->accl_auto = -1;
+  info->accl_default = -1;
+}
+
+/**
  * @brief Validate filter sub-plugin's data.
  */
 static gboolean
@@ -668,7 +684,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 {
   /* init NNFW properties */
   gst_tensor_filter_properties_init (&priv->prop);
-  priv->info.name = NULL;
+  gst_tensor_filter_framework_info_init (&priv->info);
 
   /* init internal properties */
   priv->fw = NULL;
@@ -722,6 +738,8 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   GList *match_accl, *iter;
 
   info = &priv->info;
+  gst_tensor_filter_framework_info_init (info);
+
   prop->num_hw = 0;
   g_free (prop->hw_list);
   prop->hw_list = NULL;
@@ -736,15 +754,18 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
     }
   }
 
-  /** Convert the list to string format */
-  accl_support = g_malloc (sizeof (gchar *) * (info->num_hw + 1));
-  if (!accl_support)
-    return;
+  /**
+   * Convert the list to string format
+   * Extra 2 entries for basic accelerators : auto and default
+   */
+  accl_support = g_malloc (sizeof (gchar *) * (info->num_hw + 2 + 1));
 
   for (idx = 0; idx < info->num_hw; idx++) {
     accl_support[idx] = get_accl_hw_str (info->hw_list[idx]);
   }
-  accl_support[info->num_hw] = NULL;
+  accl_support[info->num_hw] = ACCL_AUTO_STR;
+  accl_support[info->num_hw + 1] = ACCL_DEFAULT_STR;
+  accl_support[info->num_hw + 2] = NULL;
 
   /** Parse the user given h/w accelerators intersected with supported h/w */
   match_accl = parse_accl_hw_all (accelerators, accl_support);
@@ -755,6 +776,15 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   prop->hw_list = g_malloc (sizeof (accl_hw) * prop->num_hw);
   for (iter = match_accl, idx = 0; iter != NULL; iter = iter->next, idx++) {
     prop->hw_list[idx] = GPOINTER_TO_INT (iter->data);
+    if (prop->hw_list[idx] == ACCL_AUTO) {
+      prop->hw_list[idx] = info->accl_auto;
+      if (info->accl_auto < ACCL_NONE)
+        prop->hw_list[idx] = info->hw_list[0];
+    } else if (prop->hw_list[idx] == ACCL_DEFAULT) {
+      prop->hw_list[idx] = info->accl_default;
+      if (info->accl_default < ACCL_NONE)
+        prop->hw_list[idx] = info->hw_list[0];
+    }
   }
   g_list_free (match_accl);
 }
@@ -891,6 +921,7 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
 
   if (fw) {
     /** Get framework info for v1 */
+    gst_tensor_filter_framework_info_init (&priv->info);
     if (GST_TF_FW_V1 (fw) && fw->getFrameworkInfo (fw, prop, NULL, &priv->info)
         < 0) {
       nns_logw ("Cannot get the given framework info, %s\n", fw_name);
@@ -1857,6 +1888,9 @@ parse_accl_hw_all (const gchar * accelerators,
         }
         g_match_info_next (match_info, NULL);
       }
+    } else {
+      ml_logw
+          ("Using AUTO accelerator config, User provided accelerator(s) do not intersect with framework's supported accelerators.");
     }
     g_match_info_free (match_info);
     g_regex_unref (nnapi_elem);
@@ -1888,8 +1922,6 @@ add_basic_supported_accelerators (const gchar ** supported_accelerators)
 
   /** Allocate the array */
   accl_support = g_malloc (sizeof (gchar *) * (num_hw + 1));
-  if (!accl_support)
-    return NULL;
 
   /** Fill the array */
   while (supported_accelerators[idx] != NULL) {

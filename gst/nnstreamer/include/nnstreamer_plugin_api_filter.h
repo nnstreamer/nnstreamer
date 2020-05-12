@@ -174,6 +174,8 @@ typedef struct _GstTensorFilterFrameworkInfo
   int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
   const accl_hw *hw_list; /**< List of supported hardwares by the framework.  Positive response of this check does not guarantee successful running of model with this accelerator. Subplugin is supposed to allocate/deallocate. */
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework */
+  accl_hw accl_auto;  /**< accelerator to be used in auto mode (acceleration to be used but accelerator is not specified for the filter) - default -1 implies use first entry from hw_list */
+  accl_hw accl_default;   /**< accelerator to be used by default (valid user input is not provided) - default -1 implies use first entry from hw_list*/
 } GstTensorFilterFrameworkInfo;
 
 /**
