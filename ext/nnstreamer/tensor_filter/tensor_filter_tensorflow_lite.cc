@@ -48,15 +48,20 @@
 #endif
 
 static const gchar *tflite_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  ACCL_CPU_SIMD_STR,
   ACCL_CPU_NEON_STR,
+  ACCL_CPU_SIMD_STR,
   ACCL_CPU_STR,
   ACCL_GPU_STR,
   ACCL_NPU_STR,
   NULL
 };
+
+#if defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)
+static const gchar *tflite_accl_auto = ACCL_CPU_SIMD_STR;
+#else
+static const gchar *tflite_accl_auto = ACCL_CPU_STR;
+#endif
+static const gchar *tflite_accl_default = ACCL_CPU_STR;
 
 /**
  * @brief Wrapper class for TFLite Interpreter to support model switching
@@ -538,7 +543,8 @@ TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 void TFLiteCore::setAccelerator (const char * accelerators)
 {
   use_nnapi = TRUE;
-  accelerator = parse_accl_hw (accelerators, tflite_accl_support);
+  accelerator = parse_accl_hw (accelerators, tflite_accl_support,
+      tflite_accl_auto, tflite_accl_default);
   if (accelerators == NULL || accelerator == ACCL_NONE)
     goto use_nnapi_ini;
 
@@ -550,7 +556,7 @@ use_nnapi_ini:
   if (use_nnapi == FALSE) {
     accelerator = ACCL_NONE;
   } else {
-    accelerator = ACCL_AUTO;
+    accelerator = get_accl_hw_type (tflite_accl_auto);
   }
 }
 

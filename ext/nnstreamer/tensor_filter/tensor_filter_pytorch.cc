@@ -45,8 +45,6 @@
 #define OUTPUT_TENSOR_META_CHAR "OutputTensorMeta"
 
 static const gchar *torch_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
   ACCL_CPU_STR,
   ACCL_GPU_STR,
   NULL
@@ -131,7 +129,7 @@ TorchCore::setAccelerator (const char *accelerators)
   accelerator = parse_accl_hw (accelerators, torch_accl_support);
   if (accelerator == ACCL_NONE)
     goto use_gpu_ini;
-  if ((accelerator & (ACCL_CPU | ACCL_DEFAULT)) != 0)
+  if ((accelerator & (ACCL_CPU)) != 0)
     use_gpu = FALSE;
 
   return;
@@ -494,7 +492,6 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     ml_loge ("Output is not a tensor.");
     return -3;
   }
-
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
