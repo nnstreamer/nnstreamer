@@ -1218,7 +1218,11 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
 
   if (fw_name) {
     if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
-      if (fw->checkAvailability
+      /** @todo support GstTensorFilterV1 here */
+      /** Only check for specific HW, ANY/AUTO are always supported */
+      if (hw == ML_NNFW_HW_ANY || hw == ML_NNFW_HW_AUTO) {
+        *available = true;
+      } else if (fw->checkAvailability
           && fw->checkAvailability (ml_nnfw_to_accl_hw (hw)) != 0) {
         ml_logw ("%s is supported but not with the specified hardware.",
             fw_name);

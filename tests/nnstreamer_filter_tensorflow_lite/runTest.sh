@@ -95,6 +95,15 @@ function run_pipeline() {
     gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} accelerator=$1 ! filesink location=tensorfilter.out.log 2>info
 }
 
+arch=$(uname -m)
+if [ "$arch" = "aarch64" ] || [ "$arch" = "armv7l" ]; then
+  auto_accl="cpu.neon"
+elif [ "$arch" = "x86_64" ]; then
+  auto_accl="cpu.simd"
+else
+  auto_accl="cpu"
+fi
+
 # Property reading test for nnapi
 run_pipeline true:cpu,npu,gpu
 cat info | grep "nnapi = 1, accl = cpu$"
@@ -102,7 +111,7 @@ testResult $? 2-1 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:!cpu
-cat info | grep "nnapi = 1, accl = auto$"
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-2 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
@@ -122,22 +131,22 @@ testResult $? 2-5 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:auto
-cat info | grep "nnapi = 1, accl = auto$"
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-6 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
-run_pipeline true:default,cpu
-cat info | grep "nnapi = 1, accl = default$"
+run_pipeline true:default,gpu
+cat info | grep "nnapi = 1, accl = cpu$"
 testResult $? 2-7 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:!cpu,default
-cat info | grep "nnapi = 1, accl = default$"
+cat info | grep "nnapi = 1, accl = cpu$"
 testResult $? 2-8 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:!default
-cat info | grep "nnapi = 1, accl = auto$"
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-9 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
@@ -157,12 +166,12 @@ testResult $? 2-12 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:
-cat info | grep "nnapi = 1, accl = auto$"
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-13 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true
-cat info | grep "nnapi = 1, accl = auto$"
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-14 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
@@ -176,13 +185,8 @@ cat info | grep "nnapi = 1, accl = gpu$"
 testResult $? 2-16 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
-run_pipeline true:cpu.neon,cpu
-arch=$(uname -m)
-if [ "$arch" = "aarch64" ] || [ "$arch" = "armv7l" ]; then
-	cat info | grep "nnapi = 1, accl = cpu.neon$"
-else
-	cat info | grep "nnapi = 1, accl = cpu$"
-fi
+run_pipeline true:${auto_accl},cpu
+cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-17 "NNAPI activation test" 0 1
 
 # Cleanup

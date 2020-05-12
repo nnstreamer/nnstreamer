@@ -395,7 +395,7 @@ struct _GstTensorFilterFramework
 
       int (*getFrameworkInfo) (const GstTensorFilterFramework * self,
           const GstTensorFilterProperties * prop, void *private_data,
-	  GstTensorFilterFrameworkInfo *fw_info);
+          GstTensorFilterFrameworkInfo *fw_info);
       /**< Mandatory callback. Get the frameworks statically determined info. Argument 'private_data' can be NULL. If provided 'private_data' is not NULL, then some info, such as 'allocate_in_invoke', can be updated based on the model being used (inferred from the 'private_data' provided). This updated info is useful for custom filter, as some custom filter's ability to support 'allocate_in_invoke' depends on the opened model.
        *
        * @param[in] prop read-only property values
@@ -498,10 +498,33 @@ extern const char *
 get_accl_hw_str (const accl_hw key);
 
 /**
- * @brief parse user given string to extract accelerator based on given regex
+ * @brief Accelerator related arguments for parsing
+ *
+ * @note if optional accelerators are not set, first entry from supported
+ *       accelerator is used.
  */
-extern accl_hw
-parse_accl_hw (const char * accelerators, const char ** supported_accelerators);
+typedef struct {
+  const char * in_accl;       /**< user given input */
+  const char ** sup_accl;     /**< list of supported accelerator */
+  const char * auto_accl;     /**< auto accelerator (optional) */
+  const char * def_accl;      /**< default accelerator (optional) */
+} parse_accl_args;
+
+/**
+ * @brief parse user given string to extract accelerator based on given regex filling in optional arguments
+ *
+ * @note The order of argumemnts for calling this function is:
+ *       - in_accl: user provided input accelerator string
+ *       - sup_accl: list of supported accelerator
+ *       - auto_accl: auto accelerator (optional)
+ *       - def_accl: default accelerator (optional)
+ */
+extern accl_hw parse_accl_hw_fill (parse_accl_args accl_args);
+
+/**
+ * @brief workaround to provide default arguments
+ */
+#define parse_accl_hw(...) parse_accl_hw_fill((parse_accl_args){__VA_ARGS__})
 
 #ifdef __cplusplus
 }

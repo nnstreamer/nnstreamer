@@ -1872,19 +1872,63 @@ parse_accl_hw_all (const gchar * accelerators,
 }
 
 /**
+ * @brief Added basic accelerators (auto, default) to supported accelerators
+ * @note returned array must be freed by the caller
+ */
+static const gchar **
+add_basic_supported_accelerators (const gchar ** supported_accelerators)
+{
+  gint num_hw = 0, idx = 0;
+  const gchar **accl_support;
+
+  /** Count number of elements for the array */
+  while (supported_accelerators[num_hw] != NULL)
+    num_hw += 1;
+  num_hw += 2;
+
+  /** Allocate the array */
+  accl_support = g_malloc (sizeof (gchar *) * (num_hw + 1));
+  if (!accl_support)
+    return NULL;
+
+  /** Fill the array */
+  while (supported_accelerators[idx] != NULL) {
+    accl_support[idx] = supported_accelerators[idx];
+    idx += 1;
+  }
+  accl_support[idx++] = ACCL_AUTO_STR;
+  accl_support[idx++] = ACCL_DEFAULT_STR;
+  accl_support[idx] = NULL;
+
+  return accl_support;
+}
+
+/**
  * @brief parse user given string to extract accelerator based on given regex
  * @param[in] accelerators user given input
  * @param[in] supported_accelerators list ofi supported accelerators
+ * @param[in] auto_accelerator accelerator to use in auto case (when acceleration is enabled but specific accelerator is not provided or not matching)
+ * @param[in] default_accelerator accelerator to use by default
  * @return Corresponding accelerator. Returns ACCL_NONE if not found.
  */
-accl_hw
-parse_accl_hw (const gchar * accelerators,
-    const gchar ** supported_accelerators)
+static accl_hw
+parse_accl_hw_util (const gchar * accelerators,
+    const gchar ** supported_accelerators, const gchar * auto_accelerator,
+    const gchar * default_accelerator)
 {
   GList *match_accl;
   accl_hw hw;
+  const gchar **all_supported_accelerators;
 
-  match_accl = parse_accl_hw_all (accelerators, supported_accelerators);
+  /** add auto and default accelerator into list of supported accelerators */
+  all_supported_accelerators =
+      add_basic_supported_accelerators (supported_accelerators);
+  if (all_supported_accelerators) {
+    match_accl = parse_accl_hw_all (accelerators, all_supported_accelerators);
+    g_free (all_supported_accelerators);
+  } else {
+    return ACCL_NONE;
+  }
 
   if (NULL == match_accl) {
     ml_loge ("There is no match hardware accelerators from {%s}.\n",
@@ -1895,7 +1939,32 @@ parse_accl_hw (const gchar * accelerators,
   hw = GPOINTER_TO_INT (match_accl->data);
   g_list_free (match_accl);
 
+  if (hw == ACCL_AUTO)
+    return get_accl_hw_type (auto_accelerator);
+  else if (hw == ACCL_DEFAULT)
+    return get_accl_hw_type (default_accelerator);
+
+  /** This can be ACCL_NONE (no acceleration) or a specific accelerator */
   return hw;
+}
+
+/**
+ * @brief parse user given string to extract accelerator based on given regex filling in optional arguments
+ */
+accl_hw
+parse_accl_hw_fill (parse_accl_args accl_args)
+{
+  const gchar *in_accl = accl_args.in_accl;
+  const gchar **sup_accl = accl_args.sup_accl;
+  const gchar *def_accl, *auto_accl;
+
+  if (accl_args.sup_accl == NULL || accl_args.sup_accl[0] == NULL)
+    return ACCL_NONE;
+
+  def_accl = accl_args.def_accl ? accl_args.def_accl : accl_args.sup_accl[0];
+  auto_accl = accl_args.auto_accl ? accl_args.auto_accl : accl_args.sup_accl[0];
+
+  return parse_accl_hw_util (in_accl, sup_accl, auto_accl, def_accl);
 }
 
 /**

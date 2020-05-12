@@ -652,53 +652,6 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, allocateInInvoke_n)
 }
 
 /**
- * @brief Check availability of accelerator support with @EXT_ABBRV@ subplugin
- */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, checkAvailability)
-{
-  int ret;
-  void *data = NULL;
-  gchar **model_files;
-
-  model_files = get_model_files ();
-  ASSERT_TRUE (model_files != nullptr);
-
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
-  EXPECT_NE (sp, (void *) NULL);
-
-  if (sp->checkAvailability) {
-    /** auto and default should be supported by all the extensions */
-    ret = sp->checkAvailability (ACCL_AUTO);
-    EXPECT_EQ (ret, 0);
-
-    ret = sp->checkAvailability (ACCL_DEFAULT);
-    EXPECT_EQ (ret, 0);
-
-    /** Once opened, the behavior should not change */
-    ret = sp->open (&prop, &data);
-    EXPECT_EQ (ret, 0);
-
-    /** auto and default should be supported by all the extensions */
-    ret = sp->checkAvailability (ACCL_AUTO);
-    EXPECT_EQ (ret, 0);
-
-    ret = sp->checkAvailability (ACCL_DEFAULT);
-    EXPECT_EQ (ret, 0);
-
-    sp->close (&prop, &data);
-  }
-
-  g_strfreev (model_files);
-}
-
-/**
  * @brief Main gtest
  */
 int
