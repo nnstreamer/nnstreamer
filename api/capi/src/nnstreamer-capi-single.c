@@ -522,9 +522,10 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   ml_tensors_info_s *in_tensors_info, *out_tensors_info;
   ml_nnfw_type_e nnfw;
   ml_nnfw_hw_e hw;
-  const char *fw_name;
+  const gchar *fw_name;
   gchar **list_models;
   guint num_models;
+  char *hw_name;
 
   check_feature_state ();
 
@@ -572,7 +573,6 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
 
   /**
    * 3. Construct a pipeline
-   * @todo Set the hw property
    * Set the pipeline desc with nnfw.
    */
   if (nnfw == ML_NNFW_TYPE_TENSORFLOW || nnfw == ML_NNFW_TYPE_SNAP) {
@@ -611,9 +611,11 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     }
   }
 
-  /* set framework, model files and custom option */
+  /* set accelerator, framework, model files and custom option */
   fw_name = ml_get_nnfw_subplugin_name (nnfw);
-  g_object_set (filter_obj, "framework", fw_name, "model", info->models, NULL);
+  hw_name = ml_nnfw_to_str_prop (hw);
+  g_object_set (filter_obj, "accelerator", hw_name, "framework", fw_name, "model", info->models, NULL);
+  g_free (hw_name);
 
   if (info->custom_option) {
     g_object_set (filter_obj, "custom", info->custom_option, NULL);

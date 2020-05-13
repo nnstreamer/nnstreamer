@@ -341,6 +341,12 @@ int ml_validate_model_file (char **model, unsigned int num_models, ml_nnfw_type_
 int ml_check_plugin_availability (const char *plugin_name, const char *element_name);
 
 /**
+ * @brief Internal function to convert accelerator as tensor_filter property format.
+ * @note returned value must be freed by the caller
+ */
+char* ml_nnfw_to_str_prop (ml_nnfw_hw_e hw);
+
+/**
  * @brief Internal function to get the sub-plugin name.
  */
 const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
