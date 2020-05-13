@@ -1136,6 +1136,24 @@ ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
 }
 
 /**
+ * @brief Internal function to convert accelerator as tensor_filter property format.
+ * @note returned value must be freed by the caller
+ * @note More details on format can be found in gst_tensor_filter_install_properties() in tensor_filter_common.c.
+ */
+char *
+ml_nnfw_to_str_prop (const ml_nnfw_hw_e hw)
+{
+  const gchar *hw_name;
+  const gchar *use_accl = "true:";
+  gchar *str_prop = NULL;
+
+  hw_name = get_accl_hw_str (ml_nnfw_to_accl_hw (hw));
+  str_prop = g_strdup_printf ("%s%s", use_accl, hw_name);
+
+  return str_prop;
+}
+
+/**
  * @brief Internal function to get the sub-plugin name.
  */
 const char *
