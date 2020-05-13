@@ -5,7 +5,7 @@
 We assume that you already have experienced Android application developments with Android Studio.
 
  * Host PC:
-   * OS: Ubuntu 18.04 x86_64 LTS
+   * OS: Ubuntu 16.04 / 18.04 x86_64 LTS
    * Android Studio: Ubuntu version
    * Android SDK: Min version 24 (Nougat)
    * Android NDK: Use default ndk-bundle in Android Studio
@@ -13,12 +13,12 @@ We assume that you already have experienced Android application developments wit
 
 ## Build library
 
-#### Environment variables
+### Environment variables
 
 First of all, you need to set-up the development environment as following:
 
 ```bash
-$ export ANDROID_DEV_ROOT=$HOME/myandroid           # Set your own path (default location: $HOME/Android)
+$ export ANDROID_DEV_ROOT=$HOME/Android           # Set your own path (default location: $HOME/Android)
 $ mkdir -p $ANDROID_DEV_ROOT/tools/sdk
 $ mkdir -p $ANDROID_DEV_ROOT/tools/ndk
 $ mkdir -p $ANDROID_DEV_ROOT/gstreamer-1.0
@@ -43,14 +43,20 @@ export GSTREAMER_ROOT_ANDROID=$ANDROID_DEV_ROOT/gstreamer-1.0
 export NNSTREAMER_ROOT=$ANDROID_DEV_ROOT/workspace/nnstreamer
 ```
 
-#### Download Android Studio
+### Install required packages
+Some required packages should be installed as below.
+```bash
+$ sudo apt install subversion curl pkg-config
+```
+
+### Download Android Studio
 
 Download and install Android Studio to compile an Android source code.
 You can see the installation guide [here](https://developer.android.com/studio/install).
 
 For example,
 ```bash
-$ firefox  https://developer.android.com/studio
+$ firefox  https://developer.android.com/studio &
 Then, download the **Android Studio** IDE into the /opt folder as follows.
 $ cd /opt
 $ sudo curl -O https://r1---sn-n5hn0ob-pjoe.gvt1.com/edgedl/android/studio/ide-zips/3.6.3.0/android-studio-ide-192.6392135-linux.tar.gz
@@ -58,21 +64,24 @@ $ sudo tar xvzf ./android-studio-ide-183.5452501-linux.tar.gz
 ```
 
 Now, run the **Android Studio** IDE as follows.
-If your network is maintainced a proxy of the office, you need to set-up the proxy  and SSL configuraiton.
- * Proxy setting: File > Appearance & Behavior > System Settings > HTTP Proxy
- * SSL Certificate:  File > Settings ... > Tools > Server Certificates > (x) Accept non-trusted certificates automatically 
 ```bash
-./android-studio/bin/studio.sh` file.
+$ /opt/android-studio/bin/studio.sh
 ```
 Finally, install SDK into the `$ANDROID_SDK` folder as follows.
 The `yes` command automatically agrees to the license question for the Android SDK.
 ```bash
 $ cd $ANDROID_SDK/tools/bin
 $ yes | ./sdkmanager --licenses
-(Proxy environment: yes | sdkmanager --no_https --proxy=http --proxy_host=10.112.1.184 --proxy_port=8080 --licenses)
 ```
 
-#### Download NDK
+#### Proxy Setting
+
+If your network is maintained a proxy of the office, you need to set-up the proxy and SSL configuration.
+* Proxy setting: File > Settings > Appearance & Behavior > System Settings > HTTP Proxy
+* SSL Certificate:  File > Settings  > Tools > Server Certificates > Register your certificate and check `Accept non-trusted certificates automatically`
+
+
+### Download NDK
 
 Use the default NDK in Android Studio.
 To install NDK in Android Studio, navigate to configure -> Appearance & Behavior -> System Settings -> Android SDK -> SDK Tools and then select NDK.
@@ -80,7 +89,7 @@ To install NDK in Android Studio, navigate to configure -> Appearance & Behavior
 If you need to set a specific version, download and decompress it to compile normally a GStreamer-based plugin (e.g., NNStreamer).
 You can download older version from [here](https://developer.android.com/ndk/downloads/older_releases.html).
 
-#### Download GStreamer binaries
+### Download GStreamer binaries
 
 You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freedesktop.org/data/pkg/android/).
 
@@ -126,14 +135,14 @@ copyjavasource_$(TARGET_ARCH_ABI):
 +       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
 ```
 
-#### Download NNStreamer source code
+### Download NNStreamer source code
 
 ```bash
 $ cd $ANDROID_DEV_ROOT/workspace
 $ git clone https://github.com/nnstreamer/nnstreamer.git
 ```
 
-#### Build Android API
+### Build Android API
 
 Run the build script in NNStreamer.
 
@@ -151,10 +160,10 @@ $ bash ./api/android/build-android-lib.sh
 
 After building the Android API, you can find the library(.aar) in `$NNSTREAMER_ROOT/android_lib`.
 - Build result
-  1. nnstreamer.aar: NNStreamer library
-  2. nnstreamer-native.zip: shared objects and header files for native developer
+  1. nnstreamer-[BUILD_DATE].aar: NNStreamer library for Android
+  2. nnstreamer-native-[BUILD_DATE].zip: shared objects and header files for native developer
 
-#### Run the unit-test (Optional)
+### Run the unit-test (Optional)
 
 To run the unit-test, you will need an Android Emulator running or a physical device connected and in usb debugging mode.
 Make sure to select the appropriate target ABI for the emulator.
