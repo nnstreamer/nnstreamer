@@ -19,11 +19,15 @@ NNSTREAMER_INCLUDES := \
     $(NNSTREAMER_GST_HOME) \
     $(NNSTREAMER_GST_HOME)/include
 
-# nnstreamer common sources.
+# nnstreamer common sources. (including tensor-filter common)
 NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
-    $(NNSTREAMER_GST_HOME)/tensor_common.c
+    $(NNSTREAMER_GST_HOME)/tensor_common.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc
 
 # nnstreamer plugins. Not used for SINGLE-only build.
 NNSTREAMER_PLUGINS_SRCS := \
@@ -34,10 +38,6 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
     $(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc \
     $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
     $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_repo.c \
@@ -65,8 +65,7 @@ NNSTREAMER_CAPI_SRCS := \
 NNSTREAMER_SINGLE_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
-    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c
+    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
 
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \
