@@ -1852,7 +1852,9 @@ parse_accl_hw_all (const gchar * accelerators,
         gchar *word = g_match_info_fetch (match_info, 0);
         accl = get_accl_hw_type (word);
         g_free (word);
-        match_accl = g_list_append (match_accl, GINT_TO_POINTER (accl));
+        if (accl > 0 || (accl == 0 && g_strcmp0 (word, ACCL_NONE_STR) == 0)) {
+          match_accl = g_list_append (match_accl, GINT_TO_POINTER (accl));
+        }
         g_match_info_next (match_info, NULL);
       }
     }
@@ -1910,7 +1912,11 @@ accl_hw_get_type (void)
       {ACCL_DEFAULT, ACCL_DEFAULT_STR, ACCL_DEFAULT_STR},
       {ACCL_AUTO, ACCL_AUTO_STR, ACCL_AUTO_STR},
       {ACCL_CPU, ACCL_CPU_STR, ACCL_CPU_STR},
+#if defined(__aarch64__) || defined(__arm__)
+      /** Retreive NEON_STR when searching for SIMD/NEON on arm architectures */
       {ACCL_CPU_NEON, ACCL_CPU_NEON_STR, ACCL_CPU_NEON_STR},
+#endif
+      {ACCL_CPU_SIMD, ACCL_CPU_SIMD_STR, ACCL_CPU_SIMD_STR},
       {ACCL_GPU, ACCL_GPU_STR, ACCL_GPU_STR},
       {ACCL_NPU, ACCL_NPU_STR, ACCL_NPU_STR},
       {ACCL_NPU_MOVIDIUS, ACCL_NPU_MOVIDIUS_STR, ACCL_NPU_MOVIDIUS_STR},

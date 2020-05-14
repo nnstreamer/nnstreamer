@@ -21,6 +21,7 @@
 #define ACCL_DEFAULT_STR  "default"
 #define ACCL_AUTO_STR "auto"
 #define ACCL_CPU_STR  "cpu"
+#define ACCL_CPU_SIMD_STR  "cpu.simd"
 #define ACCL_CPU_NEON_STR  "cpu.neon"
 #define ACCL_GPU_STR  "gpu"
 #define ACCL_NPU_STR  "npu"
@@ -86,7 +87,8 @@ typedef enum
 
   /** Enables acceleration, 0xn000 any version of that device, 0xnxxx: device # xxx-1 */
   ACCL_CPU          = 0x1000,     /**< specify device as CPU, if possible */
-  ACCL_CPU_NEON     = 0x1100,     /**< specify device as NEON in cpu, if possible */
+  ACCL_CPU_SIMD     = 0x1100,     /**< specify device as SIMD in cpu, if possible */
+  ACCL_CPU_NEON     = 0x1100,     /**< specify device as NEON (alias for SIMD) in cpu, if possible */
   ACCL_GPU          = 0x2000,     /**< specify device as GPU, if possible */
   ACCL_NPU          = 0x4000,     /**< specify device as any NPU, if possible */
   ACCL_NPU_MOVIDIUS = 0x4001,     /**< specify device as movidius, if possible */
