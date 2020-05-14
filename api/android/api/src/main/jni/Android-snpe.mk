@@ -26,23 +26,17 @@ endif
 #------------------------------------------------------
 # snpe-sdk (prebuilt shared library)
 #------------------------------------------------------
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := libSNPE
-LOCAL_SRC_FILES := $(SNPE_LIB_PATH)/libSNPE.so
-
-include $(PREBUILT_SHARED_LIBRARY)
+include $(LOCAL_PATH)/Android-snap-prebuilt.mk
 
 #------------------------------------------------------
 # tensor-filter sub-plugin for snpe
 #------------------------------------------------------
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := snpe
+LOCAL_MODULE := snpe-subplugin
 LOCAL_SRC_FILES := $(NNSTREAMER_FILTER_SNPE_SRCS)
-LOCAL_CXXFLAGS += -std=c++11 -frtti -fexceptions -Wno-exceptions -O2 -DNDEBUG $(NNS_API_FLAGS)
-LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(SNPE_INCLUDES) $(GST_HEADERS_COMMON)
-LOCAL_SHARED_LIBRARIES := libSNPE
-LOCAL_STATIC_LIBRARIES := nnstreamer
+LOCAL_CXXFLAGS := -std=c++11 -O2 -fPIC -frtti -fexceptions -Wno-exceptions
+LOCAL_C_INCLUDES := $(SNPE_INCLUDES)
+LOCAL_SHARED_LIBRARIES := $(SNPE_PREBUILT_LIBS) $(NNS_API_LIBS)
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

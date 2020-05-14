@@ -47,11 +47,11 @@ include $(PREBUILT_STATIC_LIBRARY)
 #------------------------------------------------------
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := tensorflow-lite
+LOCAL_MODULE := tensorflow-lite-subplugin
 LOCAL_SRC_FILES := $(NNSTREAMER_FILTER_TFLITE_SRCS)
-LOCAL_CFLAGS += -O2 -DNDEBUG $(NNS_API_FLAGS)
-LOCAL_CXXFLAGS += -std=c++11 -frtti -fexceptions -O2 -DNDEBUG $(NNS_API_FLAGS)
-LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(TF_LITE_INCLUDES) $(GST_HEADERS_COMMON)
-LOCAL_STATIC_LIBRARIES := tensorflow-lite-lib
+LOCAL_CXXFLAGS := -std=c++11 -O2 -fPIC -frtti -fexceptions
+LOCAL_C_INCLUDES := $(TF_LITE_INCLUDES)
+LOCAL_STATIC_LIBRARIES := tensorflow-lite-lib cpufeatures
+LOCAL_SHARED_LIBRARIES := $(NNS_API_LIBS)
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

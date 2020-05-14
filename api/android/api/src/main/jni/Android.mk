@@ -37,8 +37,10 @@ ENABLE_NNFW := false
 # SNPE (Snapdragon Neural Processing Engine)
 ENABLE_SNPE := false
 
+# Common libraries for sub-plugins
+NNS_API_LIBS := nnstreamer gstreamer_android
 NNS_API_FLAGS :=
-NNS_API_STATIC_LIBS :=
+NNS_SUBPLUGINS :=
 
 ifeq ($(NNSTREAMER_API_OPTION),single)
 NNS_API_FLAGS += -DNNS_SINGLE_ONLY=1
@@ -48,34 +50,34 @@ include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
 NNS_API_FLAGS += -DVERSION=\"$(NNSTREAMER_VERSION)\"
 
 #------------------------------------------------------
-# external libs
+# external libs and sub-plugins
 #------------------------------------------------------
 ifeq ($(ENABLE_TF_LITE),true)
 NNS_API_FLAGS += -DENABLE_TENSORFLOW_LITE=1
 # define types in tensorflow-lite sub-plugin. This assumes tensorflow-lite >= 1.13 (older versions don't have INT8/INT16)
 NNS_API_FLAGS += -DTFLITE_INT8=1 -DTFLITE_INT16=1
-NNS_API_STATIC_LIBS += tensorflow-lite cpufeatures
+NNS_SUBPLUGINS += tensorflow-lite-subplugin
 
 include $(LOCAL_PATH)/Android-tensorflow-lite.mk
 endif
 
 ifeq ($(ENABLE_SNAP),true)
 NNS_API_FLAGS += -DENABLE_SNAP=1
-NNS_API_STATIC_LIBS += snap
+NNS_SUBPLUGINS += snap-subplugin
 
 include $(LOCAL_PATH)/Android-snap.mk
 endif
 
 ifeq ($(ENABLE_NNFW),true)
 NNS_API_FLAGS += -DENABLE_NNFW=1
-NNS_API_STATIC_LIBS += nnfw
+NNS_SUBPLUGINS += nnfw-subplugin
 
 include $(LOCAL_PATH)/Android-nnfw.mk
 endif
 
 ifeq ($(ENABLE_SNPE),true)
 NNS_API_FLAGS += -DENABLE_SNPE=1
-NNS_API_STATIC_LIBS += snpe
+NNS_SUBPLUGINS += snpe-subplugin
 
 include $(LOCAL_PATH)/Android-snpe.mk
 endif
@@ -86,7 +88,7 @@ endif
 include $(LOCAL_PATH)/Android-nnstreamer.mk
 
 # Remove any duplicates.
-NNS_API_STATIC_LIBS := $(sort $(NNS_API_STATIC_LIBS))
+NNS_SUBPLUGINS := $(sort $(NNS_SUBPLUGINS))
 
 #------------------------------------------------------
 # native code for api
@@ -94,20 +96,19 @@ NNS_API_STATIC_LIBS := $(sort $(NNS_API_STATIC_LIBS))
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := nnstreamer-native
-LOCAL_SRC_FILES := nnstreamer-native-api.c \
+
+LOCAL_SRC_FILES := \
+    nnstreamer-native-api.c \
     nnstreamer-native-singleshot.c
-LOCAL_CFLAGS += -O2 $(NNS_API_FLAGS)
-LOCAL_C_INCLUDES := $(NNSTREAMER_INCLUDES) $(NNSTREAMER_CAPI_INCLUDES)
-LOCAL_STATIC_LIBRARIES := nnstreamer $(NNS_API_STATIC_LIBS)
-LOCAL_SHARED_LIBRARIES := gstreamer_android
-LOCAL_LDLIBS := -llog -landroid
 
 ifneq ($(NNSTREAMER_API_OPTION),single)
 LOCAL_SRC_FILES += \
     nnstreamer-native-customfilter.c \
     nnstreamer-native-pipeline.c
-LOCAL_LDLIBS += -lmediandk
 endif
+
+LOCAL_CFLAGS := -O2 -fPIC
+LOCAL_SHARED_LIBRARIES := $(NNS_API_LIBS) $(NNS_SUBPLUGINS)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -118,21 +119,15 @@ GSTREAMER_NDK_BUILD_PATH := $(GSTREAMER_ROOT)/share/gst-android/ndk-build/
 include $(LOCAL_PATH)/Android-gst-plugins.mk
 
 GSTREAMER_PLUGINS        := $(GST_REQUIRED_PLUGINS)
-GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS) gio-2.0 gmodule-2.0
+GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS) gio-2.0 gmodule-2.0 json-glib-1.0
 GSTREAMER_EXTRA_LIBS     := $(GST_REQUIRED_LIBS) -liconv
 
 GSTREAMER_INCLUDE_FONTS := no
 GSTREAMER_INCLUDE_CA_CERTIFICATES := no
-
-ifeq ($(ENABLE_NNFW),true)
-GSTREAMER_EXTRA_DEPS += json-glib-1.0
-endif
 
 include $(GSTREAMER_NDK_BUILD_PATH)/gstreamer-1.0.mk
 
 #------------------------------------------------------
 # NDK cpu-features
 #------------------------------------------------------
-ifeq ($(filter cpufeatures,$(NNS_API_STATIC_LIBS)),cpufeatures)
 $(call import-module, android/cpufeatures)
-endif

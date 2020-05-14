@@ -30,21 +30,26 @@ NNSTREAMER_SRC_FILES += \
     $(NNSTREAMER_DECODER_IS_SRCS)
 endif
 
+# common headers (nnstreamer, gstreamer, glib)
+NNSTREAMER_INC := \
+    $(NNSTREAMER_INCLUDES) \
+    $(NNSTREAMER_CAPI_INCLUDES) \
+    $(GST_HEADERS_COMMON)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := nnstreamer
 
-# Remove duplicates
 LOCAL_SRC_FILES := $(sort $(NNSTREAMER_SRC_FILES))
+LOCAL_C_INCLUDES := $(NNSTREAMER_INC)
+LOCAL_CFLAGS := -O2 -fPIC $(NNS_API_FLAGS)
+LOCAL_CXXFLAGS := -std=c++11 -O2 -fPIC -frtti -fexceptions $(NNS_API_FLAGS)
+LOCAL_SHARED_LIBRARIES := gstreamer_android
+LOCAL_LDLIBS := -llog -landroid -lmediandk
 
-LOCAL_C_INCLUDES := \
-    $(NNSTREAMER_INCLUDES) \
-    $(NNSTREAMER_CAPI_INCLUDES)
+LOCAL_EXPORT_C_INCLUDES := $(NNSTREAMER_INC)
+LOCAL_EXPORT_CFLAGS := $(NNS_API_FLAGS)
+LOCAL_EXPORT_CXXFLAGS := $(NNS_API_FLAGS)
+LOCAL_EXPORT_LDLIBS := -llog -landroid
 
-# common headers (gstreamer, glib)
-LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
-
-LOCAL_CFLAGS += -O2 -fPIC $(NNS_API_FLAGS)
-LOCAL_CXXFLAGS += -std=c++11 -O2 -fPIC -frtti -fexceptions $(NNS_API_FLAGS)
-
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)
