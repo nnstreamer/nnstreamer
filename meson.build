@@ -130,6 +130,9 @@ thread_dep = dependency('threads') # pthread for tensorflow-lite
 # Protobuf
 protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 
+# Flatbuffer compiler
+fb_comp = find_program('flatc', required : get_option('flatbuf-support'))
+
 json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support')) 
 
 #orc
@@ -167,6 +170,8 @@ if not get_option('snpe-support').disabled()
     snpe_dep = declare_dependency()
   endif
 endif
+
+fb_comp = find_program('flatc', required : get_option('flatbuf-support'))
 
 # features registration to be controlled
 #
@@ -224,6 +229,10 @@ features = {
     'extra_deps': [ snpe_dep ],
     'project_args': { 'ENABLE_SNPE' : 1 },
     'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
+  },
+  'flatbuf-support': {
+    'extra_deps': [ fb_comp ],
+    'project_args': { 'ENABLE_FLATBUF': 1 }
   }
 }
 

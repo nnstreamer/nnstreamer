@@ -109,6 +109,10 @@ BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
 %endif
 
+# for flatbuffers
+BuildRequires: flatbuffers
+BuildRequires: flatbuffers-devel
+
 %if 0%{?edgetpu_support}
 BuildRequires:	pkgconfig(edgetpu)
 %endif
@@ -404,6 +408,13 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_edgetpu -Denable-edgetpu=false
 %endif
 
+# Support edgetpu
+%if 0%{?flatbuf_support}
+%define enable_flatbuf -Denable-flatbuf=enabled
+%else
+%define enable_flatbuf -Denable-flatbuf=disabled
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -448,6 +459,7 @@ export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/build/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=$(pwd)/build/ext/nnstreamer/tensor_converter
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
@@ -543,6 +555,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
