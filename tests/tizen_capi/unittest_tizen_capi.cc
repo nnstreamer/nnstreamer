@@ -1334,6 +1334,10 @@ TEST (nnstreamer_capi_util, availability_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_SIMD, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (result, is_enabled_tensorflow_lite);
+
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
@@ -4957,7 +4961,6 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
     ml_tensors_info_destroy (in_info);
     ml_tensors_info_destroy (out_info);
   }
-
 
   status = ml_single_set_property (single, "input", "5:1:1:1");
   EXPECT_EQ (status, ML_ERROR_NONE);

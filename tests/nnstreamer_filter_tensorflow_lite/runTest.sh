@@ -177,7 +177,12 @@ testResult $? 2-16 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi
 run_pipeline true:cpu.neon,cpu
-cat info | grep "nnapi = 1, accl = cpu.neon$"
+arch=$(uname -m)
+if [ "$arch" = "aarch64" ] || [ "$arch" = "armv7l" ]; then
+	cat info | grep "nnapi = 1, accl = cpu.neon$"
+else
+	cat info | grep "nnapi = 1, accl = cpu$"
+fi
 testResult $? 2-17 "NNAPI activation test" 0 1
 
 # Cleanup

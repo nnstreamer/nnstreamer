@@ -140,7 +140,8 @@ typedef enum {
   ML_NNFW_HW_ANY          = 0,      /**< Hardware resource is not specified. */
   ML_NNFW_HW_AUTO         = 1,      /**< Try to schedule and optimize if possible. */
   ML_NNFW_HW_CPU          = 0x1000, /**< 0x1000: any CPU. 0x1nnn: CPU # nnn-1. */
-  ML_NNFW_HW_CPU_NEON     = 0x1100, /**< 0x1100: NEON in CPU. (Since 6.0) */
+  ML_NNFW_HW_CPU_SIMD     = 0x1100, /**< 0x1100: SIMD in CPU. (Since 6.0) */
+  ML_NNFW_HW_CPU_NEON     = 0x1100, /**< 0x1100: NEON (alias for SIMD) in CPU. (Since 6.0) */
   ML_NNFW_HW_GPU          = 0x2000, /**< 0x2000: any GPU. 0x2nnn: GPU # nnn-1. */
   ML_NNFW_HW_NPU          = 0x3000, /**< 0x3000: any NPU. 0x3nnn: NPU # nnn-1. */
   ML_NNFW_HW_NPU_MOVIDIUS = 0x3001, /**< 0x3001: Intel Movidius Stick. (Since 6.0) */

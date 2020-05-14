@@ -1125,8 +1125,13 @@ ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
       return ACCL_AUTO;
     case ML_NNFW_HW_CPU:
       return ACCL_CPU;
+#if defined(__aarch64__) || defined(__arm__)
     case ML_NNFW_HW_CPU_NEON:
       return ACCL_CPU_NEON;
+#else
+    case ML_NNFW_HW_CPU_SIMD:
+      return ACCL_CPU_SIMD;
+#endif
     case ML_NNFW_HW_GPU:
       return ACCL_GPU;
     case ML_NNFW_HW_NPU:

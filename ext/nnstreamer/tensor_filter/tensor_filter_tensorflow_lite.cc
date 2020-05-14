@@ -50,6 +50,7 @@
 static const gchar *tflite_accl_support[] = {
   ACCL_AUTO_STR,
   ACCL_DEFAULT_STR,
+  ACCL_CPU_SIMD_STR,
   ACCL_CPU_NEON_STR,
   ACCL_CPU_STR,
   ACCL_GPU_STR,
