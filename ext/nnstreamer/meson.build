@@ -1,3 +1,10 @@
+if flatbuf_support_is_available
+  # Compile flatbuffers schema file
+  fb_gen = generator(fb_comp, output : '@BASENAME@_generated.h',
+                 arguments : ['--cpp', '-o', '@BUILD_DIR@', '@INPUT@'])
+  fb_gen_src = fb_gen.process('./include/nnstreamer.fbs')
+endif
+
 if protobuf_support_is_available
   pb_gen = generator(pb_comp,
       output: ['@BASENAME@.pb.h', '@BASENAME@.pb.cc'],
@@ -13,3 +20,4 @@ endif
 subdir('tensor_decoder')
 subdir('tensor_filter')
 subdir('tensor_source')
+subdir('tensor_converter')
