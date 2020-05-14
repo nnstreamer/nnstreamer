@@ -12,6 +12,7 @@ pushd build
 export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=$(pwd)/ext/nnstreamer/tensor_converter
 export _PYTHONPATH=${PYTHONPATH}
 
 run_entry() {

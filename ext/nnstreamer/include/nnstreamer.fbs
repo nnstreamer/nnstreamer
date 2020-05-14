@@ -1,0 +1,45 @@
+/**
+ * @file  nnstreamer.fbs
+ * @date  14 May 2020
+ * @brief The schema file defines tensor(s) to de-/serialize flatbuffers. The file used with flatc to generate flatbuffer header file.
+ * @see https://github.com/nnstreamer/nnstreamer
+ * @author  Gichan Jang <gichan2.jang@samsung.com>
+ * @bug No known bugs except for NYI items
+ */
+
+namespace nnstreamer.flatbuf;
+
+enum Tensor_type : int { 
+  NNS_INT32 = 0,
+  NNS_UINT32,
+  NNS_INT16,
+  NNS_UINT16,
+  NNS_INT8,
+  NNS_UINT8,
+  NNS_FLOAT64,
+  NNS_FLOAT32,
+  NNS_INT64,
+  NNS_UINT64,
+
+  NNS_END
+  }
+
+struct frame_rate {
+  rate_n : int;
+  rate_d : int;
+}
+
+table Tensor {
+  name  : string;
+  type : Tensor_type = NNS_END;
+  dimension : [uint32]; // support up to 4th ranks.
+  data : [ubyte]; 
+}
+
+table Tensors {
+  num_tensor : int;
+  fr : frame_rate;
+  tensor : [Tensor]; // tensor size is limited to 16
+}
+
+root_type Tensors;

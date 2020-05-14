@@ -16,6 +16,7 @@ option('armnn-support', type: 'feature', value: 'auto')
 option('orcc-support', type: 'feature', value: 'auto')
 option('snpe-support', type: 'feature', value: 'auto')
 option('protobuf-support', type: 'feature', value: 'auto')
+option('flatbuf-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)

@@ -6,6 +6,7 @@
 %define		tensorflow_lite_support	1
 %define		armnn_support 0
 %define		vivante_support 0
+%define		flatbuf_support 1
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -94,9 +95,12 @@ BuildRequires:	python-numpy-devel
 %endif
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
+%if 0%{?flatbuf_support}
+# for flatbuffers
+BuildRequires: flatbuffers-devel
+%endif
 %if 0%{?tensorflow_lite_support}
 # for tensorflow-lite
-BuildRequires: flatbuffers-devel
 BuildRequires: tensorflow-lite-devel
 %endif
 # custom_example_opencv filter requires opencv-devel
@@ -411,6 +415,13 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_edgetpu -Denable-edgetpu=false
 %endif
 
+# Support flatbuffer
+%if 0%{?flatbuf_support}
+%define enable_flatbuf -Denable-flatbuf=enabled
+%else
+%define enable_flatbuf -Denable-flatbuf=disabled
+%endif
+
 %prep
 %setup -q
 cp %{SOURCE1001} .
@@ -455,6 +466,7 @@ export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
 export NNSTREAMER_CONF=$(pwd)/build/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=$(pwd)/build/ext/nnstreamer/tensor_converter
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
@@ -550,6 +562,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
