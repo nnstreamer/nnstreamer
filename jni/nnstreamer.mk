@@ -133,6 +133,7 @@ ENABLE_NNAPI :=false
 GST_HEADERS_COMMON := \
     $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
     $(GSTREAMER_ROOT)/include/glib-2.0 \
+    $(GSTREAMER_ROOT)/include/json-glib-1.0 \
     $(GSTREAMER_ROOT)/lib/glib-2.0/include \
     $(GSTREAMER_ROOT)/include
 

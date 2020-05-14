@@ -217,19 +217,20 @@ echo "Start to build NNStreamer library for Android (build $build_type)"
 pushd $nnstreamer_dir
 
 # Make directory to build NNStreamer library
-mkdir -p build_android_lib
+build_dir=build_android_$build_type
+mkdir -p $build_dir
 
 # Copy the files (native and java to build Android library) to build directory
-cp -r ./api/android/* ./build_android_lib
+cp -r ./api/android/* ./$build_dir
 
 # Get the prebuilt libraries and build-script
-mkdir -p build_android_lib/external
+mkdir -p $build_dir/external
 
-svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./build_android_lib
-svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz ./build_android_lib/external
-svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/jni/Android-nnstreamer-prebuilt.mk ./build_android_lib/external
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./$build_dir
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz ./$build_dir/external
+svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/jni/Android-nnstreamer-prebuilt.mk ./$build_dir/external
 
-pushd ./build_android_lib
+pushd ./$build_dir
 
 # Update target ABI
 sed -i "s|abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'|abiFilters '$target_abi'|" api/build.gradle
@@ -273,6 +274,7 @@ fi
 
 # Update tf-lite option
 if [[ $enable_tflite == "yes" ]]; then
+    sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
     tar xJf ./external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
 fi
@@ -332,9 +334,12 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
         cp -r aar_extracted/assets/* main/assets
     fi
 
+    # java, libraries and mk files
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
+    cp api/src/main/jni/*-prebuilt.mk main/jni
     cp external/Android-nnstreamer-prebuilt.mk main/jni
+
     # header for C-API
     cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
@@ -400,7 +405,7 @@ fi
 popd
 
 # Remove build directory
-rm -rf build_android_lib
+rm -rf $build_dir
 
 popd
 
