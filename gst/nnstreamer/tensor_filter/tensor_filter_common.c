@@ -754,6 +754,9 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
     }
   }
 
+  if (info->num_hw == 0)
+    return;
+
   /**
    * Convert the list to string format
    * Extra 2 entries for basic accelerators : auto and default

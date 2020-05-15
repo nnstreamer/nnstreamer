@@ -81,11 +81,7 @@
 
 #define Py_ERRMSG(...) do {PyErr_Print(); ml_loge (__VA_ARGS__);} while (0);
 
-static const gchar *python_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  NULL
-};
+static const gchar *python_accl_support[] = { NULL };
 
 /** @brief Callback type for custom filter */
 typedef enum _cb_type
@@ -577,7 +573,6 @@ PYCore::parseOutputTensors(PyObject* result, GstTensorsInfo * info)
     PyObject *shape_type = PyObject_CallMethod(tensor_shape, (char*) "getType", NULL);
     if (nullptr == shape_type)
       throw std::runtime_error ("parseOutputTensors() has failed (3).");
-
 
     /** convert numpy type to tensor type */
     info->info[i].type = getTensorType((NPY_TYPES)(((PyArray_Descr*) shape_type)->type_num));

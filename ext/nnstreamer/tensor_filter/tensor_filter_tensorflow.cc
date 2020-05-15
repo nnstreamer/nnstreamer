@@ -46,11 +46,7 @@
 #define DBG FALSE
 #endif
 
-static const gchar *tf_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  NULL
-};
+static const gchar *tf_accl_support[] = { NULL };
 
 /**
  * @brief	Internal data structure for tensorflow

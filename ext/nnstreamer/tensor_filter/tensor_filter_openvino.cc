@@ -37,7 +37,6 @@
 #include <vector>
 #include "tensor_filter_openvino.hh"
 
-
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
 
@@ -449,7 +448,6 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
   return RetSuccess;
 }
 
-
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
@@ -541,14 +539,15 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
     return TensorFilterOpenvino::RetEInval;
   }
 #endif
-  if (accelerator == ACCL_NONE || accelerator == ACCL_AUTO
-      || accelerator == ACCL_DEFAULT) {
+  if (accelerator == ACCL_NONE) {
     if (prop->accl_str != NULL) {
       ml_loge("'%s' is not valid value for the 'accelerator' property",
           prop->accl_str);
+    } else {
+      ml_loge("Invalid value for the 'accelerator' property");
     }
-    ml_loge ("The 'accelerator' property is mandatory to use the tensor filter for OpenVino.\n"
-        "An acceptable format is as follows: 'true:[cpu|npu.movidius]'. Note that 'cpu' is only for the x86_64 architecture.");
+    ml_loge ("An acceptable format is as follows: 'true:[cpu|npu.movidius]'."
+        "Note that 'cpu' is only for the x86_64 architecture.");
 
     return TensorFilterOpenvino::RetEInval;
   }

@@ -63,7 +63,6 @@ private:
       BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
           edgetpu::EdgeTpuContext* edgetpu_context);
 
-
   /** Internal Utility Functions & Properties ***************************/
   void cleanup ();
   static void setTensorProp (tflite::Interpreter *interpreter,
@@ -92,8 +91,7 @@ public:
 };
 
 const char *edgetpu_subplugin::name = "edgetpu";
-const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU,
-    ACCL_DEFAULT, ACCL_AUTO };
+const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU };
 
 edgetpu_subplugin::edgetpu_subplugin () :
     tensor_filter_subplugin (),
