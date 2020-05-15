@@ -34,4 +34,5 @@ option('enable-filter-cpp-class', type: 'boolean', value: true) # Allows to acce
 option('enable-tizen-sensor', type: 'boolean', value: false)
 option('enable-edgetpu', type: 'boolean', value: false)
 option('enable-openvino', type: 'boolean', value: false)
+option('enable-vivante', type: 'boolean', value: false)
 option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw,armnn,edgetpu', description: 'A comma separated prioritized list of neural network frameworks to open a .tflite file')

@@ -377,6 +377,10 @@ if get_option('enable-openvino')
   )
 endif
 
+if get_option('enable-vivante')
+  subdir('vivante')
+endif
+
 if get_option('enable-mediapipe')
   if host_machine.system() == 'linux' and host_machine.cpu_family() == 'x86_64'
     opencv_path = 'bazel-bin/_solib_k8/_U@linux_Uopencv_S_S_Copencv___Uexternal_Slinux_Uopencv_Slib_Sx86_U64-linux-gnu'
