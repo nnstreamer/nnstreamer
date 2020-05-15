@@ -5,6 +5,7 @@
 %define		tensorflow_support	0
 %define		tensorflow_lite_support	1
 %define		armnn_support 0
+%define		vivante_support 0
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -34,6 +35,10 @@
 
 %ifnarch %arm aarch64
 %define armnn_support 0
+%endif
+
+%ifnarch %arm aarch64
+%define		vivante_support 0
 %endif
 
 # If it is tizen, we can export Tizen API packages.
@@ -117,6 +122,16 @@ BuildRequires: lcov
 %if 0%{mvncsdk2_support}
 BuildRequires:	pkgconfig(libmvnc)
 %endif
+
+# for Vivante
+# TODO: dann and opencv will be removed in the near future.
+%if 0%{?vivante_support}
+BuildRequires:  pkgconfig(opencv)
+BuildRequires:  pkgconfig(dann)
+BuildRequires:  pkgconfig(ovxlib)
+BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
+%endif
+
 %if %{with tizen}
 BuildRequires:	pkgconfig(dpm)
 %if 0%{tizen_version_major} >= 5
@@ -202,6 +217,22 @@ Summary:	NNStreamer Arm NN support
 Requires:	armnn
 %description armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
+%endif
+
+# Support vivante subplugin
+%if 0%{?vivante_support}
+%package vivante
+Summary:    NNStreamer subplugin for Verisilion's Vivante
+Requires:   nnstreamer = %{version}-%{release}
+Requires:   gst-plugins-good
+Requires:   gst-plugins-good-extra
+Requires:   gst-libav
+%description vivante
+NNStreamer filter subplugin for Verisicon Vivante.
+
+%define enable_vivante -Denable-vivante=true
+%else
+%define enable_vivante -Denable-vivante=false
 %endif
 
 %package devel
@@ -406,7 +437,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
-	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu} \
+	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_tizen_sensor} %{enable_test_coverage} \
 	build
 
@@ -607,6 +638,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_movidius-ncsdk2.so
 %endif  # mvncsdk2_support
+
+%if 0%{?vivante_support}
+%files vivante
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_vivante.so
+%endif
 
 %if 0%{tizen_sensor_support}
 %files tizen-sensor
