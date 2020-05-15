@@ -136,6 +136,9 @@ tensor_filter_subplugin & snpe_subplugin::getEmptyInstance ()
 
 void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
+  nns_logi ("SNPE Version: %s",
+    zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+
   if (!empty_model) {
     /* Already opend */
 
@@ -282,6 +285,10 @@ void snpe_subplugin::fini_filter_snpe (void)
 
 void _init_filter_snpe ()
 {
+  if (nnstreamer_filter_find ("snap")) {
+    nns_loge ("Cannot use SNPE and SNAP both. Won't register this SNPE subplugin.");
+    return;
+  }
   snpe_subplugin::init_filter_snpe ();
 }
 

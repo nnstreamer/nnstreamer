@@ -153,6 +153,7 @@ if [[ $enable_nnfw == "yes" ]]; then
 fi
 
 if [[ $enable_snpe == "yes" ]]; then
+    [ $enable_snap == "yes" ] && echo "DO NOT enable SNAP and SNPE both. The app would fail to use DSP or NPU runtime." && exit 1
     [ -z "$SNPE_DIRECTORY" ] && echo "Need to set SNPE_DIRECTORY, to build sub-plugin for SNPE." && exit 1
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNPE." && exit 1
 
@@ -267,9 +268,11 @@ fi
 if [[ $enable_snpe == "yes" ]]; then
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" external/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android.mk
-    mkdir api/src/main/jni/snpe
+    sed -i "$ a SNPE_DSP_LIBRARY_PATH=src/main/jni/snpe/lib/dsp" gradle.properties
+    mkdir -p api/src/main/jni/snpe/lib/dsp/arm64-v8a
     cp -r $SNPE_DIRECTORY/include api/src/main/jni/snpe
-    cp -r $SNPE_DIRECTORY/lib api/src/main/jni/snpe
+    cp -r $SNPE_DIRECTORY/lib/aarch64-android-clang6.0 api/src/main/jni/snpe/lib/aarch64-android-clang6.0
+    cp $SNPE_DIRECTORY/lib/dsp/libsnpe*.so api/src/main/jni/snpe/lib/dsp/arm64-v8a
 fi
 
 # Update tf-lite option

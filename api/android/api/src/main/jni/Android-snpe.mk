@@ -18,7 +18,6 @@ SNPE_INCLUDES := $(SNPE_DIR)/include/zdl/
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
 SNPE_LIB_PATH := $(SNPE_DIR)/lib/aarch64-android-clang6.0
-SNPE_DSP_LIB_PATH := $(SNPE_DIR)/lib/dsp
 else
 $(error Target arch ABI not supported: $(TARGET_ARCH_ABI))
 endif
@@ -26,7 +25,7 @@ endif
 #------------------------------------------------------
 # snpe-sdk (prebuilt shared library)
 #------------------------------------------------------
-include $(LOCAL_PATH)/Android-snap-prebuilt.mk
+include $(LOCAL_PATH)/Android-snpe-prebuilt.mk
 
 #------------------------------------------------------
 # tensor-filter sub-plugin for snpe

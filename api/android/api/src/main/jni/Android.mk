@@ -37,6 +37,12 @@ ENABLE_NNFW := false
 # SNPE (Snapdragon Neural Processing Engine)
 ENABLE_SNPE := false
 
+ifeq ($(ENABLE_SNAP),true)
+  ifeq ($(ENABLE_SNPE),true)
+   $(error DO NOT enable SNAP and SNPE both. The app would fail to use DSP or NPU runtime.)
+  endif
+endif
+
 # Common libraries for sub-plugins
 NNS_API_LIBS := nnstreamer gstreamer_android
 NNS_API_FLAGS :=
