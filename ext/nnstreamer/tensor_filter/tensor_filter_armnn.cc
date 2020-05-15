@@ -40,9 +40,7 @@
 #include <nnstreamer_conf.h>
 
 static const gchar *armnn_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  ACCL_CPU_NEON_STR,
+  ACCL_CPU_NEON_STR,      /** ACCL for default and auto config */
   ACCL_CPU_STR,
   ACCL_GPU_STR,
   NULL
@@ -327,10 +325,6 @@ armnn::Compute ArmNNCore::getBackend (const accl_hw hw)
     case ACCL_CPU:
       return armnn::Compute::CpuRef;
     case ACCL_CPU_NEON:
-      return armnn::Compute::CpuAcc;
-    case ACCL_AUTO:
-      /** intended */
-    case ACCL_DEFAULT:
       /** intended */
     default:
       return armnn::Compute::CpuAcc;

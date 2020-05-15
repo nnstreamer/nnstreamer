@@ -61,7 +61,7 @@ private:
   int loadMediapipeGraph (const GstTensorFilterProperties * prop);
   static const char *name;
   static const accl_hw hw_list[];
-  static const int num_hw = 1;
+  static const int num_hw = 0;
   static mediapipe_subplugin *registeredRepresentation;
 
 public:
@@ -81,8 +81,7 @@ public:
 };
 
 const char *mediapipe_subplugin::name = "mediapipe";
-const accl_hw mediapipe_subplugin::hw_list[] = {
-    ACCL_DEFAULT, ACCL_AUTO };
+const accl_hw mediapipe_subplugin::hw_list[] = { };
 
 /**
  * @brief	mediapipe_subplugin Constructor
@@ -237,7 +236,7 @@ void mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory 
   mediapipe::Status status;
 
   /* TODO to make it better, start the graph at init or previous step */
-  mediapipe::OutputStreamPoller poller = 
+  mediapipe::OutputStreamPoller poller =
     graph.AddOutputStreamPoller (outputInfo.info[0].name).ValueOrDie ();
   status = graph.StartRun ({});
   if (!status.ok ()) {
@@ -247,8 +246,8 @@ void mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory 
 
   // Wrap Mat into an ImageFrame.
   auto input_frame = absl::make_unique<mediapipe::ImageFrame> (
-      mediapipe::ImageFormat::SRGB, 
-      input_width, 
+      mediapipe::ImageFormat::SRGB,
+      input_width,
       input_height,
       input_widthStep,
       (uint8_t *) input->data,
@@ -257,7 +256,7 @@ void mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory 
 
   // Send image packet
   status = graph.AddPacketToInputStream (
-      inputInfo.info[0].name, 
+      inputInfo.info[0].name,
       mediapipe::Adopt (input_frame.release ()).At (
         mediapipe::Timestamp (frame_timestamp++)
       )
@@ -300,7 +299,7 @@ void mediapipe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.num_hw = num_hw;
 }
 
-/** 
+/**
  * @brief there is no model info available from the mediapipe.
  *        For this reason, the acquired properties gotten at configuration will be filled.
  * @return 0 if OK. non-zero if error.
@@ -339,7 +338,7 @@ void _init_filter_mediapipe ()
   mediapipe_subplugin::init_filter_mediapipe ();
 }
 
-/** 
+/**
  * @brief Destruct the subplugin
  */
 void mediapipe_subplugin::fini_filter_mediapipe (void)
@@ -348,7 +347,7 @@ void mediapipe_subplugin::fini_filter_mediapipe (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
-/** 
+/**
  * @brief fin
  */
 void _fini_filter_mediapipe ()

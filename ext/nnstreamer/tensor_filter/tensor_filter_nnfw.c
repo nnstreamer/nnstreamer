@@ -47,8 +47,6 @@
 #define NNFW_TENSOR_RANK_LIMIT 6
 
 static const gchar *nnfw_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
   ACCL_CPU_NEON_STR,
   ACCL_CPU_STR,
   ACCL_GPU_STR,
@@ -56,6 +54,13 @@ static const gchar *nnfw_accl_support[] = {
   ACCL_NPU_STR,
   NULL
 };
+
+#if defined(__aarch64__) || defined(__arm__)
+static const gchar *nnfw_accl_auto = ACCL_CPU_NEON_STR;
+#else
+static const gchar *nnfw_accl_auto = ACCL_CPU_STR;
+#endif
+static const gchar *nnfw_accl_default = ACCL_CPU_STR;
 
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
@@ -88,7 +93,8 @@ static int nnfw_tensor_type_from_gst (const tensor_type type,
 static const char *
 nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
 {
-  pdata->accelerator = parse_accl_hw (accelerators, nnfw_accl_support);
+  pdata->accelerator = parse_accl_hw (accelerators, nnfw_accl_support,
+      nnfw_accl_auto, nnfw_accl_default);
 
   switch (pdata->accelerator) {
     case ACCL_NPU:
@@ -101,8 +107,6 @@ nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
       return NNFW_GPU_BACKEND;
     case ACCL_CPU:
       return NNFW_CPU_BACKEND;
-    case ACCL_DEFAULT:
-      /** intended */
     default:
       return NNFW_DEFAULT_BACKEND;
   }
@@ -303,7 +307,6 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = NULL;
 }
 
-
 /**
  * @brief Convert from nnfw type to gst tensor type
  * @param[in] nnfw_type type given in nnfw format
@@ -333,7 +336,6 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
 
   return err;
 }
-
 
 /**
  * @brief Copy nnfw format info of tensor to gst format info

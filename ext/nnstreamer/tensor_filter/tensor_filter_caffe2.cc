@@ -43,11 +43,7 @@
 #define DBG FALSE
 #endif
 
-static const gchar *caffe2_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  NULL
-};
+static const gchar *caffe2_accl_support[] = { NULL };
 
 using namespace caffe2;
 

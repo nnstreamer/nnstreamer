@@ -37,8 +37,6 @@
 #include <sys/stat.h>
 
 static const gchar *mvncsdk2_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
   ACCL_NPU_STR,
   ACCL_NPU_MOVIDIUS_STR,
   NULL

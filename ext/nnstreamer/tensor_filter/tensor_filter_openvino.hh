@@ -44,11 +44,10 @@
 #include <string>
 #include <vector>
 
-
 const gchar *openvino_accl_support[] = {
-  ACCL_CPU_STR,
+  ACCL_NPU_MOVIDIUS_STR,    /** ACCL for default and auto config */
   ACCL_NPU_STR,
-  ACCL_NPU_MOVIDIUS_STR,
+  ACCL_CPU_STR,
   NULL
 };
 
