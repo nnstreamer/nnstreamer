@@ -206,7 +206,7 @@ features = {
     'project_args': { 'ENABLE_NNFW_RUNTIME': 1 }
   },
   'tflite-nnapi-delegation': {
-    'additional_deps': [ nnfw_dep ],
+    'extra_deps': [ nnfw_dep ],
     'project_args': { 'ENABLE_TFLITE_NNAPI_DELEGATION': 1 }
   },
   'armnn-support': {
