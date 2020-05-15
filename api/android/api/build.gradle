@@ -60,6 +60,18 @@ android {
     }
     productFlavors {
     }
+    sourceSets {
+        main {
+            if (project.hasProperty('SNPE_DSP_LIBRARY_PATH')) {
+                jniLibs.srcDirs += project.properties['SNPE_DSP_LIBRARY_PATH']
+                println 'Set jniLibs.srcDirs includes libraries for SNPE DSP runtime'
+            }
+        }
+    }
+    packagingOptions {
+        // To do not show build warning messages
+        doNotStrip "*/arm64-v8a/*_skel.so"
+    }
 }
 
 dependencies {
