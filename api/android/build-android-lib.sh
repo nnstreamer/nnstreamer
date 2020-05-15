@@ -338,6 +338,7 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     # header for C-API
     cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
+    cp $nnstreamer_dir/api/capi/include/ml-api-common.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
 
     # header for plugin
