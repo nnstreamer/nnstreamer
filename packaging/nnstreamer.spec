@@ -354,9 +354,9 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 
 # Support ArmNN
 %if 0%{?armnn_support}
-%define enable_armnn -Dearmnn_support=enabled
+%define enable_armnn -Darmnn_support=enabled
 %else
-%define enable_armnn -Dearmnn_support=disabled
+%define enable_armnn -Darmnn_support=disabled
 %endif
 
 # Support python
