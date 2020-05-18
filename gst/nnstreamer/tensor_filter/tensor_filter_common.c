@@ -2038,3 +2038,36 @@ accl_hw_get_type (void)
 
   return g_accl_hw_type_id__volatile;
 }
+
+/**
+ * @brief check if the given hw is supported by the framework
+ */
+gboolean
+gst_tensor_filter_check_hw_availability (const GstTensorFilterFramework * fw,
+    accl_hw hw)
+{
+  gint idx = 0;
+  gboolean available = FALSE;
+  GstTensorFilterFrameworkInfo info;
+  GstTensorFilterProperties prop;
+
+  /** Only check for specific HW, DEFAULT/AUTO are always supported */
+  if (hw == ACCL_AUTO || hw == ACCL_DEFAULT) {
+    available = TRUE;
+  } else if (GST_TF_FW_V0 (fw) &&
+      (!fw->checkAvailability || fw->checkAvailability (hw) == 0)) {
+    available = TRUE;
+  } else if (GST_TF_FW_V1 (fw)) {
+    gst_tensor_filter_properties_init (&prop);
+    if (!fw->getFrameworkInfo (fw, &prop, NULL, &info)) {
+      for (idx = 0; idx < info.num_hw; idx++) {
+        if (info.hw_list[idx] == hw) {
+          available = TRUE;
+          break;
+        }
+      }
+    }
+  }
+
+  return available;
+}
