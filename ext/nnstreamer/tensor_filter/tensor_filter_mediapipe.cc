@@ -106,15 +106,16 @@ mediapipe_subplugin::~mediapipe_subplugin ()
 
   g_free (config_path);
 
-  gst_tensors_info_free (&inputInfo);
-  gst_tensors_info_free (&outputInfo);
-
   for (unsigned int i = 0; i < inputInfo.num_tensors; i++) {
     status = graph.CloseInputStream (inputInfo.info[i].name);
     if (!status.ok ()) {
       std::cerr << "Failed to close input stream" << std::endl;
     }
   }
+
+  gst_tensors_info_free (&inputInfo);
+  gst_tensors_info_free (&outputInfo);
+
   status = graph.WaitUntilDone ();
   if (!status.ok ()) {
     std::cerr << "Failed to closing mediapipe graph" << std::endl;
