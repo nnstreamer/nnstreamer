@@ -73,13 +73,14 @@ struct _GstTensorConverter
   GstAdapter *adapter; /**< adapt incoming media stream */
 
   media_type in_media_type; /**< incoming media type */
+  /** ExternalConverter is used if in_media_type == _NNS_MEDIA_PLUGINS */
   const NNStreamerExternalConverter *externalConverter;
-      /**< used if in_media_type == _NNS_MEDIA_PLUGINS */
 
   gsize frame_size; /**< size of one frame */
   gboolean remove_padding; /**< If true, zero-padding must be removed */
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
   GstTensorConfig tensor_config; /**< output tensor info */
+  GstTensorsConfig tensors_config; /**< output tensors info */
 
   gboolean have_segment; /**< True if received segment */
   gboolean need_segment; /**< True to handle seg event */

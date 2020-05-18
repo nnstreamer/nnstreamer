@@ -80,6 +80,15 @@
      */
 
 /**
+ * @brief Default static capibility for flatbuffers
+ * Flatbuf converter will convert this capability to other/tensor(s)
+ * @todo Move this definition to proper header file
+ */
+#define GST_FLATBUF_TENSOR_CAP_DEFAULT \
+    "other/flatbuf-tensor, " \
+    "framerate = " GST_TENSOR_RATE_RANGE
+
+/**
  * @brief Possible data element types of other/tensor.
  */
 typedef enum _nns_tensor_type

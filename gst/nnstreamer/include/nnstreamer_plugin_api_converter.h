@@ -38,54 +38,52 @@ extern "C" {
 /**
  * @brief Converter's subplugin implementation.
  */
-struct _NNStreamerExternalConverter {
+struct _NNStreamerExternalConverter
+{
   const char *media_type_name;
 
   /** 1. chain func, data handling. */
-  GstBuffer * (*convert) (GstTensorConverter * self,
-      const GstBuffer * buf, gsize * frame_size, guint * frames_in);
-      /**< Convert the given input stream to tensor/tensors stream.
-       * @param[in/out] self A pointer designating "this".
-       * @param[in] buf The input stream buffer
-       * @param[out] frame_size The size of each frame (output buffer)
-       * @param[out] frames_in The number of frames in the given input buffer.
-       * @retval Return inbuf if the data is to be kept untouched.
-       * @retval Retrun a new GstBuf if the data is to be modified.
-       */
+  GstBuffer *(*convert) (GstBuffer * buf, gsize * frame_size,
+      guint * frames_in, GstTensorsConfig * config);
+  /**< Convert the given input stream to tensor/tensors stream.
+   * @param[in/out] self A pointer designating "this".
+   * @param[in] buf The input stream buffer
+   * @param[out] frame_size The size of each frame (output buffer)
+   * @param[out] frames_in The number of frames in the given input buffer.
+   * @retval Return inbuf if the data is to be kept untouched.
+   * @retval Retrun a new GstBuf if the data is to be modified.
+   */
 
-  /** 2. parse_caps (type conv, input(media) to output(tensor)) */
-  gboolean (*get_caps) (GstTensorConverter * self, const GstStructure * st,
-      GstTensorConfig * config);
-      /**< Set the tensor config structure from the given stream frame
-       * @param[in/out] self A pointer designating "this".
-       * @param[in] st The input (original/media data) stream's metadata
-       * @param[out] config The output (tensor/tensors) emtadata
-       */
+  /** 2. get_caps (type conv, input(media) to output(tensor)) */
+  gboolean (*get_caps) (const GstStructure * st, GstTensorConfig * config);
+  /**< Set the tensor config structure from the given stream frame
+    * @param[in/out] self A pointer designating "this".
+    * @param[in] st The input (original/media data) stream's metadata
+    * @param[out] config The output (tensor/tensors) emtadata
+    */
+
   /** 3. query_cap (tpye conf, output(tensor) to input(media)) */
-  gboolean (*query_caps) (GstTensorConverter * self,
-      const GstTensorConfig *config, GstStructure *st);
-      /**< Filters (narrows down) the GstCap (st) with the given config.
-       * @param[in/out] self A pointer designating "this".
-       * @param[in] config The config of output tensor/tensors
-       * @param[in/out] st The gstcap of input to be filtered with config.
-       */
-};
-
+  GstCaps * (*query_caps) (const GstTensorConfig * config,
+    GstStructure * st);
+  /**< Filters (narrows down) the GstCap (st) with the given config.
+    * @param[in/out] self A pointer designating "this".
+    * @param[in] config The config of output tensor/tensors
+    * @param[in/out] st The gstcap of input to be filtered with config.
+    */
+  };
 
 /**
  * @brief Converter's sub-plugin should call this function to register itself.
  * @param[in] ex Converter sub-plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
-extern int
-registerExternalConverter (NNStreamerExternalConverter *ex);
+extern int registerExternalConverter (NNStreamerExternalConverter * ex);
 
 /**
  * @brief Converter's sub-plugin may call this to unregister itself.
  * @param[in] prefix The name of converter sub-plugin.
  */
-extern void
-unregisterExternalConverter (const char *prefix);
+extern void unregisterExternalConverter (const char *prefix);
 
 #ifdef __cplusplus
 }
