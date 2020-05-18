@@ -184,4 +184,11 @@ extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
  */
 extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
+/**
+ * @brief check if the given hw is supported by the framework
+ */
+extern gboolean
+gst_tensor_filter_check_hw_availability (const GstTensorFilterFramework *fw,
+    accl_hw hw);
+
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */
