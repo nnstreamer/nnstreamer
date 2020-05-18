@@ -37,7 +37,7 @@
 #define NNSTREAMER_PREFIX_DECODER	"libnnstreamer_decoder_"
 #define NNSTREAMER_PREFIX_FILTER	"libnnstreamer_filter_"
 #define NNSTREAMER_PREFIX_CUSTOMFILTERS	""
-#define NNSTREAMER_PREFIX_CONVERTER	""
+#define NNSTREAMER_PREFIX_CONVERTER	"libnnstreamer_converter_"
 /* Custom filter does not have prefix */
 
 /* Env-var names */
