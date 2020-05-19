@@ -19,7 +19,7 @@ NNSTREAMER_INCLUDES := \
     $(NNSTREAMER_GST_HOME) \
     $(NNSTREAMER_GST_HOME)/include
 
-# nnstreamer common sources. (including tensor-filter common)
+# nnstreamer common sources. (including tensor-filter common, custom filter)
 NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
@@ -27,7 +27,8 @@ NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
-    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_cpp.cc
 
 # nnstreamer plugins. Not used for SINGLE-only build.
 NNSTREAMER_PLUGINS_SRCS := \
@@ -71,10 +72,6 @@ NNSTREAMER_SINGLE_SRCS := \
 NNSTREAMER_SOURCE_AMC_SRCS := \
     $(NNSTREAMER_EXT_HOME)/android_source/gstamcsrc.c \
     $(NNSTREAMER_EXT_HOME)/android_source/gstamcsrc_looper.cc
-
-# filter cpp
-NNSTREAMER_FILTER_CPP_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_cpp.cc
 
 # filter tensorflow
 NNSTREAMER_FILTER_TF_SRCS := \

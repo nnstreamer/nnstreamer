@@ -27,15 +27,16 @@
 #if !defined (NNS_SINGLE_ONLY)
 GST_PLUGIN_STATIC_DECLARE (nnstreamer);
 GST_PLUGIN_STATIC_DECLARE (amcsrc);
-extern void init_filter_cpp (void);
-extern void init_filter_custom (void);
-extern void init_filter_custom_easy (void);
 extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);
 extern void init_pose (void);
 extern void init_is (void);
 #endif
+
+extern void init_filter_cpp (void);
+extern void init_filter_custom (void);
+extern void init_filter_custom_easy (void);
 
 #if defined (ENABLE_TENSORFLOW_LITE)
 extern void init_filter_tflite (void);
@@ -664,11 +665,6 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
     /* Android MediaCodec */
     GST_PLUGIN_STATIC_REGISTER (amcsrc);
 
-    /* tensor-filter sub-plugins */
-    init_filter_cpp ();
-    init_filter_custom ();
-    init_filter_custom_easy ();
-
     /* tensor-decoder sub-plugins */
     init_dv ();
     init_bb ();
@@ -676,6 +672,11 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
     init_pose ();
     init_is ();
 #endif
+
+    /* tensor-filter sub-plugins */
+    init_filter_cpp ();
+    init_filter_custom ();
+    init_filter_custom_easy ();
 
 #if defined (ENABLE_TENSORFLOW_LITE)
     init_filter_tflite ();
@@ -728,6 +729,7 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env,
     jclass clazz, jint fw_type)
 {
   ml_nnfw_type_e nnfw;
+
   if (!nns_get_nnfw_type (fw_type, &nnfw)) {
     return JNI_FALSE;
   }
