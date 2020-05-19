@@ -20,6 +20,8 @@ import android.os.Build;
 
 import org.freedesktop.gstreamer.GStreamer;
 
+import java.util.Locale;
+
 /**
  * Defines the types and limits in NNStreamer.<br>
  * To use NNStreamer, an application should call {@link #initialize(Context)} with its context.<br>
@@ -138,8 +140,8 @@ public final class NNStreamer {
 
         /* sub-plugin for given framework is available */
         if (available) {
-            String manufacturer = Build.MANUFACTURER.toLowerCase();
-            String hardware = Build.HARDWARE.toLowerCase();
+            String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.getDefault());
+            String hardware = Build.HARDWARE.toLowerCase(Locale.getDefault());
 
             switch (fw) {
                 case SNPE:
