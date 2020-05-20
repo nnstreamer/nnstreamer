@@ -44,6 +44,18 @@
 #endif
 
 /**
+ * @brief NNStreamer package name.
+ */
+#define NNS_PKG "org/nnsuite/nnstreamer"
+#define NNS_CLS_TDATA NNS_PKG "/TensorsData"
+#define NNS_CLS_TINFO NNS_PKG "/TensorsInfo"
+
+/**
+ * @brief Callback to destroy private data in pipe info.
+ */
+typedef void (*nns_priv_destroy)(gpointer data, JNIEnv * env);
+
+/**
  * @brief Pipeline type in native pipe info.
  */
 typedef enum
@@ -70,6 +82,35 @@ typedef enum
 } nns_element_type_e;
 
 /**
+ * @brief Struct for TensorsData class info.
+ */
+typedef struct
+{
+  jclass cls;
+  jmethodID mid_init;
+  jmethodID mid_add_data;
+  jmethodID mid_get_array;
+  jmethodID mid_set_info;
+  jmethodID mid_get_info;
+} data_class_info_s;
+
+/**
+ * @brief Struct for TensorsInfo class info.
+ */
+typedef struct
+{
+  jclass cls;
+  jmethodID mid_init;
+  jmethodID mid_add_info;
+  jmethodID mid_get_array;
+
+  jclass cls_info;
+  jfieldID fid_info_name;
+  jfieldID fid_info_type;
+  jfieldID fid_info_dim;
+} info_class_info_s;
+
+/**
  * @brief Struct for constructed pipeline.
  */
 typedef struct
@@ -84,8 +125,12 @@ typedef struct
   pthread_key_t jni_env;
 
   jobject instance;
-  jclass cls_tensors_data;
-  jclass cls_tensors_info;
+  jclass cls;
+  data_class_info_s data_cls_info;
+  info_class_info_s info_cls_info;
+
+  gpointer priv_data;
+  nns_priv_destroy priv_destroy_func;
 } pipeline_info_s;
 
 /**
@@ -122,6 +167,12 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle, nns_pipe_t
  */
 extern void
 nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env);
+
+/**
+ * @brief Set private data in pipeline info.
+ */
+extern void
+nns_set_priv_data (pipeline_info_s * pipe_info, gpointer data, nns_priv_destroy destroy_func);
 
 /**
  * @brief Get element handle of given name.

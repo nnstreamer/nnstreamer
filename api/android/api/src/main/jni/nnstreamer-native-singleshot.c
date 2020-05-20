@@ -73,16 +73,16 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
     models_count = (*env)->GetArrayLength (env, models);
 
     for (i = 0; i < models_count; i++) {
-      jstring model_obj =
-          (jstring) (*env)->GetObjectArrayElement (env, models, i);
-      const char *model_path = (*env)->GetStringUTFChars (env, model_obj, NULL);
+      jstring model = (jstring) (*env)->GetObjectArrayElement (env, models, i);
+      const char *model_path = (*env)->GetStringUTFChars (env, model, NULL);
 
       g_string_append (model_str, model_path);
       if (i < models_count - 1) {
         g_string_append (model_str, ",");
       }
 
-      (*env)->ReleaseStringUTFChars (env, model_obj, model_path);
+      (*env)->ReleaseStringUTFChars (env, model, model_path);
+      (*env)->DeleteLocalRef (env, model);
     }
 
     info.models = g_string_free (model_str, FALSE);

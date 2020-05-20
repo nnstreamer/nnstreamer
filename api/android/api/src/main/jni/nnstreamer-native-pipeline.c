@@ -24,34 +24,52 @@
 #include "nnstreamer-native.h"
 
 /**
+ * @brief Private data for Pipeline class.
+ */
+typedef struct
+{
+  jmethodID mid_state_cb;
+  jmethodID mid_sink_cb;
+} pipeline_priv_data_s;
+
+/**
+ * @brief Release private data in pipeline info.
+ */
+static void
+nns_pipeline_priv_free (gpointer data, JNIEnv * env)
+{
+  pipeline_priv_data_s *priv = (pipeline_priv_data_s *) data;
+
+  /* nothing to free */
+  g_free (priv);
+}
+
+/**
  * @brief Pipeline state change callback.
  */
 static void
 nns_pipeline_state_cb (ml_pipeline_state_e state, void *user_data)
 {
   pipeline_info_s *pipe_info;
+  pipeline_priv_data_s *priv;
+  jint new_state = (jint) state;
+  JNIEnv *env;
 
   pipe_info = (pipeline_info_s *) user_data;
+  priv = (pipeline_priv_data_s *) pipe_info->priv_data;
 
-  JNIEnv *env = nns_get_jni_env (pipe_info);
-  if (env == NULL) {
+  if ((env = nns_get_jni_env (pipe_info)) == NULL) {
     nns_logw ("Cannot get jni env in the state callback.");
     return;
   }
 
-  jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-  jmethodID mid_callback =
-      (*env)->GetMethodID (env, cls_pipeline, "stateChanged", "(I)V");
-  jint new_state = (jint) state;
-
-  (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, new_state);
+  (*env)->CallVoidMethod (env, pipe_info->instance, priv->mid_state_cb,
+      new_state);
 
   if ((*env)->ExceptionCheck (env)) {
     nns_loge ("Failed to call the callback method.");
     (*env)->ExceptionClear (env);
   }
-
-  (*env)->DeleteLocalRef (env, cls_pipeline);
 }
 
 /**
@@ -63,11 +81,13 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
 {
   element_data_s *cb_data;
   pipeline_info_s *pipe_info;
+  pipeline_priv_data_s *priv;
   jobject obj_data = NULL;
   JNIEnv *env;
 
   cb_data = (element_data_s *) user_data;
   pipe_info = cb_data->pipe_info;
+  priv = (pipeline_priv_data_s *) pipe_info->priv_data;
 
   if ((env = nns_get_jni_env (pipe_info)) == NULL) {
     nns_logw ("Cannot get jni env in the sink callback.");
@@ -75,15 +95,10 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
   }
 
   if (nns_convert_tensors_data (pipe_info, env, data, info, &obj_data)) {
-    /* method for sink callback */
-    jclass cls_pipeline = (*env)->GetObjectClass (env, pipe_info->instance);
-    jmethodID mid_callback =
-        (*env)->GetMethodID (env, cls_pipeline, "newDataReceived",
-        "(Ljava/lang/String;Lorg/nnsuite/nnstreamer/TensorsData;)V");
     jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
 
-    (*env)->CallVoidMethod (env, pipe_info->instance, mid_callback, sink_name,
-        obj_data);
+    (*env)->CallVoidMethod (env, pipe_info->instance, priv->mid_sink_cb,
+        sink_name, obj_data);
 
     if ((*env)->ExceptionCheck (env)) {
       nns_loge ("Failed to call the callback method.");
@@ -91,7 +106,6 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
     }
 
     (*env)->DeleteLocalRef (env, sink_name);
-    (*env)->DeleteLocalRef (env, cls_pipeline);
     (*env)->DeleteLocalRef (env, obj_data);
   } else {
     nns_loge ("Failed to convert the result to data object.");
@@ -121,9 +135,8 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
       return NULL;
     }
 
-    status =
-        ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb, item,
-        &handle);
+    status = ml_pipeline_sink_register (pipe, element_name, nns_sink_data_cb,
+        item, &handle);
     if (status != ML_ERROR_NONE) {
       nns_loge ("Failed to get sink node %s.", element_name);
       g_free (item);
@@ -207,8 +220,7 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
       (ml_pipeline_switch_h) nns_get_element_handle (pipe_info, element_name);
   if (handle == NULL) {
     /* get switch handle and register to table */
-    status =
-        ml_pipeline_switch_get_handle (pipe, element_name, &switch_type,
+    status = ml_pipeline_switch_get_handle (pipe, element_name, &switch_type,
         &handle);
     if (status != ML_ERROR_NONE) {
       nns_loge ("Failed to get switch %s.", element_name);
@@ -293,6 +305,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env,
     jobject thiz, jstring description, jboolean add_state_cb)
 {
   pipeline_info_s *pipe_info = NULL;
+  pipeline_priv_data_s *priv;
   ml_pipeline_h pipe;
   int status;
   const char *pipeline = (*env)->GetStringUTFChars (env, description, NULL);
@@ -303,9 +316,17 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env,
     goto done;
   }
 
+  priv = g_new0 (pipeline_priv_data_s, 1);
+  priv->mid_state_cb =
+      (*env)->GetMethodID (env, pipe_info->cls, "stateChanged", "(I)V");
+  priv->mid_sink_cb =
+      (*env)->GetMethodID (env, pipe_info->cls, "newDataReceived",
+      "(Ljava/lang/String;L" NNS_CLS_TDATA ";)V");
+
+  nns_set_priv_data (pipe_info, priv, nns_pipeline_priv_free);
+
   if (add_state_cb)
-    status =
-        ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info,
+    status = ml_pipeline_construct (pipeline, nns_pipeline_state_cb, pipe_info,
         &pipe);
   else
     status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
@@ -459,7 +480,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env,
   int status;
   const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
   char **pad_list = NULL;
-  guint i, total = 0;
+  guint i, total;
   jobjectArray result = NULL;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
@@ -475,16 +496,13 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env,
     goto done;
   }
 
+  total = g_strv_length (pad_list);
+
   /* set string array */
-  if (pad_list) {
+  if (total > 0) {
     jclass cls_string = (*env)->FindClass (env, "java/lang/String");
 
-    while (pad_list[total] != NULL)
-      total++;
-
-    result =
-        (*env)->NewObjectArray (env, total, cls_string,
-        (*env)->NewStringUTF (env, ""));
+    result = (*env)->NewObjectArray (env, total, cls_string, NULL);
     if (result == NULL) {
       nns_loge ("Failed to allocate string array.");
       (*env)->DeleteLocalRef (env, cls_string);
@@ -492,27 +510,17 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env,
     }
 
     for (i = 0; i < total; i++) {
-      (*env)->SetObjectArrayElement (env, result, i, (*env)->NewStringUTF (env,
-              pad_list[i]));
-      g_free (pad_list[i]);
-    }
+      jstring pad = (*env)->NewStringUTF (env, pad_list[i]);
 
-    g_free (pad_list);
-    pad_list = NULL;
+      (*env)->SetObjectArrayElement (env, result, i, pad);
+      (*env)->DeleteLocalRef (env, pad);
+    }
 
     (*env)->DeleteLocalRef (env, cls_string);
   }
 
 done:
-  /* free pad list */
-  if (pad_list) {
-    i = 0;
-    while (pad_list[i] != NULL) {
-      g_free (pad_list[i]);
-    }
-    g_free (pad_list);
-  }
-
+  g_strfreev (pad_list);
   (*env)->ReleaseStringUTFChars (env, name, element_name);
   return result;
 }

@@ -142,6 +142,80 @@ nns_free_element_data (gpointer data)
 }
 
 /**
+ * @brief Construct TensorsData class info.
+ */
+static void
+nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
+{
+  jclass cls;
+
+  cls = (*env)->FindClass (env, NNS_CLS_TDATA);
+  info->cls = (*env)->NewGlobalRef (env, cls);
+  (*env)->DeleteLocalRef (env, cls);
+
+  info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>", "()V");
+  info->mid_add_data = (*env)->GetMethodID (env, info->cls, "addTensorData",
+      "([B)V");
+  info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
+      "()[Ljava/lang/Object;");
+  info->mid_set_info = (*env)->GetMethodID (env, info->cls, "setTensorsInfo",
+      "(L" NNS_CLS_TINFO ";)V");
+  info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
+      "()L" NNS_CLS_TINFO ";");
+}
+
+/**
+ * @brief Destroy TensorsData class info.
+ */
+static void
+nns_destroy_tdata_class_info (JNIEnv * env, data_class_info_s * info)
+{
+  if (info->cls)
+    (*env)->DeleteGlobalRef (env, info->cls);
+}
+
+/**
+ * @brief Construct TensorsInfo class info.
+ */
+static void
+nns_construct_tinfo_class_info (JNIEnv * env, info_class_info_s * info)
+{
+  jclass cls;
+
+  cls = (*env)->FindClass (env, NNS_CLS_TINFO);
+  info->cls = (*env)->NewGlobalRef (env, cls);
+  (*env)->DeleteLocalRef (env, cls);
+
+  cls = (*env)->FindClass (env, NNS_CLS_TINFO "$TensorInfo");
+  info->cls_info = (*env)->NewGlobalRef (env, cls);
+  (*env)->DeleteLocalRef (env, cls);
+
+  info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>", "()V");
+  info->mid_add_info = (*env)->GetMethodID (env, info->cls, "appendInfo",
+      "(Ljava/lang/String;I[I)V");
+  info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getInfoArray",
+      "()[Ljava/lang/Object;");
+
+  info->fid_info_name = (*env)->GetFieldID (env, info->cls_info, "name",
+      "Ljava/lang/String;");
+  info->fid_info_type = (*env)->GetFieldID (env, info->cls_info, "type", "I");
+  info->fid_info_dim = (*env)->GetFieldID (env, info->cls_info, "dimension",
+      "[I");
+}
+
+/**
+ * @brief Destroy TensorsInfo class info.
+ */
+static void
+nns_destroy_tinfo_class_info (JNIEnv * env, info_class_info_s * info)
+{
+  if (info->cls_info)
+    (*env)->DeleteGlobalRef (env, info->cls_info);
+  if (info->cls)
+    (*env)->DeleteGlobalRef (env, info->cls);
+}
+
+/**
  * @brief Construct pipeline info.
  */
 gpointer
@@ -149,7 +223,7 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle,
     nns_pipe_type_e type)
 {
   pipeline_info_s *pipe_info;
-  jclass cls_data, cls_info;
+  jclass cls;
 
   pipe_info = g_new0 (pipeline_info_s, 1);
   g_return_val_if_fail (pipe_info != NULL, NULL);
@@ -168,13 +242,12 @@ nns_construct_pipe_info (JNIEnv * env, jobject thiz, gpointer handle,
   pipe_info->version = (*env)->GetVersion (env);
   pipe_info->instance = (*env)->NewGlobalRef (env, thiz);
 
-  cls_data = (*env)->FindClass (env, "org/nnsuite/nnstreamer/TensorsData");
-  pipe_info->cls_tensors_data = (*env)->NewGlobalRef (env, cls_data);
-  (*env)->DeleteLocalRef (env, cls_data);
+  cls = (*env)->GetObjectClass (env, pipe_info->instance);
+  pipe_info->cls = (*env)->NewGlobalRef (env, cls);
+  (*env)->DeleteLocalRef (env, cls);
 
-  cls_info = (*env)->FindClass (env, "org/nnsuite/nnstreamer/TensorsInfo");
-  pipe_info->cls_tensors_info = (*env)->NewGlobalRef (env, cls_info);
-  (*env)->DeleteLocalRef (env, cls_info);
+  nns_construct_tdata_class_info (env, &pipe_info->data_cls_info);
+  nns_construct_tinfo_class_info (env, &pipe_info->info_cls_info);
 
   return pipe_info;
 }
@@ -188,6 +261,13 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
   g_return_if_fail (pipe_info != NULL);
 
   g_mutex_lock (&pipe_info->lock);
+  if (pipe_info->priv_data) {
+    if (pipe_info->priv_destroy_func)
+      pipe_info->priv_destroy_func (pipe_info->priv_data, env);
+    else
+      g_free (pipe_info->priv_data);
+  }
+
   g_hash_table_destroy (pipe_info->element_handles);
   pipe_info->element_handles = NULL;
   g_mutex_unlock (&pipe_info->lock);
@@ -216,11 +296,27 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
 
   g_mutex_clear (&pipe_info->lock);
 
+  nns_destroy_tdata_class_info (env, &pipe_info->data_cls_info);
+  nns_destroy_tinfo_class_info (env, &pipe_info->info_cls_info);
+  (*env)->DeleteGlobalRef (env, pipe_info->cls);
   (*env)->DeleteGlobalRef (env, pipe_info->instance);
-  (*env)->DeleteGlobalRef (env, pipe_info->cls_tensors_data);
-  (*env)->DeleteGlobalRef (env, pipe_info->cls_tensors_info);
 
   g_free (pipe_info);
+}
+
+/**
+ * @brief Set private data in pipeline info. If destroy_func is NULL, priv_data will be released using g_free().
+ */
+void
+nns_set_priv_data (pipeline_info_s * pipe_info, gpointer data,
+    nns_priv_destroy destroy_func)
+{
+  g_return_if_fail (pipe_info != NULL);
+
+  g_mutex_lock (&pipe_info->lock);
+  pipe_info->priv_data = data;
+  pipe_info->priv_destroy_func = destroy_func;
+  g_mutex_unlock (&pipe_info->lock);
 }
 
 /**
@@ -286,7 +382,7 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     ml_tensors_data_h data_h, ml_tensors_info_h info_h, jobject * result)
 {
   guint i;
-  jmethodID mid_init, mid_add_data, mid_set_info;
+  data_class_info_s *dcls_info;
   jobject obj_data = NULL;
   ml_tensors_data_s *data;
 
@@ -295,19 +391,10 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   g_return_val_if_fail (data_h, FALSE);
   g_return_val_if_fail (result, FALSE);
 
+  dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) data_h;
 
-  /* method to generate tensors data */
-  mid_init =
-      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "<init>", "()V");
-  mid_add_data =
-      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "addTensorData",
-      "([B)V");
-  mid_set_info =
-      (*env)->GetMethodID (env, pipe_info->cls_tensors_data, "setTensorsInfo",
-      "(Lorg/nnsuite/nnstreamer/TensorsInfo;)V");
-
-  obj_data = (*env)->NewObject (env, pipe_info->cls_tensors_data, mid_init);
+  obj_data = (*env)->NewObject (env, dcls_info->cls, dcls_info->mid_init);
   if (!obj_data) {
     nns_loge ("Failed to allocate object for tensors data.");
     goto done;
@@ -323,7 +410,7 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       goto done;
     }
 
-    (*env)->CallVoidMethod (env, obj_data, mid_set_info, obj_info);
+    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_set_info, obj_info);
     (*env)->DeleteLocalRef (env, obj_info);
   }
 
@@ -334,7 +421,7 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
         (jbyte *) data->tensors[i].tensor);
 
-    (*env)->CallVoidMethod (env, obj_data, mid_add_data, buffer);
+    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_add_data, buffer);
     (*env)->DeleteLocalRef (env, buffer);
   }
 
@@ -351,8 +438,9 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     jobject obj_data, ml_tensors_data_h * data_h, ml_tensors_info_h * info_h)
 {
   guint i;
+  data_class_info_s *dcls_info;
   ml_tensors_data_s *data;
-  ml_tensors_info_s *info;
+  jobjectArray data_arr;
   gboolean failed = FALSE;
 
   g_return_val_if_fail (pipe_info, FALSE);
@@ -365,39 +453,26 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     return FALSE;
   }
 
+  dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) (*data_h);
 
-  /* get field 'mDataList' */
-  jfieldID fid_arraylist =
-      (*env)->GetFieldID (env, pipe_info->cls_tensors_data, "mDataList",
-      "Ljava/util/ArrayList;");
-  jobject obj_arraylist = (*env)->GetObjectField (env, obj_data, fid_arraylist);
-
-  /* method to get tensors data */
-  jclass cls_arraylist = (*env)->GetObjectClass (env, obj_arraylist);
-  jmethodID mid_size = (*env)->GetMethodID (env, cls_arraylist, "size", "()I");
-  jmethodID mid_get =
-      (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
+  data_arr = (*env)->CallObjectMethod (env, obj_data, dcls_info->mid_get_array);
 
   /* number of tensors data */
-  data->num_tensors =
-      (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
+  data->num_tensors = (unsigned int) (*env)->GetArrayLength (env, data_arr);
 
   /* set tensor data */
   for (i = 0; i < data->num_tensors; i++) {
-    jobject tensor_data =
-        (*env)->CallObjectMethod (env, obj_arraylist, mid_get, i);
+    jobject tensor = (*env)->GetObjectArrayElement (env, data_arr, i);
 
-    if (tensor_data) {
-      size_t data_size =
-          (size_t) (*env)->GetDirectBufferCapacity (env, tensor_data);
-      gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor_data);
+    if (tensor) {
+      gsize data_size = (gsize) (*env)->GetDirectBufferCapacity (env, tensor);
+      gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor);
 
       data->tensors[i].tensor = g_malloc (data_size);
       if (data->tensors[i].tensor == NULL) {
-        nns_loge ("Failed to allocate memory %zd, data index %d.", data_size,
-            i);
-        (*env)->DeleteLocalRef (env, tensor_data);
+        nns_loge ("Failed to allocate memory %zd, index %d.", data_size, i);
+        (*env)->DeleteLocalRef (env, tensor);
         failed = TRUE;
         goto done;
       }
@@ -405,16 +480,14 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       memcpy (data->tensors[i].tensor, data_ptr, data_size);
       data->tensors[i].size = data_size;
 
-      (*env)->DeleteLocalRef (env, tensor_data);
+      (*env)->DeleteLocalRef (env, tensor);
     }
   }
 
   /* parse tensors info in data class */
   if (info_h) {
-    jmethodID mid_get_info =
-        (*env)->GetMethodID (env, pipe_info->cls_tensors_data,
-        "getTensorsInfo", "()Lorg/nnsuite/nnstreamer/TensorsInfo;");
-    jobject obj_info = (*env)->CallObjectMethod (env, obj_data, mid_get_info);
+    jobject obj_info =
+        (*env)->CallObjectMethod (env, obj_data, dcls_info->mid_get_info);
 
     if (obj_info) {
       nns_parse_tensors_info (pipe_info, env, obj_info, info_h);
@@ -423,8 +496,7 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   }
 
 done:
-  (*env)->DeleteLocalRef (env, cls_arraylist);
-  (*env)->DeleteLocalRef (env, obj_arraylist);
+  (*env)->DeleteLocalRef (env, data_arr);
 
   if (failed) {
     ml_tensors_data_destroy (*data_h);
@@ -441,9 +513,9 @@ gboolean
 nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     ml_tensors_info_h info_h, jobject * result)
 {
-  guint i, j;
+  guint i;
+  info_class_info_s *icls_info;
   ml_tensors_info_s *info;
-  jmethodID mid_init, mid_add;
   jobject obj_info = NULL;
 
   g_return_val_if_fail (pipe_info, FALSE);
@@ -451,16 +523,10 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
   g_return_val_if_fail (info_h, FALSE);
   g_return_val_if_fail (result, FALSE);
 
+  icls_info = &pipe_info->info_cls_info;
   info = (ml_tensors_info_s *) info_h;
 
-  /* method to generate tensors info */
-  mid_init =
-      (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "<init>", "()V");
-  mid_add =
-      (*env)->GetMethodID (env, pipe_info->cls_tensors_info, "appendInfo",
-      "(Ljava/lang/String;I[I)V");
-
-  obj_info = (*env)->NewObject (env, pipe_info->cls_tensors_info, mid_init);
+  obj_info = (*env)->NewObject (env, icls_info->cls, icls_info->mid_init);
   if (!obj_info) {
     nns_loge ("Failed to allocate object for tensors info.");
     goto done;
@@ -470,7 +536,6 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     jstring name = NULL;
     jint type;
     jintArray dimension;
-    jint *dim;
 
     if (info->info[i].name)
       name = (*env)->NewStringUTF (env, info->info[i].name);
@@ -478,14 +543,11 @@ nns_convert_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     type = (jint) info->info[i].type;
 
     dimension = (*env)->NewIntArray (env, ML_TENSOR_RANK_LIMIT);
+    (*env)->SetIntArrayRegion (env, dimension, 0, ML_TENSOR_RANK_LIMIT,
+        (jint *) info->info[i].dimension);
 
-    dim = (*env)->GetIntArrayElements (env, dimension, NULL);
-    for (j = 0; j < ML_TENSOR_RANK_LIMIT; j++) {
-      dim[j] = (jint) info->info[i].dimension[j];
-    }
-    (*env)->ReleaseIntArrayElements (env, dimension, dim, 0);
-
-    (*env)->CallVoidMethod (env, obj_info, mid_add, name, type, dimension);
+    (*env)->CallVoidMethod (env, obj_info, icls_info->mid_add_info,
+        name, type, dimension);
 
     if (name)
       (*env)->DeleteLocalRef (env, name);
@@ -504,8 +566,10 @@ gboolean
 nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     jobject obj_info, ml_tensors_info_h * info_h)
 {
-  guint i, j;
+  guint i;
+  info_class_info_s *icls_info;
   ml_tensors_info_s *info;
+  jobjectArray info_arr;
 
   g_return_val_if_fail (pipe_info, FALSE);
   g_return_val_if_fail (env, FALSE);
@@ -517,38 +581,21 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     return FALSE;
   }
 
+  icls_info = &pipe_info->info_cls_info;
   info = (ml_tensors_info_s *) (*info_h);
 
-  /* get field 'mInfoList' */
-  jfieldID fid_arraylist =
-      (*env)->GetFieldID (env, pipe_info->cls_tensors_info, "mInfoList",
-      "Ljava/util/ArrayList;");
-  jobject obj_arraylist = (*env)->GetObjectField (env, obj_info, fid_arraylist);
-
-  /* method to get tensors info */
-  jclass cls_arraylist = (*env)->GetObjectClass (env, obj_arraylist);
-  jmethodID mid_size = (*env)->GetMethodID (env, cls_arraylist, "size", "()I");
-  jmethodID mid_get =
-      (*env)->GetMethodID (env, cls_arraylist, "get", "(I)Ljava/lang/Object;");
+  info_arr = (*env)->CallObjectMethod (env, obj_info, icls_info->mid_get_array);
 
   /* number of tensors info */
-  info->num_tensors =
-      (unsigned int) (*env)->CallIntMethod (env, obj_arraylist, mid_size);
+  info->num_tensors = (unsigned int) (*env)->GetArrayLength (env, info_arr);
 
   /* read tensor info */
   for (i = 0; i < info->num_tensors; i++) {
-    jobject item = (*env)->CallObjectMethod (env, obj_arraylist, mid_get, i);
-    jclass cls_info = (*env)->GetObjectClass (env, item);
-
-    jmethodID mid_name =
-        (*env)->GetMethodID (env, cls_info, "getName", "()Ljava/lang/String;");
-    jmethodID mid_type =
-        (*env)->GetMethodID (env, cls_info, "getTypeValue", "()I");
-    jmethodID mid_dimension =
-        (*env)->GetMethodID (env, cls_info, "getDimension", "()[I");
+    jobject item = (*env)->GetObjectArrayElement (env, info_arr, i);
 
     /* tensor name */
-    jstring name_str = (jstring) (*env)->CallObjectMethod (env, item, mid_name);
+    jstring name_str = (jstring) (*env)->GetObjectField (env, item,
+        icls_info->fid_info_name);
     if (name_str) {
       const gchar *name = (*env)->GetStringUTFChars (env, name_str, NULL);
 
@@ -558,29 +605,20 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env,
     }
 
     /* tensor type */
-    info->info[i].type =
-        (ml_tensor_type_e) (*env)->CallIntMethod (env, item, mid_type);
+    info->info[i].type = (ml_tensor_type_e) (*env)->GetIntField (env, item,
+        icls_info->fid_info_type);
 
     /* tensor dimension */
-    jintArray dim =
-        (jintArray) (*env)->CallObjectMethod (env, item, mid_dimension);
-    jsize length = (*env)->GetArrayLength (env, dim);
-    jint *dimension = (*env)->GetIntArrayElements (env, dim, NULL);
+    jintArray dimension = (jintArray) (*env)->GetObjectField (env, item,
+        icls_info->fid_info_dim);
+    (*env)->GetIntArrayRegion (env, dimension, 0, ML_TENSOR_RANK_LIMIT,
+        (jint *) info->info[i].dimension);
+    (*env)->DeleteLocalRef (env, dimension);
 
-    g_assert (length == ML_TENSOR_RANK_LIMIT);
-    for (j = 0; j < length; j++) {
-      info->info[i].dimension[j] = (unsigned int) dimension[j];
-    }
-
-    (*env)->ReleaseIntArrayElements (env, dim, dimension, 0);
-    (*env)->DeleteLocalRef (env, dim);
-
-    (*env)->DeleteLocalRef (env, cls_info);
     (*env)->DeleteLocalRef (env, item);
   }
 
-  (*env)->DeleteLocalRef (env, cls_arraylist);
-  (*env)->DeleteLocalRef (env, obj_arraylist);
+  (*env)->DeleteLocalRef (env, info_arr);
   return TRUE;
 }
 
