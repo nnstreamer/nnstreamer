@@ -170,6 +170,13 @@ public final class TensorsData implements AutoCloseable {
     }
 
     /**
+     * Internal method called from native to get the array of tensor data.
+     */
+    private Object[] getDataArray() {
+        return mDataList.toArray();
+    }
+
+    /**
      * Internal method to check the index.
      *
      * @throws IndexOutOfBoundsException if the given index is invalid

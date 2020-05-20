@@ -212,52 +212,14 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
      * Internal method called from native to add new info.
      */
     private void appendInfo(String name, int type, int[] dimension) {
-        addTensorInfo(name, convertType(type), dimension);
+        addTensorInfo(name, TensorInfo.convertType(type), dimension);
     }
 
     /**
-     * Internal method to get the tensor type from int value.
+     * Internal method called from native to get the array of tensor info.
      */
-    private NNStreamer.TensorType convertType(int value) {
-        NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
-
-        switch (value) {
-            case 0:
-                type = NNStreamer.TensorType.INT32;
-                break;
-            case 1:
-                type = NNStreamer.TensorType.UINT32;
-                break;
-            case 2:
-                type = NNStreamer.TensorType.INT16;
-                break;
-            case 3:
-                type = NNStreamer.TensorType.UINT16;
-                break;
-            case 4:
-                type = NNStreamer.TensorType.INT8;
-                break;
-            case 5:
-                type = NNStreamer.TensorType.UINT8;
-                break;
-            case 6:
-                type = NNStreamer.TensorType.FLOAT64;
-                break;
-            case 7:
-                type = NNStreamer.TensorType.FLOAT32;
-                break;
-            case 8:
-                type = NNStreamer.TensorType.INT64;
-                break;
-            case 9:
-                type = NNStreamer.TensorType.UINT64;
-                break;
-            default:
-                /* unknown type */
-                break;
-        }
-
-        return type;
+    private Object[] getInfoArray() {
+        return mInfoList.toArray();
     }
 
     /**
@@ -281,7 +243,7 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
      */
     private static class TensorInfo {
         private String name = null;
-        private NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
+        private int type = NNStreamer.TensorType.UNKNOWN.ordinal();
         private int[] dimension = new int[NNStreamer.TENSOR_RANK_LIMIT];
 
         public TensorInfo(@Nullable String name, NNStreamer.TensorType type, @NonNull int[] dimension) {
@@ -303,15 +265,11 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
                 throw new IllegalArgumentException("Given tensor type is unknown or unsupported type");
             }
 
-            this.type = type;
+            this.type = type.ordinal();
         }
 
         public NNStreamer.TensorType getType() {
-            return this.type;
-        }
-
-        public int getTypeValue() {
-            return this.type.ordinal();
+            return convertType(this.type);
         }
 
         public void setDimension(@NonNull int[] dimension) {
@@ -344,22 +302,30 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
         }
 
         public int getSize() {
-            int size = 0;
+            int size;
 
-            if (type == NNStreamer.TensorType.INT32 ||
-                    type == NNStreamer.TensorType.UINT32 ||
-                    type == NNStreamer.TensorType.FLOAT32) {
-                size = 4;
-            } else if (type == NNStreamer.TensorType.INT16 ||
-                    type == NNStreamer.TensorType.UINT16) {
-                size = 2;
-            } else if (type == NNStreamer.TensorType.INT8 ||
-                    type == NNStreamer.TensorType.UINT8) {
-                size = 1;
-            } else if (type == NNStreamer.TensorType.FLOAT64 ||
-                    type == NNStreamer.TensorType.INT64 ||
-                    type == NNStreamer.TensorType.UINT64) {
-                size = 8;
+            switch (convertType(this.type)) {
+                case INT32:
+                case UINT32:
+                case FLOAT32:
+                    size = 4;
+                    break;
+                case INT16:
+                case UINT16:
+                    size = 2;
+                    break;
+                case INT8:
+                case UINT8:
+                    size = 1;
+                    break;
+                case INT64:
+                case UINT64:
+                case FLOAT64:
+                    size = 8;
+                    break;
+                default:
+                    /* unknown type */
+                    return 0;
             }
 
             for (int i = 0; i < NNStreamer.TENSOR_RANK_LIMIT; i++) {
@@ -367,6 +333,51 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
             }
 
             return size;
+        }
+
+        /**
+         * Gets the tensor type from int value.
+         */
+        public static NNStreamer.TensorType convertType(int value) {
+            NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
+
+            switch (value) {
+                case 0:
+                    type = NNStreamer.TensorType.INT32;
+                    break;
+                case 1:
+                    type = NNStreamer.TensorType.UINT32;
+                    break;
+                case 2:
+                    type = NNStreamer.TensorType.INT16;
+                    break;
+                case 3:
+                    type = NNStreamer.TensorType.UINT16;
+                    break;
+                case 4:
+                    type = NNStreamer.TensorType.INT8;
+                    break;
+                case 5:
+                    type = NNStreamer.TensorType.UINT8;
+                    break;
+                case 6:
+                    type = NNStreamer.TensorType.FLOAT64;
+                    break;
+                case 7:
+                    type = NNStreamer.TensorType.FLOAT32;
+                    break;
+                case 8:
+                    type = NNStreamer.TensorType.INT64;
+                    break;
+                case 9:
+                    type = NNStreamer.TensorType.UINT64;
+                    break;
+                default:
+                    /* unknown type */
+                    break;
+            }
+
+            return type;
         }
     }
 }
