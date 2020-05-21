@@ -3,7 +3,6 @@ package org.nnsuite.nnstreamer;
 import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
-import android.os.Build;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -1427,8 +1426,8 @@ public class APITestPipeline {
         }
 
         if (!android.os.Build.HARDWARE.equals("qcom")) {
-            /** 
-             * Tensorflow model using DSP runtime can only be executed on 
+            /*
+             * Tensorflow model using DSP runtime can only be executed on
              * Snapdragon SoC. Cannot run this test on exynos.
              */
             return;
@@ -1445,8 +1444,8 @@ public class APITestPipeline {
         }
 
         if (!android.os.Build.HARDWARE.equals("qcom")) {
-            /**
-             * Tensorflow model using NPU runtime can only be executed on 
+            /*
+             * Tensorflow model using NPU runtime can only be executed on
              * Snapdragon. Cannot run this test on exynos.
              */
             return;

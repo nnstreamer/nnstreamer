@@ -3,7 +3,6 @@ package org.nnsuite.nnstreamer;
 import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
-import android.os.Build;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -687,7 +686,7 @@ public class APITestSingleShot {
             fail();
         }
     }
-    
+
     @Test
     public void testSNAPTensorflowCPU() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNAP)) {
@@ -706,8 +705,8 @@ public class APITestSingleShot {
         }
 
         if (!android.os.Build.HARDWARE.equals("qcom")) {
-            /** 
-             * Tensorflow model using DSP runtime can only be executed on 
+            /*
+             * Tensorflow model using DSP runtime can only be executed on
              * Snapdragon SoC. Cannot run this test on exynos.
              */
             return;
@@ -724,8 +723,8 @@ public class APITestSingleShot {
         }
 
         if (!android.os.Build.HARDWARE.equals("qcom")) {
-            /**
-             * Tensorflow model using NPU runtime can only be executed on 
+            /*
+             * Tensorflow model using NPU runtime can only be executed on
              * Snapdragon. Cannot run this test on exynos.
              */
             return;
@@ -765,7 +764,7 @@ public class APITestSingleShot {
 
                 /* check output */
                 float expected = i + 3.5f;
-                assertTrue(expected == output.getTensorData(0).getFloat(0));
+                assertEquals(expected, output.getTensorData(0).getFloat(0), 0.0f);
 
                 Thread.sleep(30);
             }
@@ -796,7 +795,7 @@ public class APITestSingleShot {
             for (int i = 0; i < 5; i++) {
                 /* input data */
                 TensorsData input = in.allocate();
-                
+
                 /* invoke */
                 TensorsData output = single.invoke(input);
 
@@ -812,5 +811,4 @@ public class APITestSingleShot {
             fail();
         }
     }
-
 }

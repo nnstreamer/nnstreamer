@@ -19,7 +19,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 
 /**
  * Provides interfaces to handle tensors information.
@@ -54,10 +53,8 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
     @Override
     public TensorsInfo clone() {
         TensorsInfo cloned = new TensorsInfo();
-        Iterator<TensorInfo> iter = mInfoList.iterator();
 
-        while (iter.hasNext()) {
-            TensorInfo info = iter.next();
+        for (TensorInfo info : mInfoList) {
             cloned.addTensorInfo(info.getName(), info.getType(), info.getDimension());
         }
 
