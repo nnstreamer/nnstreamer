@@ -13,4 +13,4 @@ unittest_cppfilter = executable('unittest_cppfilter',
   install_dir: unittest_install_dir
 )
 
-test('unittest_cppfilter', unittest_cppfilter, args: ['--gst-plugin-path=../..'])
+test('unittest_cppfilter', unittest_cppfilter, env: testenv)
