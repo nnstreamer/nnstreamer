@@ -299,7 +299,7 @@ gboolean
 nnsconf_loadconf (gboolean force_reload)
 {
   const gchar root_path_prefix[] = NNSTREAMER_SYS_ROOT_PATH_PREFIX;
-  g_autoptr (GKeyFile) key_file = NULL;
+  GKeyFile *key_file = NULL;
   guint i, t;
 
   if (FALSE == force_reload && TRUE == conf.loaded)
