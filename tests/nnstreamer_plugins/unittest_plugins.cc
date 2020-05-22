@@ -3728,7 +3728,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_03)
   data_path = g_build_filename (root_path, "tests", "test_models", "data", "5", NULL);
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
-  str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=\"%s\",\"%s\" inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
+  str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=%s,%s inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, caffe2)
 
   g_free (test_model_2);
@@ -3757,7 +3757,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
   data_path = g_build_filename (root_path, "tests", "test_models", "data", "5", NULL);
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
-  str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=\"%s\",\"%s\" inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
+  str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=%s,%s inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
   TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
 
   g_free (test_model);
