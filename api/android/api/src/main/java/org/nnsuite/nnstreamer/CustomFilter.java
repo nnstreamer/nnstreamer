@@ -33,6 +33,8 @@ public final class CustomFilter implements AutoCloseable {
 
     /**
      * Interface definition for a callback to be invoked while processing the pipeline.
+     *
+     * @see #registerCustomFilter(String, CustomFilterCallback)
      */
     public interface CustomFilterCallback {
         /**

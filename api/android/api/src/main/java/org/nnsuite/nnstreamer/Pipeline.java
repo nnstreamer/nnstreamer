@@ -50,6 +50,8 @@ public final class Pipeline implements AutoCloseable {
 
     /**
      * Interface definition for a callback to be invoked when a sink node receives new data.
+     *
+     * @see #registerSinkCallback(String, NewDataCallback)
      */
     public interface NewDataCallback {
         /**
@@ -72,6 +74,7 @@ public final class Pipeline implements AutoCloseable {
      * @see State
      * @see #start()
      * @see #stop()
+     * @see Pipeline#Pipeline(String, StateChangeCallback)
      */
     public interface StateChangeCallback {
         /**
