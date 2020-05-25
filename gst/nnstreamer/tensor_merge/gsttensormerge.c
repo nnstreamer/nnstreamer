@@ -488,10 +488,8 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
     if (FALSE == gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
-      for (j = 0; j < i; j++)
-        gst_memory_unmap (mem[j], &mInfo[j]);
-
       ml_logf ("Cannot map input memory buffers (%d)\n", i);
+      num_mem = i;
       ret = GST_FLOW_ERROR;
       goto error_ret;
     }
@@ -503,7 +501,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
     gst_allocator_free (NULL, outMem);
     ml_logf ("Cannot map output memory buffer\n");
     ret = GST_FLOW_ERROR;
-    goto error_unmap_inmem;
+    goto error_ret;
   }
   outptr = outInfo.data;
 
@@ -597,11 +595,70 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   gst_buffer_copy_into (tensor_buf, tensors_buf, GST_BUFFER_COPY_TIMESTAMPS, 0,
       -1);
 
-error_unmap_inmem:
+error_ret:
   for (i = 0; i < num_mem; i++)
     gst_memory_unmap (mem[i], &mInfo[i]);
-error_ret:
   return ret;
+}
+
+/**
+ * @brief Set src pad caps if src pad is not negotiated.
+ */
+static gboolean
+gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
+{
+  if (!tensor_merge->negotiated) {
+    GstCaps *newcaps;
+    GstTensorConfig config;
+
+    if (!gst_tensor_merge_get_merged_config (tensor_merge,
+            &tensor_merge->tensors_config, &config)) {
+      goto nego_error;
+    }
+
+    /** Internal Logic Error? */
+    g_assert (gst_tensor_config_validate (&config));
+    newcaps = gst_tensor_caps_from_config (&config);
+
+    if (!gst_pad_set_caps (tensor_merge->srcpad, newcaps)) {
+      gst_caps_unref (newcaps);
+      goto nego_error;
+    }
+
+    gst_caps_unref (newcaps);
+    tensor_merge->negotiated = TRUE;
+  }
+
+nego_error:
+  if (!tensor_merge->negotiated) {
+    GST_WARNING_OBJECT (tensor_merge, "failed to set caps");
+    GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
+  }
+  return tensor_merge->negotiated;
+}
+
+/**
+ * @brief Send segment event if necessary.
+ */
+static void
+gst_tensor_merge_send_segment_event (GstTensorMerge * tensor_merge,
+    GstClockTime pts, GstClockTime dts)
+{
+  if (tensor_merge->need_segment) {
+    GstSegment segment;
+    GstClockTime time = 0;
+
+    if (GST_CLOCK_TIME_IS_VALID (dts)) {
+      time = dts;
+    } else if (GST_CLOCK_TIME_IS_VALID (pts)) {
+      time = pts;
+    }
+
+    gst_segment_init (&segment, GST_FORMAT_TIME);
+    segment.start = time;
+    gst_pad_push_event (tensor_merge->srcpad, gst_event_new_segment (&segment));
+    tensor_merge->need_segment = FALSE;
+  }
 }
 
 /**
@@ -618,9 +675,10 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   GstBuffer *tensors_buf, *tensor_buf;
   GstClockTime pts_time = GST_CLOCK_TIME_NONE;
   GstClockTime dts_time = GST_CLOCK_TIME_NONE;
-  GstClockTime time = 0;
   gboolean isEOS = FALSE;
+
   GST_DEBUG_OBJECT (tensor_merge, " all pads are collected ");
+
   if (tensor_merge->need_stream_start) {
     gchar s_id[32];
     g_snprintf (s_id, sizeof (s_id), " tensormerge - %08x ", g_random_int ());
@@ -629,9 +687,7 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     tensor_merge->need_stream_start = FALSE;
   }
 
-  tensors_buf = gst_buffer_new ();
-
-  if (NULL == tensors_buf) {
+  if ((tensors_buf = gst_buffer_new ()) == NULL) {
     ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
     return GST_FLOW_ERROR;
   }
@@ -648,53 +704,20 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 
   if (tensor_merge->need_buffer) {
     tensor_merge->need_buffer = FALSE;
-    gst_buffer_unref (tensors_buf);
-    return ret;
+    goto beach;
   }
 
-  if (!tensor_merge->negotiated) {
-    GstCaps *newcaps;
-    GstTensorConfig config;
-
-    if (gst_tensor_merge_get_merged_config (tensor_merge,
-            &tensor_merge->tensors_config, &config)) {
-      /** Internal Logic Error? */
-      g_assert (gst_tensor_config_validate (&config));
-      newcaps = gst_tensor_caps_from_config (&config);
-    } else {
-      goto nego_error;
-    }
-
-    if (!gst_pad_set_caps (tensor_merge->srcpad, newcaps)) {
-      gst_caps_unref (newcaps);
-      goto nego_error;
-    }
-
-    gst_caps_unref (newcaps);
-    tensor_merge->negotiated = TRUE;
+  if (!gst_tensor_merge_set_src_caps (tensor_merge)) {
+    ret = GST_FLOW_NOT_NEGOTIATED;
+    goto beach;
   }
 
-  if (tensor_merge->need_segment) {
-    GstSegment segment;
+  gst_tensor_merge_send_segment_event (tensor_merge, pts_time, dts_time);
 
-    if (GST_CLOCK_TIME_IS_VALID (dts_time)) {
-      time = dts_time;
-    } else if (GST_CLOCK_TIME_IS_VALID (pts_time)) {
-      time = pts_time;
-    } else {
-      time = 0;
-    }
-
-    gst_segment_init (&segment, GST_FORMAT_TIME);
-    segment.start = time;
-    gst_pad_push_event (tensor_merge->srcpad, gst_event_new_segment (&segment));
-    tensor_merge->need_segment = FALSE;
-  }
-
-  tensor_buf = gst_buffer_new ();
-  if (NULL == tensors_buf) {
+  if ((tensor_buf = gst_buffer_new ()) == NULL) {
     ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
-    return GST_FLOW_ERROR;
+    ret = GST_FLOW_ERROR;
+    goto beach;
   }
 
   gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
@@ -709,13 +732,6 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 beach:
   gst_buffer_unref (tensors_buf);
   return ret;
-nego_error:
-  {
-    gst_buffer_unref (tensors_buf);
-    GST_WARNING_OBJECT (tensor_merge, "failed to set caps");
-    GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
-    return GST_FLOW_NOT_NEGOTIATED;
-  }
 }
 
 /**
