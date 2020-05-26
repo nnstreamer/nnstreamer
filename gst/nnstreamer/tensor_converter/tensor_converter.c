@@ -30,7 +30,7 @@
  * SECTION:element-tensor_converter
  *
  * A filter that converts media stream to tensor stream for NN frameworks.
- * The output is always in the format of other/tensor.
+ * The output is always in the format of other/tensor or other/tensors.
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -60,7 +60,6 @@
 #endif
 #include <nnstreamer_log.h>
 #include <nnstreamer_subplugin.h>
-#include <nnstreamer_plugin_api_converter.h>
 
 /**
  * @brief Caps string for text input
@@ -77,9 +76,6 @@
 
 #define append_octet_caps_template(caps) \
     gst_caps_append (caps, gst_caps_from_string (OCTET_CAPS_STR))
-
-#define append_flatbuf_caps_template(caps) \
-    gst_caps_append (caps, gst_caps_from_string (GST_FLATBUF_TENSOR_CAP_DEFAULT))
 
 /**
  * @brief Macro for debug mode.
@@ -180,7 +176,8 @@ static GstCaps *gst_tensor_converter_query_caps (GstTensorConverter * self,
     GstPad * pad, GstCaps * filter);
 static gboolean gst_tensor_converter_parse_caps (GstTensorConverter * self,
     const GstCaps * caps);
-
+static gboolean gst_tensor_converter_update_caps (GstTensorConverter * self,
+    GstPad * pad, GstTensorsConfig * config);
 static const NNStreamerExternalConverter *findExternalConverter (const char
     *media_type_name);
 static const gchar *getExternalConverterName (const char *name);
@@ -195,6 +192,9 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   GstElementClass *element_class;
   GstPadTemplate *pad_template;
   GstCaps *pad_caps;
+  guint total = 0, i;
+  const NNStreamerExternalConverter *ex = NULL;
+  subplugin_info_s info;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter", 0,
       "Element to convert media stream to tensor stream");
@@ -276,7 +276,23 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   gst_caps_unref (pad_caps);
 
   /* set sink pad template */
-  pad_caps = gst_caps_new_any ();
+  pad_caps = gst_caps_new_empty ();
+
+  /* append caps string for all media types */	
+  append_video_caps_template (pad_caps);	
+  append_audio_caps_template (pad_caps);	
+  append_text_caps_template (pad_caps);	
+  append_octet_caps_template (pad_caps);
+
+  /* append sub-plugin template caps */
+  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
+  if (total > 0) {
+     for (i = 0; i < total; i++) {
+       ex = findExternalConverter (info.names[i]);
+       if (ex && ex->query_caps)
+        gst_caps_append (pad_caps, ex->query_caps (NULL));
+     }
+  }
 
   pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
       pad_caps);
@@ -458,22 +474,14 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_CAPS:
     {
       GstCaps *in_caps;
-      GstCaps *out_caps;
 
       gst_event_parse_caps (event, &in_caps);
       silent_debug_caps (in_caps, "in-caps");
 
       if (gst_tensor_converter_parse_caps (self, in_caps)) {
-        out_caps = gst_tensor_caps_from_config (&self->tensor_config);
-        silent_debug_caps (out_caps, "out-caps");
-
-        gst_pad_set_caps (self->srcpad, out_caps);
-
         gst_event_unref (event);
-        event = gst_event_new_caps (out_caps);
-
-        gst_caps_unref (out_caps);
-        return gst_pad_push_event (self->srcpad, event);
+        return gst_tensor_converter_update_caps (self, self->srcpad,
+            &self->tensors_config);
       }
       break;
     }
@@ -603,7 +611,7 @@ gst_tensor_converter_src_query (GstPad * pad, GstObject * parent,
 /** @brief Chain function's private routine */
 static void
 _gst_tensor_converter_chain_segment (GstTensorConverter * self,
-    gboolean have_framerate, GstTensorConfig * config, gsize frame_size)
+    gboolean have_framerate, GstTensorsConfig * config, gsize frame_size)
 {
   if (self->need_segment) {
     GstSegment seg;
@@ -631,7 +639,7 @@ _gst_tensor_converter_chain_segment (GstTensorConverter * self,
 /** @brief Chain function's private routine */
 static void
 _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
-    gboolean have_framerate, GstTensorConfig * config, GstBuffer * inbuf,
+    gboolean have_framerate, GstTensorsConfig * config, GstBuffer * inbuf,
     GstClockTime * duration, GstClockTime * pts, guint frames_in)
 {
   if (self->set_timestamp) {
@@ -686,8 +694,7 @@ static GstFlowReturn
 gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorConverter *self;
-  GstTensorConfig *config;
-  GstTensorsConfig tensors_config;
+  GstTensorsConfig *config;
   GstAdapter *adapter;
   GstBuffer *inbuf;
   gsize avail, buf_size, frame_size, out_size;
@@ -695,7 +702,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn ret = GST_FLOW_OK;
   GstClockTime pts, dts, duration;
   gboolean have_framerate;
-  GstCaps *curr_caps, *peer_caps, *out_caps = NULL;
 
   buf_size = gst_buffer_get_size (buf);
   g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
@@ -703,8 +709,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   self = GST_TENSOR_CONVERTER (parent);
 
   /** This is an internal logic error. */
-  g_assert (self->tensor_configured);
-  config = &self->tensor_config;
+  g_assert (self->tensors_configured);
+  config = &self->tensors_config;
 
   have_framerate = (config->rate_n > 0 && config->rate_d > 0);
 
@@ -717,10 +723,10 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       guint color, width, height;
       gsize type;
 
-      color = config->info.dimension[0];
-      width = config->info.dimension[1];
-      height = config->info.dimension[2];
-      type = gst_tensor_get_element_size (config->info.type);
+      color = config->info.info[0].dimension[0];
+      width = config->info.info[0].dimension[1];
+      height = config->info.info[0].dimension[2];
+      type = gst_tensor_get_element_size (config->info.info[0].type);
 
       /** colorspace * width * height * type */
       frame_size = color * width * height * type;
@@ -827,47 +833,29 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     case _NNS_MEDIA_PLUGINS:
     {
+      GstTensorsConfig new_config;
+
       if (self->externalConverter == NULL ||
           self->externalConverter->convert == NULL)
         return GST_FLOW_NOT_SUPPORTED;
       inbuf =
           self->externalConverter->convert (buf, &frame_size, &frames_in,
-          &tensors_config);
+          &new_config);
 
-      self->tensors_config = tensors_config;
-      if (tensors_config.info.num_tensors == 1) {
-        GstStructure *st;
-
-        peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
-        silent_debug_caps (peer_caps, "peer caps");
-
-        st = gst_caps_get_structure (peer_caps, 0);
-
-        if (g_strcmp0 (gst_structure_get_name (st), "other/tensor") == 0) {
-          self->tensor_config.info = tensors_config.info.info[0];
-          self->tensor_config.rate_n = tensors_config.rate_n;
-          self->tensor_config.rate_d = tensors_config.rate_d;
-          out_caps = gst_tensor_caps_from_config (&self->tensor_config);
+      if (gst_tensors_config_is_equal (config, &new_config) != TRUE) {
+        if (gst_tensor_converter_update_caps (self, self->srcpad,
+                &new_config) == TRUE) {
+          self->tensors_config = new_config;
+        } else {
+          return GST_FLOW_ERROR;
         }
       }
 
-      /* caps for tensors */
-      if (out_caps == NULL)
-        out_caps = gst_tensors_caps_from_config (&self->tensors_config);
-
-      silent_debug_caps (out_caps, "out-caps");
-
-      /* Update source pad caps. If it is different */
-      curr_caps = gst_pad_get_current_caps (self->srcpad);
-      if (gst_caps_is_equal (curr_caps, out_caps) != TRUE) {
-        gst_pad_set_caps (self->srcpad, out_caps);
-      }
       g_assert (inbuf != NULL);
       g_assert (frame_size > 0);
 
-      gst_caps_unref (curr_caps);
-      gst_caps_unref (out_caps);
-      gst_buffer_unref (buf);
+      if (inbuf != buf)
+        gst_buffer_unref (buf);
 
       break;
     }
@@ -992,8 +980,8 @@ gst_tensor_converter_reset (GstTensorConverter * self)
     gst_adapter_clear (self->adapter);
   }
 
-  self->tensor_configured = FALSE;
-  gst_tensor_config_init (&self->tensor_config);
+  self->tensors_configured = FALSE;
+  gst_tensors_config_init (&self->tensors_config);
 
   self->have_segment = FALSE;
   self->need_segment = FALSE;
@@ -1053,16 +1041,16 @@ gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
 }
 
 /**
- * @brief Set the tensor config structure from video info (internal static function)
+ * @brief Set the tensors config structure from video info (internal static function)
  * @param self this pointer to GstTensorConverter
- * @param config tensor config structure to be filled
+ * @param config tensors config structure to be filled
  * @param info video info structure
  * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_video (GstTensorConverter * self,
-    GstTensorConfig * config, const GstVideoInfo * info)
+    GstTensorsConfig * config, const GstVideoInfo * info)
 {
   /**
    * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/image
@@ -1073,7 +1061,8 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
 
   g_return_val_if_fail (info != NULL, FALSE);
 
@@ -1082,13 +1071,13 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   /* [color-space][width][height][frames] */
   switch (format) {
     case GST_VIDEO_FORMAT_GRAY8:
-      config->info.type = _NNS_UINT8;
-      config->info.dimension[0] = 1;
+      config->info.info[0].type = _NNS_UINT8;
+      config->info.info[0].dimension[0] = 1;
       break;
     case GST_VIDEO_FORMAT_RGB:
     case GST_VIDEO_FORMAT_BGR:
-      config->info.type = _NNS_UINT8;
-      config->info.dimension[0] = 3;
+      config->info.info[0].type = _NNS_UINT8;
+      config->info.info[0].dimension[0] = 3;
       break;
     case GST_VIDEO_FORMAT_RGBx:
     case GST_VIDEO_FORMAT_BGRx:
@@ -1098,8 +1087,8 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
     case GST_VIDEO_FORMAT_BGRA:
     case GST_VIDEO_FORMAT_ARGB:
     case GST_VIDEO_FORMAT_ABGR:
-      config->info.type = _NNS_UINT8;
-      config->info.dimension[0] = 4;
+      config->info.info[0].type = _NNS_UINT8;
+      config->info.info[0].dimension[0] = 4;
       break;
     default:
       /* unsupported format */
@@ -1108,31 +1097,31 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
       break;
   }
 
-  config->info.dimension[1] = GST_VIDEO_INFO_WIDTH (info);
-  config->info.dimension[2] = GST_VIDEO_INFO_HEIGHT (info);
+  config->info.info[0].dimension[1] = GST_VIDEO_INFO_WIDTH (info);
+  config->info.info[0].dimension[2] = GST_VIDEO_INFO_HEIGHT (info);
 
   /* Supposed 1 frame in tensor, change dimension[3] if tensor contains N frames. */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.dimension[i] = 1;
+    config->info.info[0].dimension[i] = 1;
   }
 
   config->rate_n = GST_VIDEO_INFO_FPS_N (info);
   config->rate_d = GST_VIDEO_INFO_FPS_D (info);
 
-  return (config->info.type != _NNS_END);
+  return (config->info.info[0].type != _NNS_END);
 }
 
 /**
- * @brief Set the tensor config structure from audio info (internal static function)
+ * @brief Set the tensors config structure from audio info (internal static function)
  * @param self this pointer to GstTensorConverter
- * @param config tensor config structure to be filled
+ * @param config tensors config structure to be filled
  * @param info audio info structure
  * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_audio (GstTensorConverter * self,
-    GstTensorConfig * config, const GstAudioInfo * info)
+    GstTensorsConfig * config, const GstAudioInfo * info)
 {
   /**
    * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/audio
@@ -1143,7 +1132,8 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
 
   g_return_val_if_fail (info != NULL, FALSE);
 
@@ -1152,28 +1142,28 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
   /* [channels][frames] */
   switch (format) {
     case GST_AUDIO_FORMAT_S8:
-      config->info.type = _NNS_INT8;
+      config->info.info[0].type = _NNS_INT8;
       break;
     case GST_AUDIO_FORMAT_U8:
-      config->info.type = _NNS_UINT8;
+      config->info.info[0].type = _NNS_UINT8;
       break;
     case GST_AUDIO_FORMAT_S16:
-      config->info.type = _NNS_INT16;
+      config->info.info[0].type = _NNS_INT16;
       break;
     case GST_AUDIO_FORMAT_U16:
-      config->info.type = _NNS_UINT16;
+      config->info.info[0].type = _NNS_UINT16;
       break;
     case GST_AUDIO_FORMAT_S32:
-      config->info.type = _NNS_INT32;
+      config->info.info[0].type = _NNS_INT32;
       break;
     case GST_AUDIO_FORMAT_U32:
-      config->info.type = _NNS_UINT32;
+      config->info.info[0].type = _NNS_UINT32;
       break;
     case GST_AUDIO_FORMAT_F32:
-      config->info.type = _NNS_FLOAT32;
+      config->info.info[0].type = _NNS_FLOAT32;
       break;
     case GST_AUDIO_FORMAT_F64:
-      config->info.type = _NNS_FLOAT64;
+      config->info.info[0].type = _NNS_FLOAT64;
       break;
     default:
       /* unsupported format */
@@ -1182,30 +1172,30 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
       break;
   }
 
-  config->info.dimension[0] = GST_AUDIO_INFO_CHANNELS (info);
+  config->info.info[0].dimension[0] = GST_AUDIO_INFO_CHANNELS (info);
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.dimension[i] = 1;
+    config->info.info[0].dimension[i] = 1;
   }
 
   config->rate_n = GST_AUDIO_INFO_RATE (info);
   config->rate_d = 1;
 
-  return (config->info.type != _NNS_END);
+  return (config->info.info[0].type != _NNS_END);
 }
 
 /**
- * @brief Set the tensor config structure from text info (internal static function)
+ * @brief Set the tensors config structure from text info (internal static function)
  * @param self this pointer to GstTensorConverter
- * @param config tensor config structure to be filled
+ * @param config tensors config structure to be filled
  * @param structure caps structure
- * @note Change dimension if tensor contains N frames.
+ * @note Change dimension if tensors contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_text (GstTensorConverter * self,
-    GstTensorConfig * config, const GstStructure * structure)
+    GstTensorsConfig * config, const GstStructure * structure)
 {
   /**
    * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/text
@@ -1215,14 +1205,15 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
 
   g_return_val_if_fail (structure != NULL, FALSE);
 
   format_string = gst_structure_get_string (structure, "format");
   if (format_string) {
     if (g_ascii_strcasecmp (format_string, "utf8") == 0) {
-      config->info.type = _NNS_UINT8;
+      config->info.info[0].type = _NNS_UINT8;
     } else {
       /* unsupported format */
       GST_WARNING_OBJECT (self, "Unsupported format = %s\n", format_string);
@@ -1231,11 +1222,11 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
 
   /* [size][frames] */
   /* Fixed size of string, we cannot get the size from caps. */
-  config->info.dimension[0] = 0;
+  config->info.info[0].dimension[0] = 0;
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.dimension[i] = 1;
+    config->info.info[0].dimension[i] = 1;
   }
 
   if (gst_structure_has_field (structure, "framerate")) {
@@ -1247,32 +1238,33 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
-  return (config->info.type != _NNS_END);
+  return (config->info.info[0].type != _NNS_END);
 }
 
 /**
- * @brief Set the tensor config structure from octet stream (internal static function)
+ * @brief Set the tensors configs structure from octet stream (internal static function)
  * @param self this pointer to GstTensorConverter
- * @param config tensor config structure to be filled
+ * @param config tensors config structure to be filled
  * @param structure caps structure
- * @note Change tensor dimension and type.
+ * @note Change tensors dimension and type.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_octet (GstTensorConverter * self,
-    GstTensorConfig * config, const GstStructure * structure)
+    GstTensorsConfig * config, const GstStructure * structure)
 {
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
 
   g_return_val_if_fail (structure != NULL, FALSE);
 
   /**
    * Raw byte-stream (application/octet-stream)
-   * We cannot get the exact tensor info from caps.
-   * All tensor info should be updated.
+   * We cannot get the exact tensors info from caps.
+   * All tensors info should be updated.
    */
-  config->info.type = _NNS_UINT8;
+  config->info.info[0].type = _NNS_UINT8;
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1283,49 +1275,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
-  return (config->info.type != _NNS_END);
-}
-
-/**
- * @brief Get sink pad template caps
- */
-static GstCaps *
-gst_tensor_converter_get_template_caps (GstTensorConverter * self)
-{
-  GstCaps *caps = gst_caps_new_empty ();
-  const NNStreamerExternalConverter *ex;
-  gchar *plugin_name;
-  guint total, i;
-  subplugin_info_s info;
-  const gchar *prefix_str;
-  gsize prefix_len, extension_len, len;
-
-  /* append default caps */
-  append_video_caps_template (caps);
-  append_audio_caps_template (caps);
-  append_text_caps_template (caps);
-  append_octet_caps_template (caps);
-
-  /* get template caps from sub-plugins */
-  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
-  if (total > 0) {
-    prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_CONVERTERS);
-    prefix_len = strlen (prefix_str);
-    extension_len = strlen (NNSTREAMER_SO_FILE_EXTENSION);
-
-    for (i = 0; i < total; i++) {
-      len = strlen (info.names[i]) - prefix_len - extension_len;
-      plugin_name = g_strndup (info.names[i] + prefix_len, len);
-
-      ex = findExternalConverter (plugin_name);
-
-      if (ex && ex->query_caps) {
-        gst_caps_append (caps, ex->query_caps (NULL, NULL));
-      }
-      g_free (plugin_name);
-    }
-  }
-  return caps;
+  return (config->info.info[0].type != _NNS_END);
 }
 
 /**
@@ -1337,8 +1287,6 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
   GstCaps *media_caps = NULL;
   GstCaps *peer_caps;
 
-  media_caps = gst_tensor_converter_get_template_caps (self);
-
   /* get possible caps from downstream element */
   peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
 
@@ -1346,16 +1294,19 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
     silent_debug_caps (peer_caps, "peer caps");
 
     if (gst_caps_get_size (peer_caps) > 0) {
-      GstTensorConfig config;
+      GstTensorsConfig config;
       GstStructure *st;
       guint i, caps_len;
       media_type type;
 
-      /* get tensor info from peer caps */
+      /* get tensors info from peer caps */
       st = gst_caps_get_structure (peer_caps, 0);
-      gst_tensor_config_from_structure (&config, st);
+      gst_tensors_config_from_structure (&config, st);
 
       /* convert peer caps to possible media caps */
+      media_caps = gst_pad_get_pad_template_caps (self->sinkpad);	
+      media_caps = gst_caps_make_writable (media_caps);
+  
       caps_len = gst_caps_get_size (media_caps);
 
       for (i = 0; i < caps_len; ++i) {
@@ -1365,11 +1316,12 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
         switch (type) {
           case _NNS_VIDEO:
             /* video caps from tensor info */
-            if (is_video_supported (self) && config.info.type == _NNS_UINT8) {
+            if (is_video_supported (self)
+                && config.info.info[0].type == _NNS_UINT8) {
               GValue supported_formats = G_VALUE_INIT;
               gint colorspace, width, height;
 
-              colorspace = config.info.dimension[0];
+              colorspace = config.info.info[0].dimension[0];
               switch (colorspace) {
                 case 1:
                   gst_tensor_converter_get_format_list (&supported_formats,
@@ -1395,11 +1347,11 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
               }
               g_value_unset (&supported_formats);
 
-              if ((width = config.info.dimension[1]) > 0) {
+              if ((width = config.info.info[0].dimension[1]) > 0) {
                 gst_structure_set (st, "width", G_TYPE_INT, width, NULL);
               }
 
-              if ((height = config.info.dimension[2]) > 0) {
+              if ((height = config.info.info[0].dimension[2]) > 0) {
                 gst_structure_set (st, "height", G_TYPE_INT, height, NULL);
               }
 
@@ -1411,11 +1363,12 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
             break;
           case _NNS_AUDIO:
             /* audio caps from tensor info */
-            if (is_audio_supported (self) && config.info.type != _NNS_END) {
+            if (is_audio_supported (self)
+                && config.info.info[0].type != _NNS_END) {
               gint ch, rate;
               GstAudioFormat aformat;
 
-              switch (config.info.type) {
+              switch (config.info.info[0].type) {
                 case _NNS_INT8:
                   aformat = GST_AUDIO_FORMAT_S8;
                   break;
@@ -1450,7 +1403,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
                 gst_structure_set (st, "format", G_TYPE_STRING,
                     gst_audio_format_to_string (aformat), NULL);
 
-                if ((ch = config.info.dimension[0]) > 0) {
+                if ((ch = config.info.info[0].dimension[0]) > 0) {
                   gst_structure_set (st, "channels", G_TYPE_INT, ch, NULL);
                 }
 
@@ -1520,16 +1473,16 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
 }
 
 /**
- * @brief Parse caps and set tensor info.
+ * @brief Parse caps and set tensors info.
  */
 static gboolean
 gst_tensor_converter_parse_caps (GstTensorConverter * self,
     const GstCaps * caps)
 {
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   media_type in_type;
-  gint frames_dim = -1; /** dimension index of frames in configured tensor */
+  gint frames_dim = -1; /** dimension index of frames in configured tensors */
 
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
@@ -1618,15 +1571,15 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         return FALSE;
       }
 
-      config.info.dimension[0] = self->tensor_info.dimension[0];
+      config.info.info[0].dimension[0] = self->tensor_info.dimension[0];
       frames_dim = 1;
-      self->frame_size = gst_tensor_info_get_size (&config.info);
+      self->frame_size = gst_tensor_info_get_size (&config.info.info[0]);
       break;
     }
     case _NNS_OCTET:
     {
       if (!gst_tensor_converter_parse_octet (self, &config, structure)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensor from octet info.");
+        GST_ERROR_OBJECT (self, "Failed to configure tensors from octet info.");
         return FALSE;
       }
 
@@ -1641,8 +1594,8 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         return FALSE;
       }
 
-      config.info = self->tensor_info;
-      self->frame_size = gst_tensor_info_get_size (&config.info);
+      config.info.info[0] = self->tensor_info;
+      self->frame_size = gst_tensor_info_get_size (&config.info.info[0]);
       break;
     }
     default:
@@ -1662,9 +1615,9 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
           in_type = _NNS_MEDIA_PLUGINS;
           self->externalConverter = ex;
 
-          if (NULL == ex->get_caps || !ex->get_caps (structure, &config)) {
+          if (NULL == ex->get_out_config || !ex->get_out_config (caps, &config)) {
             GST_ERROR_OBJECT (self,
-                "Failed to get tensor info from %s. Check the given options.",
+                "Failed to get tensors info from %s. Check the given options.",
                 ext_conv_name);
             ml_loge ("Please set the options property correctly.\n");
             self->externalConverter = NULL;
@@ -1680,26 +1633,76 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 
   /** set the number of frames in dimension */
   if (frames_dim >= 0) {
-    config.info.dimension[frames_dim] = self->frames_per_tensor;
+    config.info.info[0].dimension[frames_dim] = self->frames_per_tensor;
   }
 
-  if (!gst_tensor_config_validate (&config)) {
+  if (!gst_tensors_config_validate (&config)) {
     /** not fully configured */
-    GST_ERROR_OBJECT (self, "Failed to configure tensor info.\n");
+    GST_ERROR_OBJECT (self, "Failed to configure tensors info.\n");
     return FALSE;
   }
-
   if (gst_tensor_info_validate (&self->tensor_info)) {
     /** compare tensor info */
-    if (!gst_tensor_info_is_equal (&self->tensor_info, &config.info)) {
+    if (!gst_tensor_info_is_equal (&self->tensor_info, &config.info.info[0])) {
       GST_ERROR_OBJECT (self, "Failed, mismatched tensor info.\n");
       return FALSE;
     }
   }
 
   self->in_media_type = in_type;
-  self->tensor_configured = TRUE;
-  self->tensor_config = config;
+  self->tensors_configured = TRUE;
+  self->tensors_config = config;
+  return TRUE;
+}
+
+/**
+ * @brief Update pas caps from tensors config
+ */
+static gboolean
+gst_tensor_converter_update_caps (GstTensorConverter * self,
+    GstPad * pad, GstTensorsConfig * config)
+{
+  GstStructure *st;
+  GstCaps *curr_caps, *out_caps = NULL;
+  
+  if (config->info.num_tensors == 1) {
+    GstCaps *peer_caps = gst_pad_peer_query_caps (pad, NULL);
+
+    if (peer_caps == NULL) {
+      GST_WARNING_OBJECT (self, "Failed to get peer caps \n");
+      return FALSE;
+    }
+
+    if (gst_caps_get_size (peer_caps) > 0) {
+      st = gst_caps_get_structure (peer_caps, 0);
+
+      if (g_strcmp0 (gst_structure_get_name (st), "other/tensor") == 0) {
+        GstTensorConfig tensor_config;
+
+        tensor_config.info = config->info.info[0];
+        tensor_config.rate_n = config->rate_n;
+        tensor_config.rate_d = config->rate_d;
+        out_caps = gst_tensor_caps_from_config (&tensor_config);
+      }
+    }
+    gst_caps_unref (peer_caps);
+  }
+
+  /* caps for tensors */
+  if (out_caps == NULL)
+    out_caps = gst_tensors_caps_from_config (config);
+  silent_debug_caps (out_caps, "out-caps");
+
+  /* Update pad caps. If it is different */
+  curr_caps = gst_pad_get_current_caps (pad);
+  if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
+    gst_pad_set_caps (pad, out_caps);
+  }
+
+  if (curr_caps)
+    gst_caps_unref (curr_caps);
+
+  gst_caps_unref (out_caps);
   return TRUE;
 }
 
@@ -1709,6 +1712,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 static const gchar *
 getExternalConverterName (const char *name)
 {
+  /** @todo: Change to not hardcoded */
   if (g_strcmp0 (name, "other/flatbuf-tensor") == 0) {
     return "flatbuf";
   }
