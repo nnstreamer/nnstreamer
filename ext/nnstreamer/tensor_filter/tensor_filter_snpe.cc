@@ -35,6 +35,13 @@
 #include <DlSystem/ITensorFactory.hpp>
 #include <DlSystem/TensorMap.hpp>
 
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG FALSE
+#endif
+
 namespace nnstreamer {
 namespace tensor_filter_snpe {
 
@@ -49,8 +56,15 @@ private:
   char *model_path; /**< The model *.dlc file */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
+#if (DBG)
+  gint64 total_frames;
+  gint64 invoke_time_total;
+#endif
 
+  /* options for snpe builder */
   zdl::DlSystem::RuntimeList runtime_list;
+  bool use_cpu_fallback;
+
   std::unique_ptr<zdl::DlContainer::IDlContainer> container;
   std::unique_ptr<zdl::SNPE::SNPE> snpe;
 
@@ -62,8 +76,11 @@ private:
   static snpe_subplugin *registeredRepresentation;
 
   void cleanup ();
+  bool configure_option (const GstTensorFilterProperties *prop);
+  bool parse_custom_prop (const char *custom_prop);
   static void setTensorProp (GstTensorsInfo & tensor_meta,
       zdl::DlSystem::TensorMap & tensor_map);
+  static const char * runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
 public:
   static void init_filter_snpe ();
@@ -88,12 +105,16 @@ snpe_subplugin::snpe_subplugin () :
     empty_model (true),
     model_path (nullptr),
     runtime_list (zdl::DlSystem::Runtime_t::CPU),
+    use_cpu_fallback (false),
     container (nullptr),
     snpe (nullptr)
 {
   inputInfo.num_tensors = 0;
   outputInfo.num_tensors = 0;
   input_tensors.reserve (NNS_TENSOR_RANK_LIMIT);
+#if (DBG)
+  invoke_time_total = total_frames = 0;
+#endif
 }
 
 void snpe_subplugin::cleanup ()
@@ -126,6 +147,11 @@ void snpe_subplugin::cleanup ()
 
 snpe_subplugin::~snpe_subplugin ()
 {
+#if (DBG)
+  nns_logd ("Average Invoke latency: %" G_GINT64_FORMAT "us, for total: %" G_GINT64_FORMAT " frames, used model: %s, used runtime: %s",
+      (invoke_time_total/total_frames), total_frames, model_path, runtimeToString (runtime_list[0]));
+#endif
+
   cleanup ();
 }
 
@@ -134,10 +160,113 @@ tensor_filter_subplugin & snpe_subplugin::getEmptyInstance ()
   return *(new snpe_subplugin());
 }
 
+const char * snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
+{
+  switch (runtime) {
+    case zdl::DlSystem::Runtime_t::CPU:
+      return "CPU";
+    case zdl::DlSystem::Runtime_t::GPU:
+      return "GPU";
+    case zdl::DlSystem::Runtime_t::DSP:
+      return "DSP";
+    case zdl::DlSystem::Runtime_t::AIP_FIXED8_TF:
+      return "AIP_FIXED8_TF";
+    default:
+      return "invalid_runtime...";
+  }
+}
+
+/**
+ * @brief Internal method to parse custom options.
+ */
+bool snpe_subplugin::parse_custom_prop (const char *custom_prop)
+{
+  gchar **options;
+  bool invalid_option = false;
+
+  if (!custom_prop) {
+    /* no custom properties were given */
+    return true;
+  }
+
+  options = g_strsplit (custom_prop, ",", -1);
+
+  for (guint op = 0; op < g_strv_length (options); ++op) {
+    gchar **option = g_strsplit (options[op], ":", -1);
+
+    if (g_strv_length (option) > 1) {
+      g_strstrip (option[0]);
+      g_strstrip (option[1]);
+
+      if (g_ascii_strcasecmp (option[0], "Runtime") == 0) {
+        zdl::DlSystem::Runtime_t runtime = zdl::DlSystem::Runtime_t::CPU;
+        if (g_ascii_strcasecmp (option[1], "CPU") == 0) {
+          runtime = zdl::DlSystem::Runtime_t::CPU;
+        } else if (g_ascii_strcasecmp (option[1], "GPU") == 0) {
+          runtime = zdl::DlSystem::Runtime_t::GPU;
+        } else if (g_ascii_strcasecmp (option[1], "DSP") == 0) {
+          runtime = zdl::DlSystem::Runtime_t::DSP;
+        } else if (g_ascii_strcasecmp (option[1], "NPU") == 0) {
+          runtime = zdl::DlSystem::Runtime_t::AIP_FIXED8_TF;
+        } else {
+          nns_logw ("Unknown runtime (%s), set CPU as default.",
+              options[op]);
+          invalid_option = true;
+        }
+        if (zdl::SNPE::SNPEFactory::isRuntimeAvailable (runtime)) {
+          runtime_list.clear ();
+          nns_logi ("Set runtime to %s", runtimeToString (runtime));
+          runtime_list.add (runtime);
+        } else {
+          nns_loge ("All runtime is not available...");
+        }
+      } else if (g_ascii_strcasecmp (option[0], "CPUFallback") == 0) {
+        if (g_ascii_strcasecmp (option[1], "true") == 0) {
+          use_cpu_fallback = true;
+          nns_logd ("Enable CPU fallback.");
+        } else if (g_ascii_strcasecmp (option[1], "false") == 0) {
+          use_cpu_fallback = false;
+        } else {
+          nns_loge ("Unknown cpu_fallback option");
+          invalid_option = true;
+        }
+      } else {
+        nns_logw ("Unknown option (%s).", options[op]);
+      }
+    }
+
+    g_strfreev (option);
+    
+    if (invalid_option)
+      break;
+  }
+
+  g_strfreev (options);
+  return !invalid_option;
+}
+
+/**
+ * @brief Internal method to set the options for SNPE instance.
+ */
+bool snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
+{
+  if (!parse_custom_prop (prop->custom_properties)) {
+    nns_loge ("Cannot get the proper custom properties.");
+    return false;
+  }
+
+  return true;
+}
+
 void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   nns_logi ("SNPE Version: %s",
     zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+
+  if (!configure_option (prop)) {
+    nns_loge ("Failed to configure SNPE options.");
+    return;
+  }
 
   if (!empty_model) {
     /* Already opend */
@@ -161,6 +290,7 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   snpe_builder.setUseUserSuppliedBuffers (false);
   snpe_builder.setInitCacheMode (false);
   snpe_builder.setRuntimeProcessorOrder (runtime_list);
+  snpe_builder.setCPUFallbackMode (use_cpu_fallback);
 
   snpe = snpe_builder.build ();
   if (snpe == nullptr) {
@@ -199,6 +329,10 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   assert (!empty_model);
   assert (snpe);
 
+#if (DBG)
+  gint64 start_time = g_get_real_time ();
+#endif
+
   /* Configure inputs */
   for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) { 
     float *finput = (float *) input[i].data;
@@ -215,6 +349,13 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
     float *foutput = (float *) output[i].data;
     std::copy (output_tensor->cbegin (), output_tensor->cend (), foutput);
   }
+
+#if (DBG)
+  gint64 stop_time = g_get_real_time ();
+
+  invoke_time_total += (stop_time - start_time);
+  total_frames++;
+#endif
 
 }
 
