@@ -633,6 +633,132 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testInputVideo() {
+        String desc = "appsrc name=srcx ! " +
+                "video/x-raw,format=RGB,width=320,height=240,framerate=(fraction)0/1 ! " +
+                "tensor_converter ! tensor_sink name=sinkx";
+
+        /* For media format, set meta with exact buffer size. */
+        TensorsInfo info = new TensorsInfo();
+        /* input data : RGB 320x240 */
+        info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{3 * 320 * 240});
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    /* check received data */
+                    TensorsInfo info = data.getTensorsInfo();
+                    NNStreamer.TensorType type = info.getTensorType(0);
+                    int[] dimension = info.getTensorDimension(0);
+
+                    if (type != NNStreamer.TensorType.UINT8) {
+                        mInvalidState = true;
+                    }
+
+                    if (dimension[0] != 3 || dimension[1] != 320 ||
+                        dimension[2] != 240 || dimension[3] != 1) {
+                        mInvalidState = true;
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(30);
+            }
+
+            /* sleep 200 to invoke */
+            Thread.sleep(200);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testInputAudio() {
+        String desc = "appsrc name=srcx ! " +
+                "audio/x-raw,format=S16LE,rate=16000,channels=1 ! " +
+                "tensor_converter frames-per-tensor=500 ! tensor_sink name=sinkx";
+
+        /* For media format, set meta with exact buffer size. */
+        TensorsInfo info = new TensorsInfo();
+        /* input data : 16k sample rate, mono, signed 16bit little-endian, 500 samples */
+        info.addTensorInfo(NNStreamer.TensorType.INT16, new int[]{500});
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    /* check received data */
+                    TensorsInfo info = data.getTensorsInfo();
+                    NNStreamer.TensorType type = info.getTensorType(0);
+                    int[] dimension = info.getTensorDimension(0);
+
+                    if (type != NNStreamer.TensorType.INT16) {
+                        mInvalidState = true;
+                    }
+
+                    if (dimension[0] != 1 || dimension[1] != 500 ||
+                        dimension[2] != 1 || dimension[3] != 1) {
+                        mInvalidState = true;
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(30);
+            }
+
+            /* sleep 200 to invoke */
+            Thread.sleep(200);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testInputInvalidName_n() {
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)2:10:10:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
