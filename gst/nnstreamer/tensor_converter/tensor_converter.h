@@ -37,7 +37,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstadapter.h>
 #include <tensor_common.h>
-#include <nnstreamer_plugin_api_converter.h>
+#include "nnstreamer_plugin_api_converter.h"
 
 G_BEGIN_DECLS
 
@@ -78,8 +78,7 @@ struct _GstTensorConverter
 
   gsize frame_size; /**< size of one frame */
   gboolean remove_padding; /**< If true, zero-padding must be removed */
-  gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
-  GstTensorConfig tensor_config; /**< output tensor info */
+  gboolean tensors_configured; /**< True if already successfully configured tensors metadata */
   GstTensorsConfig tensors_config; /**< output tensors info */
 
   gboolean have_segment; /**< True if received segment */
