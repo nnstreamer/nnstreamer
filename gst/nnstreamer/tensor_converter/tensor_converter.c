@@ -192,6 +192,9 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   GstElementClass *element_class;
   GstPadTemplate *pad_template;
   GstCaps *pad_caps;
+  guint total, i;
+  const NNStreamerExternalConverter *ex;
+  subplugin_info_s info;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter", 0,
       "Element to convert media stream to tensor stream");
@@ -273,7 +276,21 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   gst_caps_unref (pad_caps);
 
   /* set sink pad template */
-  pad_caps = gst_caps_new_any ();
+  pad_caps = gst_caps_new_empty ();
+
+  /* append caps string for all media types */
+  append_video_caps_template (pad_caps);
+  append_audio_caps_template (pad_caps);
+  append_text_caps_template (pad_caps);
+  append_octet_caps_template (pad_caps);
+
+  /* append sub-plugin template caps */
+  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
+  for (i = 0; i < total; i++) {
+    ex = findExternalConverter (info.names[i]);
+    if (ex && ex->query_caps)
+      gst_caps_append (pad_caps, ex->query_caps (NULL));
+  }
 
   pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
       pad_caps);
@@ -460,10 +477,9 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
       silent_debug_caps (in_caps, "in-caps");
 
       if (gst_tensor_converter_parse_caps (self, in_caps)) {
-        gboolean ret = gst_tensor_converter_update_caps (self, self->srcpad,
-            &self->tensors_config);
         gst_event_unref (event);
-        return ret;
+        return gst_tensor_converter_update_caps (self, self->srcpad,
+            &self->tensors_config);
       }
       break;
     }
@@ -820,6 +836,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       if (self->externalConverter == NULL ||
           self->externalConverter->convert == NULL)
         return GST_FLOW_NOT_SUPPORTED;
+
       inbuf =
           self->externalConverter->convert (buf, &frame_size, &frames_in,
           &new_config);
@@ -1261,48 +1278,6 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
 }
 
 /**
- * @brief Get sink pad template caps
- */
-static GstCaps *
-gst_tensor_converter_get_template_caps (GstTensorConverter * self)
-{
-  GstCaps *caps = gst_caps_new_empty ();
-  const NNStreamerExternalConverter *ex;
-  gchar *plugin_name;
-  guint total, i;
-  subplugin_info_s info;
-  const gchar *prefix_str;
-  gsize prefix_len, extension_len, len;
-
-  /* append default caps */
-  append_video_caps_template (caps);
-  append_audio_caps_template (caps);
-  append_text_caps_template (caps);
-  append_octet_caps_template (caps);
-
-  /* get template caps from sub-plugins */
-  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
-  if (total > 0) {
-    prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_CONVERTERS);
-    prefix_len = strlen (prefix_str);
-    extension_len = strlen (NNSTREAMER_SO_FILE_EXTENSION);
-
-    for (i = 0; i < total; i++) {
-      len = strlen (info.names[i]) - prefix_len - extension_len;
-      plugin_name = g_strndup (info.names[i] + prefix_len, len);
-
-      ex = findExternalConverter (plugin_name);
-
-      if (ex && ex->query_caps) {
-        gst_caps_append (caps, ex->query_caps (NULL, NULL));
-      }
-      g_free (plugin_name);
-    }
-  }
-  return caps;
-}
-
-/**
  * @brief Get possible media-caps from downstream element.
  */
 static GstCaps *
@@ -1310,8 +1285,6 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
 {
   GstCaps *media_caps = NULL;
   GstCaps *peer_caps;
-
-  media_caps = gst_tensor_converter_get_template_caps (self);
 
   /* get possible caps from downstream element */
   peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
@@ -1330,6 +1303,9 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
       gst_tensors_config_from_structure (&config, st);
 
       /* convert peer caps to possible media caps */
+      media_caps = gst_pad_get_pad_template_caps (self->sinkpad);
+      media_caps = gst_caps_make_writable (media_caps);
+
       caps_len = gst_caps_get_size (media_caps);
 
       for (i = 0; i < caps_len; ++i) {
@@ -1634,11 +1610,11 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         ext_conv_name = getExternalConverterName (struct_name);
         ex = findExternalConverter (ext_conv_name);
 
-        if (ex != NULL) {
+        if (ex != NULL && self->externalConverter == NULL) {
           in_type = _NNS_MEDIA_PLUGINS;
           self->externalConverter = ex;
 
-          if (NULL == ex->get_caps || !ex->get_caps (structure, &config)) {
+          if (NULL == ex->get_out_config || !ex->get_out_config (caps, &config)) {
             GST_ERROR_OBJECT (self,
                 "Failed to get tensors info from %s. Check the given options.",
                 ext_conv_name);
@@ -1675,6 +1651,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   self->in_media_type = in_type;
   self->tensors_configured = TRUE;
   self->tensors_config = config;
+
   return TRUE;
 }
 
@@ -1690,9 +1667,13 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 
   if (config->info.num_tensors == 1) {
     GstCaps *peer_caps = gst_pad_peer_query_caps (pad, NULL);
-    silent_debug_caps (peer_caps, "peer caps");
 
-    if (peer_caps != NULL) {
+    if (peer_caps == NULL) {
+      GST_WARNING_OBJECT (self, "Failed to get peer caps \n");
+      return FALSE;
+    }
+
+    if (gst_caps_get_size (peer_caps) > 0) {
       st = gst_caps_get_structure (peer_caps, 0);
 
       if (g_strcmp0 (gst_structure_get_name (st), "other/tensor") == 0) {
@@ -1703,11 +1684,8 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
         tensor_config.rate_d = config->rate_d;
         out_caps = gst_tensor_caps_from_config (&tensor_config);
       }
-      gst_caps_unref (peer_caps);
-    } else {
-      GST_WARNING_OBJECT (self, "Failed to get peer caps \n");
-      return FALSE;
     }
+    gst_caps_unref (peer_caps);
   }
 
   /* caps for tensors */
@@ -1717,12 +1695,14 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 
   /* Update pad caps. If it is different */
   curr_caps = gst_pad_get_current_caps (pad);
-  if (gst_caps_is_equal (curr_caps, out_caps) != TRUE) {
+  if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
     gst_pad_set_caps (pad, out_caps);
   }
-  gst_caps_unref (out_caps);
-  gst_caps_unref (curr_caps);
 
+  if (curr_caps)
+    gst_caps_unref (curr_caps);
+
+  gst_caps_unref (out_caps);
   return TRUE;
 }
 
@@ -1732,10 +1712,13 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 static const gchar *
 getExternalConverterName (const char *name)
 {
+  /** @todo: Change to not hardcoded */
   if (g_strcmp0 (name, "other/flatbuf-tensor") == 0) {
     return "flatbuf";
+  } else if (g_strcmp0 (name, "other/protobuf-tensor") == 0) {
+    return "protobuf";
   }
-  return "invalid_media_type";
+  return "Not_supported";
 }
 
 /**
