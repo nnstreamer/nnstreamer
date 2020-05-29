@@ -346,7 +346,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-  guint i;
+  guint i, j;
   gint ret;
   gboolean allocate_in_invoke;
 
@@ -379,7 +379,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
     if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
-      guint j;
       for (j = 0; j < i; j++)
         gst_memory_unmap (in_mem[j], &in_info[j]);
       ml_logf ("Cannot map input memory buffer(%d)\n", i);
@@ -404,7 +403,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     if (allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       if (FALSE == gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
-        guint j;
         for (j = 0; j < i; j++)
           gst_memory_unmap (out_mem[j], &out_info[j]);
         for (j = 0; j < prop->input_meta.num_tensors; j++)
@@ -420,31 +418,27 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 3. Call the filter-subplugin callback, "invoke" */
   GST_TF_FW_INVOKE_COMPAT (priv, ret, in_tensors, out_tensors);
 
-  /** @todo define enum to indicate status code */
-
-  if (ret < 0) {
-    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
-    return GST_FLOW_ERROR;
-  }
-
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     if (allocate_in_invoke) {
-      GPtrArray *data_array = g_ptr_array_new ();
-      g_ptr_array_add (data_array, (gpointer) self);
-      g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
+      /* prepare memory block if successfully done */
+      if (ret == 0) {
+        GPtrArray *data_array = g_ptr_array_new ();
+        g_ptr_array_add (data_array, (gpointer) self);
+        g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
 
-      /* filter-subplugin allocated new memory, update this */
-      out_mem[i] =
-          gst_memory_new_wrapped (0, out_tensors[i].data, out_tensors[i].size,
-          0, out_tensors[i].size, (gpointer) data_array,
-          gst_tensor_filter_destroy_notify);
+        /* filter-subplugin allocated new memory, update this */
+        out_mem[i] = gst_memory_new_wrapped (0, out_tensors[i].data,
+            out_tensors[i].size, 0, out_tensors[i].size, (gpointer) data_array,
+            gst_tensor_filter_destroy_notify);
+      }
     } else {
       gst_memory_unmap (out_mem[i], &out_info[i]);
     }
 
     /* append the memory block to outbuf */
-    gst_buffer_append_memory (outbuf, out_mem[i]);
+    if (ret == 0)
+      gst_buffer_append_memory (outbuf, out_mem[i]);
   }
 
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
@@ -452,8 +446,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 5. Return result! */
-  if (ret > 0) {
-    /** @todo define enum to indicate status code */
+  /** @todo define enum to indicate status code */
+  if (ret < 0) {
+    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
+    return GST_FLOW_ERROR;
+  } else if (ret > 0) {
     /* drop this buffer */
     return GST_BASE_TRANSFORM_FLOW_DROPPED;
   }
