@@ -412,16 +412,17 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
       silent_debug_caps (in_caps, "in-caps");
 
       if (gst_tensor_aggregator_parse_caps (self, in_caps)) {
+        gboolean ret = FALSE;
+
         out_caps = gst_tensor_caps_from_config (&self->out_config);
         silent_debug_caps (out_caps, "out-caps");
 
-        gst_pad_set_caps (self->srcpad, out_caps);
+        ret = gst_pad_set_caps (self->srcpad, out_caps);
 
         gst_event_unref (event);
-        event = gst_event_new_caps (out_caps);
-
         gst_caps_unref (out_caps);
-        return gst_pad_push_event (self->srcpad, event);
+
+        return ret;
       }
       break;
     }
