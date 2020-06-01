@@ -2,6 +2,7 @@
  * GStreamer / NNStreamer tensor_decoder subplugin, "image segment"
  * Copyright (C) 2019 Jihoon Lee <ulla4571@gmail.com>
  * Copyright (C) 2019 niklasjang <niklasjang@gmail.com>
+ * Copyright (C) 2020 Dongju Chae <dongju.chae@samsung.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -23,10 +24,28 @@
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author  Jihoon Lee <ulla4571@gmail.com>
  *          niklasjang <niklasjang@gmail.com>
- * @bug		No known bugs except for NYI items
+ *          Dongju Chae <dongju.chae@samsung.com>
+ * @bug     No known bugs except for NYI items
  *
  * option1: Decoder mode of image segmentation
  *          Available : tflite-deeplab
+ *          Available : snpe-deeplab
+ *          Available : snpe-depth
+ *
+ * option2: Maximum number of class labels (except background), default is 20 (Pascal)
+ *
+ * expected models
+ * - tflite-deeplab : deeplabv3_257_mv_gpu.tflite (designed for embedded devices)
+ * - snpe-deeplab   : deeplabv3_mnv2_pascal_train_aug.dlc (converted from a TF model)
+ * - snpe-depth     : any snpe models (.dlc) producing grayscale images
+ *
+ * expected input dims
+ * - tflite-deeplab : #labels x width x height (float32, label probability)
+ *                    (e.g., 21 x 257 x 257)
+ * - snpe-deeplab   : width x height x 1 (float32, label index)
+ *                    (e.g., 513 x 513 x 1)
+ * - snpe-depth     : 1 x width x height (float32, grayscale)
+ *                    (e.g., 1 x 320 x 240)
  *
  * pipeline:
  * filesrc
@@ -63,11 +82,16 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
 
+#if defined(__aarch64__)
+#define NEON64_ENABLED
+#endif
+
+#define DEFAULT_LABELS  (20)
+#define RGBA_CHANNEL    (4)
+#define MAX_RGB         (255)
+
 void init_is (void) __attribute__ ((constructor));
 void fini_is (void) __attribute__ ((destructor));
-
-#define RGBA_CHANNEL                   4
-#define TFLITE_DEEPLAB_TOTAL_LABELS    21
 
 const static float DETECTION_THRESHOLD = 0.5f;
 
@@ -77,6 +101,8 @@ const static float DETECTION_THRESHOLD = 0.5f;
 typedef enum
 {
   MODE_TFLITE_DEEPLAB = 0,
+  MODE_SNPE_DEEPLAB = 1,
+  MODE_SNPE_DEPTH = 2,
   MODE_UNKNOWN,
 } image_segment_modes;
 
@@ -85,6 +111,8 @@ typedef enum
  */
 static const char *is_modes[] = {
   [MODE_TFLITE_DEEPLAB] = "tflite-deeplab",
+  [MODE_SNPE_DEEPLAB] = "snpe-deeplab",
+  [MODE_SNPE_DEPTH] = "snpe-depth",
   NULL,
 };
 
@@ -94,10 +122,15 @@ static const char *is_modes[] = {
 typedef struct
 {
   image_segment_modes mode; /**< The image segmentation decoding mode */
-  guint **segment_map;  /**< The image segmentated map */
+  float *segment_map;       /**< The image segmentated map */
 
-  guint width; /**< Input video width */
-  guint height; /**< Input video height */
+  guint max_labels;         /**< Maximum number of labels */
+  guint *color_map;         /**< The RGBA color map (up to max labels) */
+
+  guint width;              /**< Input video width */
+  guint height;             /**< Input video height */
+
+  GRand *rand;              /**< random value generator */
 } image_segments;
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -112,28 +145,28 @@ is_init (void **pdata)
     return FALSE;
   }
 
+  idata->rand = g_rand_new ();
   idata->mode = MODE_UNKNOWN;
   idata->width = 0;
   idata->height = 0;
+  idata->max_labels = DEFAULT_LABELS;
   idata->segment_map = NULL;
+  idata->color_map = NULL;
 
   return TRUE;
 }
 
-/** @brief Free the allocated segment_map */
+/** @brief Free the allocated resources */
 static void
-_free_segment_map (image_segments * idata)
+_free_resources (image_segments * idata)
 {
-  int i;
-
-  if (idata->segment_map) {
-    for (i = 0; i < idata->height; i++) {
-      g_free (idata->segment_map[i]);
-    }
-    g_free (idata->segment_map);
-  }
+  g_free (idata->segment_map);
+  g_free (idata->color_map);
+  g_rand_free (idata->rand);
 
   idata->segment_map = NULL;
+  idata->color_map = NULL;
+  idata->rand = NULL;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -142,10 +175,24 @@ is_exit (void **pdata)
 {
   image_segments *idata = *pdata;
 
-  _free_segment_map (idata);
+  _free_resources (idata);
 
   g_free (*pdata);
   *pdata = NULL;
+}
+
+/** @brief fill rgba color map */
+static void
+_fill_color_map (image_segments * idata)
+{
+  guint i;
+
+  idata->color_map[0] = 0; /* background */
+  for (i = 1; i <= idata->max_labels; i++) {
+    /* any color value would be acceptable */
+    idata->color_map[i] = g_rand_int_range (idata->rand, 0x101010, 0xFFFFFF);
+    ((guint8 *)&idata->color_map[i])[3] = '\xff'; /* alpha */
+  }
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -168,6 +215,10 @@ is_setOption (void **pdata, int op_num, const char *param)
       return TRUE;
     }
     return TRUE;
+  } else if (op_num == 1) {
+    guint64 max_labels_64 = g_ascii_strtoll (param, NULL, 10);
+    if (max_labels_64 != 0 && max_labels_64 <= UINT_MAX)
+      idata->max_labels = (guint) max_labels_64;
   }
 
   GST_WARNING ("mode-option-\"%d\" is not definded.", op_num);
@@ -179,15 +230,23 @@ static gboolean
 _init_modes (image_segments * idata)
 {
   if (idata->mode == MODE_TFLITE_DEEPLAB) {
-    int i;
+    /* init image segments if seg map is null */
+    if (idata->segment_map == NULL)
+      idata->segment_map = g_new0 (float, idata->height * idata->width);
 
-    idata->segment_map = g_new0 (guint *, idata->height);
-    g_assert (idata->segment_map != NULL);
-    for (i = 0; i < idata->height; i++) {
-      idata->segment_map[i] = g_new0 (guint, idata->width);
-      g_assert (idata->segment_map[i] != NULL);
+    if (idata->color_map == NULL) {
+      idata->color_map = g_new (guint, idata->max_labels + 1);
+      _fill_color_map (idata);
     }
 
+    return TRUE;
+  } else if (idata->mode == MODE_SNPE_DEEPLAB) {
+    if (idata->color_map == NULL) {
+      idata->color_map = g_new (guint, idata->max_labels + 1);
+      _fill_color_map (idata);
+    }
+    return TRUE;
+  } else if (idata->mode == MODE_SNPE_DEPTH) {
     return TRUE;
   }
 
@@ -210,15 +269,16 @@ is_getOutCaps (void **pdata, const GstTensorsConfig * config)
   GstCaps *caps;
   char *str;
 
-  if (idata->mode == MODE_TFLITE_DEEPLAB) {
-    g_return_val_if_fail (config != NULL, NULL);
-    GST_INFO ("Num Tensors = %d", config->info.num_tensors);
-    g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
+  g_return_val_if_fail (config != NULL, NULL);
+  GST_INFO ("Num Tensors = %d", config->info.num_tensors);
+  g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
-    if (idata->width == 0 || idata->height == 0) {
-      idata->width = config->info.info[0].dimension[1];
-      idata->height = config->info.info[0].dimension[2];
-    }
+  if (idata->mode == MODE_SNPE_DEEPLAB) {
+    idata->width = config->info.info[0].dimension[0];
+    idata->height = config->info.info[0].dimension[1];
+  } else {
+    idata->width = config->info.info[0].dimension[1];
+    idata->height = config->info.info[0].dimension[2];
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, "
@@ -244,35 +304,70 @@ is_getTransformSize (void **pdata, const GstTensorsConfig * config,
   /** @todo Use appropriate values */
 }
 
-
-/** @brief Set color according to each pixel's max probability  */
+/** @brief Set color according to each pixel's label (RGBA) */
 static void
 set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 {
-  uint32_t *frame = (uint32_t *) out_info->data;
-  uint32_t *pos;
-  guint i, j, label_idx;
-  const uint32_t label_color[21] = {
-    0xFF000040, 0xFF800000, 0xFFFFEFD5, 0xFF40E0D0, 0xFFFFA500,
-    0xFF00FF00, 0xFFDC143C, 0xFFF0F8FF, 0xFF008000, 0xFFEE82EE,
-    0xFF808080, 0xFF4169E1, 0xFF008080, 0xFFFF6347, 0xFF000000,
-    0xFFFF4500, 0xFFDA70D6, 0xFFEEE8AA, 0xFF98FB98, 0xFFAFEEEE,
-    0xFFFFF5EE
-  };
+  float *input = idata->segment_map;
+  uint32_t *output = (uint32_t *) out_info->data;
+  guint data_idx, label_idx;
+  guint i, j;
 
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
-      label_idx = idata->segment_map[i][j];
+      data_idx = i * idata->width + j;
+      if (idata->mode == MODE_TFLITE_DEEPLAB)
+        label_idx = ((guint *) input)[data_idx];
+      else
+        label_idx = (guint) input[data_idx];
 
-      /* If background or out-of-range, don't draw it */
-      if (label_idx == 0 || label_idx > 20)
+      /* If out-of-range, don't draw it */
+      if (G_UNLIKELY (label_idx > idata->max_labels))
         continue;
-      pos = &frame[i * idata->width + j];
-      *pos = label_color[label_idx];
+
+      output[data_idx] = idata->color_map[label_idx];
     }
   }
 }
 
+/** @brief Set color with grayscale value */
+static void
+set_color_grayscale (image_segments * idata, GstMapInfo * out_info)
+{
+  float *input = idata->segment_map;
+  uint32_t *output = (uint32_t *) out_info->data;
+  guint data_idx, grayscale;
+  guint i, j;
+  float max_grayscale = 0.0;
+
+  /* find the maximum value */
+  for (i = 0; i < idata->height; i++) {
+    for (j = 0; j < idata->width; j++) {
+      data_idx = i * idata->width + j;
+      if (max_grayscale < input[data_idx])
+        max_grayscale = input[data_idx];
+    }
+  }
+
+  if (G_UNLIKELY (max_grayscale == 0.0))
+    return;
+
+  /* normalize the values */
+  for (i = 0; i < idata->height; i++) {
+    for (j = 0; j < idata->width; j++) {
+      data_idx = i * idata->width + j;
+      grayscale = (guint) ((((float) input[data_idx]) / max_grayscale) * MAX_RGB);
+
+      /* Should be less than 256 */
+      if (G_UNLIKELY (grayscale > MAX_RGB))
+        continue;
+
+      grayscale = grayscale | (grayscale << 8) | (grayscale << 16) | (grayscale << 24);
+
+      output[data_idx] = grayscale;
+    }
+  }
+}
 
 /** @brief Set label index according to each pixel's label probabilities */
 static void
@@ -282,29 +377,68 @@ set_label_index (image_segments * idata, void *data)
   int idx, i, j;
   int max_idx;
   float max_prob;
+  guint total_labels = idata->max_labels + 1;
 
-  for (i = 0; i < idata->height; i++) {
-    memset (idata->segment_map[i], 0, idata->width * sizeof (guint));
-  }
+  memset (idata->segment_map, '\x00',
+      idata->width * idata->height * sizeof (float));
 
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
       max_idx = 0;
-      max_prob = prob_map[i * idata->width * TFLITE_DEEPLAB_TOTAL_LABELS
-          + j * TFLITE_DEEPLAB_TOTAL_LABELS];
-      for (idx = 1; idx < TFLITE_DEEPLAB_TOTAL_LABELS; idx++) {
-        float prob = prob_map[i * idata->width * TFLITE_DEEPLAB_TOTAL_LABELS
-            + j * TFLITE_DEEPLAB_TOTAL_LABELS + idx];
+      max_prob = prob_map[i * idata->width * total_labels
+        + j * total_labels];
+      for (idx = 1; idx < total_labels; idx++) {
+        float prob = prob_map[i * idata->width * total_labels
+          + j * total_labels + idx];
         if (prob > max_prob) {
           max_prob = prob;
           max_idx = idx;
         }
       }
       if (max_prob > DETECTION_THRESHOLD) {
-        idata->segment_map[i][j] = max_idx;
-      }
+        idata->segment_map[i * idata->width + j] = (float) max_idx;
+      } /* otherwise, regarded as background */
     }
   }
+}
+
+/** @brief set color to output buffer depending on each mode */
+static void
+set_color (image_segments * idata, void *data, GstMapInfo * out_info)
+{
+  /* tflite-deeplab needs to perform extra post-processing to set labels */
+  if (idata->mode == MODE_TFLITE_DEEPLAB) {
+    set_label_index (idata, data);
+    set_color_according_to_label (idata, out_info);
+    return;
+  }
+
+  /* snpe-deeplab already has labeled data as input */
+  idata->segment_map = data;
+
+  if (idata->mode == MODE_SNPE_DEEPLAB)
+    set_color_according_to_label (idata, out_info);
+  else if (idata->mode == MODE_SNPE_DEPTH)
+    set_color_grayscale (idata, out_info);
+
+  idata->segment_map = NULL;
+}
+
+/** @brief sanity check for each mode */
+static gboolean
+check_sanity (image_segments * idata, const GstTensorsConfig * config)
+{
+  if (idata->mode == MODE_TFLITE_DEEPLAB) {
+    return (config->info.info[0].type == _NNS_FLOAT32) &&
+           (config->info.info[0].dimension[0] == idata->max_labels + 1);
+  } else if (idata->mode == MODE_SNPE_DEEPLAB) {
+    return (config->info.info[0].type == _NNS_FLOAT32);
+  } else if (idata->mode == MODE_SNPE_DEPTH) {
+    return (config->info.info[0].type == _NNS_FLOAT32) &&
+           (config->info.info[0].dimension[0] == 1);
+  }
+
+  return FALSE;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -314,17 +448,15 @@ is_decode (void **pdata, const GstTensorsConfig * config,
 {
   image_segments *idata = *pdata;
   const size_t size = idata->width * idata->height * RGBA_CHANNEL;
+  gboolean need_output_alloc;
   GstMapInfo out_info;
   GstMemory *out_mem;
 
-  /* init image segments if seg map is null */
-  if (idata->segment_map == NULL) {
-    if (!_init_modes (idata))
-      return GST_FLOW_ERROR;
-  }
+  if (FALSE == _init_modes (idata) || outbuf == NULL)
+    return GST_FLOW_ERROR;
 
-  g_assert (outbuf);
-  if (gst_buffer_get_size (outbuf) == 0) {
+  need_output_alloc = (gst_buffer_get_size (outbuf) == 0);
+  if (TRUE == need_output_alloc) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   } else {
     if (gst_buffer_get_size (outbuf) < size) {
@@ -334,25 +466,32 @@ is_decode (void **pdata, const GstTensorsConfig * config,
   }
   if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-imagesegment.\n");
-    return GST_FLOW_ERROR;
+    goto error_free;
   }
 
-  memset (out_info.data, 0, size);
+  memset (out_info.data, '\x00', size);
 
-  if (idata->mode == MODE_TFLITE_DEEPLAB) {
-    g_assert (config->info.info[0].type == _NNS_FLOAT32);
-    g_assert (config->info.info[0].dimension[0] == TFLITE_DEEPLAB_TOTAL_LABELS);
-    set_label_index (idata, input->data);
+  if (FALSE == check_sanity (idata, config)) {
+    ml_loge ("Invalid input data format detected.\n");
+    goto error_unmap;
   }
 
-  set_color_according_to_label (idata, &out_info);
+  set_color (idata, input->data, &out_info);
 
   gst_memory_unmap (out_mem, &out_info);
 
-  if (gst_buffer_get_size (outbuf) == 0)
+  if (TRUE == need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
 
   return GST_FLOW_OK;
+
+error_unmap:
+  gst_memory_unmap (out_mem, &out_info);
+error_free:
+  if (TRUE == need_output_alloc)
+    gst_allocator_free (NULL, out_mem);
+
+  return GST_FLOW_ERROR;
 }
 
 static gchar decoder_subplugin_image_segment[] = "image_segment";
