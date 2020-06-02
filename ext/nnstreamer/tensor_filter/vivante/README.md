@@ -21,8 +21,13 @@ First of all, you must generate a library of a model (e.g., libvivantev3.so, lib
 For more details, please refer to the below repository.
  * https://www.github.com/nnstreamer/reference-models (TODO) - Press 'models' folder.
 
+### Enable Vivante tensor filter
+Since the Vivante tensor filter depends on the low-level libraries of Vivante NPU Toolkit,
+the Vivante tensor filter is disabled by default. If you want to enable the Vivante tensor filter,
+If you want to enable the Vivante tensor filter in Tizen, you need to modify the "vivante_support 0" statement in the ./packaging/nnstreamer.spec file.
+For Ubuntu/ARM, you can compile the Vivante tensor filter source code with the ./build_run.sh file on the target.
 
-### on VIM3/Ubuntu18.04 (arm64)
+### On VIM3/Ubuntu18.04 (arm64)
 Please append the APT repository as follows for VIM3/Ubuntu 18.04 target board.
 ```bash
 vim3$ sudo /usr/sbin/ntpdate jp.pool.ntp.org
@@ -39,13 +44,12 @@ vim3$ cd ./nnstreamer/ext/nnstreamer/tensor_filter/vivante/
 vim3$ ./build_run.sh
 ```
 
-### on Tizen/Unified (armv7l)
-Build and run the NNStreamer tensor filter on Tizen (armv7l).
+### On Tizen/Unified (aarch64)
+Build and run the NNStreamer tensor filter on Tizen (aarch64).
 
 ```bash
-$ cp ./gbs-build-conf/.gbs.conf ~/
 $ vi ~/.gbs.conf
-$ gbs build -A armv7l --clean --include-all
+$ gbs build -A aarch64 --clean --include-all
 ```
 
 ## How to run
