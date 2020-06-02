@@ -562,20 +562,10 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &sinfo);
 
       if (total > 0) {
-        GString *subplugins;
-        const gchar *prefix_str;
-        gsize prefix, extension, len;
-
-        subplugins = g_string_new (NULL);
-
-        prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_DECODERS);
-        prefix = strlen (prefix_str);
-        extension = strlen (NNSTREAMER_SO_FILE_EXTENSION);
+        GString *subplugins = g_string_new (NULL);
 
         for (i = 0; i < total; ++i) {
-          /* remove file extension */
-          len = strlen (sinfo.names[i]) - prefix - extension;
-          g_string_append_len (subplugins, sinfo.names[i] + prefix, len);
+          g_string_append (subplugins, sinfo.names[i]);
 
           if (i < total - 1) {
             g_string_append (subplugins, ",");

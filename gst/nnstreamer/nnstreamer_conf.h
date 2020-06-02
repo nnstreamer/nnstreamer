@@ -86,16 +86,6 @@ extern gboolean
 nnsconf_loadconf (gboolean force_reload);
 
 /**
- * @brief Search for "file2find" file in the configured paths for the type
- * @param[in] file2find The filename including extensions (e.g., .so) to find.
- * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
- * @return The full path to the file. Caller MUST NOT modify this.
- *         Returns NULL if we cannot find the file.
- */
-extern const gchar *
-nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type);
-
-/**
  * @brief Get the configured paths for the type with sub-plugin name.
  * @param[in] The subplugin name except for the prefix and postfix (.so) to find
  * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)

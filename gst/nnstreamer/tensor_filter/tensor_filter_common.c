@@ -1584,21 +1584,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
       total = nnsconf_get_subplugin_info (NNSCONF_PATH_FILTERS, &sinfo);
 
-      if (total > 0) {
-        const gchar *prefix_str;
-        gsize prefix, extension, len;
-
-        prefix_str = nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_FILTERS);
-        prefix = strlen (prefix_str);
-        extension = strlen (NNSTREAMER_SO_FILE_EXTENSION);
-
-        for (i = 0; i < total; ++i) {
-          g_string_append (subplugins, ",");
-
-          /* remove file extension */
-          len = strlen (sinfo.names[i]) - prefix - extension;
-          g_string_append_len (subplugins, sinfo.names[i] + prefix, len);
-        }
+      for (i = 0; i < total; ++i) {
+        g_string_append (subplugins, ",");
+        g_string_append (subplugins, sinfo.names[i]);
       }
 
       g_value_take_string (value, g_string_free (subplugins, FALSE));
