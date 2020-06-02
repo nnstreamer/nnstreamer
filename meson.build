@@ -174,8 +174,6 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
-fb_comp = find_program('flatc', required : get_option('flatbuf-support'))
-
 # features registration to be controlled
 #
 # register feature as follows
