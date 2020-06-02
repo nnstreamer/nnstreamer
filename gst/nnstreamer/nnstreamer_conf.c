@@ -84,7 +84,7 @@ typedef struct
    * Processed Values                              *
    *************************************************/
   gchar **files; /**< Null terminated list of full filepaths */
-  gchar **basename; /**< Null terminated list of basenames */
+  gchar **names; /**< Null terminated list of subplugin names */
 } subplugin_conf;
 
 typedef struct
@@ -164,32 +164,44 @@ _validate_file (nnsconf_type_path type, const gchar * fullpath)
  * @param[in] type conf type to scan.
  * @param[in] dir Directory to be searched.
  * @param[in/out] listF The fullpath list to be updated.
- * @param[in/out] listB The basename list to be updated.
+ * @param[in/out] listN The name list to be updated.
  * @param[in/out] counter increased by the number of appended elements.
  * @return True if successfully updated.
  * @todo This assumes .so/.dylib for all sub plugins. Support Windows!
  */
 static gboolean
 _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
-    GSList ** listB, guint * counter)
+    GSList ** listN, guint * counter)
 {
   GDir *gdir;
-  const gchar *name;
+  const gchar *entry;
   gchar *fullpath;
+  gchar *basename;
+  gchar *name;
+  gsize prefix, extension, len;
 
   if ((gdir = g_dir_open (dir, 0U, NULL)) == NULL)
     return FALSE;
 
-  while (NULL != (name = g_dir_read_name (gdir))) {
+  prefix = strlen (subplugin_prefixes[type]);
+  extension = strlen (NNSTREAMER_SO_FILE_EXTENSION);
+
+  while (NULL != (entry = g_dir_read_name (gdir))) {
     /* check file prefix for given type, currently handle .so and .dylib. */
-    if (g_str_has_prefix (name, subplugin_prefixes[type]) &&
-        g_str_has_suffix (name, NNSTREAMER_SO_FILE_EXTENSION)) {
-      fullpath = g_build_filename (dir, name, NULL);
+    if (g_str_has_prefix (entry, subplugin_prefixes[type]) &&
+        g_str_has_suffix (entry, NNSTREAMER_SO_FILE_EXTENSION)) {
+      fullpath = g_build_filename (dir, entry, NULL);
 
       if (_validate_file (type, fullpath)) {
+        basename = g_path_get_basename (entry);
+        len = strlen (basename) - prefix - extension;
+        name = g_strndup (basename + prefix, len);
+
         *listF = g_slist_prepend (*listF, fullpath);
-        *listB = g_slist_prepend (*listB, g_path_get_basename (name));
+        *listN = g_slist_prepend (*listN, name);
         *counter = *counter + 1;
+
+        g_free (basename);
       } else {
         g_free (fullpath);
       }
@@ -204,7 +216,7 @@ _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
  * @brief Private function to get sub-plugins list with type.
  */
 static gboolean
-_get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
+_get_subplugin_with_type (nnsconf_type_path type, gchar *** name,
     gchar *** filepath)
 {
   if (type >= NNSCONF_PATH_END) {
@@ -217,7 +229,7 @@ _get_subplugin_with_type (nnsconf_type_path type, gchar *** basename,
   if (type == NNSCONF_PATH_EASY_CUSTOM_FILTERS)
     type = NNSCONF_PATH_CUSTOM_FILTERS;
 
-  *basename = conf.conf[type].basename;
+  *name = conf.conf[type].names;
   *filepath = conf.conf[type].files;
   return TRUE;
 }
@@ -250,11 +262,11 @@ _g_list_foreach_vstr_helper (gpointer data, gpointer user_data)
  * @brief Private function to fill in vstr
  */
 static void
-_fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
+_fill_in_vstr (gchar *** fullpath_vstr, gchar *** name_vstr,
     gchar * searchpath[CONF_SOURCE_END], nnsconf_type_path type)
 {
-  GSList *lstF = NULL, *lstB = NULL;
-  vstr_helper vstrF, vstrB;
+  GSList *lstF = NULL, *lstN = NULL;
+  vstr_helper vstrF, vstrN;
   guint i, j, counter;
 
   counter = 0;
@@ -267,31 +279,31 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** basename_vstr,
         }
       }
       if (j == CONF_SOURCE_END)
-        _get_filenames (type, searchpath[i], &lstF, &lstB, &counter);
+        _get_filenames (type, searchpath[i], &lstF, &lstN, &counter);
     }
   }
 
   /* Because _get_* does "prepend", reverse them to have the correct order. */
   lstF = g_slist_reverse (lstF);
-  lstB = g_slist_reverse (lstB);
+  lstN = g_slist_reverse (lstN);
 
   *fullpath_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
   g_assert (*fullpath_vstr != NULL);    /* This won't happen, but doesn't hurt either */
-  *basename_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  g_assert (*basename_vstr != NULL);    /* This won't happen, but doesn't hurt either */
+  *name_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
+  g_assert (*name_vstr != NULL);        /* This won't happen, but doesn't hurt either */
 
   vstrF.vstr = *fullpath_vstr;
-  vstrB.vstr = *basename_vstr;
+  vstrN.vstr = *name_vstr;
   vstrF.size = counter;
-  vstrB.size = counter;
+  vstrN.size = counter;
   vstrF.cursor = 0;
-  vstrB.cursor = 0;
+  vstrN.cursor = 0;
   g_slist_foreach (lstF, _g_list_foreach_vstr_helper, (gpointer) & vstrF);
-  g_slist_foreach (lstB, _g_list_foreach_vstr_helper, (gpointer) & vstrB);
+  g_slist_foreach (lstN, _g_list_foreach_vstr_helper, (gpointer) & vstrN);
 
   /* Do not free elements. They are now at vstr */
   g_slist_free (lstF);
-  g_slist_free (lstB);
+  g_slist_free (lstN);
 }
 
 /** @brief Public function defined in the header */
@@ -316,7 +328,7 @@ nnsconf_loadconf (gboolean force_reload)
       }
 
       g_strfreev (conf.conf[t].files);
-      g_strfreev (conf.conf[t].basename);
+      g_strfreev (conf.conf[t].names);
     }
 
     /* init with 0 */
@@ -408,7 +420,7 @@ nnsconf_loadconf (gboolean force_reload)
     conf.conf[t].path[CONF_SOURCE_HARDCODE] = g_strdup (NNSTREAMER_PATH[t]);
 
     /* Fill in conf.files* */
-    _fill_in_vstr (&conf.conf[t].files, &conf.conf[t].basename,
+    _fill_in_vstr (&conf.conf[t].files, &conf.conf[t].names,
         conf.conf[t].path, t);
   }
 
@@ -418,43 +430,20 @@ nnsconf_loadconf (gboolean force_reload)
 
 /** @brief Public function defined in the header */
 const gchar *
-nnsconf_get_fullpath_from_file (const gchar * file2find, nnsconf_type_path type)
-{
-  gchar **vstr, **vstrFull;
-  guint i;
-
-  if (!_get_subplugin_with_type (type, &vstr, &vstrFull))
-    return NULL;
-
-  if (vstr == NULL)
-    return NULL;
-
-  i = 0;
-  while (vstr[i] != NULL) {
-    /** @todo To support Windows, use case insensitive if it's Windows */
-    if (g_strcmp0 (file2find, vstr[i]) == 0)
-      return vstrFull[i];
-    i++;
-  };
-
-  return NULL;
-}
-
-/** @brief Public function defined in the header */
-const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 {
-  gchar *filename;
-  const gchar *ret;
+  subplugin_info_s info;
+  guint i, total;
 
   nnsconf_loadconf (FALSE);
 
-  filename = g_strconcat (subplugin_prefixes[type], subpluginname,
-      NNSTREAMER_SO_FILE_EXTENSION, NULL);
-  ret = nnsconf_get_fullpath_from_file (filename, type);
+  total = nnsconf_get_subplugin_info (type, &info);
+  for (i = 0; i < total; i++) {
+    if (g_strcmp0 (info.names[i], subpluginname) == 0)
+      return info.paths[i];
+  }
 
-  g_free (filename);
-  return ret;
+  return NULL;
 }
 
 /**
@@ -480,7 +469,7 @@ nnsconf_get_subplugin_name_prefix (nnsconf_type_path type)
 }
 
 /**
- * @brief Public function to get the list of sub-plugins basename and path
+ * @brief Public function to get the list of sub-plugins name and path
  * @return total number of sub-plugins for given type
  * @note DO NOT free sub-plugins info
  */
