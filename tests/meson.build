@@ -14,6 +14,7 @@ library('nnscustom_drop_buffer',
 )
 
 # Build and copy exe for ssat
+copy = find_program('cp', required: true)
 libpng_dep = dependency('libpng', required: false)
 if libpng_dep.found()
   b2p = executable('bmp2png',
@@ -23,7 +24,6 @@ if libpng_dep.found()
     install_dir: unittest_install_dir
   )
 
-  copy = find_program('cp')
   custom_target('copy-bmp2png',
     input: b2p,
     output: 'b2p',
