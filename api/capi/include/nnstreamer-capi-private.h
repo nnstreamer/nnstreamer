@@ -351,6 +351,14 @@ char* ml_nnfw_to_str_prop (ml_nnfw_hw_e hw);
  */
 const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
 
+/**
+ * @brief Gets the element of pipeline itself (GstElement).
+ * @details With the returned reference, you can use GStreamer functions to handle the element in pipeline.
+ *          Note that caller should release the returned reference using gst_object_unref().
+ * @return The reference of pipeline itself. Null if the pipeline is not constructed or closed.
+ */
+GstElement* ml_pipeline_get_element (ml_pipeline_h pipe);
+
 #if defined (__TIZEN__)
 /**
  * @brief Checks whether machine_learning.inference feature is enabled or not.
