@@ -1227,7 +1227,7 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint status = 0;
-  gchar *accelerators = g_value_dup_string (value);
+  const gchar *accelerators = g_value_get_string (value);
 
   if (priv->prop.fw_opened == TRUE) {
     if (GST_TF_FW_V0 (priv->fw)) {
@@ -1252,17 +1252,15 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
         g_free (prop->hw_list);
         prop->hw_list = _prop.hw_list;
       }
-
-      g_free (accelerators);
     }
     return 0;
   }
 
   if (GST_TF_FW_V0 (priv->fw)) {
-    prop->accl_str = accelerators;
+    g_free_const (prop->accl_str);
+    prop->accl_str = g_strdup (accelerators);
   } else if (GST_TF_FW_V1 (priv->fw)) {
     gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
-    g_free (accelerators);
   }
   return 0;
 }
