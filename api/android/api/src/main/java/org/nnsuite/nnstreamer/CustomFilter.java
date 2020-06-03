@@ -55,6 +55,7 @@ public final class CustomFilter implements AutoCloseable {
          * Called synchronously while processing the pipeline.
          *
          * NNStreamer filter invokes the given custom-filter callback while processing the pipeline.
+         * Note that, if it is unnecessary to execute the input data, return null to drop the buffer.
          *
          * @param in The input data (a single frame, tensor/tensors)
          *
