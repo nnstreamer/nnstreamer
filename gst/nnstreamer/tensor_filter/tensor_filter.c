@@ -331,6 +331,101 @@ gst_tensor_filter_destroy_notify (void *data)
 }
 
 /**
+ * @brief Prepare statistics for performance profiling (e.g, latency, throughput)
+ */
+static void
+prepare_statistics (GstTensorFilterPrivate * priv)
+{
+  priv->stat.latest_invoke_time = g_get_real_time ();
+}
+
+/**
+ * @brief Helper function to accumulate latencies
+ */
+static void
+accumulate_latency (void *data, void *user_data)
+{
+  gint64 *latency = data;
+  gint64 *total_latency = user_data;
+
+  *total_latency += *latency;
+}
+
+#define THRESHOLD_DROP_OLD  (2000)
+#define THRESHOLD_CACHE_OLD (1000)
+
+/**
+ * @brief Record statistics for performance profiling (e.g, latency, throughput)
+ */
+static void
+record_statistics (GstTensorFilterPrivate * priv)
+{
+  gint64 end_time = g_get_real_time ();
+  gint64 *latency = g_new (gint64, 1);
+  GQueue *recent_latencies = priv->stat.recent_latencies;
+
+  *latency = end_time - priv->stat.latest_invoke_time;
+  priv->stat.total_invoke_latency += *latency;
+  priv->stat.total_invoke_num += 1;
+
+  if (g_queue_get_length (recent_latencies) == GST_TF_STAT_MAX_RECENT)
+    g_free (g_queue_pop_head (recent_latencies));
+  g_queue_push_tail (recent_latencies, latency);
+
+  /* the queue should have at least one element */
+  g_assert (g_queue_get_length (recent_latencies) != 0);
+
+  if (priv->latency_mode > 0) {
+    gint64 avg_latency;
+
+    g_queue_foreach (recent_latencies, accumulate_latency, &avg_latency);
+    avg_latency /= g_queue_get_length (recent_latencies);
+
+    /* check integer overflow */
+    if (avg_latency <= INT32_MAX)
+      priv->prop.latency = (gint) avg_latency;
+    else
+      priv->prop.latency = -1;
+  }
+
+  if (priv->throughput_mode > 0) {
+    gint throughput_int = -1;
+
+    if (priv->stat.total_invoke_latency != 0) {
+      gdouble throughput =
+          (gdouble) (priv->stat.total_invoke_num * G_USEC_PER_SEC * 1000) /
+          priv->stat.total_invoke_latency;
+
+      /* check integer overflow */
+      if (throughput <= INT32_MAX)
+        throughput_int = (gint) throughput;
+    }
+
+    /* note that it's a 1000x larger value than actual throughput */
+    priv->prop.throughput = throughput_int;
+  }
+
+  /**
+   * statistics values are monotonously increasing.
+   * to avoid potential overflow, let's cache old values and subtract them
+   * from the statistics if some threshold is exceeded.
+   */
+  if (priv->stat.total_invoke_num > THRESHOLD_DROP_OLD) {
+    priv->stat.total_invoke_latency -= priv->stat.old_total_invoke_latency;
+    priv->stat.total_invoke_num -= priv->stat.old_total_invoke_num;
+    /* drop cached values */
+    priv->stat.old_total_invoke_latency = 0;
+    priv->stat.old_total_invoke_num = 0;
+  } else if (priv->stat.total_invoke_num > THRESHOLD_CACHE_OLD) {
+    /* cache old values if they are not yet set */
+    if (priv->stat.old_total_invoke_num == 0) {
+      priv->stat.old_total_invoke_latency = priv->stat.total_invoke_latency;
+      priv->stat.old_total_invoke_num = priv->stat.total_invoke_num;
+    }
+  }
+}
+
+/**
  * @brief non-ip transform. required vmethod of GstBaseTransform.
  */
 static GstFlowReturn
@@ -349,6 +444,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   guint i, j;
   gint ret;
   gboolean allocate_in_invoke;
+  gboolean need_profiling;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
@@ -415,8 +511,15 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     }
   }
 
+  need_profiling = (priv->latency_mode > 0 || priv->throughput_mode > 0);
+  if (TRUE == need_profiling)
+    prepare_statistics (priv);
+
   /* 3. Call the filter-subplugin callback, "invoke" */
   GST_TF_FW_INVOKE_COMPAT (priv, ret, in_tensors, out_tensors);
+
+  if (TRUE == need_profiling)
+    record_statistics (priv);
 
   /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {

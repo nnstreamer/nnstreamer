@@ -157,6 +157,8 @@ typedef struct _GstTensorFilterProperties
     const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
   };
 
+  int latency; /**< The average latency over the recent 10 inferences in microseconds */
+  int throughput; /**< The average throughput in the number of outputs per second */
 } GstTensorFilterProperties;
 
 /**
@@ -236,7 +238,6 @@ typedef struct _GstTensorFilterFrameworkEventData
       accl_hw *hw_list;   /**< accelerators supported by framework intersected with the new user provided accelerator preference */
       int num_hw;         /**< number of hardare accelerators in the hw_list supported by the framework */
     };
-
   };
 } GstTensorFilterFrameworkEventData;
 
