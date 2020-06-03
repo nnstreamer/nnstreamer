@@ -184,8 +184,8 @@ public class APITestCustomFilter {
             /* start pipeline */
             pipe.start();
 
-            /* push input buffer */
-            for (int i = 0; i < 15; i++) {
+            /* push input buffer repeatedly */
+            for (int i = 0; i < 2048; i++) {
                 TensorsData in = TensorsData.allocate(info);
                 ByteBuffer input = in.getTensorData(0);
 
@@ -196,24 +196,50 @@ public class APITestCustomFilter {
                 in.setTensorData(0, input);
 
                 pipe.inputData("srcx", in);
-                Thread.sleep(50);
+                Thread.sleep(20);
             }
 
             /* sleep 300 to pass all input buffers to sink */
             Thread.sleep(300);
 
+            /* stop pipeline */
+            pipe.stop();
+
             /* check received data from sink */
             assertFalse(mInvalidState);
-            assertEquals(15, mReceived);
+            assertEquals(2048, mReceived);
         } catch (Exception e) {
             fail();
         }
     }
 
     @Test
-    public void testInputBuffer() {
+    public void testDropBuffer() {
+        CustomFilter customDrop = CustomFilter.registerCustomFilter("custom-drop",
+                new CustomFilter.CustomFilterCallback() {
+            int received = 0;
+
+            @Override
+            public TensorsInfo getOutputInfo(TensorsInfo in) {
+                return in;
+            }
+
+            @Override
+            public TensorsData invoke(TensorsData in) {
+                received++;
+
+                if (received <= 5) {
+                    return in;
+                }
+
+                /* return null to drop the incoming buffer */
+                return null;
+            }
+        });
+
         String desc = "appsrc name=srcx ! " +
                 "other/tensor,dimension=(string)10:1:1:1,type=(string)int32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=" + customDrop.getName() + " ! " +
                 "tensor_filter framework=" + mCustomPassthrough.getName() + " ! " +
                 "tensor_filter framework=" + mCustomConvert.getName() + " ! " +
                 "tensor_filter framework=" + mCustomAdd.getName() + " ! " +
@@ -230,7 +256,7 @@ public class APITestCustomFilter {
             pipe.start();
 
             /* push input buffer repeatedly */
-            for (int i = 0; i < 2048; i++) {
+            for (int i = 0; i < 24; i++) {
                 TensorsData in = TensorsData.allocate(info);
                 ByteBuffer input = in.getTensorData(0);
 
@@ -252,7 +278,7 @@ public class APITestCustomFilter {
 
             /* check received data from sink */
             assertFalse(mInvalidState);
-            assertTrue(mReceived > 0);
+            assertEquals(5, mReceived);
         } catch (Exception e) {
             fail();
         }

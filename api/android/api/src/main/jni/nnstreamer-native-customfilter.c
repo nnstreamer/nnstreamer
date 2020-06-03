@@ -121,6 +121,12 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop,
     goto done;
   }
 
+  if (obj_out_data == NULL) {
+    /* drop current buffer */
+    ret = 1;
+    goto done;
+  }
+
   if (!nns_parse_tensors_data (pipe_info, env, obj_out_data, &out_data, NULL)) {
     nns_loge ("Failed to parse output data.");
     goto done;
