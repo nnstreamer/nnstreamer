@@ -24,6 +24,66 @@
 #include "nnstreamer-native.h"
 
 /**
+ * @brief Private data for SingleShot class.
+ */
+typedef struct
+{
+  ml_tensors_info_h out_info;
+  jobject out_info_obj;
+} singleshot_priv_data_s;
+
+/**
+ * @brief Release private data in pipeline info.
+ */
+static void
+nns_singleshot_priv_free (gpointer data, JNIEnv * env)
+{
+  singleshot_priv_data_s *priv = (singleshot_priv_data_s *) data;
+
+  ml_tensors_info_destroy (priv->out_info);
+  if (priv->out_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->out_info_obj);
+
+  g_free (priv);
+}
+
+/**
+ * @brief Update output info in private data.
+ */
+static gboolean
+nns_singleshot_priv_set_out_info (pipeline_info_s * pipe_info, JNIEnv * env,
+    ml_tensors_info_h out_info)
+{
+  singleshot_priv_data_s *priv;
+  jobject obj_info = NULL;
+
+  priv = (singleshot_priv_data_s *) pipe_info->priv_data;
+
+  if (priv->out_info && ml_tensors_info_is_equal (out_info, priv->out_info)) {
+    /* do nothing, tensors info is equal. */
+    return TRUE;
+  }
+
+  if (!nns_convert_tensors_info (pipe_info, env, out_info, &obj_info)) {
+    nns_loge ("Failed to convert output info.");
+    return FALSE;
+  }
+
+  if (priv->out_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->out_info_obj);
+
+  if (priv->out_info)
+    ml_tensors_info_free (priv->out_info);
+  else
+    ml_tensors_info_create (&priv->out_info);
+
+  ml_tensors_info_clone (priv->out_info, out_info);
+  priv->out_info_obj = (*env)->NewGlobalRef (env, obj_info);
+  (*env)->DeleteLocalRef (env, obj_info);
+  return TRUE;
+}
+
+/**
  * @brief Native method for single-shot API.
  */
 jlong
@@ -113,7 +173,19 @@ done:
   g_free (info.models);
   g_free (info.custom_option);
 
-  if (!opened) {
+  if (opened) {
+    singleshot_priv_data_s *priv;
+    ml_tensors_info_h out_info;
+
+    priv = g_new0 (singleshot_priv_data_s, 1);
+    nns_set_priv_data (pipe_info, priv, nns_singleshot_priv_free);
+
+    /* set output info */
+    if (ml_single_get_output_info (single, &out_info) == ML_ERROR_NONE) {
+      nns_singleshot_priv_set_out_info (pipe_info, env, out_info);
+      ml_tensors_info_destroy (out_info);
+    }
+  } else {
     nns_destroy_pipe_info (pipe_info, env);
     pipe_info = NULL;
   }
@@ -143,6 +215,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
     jobject thiz, jlong handle, jobject in)
 {
   pipeline_info_s *pipe_info;
+  singleshot_priv_data_s *priv;
   ml_single_h single;
   ml_tensors_info_h cur_info, in_info, out_info;
   ml_tensors_data_h in_data, out_data;
@@ -150,6 +223,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
   jobject result = NULL;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
+  priv = (singleshot_priv_data_s *) pipe_info->priv_data;
   single = pipe_info->pipeline_handle;
   cur_info = in_info = out_info = NULL;
   in_data = out_data = NULL;
@@ -184,8 +258,13 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
     goto done;
   }
 
-  if (!nns_convert_tensors_data (pipe_info, env, out_data, out_info, &result)) {
-    nns_loge ("Failed to convert the result to data.");
+  if (!nns_singleshot_priv_set_out_info (pipe_info, env, out_info)) {
+    goto done;
+  }
+
+  if (!nns_convert_tensors_data (pipe_info, env, out_data, priv->out_info_obj,
+          &result)) {
+    nns_loge ("Failed to convert the result to data-object.");
     result = NULL;
   }
 

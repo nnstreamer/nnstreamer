@@ -113,6 +113,12 @@ nns_free_element_data (gpointer data)
   element_data_s *item = (element_data_s *) data;
 
   if (item) {
+    /* release private data */
+    if (item->priv_data) {
+      JNIEnv *env = nns_get_jni_env (item->pipe_info);
+      item->priv_destroy_func (item->priv_data, env);
+    }
+
     switch (item->type) {
 #if !defined (NNS_SINGLE_ONLY)
       case NNS_ELEMENT_TYPE_SRC:
@@ -266,6 +272,8 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
       pipe_info->priv_destroy_func (pipe_info->priv_data, env);
     else
       g_free (pipe_info->priv_data);
+
+    pipe_info->priv_data = NULL;
   }
 
   g_hash_table_destroy (pipe_info->element_handles);
@@ -379,7 +387,7 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
  */
 gboolean
 nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
-    ml_tensors_data_h data_h, ml_tensors_info_h info_h, jobject * result)
+    ml_tensors_data_h data_h, jobject obj_info, jobject * result)
 {
   guint i;
   data_class_info_s *dcls_info;
@@ -400,18 +408,9 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
     goto done;
   }
 
-  if (info_h) {
-    jobject obj_info = NULL;
-
-    if (!nns_convert_tensors_info (pipe_info, env, info_h, &obj_info)) {
-      nns_loge ("Failed to convert tensors info.");
-      (*env)->DeleteLocalRef (env, obj_data);
-      obj_data = NULL;
-      goto done;
-    }
-
+  /* set tensors info */
+  if (obj_info) {
     (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_set_info, obj_info);
-    (*env)->DeleteLocalRef (env, obj_info);
   }
 
   for (i = 0; i < data->num_tensors; i++) {

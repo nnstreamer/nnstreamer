@@ -30,6 +30,8 @@ typedef struct
 {
   jmethodID mid_invoke;
   jmethodID mid_info;
+  ml_tensors_info_h in_info;
+  jobject in_info_obj;
 } customfilter_priv_data_s;
 
 /**
@@ -45,8 +47,47 @@ nns_customfilter_priv_free (gpointer data, JNIEnv * env)
 {
   customfilter_priv_data_s *priv = (customfilter_priv_data_s *) data;
 
-  /* nothing to free */
+  ml_tensors_info_destroy (priv->in_info);
+  if (priv->in_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->in_info_obj);
+
   g_free (priv);
+}
+
+/**
+ * @brief Update input info in private data.
+ */
+static gboolean
+nns_customfilter_priv_set_in_info (pipeline_info_s * pipe_info, JNIEnv * env,
+    ml_tensors_info_h in_info)
+{
+  customfilter_priv_data_s *priv;
+  jobject obj_info = NULL;
+
+  priv = (customfilter_priv_data_s *) pipe_info->priv_data;
+
+  if (priv->in_info && ml_tensors_info_is_equal (in_info, priv->in_info)) {
+    /* do nothing, tensors info is equal. */
+    return TRUE;
+  }
+
+  if (!nns_convert_tensors_info (pipe_info, env, in_info, &obj_info)) {
+    nns_loge ("Failed to convert tensors info.");
+    return FALSE;
+  }
+
+  if (priv->in_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->in_info_obj);
+
+  if (priv->in_info)
+    ml_tensors_info_free (priv->in_info);
+  else
+    ml_tensors_info_create (&priv->in_info);
+
+  ml_tensors_info_clone (priv->in_info, in_info);
+  priv->in_info_obj = (*env)->NewGlobalRef (env, obj_info);
+  (*env)->DeleteLocalRef (env, obj_info);
+  return TRUE;
 }
 
 /**
@@ -103,9 +144,12 @@ nns_customfilter_invoke (const GstTensorFilterProperties * prop,
   }
 
   ml_tensors_info_copy_from_gst (in_info, &prop->input_meta);
+  if (!nns_customfilter_priv_set_in_info (pipe_info, env, in_info)) {
+    goto done;
+  }
 
   /* convert to data object */
-  if (!nns_convert_tensors_data (pipe_info, env, in_data, in_info,
+  if (!nns_convert_tensors_data (pipe_info, env, in_data, priv->in_info_obj,
           &obj_in_data)) {
     nns_loge ("Failed to convert input data to data-object.");
     goto done;
