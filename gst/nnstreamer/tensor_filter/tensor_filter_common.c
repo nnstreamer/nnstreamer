@@ -109,6 +109,8 @@ enum
   PROP_SUBPLUGINS,
   PROP_ACCELERATOR,
   PROP_IS_UPDATABLE,
+  PROP_LATENCY,
+  PROP_THROUGHPUT,
 };
 
 /**
@@ -394,6 +396,20 @@ gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
 }
 
 /**
+ * @brief Initialize the GstTensorFilterFrameworkInfo object
+ */
+static void
+gst_tensor_filter_statistics_init (GstTensorFilterStatistics * stat)
+{
+  stat->total_invoke_num = 0;
+  stat->total_invoke_latency = 0;
+  stat->old_total_invoke_num = 0;
+  stat->old_total_invoke_latency = 0;
+  stat->latest_invoke_time = 0;
+  stat->recent_latencies = g_queue_new ();
+}
+
+/**
  * @brief Validate filter sub-plugin's data.
  */
 static gboolean
@@ -674,6 +690,21 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "Indicate whether a given model to this tensor filter is "
           "updatable in runtime. (e.g., with on-device training)",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_LATENCY,
+      g_param_spec_int ("latency", "The average latency",
+          "Turn on performance profiling for the average latency "
+          "over the recent 10 inferences in microseconds. "
+          "Currently, this accepts either 0 (OFF) or 1 (ON).",
+          0 /** min */ , 1 /** max */ , 0 /** default: off */ ,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_THROUGHPUT,
+      g_param_spec_int ("throughput", "The average throughput (FPS)",
+          "Turn on performance profiling for the average throughput "
+          "in the number of outputs per seconds (i.e., FPS), multiplied by 1000 "
+          "to represent a floating point using an integer. "
+          "Currently, this accepts either 0 (OFF) or 1 (ON).",
+          0 /** min */ , 1 /** max */ , 0 /** default: off */ ,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -685,6 +716,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   /* init NNFW properties */
   gst_tensor_filter_properties_init (&priv->prop);
   gst_tensor_filter_framework_info_init (&priv->info);
+  gst_tensor_filter_statistics_init (&priv->stat);
 
   /* init internal properties */
   priv->fw = NULL;
@@ -719,6 +751,14 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 
   gst_tensors_info_free (&priv->in_config.info);
   gst_tensors_info_free (&priv->out_config.info);
+
+  if (priv->stat.recent_latencies != NULL) {
+    GQueue *queue = priv->stat.recent_latencies;
+    gint64 *latency;
+    while ((latency = g_queue_pop_tail (queue)) != NULL)
+      g_free (latency);
+    g_queue_free (queue);
+  }
 }
 
 /**
@@ -1379,6 +1419,48 @@ _gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
   return 0;
 }
 
+/** @brief Handle "PROP_LATENCY" for set-property */
+static gint
+_gtfc_setprop_LATENCY (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  gint latency_mode;
+
+  if (!value)
+    return 0;
+
+  latency_mode = g_value_get_int (value);
+  if (latency_mode != 0 && latency_mode != 1) {
+    ml_logw ("Invalid argument, nither 0 (OFF) nor 1 (ON).");
+    return 0;
+  }
+
+  priv->latency_mode = latency_mode;
+
+  return 0;
+}
+
+/** @brief Handle "PROP_THROUGHPUT" for set-property */
+static gint
+_gtfc_setprop_THROUGHPUT (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value)
+{
+  gint throughput_mode;
+
+  if (!value)
+    return 0;
+
+  throughput_mode = g_value_get_int (value);
+  if (throughput_mode != 0 && throughput_mode != 1) {
+    ml_logw ("Invalid argument, nither 0 (OFF) nor 1 (ON).");
+    return 0;
+  }
+
+  priv->throughput_mode = throughput_mode;
+
+  return 0;
+}
+
 /**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -1440,6 +1522,12 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_OUTPUTLAYOUT:
       status = _gtfc_setprop_OUTPUTLAYOUT (priv, prop, value);
+      break;
+    case PROP_LATENCY:
+      status = _gtfc_setprop_LATENCY (priv, prop, value);
+      break;
+    case PROP_THROUGHPUT:
+      status = _gtfc_setprop_THROUGHPUT (priv, prop, value);
       break;
     default:
       return FALSE;
@@ -1656,6 +1744,22 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         g_free (layout_str);
       } else {
         g_value_set_string (value, "");
+      }
+      break;
+    case PROP_LATENCY:
+      if (priv->latency_mode == 1) {
+        g_value_set_int (value, prop->latency);
+      } else {
+        /* invalid */
+        g_value_set_int (value, -1);
+      }
+      break;
+    case PROP_THROUGHPUT:
+      if (priv->throughput_mode == 1) {
+        g_value_set_int (value, prop->throughput);
+      } else {
+        /* invalid */
+        g_value_set_int (value, -1);
       }
       break;
     default:

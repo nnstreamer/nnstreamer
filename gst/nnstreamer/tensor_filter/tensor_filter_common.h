@@ -71,6 +71,21 @@
       } \
     } while (0)
 
+#define GST_TF_STAT_MAX_RECENT (10)
+
+/**
+ * @brief Structure definition for tensor-filter statistics
+ */
+typedef struct _GstTensorFilterStatistics
+{
+  gint64 total_invoke_num;      /**< number of total invokes */
+  gint64 total_invoke_latency;  /**< accumulated invoke latency (usec) */
+  gint64 old_total_invoke_num;      /**< cached value. number of total invokes */
+  gint64 old_total_invoke_latency;  /**< cached value. accumulated invoke latency (usec) */
+  gint64 latest_invoke_time;    /**< the latest invoke time (usec) */
+  void *recent_latencies;       /**< data structure (e.g., queue) to hold recent latencies */
+} GstTensorFilterStatistics;
+
 /**
  * @brief Structure definition for common tensor-filter properties.
  */
@@ -79,6 +94,7 @@ typedef struct _GstTensorFilterPrivate
   void *privateData; /**< NNFW plugin's private data is stored here */
   GstTensorFilterProperties prop; /**< NNFW plugin's properties */
   GstTensorFilterFrameworkInfo info; /**< NNFW framework info */
+  GstTensorFilterStatistics stat; /**< NNFW plugin's statistics */
   const GstTensorFilterFramework *fw; /**< The implementation core of the NNFW. NULL if not configured */
 
   /* internal properties for tensor-filter */
@@ -87,6 +103,9 @@ typedef struct _GstTensorFilterPrivate
   gboolean is_updatable; /**<  a given model to the filter is updatable if TRUE */
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config; /**< output tensor info */
+
+  gint latency_mode;     /**< latency profiling mode (0: off, 1: on, ...) */
+  gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
 } GstTensorFilterPrivate;
 
 /**
