@@ -39,6 +39,7 @@
 #include <stdexcept>
 #include <stdint.h>
 #include <assert.h>
+#include <string.h>
 #include <nnstreamer_plugin_api_filter.h>
 #if __cplusplus < 201103L
 #warn C++11 is required for safe execution
