@@ -1555,3 +1555,25 @@ ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
 
   handle_exit (h);
 }
+
+/**
+ * @brief Gets the element of pipeline itself (GstElement).
+ */
+GstElement *
+ml_pipeline_get_element (ml_pipeline_h pipe)
+{
+  ml_pipeline *p = (ml_pipeline *) pipe;
+  GstElement *element = NULL;
+
+  if (p) {
+    g_mutex_lock (&p->lock);
+
+    element = p->element;
+    if (element)
+      gst_object_ref (element);
+
+    g_mutex_unlock (&p->lock);
+  }
+
+  return element;
+}
