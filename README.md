@@ -39,7 +39,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
-- Daily Release: [(WIP)](https://github.com/nnstreamer/TAOS-CI/issues/452)
+- [Daily Release](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)
 - SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
 
 
@@ -59,7 +59,7 @@ neural network developers to manage neural network pipelines and their filters e
 ## Maintainers
 * [MyungJoo Ham](https://github.com/myungjoo/)
 
-## Reviewers
+## Committers
 * [Jijoong Moon](https://github.com/jijoongmoon)
 * [Geunsik Lim](https://github.com/leemgs)
 * [Sangjung Woo](https://github.com/again4you)
@@ -70,6 +70,7 @@ neural network developers to manage neural network pipelines and their filters e
 * [Dongju Chae](https://github.com/dongju-chae)
 * [Gichan Jang](https://github.com/gichan-jang)
 * [Yongjoo Ahn](https://github.com/anyj0527)
+* [Jihoon Lee](https://github.com/zhoonit)
 
 ## Components
 
@@ -148,8 +149,8 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 - Edge-TPU via edgetpu subplugin: Released
 - NNRuntime via nnfw subplugin: Released
 - ARMNN via armnn subplugin: Released
-- Verisilicon-Vivante via vivante subplugin: WIP
-- Qualcomm SNPE: WIP
+- Verisilicon-Vivante via vivante subplugin: Released
+- Qualcomm SNPE via snpe subplugin: Released
 - Exynos NPU: WIP
 
 
