@@ -1871,10 +1871,10 @@ parse_accl_hw_all (const gchar * accelerators,
       while (g_match_info_matches (match_info)) {
         gchar *word = g_match_info_fetch (match_info, 0);
         accl = get_accl_hw_type (word);
-        g_free (word);
         if (accl > 0 || (accl == 0 && g_strcmp0 (word, ACCL_NONE_STR) == 0)) {
           match_accl = g_list_append (match_accl, GINT_TO_POINTER (accl));
         }
+        g_free (word);
         g_match_info_next (match_info, NULL);
       }
     } else {
