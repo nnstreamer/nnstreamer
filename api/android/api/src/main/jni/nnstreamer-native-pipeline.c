@@ -33,6 +33,15 @@ typedef struct
 } pipeline_priv_data_s;
 
 /**
+ * @brief Private data for sink node.
+ */
+typedef struct
+{
+  ml_tensors_info_h out_info;
+  jobject out_info_obj;
+} pipeline_sink_priv_data_s;
+
+/**
  * @brief Release private data in pipeline info.
  */
 static void
@@ -42,6 +51,62 @@ nns_pipeline_priv_free (gpointer data, JNIEnv * env)
 
   /* nothing to free */
   g_free (priv);
+}
+
+/**
+ * @brief Release private data in sink node.
+ */
+static void
+nns_pipeline_sink_priv_free (gpointer data, JNIEnv * env)
+{
+  pipeline_sink_priv_data_s *priv = (pipeline_sink_priv_data_s *) data;
+
+  ml_tensors_info_destroy (priv->out_info);
+  if (priv->out_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->out_info_obj);
+
+  g_free (priv);
+}
+
+/**
+ * @brief Update output info in sink node data.
+ */
+static gboolean
+nns_pipeline_sink_priv_set_out_info (element_data_s * item, JNIEnv * env,
+    const ml_tensors_info_h out_info)
+{
+  pipeline_sink_priv_data_s *priv;
+  jobject obj_info = NULL;
+
+  if ((priv = item->priv_data) == NULL) {
+    priv = g_new0 (pipeline_sink_priv_data_s, 1);
+
+    item->priv_data = priv;
+    item->priv_destroy_func = nns_pipeline_sink_priv_free;
+  }
+
+  if (priv->out_info && ml_tensors_info_is_equal (out_info, priv->out_info)) {
+    /* do nothing, tensors info is equal. */
+    return TRUE;
+  }
+
+  if (!nns_convert_tensors_info (item->pipe_info, env, out_info, &obj_info)) {
+    nns_loge ("Failed to convert output info.");
+    return FALSE;
+  }
+
+  if (priv->out_info_obj)
+    (*env)->DeleteGlobalRef (env, priv->out_info_obj);
+
+  if (priv->out_info)
+    ml_tensors_info_free (priv->out_info);
+  else
+    ml_tensors_info_create (&priv->out_info);
+
+  ml_tensors_info_clone (priv->out_info, out_info);
+  priv->out_info_obj = (*env)->NewGlobalRef (env, obj_info);
+  (*env)->DeleteLocalRef (env, obj_info);
+  return TRUE;
 }
 
 /**
@@ -79,23 +144,32 @@ static void
 nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
     void *user_data)
 {
-  element_data_s *cb_data;
+  element_data_s *item;
   pipeline_info_s *pipe_info;
   pipeline_priv_data_s *priv;
+  pipeline_sink_priv_data_s *priv_sink;
   jobject obj_data = NULL;
   JNIEnv *env;
 
-  cb_data = (element_data_s *) user_data;
-  pipe_info = cb_data->pipe_info;
-  priv = (pipeline_priv_data_s *) pipe_info->priv_data;
+  item = (element_data_s *) user_data;
+  pipe_info = item->pipe_info;
 
   if ((env = nns_get_jni_env (pipe_info)) == NULL) {
     nns_logw ("Cannot get jni env in the sink callback.");
     return;
   }
 
-  if (nns_convert_tensors_data (pipe_info, env, data, info, &obj_data)) {
-    jstring sink_name = (*env)->NewStringUTF (env, cb_data->name);
+  /* cache output tensors info */
+  if (!nns_pipeline_sink_priv_set_out_info (item, env, info)) {
+    return;
+  }
+
+  priv = (pipeline_priv_data_s *) pipe_info->priv_data;
+  priv_sink = (pipeline_sink_priv_data_s *) item->priv_data;
+
+  if (nns_convert_tensors_data (pipe_info, env, data, priv_sink->out_info_obj,
+          &obj_data)) {
+    jstring sink_name = (*env)->NewStringUTF (env, item->name);
 
     (*env)->CallVoidMethod (env, pipe_info->instance, priv->mid_sink_cb,
         sink_name, obj_data);

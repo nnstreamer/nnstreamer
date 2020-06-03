@@ -142,6 +142,9 @@ typedef struct
   nns_element_type_e type;
   gpointer handle;
   pipeline_info_s *pipe_info;
+
+  gpointer priv_data;
+  nns_priv_destroy priv_destroy_func;
 } element_data_s;
 
 /**
@@ -196,7 +199,7 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name, element
  * @brief Convert tensors data to TensorsData object.
  */
 extern gboolean
-nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_data_h data_h, ml_tensors_info_h info_h, jobject * result);
+nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env, ml_tensors_data_h data_h, jobject obj_info, jobject * result);
 
 /**
  * @brief Parse tensors data from TensorsData object.
