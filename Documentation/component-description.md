@@ -27,7 +27,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Binary (stable)
     - application/octet-stream. Stream pipeline developer MUST specify the corresponding type and dimensions via properties (input-dim, input-type)
   - You may add subplugins of converters. However, as of 2020-01-10, we do not have any converter subplugins released although we do support them. Users may add such subplugins in run-time.
-    - Planned: flatbuffers, protobuf
+    - WIP: flatbuffers, protobuf
 - [tensor\_filter](../gst/nnstreamer/tensor_filter)
   - Main (stable)
     - Supported features
@@ -52,7 +52,9 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Edge-TPU (stable)
   - openVINO (stable)
   - ARMNN (stable)
-  - WIP: Verisilicon-Vivante, SNAP (Exynos-NPU & Qualcomm-SNPE), ...
+  - SNPE (stable)
+  - Vivante (stable)
+  - WIP: SNAP (Exynos-NPU & Qualcomm-SNPE), ...
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
   - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/master/templates)
 - [tensor\_sink](../gst/nnstreamer/tensor_sink) (stable)
@@ -71,10 +73,10 @@ In this page, we focus on the status of each elements. For requirements and desi
     - Direct video conversion (video/x-raw) (stable)
     - Image classification labeling (text/x-raw) (stable)
     - Bounding boxes (video/x-raw) (stable)
-    - Image segmentation (video/x-raw) (stable)
+    - Image segmentation (video/x-raw) (stable) and depth
     - Body pose (video/x-raw) (stable)
     - Users can add plugins in run-time.
-  - Planned: flatbuffers, protobuf
+  - WIP: flatbuffers, protobuf
 - [tensor\_mux](../gst/nnstreamer/tensor_mux) (stable)
 - [tensor\_demux](../gst/nnstreamer/tensor_demux) (stable)
 - [tensor\_source](../gst/nnstreamer/tensor_source) (stable for IIO. More sources coming soon)
@@ -86,6 +88,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_src\_tizensensor](../ext/nnstreamer/tensor_source) (stable)
 - [tensor\_ros\_sink](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
 - [tensor\_ros\_src](https://github.com/nnstreamer/nnstreamer-ros) (stable for ROS1)
+- [tensor\_if](../gst/nnstreamer/tensor_if) WIP
 - tensor\_save and tensor\_load canceled.
 
 
@@ -106,6 +109,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
   - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 - Web API (HTML5) Planned (Tizen 7.0?)
+- Python API Planned (Tizen 7.0?)
 
 # Other Components
 - CI ([@AWS](http://nnsuite.mooo.com/nnstreamer/ci/taos)) (stable): Up and Running.
