@@ -356,7 +356,7 @@ err_destroy:
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop : property of tensor_filter instance
  * @param private_data : movidius-ncsdk2 plugin's private data
- * @param[out] info : The dimesions and types of input tensors
+ * @param[out] info : The dimensions and types of input tensors
  */
 static int
 _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
@@ -389,7 +389,7 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop : property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
- * @param[out] info : The dimesions and types of output tensors
+ * @param[out] info : The dimensions and types of output tensors
  */
 static int
 _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
