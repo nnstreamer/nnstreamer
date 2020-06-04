@@ -310,24 +310,33 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
 {
   float *input = idata->segment_map;
   uint32_t *output = (uint32_t *) out_info->data;
-  guint data_idx, label_idx;
-  guint i, j;
+  guint num_pixels = idata->height * idata->width;
+  guint label_idx, idx = 0;
 
-  for (i = 0; i < idata->height; i++) {
-    for (j = 0; j < idata->width; j++) {
-      data_idx = i * idata->width + j;
-      if (idata->mode == MODE_TFLITE_DEEPLAB)
-        label_idx = ((guint *) input)[data_idx];
-      else
-        label_idx = (guint) input[data_idx];
+  for (; idx < num_pixels; idx++) {
+    label_idx = (guint) input[idx];
 
-      /* If out-of-range, don't draw it */
-      if (G_UNLIKELY (label_idx > idata->max_labels))
-        continue;
+    /* If out-of-range, don't draw it */
+    if (G_UNLIKELY (label_idx > idata->max_labels))
+      continue;
 
-      output[data_idx] = idata->color_map[label_idx];
-    }
+    output[idx] = idata->color_map[label_idx];
   }
+}
+
+/** @brief Find the maximum grayscale value */
+static float
+find_max_grayscale (image_segments * idata)
+{
+  float *input = idata->segment_map;
+  float gray_max = 0.0;
+  guint num_pixels = idata->height * idata->width;
+  guint idx = 0;
+
+  for (; idx < num_pixels; idx++)
+    gray_max = MAX (gray_max, input [idx]);
+
+  return gray_max;
 }
 
 /** @brief Set color with grayscale value */
@@ -336,36 +345,26 @@ set_color_grayscale (image_segments * idata, GstMapInfo * out_info)
 {
   float *input = idata->segment_map;
   uint32_t *output = (uint32_t *) out_info->data;
-  guint data_idx, grayscale;
-  guint i, j;
-  float max_grayscale = 0.0;
+  float max_grayscale;
+  guint num_pixels = idata->height * idata->width;
+  guint grayscale;
+  guint idx = 0;
 
-  /* find the maximum value */
-  for (i = 0; i < idata->height; i++) {
-    for (j = 0; j < idata->width; j++) {
-      data_idx = i * idata->width + j;
-      if (max_grayscale < input[data_idx])
-        max_grayscale = input[data_idx];
-    }
-  }
-
+  /* find the maximum grayscale value */
+  max_grayscale = find_max_grayscale (idata);
   if (G_UNLIKELY (max_grayscale == 0.0))
     return;
 
-  /* normalize the values */
-  for (i = 0; i < idata->height; i++) {
-    for (j = 0; j < idata->width; j++) {
-      data_idx = i * idata->width + j;
-      grayscale = (guint) ((((float) input[data_idx]) / max_grayscale) * MAX_RGB);
+  for (; idx < num_pixels; idx++) {
+    /* normalize grayscale values to RGB_MAX */
+    grayscale = (guint) ((input[idx] / max_grayscale) * MAX_RGB);
 
-      /* Should be less than 256 */
-      if (G_UNLIKELY (grayscale > MAX_RGB))
-        continue;
+    /* Should be less than 256 */
+    if (G_UNLIKELY (grayscale > MAX_RGB))
+      continue;
 
-      grayscale = grayscale | (grayscale << 8) | (grayscale << 16) | (grayscale << 24);
-
-      output[data_idx] = grayscale;
-    }
+    grayscale = grayscale | (grayscale << 8) | (grayscale << 16) | 0xFF000000;
+    output[idx] = grayscale;
   }
 }
 
