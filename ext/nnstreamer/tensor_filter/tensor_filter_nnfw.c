@@ -203,14 +203,6 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  accelerator = nnfw_get_accelerator (pdata, prop->accl_str);
-  status = nnfw_set_available_backends (pdata->session, accelerator);
-  if (status != NNFW_STATUS_NO_ERROR) {
-    err = -EINVAL;
-    g_printerr ("Cannot set nnfw-runtime backend to %s\n", accelerator);
-    goto unalloc_exit;
-  }
-
   /** @note nnfw opens the first model listed in the MANIFEST file */
   model_path = g_path_get_dirname (prop->model_files[0]);
   meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
@@ -235,6 +227,14 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot load the model file: %s\n", prop->model_files[0]);
+    goto session_exit;
+  }
+
+  accelerator = nnfw_get_accelerator (pdata, prop->accl_str);
+  status = nnfw_set_available_backends (pdata->session, accelerator);
+  if (status != NNFW_STATUS_NO_ERROR) {
+    err = -EINVAL;
+    g_printerr ("Cannot set nnfw-runtime backend to %s\n", accelerator);
     goto session_exit;
   }
 
