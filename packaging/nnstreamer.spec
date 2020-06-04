@@ -34,7 +34,7 @@
 %define		caffe2_support 0
 
 %ifnarch %arm aarch64
-%define armnn_support 0
+%define 	armnn_support 0
 %endif
 
 %ifnarch %arm aarch64
@@ -160,7 +160,7 @@ BuildRequires:  json-glib-devel
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
-BuildRequires: ssat >= 1.1.0
+BuildRequires:	ssat >= 1.1.0
 %endif
 
 # For ORC (Oil Runtime Compiler)
