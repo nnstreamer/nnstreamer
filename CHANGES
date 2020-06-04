@@ -1,3 +1,30 @@
+1.5.2 -> 1.5.3
+	- Mediapipe's graphs (NNStreamer pipeline equivalent) may be embedded as an element in NNStreamer pipeline
+	- Qualcomm SNPE is supported (tensor-filter subplugin)
+	- Verisilicon Vivante is supported (tensor-filter subplugin)
+	- NNStreamer --> Protobuf decoder added.
+	- New tensor-filter subplugin API "v1" released. (with v0 backward compatibility)
+	- Tensor-filter now accepts C++ classes as a subplugin. Edge-TPU subplugin is re-written as an example.
+
+	- Meson script re-worked.
+	- Semantics of hardware-acceleration options for tensor-filter re-worked.
+	- API/Android: nnfw-runtime (neurun) and SNPE support
+	- API/Android: usability update.
+	- API/Android: less invokation latency. (more optimization coming in next versions)
+	- API/C: bugfixes, architectural upgrade, latency reduction.
+	- tensor-filter has latency and throughput performance monitors.
+	- tensor-sink is by default "sync=false". If appsink or tensor_sink in NNStreamer Pipeline API's pipeline has sync=true, emit warning messages.
+	- Architectural updates: lower CC, less duplication, removed dependency cycles, less complicated #if statements and blocks.
+	- Test suite updates: timeout handling, arm-arch error fixes, more test cases (supplying more negative cases), floating-point handling. and a lot more fixes and performance (latency) optimizations.
+	- Build script updates: cleaned up dependencies and applied "feature" meson feature.
+	- No more essential class in assert() for optimized binaries.
+	- Much less assertions. Apply error-handling instead.
+	- Daily build & test activated and published.
+	- Rules & policy updated to comply with LF/AI.
+	- Memory leaks removed: from demux, split, and a few more components.
+
+	- Known bug: edge-TPU subplugin is not working in Tizen devices recently.
+
 1.5.1 -> 1.5.2
 	- Use gmodule instead of dlfcn for wider compatibility.
 	- Get/Set properties for tensor-filters & C-API.
