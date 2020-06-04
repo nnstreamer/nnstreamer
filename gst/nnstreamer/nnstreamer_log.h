@@ -83,5 +83,6 @@
 #define nns_logw ml_logw
 #define nns_loge ml_loge
 #define nns_logd ml_logd
+#define nns_logf ml_logf
 
 #endif /* __NNSTREAMER_LOG_H__ */
