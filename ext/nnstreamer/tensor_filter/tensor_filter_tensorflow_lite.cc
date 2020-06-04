@@ -225,12 +225,6 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     status = kTfLiteError;
   }
 
-  /** if it is not `nullptr`, tensorflow makes `free()` the memory itself. */
-  int tensorSize = tensors_idx.size ();
-  for (int i = 0; i < tensorSize; ++i) {
-    interpreter->tensor (tensors_idx[i])->data.raw = nullptr;
-  }
-
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
   g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
@@ -284,22 +278,6 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
     }
   }
 #endif
-
-  /** set allocation type to dynamic for in/out tensors */
-  int tensor_idx;
-
-  int tensorSize = interpreter->inputs ().size ();
-  for (int i = 0; i < tensorSize; ++i) {
-    tensor_idx = interpreter->inputs ()[i];
-    interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
-  }
-
-  tensorSize = interpreter->outputs ().size ();
-  for (int i = 0; i < tensorSize; ++i) {
-    tensor_idx = interpreter->outputs ()[i];
-    interpreter->tensor (tensor_idx)->allocation_type = kTfLiteDynamic;
-  }
-
   if (interpreter->AllocateTensors () != kTfLiteOk) {
     ml_loge ("Failed to allocate tensors\n");
     return -2;
