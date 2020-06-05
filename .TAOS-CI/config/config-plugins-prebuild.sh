@@ -31,12 +31,12 @@ echo "[DEBUG] source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plu
 source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plugins[idx]}.sh
 
 
-#prebuild_plugins[++idx]="pr-prebuild-clang"
-# echo "${prebuild_plugins[idx]} is starting."
-# echo "[MODULE] ${BOT_NAME}/${prebuild_plugins[idx]}: Check the code formatting style with clang-format"
-# echo "[DEBUG] The current path: $(pwd)."
-# echo "[DEBUG] source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plugins[idx]}.sh"
-# source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plugins[idx]}.sh
+prebuild_plugins[++idx]="pr-prebuild-clang"
+echo "${prebuild_plugins[idx]} is starting."
+echo "[MODULE] ${BOT_NAME}/${prebuild_plugins[idx]}: Check the code formatting style with clang-format"
+echo "[DEBUG] The current path: $(pwd)."
+echo "[DEBUG] source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plugins[idx]}.sh"
+source ${REFERENCE_REPOSITORY}/ci/taos/plugins-good/${prebuild_plugins[idx]}.sh
 
 #prebuild_plugins[++idx]="pr-prebuild-exclusive-vio"
 # echo "${prebuild_plugins[idx]} is starting."
