@@ -41,6 +41,12 @@
 %define		vivante_support 0
 %endif
 
+# DA requested to remove unnecessary module builds
+%if 0%{?_with_da_profile}
+%define	mvncsdk2_support 0
+%define	edgetpu_support 0
+%endif
+
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
 
