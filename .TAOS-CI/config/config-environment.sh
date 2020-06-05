@@ -166,3 +166,6 @@ _cov_email="taos-ci@github.io"
 _cov_token="xxxxxxxxxxxxxxxxxxxxxx"
 _cov_yellow_card=10
 _cov_red_card=50
+
+# Pre-build checker, Clang is applied to C++ files only.
+clang_option="cxx-only"
