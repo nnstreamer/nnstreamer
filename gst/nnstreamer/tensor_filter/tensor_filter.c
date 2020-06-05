@@ -376,7 +376,7 @@ record_statistics (GstTensorFilterPrivate * priv)
   g_assert (g_queue_get_length (recent_latencies) != 0);
 
   if (priv->latency_mode > 0) {
-    gint64 avg_latency;
+    gint64 avg_latency = 0;
 
     g_queue_foreach (recent_latencies, accumulate_latency, &avg_latency);
     avg_latency /= g_queue_get_length (recent_latencies);
