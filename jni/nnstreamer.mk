@@ -166,5 +166,5 @@ NNAPI_BUILDING_BLOCK := arm_compute_ex backend_acl_cl backend_acl_neon backend_c
                         neuralnetworks arm_compute_core arm_compute_graph arm_compute OpenCL
 
 ifeq ($(ENABLE_NNAPI), true)
-NNSTR$EAMER_BUILDING_BLOCK_LIST += $(NNAPI_BUILDING_BLOCK)
+NNSTREAMER_BUILDING_BLOCK_LIST += $(NNAPI_BUILDING_BLOCK)
 endif
