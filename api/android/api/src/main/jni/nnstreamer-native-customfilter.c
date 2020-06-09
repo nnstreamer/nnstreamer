@@ -283,8 +283,7 @@ done:
  * @brief Native method for custom filter.
  */
 jlong
-Java_org_nnsuite_nnstreamer_CustomFilter_nativeInitialize (JNIEnv * env,
-    jobject thiz, jstring name)
+nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   customfilter_priv_data_s *priv;
@@ -359,8 +358,7 @@ done:
  * @brief Native method for custom filter.
  */
 void
-Java_org_nnsuite_nnstreamer_CustomFilter_nativeDestroy (JNIEnv * env,
-    jobject thiz, jlong handle)
+nns_native_custom_destroy (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
   GstTensorFilterFramework *fw = NULL;

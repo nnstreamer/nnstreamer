@@ -751,9 +751,8 @@ done:
 /**
  * @brief Native method to initialize NNStreamer.
  */
-jboolean
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env,
-    jclass clazz, jobject context)
+static jboolean
+nns_native_initialize (JNIEnv * env, jclass clazz, jobject context)
 {
   return nnstreamer_native_initialize (env, context);
 }
@@ -761,9 +760,8 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeInitialize (JNIEnv * env,
 /**
  * @brief Native method to check the availability of NNFW.
  */
-jboolean
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env,
-    jclass clazz, jint fw_type)
+static jboolean
+nns_native_check_availability (JNIEnv * env, jclass clazz, jint fw_type)
 {
   ml_nnfw_type_e nnfw;
 
@@ -777,13 +775,134 @@ Java_org_nnsuite_nnstreamer_NNStreamer_nativeCheckAvailability (JNIEnv * env,
 /**
  * @brief Native method to get the version string of NNStreamer.
  */
-jstring
-Java_org_nnsuite_nnstreamer_NNStreamer_nativeGetVersion (JNIEnv * env,
-    jclass clazz)
+static jstring
+nns_native_get_version (JNIEnv * env, jclass clazz)
 {
   gchar *nns_ver = nnstreamer_version_string ();
   jstring version = (*env)->NewStringUTF (env, nns_ver);
 
   g_free (nns_ver);
   return version;
+}
+
+/**
+ * @brief List of implemented native methods for NNStreamer class.
+ */
+static JNINativeMethod native_methods_nnstreamer[] = {
+  {"nativeInitialize", "(Landroid/content/Context;)Z",
+      (void *) nns_native_initialize},
+  {"nativeCheckAvailability", "(I)Z", (void *) nns_native_check_availability},
+  {"nativeGetVersion", "()Ljava/lang/String;", (void *) nns_native_get_version}
+};
+
+/**
+ * @brief List of implemented native methods for SingleShot class.
+ */
+static JNINativeMethod native_methods_singleshot[] = {
+  {"nativeOpen",
+      "([Ljava/lang/String;L" NNS_CLS_TINFO ";L" NNS_CLS_TINFO
+        ";ILjava/lang/String;)J", (void *) nns_native_single_open},
+  {"nativeClose", "(J)V", (void *) nns_native_single_close},
+  {"nativeInvoke", "(JL" NNS_CLS_TDATA ";)L" NNS_CLS_TDATA ";",
+      (void *) nns_native_single_invoke},
+  {"nativeGetInputInfo", "(J)L" NNS_CLS_TINFO ";",
+      (void *) nns_native_single_get_input_info},
+  {"nativeGetOutputInfo", "(J)L" NNS_CLS_TINFO ";",
+      (void *) nns_native_single_get_output_info},
+  {"nativeSetProperty", "(JLjava/lang/String;Ljava/lang/String;)Z",
+      (void *) nns_native_single_set_prop},
+  {"nativeGetProperty", "(JLjava/lang/String;)Ljava/lang/String;",
+      (void *) nns_native_single_get_prop},
+  {"nativeSetTimeout", "(JI)Z", (void *) nns_native_single_set_timeout},
+  {"nativeSetInputInfo", "(JL" NNS_CLS_TINFO ";)Z",
+      (void *) nns_native_single_set_input_info}
+};
+
+#if !defined (NNS_SINGLE_ONLY)
+/**
+ * @brief List of implemented native methods for Pipeline class.
+ */
+static JNINativeMethod native_methods_pipeline[] = {
+  {"nativeConstruct", "(Ljava/lang/String;Z)J",
+      (void *) nns_native_pipe_construct},
+  {"nativeDestroy", "(J)V", (void *) nns_native_pipe_destroy},
+  {"nativeStart", "(J)Z", (void *) nns_native_pipe_start},
+  {"nativeStop", "(J)Z", (void *) nns_native_pipe_stop},
+  {"nativeGetState", "(J)I", (void *) nns_native_pipe_get_state},
+  {"nativeInputData", "(JLjava/lang/String;L" NNS_CLS_TDATA ";)Z",
+      (void *) nns_native_pipe_input_data},
+  {"nativeGetSwitchPads", "(JLjava/lang/String;)[Ljava/lang/String;",
+      (void *) nns_native_pipe_get_switch_pads},
+  {"nativeSelectSwitchPad", "(JLjava/lang/String;Ljava/lang/String;)Z",
+      (void *) nns_native_pipe_select_switch_pad},
+  {"nativeControlValve", "(JLjava/lang/String;Z)Z",
+      (void *) nns_native_pipe_control_valve},
+  {"nativeAddSinkCallback", "(JLjava/lang/String;)Z",
+      (void *) nns_native_pipe_add_sink_cb},
+  {"nativeRemoveSinkCallback", "(JLjava/lang/String;)Z",
+      (void *) nns_native_pipe_remove_sink_cb}
+};
+
+/**
+ * @brief List of implemented native methods for CustomFilter class.
+ */
+static JNINativeMethod native_methods_customfilter[] = {
+  {"nativeInitialize", "(Ljava/lang/String;)J",
+      (void *) nns_native_custom_initialize},
+  {"nativeDestroy", "(J)V", (void *) nns_native_custom_destroy}
+};
+#endif
+
+/**
+ * @brief Initialize native library.
+ */
+jint
+JNI_OnLoad (JavaVM * vm, void *reserved)
+{
+  JNIEnv *env = NULL;
+  jclass klass;
+
+  if ((*vm)->GetEnv (vm, (void **) &env, JNI_VERSION_1_4) != JNI_OK) {
+    nns_loge ("On initializing, failed to get JNIEnv.");
+    return 0;
+  }
+
+  klass = (*env)->FindClass (env, NNS_CLS_NNSTREAMER);
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_nnstreamer,
+            G_N_ELEMENTS (native_methods_nnstreamer))) {
+      nns_loge ("Failed to register native methods for NNStreamer class.");
+      return 0;
+    }
+  }
+
+  klass = (*env)->FindClass (env, NNS_CLS_SINGLE);
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_singleshot,
+            G_N_ELEMENTS (native_methods_singleshot))) {
+      nns_loge ("Failed to register native methods for SingleShot class.");
+      return 0;
+    }
+  }
+#if !defined (NNS_SINGLE_ONLY)
+  klass = (*env)->FindClass (env, NNS_CLS_PIPELINE);
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_pipeline,
+            G_N_ELEMENTS (native_methods_pipeline))) {
+      nns_loge ("Failed to register native methods for Pipeline class.");
+      return 0;
+    }
+  }
+
+  klass = (*env)->FindClass (env, NNS_CLS_CUSTOM_FILTER);
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_customfilter,
+            G_N_ELEMENTS (native_methods_customfilter))) {
+      nns_loge ("Failed to register native methods for CustomFilter class.");
+      return 0;
+    }
+  }
+#endif
+
+  return JNI_VERSION_1_4;
 }

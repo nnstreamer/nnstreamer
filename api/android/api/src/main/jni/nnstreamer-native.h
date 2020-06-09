@@ -49,6 +49,10 @@
 #define NNS_PKG "org/nnsuite/nnstreamer"
 #define NNS_CLS_TDATA NNS_PKG "/TensorsData"
 #define NNS_CLS_TINFO NNS_PKG "/TensorsInfo"
+#define NNS_CLS_PIPELINE NNS_PKG "/Pipeline"
+#define NNS_CLS_SINGLE NNS_PKG "/SingleShot"
+#define NNS_CLS_CUSTOM_FILTER NNS_PKG "/CustomFilter"
+#define NNS_CLS_NNSTREAMER NNS_PKG "/NNStreamer"
 
 /**
  * @brief Callback to destroy private data in pipe info.
@@ -224,5 +228,53 @@ nns_parse_tensors_info (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_i
  */
 extern gboolean
 nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw);
+
+/* Below defines native methods for each class */
+extern jlong
+nns_native_single_open (JNIEnv * env, jobject thiz, jobjectArray models, jobject in, jobject out, jint fw_type, jstring option);
+extern void
+nns_native_single_close (JNIEnv * env, jobject thiz, jlong handle);
+extern jobject
+nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in);
+extern jobject
+nns_native_single_get_input_info (JNIEnv * env, jobject thiz, jlong handle);
+extern jobject
+nns_native_single_get_output_info (JNIEnv * env, jobject thiz, jlong handle);
+extern jboolean
+nns_native_single_set_prop (JNIEnv * env, jobject thiz, jlong handle, jstring name, jstring value);
+extern jstring
+nns_native_single_get_prop (JNIEnv * env, jobject thiz, jlong handle, jstring name);
+extern jboolean
+nns_native_single_set_timeout (JNIEnv * env, jobject thiz, jlong handle, jint timeout);
+extern jboolean
+nns_native_single_set_input_info (JNIEnv * env, jobject thiz, jlong handle, jobject in);
+#if !defined (NNS_SINGLE_ONLY)
+extern jlong
+nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name);
+extern void
+nns_native_custom_destroy (JNIEnv * env, jobject thiz, jlong handle);
+extern jlong
+nns_native_pipe_construct (JNIEnv * env, jobject thiz, jstring description, jboolean add_state_cb);
+extern void
+nns_native_pipe_destroy (JNIEnv * env, jobject thiz, jlong handle);
+extern jboolean
+nns_native_pipe_start (JNIEnv * env, jobject thiz, jlong handle);
+extern jboolean
+nns_native_pipe_stop (JNIEnv * env, jobject thiz, jlong handle);
+extern jint
+nns_native_pipe_get_state (JNIEnv * env, jobject thiz, jlong handle);
+extern jboolean
+nns_native_pipe_input_data (JNIEnv * env, jobject thiz, jlong handle, jstring name, jobject in);
+extern jobjectArray
+nns_native_pipe_get_switch_pads (JNIEnv * env, jobject thiz, jlong handle, jstring name);
+extern jboolean
+nns_native_pipe_select_switch_pad (JNIEnv * env, jobject thiz, jlong handle, jstring name, jstring pad);
+extern jboolean
+nns_native_pipe_control_valve (JNIEnv * env, jobject thiz, jlong handle, jstring name, jboolean open);
+extern jboolean
+nns_native_pipe_add_sink_cb (JNIEnv * env, jobject thiz, jlong handle, jstring name);
+extern jboolean
+nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle, jstring name);
+#endif
 
 #endif /* __NNSTREAMER_ANDROID_NATIVE_H__ */

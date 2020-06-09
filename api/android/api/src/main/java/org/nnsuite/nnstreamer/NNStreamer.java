@@ -119,10 +119,13 @@ public final class NNStreamer {
      */
     public static boolean initialize(Context context) {
         try {
+            System.loadLibrary("gstreamer_android");
             System.loadLibrary("nnstreamer-native");
+
             GStreamer.init(context);
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
 
         return nativeInitialize(context);
