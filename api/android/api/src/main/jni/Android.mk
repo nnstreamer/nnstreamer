@@ -23,6 +23,8 @@ endif
 #------------------------------------------------------
 # API build option
 #------------------------------------------------------
+include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
+
 NNSTREAMER_API_OPTION := all
 
 # tensorflow-lite (nnstreamer tf-lite subplugin)
@@ -43,17 +45,18 @@ ifeq ($(ENABLE_SNAP),true)
   endif
 endif
 
-# Common libraries for sub-plugins
-NNS_API_LIBS := nnstreamer gstreamer_android
-NNS_API_FLAGS :=
+# Common options
+NNS_API_INCLUDES := \
+    $(NNSTREAMER_INCLUDES) \
+    $(NNSTREAMER_CAPI_INCLUDES) \
+    $(GST_HEADERS_COMMON)
+
+NNS_API_FLAGS := -DVERSION=\"$(NNSTREAMER_VERSION)\"
 NNS_SUBPLUGINS :=
 
 ifeq ($(NNSTREAMER_API_OPTION),single)
 NNS_API_FLAGS += -DNNS_SINGLE_ONLY=1
 endif
-
-include $(NNSTREAMER_ROOT)/jni/nnstreamer.mk
-NNS_API_FLAGS += -DVERSION=\"$(NNSTREAMER_VERSION)\"
 
 #------------------------------------------------------
 # external libs and sub-plugins
@@ -113,8 +116,16 @@ LOCAL_SRC_FILES += \
     nnstreamer-native-pipeline.c
 endif
 
-LOCAL_CFLAGS := -O2 -fPIC
-LOCAL_SHARED_LIBRARIES := $(NNS_API_LIBS) $(NNS_SUBPLUGINS)
+LOCAL_C_INCLUDES := $(NNS_API_INCLUDES)
+LOCAL_CFLAGS := -O3 -fPIC $(NNS_API_FLAGS)
+LOCAL_STATIC_LIBRARIES := nnstreamer $(NNS_SUBPLUGINS)
+LOCAL_SHARED_LIBRARIES := gstreamer_android
+LOCAL_LDLIBS := -llog -landroid
+
+ifneq ($(NNSTREAMER_API_OPTION),single)
+# For amcsrc element
+LOCAL_LDLIBS += -lmediandk
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -127,6 +138,10 @@ include $(LOCAL_PATH)/Android-gst-plugins.mk
 GSTREAMER_PLUGINS        := $(GST_REQUIRED_PLUGINS)
 GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS) gio-2.0 gmodule-2.0 json-glib-1.0
 GSTREAMER_EXTRA_LIBS     := $(GST_REQUIRED_LIBS) -liconv
+
+ifeq ($(NNSTREAMER_API_OPTION),all)
+GSTREAMER_EXTRA_LIBS += -lcairo
+endif
 
 GSTREAMER_INCLUDE_FONTS := no
 GSTREAMER_INCLUDE_CA_CERTIFICATES := no
