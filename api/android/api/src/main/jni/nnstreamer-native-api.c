@@ -159,13 +159,10 @@ nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
   info->cls = (*env)->NewGlobalRef (env, cls);
   (*env)->DeleteLocalRef (env, cls);
 
-  info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>", "()V");
-  info->mid_add_data = (*env)->GetMethodID (env, info->cls, "addTensorData",
-      "([B)V");
+  info->mid_alloc = (*env)->GetStaticMethodID (env, info->cls, "allocate",
+      "(L" NNS_CLS_TINFO ";)L" NNS_CLS_TDATA ";");
   info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
       "()[Ljava/lang/Object;");
-  info->mid_set_info = (*env)->GetMethodID (env, info->cls, "setTensorsInfo",
-      "(L" NNS_CLS_TINFO ";)V");
   info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
       "()L" NNS_CLS_TINFO ";");
 }
@@ -392,36 +389,37 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   guint i;
   data_class_info_s *dcls_info;
   jobject obj_data = NULL;
+  jobjectArray data_arr;
   ml_tensors_data_s *data;
 
   g_return_val_if_fail (pipe_info, FALSE);
   g_return_val_if_fail (env, FALSE);
   g_return_val_if_fail (data_h, FALSE);
   g_return_val_if_fail (result, FALSE);
+  g_return_val_if_fail (obj_info, FALSE);
 
   dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) data_h;
 
-  obj_data = (*env)->NewObject (env, dcls_info->cls, dcls_info->mid_init);
-  if (!obj_data) {
+  obj_data = (*env)->CallStaticObjectMethod (env, dcls_info->cls,
+      dcls_info->mid_alloc, obj_info);
+  if ((*env)->ExceptionCheck (env)) {
     nns_loge ("Failed to allocate object for tensors data.");
+    (*env)->ExceptionClear (env);
     goto done;
   }
 
-  /* set tensors info */
-  if (obj_info) {
-    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_set_info, obj_info);
-  }
+  data_arr = (*env)->CallObjectMethod (env, obj_data, dcls_info->mid_get_array);
 
   for (i = 0; i < data->num_tensors; i++) {
-    jsize buffer_size = (jsize) data->tensors[i].size;
-    jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
+    jobject tensor = (*env)->GetObjectArrayElement (env, data_arr, i);
 
-    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
-        (jbyte *) data->tensors[i].tensor);
+    if (tensor) {
+      gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor);
 
-    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_add_data, buffer);
-    (*env)->DeleteLocalRef (env, buffer);
+      memcpy (data_ptr, data->tensors[i].tensor, data->tensors[i].size);
+      (*env)->DeleteLocalRef (env, tensor);
+    }
   }
 
 done:
