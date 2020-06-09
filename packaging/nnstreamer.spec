@@ -2,11 +2,12 @@
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
-%define		tensorflow_support	0
+%define		tensorflow_support  0
 %define		tensorflow_lite_support	1
 %define		armnn_support 0
 %define		vivante_support 0
 %define		flatbuf_support 1
+%define		protobuf_support  1
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -107,9 +108,12 @@ BuildRequires: tensorflow-lite-devel
 BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
 BuildRequires: procps
+# for protobuf
+%if 0%{?protobuf_support}
+BuildRequires: protobuf-devel >= 3.4.0
+%endif
 # for tensorflow
 %if 0%{?tensorflow_support}
-BuildRequires: protobuf-devel >= 3.4.0
 BuildRequires: tensorflow
 BuildRequires: tensorflow-devel
 %endif
@@ -564,6 +568,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
 %{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini

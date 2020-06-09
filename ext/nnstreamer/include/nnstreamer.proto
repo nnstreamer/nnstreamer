@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package NNStreamer;
+package nnstreamer.protobuf;
 
 message Tensor {
   string name = 1;
