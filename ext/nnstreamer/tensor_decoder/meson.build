@@ -135,6 +135,7 @@ if protobuf_support_is_available
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
+<<<<<<< c5239c0bfc9a1af65cecc494f1ffc1daa121d6fd
 endif
 
 # flatbuffer
@@ -154,4 +155,6 @@ if flatbuf_support_is_available
     install: true,
     install_dir: decoder_subplugin_install_dir,
   )
+=======
+>>>>>>> [Converter] Add tensor converter sub-plugin protobuf
 endif
