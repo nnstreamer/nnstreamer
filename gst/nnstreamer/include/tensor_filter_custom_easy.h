@@ -55,7 +55,7 @@ G_BEGIN_DECLS
  * @param[in] func The tensor function body
  * @param[in/out] private_data The internal data for the function
  * @param[in] in_info Input tensor metadata.
- * @param[out] out_info Output tensor metadata
+ * @param[in] out_info Output tensor metadata
  * @note NNS_custom_invoke defined in tensor_filter_custom.h
  *       Output buffers for func are preallocated.
  */
