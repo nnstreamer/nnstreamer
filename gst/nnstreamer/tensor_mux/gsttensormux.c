@@ -210,7 +210,7 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
       tensor_mux);
 
   tensor_mux->silent = TRUE;
-  tensor_mux->sync.mode = SYNC_NOSYNC;
+  tensor_mux->sync.mode = SYNC_SLOWEST;
   tensor_mux->sync.option = NULL;
   tensor_mux->need_buffer = FALSE;
   tensor_mux->current_time = 0;
@@ -525,7 +525,7 @@ gst_tensor_mux_set_property (GObject * object, guint prop_id,
       filter->sync.mode =
           gst_tensor_time_sync_get_mode (g_value_get_string (value));
       if (filter->sync.mode == SYNC_END) {
-        filter->sync.mode = SYNC_NOSYNC;
+        filter->sync.mode = SYNC_SLOWEST;
       }
       silent_debug ("Mode = %d(%s)\n", filter->sync.mode,
           gst_tensor_time_sync_get_mode_string (filter->sync.mode));
