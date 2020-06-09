@@ -87,7 +87,7 @@ nns_singleshot_priv_set_out_info (pipeline_info_s * pipe_info, JNIEnv * env,
  * @brief Native method for single-shot API.
  */
 jlong
-Java_org_nnsuite_nnstreamer_SingleShot_nativeOpen (JNIEnv * env, jobject thiz,
+nns_native_single_open (JNIEnv * env, jobject thiz,
     jobjectArray models, jobject in, jobject out, jint fw_type, jstring option)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -197,8 +197,7 @@ done:
  * @brief Native method for single-shot API.
  */
 void
-Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
-    jlong handle)
+nns_native_single_close (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
 
@@ -211,8 +210,7 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeClose (JNIEnv * env, jobject thiz,
  * @brief Native method for single-shot API.
  */
 jobject
-Java_org_nnsuite_nnstreamer_SingleShot_nativeInvoke (JNIEnv * env,
-    jobject thiz, jlong handle, jobject in)
+nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
 {
   pipeline_info_s *pipe_info;
   singleshot_priv_data_s *priv;
@@ -281,8 +279,7 @@ done:
  * @brief Native method for single-shot API.
  */
 jobject
-Java_org_nnsuite_nnstreamer_SingleShot_nativeGetInputInfo (JNIEnv * env,
-    jobject thiz, jlong handle)
+nns_native_single_get_input_info (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -311,8 +308,7 @@ done:
  * @brief Native method for single-shot API.
  */
 jobject
-Java_org_nnsuite_nnstreamer_SingleShot_nativeGetOutputInfo (JNIEnv * env,
-    jobject thiz, jlong handle)
+nns_native_single_get_output_info (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -341,8 +337,8 @@ done:
  * @brief Native method for single-shot API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_SingleShot_nativeSetProperty (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name, jstring value)
+nns_native_single_set_prop (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name, jstring value)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -369,8 +365,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetProperty (JNIEnv * env,
  * @brief Native method for single-shot API.
  */
 jstring
-Java_org_nnsuite_nnstreamer_SingleShot_nativeGetProperty (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name)
+nns_native_single_get_prop (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -402,8 +398,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeGetProperty (JNIEnv * env,
  * @brief Native method for single-shot API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env,
-    jobject thiz, jlong handle, jint timeout)
+nns_native_single_set_timeout (JNIEnv * env, jobject thiz, jlong handle,
+    jint timeout)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;
@@ -424,8 +420,8 @@ Java_org_nnsuite_nnstreamer_SingleShot_nativeSetTimeout (JNIEnv * env,
  * @brief Native method for single-shot API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_SingleShot_nativeSetInputInfo (JNIEnv * env,
-    jobject thiz, jlong handle, jobject in)
+nns_native_single_set_input_info (JNIEnv * env, jobject thiz, jlong handle,
+    jobject in)
 {
   pipeline_info_s *pipe_info;
   ml_single_h single;

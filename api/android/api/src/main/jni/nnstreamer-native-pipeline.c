@@ -375,8 +375,8 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
  * @brief Native method for pipeline API.
  */
 jlong
-Java_org_nnsuite_nnstreamer_Pipeline_nativeConstruct (JNIEnv * env,
-    jobject thiz, jstring description, jboolean add_state_cb)
+nns_native_pipe_construct (JNIEnv * env, jobject thiz, jstring description,
+    jboolean add_state_cb)
 {
   pipeline_info_s *pipe_info = NULL;
   pipeline_priv_data_s *priv;
@@ -422,8 +422,7 @@ done:
  * @brief Native method for pipeline API.
  */
 void
-Java_org_nnsuite_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
-    jlong handle)
+nns_native_pipe_destroy (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
 
@@ -436,8 +435,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeDestroy (JNIEnv * env, jobject thiz,
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
-    jlong handle)
+nns_native_pipe_start (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_h pipe;
@@ -459,8 +457,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeStart (JNIEnv * env, jobject thiz,
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
-    jlong handle)
+nns_native_pipe_stop (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_h pipe;
@@ -482,8 +479,7 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeStop (JNIEnv * env, jobject thiz,
  * @brief Native method for pipeline API.
  */
 jint
-Java_org_nnsuite_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
-    jlong handle)
+nns_native_pipe_get_state (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_h pipe;
@@ -506,8 +502,8 @@ Java_org_nnsuite_nnstreamer_Pipeline_nativeGetState (JNIEnv * env, jobject thiz,
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeInputData (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name, jobject in)
+nns_native_pipe_input_data (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name, jobject in)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_src_h src;
@@ -546,8 +542,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jobjectArray
-Java_org_nnsuite_nnstreamer_Pipeline_nativeGetSwitchPads (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name)
+nns_native_pipe_get_switch_pads (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_switch_h node;
@@ -603,8 +599,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeSelectSwitchPad (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name, jstring pad)
+nns_native_pipe_select_switch_pad (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name, jstring pad)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_switch_h node;
@@ -638,8 +634,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeControlValve (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name, jboolean open)
+nns_native_pipe_control_valve (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name, jboolean open)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_valve_h node;
@@ -671,8 +667,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeAddSinkCallback (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name)
+nns_native_pipe_add_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_sink_h sink;
@@ -697,8 +693,8 @@ done:
  * @brief Native method for pipeline API.
  */
 jboolean
-Java_org_nnsuite_nnstreamer_Pipeline_nativeRemoveSinkCallback (JNIEnv * env,
-    jobject thiz, jlong handle, jstring name)
+nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name)
 {
   pipeline_info_s *pipe_info = NULL;
   ml_pipeline_sink_h sink;
