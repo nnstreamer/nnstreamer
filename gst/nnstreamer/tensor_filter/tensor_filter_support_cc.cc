@@ -32,6 +32,9 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <nnstreamer_log.h>
+
+#include <system_error>
 
 #define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
@@ -46,6 +49,11 @@ namespace nnstreamer {
  ******************************************************/
 
 #define _SANITY_CHECK (0xFACE217714DEADE7ULL)
+#define _RETURN_ERR_WITH_MSG(c, m) \
+  do { \
+    nns_loge ("%s", m); \
+    return c; \
+  } while (0);
 
 /**
  * @brief C tensor-filter wrapper callback function, "open"
@@ -66,8 +74,17 @@ int tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties * prop,
   tensor_filter_subplugin &obj = sp->getEmptyInstance();
   try {
     obj.configure_instance (prop);
+  } catch (const std::invalid_argument & e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what());
+  } catch (const std::system_error & e) {
+    _RETURN_ERR_WITH_MSG (e.code().value() * -1, e.what());
+  } catch (const std::runtime_error & e) {
+    /** @todo return different error codes according to exceptions */
+    _RETURN_ERR_WITH_MSG (-1, e.what());
   } catch (const std::exception & e) {
-    /* @todo Write exception handlers. */
+    /** @todo Write exception handlers. */
+    /** @todo return different error codes according to exceptions */
+    _RETURN_ERR_WITH_MSG (-1, e.what());
   }
 
   /* 3. Mark that this is not a representative (found by nnstreamer_filter_find) empty object */
