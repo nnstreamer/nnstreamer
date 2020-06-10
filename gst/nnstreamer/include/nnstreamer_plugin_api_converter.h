@@ -40,35 +40,36 @@ extern "C" {
  */
 typedef struct _NNStreamerExternalConverter
 {
-  const char *media_type_name;
+  const char *name;
 
-  /** 1. chain func, data handling. */
+/** 1. chain func, data handling. */
   GstBuffer *(*convert) (GstBuffer * in_buf, gsize * frame_size,
       guint * frames_in, GstTensorsConfig * config);
-  /** Convert the given input stream to tensor/tensors stream.
-   * @param[in] buf The input stream buffer
-   * @param[out] frame_size The size of each frame (output buffer)
-   * @param[out] frames_in The number of frames in the given input buffer.
-   * @param[out] config tensors config structure to be filled
-   * @retval Return input buffer(in_buf) if the data is to be kept untouched.
-   * @retval Return a new GstBuf if the data is to be modified.
-   */
+/** Convert the given input stream to tensor/tensors stream.
+  * @param[in] buf The input stream buffer
+  * @param[out] frame_size The size of each frame (output buffer)
+  * @param[out] frames_in The number of frames in the given input buffer.
+  * @param[out] config tensors config structure to be filled
+  * @retval Return input buffer(in_buf) if the data is to be kept untouched.
+  * @retval Return a new GstBuf if the data is to be modified.
+  */
 
-  /** 2. get_out_config (type conf, input(media) to output(tensor)) */
-  gboolean (*get_out_config) (const GstCaps * in_caps, GstTensorsConfig * config);
-  /** Set the tensor config structure from the given stream frame
-   * @param[in] in_caps The input (original/media data) stream's metadata
-   * @param[out] config The output (tensor/tensors) metadata
-   * @retval Return True if get caps successfully, FALSE if not.
-   */
+/** 2. get_out_config (type conf, input(media) to output(tensor)) */
+  gboolean (*get_out_config) (const GstCaps * in_caps,
+    GstTensorsConfig * config);
+/** Set the tensor config structure from the given stream frame
+  * @param[in] in_caps The input (original/media data) stream's metadata
+  * @param[out] config The output (tensor/tensors) metadata
+  * @retval Return True if get caps successfully, FALSE if not.
+  */
 
-  /** 3. query_caps (tpye conf, output(tensor) to input(media)) */
+/** 3. query_caps (tpye conf, output(tensor) to input(media)) */
   GstCaps *(*query_caps) (const GstTensorsConfig * config);
-  /** Filters (narrows down) the GstCap (st) with the given config.
-   * @param[in] config The config of output tensor/tensors
-   * @retval Return subplugin caps (if config is NULL, return default caps)
-   */
-  } NNStreamerExternalConverter;
+/** Filters (narrows down) the GstCap (st) with the given config.
+  * @param[in] config The config of output tensor/tensors
+  * @retval Return subplugin caps (if config is NULL, return default caps)
+  */
+} NNStreamerExternalConverter;
 
 /**
  * @brief Converter's sub-plugin should call this function to register itself.
