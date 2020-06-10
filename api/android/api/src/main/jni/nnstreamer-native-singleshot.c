@@ -59,7 +59,7 @@ nns_singleshot_priv_set_out_info (pipeline_info_s * pipe_info, JNIEnv * env,
 
   priv = (singleshot_priv_data_s *) pipe_info->priv_data;
 
-  if (priv->out_info && ml_tensors_info_is_equal (out_info, priv->out_info)) {
+  if (ml_tensors_info_is_equal (out_info, priv->out_info)) {
     /* do nothing, tensors info is equal. */
     return TRUE;
   }
@@ -69,15 +69,11 @@ nns_singleshot_priv_set_out_info (pipeline_info_s * pipe_info, JNIEnv * env,
     return FALSE;
   }
 
+  ml_tensors_info_free (priv->out_info);
+  ml_tensors_info_clone (priv->out_info, out_info);
+
   if (priv->out_info_obj)
     (*env)->DeleteGlobalRef (env, priv->out_info_obj);
-
-  if (priv->out_info)
-    ml_tensors_info_free (priv->out_info);
-  else
-    ml_tensors_info_create (&priv->out_info);
-
-  ml_tensors_info_clone (priv->out_info, out_info);
   priv->out_info_obj = (*env)->NewGlobalRef (env, obj_info);
   (*env)->DeleteLocalRef (env, obj_info);
   return TRUE;
@@ -178,6 +174,7 @@ done:
     ml_tensors_info_h out_info;
 
     priv = g_new0 (singleshot_priv_data_s, 1);
+    ml_tensors_info_create (&priv->out_info);
     nns_set_priv_data (pipe_info, priv, nns_singleshot_priv_free);
 
     /* set output info */
