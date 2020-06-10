@@ -1,4 +1,4 @@
-if nnfw_runtime_support_is_available 
+if nnfw_runtime_support_is_available
   filter_sub_nnfw_sources = ['tensor_filter_nnfw.c']
 
   nnstreamer_filter_nnfw_sources = []
@@ -387,7 +387,7 @@ if get_option('enable-mediapipe')
   else
     error('Not Supported System & Architecture. Linux x86_64 is required')
   endif
-  
+
   cmd = run_command('sh', '-c', 'echo $MEDIAPIPE_HOME')
   MEDIAPIPE_HOME = cmd.stdout().strip()
 
@@ -422,7 +422,7 @@ if get_option('enable-mediapipe')
   opencv_highgui_dep = cc.find_library('opencv_highgui', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
   opencv_videoio_dep = cc.find_library('opencv_videoio', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
   opencv_features2d_dep = cc.find_library('opencv_features2d', dirs: join_paths(MEDIAPIPE_HOME, opencv_path))
-  
+
   nnstreamer_filter_mediapipe_deps = [
     glib_dep,
     gst_dep,
@@ -445,7 +445,7 @@ if get_option('enable-mediapipe')
   foreach s : filter_sub_mp_sources
     nnstreamer_filter_mediapipe_sources += join_paths(meson.current_source_dir(), s)
   endforeach
-  
+
   shared_library('nnstreamer_filter_mediapipe',
     nnstreamer_filter_mediapipe_sources,
     dependencies: nnstreamer_filter_mediapipe_deps,
@@ -455,7 +455,7 @@ if get_option('enable-mediapipe')
   )
 endif
 
-if snpe_support_is_available  
+if snpe_support_is_available
   snpe_env_exist = run_command('[', '-z', snpe_support_SNPE_ROOT, ']').returncode()
   snpe_dir_not_exist = run_command('[', '-d', snpe_support_SNPE_ROOT, ']').returncode()
 
@@ -474,7 +474,7 @@ if snpe_support_is_available
   snpe_cpp_args += '-Wno-terminate'
 
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
- 
+
   nnstreamer_filter_snpe_sources = []
   foreach s : filter_sub_snpe_sources
     nnstreamer_filter_snpe_sources += join_paths(meson.current_source_dir(), s)
