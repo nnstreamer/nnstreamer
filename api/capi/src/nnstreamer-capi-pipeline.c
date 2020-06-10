@@ -28,6 +28,7 @@
 
 #include "nnstreamer-capi-private.h"
 #include "tensor_typedef.h"
+#include "tensor_filter_custom_easy.h"
 #include "nnstreamer_plugin_api.h"
 
 #define handle_init(type, name, h) \
@@ -1764,4 +1765,147 @@ ml_pipeline_get_gst_element (ml_pipeline_h pipe)
   }
 
   return element;
+}
+
+/**
+ * @brief Releases custom filter handle.
+ */
+static void
+ml_pipeline_custom_free_handle (ml_custom_filter_s * custom)
+{
+  if (custom) {
+    g_free (custom->name);
+    ml_tensors_info_destroy (custom->in_info);
+    ml_tensors_info_destroy (custom->out_info);
+
+    g_free (custom);
+  }
+}
+
+/**
+ * @brief Invoke callback for custom-easy filter.
+ */
+static int
+ml_pipeline_custom_invoke (void *data, const GstTensorFilterProperties * prop,
+    const GstTensorMemory * in, GstTensorMemory * out)
+{
+  int status;
+  ml_custom_filter_s *c;
+  ml_tensors_data_h in_data, out_data;
+  ml_tensors_data_s *_data;
+  guint i;
+
+  c = (ml_custom_filter_s *) data;
+  in_data = out_data = NULL;
+
+  /* internal error? */
+  if (!c || !c->cb)
+    return -1;
+
+  /* prepare invoke */
+  status = ml_tensors_data_create_no_alloc (c->in_info, &in_data);
+  if (status != ML_ERROR_NONE)
+    goto done;
+
+  _data = (ml_tensors_data_s *) in_data;
+  for (i = 0; i < _data->num_tensors; i++)
+    _data->tensors[i].tensor = in[i].data;
+
+  status = ml_tensors_data_create_no_alloc (c->out_info, &out_data);
+  if (status != ML_ERROR_NONE)
+    goto done;
+
+  _data = (ml_tensors_data_s *) out_data;
+  for (i = 0; i < _data->num_tensors; i++)
+    _data->tensors[i].tensor = out[i].data;
+
+  /* call invoke callback */
+  status = c->cb (in_data, out_data, c->pdata);
+
+done:
+  /* NOTE: DO NOT free tensor data */
+  g_free (in_data);
+  g_free (out_data);
+
+  return status;
+}
+
+/**
+ * @brief Registers a custom filter.
+ */
+int
+ml_pipeline_custom_easy_filter_register (const char *name,
+    const ml_tensors_info_h in, const ml_tensors_info_h out,
+    ml_custom_easy_invoke_cb cb, void *user_data,
+    ml_custom_easy_filter_h * custom)
+{
+  int status = ML_ERROR_NONE;
+  ml_custom_filter_s *c;
+  GstTensorsInfo in_info, out_info;
+
+  check_feature_state ();
+
+  if (!name || !cb || !custom)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *custom = NULL;
+
+  if (!ml_tensors_info_is_valid (in) || !ml_tensors_info_is_valid (out))
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* create and init custom handle */
+  if ((c = g_new0 (ml_custom_filter_s, 1)) == NULL)
+    return ML_ERROR_OUT_OF_MEMORY;
+
+  c->name = g_strdup (name);
+  c->cb = cb;
+  c->pdata = user_data;
+  ml_tensors_info_create (&c->in_info);
+  ml_tensors_info_create (&c->out_info);
+
+  ml_tensors_info_clone (c->in_info, in);
+  ml_tensors_info_clone (c->out_info, out);
+
+  /* register custom filter */
+  ml_tensors_info_copy_from_ml (&in_info, in);
+  ml_tensors_info_copy_from_ml (&out_info, out);
+
+  if (NNS_custom_easy_register (name, ml_pipeline_custom_invoke, c,
+          &in_info, &out_info) != 0) {
+    nns_loge ("Failed to register custom filter %s.", name);
+    status = ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (status == ML_ERROR_NONE) {
+    *custom = c;
+  } else {
+    ml_pipeline_custom_free_handle (c);
+  }
+
+  return status;
+}
+
+/**
+ * @brief Unregisters the custom filter.
+ */
+int
+ml_pipeline_custom_easy_filter_unregister (ml_custom_easy_filter_h custom)
+{
+  ml_custom_filter_s *c;
+
+  check_feature_state ();
+
+  if (!custom)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  c = (ml_custom_filter_s *) custom;
+
+  if (NNS_custom_easy_unregister (c->name) != 0) {
+    ml_loge ("Failed to unregister custom filter %s.", c->name);
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  ml_pipeline_custom_free_handle (c);
+  return ML_ERROR_NONE;
 }

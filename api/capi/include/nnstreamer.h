@@ -114,8 +114,15 @@ typedef void *ml_pipeline_valve_h;
 
 /**
  * @brief A handle of a common element (i.e. All GstElement except AppSrc, AppSink, TensorSink, Selector and Valve) of an NNStreamer pipeline
+ * @since_tizen 6.0
  */
 typedef void *ml_pipeline_element_h;
+
+/**
+ * @brief A handle of a "custom-easy filter" of an NNStreamer pipeline.
+ * @since_tizen 6.0
+ */
+typedef void *ml_custom_easy_filter_h;
 
 /**
  * @brief Types of NNFWs.
@@ -228,6 +235,18 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
  * @param[out] user_data User application's private data.
  */
 typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data);
+
+/**
+ * @brief Callback to execute the custom-easy filter in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks The @a in can be used only in the callback. To use outside, make a copy.
+ * @remarks The @a out can be used only in the callback. To use outside, make a copy.
+ * @param[out] in The handle of the tensor input (a single frame. tensor/tensors).
+ * @param[out] out The handle of the tensor output to be filled (a single frame. tensor/tensors).
+ * @param[out] user_data User application's private data.
+ * @return @c 0 on success. @c 1 to ignore the input data. Otherwise a negative error value.
+ */
+typedef int (*ml_custom_easy_invoke_cb) (const ml_tensors_data_h in, ml_tensors_data_h out, void *user_data);
 
 /****************************************************
  ** NNStreamer Pipeline Construction (gst-parse)   **
@@ -968,6 +987,89 @@ int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
+
+/**
+ * @brief Registers a custom filter.
+ * @details NNStreamer provides an interface for processing the tensors with 'custom-easy' framework which can execute without independent shared object.
+ *          Using this function, the application can easily register and execute the processing code.
+ *          If a custom filter with same name exists, this will be failed and return the error code #ML_ERROR_INVALID_PARAMETER.
+ * @since_tizen 6.0
+ * @remarks If the function succeeds, @a custom handle must be released using ml_pipeline_custom_easy_filter_unregister().
+ * @param[in] name The name of custom filter.
+ * @param[in] in The handle of input tensors information.
+ * @param[in] out The handle of output tensors information.
+ * @param[in] cb The function to be called when the pipeline runs.
+ * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
+ * @param[out] custom The custom filter handler.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid, or duplicated name exists.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom filter.
+ *
+ * Here is an example of the usage:
+ * @code
+ * // Define invoke callback.
+ * static int custom_filter_invoke_cb (const ml_tensors_data_h in, ml_tensors_data_h out, void *user_data)
+ * {
+ *   // Get input tensors using data handle 'in', and fill output tensors using data handle 'out'.
+ * }
+ *
+ * // The pipeline description (input data with dimension 2:1:1:1 and type int8 will be passed to custom filter 'my-custom-filter', which converts data type to float32 and processes tensors.)
+ * const char pipeline[] = "appsrc ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_filter framework=custom-easy model=my-custom-filter ! tensor_sink";
+ * int status;
+ * ml_pipeline_h pipe;
+ * ml_custom_easy_filter_h custom;
+ * ml_tensors_info_h in_info, out_info;
+ *
+ * // Set input and output tensors information.
+ * ml_tensors_info_create (&in_info);
+ * ml_tensors_info_set_count (in_info, 1);
+ * ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT8);
+ * ml_tensors_info_set_tensor_dimension (in_info, 0, dim);
+ *
+ * ml_tensors_info_create (&out_info);
+ * ml_tensors_info_set_count (out_info, 1);
+ * ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+ * ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
+ *
+ * // Register custom filter with name 'my-custom-filter' ('custom-easy' framework).
+ * status = ml_pipeline_custom_easy_filter_register ("my-custom-filter", in_info, out_info, custom_filter_invoke_cb, NULL, &custom);
+ * if (status != ML_ERROR_NONE) {
+ *   // Handle error case.
+ *   goto error;
+ * }
+ *
+ * // Construct the pipeline.
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
+ * if (status != ML_ERROR_NONE) {
+ *   // Handle error case.
+ *   goto error;
+ * }
+ *
+ * // Start the pipeline and execute the tensor.
+ * ml_pipeline_start (pipe);
+ *
+ * error:
+ * // Destroy the pipeline and unregister custom filter.
+ * ml_pipeline_stop (pipe);
+ * ml_pipeline_destroy (handle);
+ * ml_pipeline_custom_easy_filter_unregister (custom);
+ * @endcode
+ */
+int ml_pipeline_custom_easy_filter_register (const char *name, const ml_tensors_info_h in, const ml_tensors_info_h out, ml_custom_easy_invoke_cb cb, void *user_data, ml_custom_easy_filter_h *custom);
+
+/**
+ * @brief Unregisters the custom filter.
+ * @details Use this function to release and unregister the custom filter.
+ * @since_tizen 6.0
+ * @param[in] custom The custom filter to be unregistered.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid.
+ */
+int ml_pipeline_custom_easy_filter_unregister (ml_custom_easy_filter_h custom);
 
 /**
  * @}
