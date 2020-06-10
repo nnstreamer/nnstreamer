@@ -38,8 +38,8 @@ void fini_filter_custom_easy (void) __attribute__ ((destructor));
 typedef struct _internal_data
 {
   NNS_custom_invoke func;
-  const GstTensorsInfo *in_info;
-  const GstTensorsInfo *out_info;
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
   void *data; /**< The easy-filter writer's data */
 } internal_data;
 
@@ -51,6 +51,18 @@ typedef struct
   const internal_data *model;
 } runtime_data;
 
+/**
+ * @brief Internal function to release internal data.
+ */
+static void
+custom_free_internal_data (internal_data * data)
+{
+  if (data) {
+    gst_tensors_info_free (&data->in_info);
+    gst_tensors_info_free (&data->out_info);
+    g_free (data);
+  }
+}
 
 /**
  * @brief Register the custom-easy tensor function. More info in .h
@@ -66,6 +78,10 @@ NNS_custom_easy_register (const char *modelname,
   if (!func || !in_info || !out_info)
     return -EINVAL;
 
+  if (!gst_tensors_info_validate (in_info) ||
+      !gst_tensors_info_validate (out_info))
+    return -EINVAL;
+
   ptr = g_new0 (internal_data, 1);
 
   if (!ptr)
@@ -73,14 +89,13 @@ NNS_custom_easy_register (const char *modelname,
 
   ptr->func = func;
   ptr->data = data;
-  ptr->in_info = in_info;
-  ptr->out_info = out_info;
+  gst_tensors_info_copy (&ptr->in_info, in_info);
+  gst_tensors_info_copy (&ptr->out_info, out_info);
 
   if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr) == TRUE)
     return 0;
 
-  g_free (ptr);
-
+  custom_free_internal_data (ptr);
   return -EINVAL;
 }
 
@@ -91,7 +106,19 @@ NNS_custom_easy_register (const char *modelname,
 int
 NNS_custom_easy_unregister (const char *modelname)
 {
-  return unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname) ? 0 : -EINVAL;
+  internal_data *ptr;
+
+  /* get internal data before unregistering the custom filter */
+  ptr = (internal_data *) get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
+
+  if (!unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname)) {
+    ml_loge ("Failed to unregister custom filter %s.", modelname);
+    return -EINVAL;
+  }
+
+  /* free internal data */
+  custom_free_internal_data (ptr);
+  return 0;
 }
 
 /**
@@ -120,13 +147,13 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
         prop->model_files[0]);
     goto errorreturn;
   }
-  if (NULL == rd->model->in_info) {
+  if (!gst_tensors_info_validate (&rd->model->in_info)) {
     ml_logf
         ("A custom-easy filter, \"%s\", should provide input stream metadata, 'in_info'.\n",
         prop->model_files[0]);
     goto errorreturn;
   }
-  if (NULL == rd->model->out_info) {
+  if (!gst_tensors_info_validate (&rd->model->out_info)) {
     ml_logf
         ("A custom-easy filter, \"%s\", should provide output stream metadata, 'out_info'.\n",
         prop->model_files[0]);
@@ -164,8 +191,8 @@ custom_getInputDim (const GstTensorFilterProperties * prop,
 {
   runtime_data *rd = *private_data;
   /* Internal Logic Error */
-  g_assert (rd && rd->model && rd->model->in_info);
-  gst_tensors_info_copy (info, rd->model->in_info);
+  g_assert (rd && rd->model);
+  gst_tensors_info_copy (info, &rd->model->in_info);
   return 0;
 }
 
@@ -178,8 +205,8 @@ custom_getOutputDim (const GstTensorFilterProperties * prop,
 {
   runtime_data *rd = *private_data;
   /* Internal Logic Error */
-  g_assert (rd && rd->model && rd->model->out_info);
-  gst_tensors_info_copy (info, rd->model->out_info);
+  g_assert (rd && rd->model);
+  gst_tensors_info_copy (info, &rd->model->out_info);
   return 0;
 }
 
