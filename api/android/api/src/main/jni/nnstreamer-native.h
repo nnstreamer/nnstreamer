@@ -94,7 +94,6 @@ typedef struct
   jmethodID mid_init;
   jmethodID mid_add_data;
   jmethodID mid_get_array;
-  jmethodID mid_set_info;
   jmethodID mid_get_info;
 } data_class_info_s;
 
