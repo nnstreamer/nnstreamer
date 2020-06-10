@@ -59,10 +59,8 @@ public final class TensorsData implements AutoCloseable {
             throw new IllegalArgumentException("Given info is invalid");
         }
 
-        TensorsData data = new TensorsData();
+        TensorsData data = new TensorsData(info);
         int count = info.getTensorsCount();
-
-        data.setTensorsInfo(info);
 
         for (int i = 0; i < count; i++) {
             data.addTensorData(allocateByteBuffer(info.getTensorSize(i)));
@@ -236,5 +234,7 @@ public final class TensorsData implements AutoCloseable {
     /**
      * Private constructor to prevent the instantiation.
      */
-    private TensorsData() {}
+    private TensorsData(TensorsInfo info) {
+        setTensorsInfo(info);
+    }
 }

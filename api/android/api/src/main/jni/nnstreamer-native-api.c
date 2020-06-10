@@ -159,13 +159,12 @@ nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
   info->cls = (*env)->NewGlobalRef (env, cls);
   (*env)->DeleteLocalRef (env, cls);
 
-  info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>", "()V");
+  info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>",
+      "(L" NNS_CLS_TINFO ";)V");
   info->mid_add_data = (*env)->GetMethodID (env, info->cls, "addTensorData",
       "([B)V");
   info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
       "()[Ljava/lang/Object;");
-  info->mid_set_info = (*env)->GetMethodID (env, info->cls, "setTensorsInfo",
-      "(L" NNS_CLS_TINFO ";)V");
   info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
       "()L" NNS_CLS_TINFO ";");
 }
@@ -398,19 +397,17 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   g_return_val_if_fail (env, FALSE);
   g_return_val_if_fail (data_h, FALSE);
   g_return_val_if_fail (result, FALSE);
+  g_return_val_if_fail (obj_info, FALSE);
 
   dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) data_h;
 
-  obj_data = (*env)->NewObject (env, dcls_info->cls, dcls_info->mid_init);
-  if (!obj_data) {
+  obj_data = (*env)->NewObject (env, dcls_info->cls, dcls_info->mid_init,
+      obj_info);
+  if ((*env)->ExceptionCheck (env) || !obj_data) {
     nns_loge ("Failed to allocate object for tensors data.");
+    (*env)->ExceptionClear (env);
     goto done;
-  }
-
-  /* set tensors info */
-  if (obj_info) {
-    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_set_info, obj_info);
   }
 
   for (i = 0; i < data->num_tensors; i++) {
