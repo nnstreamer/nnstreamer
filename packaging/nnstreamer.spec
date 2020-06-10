@@ -96,6 +96,7 @@ BuildRequires:	python-numpy-devel
 BuildRequires:  pkgconfig(libpng)
 %if 0%{?tensorflow_lite_support}
 # for tensorflow-lite
+BuildRequires: flatbuffers-devel
 BuildRequires: tensorflow-lite-devel
 %endif
 # custom_example_opencv filter requires opencv-devel
