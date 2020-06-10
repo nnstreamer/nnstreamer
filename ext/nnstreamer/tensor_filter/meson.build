@@ -301,8 +301,16 @@ if get_option('enable-edgetpu')
   if tflite_support_is_available
     edgetpu_dep = dependency('edgetpu', required: false)
     if not edgetpu_dep.found()
-      # Ubuntu edgetpu package does not have pkgconfig file
-      edgetpu_dep = cc.find_library('edgetpu')
+      # Since the developement package for Ubuntu does not have pkgconfig file,
+      # check that the required header and library files exist in the system
+      # include and lib directories.
+      if cxx.has_header('edgetpu.h')
+        edgetpu_dep = declare_dependency (
+          dependencies: cxx.find_library('edgetpu'),
+        )
+      else
+        error('failed to resolve the build dependency of the tensor filter for Edge TPU.')
+      endif
     endif
     filter_sub_edgetpu_sources = ['tensor_filter_edgetpu.cc']
 
