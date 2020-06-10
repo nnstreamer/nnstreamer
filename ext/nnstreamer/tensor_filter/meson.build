@@ -329,9 +329,13 @@ if get_option('enable-edgetpu')
       rpath_edgetpu_test_helper = join_paths(meson.build_root(), 'tests/nnstreamer_filter_edgetpu')
 
     endif
+
+    tflite_ver_dep = declare_dependency (
+      compile_args : ['-DTFLITE_VER="' + tflite_support_deps[0].version() +'"', ],
+    )
     shared_library('nnstreamer_filter_edgetpu',
       nnstreamer_filter_edgetpu_sources,
-      dependencies: tflite_support_deps + [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep],
+      dependencies: tflite_support_deps + [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep, tflite_ver_dep],
       install: true,
       install_dir: filter_subplugin_install_dir,
       build_rpath: rpath_edgetpu_test_helper

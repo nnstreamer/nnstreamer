@@ -18,6 +18,7 @@
  *       We may be able to embed this code into tf-lite filter code.
  */
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <stdexcept>
 
@@ -36,6 +37,12 @@
 
 using nnstreamer::tensor_filter_subplugin;
 using edgetpu::EdgeTpuContext;
+
+#if defined (TFLITE_VER)
+constexpr char tflite_ver[] = TFLITE_VER;
+#else
+constexpr char tflite_ver[] = "1.x";
+#endif /* defined (TFLITE_VER) */
 
 namespace nnstreamer {
 namespace tensorfilter_edgetpu {
@@ -166,7 +173,6 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   /** Read a model */
   model = tflite::FlatBufferModel::BuildFromFile(_model_path.c_str());
   if (nullptr == model) {
-    std::cerr << "Cannot load the model file: " << _model_path << std::endl;
     cleanup();
     throw std::invalid_argument ("Cannot load the given model file.");
   }
@@ -174,17 +180,16 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   /** Build an interpreter */
   edgetpu_context = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
   if (nullptr == edgetpu_context) {
-    std::cerr << "Cannot open edge-TPU device." << std::endl;
     cleanup();
-    throw std::system_error (ENODEV, std::system_category(), "Cannot open edge-TPU device.");
+    throw std::system_error (ENODEV, std::system_category (),
+        "Cannot open edge-TPU device.");
   }
 
-  model_interpreter = BuildEdgeTpuInterpreter(*model, edgetpu_context.get());
+  model_interpreter = BuildEdgeTpuInterpreter(*model, edgetpu_context.get ());
   if (nullptr == model_interpreter) {
-    std::cerr << "Edge-TPU device is opened, but cannot get its interpreter."
-        << std::endl;
     cleanup();
-    throw std::system_error (ENODEV, std::system_category(), "Edge-TPU device is opened, but cannot get its interpreter.");
+    throw std::system_error (ENODEV, std::system_category (),
+        "Edge-TPU device is opened, but cannot get its interpreter.");
   }
 
   interpreter = model_interpreter.get();
@@ -192,7 +197,6 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   try {
     setTensorProp (interpreter, interpreter->inputs (), inputInfo);
   } catch (const std::invalid_argument& ia) {
-    std::cerr << "Invalid input tensor specification: " << ia.what() << '\n';
     cleanup();
     throw std::invalid_argument ("Input tensor of the given model is incompatible or invalid");
   }
@@ -200,7 +204,6 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   try {
     setTensorProp (interpreter, interpreter->outputs (), outputInfo);
   } catch (const std::invalid_argument& ia) {
-    std::cerr << "Invalid output tensor specification: " << ia.what() << '\n';
     cleanup();
     throw std::invalid_argument ("Output tensor of the given model is incompatible or invalid");
   }
@@ -249,6 +252,30 @@ void edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *o
   }
 
   if (status != kTfLiteOk) {
+    std::ifstream ifs;
+
+    ifs.open (model_path);
+    if (!ifs.fail ()) {
+      /**
+       * In the case of models compiled by edgetpu-compiler, there is a string,
+       * 'edgetpu-custom-op', at the position 0x5C of the .tflite file.
+       */
+      const std::streampos compiled_model_id_pos (0x5C);
+      const std::string compiled_model_id ("edgetpu-custom-op");
+      std::vector<char> buf (compiled_model_id.size ());
+
+      ifs.seekg (compiled_model_id_pos);
+      ifs.read (buf.data (), compiled_model_id.size ());
+      ifs.close ();
+
+      if (compiled_model_id == std::string (buf.data ())) {
+        /** The given model is a compiled model */
+        nns_loge ("A compiled model by edgetpu-compiler has been given, but this extension might be statically linked with TensorFlow Lite v%s which does not support the model.",
+            tflite_ver);
+        nns_loge ("To use this model, we recommend to upgrade the tensorflow-lite package to version 1.15.2 and rebuild the subplugin with the upgraded tensorflow-lite.");
+      }
+    }
+
     std::cerr << "Failed to invoke tensorflow-lite + edge-tpu." << std::endl;
     throw std::runtime_error ("Invoking tensorflow-lite with edge-tpu delgation failed.");
   }
@@ -295,13 +322,13 @@ edgetpu_subplugin::BuildEdgeTpuInterpreter(
   std::unique_ptr<tflite::Interpreter> interpreter;
   if (tflite::InterpreterBuilder(model, resolver)(&interpreter) !=
       kTfLiteOk) {
-    std::cerr << "Failed to build interpreter." << std::endl;
+    nns_loge ("Failed to build interpreter.");
   }
 
   interpreter->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context);
   interpreter->SetNumThreads(1);
   if (interpreter->AllocateTensors() != kTfLiteOk) {
-    std::cerr << "Failed to allocate tensors." << std::endl;
+    nns_loge ("Failed to allocate tensors.");
   }
 
   return interpreter;
