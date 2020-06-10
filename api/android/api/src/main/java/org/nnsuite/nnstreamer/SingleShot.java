@@ -137,10 +137,10 @@ public final class SingleShot implements AutoCloseable {
 
     /**
      * Invokes the model with the given input data.
-     * If the model has flexible input data dimensions, input information for this
-     * run of the model can be passed. This changes the currently set input information
-     * for this instance of the model. The corresponding output information can be
-     * extracted.
+     *
+     * Even if the model has flexible input data dimensions,
+     * input data frames of an instance of a model should share the same dimension.
+     * To change the input information, you should call {@link #setInputInfo(TensorsInfo)} before calling invoke method.
      *
      * Note that this has a default timeout of 3 seconds.
      * If an application wants to change the time to wait for an output,
@@ -273,6 +273,8 @@ public final class SingleShot implements AutoCloseable {
     /**
      * Sets the information (tensor dimension, type, name and so on) of input data for the given model.
      * Updates the output information for the model internally.
+     *
+     * Note that a model/framework may not support changing the information.
      *
      * @param in The input tensors information
      *
