@@ -180,7 +180,6 @@ static gboolean gst_tensor_converter_update_caps (GstTensorConverter * self,
     GstPad * pad, GstTensorsConfig * config);
 static const NNStreamerExternalConverter *findExternalConverter (const char
     *media_type_name);
-static const gchar *getExternalConverterName (const char *name);
 
 /**
  * @brief Initialize the tensor_converter's class.
@@ -287,7 +286,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   /* append sub-plugin template caps */
   total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
   for (i = 0; i < total; i++) {
-    ex = findExternalConverter (info.names[i]);
+    ex = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
     if (ex && ex->query_caps)
       gst_caps_append (pad_caps, ex->query_caps (NULL));
   }
@@ -1600,15 +1599,14 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
     default:
     {
       /* if found, configure in_mdeia_type = _NNS_MEDIA_PLUGINS */
-      const gchar *struct_name, *ext_conv_name;
+      const gchar *struct_name;
 
       struct_name = gst_structure_get_name (structure);
 
       if (struct_name != NULL) {
         const NNStreamerExternalConverter *ex;
 
-        ext_conv_name = getExternalConverterName (struct_name);
-        ex = findExternalConverter (ext_conv_name);
+        ex = findExternalConverter (struct_name);
 
         if (ex != NULL && self->externalConverter == NULL) {
           in_type = _NNS_MEDIA_PLUGINS;
@@ -1617,7 +1615,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
           if (NULL == ex->get_out_config || !ex->get_out_config (caps, &config)) {
             GST_ERROR_OBJECT (self,
                 "Failed to get tensors info from %s. Check the given options.",
-                ext_conv_name);
+                struct_name);
             ml_loge ("Please set the options property correctly.\n");
             self->externalConverter = NULL;
             return FALSE;
@@ -1707,43 +1705,55 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 }
 
 /**
- * @brief Get converter's subplugins name
- */
-static const gchar *
-getExternalConverterName (const char *name)
-{
-  /** @todo: Change to not hardcoded */
-  if (g_strcmp0 (name, "other/flatbuf-tensor") == 0) {
-    return "flatbuf";
-  } else if (g_strcmp0 (name, "other/protobuf-tensor") == 0) {
-    return "protobuf";
-  }
-  return "Not_supported";
-}
-
-/**
  * @brief Converter's external subplugins should call this at init.
  */
 int
 registerExternalConverter (NNStreamerExternalConverter * ex)
 {
-  return register_subplugin (NNS_SUBPLUGIN_CONVERTER, ex->media_type_name, ex);
+  return register_subplugin (NNS_SUBPLUGIN_CONVERTER, ex->name, ex);
 }
 
 /**
  * @brief Converter's external subplugins should call this at exit.
  */
 void
-unregisterExternalConverter (const char *media_type_name)
+unregisterExternalConverter (const char *name)
 {
-  unregister_subplugin (NNS_SUBPLUGIN_CONVERTER, media_type_name);
+  unregister_subplugin (NNS_SUBPLUGIN_CONVERTER, name);
 }
 
 /**
  * @brief Internal static function to find registered subplugins.
  */
 static const NNStreamerExternalConverter *
-findExternalConverter (const char *media_type_name)
+findExternalConverter (const char *media_type)
 {
-  return get_subplugin (NNS_SUBPLUGIN_CONVERTER, media_type_name);
+  guint total, i, caps_size, caps_idx;
+  subplugin_info_s info;
+  GstCaps *temp_cap;
+  GstStructure *temp_struct;
+  const gchar *caps_string;
+  const NNStreamerExternalConverter *ex = NULL;
+
+  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
+  for (i = 0; i < total; i++) {
+    const NNStreamerExternalConverter *temp_ex
+        = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
+
+    if (temp_ex && temp_ex->query_caps) {
+      temp_cap = temp_ex->query_caps (NULL);
+      caps_size = gst_caps_get_size (temp_cap);
+      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) {
+        temp_struct = gst_caps_get_structure (temp_cap, caps_idx);
+        caps_string = gst_structure_get_name (temp_struct);
+        if (g_strcmp0 (media_type, caps_string) == 0) {
+          ex = temp_ex;
+          break;
+        }
+      }
+      gst_caps_unref (temp_cap);
+    }
+  }
+
+  return ex;
 }
