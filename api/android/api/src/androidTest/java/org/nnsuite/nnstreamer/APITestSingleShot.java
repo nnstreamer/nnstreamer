@@ -222,6 +222,9 @@ public class APITestSingleShot {
                 TensorsInfo info = new TensorsInfo();
                 info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{1,1,1,i});
 
+                /* change input information */
+                single.setInputInfo(info);
+
                 /* dummy input */
                 TensorsData out = single.invoke(TensorsData.allocate(info));
 
