@@ -76,6 +76,17 @@ extern "C" {
 #endif /* __cplusplus */
 
 /**
+ * @brief Internal private representation of custom filter handle.
+ */
+typedef struct {
+  char *name;
+  ml_tensors_info_h in_info;
+  ml_tensors_info_h out_info;
+  ml_custom_easy_invoke_cb cb;
+  void *pdata;
+} ml_custom_filter_s;
+
+/**
  * @brief Data structure for tensor information.
  * @since_tizen 5.5
  */

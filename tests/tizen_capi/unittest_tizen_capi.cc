@@ -6239,6 +6239,185 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
 }
 
 /**
+ * @brief Invoke callback for custom-easy filter.
+ */
+static int
+test_custom_easy_cb (const ml_tensors_data_h in, ml_tensors_data_h out,
+    void *user_data)
+{
+  /* test code, set data size. */
+  if (user_data) {
+    void *raw_data = NULL;
+    size_t *data_size = (size_t *) user_data;
+
+    ml_tensors_data_get_tensor_data (out, 0, &raw_data, data_size);
+  }
+
+  return 0;
+}
+
+/**
+ * @brief Test for custom-easy registration.
+ */
+TEST (nnstreamer_capi_custom, register_filter_01_p)
+{
+  const char test_custom_filter[] = "test-custom-filter";
+  ml_pipeline_h pipe;
+  ml_pipeline_src_h src;
+  ml_pipeline_sink_h sink;
+  ml_custom_easy_filter_h custom;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h in_data;
+  ml_tensor_dimension dim = { 2, 1, 1, 1 };
+  int status;
+  gchar *pipeline =
+      g_strdup_printf
+      ("appsrc name=srcx ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_filter framework=custom-easy model=%s ! tensor_sink name=sinkx",
+      test_custom_filter);
+  guint *count_sink = (guint *) g_malloc0 (sizeof (guint));
+  size_t *filter_data_size = (size_t *) g_malloc0 (sizeof (size_t));
+  size_t data_size;
+  guint i;
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, dim);
+
+  ml_tensors_info_create (&out_info);
+  ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
+  ml_tensors_info_get_tensor_size(out_info, 0, &data_size);
+
+  /* test code for custom filter */
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, filter_data_size, &custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (pipe, "sinkx", test_sink_callback_count,
+      count_sink, &sink);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_src_get_handle (pipe, "srcx", &src);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  for (i = 0; i < 5; i++) {
+    status = ml_tensors_data_create (in_info, &in_data);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_pipeline_src_input_data (src, in_data, ML_PIPELINE_BUF_POLICY_AUTO_FREE);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    g_usleep (50000); /* 50ms. Wait a bit. */
+  }
+
+  status = ml_pipeline_stop (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_src_release_handle (src);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sink);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_unregister (custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* check received data in sink node */
+  EXPECT_TRUE (*count_sink > 0U);
+  EXPECT_TRUE (*filter_data_size > 0U && *filter_data_size == data_size);
+
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+  g_free (pipeline);
+  g_free (count_sink);
+  g_free (filter_data_size);
+}
+
+/**
+ * @brief Test for custom-easy registration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_custom, register_filter_02_n)
+{
+  const char test_custom_filter[] = "test-custom-filter";
+  ml_custom_easy_filter_h custom, custom2;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensor_dimension dim = { 2, 1, 1, 1 };
+  int status;
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  /* test code with null param */
+  status = ml_pipeline_custom_easy_filter_register (NULL,
+      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      NULL, out_info, test_custom_easy_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, NULL, test_custom_easy_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, NULL, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, NULL, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_unregister (NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  /* test code with invalid input info */
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, dim);
+
+  /* test code with invalid output info */
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
+  ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
+
+  /* test code for duplicated name */
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
+      in_info, out_info, test_custom_easy_cb, NULL, &custom2);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_custom_easy_filter_unregister (custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+}
+
+/**
  * @brief Main gtest
  */
 int
