@@ -66,7 +66,7 @@ nns_customfilter_priv_set_in_info (pipeline_info_s * pipe_info, JNIEnv * env,
 
   priv = (customfilter_priv_data_s *) pipe_info->priv_data;
 
-  if (priv->in_info && ml_tensors_info_is_equal (in_info, priv->in_info)) {
+  if (ml_tensors_info_is_equal (in_info, priv->in_info)) {
     /* do nothing, tensors info is equal. */
     return TRUE;
   }
@@ -76,15 +76,11 @@ nns_customfilter_priv_set_in_info (pipeline_info_s * pipe_info, JNIEnv * env,
     return FALSE;
   }
 
+  ml_tensors_info_free (priv->in_info);
+  ml_tensors_info_clone (priv->in_info, in_info);
+
   if (priv->in_info_obj)
     (*env)->DeleteGlobalRef (env, priv->in_info_obj);
-
-  if (priv->in_info)
-    ml_tensors_info_free (priv->in_info);
-  else
-    ml_tensors_info_create (&priv->in_info);
-
-  ml_tensors_info_clone (priv->in_info, in_info);
   priv->in_info_obj = (*env)->NewGlobalRef (env, obj_info);
   (*env)->DeleteLocalRef (env, obj_info);
   return TRUE;
@@ -346,6 +342,7 @@ nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name)
       "(L" NNS_CLS_TDATA ";)L" NNS_CLS_TDATA ";");
   priv->mid_info = (*env)->GetMethodID (env, pipe_info->cls, "getOutputInfo",
       "(L" NNS_CLS_TINFO ";)L" NNS_CLS_TINFO ";");
+  ml_tensors_info_create (&priv->in_info);
 
   nns_set_priv_data (pipe_info, priv, nns_customfilter_priv_free);
 

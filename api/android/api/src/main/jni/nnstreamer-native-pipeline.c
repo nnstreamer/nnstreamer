@@ -80,12 +80,13 @@ nns_pipeline_sink_priv_set_out_info (element_data_s * item, JNIEnv * env,
 
   if ((priv = item->priv_data) == NULL) {
     priv = g_new0 (pipeline_sink_priv_data_s, 1);
+    ml_tensors_info_create (&priv->out_info);
 
     item->priv_data = priv;
     item->priv_destroy_func = nns_pipeline_sink_priv_free;
   }
 
-  if (priv->out_info && ml_tensors_info_is_equal (out_info, priv->out_info)) {
+  if (ml_tensors_info_is_equal (out_info, priv->out_info)) {
     /* do nothing, tensors info is equal. */
     return TRUE;
   }
@@ -95,15 +96,11 @@ nns_pipeline_sink_priv_set_out_info (element_data_s * item, JNIEnv * env,
     return FALSE;
   }
 
+  ml_tensors_info_free (priv->out_info);
+  ml_tensors_info_clone (priv->out_info, out_info);
+
   if (priv->out_info_obj)
     (*env)->DeleteGlobalRef (env, priv->out_info_obj);
-
-  if (priv->out_info)
-    ml_tensors_info_free (priv->out_info);
-  else
-    ml_tensors_info_create (&priv->out_info);
-
-  ml_tensors_info_clone (priv->out_info, out_info);
   priv->out_info_obj = (*env)->NewGlobalRef (env, obj_info);
   (*env)->DeleteLocalRef (env, obj_info);
   return TRUE;
