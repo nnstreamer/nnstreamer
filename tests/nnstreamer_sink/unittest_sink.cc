@@ -5658,8 +5658,48 @@ TEST (tensor_filter_custom_easy, in_code_func_01)
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
 
+  /** cleanup registered custom_easy filter */
+  ret = NNS_custom_easy_unregister("safe_memcpy_10x10");
+  ASSERT_EQ(ret, 0);
+
   /** @todo: Check the data at sink */
 
+}
+
+/**
+ * @brief Test unregister custom_easy filter
+ */
+TEST (tensor_filter_custom_easy, unregister_1_p)
+{
+  int ret;
+  const GstTensorsInfo info_in = {
+    .num_tensors = 1U,
+    .info = {{ .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1}}},
+  };
+  const GstTensorsInfo info_out = {
+    .num_tensors = 1U,
+    .info = {{ .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1}}},
+  };
+
+  ret = NNS_custom_easy_register ("safe_memcpy_10x10", cef_func_safe_memcpy,
+      NULL, &info_in, &info_out);
+  ASSERT_EQ(ret, 0);
+
+  /** check unregister custom_easy filter */
+  ret = NNS_custom_easy_unregister("safe_memcpy_10x10");
+  ASSERT_EQ(ret, 0);
+}
+
+/**
+ * @brief Test non-registered custom_easy filter
+ */
+TEST (tensor_filter_custom_easy, unregister_1_n)
+{
+  int ret;
+
+  /** check non-registered custom_easy filter */
+  ret = NNS_custom_easy_unregister("not_registered");
+  ASSERT_NE(ret, 0);
 }
 
 /**
