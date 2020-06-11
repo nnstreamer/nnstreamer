@@ -17,8 +17,9 @@
  * @todo A lot of this duplicate tf-lite filter.
  *       We may be able to embed this code into tf-lite filter code.
  */
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 
@@ -50,10 +51,34 @@ namespace tensorfilter_edgetpu {
 void _init_filter_edgetpu (void) __attribute__ ((constructor));
 void _fini_filter_edgetpu (void) __attribute__ ((destructor));
 
+
+enum class edgetpu_subplugin_device_type : uint32_t {
+  USB = static_cast<uint32_t>(edgetpu::DeviceType::kApexUsb),
+  PCI = static_cast<uint32_t>(edgetpu::DeviceType::kApexPci),
+  DEFAULT = USB,
+  DUMMY = 99,
+};
+
+static const std::string edgetpu_subplugin_device_type_name (
+    edgetpu_subplugin_device_type t)
+{
+    switch(t)
+    {
+        case edgetpu_subplugin_device_type::PCI:
+          return "pci";
+        case edgetpu_subplugin_device_type::DUMMY:
+          return "dummy";
+        case edgetpu_subplugin_device_type::USB:
+        default:
+          return "usb";
+    }
+}
+
 class edgetpu_subplugin final : public tensor_filter_subplugin {
 private:
   bool empty_model;
   char *model_path; /**< The model *.tflite file */
+  edgetpu_subplugin_device_type device_type; /**< The device type of Edge TPU */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
@@ -68,7 +93,8 @@ private:
       /**< Loaded TF Lite model (from model_path) */
   static std::unique_ptr<tflite::Interpreter>
       BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
-          edgetpu::EdgeTpuContext* edgetpu_context);
+          const edgetpu_subplugin_device_type dev_type,
+          edgetpu::EdgeTpuContext* edgetpu_context = nullptr);
 
   /** Internal Utility Functions & Properties ***************************/
   void cleanup ();
@@ -77,6 +103,9 @@ private:
   static int getTensorDim ( tflite::Interpreter *interpreter, int tensor_idx,
       tensor_dim dim);
   static tensor_type getTensorType (TfLiteType tfType);
+  static std::string str_tolower(std::string s);
+  static edgetpu_subplugin_device_type parse_custom_prop (
+      const char * custom_prop);
   static const char *name;
   static const accl_hw hw_list[];
   static const int num_hw = 1;
@@ -104,6 +133,7 @@ edgetpu_subplugin::edgetpu_subplugin () :
     tensor_filter_subplugin (),
     empty_model (true),
     model_path (nullptr),
+    device_type (edgetpu_subplugin_device_type::DEFAULT),
     model_interpreter (nullptr),
     edgetpu_context (nullptr),
     model (nullptr)
@@ -151,9 +181,70 @@ tensor_filter_subplugin & edgetpu_subplugin::getEmptyInstance ()
   return *(new edgetpu_subplugin());
 }
 
+/**
+ * @brief Internal helper to get lowercase string of the given one.
+ * @param s The given std:string value
+ * @return A lowercase version of s
+ */
+std::string edgetpu_subplugin::str_tolower(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(),
+      [](unsigned char c){ return std::tolower(c); });
+
+  return s;
+}
+
+/**
+ * @brief Internal method to parse custom properties
+ * @param custom_prop The given c_str value of the 'custom' property
+ * @return A edgetpu_subplugin_device_type value for the given 'device_type'
+ *        if the value of the 'custom' property. Otherwise,
+ *        edgetpu_subplugin_device_type::USB, which is default, is returned.
+ */
+edgetpu_subplugin_device_type edgetpu_subplugin::parse_custom_prop (
+    const char *custom_prop)
+{
+  if ((!custom_prop) || (strlen (custom_prop) == 0))
+    return edgetpu_subplugin_device_type::DEFAULT;
+
+  const std::string cprop (custom_prop);
+  const std::string key ("device_type");
+  const std::size_t max_vec_len = 2;
+  std::vector<std::string> vec;
+  std::stringstream cprop_ss;
+  std::string token;
+  std::size_t pos;
+
+  pos = cprop.find_first_of (',');
+  cprop_ss = std::stringstream (cprop.substr (0, pos));
+
+  while (std::getline (cprop_ss, token, ':')) {
+    vec.push_back (token);
+    if (vec.size () > max_vec_len)
+      break;
+  }
+
+  if (edgetpu_subplugin::str_tolower (vec[0]) != key)
+    return edgetpu_subplugin_device_type::DEFAULT;
+
+  std::string val = edgetpu_subplugin::str_tolower (vec[1]);
+  edgetpu_subplugin_device_type ret;
+
+  ret = edgetpu_subplugin_device_type::PCI;
+  if (edgetpu_subplugin_device_type_name (ret) == val)
+    return ret;
+
+  ret = edgetpu_subplugin_device_type::DUMMY;
+  if (edgetpu_subplugin_device_type_name (ret) == val)
+    return ret;
+
+  return edgetpu_subplugin_device_type::DEFAULT;
+}
+
 void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   const std::string _model_path = prop->model_files[0];
+
+  this->device_type = this->parse_custom_prop (prop->custom_properties);
 
   if (!empty_model) {
     /* Already opened */
@@ -178,18 +269,35 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   }
 
   /** Build an interpreter */
-  edgetpu_context = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
-  if (nullptr == edgetpu_context) {
-    cleanup();
-    throw std::system_error (ENODEV, std::system_category (),
-        "Cannot open edge-TPU device.");
-  }
+  if (this->device_type != edgetpu_subplugin_device_type::DUMMY) {
+    edgetpu_context = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
+    if (nullptr == edgetpu_context) {
+      std::cerr << "Cannot open edge-TPU device." << std::endl;
+      cleanup();
+      throw std::system_error (ENODEV, std::system_category(),
+          "Cannot open edge-TPU device.");
+    }
 
-  model_interpreter = BuildEdgeTpuInterpreter(*model, edgetpu_context.get ());
-  if (nullptr == model_interpreter) {
-    cleanup();
-    throw std::system_error (ENODEV, std::system_category (),
-        "Edge-TPU device is opened, but cannot get its interpreter.");
+    model_interpreter = BuildEdgeTpuInterpreter (*model, this->device_type,
+        edgetpu_context.get ());
+    if (nullptr == model_interpreter) {
+      std::cerr << "Edge-TPU device is opened, but cannot get its interpreter."
+          << std::endl;
+      cleanup();
+      throw std::system_error (ENODEV, std::system_category(),
+          "Edge-TPU device is opened, but cannot get its interpreter.");
+    }
+  } else {
+    /* If the device_type is 'dummy', work same as tflite using CPU */
+    tflite::ops::builtin::BuiltinOpResolver resolver;
+
+    edgetpu_context = nullptr;
+    model_interpreter = BuildEdgeTpuInterpreter(*model, this->device_type);
+    if (nullptr == model_interpreter) {
+      cleanup();
+      throw std::system_error (ENODEV, std::system_category(),
+          "Failed to get the interpreter while trying to running dummy device mode of Edge-TPU.");
+    }
   }
 
   interpreter = model_interpreter.get();
@@ -313,19 +421,24 @@ int edgetpu_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEven
  * @brief Get TF-Lite interpreter w/ edgetpu context
  */
 std::unique_ptr<tflite::Interpreter>
-edgetpu_subplugin::BuildEdgeTpuInterpreter(
-    const tflite::FlatBufferModel &model,
+edgetpu_subplugin::BuildEdgeTpuInterpreter(const tflite::FlatBufferModel &model,
+    const edgetpu_subplugin_device_type dev_type,
     edgetpu::EdgeTpuContext* edgetpu_context)
 {
   tflite::ops::builtin::BuiltinOpResolver resolver;
-  resolver.AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
+
+  if (dev_type != edgetpu_subplugin_device_type::DUMMY)
+    resolver.AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
+
   std::unique_ptr<tflite::Interpreter> interpreter;
   if (tflite::InterpreterBuilder(model, resolver)(&interpreter) !=
       kTfLiteOk) {
     nns_loge ("Failed to build interpreter.");
   }
 
-  interpreter->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context);
+  if (dev_type != edgetpu_subplugin_device_type::DUMMY)
+    interpreter->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context);
+
   interpreter->SetNumThreads(1);
   if (interpreter->AllocateTensors() != kTfLiteOk) {
     nns_loge ("Failed to allocate tensors.");
