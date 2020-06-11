@@ -85,6 +85,16 @@ NNS_custom_easy_register (const char *modelname,
 }
 
 /**
+ * @brief Unregister the custom-easy tensor function.
+ * @return 0 if success. -EINVAL if invalid model name.
+ */
+int
+NNS_custom_easy_unregister (const char *modelname)
+{
+  return unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname) ? 0 : -EINVAL;
+}
+
+/**
  * @brief Callback required by tensor_filter subplugin
  */
 static int

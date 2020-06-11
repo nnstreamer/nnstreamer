@@ -63,5 +63,12 @@ extern int NNS_custom_easy_register (const char * modelname,
     NNS_custom_invoke func, void *data,
     const GstTensorsInfo * in_info, const GstTensorsInfo * out_info);
 
+/**
+ * @brief Unregister the custom-easy tensor function.
+ * @param[in] modelname The registered name of custom-easy tensor function.
+ * @return 0 if success, non-zero if error
+ */
+extern int NNS_custom_easy_unregister (const char * modelname);
+
 G_END_DECLS
 #endif /*__NNS_TENSOR_FILTER_CUSTOM_EASY_H__*/
