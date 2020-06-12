@@ -2,12 +2,12 @@
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
-%define		tensorflow_support  0
+%define		tensorflow_support 0
 %define		tensorflow_lite_support	1
 %define		armnn_support 0
 %define		vivante_support 0
 %define		flatbuf_support 1
-%define		protobuf_support  1
+%define		protobuf_support 1
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -244,10 +244,19 @@ Requires:   gst-plugins-good-extra
 Requires:   gst-libav
 %description vivante
 NNStreamer filter subplugin for Verisicon Vivante.
-
 %define enable_vivante -Denable-vivante=true
 %else
 %define enable_vivante -Denable-vivante=false
+%endif
+
+# for protobuf
+%if 0%{?protobuf_support}
+%package    nnstreamer-protobuf
+Summary:	NNStreamer Protobuf Support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	protobuf
+%description nnstreamer-protobuf
+NNStreamer's tensor_converter and decoder subplugin of Protobuf.
 %endif
 
 %package devel
@@ -566,12 +575,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
-%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
-%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_*.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini
+%if 0%{?flatbuf_support}
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
+%endif
 
 # for tensorflow
 %if 0%{?tensorflow_support}
@@ -595,6 +605,15 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
 %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
 %{python_sitelib}/nnstreamer_python.so
+%endif
+
+%if 0%{?protobuf_support}
+%files nnstreamer-protobuf
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_libdir}/libnnstreamer_protobuf.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_protobuf.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_protobuf.so
 %endif
 
 %files devel

@@ -124,18 +124,17 @@ if protobuf_support_is_available
     'tensordec-protobuf.cc',
   ]
 
-  nnstreamer_decoder_protobuf_sources = [pb_gen_src]
+  nnstreamer_decoder_protobuf_sources = []
   foreach s : decoder_sub_protobuf_sources
     nnstreamer_decoder_protobuf_sources += join_paths(meson.current_source_dir(), s)
   endforeach
   
   shared_library('nnstreamer_decoder_protobuf',
     nnstreamer_decoder_protobuf_sources,
-    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep],
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_util_dep],
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
-<<<<<<< c5239c0bfc9a1af65cecc494f1ffc1daa121d6fd
 endif
 
 # flatbuffer
@@ -155,6 +154,4 @@ if flatbuf_support_is_available
     install: true,
     install_dir: decoder_subplugin_install_dir,
   )
-=======
->>>>>>> [Converter] Add tensor converter sub-plugin protobuf
 endif
