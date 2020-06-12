@@ -608,11 +608,14 @@ gst_tensor_converter_src_query (GstPad * pad, GstObject * parent,
 /** @brief Chain function's private routine */
 static void
 _gst_tensor_converter_chain_segment (GstTensorConverter * self,
-    gboolean have_framerate, GstTensorsConfig * config, gsize frame_size)
+    GstTensorsConfig * config, gsize frame_size)
 {
   if (self->need_segment) {
     GstSegment seg;
     guint64 start;
+    gboolean have_framerate;
+
+    have_framerate = (config->rate_n > 0 && config->rate_d > 0);
 
     /** This is an internal logic error. */
     g_assert (self->have_segment);
@@ -636,32 +639,36 @@ _gst_tensor_converter_chain_segment (GstTensorConverter * self,
 /** @brief Chain function's private routine */
 static void
 _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
-    gboolean have_framerate, GstTensorsConfig * config, GstBuffer * inbuf,
-    GstClockTime * duration, GstClockTime * pts, guint frames_in)
+    GstTensorsConfig * config, GstBuffer * inbuf, guint frames_in)
 {
   if (self->set_timestamp) {
-    /* set duration */
-    *duration = GST_BUFFER_DURATION (inbuf);
+    GstClockTime pts, duration;
+    gboolean have_framerate;
 
-    if (!GST_CLOCK_TIME_IS_VALID (*duration)) {
+    have_framerate = (config->rate_n > 0 && config->rate_d > 0);
+
+    /* set duration */
+    duration = GST_BUFFER_DURATION (inbuf);
+
+    if (!GST_CLOCK_TIME_IS_VALID (duration)) {
       if (have_framerate) {
-        *duration =
+        duration =
             gst_util_uint64_scale_int (frames_in * config->rate_d, GST_SECOND,
             config->rate_n);
 
-        GST_BUFFER_DURATION (inbuf) = *duration;
+        GST_BUFFER_DURATION (inbuf) = duration;
       }
     }
 
     /* set timestamp if buffer has invalid timestamp */
-    *pts = GST_BUFFER_TIMESTAMP (inbuf);
+    pts = GST_BUFFER_TIMESTAMP (inbuf);
 
-    if (!GST_CLOCK_TIME_IS_VALID (*pts)) {
-      *pts = self->segment.start;
+    if (!GST_CLOCK_TIME_IS_VALID (pts)) {
+      pts = self->segment.start;
 
       if (have_framerate) {
         if (GST_CLOCK_TIME_IS_VALID (self->old_timestamp)) {
-          *pts = self->old_timestamp + *duration;
+          pts = self->old_timestamp + duration;
         }
       } else {
         GstClock *clock;
@@ -674,14 +681,82 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
           base = gst_element_get_base_time (GST_ELEMENT (self));
           now = gst_clock_get_time (clock);
 
-          *pts = (base < now) ? (now - base) : 0;
+          pts = (base < now) ? (now - base) : 0;
           gst_object_unref (clock);
         }
       }
 
-      GST_BUFFER_TIMESTAMP (inbuf) = *pts;
+      GST_BUFFER_TIMESTAMP (inbuf) = pts;
     }
   }
+}
+
+/** @brief Chain function's private routine to push multiple buffers */
+static GstFlowReturn
+_gst_tensor_converter_chain_chunk (GstTensorConverter * self,
+    GstTensorsConfig * config, GstBuffer * inbuf,
+    guint frames_in, guint frames_out, gsize frame_size)
+{
+  GstAdapter *adapter;
+  GstFlowReturn ret = GST_FLOW_OK;
+  GstClockTime pts, dts, duration;
+  gsize avail, out_size;
+  gboolean have_framerate;
+
+  adapter = self->adapter;
+  g_assert (adapter != NULL);
+
+  have_framerate = (config->rate_n > 0 && config->rate_d > 0);
+
+  duration = GST_BUFFER_DURATION (inbuf);
+  if (GST_CLOCK_TIME_IS_VALID (duration)) {
+    /** supposed same duration for incoming buffer */
+    duration = gst_util_uint64_scale_int (duration, frames_out, frames_in);
+  }
+
+  gst_adapter_push (adapter, inbuf);
+
+  out_size = frames_out * frame_size;
+  while ((avail = gst_adapter_available (adapter)) >= out_size &&
+      ret == GST_FLOW_OK) {
+    GstBuffer *outbuf;
+    guint64 pts_dist, dts_dist;
+
+    pts = gst_adapter_prev_pts (adapter, &pts_dist);
+    dts = gst_adapter_prev_dts (adapter, &dts_dist);
+
+    /**
+     * Update timestamp.
+     * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
+     */
+    if (frames_in > 1 && have_framerate) {
+      if (GST_CLOCK_TIME_IS_VALID (pts)) {
+        pts +=
+            gst_util_uint64_scale_int (pts_dist * config->rate_d, GST_SECOND,
+            config->rate_n * frame_size);
+      }
+
+      if (GST_CLOCK_TIME_IS_VALID (dts)) {
+        dts +=
+            gst_util_uint64_scale_int (dts_dist * config->rate_d, GST_SECOND,
+            config->rate_n * frame_size);
+      }
+    }
+
+    outbuf = gst_adapter_take_buffer (adapter, out_size);
+    outbuf = gst_buffer_make_writable (outbuf);
+
+    /** set timestamp */
+    GST_BUFFER_PTS (outbuf) = pts;
+    GST_BUFFER_DTS (outbuf) = dts;
+    GST_BUFFER_DURATION (outbuf) = duration;
+
+    silent_debug_timestamp (outbuf);
+
+    ret = gst_pad_push (self->srcpad, outbuf);
+  }
+
+  return ret;
 }
 
 /**
@@ -692,13 +767,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorConverter *self;
   GstTensorsConfig *config;
-  GstAdapter *adapter;
   GstBuffer *inbuf;
-  gsize avail, buf_size, frame_size, out_size;
+  gsize buf_size, frame_size;
   guint frames_in, frames_out;
-  GstFlowReturn ret = GST_FLOW_OK;
-  GstClockTime pts, dts, duration;
-  gboolean have_framerate;
 
   buf_size = gst_buffer_get_size (buf);
   g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
@@ -708,8 +779,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /** This is an internal logic error. */
   g_assert (self->tensors_configured);
   config = &self->tensors_config;
-
-  have_framerate = (config->rate_n > 0 && config->rate_d > 0);
 
   frames_out = self->frames_per_tensor;
   inbuf = buf;
@@ -864,12 +933,10 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   /** convert format (bytes > time) and push segment event.
     * It will push event if needed (self->need_segment is true). */
-  _gst_tensor_converter_chain_segment (self, have_framerate, config,
-      frame_size);
+  _gst_tensor_converter_chain_segment (self, config, frame_size);
 
   /** configures timestamp if required (self->set_timestamp is true) */
-  _gst_tensor_converter_chain_timestamp (self, have_framerate, config, inbuf,
-      &duration, &pts, frames_in);
+  _gst_tensor_converter_chain_timestamp (self, config, inbuf, frames_in);
 
   /* update old timestamp */
   self->old_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
@@ -881,58 +948,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return gst_pad_push (self->srcpad, inbuf);
   }
 
-  adapter = self->adapter;
-  g_assert (adapter != NULL);
-
-  duration = GST_BUFFER_DURATION (inbuf);
-  if (GST_CLOCK_TIME_IS_VALID (duration)) {
-    /** supposed same duration for incoming buffer */
-    duration = gst_util_uint64_scale_int (duration, frames_out, frames_in);
-  }
-
-  gst_adapter_push (adapter, inbuf);
-
-  out_size = frames_out * frame_size;
-  while ((avail = gst_adapter_available (adapter)) >= out_size &&
-      ret == GST_FLOW_OK) {
-    GstBuffer *outbuf;
-    guint64 pts_dist, dts_dist;
-
-    pts = gst_adapter_prev_pts (adapter, &pts_dist);
-    dts = gst_adapter_prev_dts (adapter, &dts_dist);
-
-    /**
-     * Update timestamp.
-     * If frames-in is larger then frames-out, the same timestamp (pts and dts) would be returned.
-     */
-    if (frames_in > 1 && have_framerate) {
-      if (GST_CLOCK_TIME_IS_VALID (pts)) {
-        pts +=
-            gst_util_uint64_scale_int (pts_dist * config->rate_d, GST_SECOND,
-            config->rate_n * frame_size);
-      }
-
-      if (GST_CLOCK_TIME_IS_VALID (dts)) {
-        dts +=
-            gst_util_uint64_scale_int (dts_dist * config->rate_d, GST_SECOND,
-            config->rate_n * frame_size);
-      }
-    }
-
-    outbuf = gst_adapter_take_buffer (adapter, out_size);
-    outbuf = gst_buffer_make_writable (outbuf);
-
-    /** set timestamp */
-    GST_BUFFER_PTS (outbuf) = pts;
-    GST_BUFFER_DTS (outbuf) = dts;
-    GST_BUFFER_DURATION (outbuf) = duration;
-
-    silent_debug_timestamp (outbuf);
-
-    ret = gst_pad_push (self->srcpad, outbuf);
-  }
-
-  return ret;
+  /* push multiple buffers */
+  return _gst_tensor_converter_chain_chunk (self, config, inbuf, frames_in,
+      frames_out, frame_size);
 }
 
 /**
@@ -1728,32 +1746,32 @@ unregisterExternalConverter (const char *name)
 static const NNStreamerExternalConverter *
 findExternalConverter (const char *media_type)
 {
-  guint total, i, caps_size, caps_idx;
+  guint total, i, j, caps_size;
   subplugin_info_s info;
-  GstCaps *temp_cap;
-  GstStructure *temp_struct;
-  const gchar *caps_string;
-  const NNStreamerExternalConverter *ex = NULL;
+  GstCaps *caps;
+  const gchar *caps_name;
+  const NNStreamerExternalConverter *ex;
 
   total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
   for (i = 0; i < total; i++) {
-    const NNStreamerExternalConverter *temp_ex
-        = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
+    ex = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
 
-    if (temp_ex && temp_ex->query_caps) {
-      temp_cap = temp_ex->query_caps (NULL);
-      caps_size = gst_caps_get_size (temp_cap);
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) {
-        temp_struct = gst_caps_get_structure (temp_cap, caps_idx);
-        caps_string = gst_structure_get_name (temp_struct);
-        if (g_strcmp0 (media_type, caps_string) == 0) {
-          ex = temp_ex;
-          break;
+    if (ex && ex->query_caps) {
+      caps = ex->query_caps (NULL);
+      caps_size = gst_caps_get_size (caps);
+
+      for (j = 0; j < caps_size; j++) {
+        caps_name = gst_structure_get_name (gst_caps_get_structure (caps, j));
+        if (g_strcmp0 (media_type, caps_name) == 0) {
+          /* found matched media type */
+          gst_caps_unref (caps);
+          return ex;
         }
       }
-      gst_caps_unref (temp_cap);
+
+      gst_caps_unref (caps);
     }
   }
 
-  return ex;
+  return NULL;
 }
