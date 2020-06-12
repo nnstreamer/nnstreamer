@@ -147,11 +147,24 @@ $ git clone https://github.com/nnstreamer/nnstreamer.git
 Run the build script in NNStreamer.
 
 - Build options
-  1. target_abi: Default arm64-v8a, specify the ABI (armeabi-v7a, arm64-v8a) to be built for with `--target_abi={TARGET-ABI}`.
-  2. build_type: Default all.
+  1. Target ABI: Default arm64-v8a, specify the ABI (armeabi-v7a, arm64-v8a) to be built for with `--target_abi={TARGET-ABI}`.
+  2. Type: Default all.
+      - `--build_type=all` to include all features.
       - `--build_type=single` to enable SingleShot API only.
       - `--build_type=lite` to get the minimized library with GStreamer core elements.
-  3. run_test: Run the instrumentation test `--run_test=yes`.
+  3. Including sub-plugins: Default TensorFlow-Lite enabled.
+    To enable each neural network frameworks, you should download and set-up proper environment.
+      - `--enable_tflite=yes` to build with TensorFlow-Lite.
+      - `--enable_snpe=yes` to build with SNPE (Qualcomm Snapdragon Neural Processing Engine).
+      - `--enable_nnfw=yes` to build with NNFW (Samsung on-device neural network inference framework).
+      - `--enable_snap=yes` to build with SNAP (Samsung Neural Acceleration Platform).
+  4. Run test: Default no. `--run_test=yes` to run the instrumentation test.
+  5. Other options
+      - `--nnstreamer_dir=<path>` path to NNStreamer root directory. Default `NNSTREAMER_ROOT` is used if this is not set.
+      - `--result_dir=<path>` path to build result. Default path is `NNSTREAMER_ROOT/android_lib`.
+      - `--gstreamer_dir=<path>` path to GStreamer binaries. Default path is `GSTREAMER_ROOT_ANDROID`.
+      - `--android_sdk_dir=<path>` path to Android SDK. Default path is `ANDROID_SDK_ROOT`.
+      - `--android_ndk_dir=<path>` path to Android NDK. Default path is `ANDROID_NDK_ROOT`.
 
 ```bash
 $ cd $NNSTREAMER_ROOT
