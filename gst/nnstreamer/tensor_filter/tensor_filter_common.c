@@ -1038,7 +1038,7 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
   gst_tensor_filter_parse_modelpaths_string (prop, model_files);
 
   if (prop->fwname != NULL && g_ascii_strcasecmp (prop->fwname, "auto") == 0)
-    gst_tensor_filter_get_available_framework (priv, prop->fwname);
+    gst_tensor_filter_get_available_framework (priv, "auto");
 
   /**
    * Reload model if FW has been already opened;
