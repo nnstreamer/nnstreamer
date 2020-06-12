@@ -52,7 +52,7 @@
 #define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 /**
- * @brief Default static capibility for other/tensor
+ * @brief Default static capability for other/tensor
  */
 #define GST_TENSOR_CAP_DEFAULT \
     "other/tensor, " \
@@ -65,7 +65,7 @@
      */
 
 /**
- * @brief Default static capibility for other/tensors
+ * @brief Default static capability for other/tensors
  */
 #define GST_TENSORS_CAP_DEFAULT \
     "other/tensors, " \
@@ -80,7 +80,7 @@
      */
 
 /**
- * @brief Default static capibility for Protocol Buffers
+ * @brief Default static capability for Protocol Buffers
  * protobuf converter will convert this capability to other/tensor(s)
  * @todo Move this definition to proper header file
  */
@@ -88,7 +88,7 @@
     "other/protobuf-tensor, " \
     "framerate = " GST_TENSOR_RATE_RANGE
 /**
- * @brief Default static capibility for flatbuffers
+ * @brief Default static capability for flatbuffers
  * Flatbuf converter will convert this capability to other/tensor(s)
  * @todo Move this definition to proper header file
  */
