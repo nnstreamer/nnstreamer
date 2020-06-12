@@ -24,14 +24,14 @@ if protobuf_support_is_available
     'tensor_converter_protobuf.cc'
   ]
 
-  nnstreamer_converter_protobuf_sources = [pb_gen_src]
+  nnstreamer_converter_protobuf_sources = []
   foreach s : converter_sub_protobuf_sources
     nnstreamer_converter_protobuf_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
   shared_library('nnstreamer_converter_protobuf',
     nnstreamer_converter_protobuf_sources,
-    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep],
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_util_dep],
     install: true,
     install_dir: converter_subplugin_install_dir
   )

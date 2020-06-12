@@ -17,6 +17,7 @@ if protobuf_support_is_available
   pb_gen_src = pb_gen.process('./include/nnstreamer.proto')
 endif
 
+subdir('extra')
 subdir('tensor_decoder')
 subdir('tensor_filter')
 subdir('tensor_source')
