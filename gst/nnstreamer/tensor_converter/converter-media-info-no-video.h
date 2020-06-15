@@ -5,7 +5,7 @@
  */
 
 /**
- * @file  converter-media-info-video.h
+ * @file  converter-media-info-no-video.h
  * @date  26 Mar 2019
  * @brief Define collection of media type and functions to parse media info for video if there is no video support
  * @see https://github.com/nnstreamer/nnstreamer
