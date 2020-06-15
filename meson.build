@@ -133,7 +133,7 @@ protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 # Protobuf compiler
 pb_comp = find_program('protoc', required: get_option('protobuf-support'))
 
-json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support')) 
+json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support'))
 
 #orc
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
@@ -141,7 +141,7 @@ orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc
 
 #movidius
 mvncsdk2_dep = dependency('', required: false)
-if not get_option('mvncsdk2-support').disabled() 
+if not get_option('mvncsdk2-support').disabled()
   mvncsdk2_dep = cc.find_library('mvnc', required: false)
   if not mvncsdk2_dep.found()
     if cc.check_header('mvnc2/mvnc.h', required: get_option('mvncsdk2-support'))
@@ -277,7 +277,7 @@ foreach feature_name, data : features
 endforeach
 
 
-#Definitions enabled by meson_options.txt 
+#Definitions enabled by meson_options.txt
 message('Following project_args are going to be included')
 message(project_args)
 foreach name, value: project_args
