@@ -180,7 +180,7 @@ if get_option('install-test')
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_tests_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_tests_install_dir)
   endif
-  if python2_support_is_available or python3_support_is_available
+  if have_python2 or have_python3
     install_subdir('nnstreamer_filter_python', install_dir: unittest_tests_install_dir)
   endif
   if tf_support_is_available
