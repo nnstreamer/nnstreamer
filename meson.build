@@ -424,16 +424,17 @@ if get_option('enable-test')
 
   path_gst_plugin = join_paths(meson.build_root(), 'gst', 'nnstreamer')
   path_nns_conf = join_paths(meson.build_root(), 'nnstreamer-test.ini')
-  path_nns_plugin_filters = join_paths(meson.build_root(), 'ext', 'nnstreamer',
-      'tensor_filter')
-  path_nns_plugin_decoders = join_paths(meson.build_root(), 'ext', 'nnstreamer',
-      'tensor_decoder')
+  path_nns_plugin_prefix = join_paths(meson.build_root(), 'ext', 'nnstreamer')
+  path_nns_plugin_filters = join_paths(path_nns_plugin_prefix, 'tensor_filter')
+  path_nns_plugin_decoders = join_paths(path_nns_plugin_prefix, 'tensor_decoder')
+  path_nns_plugin_converters = join_paths(path_nns_plugin_prefix, 'tensor_converter')
 
   testenv = environment()
   testenv.set('GST_PLUGIN_PATH', path_gst_plugin)
   testenv.set('NNSTREAMER_CONF', path_nns_conf)
   testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
   testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
+  testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
 
   subdir('tests')
 endif
