@@ -1016,7 +1016,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
 void
 init_filter_tflite (void)
 {
-  NNS_support_tensorflow_lite.name = filter_subplugin_tensorflow_lite,
+  NNS_support_tensorflow_lite.name = filter_subplugin_tensorflow_lite;
   NNS_support_tensorflow_lite.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
   NNS_support_tensorflow_lite.allocate_in_invoke = FALSE;
   NNS_support_tensorflow_lite.run_without_model = FALSE;
