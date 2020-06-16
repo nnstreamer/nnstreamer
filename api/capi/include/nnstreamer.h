@@ -113,6 +113,11 @@ typedef void *ml_pipeline_switch_h;
 typedef void *ml_pipeline_valve_h;
 
 /**
+ * @brief A handle of a common element (i.e. All GstElement except AppSrc, AppSink, TensorSink, Selector and Valve) of an NNStreamer pipeline
+ */
+typedef void *ml_pipeline_element_h;
+
+/**
  * @brief Types of NNFWs.
  * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability().
  * @since_tizen 5.5
@@ -568,6 +573,164 @@ int ml_pipeline_valve_release_handle (ml_pipeline_valve_h valve_handle);
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
+
+/********************************************************
+ ** NNStreamer Element Property Control in Pipeline    **
+ ********************************************************/
+
+/**
+ * @brief Gets an element handle in NNStreamer pipelines to control its properties.
+ * @since_tizen 6.0
+ * @remarks If the function succeeds, @a elm_h handle must be released using ml_pipeline_element_release_handle().
+ * @param[in] pipe The pipeline to be managed.
+ * @param[in] element_name The name of element to control.
+ * @param[out] elm_h The element handle.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
+ */
+int ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name, ml_pipeline_element_h *elm_h);
+
+/**
+ * @brief Releases the given element handle.
+ * @since_tizen 6.0
+ * @param[in] elm_h The handle to be released.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_pipeline_element_release_handle (ml_pipeline_element_h elm_h);
+
+/**
+ * @brief Sets element properties in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports a varying number of name/value pairs, finished by NULL.
+ * @remarks If one of given property name does not exist, all properties are not set.
+ * @param[in] elm_h The target element handle.
+ * @param[in] first_property_name The name of first property to set.
+ * @param[in] ... A varying number of name/value pairs, finished by NULL.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid or given property name does not exist.
+ *
+ * Here is an example of the usage:
+ * @code
+ * ml_pipeline_h handle;
+ * ml_pipeline_element_h elem_h;
+ * gchar *pipeline;
+ * gchar *ret_mode = NULL;
+ * gboolean ret_silent;
+ * int status;
+ *
+ * // Pipeline description
+ * pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+ * "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
+ *
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * // Get the handle of target element
+ * status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * // Set single property of target element
+ * status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest", NULL);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * // Set multiple properties of target element
+ * status = ml_pipeline_element_set_property(elem_h, "sync_mode", "nosync",
+ *   "silent", TRUE, NULL);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * error:
+ * ml_pipeline_element_release_handle (elem_h);
+ * ml_pipeline_destroy (handle);
+ * g_free(pipeline);
+ * @endcode
+ */
+int ml_pipeline_element_set_property (ml_pipeline_element_h elm_h, const char *first_property_name, ...);
+
+/**
+ * @brief Gets element properties in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports a varying number of name/return location pairs, finished by NULL.
+ * @remarks If one of given property name does not exist, error code returns without fetching any properties.
+ * @remarks The callers is responsible for freeing the allocated memory by calling g_free().
+ * @param[in] elm_h The target element handle.
+ * @param[in] first_property_name The name of first property to get.
+ * @param[in] ... A varying number of name/return location pairs, finished by NULL.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid or given property name does not exist.
+ *
+ * Here is an example of the usage:
+ * @code
+ * ml_pipeline_h handle;
+ * ml_pipeline_element_h elem_h;
+ * gchar *pipeline;
+ * gchar *ret_mode = NULL;
+ * gboolean ret_silent;
+ * int status;
+ *
+ * // Pipeline description
+ * pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+ * "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
+ *
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * // Get the handle of target element
+ * status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ *
+ * // Get single property of target element
+ * status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode, NULL);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ * g_assert_true (g_strcmp0 ("slowest", ret_mode) == 0);
+ * g_free (ret_mode);
+ *
+ * // Get multiple properties of target element
+ * status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode,
+ *   "silent", &ret_silent, NULL);
+ * if (status != ML_ERROR_NONE) {
+ *   // handle error case
+ *   goto error;
+ * }
+ * g_free (ret_mode);
+ *
+ * error:
+ * ml_pipeline_element_release_handle (elem_h);
+ * ml_pipeline_destroy (handle);
+ * g_free(pipeline);
+ * @endcode
+ */
+int ml_pipeline_element_get_property (ml_pipeline_element_h elm_h, const char *first_property_name, ...);
 
 /****************************************************
  ** NNStreamer Utilities                           **
