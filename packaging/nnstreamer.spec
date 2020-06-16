@@ -42,6 +42,11 @@
 %define		vivante_support 0
 %endif
 
+# Flatbuffers-dev package is necessary to build tensorflow-lite
+%if 0%{?tensorflow_lite_support}
+%define		flatbuf_support 1
+%endif
+
 # DA requested to remove unnecessary module builds
 %if 0%{?_with_da_profile}
 %define	mvncsdk2_support 0
