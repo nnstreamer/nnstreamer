@@ -206,7 +206,7 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
 
-  dest->name = (src->name) ? g_strdup (src->name) : NULL;
+  dest->name = g_strdup (src->name);
   dest->type = src->type;
 
   for (i = 0; i < n; i++) {

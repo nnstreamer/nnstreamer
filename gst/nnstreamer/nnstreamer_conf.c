@@ -140,7 +140,7 @@ _strdup_getenv (const gchar * name)
    */
   const gchar *tmp = g_getenv (name);
 
-  return (tmp != NULL) ? g_strdup (tmp) : NULL;
+  return g_strdup (tmp);
 }
 
 /**
@@ -537,7 +537,7 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
       g_hash_table_insert (custom_table, hashkey, value);
   }
 
-  return (value != NULL) ? g_strdup (value) : NULL;
+  return g_strdup (value);
 }
 
 /** @brief Public function defined in the header */
