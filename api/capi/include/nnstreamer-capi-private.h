@@ -123,6 +123,7 @@ typedef enum {
   ML_PIPELINE_ELEMENT_VALVE = 0x4,
   ML_PIPELINE_ELEMENT_SWITCH_INPUT = 0x8,
   ML_PIPELINE_ELEMENT_SWITCH_OUTPUT = 0x9,
+  ML_PIPELINE_ELEMENT_COMMON = 0xB,
 } ml_pipeline_element_e;
 
 /**
@@ -194,34 +195,14 @@ typedef struct _ml_pipeline_sink {
 } ml_pipeline_sink;
 
 /**
- * @brief Internal private representation of src handle of GstAppSrc
+ * @brief Internal private representation of common element handle (All GstElement except AppSink and TensorSink)
  * @details This represents a single instance of registration. This should not be exposed to applications.
  */
-typedef struct _ml_pipeline_src {
+typedef struct _ml_pipeline_common_elem {
   ml_pipeline *pipe;
   ml_pipeline_element *element;
   guint32 id;
-} ml_pipeline_src;
-
-/**
- * @brief Internal private representation of switch handle (GstInputSelector, GstOutputSelector)
- * @details This represents a single instance of registration. This should not be exposed to applications.
- */
-typedef struct _ml_pipeline_switch {
-  ml_pipeline *pipe;
-  ml_pipeline_element *element;
-  guint32 id;
-} ml_pipeline_switch;
-
-/**
- * @brief Internal private representation of valve handle (GstValve)
- * @details This represents a single instance of registration. This should not be exposed to applications.
- */
-typedef struct _ml_pipeline_valve {
-  ml_pipeline *pipe;
-  ml_pipeline_element *element;
-  guint32 id;
-} ml_pipeline_valve;
+} ml_pipeline_common_elem;
 
 /**
  * @brief An information to create single-shot instance.
