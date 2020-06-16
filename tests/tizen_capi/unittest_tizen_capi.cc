@@ -1280,6 +1280,36 @@ TEST (nnstreamer_capi_switch, failure_01_n)
 }
 
 /**
+ * @brief Test NNStreamer Utility for checking plugin availability (invalid param)
+ */
+TEST (nnstreamer_capi_util, plugin_availability_fail_invalid_n)
+{
+  int status;
+
+  status = ml_check_plugin_availability ("nnstreamer", NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_check_plugin_availability (NULL, "tensor_filter");
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking nnfw availability (invalid param)
+ */
+TEST (nnstreamer_capi_util, nnfw_availability_fail_invalid_n)
+{
+  bool result;
+  int status;
+
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  /* any is unknown nnfw type */
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY, &result);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
  * @brief Test NNStreamer Utility for checking availability of NNFW
  */
 TEST (nnstreamer_capi_util, availability_00)
@@ -2082,6 +2112,17 @@ TEST (nnstreamer_capi_util, data_create_n)
 
   status = ml_tensors_info_destroy (info);
   ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, data_create_internal_n)
+{
+  int status;
+
+  status = ml_tensors_data_create_no_alloc (NULL, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
 }
 
 /*
