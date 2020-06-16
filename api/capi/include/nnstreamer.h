@@ -746,7 +746,6 @@ int ml_tensors_info_get_tensor_size (ml_tensors_info_h info, int index, size_t *
  * @retval #ML_ERROR_NONE Successful
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE Failed to allocate new memory.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
  */
 int ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h *data);
