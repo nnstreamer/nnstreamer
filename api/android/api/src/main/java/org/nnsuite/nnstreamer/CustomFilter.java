@@ -20,7 +20,8 @@ import android.support.annotation.NonNull;
 /**
  * Provides interfaces to create a custom-filter in the pipeline.<br>
  * <br>
- * To register a new custom-filter, an application should call {@link #registerCustomFilter(String, CustomFilterCallback)}
+ * To register a new custom-filter, an application should call
+ * {@link #registerCustomFilter(String, TensorsInfo, TensorsInfo, CustomFilterCallback)}
  * before constructing the pipeline.
  */
 public final class CustomFilter implements AutoCloseable {
@@ -28,29 +29,15 @@ public final class CustomFilter implements AutoCloseable {
     private String mName = null;
     private CustomFilterCallback mCallback = null;
 
-    private native long nativeInitialize(String name);
+    private native long nativeInitialize(String name, TensorsInfo in, TensorsInfo out);
     private native void nativeDestroy(long handle);
 
     /**
      * Interface definition for a callback to be invoked while processing the pipeline.
      *
-     * @see #registerCustomFilter(String, CustomFilterCallback)
+     * @see #registerCustomFilter(String, TensorsInfo, TensorsInfo, CustomFilterCallback)
      */
     public interface CustomFilterCallback {
-        /**
-         * Called synchronously when constructing a pipeline.
-         *
-         * NNStreamer filter configures input and output tensors information during the caps negotiation.
-         *
-         * Note that this is not a fixed value and the pipeline may try different values during the caps negotiation.
-         * An application should validate the information of input tensors and return proper output information.
-         *
-         * @param in The input tensors information
-         *
-         * @return The output tensors information
-         */
-        TensorsInfo getOutputInfo(TensorsInfo in);
-
         /**
          * Called synchronously while processing the pipeline.
          *
@@ -65,11 +52,14 @@ public final class CustomFilter implements AutoCloseable {
     }
 
     /**
-     * Registers new custom-filter with name.
+     * Registers new custom-filter with input and output tensors information.
      *
+     * NNStreamer processes the tensors with 'custom-easy' framework which can execute without the model file.
      * Note that if given name is duplicated in the pipeline, the registration will be failed and throw an exception.
      *
      * @param name     The name of custom-filter
+     * @param in       The input tensors information
+     * @param out      The output tensors information
      * @param callback The function to be called while processing the pipeline
      *
      * @return {@link CustomFilter} instance
@@ -77,8 +67,9 @@ public final class CustomFilter implements AutoCloseable {
      * @throws IllegalArgumentException if given param is null
      * @throws IllegalStateException if failed to initialize custom-filter
      */
-    public static CustomFilter registerCustomFilter(@NonNull String name, @NonNull CustomFilterCallback callback) {
-        return new CustomFilter(name, callback);
+    public static CustomFilter registerCustomFilter(@NonNull String name, @NonNull TensorsInfo in,
+            @NonNull TensorsInfo out, @NonNull CustomFilterCallback callback) {
+        return new CustomFilter(name, in, out, callback);
     }
 
     /**
@@ -94,40 +85,33 @@ public final class CustomFilter implements AutoCloseable {
      * Internal constructor to create and register a custom-filter.
      *
      * @param name     The name of custom-filter
+     * @param in       The input tensors information
+     * @param out      The output tensors information
      * @param callback The function to be called while processing the pipeline
      *
      * @throws IllegalArgumentException if given param is null
      * @throws IllegalStateException if failed to initialize custom-filter
      */
-    private CustomFilter(@NonNull String name, @NonNull CustomFilterCallback callback) {
+    private CustomFilter(String name, TensorsInfo in, TensorsInfo out, CustomFilterCallback callback) {
         if (name == null) {
             throw new IllegalArgumentException("Given name is null");
+        }
+
+        if (in == null || out == null) {
+            throw new IllegalArgumentException("Given info is null");
         }
 
         if (callback == null) {
             throw new IllegalArgumentException("Given callback is null");
         }
 
-        mHandle = nativeInitialize(name);
+        mHandle = nativeInitialize(name, in, out);
         if (mHandle == 0) {
             throw new IllegalStateException("Failed to initialize custom-filter " + name);
         }
 
         mName = name;
         mCallback = callback;
-    }
-
-    /**
-     * Internal method called from native during the caps negotiation.
-     */
-    private TensorsInfo getOutputInfo(TensorsInfo in) {
-        TensorsInfo out = null;
-
-        if (mCallback != null) {
-            out = mCallback.getOutputInfo(in);
-        }
-
-        return out;
     }
 
     /**

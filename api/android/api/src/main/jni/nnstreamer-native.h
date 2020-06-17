@@ -249,7 +249,7 @@ extern jboolean
 nns_native_single_set_input_info (JNIEnv * env, jobject thiz, jlong handle, jobject in);
 #if !defined (NNS_SINGLE_ONLY)
 extern jlong
-nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name);
+nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name, jobject in, jobject out);
 extern void
 nns_native_custom_destroy (JNIEnv * env, jobject thiz, jlong handle);
 extern jlong
