@@ -357,7 +357,7 @@ const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
  *          Note that caller should release the returned reference using gst_object_unref().
  * @return The reference of pipeline itself. Null if the pipeline is not constructed or closed.
  */
-GstElement* ml_pipeline_get_element (ml_pipeline_h pipe);
+GstElement* ml_pipeline_get_gst_element (ml_pipeline_h pipe);
 
 #if defined (__TIZEN__)
 /**
