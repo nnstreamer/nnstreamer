@@ -285,10 +285,7 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
       ml_pipeline_destroy (pipe_info->pipeline_handle);
       break;
     case NNS_PIPE_TYPE_CUSTOM:
-      /**
-       * Do nothing here (no handle to close).
-       * The handle is filter-framework and it will be closed in customfilter-destroy function.
-       */
+      ml_pipeline_custom_easy_filter_unregister (pipe_info->pipeline_handle);
       break;
 #endif
     case NNS_PIPE_TYPE_SINGLE:
@@ -444,7 +441,8 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   g_return_val_if_fail (obj_data, FALSE);
   g_return_val_if_fail (data_h, FALSE);
 
-  if (ml_tensors_data_create_no_alloc (NULL, data_h) != ML_ERROR_NONE) {
+  if (*data_h == NULL &&
+      ml_tensors_data_create_no_alloc (NULL, data_h) != ML_ERROR_NONE) {
     nns_loge ("Failed to create handle for tensors data.");
     return FALSE;
   }
@@ -465,7 +463,8 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       gsize data_size = (gsize) (*env)->GetDirectBufferCapacity (env, tensor);
       gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor);
 
-      data->tensors[i].tensor = g_malloc (data_size);
+      if (data->tensors[i].tensor == NULL)
+        data->tensors[i].tensor = g_malloc (data_size);
       if (data->tensors[i].tensor == NULL) {
         nns_loge ("Failed to allocate memory %zd, index %d.", data_size, i);
         (*env)->DeleteLocalRef (env, tensor);
@@ -844,7 +843,7 @@ static JNINativeMethod native_methods_pipeline[] = {
  * @brief List of implemented native methods for CustomFilter class.
  */
 static JNINativeMethod native_methods_customfilter[] = {
-  {"nativeInitialize", "(Ljava/lang/String;)J",
+  {"nativeInitialize", "(Ljava/lang/String;L" NNS_CLS_TINFO ";L" NNS_CLS_TINFO ";)J",
       (void *) nns_native_custom_initialize},
   {"nativeDestroy", "(J)V", (void *) nns_native_custom_destroy}
 };
