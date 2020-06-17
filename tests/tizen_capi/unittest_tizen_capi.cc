@@ -2110,6 +2110,10 @@ TEST (nnstreamer_capi_util, data_create_n)
   status = ml_tensors_data_create (info, nullptr);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  /* invalid info */
+  status = ml_tensors_data_create (info, &data);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
   status = ml_tensors_info_destroy (info);
   ASSERT_EQ (status, ML_ERROR_NONE);
 }

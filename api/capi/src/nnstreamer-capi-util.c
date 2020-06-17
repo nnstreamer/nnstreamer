@@ -615,6 +615,11 @@ ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h * data)
   if (info == NULL || data == NULL)
     return ML_ERROR_INVALID_PARAMETER;
 
+  if (!ml_tensors_info_is_valid (info)) {
+    nns_loge ("Given tensors information is invalid.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
   status =
       ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) & _data);
 
