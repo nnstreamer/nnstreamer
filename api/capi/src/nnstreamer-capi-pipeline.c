@@ -1560,7 +1560,7 @@ ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
  * @brief Gets the element of pipeline itself (GstElement).
  */
 GstElement *
-ml_pipeline_get_element (ml_pipeline_h pipe)
+ml_pipeline_get_gst_element (ml_pipeline_h pipe)
 {
   ml_pipeline *p = (ml_pipeline *) pipe;
   GstElement *element = NULL;
