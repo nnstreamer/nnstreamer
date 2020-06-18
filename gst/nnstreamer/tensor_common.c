@@ -123,10 +123,8 @@ gst_tensor_info_free (GstTensorInfo * info)
 {
   g_return_if_fail (info != NULL);
 
-  if (info->name) {
-    g_free (info->name);
-    info->name = NULL;
-  }
+  g_free (info->name);
+  info->name = NULL;
 }
 
 /**
@@ -205,6 +203,8 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
 
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
+
+  g_free (dest->name);
 
   dest->name = g_strdup (src->name);
   dest->type = src->type;
