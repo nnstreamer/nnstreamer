@@ -533,8 +533,13 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
       }
     }
 
-    if (value)
+    if (value) {
       g_hash_table_insert (custom_table, hashkey, value);
+    } else {
+      g_free (hashkey);
+    }
+  } else {
+    g_free (hashkey);
   }
 
   return g_strdup (value);
