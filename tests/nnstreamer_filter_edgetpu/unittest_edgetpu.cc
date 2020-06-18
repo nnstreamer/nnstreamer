@@ -26,7 +26,7 @@ TEST (edgetpu_tflite_direct, run_01)
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" ! fakesink",
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" custom=device_type:dummy ! fakesink",
       test_model);
   gstpipe = gst_parse_launch (pipeline, &err);
   if (gstpipe) {
@@ -62,7 +62,7 @@ TEST (edgetpu_tflite_direct, error_01_n)
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "does_not_exists.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" ! fakesink",
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" custom=device_type:dummy ! fakesink",
       test_model);
   gstpipe = gst_parse_launch (pipeline, &err);
 
@@ -101,7 +101,7 @@ TEST (edgetpu_tflite_direct, error_02_n)
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=240,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" ! fakesink",
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=240,height=224 ! tensor_converter ! tensor_filter framework=edgetpu model=\"%s\" custom=device_type:dummy ! fakesink",
       test_model);
   gstpipe = gst_parse_launch (pipeline, &err);
   if (gstpipe) {
