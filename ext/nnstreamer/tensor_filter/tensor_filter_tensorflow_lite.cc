@@ -921,6 +921,7 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (out_info, -EINVAL);
 
   /** get current input tensor info for resetting */
+  gst_tensors_info_init (&cur_in_info);
   status = core->getInputTensorDim (&cur_in_info);
   if (status != 0)
     return status;

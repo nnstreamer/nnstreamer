@@ -1686,6 +1686,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   }
 
   /* compare type and dimension */
+  gst_tensor_config_init (&config);
   if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
           &in_config.info, &config.info)) {
     GST_ERROR_OBJECT (filter,
