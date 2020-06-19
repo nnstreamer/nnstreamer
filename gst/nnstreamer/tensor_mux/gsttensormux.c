@@ -71,7 +71,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_mux_debug);
  * @brief Macro for debug mode.
  */
 #ifndef DBG
-#define DBG (!filter->silent)
+#define DBG (!tensor_mux->silent)
 #endif
 
 /**
@@ -79,7 +79,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_mux_debug);
  */
 #define silent_debug(...) do { \
     if (DBG) { \
-      GST_DEBUG_OBJECT (filter, __VA_ARGS__); \
+      GST_DEBUG_OBJECT (tensor_mux, __VA_ARGS__); \
     } \
   } while (0)
 
@@ -212,7 +212,6 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
   tensor_mux->silent = TRUE;
   tensor_mux->sync.mode = SYNC_SLOWEST;
   tensor_mux->sync.option = NULL;
-  tensor_mux->need_buffer = FALSE;
   tensor_mux->current_time = 0;
   tensor_mux->need_set_time = TRUE;
   gst_tensors_config_init (&tensor_mux->tensors_config);
@@ -265,9 +264,11 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   if (newpad) {
     GstTensorCollectPadData *tensormuxpad;
+
     tensormuxpad = (GstTensorCollectPadData *)
         gst_collect_pads_add_pad (tensor_mux->collect, newpad,
         sizeof (GstTensorCollectPadData), NULL, TRUE);
+
     tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
     gst_element_add_pad (element, newpad);
@@ -320,22 +321,19 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
  * @brief Looping to generete outbut buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
- * @param pts_time earliest pts time (present timestamp)
- * @param dts_time earliest dts time (decoding timestamp)
- * @return isEOS boolean EOS ( End of Stream )
+ * @param is_eos boolean EOS ( End of Stream )
+ * @return TRUE to push buffer to src pad
  */
 static gboolean
 gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
-    GstBuffer * tensors_buf, GstClockTime * pts_time, GstClockTime * dts_time)
+    GstBuffer * tensors_buf, gboolean * is_eos)
 {
-  gboolean isEOS = FALSE;
-  GstTensorMux *filter = tensor_mux;
-
-  if (tensor_mux->sync.mode && tensor_mux->need_set_time) {
+  if (tensor_mux->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_mux->collect,
             &tensor_mux->sync, &tensor_mux->current_time)) {
       /* end-of-stream */
-      return TRUE;
+      *is_eos = TRUE;
+      return FALSE;
     }
 
     tensor_mux->need_set_time = FALSE;
@@ -343,18 +341,61 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
         GST_TIME_ARGS (tensor_mux->current_time));
   }
 
-  isEOS =
-      gst_tensor_time_sync_buffer_from_collectpad (tensor_mux->collect,
-      &tensor_mux->sync, tensor_mux->current_time, &tensor_mux->need_buffer,
-      tensors_buf, &tensor_mux->tensors_config);
+  return gst_tensor_time_sync_buffer_from_collectpad (tensor_mux->collect,
+      &tensor_mux->sync, tensor_mux->current_time, tensors_buf,
+      &tensor_mux->tensors_config, is_eos);
+}
 
-  if (tensor_mux->need_buffer)
-    return FALSE;
+/**
+ * @brief Set src pad caps if src pad is not negotiated.
+ */
+static gboolean
+gst_tensor_mux_set_src_caps (GstTensorMux * tensor_mux)
+{
+  if (!tensor_mux->negotiated) {
+    GstCaps *caps;
 
-  *pts_time = GST_BUFFER_PTS (tensors_buf);
-  *dts_time = GST_BUFFER_DTS (tensors_buf);
+    if (gst_tensors_config_validate (&tensor_mux->tensors_config)) {
+      caps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
 
-  return isEOS;
+      if (gst_pad_set_caps (tensor_mux->srcpad, caps)) {
+        tensor_mux->negotiated = TRUE;
+      }
+
+      gst_caps_unref (caps);
+    }
+  }
+
+  if (!tensor_mux->negotiated) {
+    GST_WARNING_OBJECT (tensor_mux, "failed to set caps");
+    GST_ELEMENT_ERROR (tensor_mux, CORE, NEGOTIATION, (NULL), (NULL));
+  }
+
+  return tensor_mux->negotiated;
+}
+
+/**
+ * @brief Create a new segment event if necessary.
+ */
+static void
+gst_tensor_mux_send_segment_event (GstTensorMux * tensor_mux,
+    GstClockTime pts, GstClockTime dts)
+{
+  if (tensor_mux->need_segment) {
+    GstSegment segment;
+    GstClockTime time = 0;
+
+    if (GST_CLOCK_TIME_IS_VALID (dts)) {
+      time = dts;
+    } else if (GST_CLOCK_TIME_IS_VALID (pts)) {
+      time = pts;
+    }
+
+    gst_segment_init (&segment, GST_FORMAT_TIME);
+    segment.start = time;
+    gst_pad_push_event (tensor_mux->srcpad, gst_event_new_segment (&segment));
+    tensor_mux->need_segment = FALSE;
+  }
 }
 
 /**
@@ -368,12 +409,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf;
-  GstClockTime pts_time = GST_CLOCK_TIME_NONE;
-  GstClockTime dts_time = GST_CLOCK_TIME_NONE;
-  GstClockTime time = 0;
   gboolean isEOS = FALSE;
-  gboolean status;
+
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
+
   if (tensor_mux->need_stream_start) {
     gchar s_id[32];
     g_snprintf (s_id, sizeof (s_id), " tensormux - %08x ", g_random_int ());
@@ -381,69 +420,28 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
     tensor_mux->need_stream_start = FALSE;
   }
 
-  tensors_buf = gst_buffer_new ();
-  if (NULL == tensors_buf) {
+  if ((tensors_buf = gst_buffer_new ()) == NULL) {
     ml_logf ("gst_buffer_new() returns NULL. Out of memory?\n");
     return GST_FLOW_ERROR;
   }
 
-  isEOS =
-      gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &pts_time,
-      &dts_time);
+  if (!gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &isEOS)) {
+    if (isEOS) {
+      gst_pad_push_event (tensor_mux->srcpad, gst_event_new_eos ());
+      ret = GST_FLOW_EOS;
+    }
 
-  if (isEOS) {
-    gst_buffer_unref (tensors_buf);
-    gst_pad_push_event (tensor_mux->srcpad, gst_event_new_eos ());
-    ret = GST_FLOW_EOS;
-    goto beach;
-  }
-
-  if (tensor_mux->need_buffer) {
-    tensor_mux->need_buffer = FALSE;
     gst_buffer_unref (tensors_buf);
     return ret;
   }
 
-  if (!tensor_mux->negotiated) {
-    GstCaps *newcaps;
-
-    if (GST_IS_BUFFER (tensors_buf)) {
-      tensor_mux->tensors_config.info.num_tensors =
-          gst_buffer_n_memory (tensors_buf);
-    }
-
-    status = gst_tensors_config_validate (&tensor_mux->tensors_config);
-    if (FALSE == status)
-      return GST_FLOW_ERROR;
-
-    newcaps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
-
-    if (!gst_pad_set_caps (tensor_mux->srcpad, newcaps)) {
-      gst_caps_unref (newcaps);
-      goto nego_error;
-    }
-
-    gst_caps_unref (newcaps);
-    tensor_mux->negotiated = TRUE;
+  if (!gst_tensor_mux_set_src_caps (tensor_mux)) {
+    gst_buffer_unref (tensors_buf);
+    return GST_FLOW_NOT_NEGOTIATED;
   }
 
-
-  if (tensor_mux->need_segment) {
-    GstSegment segment;
-
-    if (GST_CLOCK_TIME_IS_VALID (dts_time)) {
-      time = dts_time;
-    } else if (GST_CLOCK_TIME_IS_VALID (pts_time)) {
-      time = pts_time;
-    } else {
-      time = 0;
-    }
-
-    gst_segment_init (&segment, GST_FORMAT_TIME);
-    segment.start = time;
-    gst_pad_push_event (tensor_mux->srcpad, gst_event_new_segment (&segment));
-    tensor_mux->need_segment = FALSE;
-  }
+  gst_tensor_mux_send_segment_event (tensor_mux, GST_BUFFER_PTS (tensors_buf),
+      GST_BUFFER_DTS (tensors_buf));
 
   ret = gst_pad_push (tensor_mux->srcpad, tensors_buf);
   tensor_mux->need_set_time = TRUE;
@@ -451,17 +449,9 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   if (ret != GST_FLOW_OK) {
     GST_WARNING_OBJECT (tensor_mux, "pushed outbuf, result = %s",
         gst_flow_get_name (ret));
-    /* fall-through, returns result */
   }
-beach:
+
   return ret;
-nego_error:
-  {
-    gst_buffer_unref (tensors_buf);
-    GST_WARNING_OBJECT (tensor_mux, "failed to set caps");
-    GST_ELEMENT_ERROR (tensor_mux, CORE, NEGOTIATION, (NULL), (NULL));
-    return GST_FLOW_NOT_NEGOTIATED;
-  }
 }
 
 /**
@@ -516,25 +506,25 @@ static void
 gst_tensor_mux_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensorMux *filter = GST_TENSOR_MUX (object);
+  GstTensorMux *tensor_mux = GST_TENSOR_MUX (object);
   switch (prop_id) {
     case PROP_SILENT:
-      filter->silent = g_value_get_boolean (value);
+      tensor_mux->silent = g_value_get_boolean (value);
       break;
     case PROP_SYNC_MODE:
-      filter->sync.mode =
+      tensor_mux->sync.mode =
           gst_tensor_time_sync_get_mode (g_value_get_string (value));
-      if (filter->sync.mode == SYNC_END) {
-        filter->sync.mode = SYNC_SLOWEST;
+      if (tensor_mux->sync.mode == SYNC_END) {
+        tensor_mux->sync.mode = SYNC_SLOWEST;
       }
-      silent_debug ("Mode = %d(%s)\n", filter->sync.mode,
-          gst_tensor_time_sync_get_mode_string (filter->sync.mode));
-      gst_tensor_time_sync_set_option_data (&filter->sync);
+      silent_debug ("Mode = %d(%s)\n", tensor_mux->sync.mode,
+          gst_tensor_time_sync_get_mode_string (tensor_mux->sync.mode));
+      gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
       break;
     case PROP_SYNC_OPTION:
-      filter->sync.option = g_value_dup_string (value);
-      silent_debug ("Option = %s\n", filter->sync.option);
-      gst_tensor_time_sync_set_option_data (&filter->sync);
+      tensor_mux->sync.option = g_value_dup_string (value);
+      silent_debug ("Option = %s\n", tensor_mux->sync.option);
+      gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -549,17 +539,17 @@ static void
 gst_tensor_mux_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensorMux *filter = GST_TENSOR_MUX (object);
+  GstTensorMux *tensor_mux = GST_TENSOR_MUX (object);
   switch (prop_id) {
     case PROP_SILENT:
-      g_value_set_boolean (value, filter->silent);
+      g_value_set_boolean (value, tensor_mux->silent);
       break;
     case PROP_SYNC_MODE:
       g_value_set_string (value,
-          gst_tensor_time_sync_get_mode_string (filter->sync.mode));
+          gst_tensor_time_sync_get_mode_string (tensor_mux->sync.mode));
       break;
     case PROP_SYNC_OPTION:
-      g_value_set_string (value, filter->sync.option);
+      g_value_set_string (value, tensor_mux->sync.option);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

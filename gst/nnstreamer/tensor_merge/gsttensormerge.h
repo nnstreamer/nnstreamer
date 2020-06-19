@@ -88,7 +88,6 @@ struct _GstTensorMerge
   gboolean need_stream_start;
   gboolean send_stream_start;
 
-  gboolean need_buffer;
   GstClockTime current_time;
   gboolean need_set_time;
   GstTensorsConfig tensors_config; /**< output tensors info */

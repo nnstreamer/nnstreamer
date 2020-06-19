@@ -144,16 +144,16 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect, tensor_time_syn
 /**
  * @brief  A function call to make tensors from collected pads
  * It decide which buffer is going to be used according to sync option.
- * @return True / False if EOS, it return TRUE.
+ * @return True to push buffer.
  * @param collect Collect pad.
  * @param sync Synchronization Option (NOSYNC, SLOWEST, BASEPAD, END)
  * @param current_time Current Timestamp
- * @param need_buffer Boolean for Update Collect Pads
  * @param tensors_buf Generated GstBuffer for Collected Buffer
  * @param configs Configuration Info for Collected Buffer
+ * @param is_eos True when EOS (end-of-stream)
  */
 extern gboolean
-gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, gboolean * need_buffer, GstBuffer * tensors_buf, GstTensorsConfig * configs);
+gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, GstBuffer * tensors_buf, GstTensorsConfig * configs, gboolean * is_eos);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */

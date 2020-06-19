@@ -58,7 +58,6 @@ struct _GstTensorMux
   gboolean need_segment;
   gboolean need_stream_start;
   gboolean send_stream_start;
-  gboolean need_buffer;
   gboolean need_set_time;
   GstClockTime current_time;
 
