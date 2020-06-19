@@ -178,6 +178,10 @@ gst_tensor_reposink_init (GstTensorRepoSink * self)
   self->in_caps = NULL;
 
   gst_base_sink_set_qos_enabled (basesink, DEFAULT_QOS);
+
+  /* ignore sync and preroll in repo */
+  gst_base_sink_set_sync (basesink, FALSE);
+  gst_base_sink_set_async_enabled (basesink, FALSE);
 }
 
 /**
