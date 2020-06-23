@@ -65,11 +65,12 @@
      */
 
 /**
- * @brief Default static capability for other/tensors
+ * @brief Caps string for the caps template (other/tensors).
+ * num should be a string format that describes the number of tensors, or the range of incoming tensors.
  */
-#define GST_TENSORS_CAP_DEFAULT \
+#define GST_TENSORS_CAP_WITH_NUM(num) \
     "other/tensors, " \
-    "num_tensors = " GST_TENSOR_NUM_TENSORS_RANGE ", "\
+    "num_tensors = " num ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
      * type should be one of types in GST_TENSOR_TYPE_ALL
@@ -78,6 +79,12 @@
      * but when we call gst_structure_get_string, it actually is working well.
      * "dimensions = (string) dim1:dim2:dim3:dim4, dim1:dim2:dim3:dim4"
      */
+
+/**
+ * @brief Default static capability for other/tensors
+ */
+#define GST_TENSORS_CAP_DEFAULT \
+    GST_TENSORS_CAP_WITH_NUM(GST_TENSOR_NUM_TENSORS_RANGE)
 
 /**
  * @brief Default static capability for Protocol Buffers

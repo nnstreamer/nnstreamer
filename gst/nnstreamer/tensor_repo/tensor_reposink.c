@@ -54,16 +54,6 @@ enum
 #define DEFAULT_QOS TRUE
 #define DEFAULT_INDEX 0
 
-/**
- * @brief tensor_reposink sink template
- */
-#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
-static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT));
-#endif
-
 static void gst_tensor_reposink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_reposink_get_property (GObject * object, guint prop_id,
@@ -97,6 +87,8 @@ gst_tensor_reposink_class_init (GstTensorRepoSinkClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *element_class;
   GstBaseSinkClass *basesink_class;
+  GstPadTemplate *pad_template;
+  GstCaps *pad_caps;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_reposink_debug, "tensor_reposink", 0,
       "Sink element to handle tensor repository");
@@ -129,22 +121,13 @@ gst_tensor_reposink_class_init (GstTensorRepoSinkClass * klass)
       "Set element to handle tensor repository",
       "Samsung Electronics Co., Ltd.");
 
-#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
-  gst_element_class_add_static_pad_template (element_class, &sink_template);
-#elif (GST_VERSION_MAJOR == 1)  /* 1.0 ~ 1.8 */
-  {
-    GstPadTemplate *pad_template;
-    GstCaps *pad_caps;
-    pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
-        GST_TENSORS_CAP_DEFAULT);
-    pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-        pad_caps);
-    gst_element_class_add_pad_template (element_class, pad_template);
-    gst_caps_unref (pad_caps);
-  }
-#else
-#error We support GStreamer 1.x only.
-#endif
+  /* pad template */
+  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
+      GST_TENSORS_CAP_DEFAULT);
+  pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+      pad_caps);
+  gst_element_class_add_pad_template (element_class, pad_template);
+  gst_caps_unref (pad_caps);
 
   basesink_class->start = GST_DEBUG_FUNCPTR (gst_tensor_reposink_start);
   basesink_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_reposink_stop);
