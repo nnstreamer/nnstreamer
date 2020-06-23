@@ -93,14 +93,6 @@
 #endif
 
 /**
- * @brief Template for src pad.
- */
-static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS_ANY);
-
-/**
  * @brief Private members in GstAMCSrc
  */
 struct _GstAMCSrcPrivate
@@ -292,7 +284,9 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_amc_src_create);
 
   /** ElementClass */
-  gst_element_class_add_static_pad_template (gstelement_class, &src_factory);
+  gst_element_class_add_pad_template (gstelement_class,
+      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, GST_CAPS_ANY));
+
   gst_element_class_set_static_metadata (gstelement_class,
       "amcsrc", "Source/AMC",
       "Src element to feed the decoded data from Android MediaCodec (AMC)",

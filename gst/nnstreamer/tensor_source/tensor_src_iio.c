@@ -259,14 +259,6 @@ enum
 #define AVAIL_FREQUENCY_FILE "sampling_frequency_available"
 #define SAMPLING_FREQUENCY "sampling_frequency"
 
-/**
- * @brief Template for src pad.
- */
-static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT));
-
 /** Define data processing functions for various types */
 PROCESS_SCANNED_DATA (guint8, gint8);
 PROCESS_SCANNED_DATA (guint16, gint16);
@@ -312,6 +304,8 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseSrcClass *bsrc_class;
+  GstPadTemplate *pad_template;
+  GstCaps *pad_caps;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_src_iio_debug, "tensor_src_iio", 0,
       "Source element to handle Linux Industrial I/O sensors as input");
@@ -401,7 +395,13 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
       "Parichay Kapoor <pk.kapoor@samsung.com>");
 
   /** pad template */
-  gst_element_class_add_static_pad_template (gstelement_class, &src_factory);
+  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
+      GST_TENSORS_CAP_DEFAULT);
+  pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+      pad_caps);
+  gst_element_class_add_pad_template (gstelement_class, pad_template);
+  gst_caps_unref (pad_caps);
+
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_src_iio_change_state);
 

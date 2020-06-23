@@ -54,16 +54,6 @@ enum
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_INDEX 0
 
-/**
- * @brief tensor_reposrc src template
- */
-#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
-static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT));
-#endif
-
 static void gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_reposrc_get_property (GObject * object, guint prop_id,
@@ -86,6 +76,8 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
   GstPushSrcClass *pushsrc_class = GST_PUSH_SRC_CLASS (klass);
   GstBaseSrcClass *basesrc_class = GST_BASE_SRC_CLASS (klass);
+  GstPadTemplate *pad_template;
+  GstCaps *pad_caps;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_reposrc_debug, "tensor_reposrc", 0,
       "Source element to handle tensor repository");
@@ -117,22 +109,13 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
       "Pop element to handle tensor repository",
       "Samsung Electronics Co., Ltd.");
 
-#if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)        /* >= 1.8 */
-  gst_element_class_add_static_pad_template (element_class, &src_template);
-#elif (GST_VERSION_MAJOR == 1)  /* 1.0 ~ 1.8 */
-  {
-    GstPadTemplate *pad_template;
-    GstCaps *pad_caps;
-    pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
-        GST_TENSORS_CAP_DEFAULT);
-    pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-        pad_caps);
-    gst_element_class_add_pad_template (element_class, pad_template);
-    gst_caps_unref (pad_caps);
-  }
-#else
-#error We support GStreamer 1.x only.
-#endif
+  /* pad template */
+  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
+      GST_TENSORS_CAP_DEFAULT);
+  pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+      pad_caps);
+  gst_element_class_add_pad_template (element_class, pad_template);
+  gst_caps_unref (pad_caps);
 }
 
 /**
