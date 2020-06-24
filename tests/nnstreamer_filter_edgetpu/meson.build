@@ -13,6 +13,5 @@ if get_option('enable-edgetpu')
     install_dir: unittest_install_dir
   )
 
-  #TODO: the following test would not work via ninja
-  #test('unittest_edgetpu', unittest_edgetpu, env: testenv)
+  test('unittest_edgetpu', unittest_edgetpu, env: testenv)
 endif
