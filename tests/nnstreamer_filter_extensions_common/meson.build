@@ -80,6 +80,8 @@ foreach ext : extensions
   filter_ext_common_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
   filter_ext_common_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
   filter_ext_common_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
+  filter_ext_common_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
+
   if ext[0] == 'python2'
     py2_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
     run_command('rm', '-rf', py2_module_path, check : true)
