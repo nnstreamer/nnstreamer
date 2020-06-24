@@ -111,7 +111,7 @@
     }
 
 #define GET_MODEL_PATH(model_name) do { \
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH"); \
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH"); \
   \
   if (root_path == NULL) \
     root_path = ".."; \
@@ -3032,7 +3032,7 @@ TEST (test_tensor_filter, reopen_tflite_01_p)
   GstTensorConfig config;
   gchar *str_launch_line, *prop_string;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3106,7 +3106,7 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* Check if mandatory methods are contained */
@@ -3157,7 +3157,7 @@ TEST (test_tensor_filter, reload_tflite_set_property)
   gboolean prop_updatable;
   gchar *str_launch_line, *prop_string;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model, *test_model2;
 
   /* supposed to run test in build directory */
@@ -3254,7 +3254,7 @@ TEST (test_tensor_filter, reload_tflite_model_not_found_n)
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* Check if mandatory methods are contained */
@@ -3317,7 +3317,7 @@ TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* Check if mandatory methods are contained */
@@ -3372,7 +3372,7 @@ TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   gchar *test_model_renamed;
 
@@ -3435,7 +3435,7 @@ TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   gchar *test_model_backup;
   gchar *test_model_renamed;
@@ -3540,7 +3540,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3663,7 +3663,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
 TEST (test_tensor_filter, framework_auto_ext_pb_01)
 {
   gchar *test_model, *str_launch_line, *data_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3688,7 +3688,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
 {
   gchar *test_model, *str_launch_line, *data_path;
   const gchar *fw_name = NULL;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3715,7 +3715,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
 TEST (test_tensor_filter, framework_auto_ext_pb_03)
 {
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3744,7 +3744,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
 {
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
   const gchar *fw_name = NULL;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3774,7 +3774,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
 TEST (test_tensor_filter, framework_auto_ext_pt_01)
 {
   gchar *test_model, *str_launch_line, *image_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";
@@ -3800,7 +3800,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
     root_path = "..";

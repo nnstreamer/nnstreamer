@@ -22,7 +22,7 @@ TEST (edgetpu_tflite_direct, run_01)
   GstElement *gstpipe;
   GError *err = NULL;
   int status = 0;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */
@@ -58,7 +58,7 @@ TEST (edgetpu_tflite_direct, error_01_n)
   GstElement *gstpipe;
   GError *err = NULL;
   int status = 0;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "does_not_exists.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */
@@ -97,7 +97,7 @@ TEST (edgetpu_tflite_direct, error_02_n)
   GstElement *gstpipe;
   GError *err = NULL;
   int status = 0;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model = g_build_filename (root_path, "tests", "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
 
   /* Create a nnstreamer pipeline */

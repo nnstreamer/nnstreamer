@@ -29,7 +29,7 @@ get_model_file ()
   gchar *model_file;
   gchar *meta_file;
   gchar *model_path;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   g_return_val_if_fail (root_path != nullptr, FALSE);
 
@@ -296,7 +296,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   int ret;
   void *data = NULL;
   gchar *model_file, *manifest_file, *data_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar *orig_model = "add.tflite";
   const gchar *new_model = "mobilenet_v1_1.0_224_quant.tflite";
   GstTensorMemory input, output;
@@ -556,7 +556,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_01_n)
   ml_tensor_dimension in_dim, out_dim;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -832,7 +832,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
 {
   gchar *pipeline;
   ml_pipeline_h handle;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   int status;
 
@@ -878,7 +878,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
   ml_pipeline_state_e state;
   ml_tensors_data_h input;
   int status;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -1011,7 +1011,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   unsigned int ret;
   guint *sink_called_cnt = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar *orig_model = "add.tflite";
   const gchar *new_model = "mobilenet_v1_1.0_224_quant.tflite";
   gchar *model_file, *manifest_file;
