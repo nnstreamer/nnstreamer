@@ -29,6 +29,7 @@ filter_mvncsdk2_testenv.set('NNSTREAMER_CONF', path_nns_conf)
 filter_mvncsdk2_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
 filter_mvncsdk2_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
 filter_mvncsdk2_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
+filter_mvncsdk2_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
 filter_mvncsdk2_testenv.set('LD_LIBRARY_PATH', meson.current_build_dir())
 
 test('unittest_filter_mvncsdk2', unittest_mvncsdk, env: filter_mvncsdk2_testenv)

@@ -46,5 +46,6 @@ if get_option('enable-tizen-sensor')
   tizen_sensor_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
   tizen_sensor_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
   tizen_sensor_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
+  tizen_sensor_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
   test('unittest_tizen_sensor', unittest_tizen_sensor, env: tizen_sensor_testenv)
 endif
