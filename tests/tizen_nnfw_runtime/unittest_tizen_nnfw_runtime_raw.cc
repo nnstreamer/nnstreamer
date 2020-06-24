@@ -1231,6 +1231,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   g_free (sink_called_cnt);
 }
 
+#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test nnfw subplugin multi-model (pipeline, ML-API)
  * @detail Invoke two models which have different framework via Pipeline API, sharing a single input stream
@@ -1327,6 +1328,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   g_free (test_model);
   g_free (sink_called_cnt);
 }
+#endif /* ENABLE_TENSORFLOW_LITE */
 
 /**
  * @brief Main gtest
