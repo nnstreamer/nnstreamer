@@ -24,7 +24,7 @@
  */
 TEST (pipeline_mvncsdk2_filter, launch_normal)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *pipeline;
   gchar *test_model;
   GstElement *gstpipe;
@@ -111,7 +111,7 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
 
 #define TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(idx, fail_stage) \
     TEST (pipeline_mvncsdk2_filter, launch_normal_ ##idx##_n) { \
-      const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH"); \
+      const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH"); \
       gchar *pipeline; \
       gchar *test_model; \
       GstElement *gstpipe; \

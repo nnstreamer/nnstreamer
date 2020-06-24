@@ -2224,7 +2224,7 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   char *name = NULL;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2348,7 +2348,7 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   ml_tensors_data_h input, output;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2410,7 +2410,7 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   unsigned long open_duration=0, invoke_duration=0, close_duration=0;
   gint64 start, end;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2515,7 +2515,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2619,7 +2619,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model, *test_file;
   gchar *contents = NULL;
   gsize len = 0;
@@ -2775,7 +2775,7 @@ TEST (nnstreamer_capi_singleshot, unavailable_fw_tf_n)
   ml_tensor_dimension in_dim, out_dim;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2827,7 +2827,7 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   ml_single_h single;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -2890,7 +2890,7 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   ml_tensor_dimension in_dim, out_dim;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3010,7 +3010,7 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
   unsigned int count = 0;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3172,7 +3172,7 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
   ml_single_h single;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3255,7 +3255,7 @@ skip_test:
  */
 TEST (nnstreamer_capi_singleshot, parallel_runs)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   const gint num_threads = 3;
   const gint num_cases = 3;
@@ -3314,7 +3314,7 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
  */
 TEST (nnstreamer_capi_singleshot, close_while_running)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   pthread_t thread;
   single_shot_thread_data ss_data;
@@ -3369,7 +3369,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail)
   ml_tensors_info_h in_info;
   ml_tensor_dimension in_dim;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3428,7 +3428,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
   unsigned int count = 0;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3494,7 +3494,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
   ml_tensor_dimension in_dim;
   ml_tensors_data_h input, output;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3571,7 +3571,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
   size_t data_size;
   float *data;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3730,7 +3730,7 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   void *data;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3808,7 +3808,7 @@ TEST (nnstreamer_capi_singleshot, property_02_n)
   int status;
   char *prop_value = NULL;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -3883,7 +3883,7 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   void *data;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4003,7 +4003,7 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   size_t data_size;
   float *data;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4104,7 +4104,7 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   char *name = NULL;
   int status;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4232,7 +4232,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model, *test_file;
   guint8 *contents_uint8 = NULL;
   gfloat *contents_float = NULL;
@@ -4407,7 +4407,7 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4532,7 +4532,7 @@ TEST (nnstreamer_capi_singleshot, open_fail_03_n)
   ml_tensors_info_h in_info, out_info;
   ml_tensor_dimension in_dim, out_dim;
   int status;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4607,7 +4607,7 @@ TEST (nnstreamer_capi_singleshot, invoke_08_n)
   int status;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   gfloat *contents_float = NULL;
 
@@ -4690,7 +4690,7 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
   int status;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
   gfloat *contents_float = NULL;
 
@@ -4780,7 +4780,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   unsigned int count = 0;
   int status, tensor_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -4937,7 +4937,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
   ml_tensor_dimension tmp_dim;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -5086,7 +5086,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   ml_tensor_type_e tmp_type = ML_TENSOR_TYPE_UNKNOWN;
   ml_tensor_dimension tmp_dim, in_dim;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -5236,7 +5236,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -5483,7 +5483,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
       NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -5516,7 +5516,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
       NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model1, *test_model2;
   gchar *test_models[2];
 

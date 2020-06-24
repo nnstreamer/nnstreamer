@@ -55,7 +55,7 @@ TEST (nnstreamer_filter_armnn, open_close_01_n)
   int ret;
   void *data = NULL;
   gchar *model_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   ASSERT_NE (root_path, nullptr);
 
@@ -94,7 +94,7 @@ TEST (nnstreamer_filter_armnn, get_dimension)
   int ret;
   void *data = NULL;
   gchar *model_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorsInfo info, res;
 
   ASSERT_NE (root_path, nullptr);
@@ -167,7 +167,7 @@ TEST (nnstreamer_filter_armnn, invoke_00)
   int ret;
   void *data = NULL;
   gchar *model_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
 
   ASSERT_NE (root_path, nullptr);
@@ -250,7 +250,7 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   int ret, fd;
   void *data = NULL;
   gchar *model_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
   GstTensorsInfo info, res;
   char *data_file;
@@ -361,7 +361,7 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   int ret;
   void *data = NULL;
   gchar *model_file, *data_file;
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *input_uint8_data = NULL;
   gsize input_uint8_size = 0;
   GstTensorMemory output, input;

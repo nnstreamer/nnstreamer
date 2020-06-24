@@ -89,7 +89,7 @@ TensorFilterOpenvinoTest::setOutputsDataMap (
  */
 TEST (tensor_filter_openvino, open_and_close_0)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
@@ -219,7 +219,7 @@ TEST (tensor_filter_openvino, open_and_close_0)
  */
 TEST (tensor_filter_openvino, open_and_close_1)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -291,7 +291,7 @@ TEST (tensor_filter_openvino, open_and_close_1)
  */
 TEST (tensor_filter_openvino, open_and_close_2)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -356,7 +356,7 @@ TEST (tensor_filter_openvino, open_and_close_2)
  */
 TEST (tensor_filter_openvino, open_and_close_0_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
@@ -458,7 +458,7 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
  */
 TEST (tensor_filter_openvino, open_and_close_1_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
@@ -527,7 +527,7 @@ TEST (tensor_filter_openvino, open_and_close_1_n)
  */
 TEST (tensor_filter_openvino, open_and_close_2_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
@@ -583,7 +583,7 @@ TEST (tensor_filter_openvino, open_and_close_2_n)
  */
 TEST (tensor_filter_openvino, getTensorDim_0)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
@@ -660,7 +660,7 @@ TEST (tensor_filter_openvino, getTensorDim_0)
  */
 TEST (tensor_filter_openvino, getTensorDim_0_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -735,7 +735,7 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
  */
 TEST (tensor_filter_openvino, getTensorDim_1_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -808,7 +808,7 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
  */
 TEST (tensor_filter_openvino, getTensorDim_2_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -880,7 +880,7 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
  */
 TEST (tensor_filter_openvino, getTensorDim_3_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
@@ -950,7 +950,7 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
  */
 TEST (tensor_filter_openvino, convertFromIETypeStr_0)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_suport_type_strs = {
     "I8",
     "I16",
@@ -1004,7 +1004,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0)
  */
 TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_not_suport_type_strs = {
     "F64",
   };
@@ -1047,7 +1047,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
  */
 TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::string ie_suport_type_str ("Q78");
   std::string str_test_model;
   gchar *test_model_xml;
@@ -1109,7 +1109,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
  */
 TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
 {
-  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   std::string str_test_model;
   gchar *test_model_xml;
   gchar *test_model_bin;
