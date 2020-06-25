@@ -542,6 +542,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     /* append the memory block to outbuf */
     if (ret == 0)
       gst_buffer_append_memory (outbuf, out_mem[i]);
+    else if (allocate_in_invoke == FALSE)
+      gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
   }
 
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
