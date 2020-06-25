@@ -243,6 +243,9 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
         self->fps_n = -1;
         self->fps_d = -1;
       }
+
+      if (new_caps)
+        gst_caps_unref (new_caps);
       self->negotiation = FALSE;
       break;
     }
