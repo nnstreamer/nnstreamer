@@ -572,6 +572,10 @@ TEST (nnstreamer_capi_sink, dummy_01)
 
   /* File Comparison to check the integrity */
   EXPECT_EQ (file_cmp (file1, file2), 0);
+
+  g_free (fullpath);
+  g_free (file1);
+  g_free (file2);
 }
 
 /**
@@ -928,6 +932,14 @@ TEST (nnstreamer_capi_src, dummy_01)
   g_free (content);
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (data1);
+
+  for (i = 0; i < 10; i++) {
+    g_free (uintarray1[i]);
+    g_free (uintarray2[i]);
+  }
+
+  g_free (fullpath);
+  g_free (file1);
 }
 
 /**
@@ -2237,8 +2249,6 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   in_dim[0] = 3;
   in_dim[1] = 224;
@@ -2638,8 +2648,6 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   in_dim[0] = 1;
   in_dim[1] = 16022;
@@ -3585,8 +3593,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   tensor_size = 5;
 
@@ -3637,6 +3643,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
       status == ML_ERROR_NONE);
   if (status == ML_ERROR_NONE) {
     /* input tensor in filter */
+    ml_tensors_info_destroy (in_res);
     status = ml_single_get_input_info (single, &in_res);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -4117,8 +4124,6 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   in_dim[0] = 1;
   in_dim[1] = 1;
@@ -4252,8 +4257,6 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   in_dim[0] = 28;
   in_dim[1] = 28;
@@ -4420,8 +4423,6 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   in_dim[0] = 1;
   in_dim[1] = 1;
@@ -4794,8 +4795,6 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 
   ml_tensors_info_create (&in_info);
   ml_tensors_info_create (&out_info);
-  ml_tensors_info_create (&in_res);
-  ml_tensors_info_create (&out_res);
 
   tensor_size = 5;
   in_dim[0] = tensor_size;
@@ -4861,6 +4860,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
       status == ML_ERROR_NONE);
   if (status == ML_ERROR_NONE) {
     /* input tensor in filter */
+    ml_tensors_info_destroy (in_res);
     status = ml_single_get_input_info (single, &in_res);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -5155,7 +5155,8 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
     ml_tensors_data_destroy (input);
     ml_tensors_info_destroy (in_info);
     ml_tensors_info_destroy (out_info);
-}
+  }
+
   status = ml_single_get_input_info (single, &in_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
