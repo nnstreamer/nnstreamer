@@ -20,6 +20,7 @@ static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_NOSYNC] = "nosync",
   [SYNC_SLOWEST] = "slowest",
   [SYNC_BASEPAD] = "basepad",
+  [SYNC_REFRESH] = "refresh",
   [SYNC_END] = NULL
 };
 
@@ -111,9 +112,16 @@ _gst_tensor_time_sync_is_eos (GstCollectPads * collect,
 
   total = g_slist_length (collect->data);
 
-  /** @todo update below with each sync mode */
-  if (empty > 0 || empty == total)
-    is_eos = TRUE;
+  switch (sync->mode) {
+    case SYNC_REFRESH:
+      if (empty == total)
+        is_eos = TRUE;
+      break;
+    default:
+      if (empty > 0)
+        is_eos = TRUE;
+      break;
+  }
 
   return is_eos;
 }
@@ -145,6 +153,7 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
         case SYNC_NOSYNC:
           /* fall-through */
         case SYNC_SLOWEST:
+        case SYNC_REFRESH:
           if (*current_time < GST_BUFFER_PTS (buf))
             *current_time = GST_BUFFER_PTS (buf);
           break;
@@ -259,6 +268,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
   while (walk) {
     gboolean configured = FALSE;
+    gboolean is_empty = FALSE;
 
     data = (GstCollectData *) walk->data;
     pad = (GstTensorCollectPadData *) data;
@@ -298,9 +308,28 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
         if (FALSE == _gst_tensor_time_sync_buffer_update (&buf, collect, data,
                 current_time, base_time, sync))
           return FALSE;
+        is_empty = (buf == NULL);
         break;
       case SYNC_NOSYNC:
         buf = gst_collect_pads_pop (collect, data);
+        is_empty = (buf == NULL);
+        break;
+      case SYNC_REFRESH:
+        buf = gst_collect_pads_pop (collect, data);
+        if (buf != NULL) {
+          if (pad->buffer != NULL) {
+            gst_buffer_unref (pad->buffer);
+          }
+          pad->buffer = gst_buffer_ref (buf);
+        } else {
+          if (pad->buffer == NULL) {
+            *is_eos = FALSE;
+            ml_logd ("Not the all buffers are arrived yet.");
+            return FALSE;
+          }
+          is_empty = TRUE;
+          buf = gst_buffer_ref (pad->buffer);
+        }
         break;
       default:
         break;
@@ -324,9 +353,9 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       }
 
       gst_buffer_unref (buf);
-    } else {
-      empty_pad++;
     }
+    if (is_empty)
+      empty_pad++;
   }
 
   configs->info.num_tensors = counting;

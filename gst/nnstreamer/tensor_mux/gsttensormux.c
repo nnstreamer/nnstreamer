@@ -121,7 +121,10 @@ static GstStateChangeReturn gst_tensor_mux_change_state (GstElement * element,
 static gboolean gst_tensor_mux_sink_event (GstCollectPads * pads,
     GstCollectData * data, GstEvent * event, GstTensorMux * tensor_mux);
 static GstFlowReturn gst_tensor_mux_collected (GstCollectPads * pads,
-    GstTensorMux * tesnor_mux);
+    GstTensorMux * tensor_mux);
+static GstFlowReturn gst_tensor_mux_do_clip (GstCollectPads * pads,
+    GstCollectData * data, GstBuffer * buffer, GstBuffer ** out,
+    GstTensorMux * tensor_mux);
 
 static void gst_tensor_mux_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -208,6 +211,9 @@ gst_tensor_mux_init (GstTensorMux * tensor_mux)
   gst_collect_pads_set_function (tensor_mux->collect,
       (GstCollectPadsFunction) GST_DEBUG_FUNCPTR (gst_tensor_mux_collected),
       tensor_mux);
+  gst_collect_pads_set_clip_function (tensor_mux->collect,
+      (GstCollectPadsClipFunction) GST_DEBUG_FUNCPTR (gst_tensor_mux_do_clip),
+      tensor_mux);
 
   tensor_mux->silent = TRUE;
   tensor_mux->sync.mode = SYNC_SLOWEST;
@@ -264,10 +270,21 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
   if (newpad) {
     GstTensorCollectPadData *tensormuxpad;
+    gboolean locked, waiting;
+
+    locked = waiting = TRUE;
+
+    if (tensor_mux->sync.mode == SYNC_REFRESH) {
+      locked = waiting = FALSE;
+    }
 
     tensormuxpad = (GstTensorCollectPadData *)
         gst_collect_pads_add_pad (tensor_mux->collect, newpad,
-        sizeof (GstTensorCollectPadData), NULL, TRUE);
+        sizeof (GstTensorCollectPadData), NULL, locked);
+
+    /* NOTE: if locked is TRUE, waiting flag is not effective */
+    gst_collect_pads_set_waiting (tensor_mux->collect,
+        (GstCollectData *) tensormuxpad, waiting);
 
     tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
@@ -298,6 +315,23 @@ gst_tensor_mux_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 /**
+ * @brief set pads waiting property
+ */
+static void
+gst_tensor_mux_set_waiting (GstTensorMux * tensor_mux, gboolean waiting)
+{
+  if (tensor_mux->sync.mode == SYNC_REFRESH) {
+    GstCollectPads *pads = tensor_mux->collect;
+    GSList *walk = pads->data;
+
+    while (walk) {
+      gst_collect_pads_set_waiting (pads, walk->data, waiting);
+      walk = g_slist_next (walk);
+    }
+  }
+}
+
+/**
  * @brief sink event vmethod
  */
 static gboolean
@@ -309,6 +343,9 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_FLUSH_STOP:
       tensor_mux->need_segment = TRUE;
+      break;
+    case GST_EVENT_EOS:
+      gst_tensor_mux_set_waiting (tensor_mux, FALSE);
       break;
     default:
       break;
@@ -410,6 +447,7 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf;
   gboolean isEOS = FALSE;
+  gboolean buf_collected = FALSE;
 
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
 
@@ -425,7 +463,12 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
     return GST_FLOW_ERROR;
   }
 
-  if (!gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &isEOS)) {
+  buf_collected =
+      gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &isEOS);
+
+  gst_tensor_mux_set_waiting (tensor_mux, TRUE);
+
+  if (!buf_collected) {
     if (isEOS) {
       gst_pad_push_event (tensor_mux->srcpad, gst_event_new_eos ());
       ret = GST_FLOW_EOS;
@@ -452,6 +495,18 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   }
 
   return ret;
+}
+
+/**
+ * @brief Gst Clip Pads Function which is called right after a buffer is received for each pad.
+ */
+static GstFlowReturn
+gst_tensor_mux_do_clip (GstCollectPads * pads, GstCollectData * data,
+    GstBuffer * buffer, GstBuffer ** out, GstTensorMux * tensor_mux)
+{
+  gst_tensor_mux_set_waiting (tensor_mux, FALSE);
+  *out = buffer;
+  return GST_FLOW_OK;
 }
 
 /**

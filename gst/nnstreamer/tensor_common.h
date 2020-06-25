@@ -56,12 +56,14 @@ G_BEGIN_DECLS
 
 /**
  * @brief time synchronization options
+ * @see https://github.com/nnstreamer/nnstreamer/wiki/Synchronization-Policies-at-Mux-and-Merge
  */
 typedef enum
 {
   SYNC_NOSYNC = 0,
   SYNC_SLOWEST = 1,
   SYNC_BASEPAD = 2,
+  SYNC_REFRESH = 3,
   SYNC_END,
 } tensor_time_sync_mode;
 
