@@ -9,7 +9,7 @@ We assume that you already have experienced Android application developments wit
    * Android Studio: Ubuntu version
    * Android SDK: Min version 24 (Nougat)
    * Android NDK: Use default ndk-bundle in Android Studio
-   * GStreamer: gstreamer-1.0-android-universal-1.16.2
+   * GStreamer: gstreamer-1.0-android-universal-1.17.1
 
 ## Build library
 
@@ -96,8 +96,8 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/gstreamer-1.0
-$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.0-android-universal-1.16.2.tar.xz
-$ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
+$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.17.1/gstreamer-1.0-android-universal-1.17.1.tar.xz
+$ tar xJf gstreamer-1.0-android-universal-1.17.1.tar.xz
 ```
 
 Modify the gstreamer-1.0.mk file for NDK build to prevent build error.
@@ -110,21 +110,7 @@ $GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.m
 - Add directory separator.
 
 ```diff
-@@ -127,2 +127,2 @@
-
-GSTREAMER_PLUGINS_CLASSES    := $(strip \
-            $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
-            $(foreach plugin,$(GSTREAMER_PLUGINS), \
--           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)/*.java))))
-+           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)/*.java))))
-
-GSTREAMER_PLUGINS_WITH_CLASSES := $(strip \
-            $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
-            $(foreach plugin, $(GSTREAMER_PLUGINS), \
--           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)))))
-+           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)))))
-
-@@ -257,1 +257,1 @@
+@@ -255,1 +255,1 @@
 
 copyjavasource_$(TARGET_ARCH_ABI):
   $(hide)$(call host-mkdir,$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer)
