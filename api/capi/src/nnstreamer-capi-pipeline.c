@@ -1147,7 +1147,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
     }
 
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        mem_data, mem_size, 0, mem_size, NULL, NULL);
+        mem_data, mem_size, 0, mem_size, mem_data, g_free);
 
     gst_buffer_append_memory (buffer, mem);
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
@@ -1411,6 +1411,8 @@ ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
         break;
     }
   }
+
+  gst_iterator_free (it);
 
   /* There has been no error with that "while" loop. */
   if (ret == ML_ERROR_NONE) {

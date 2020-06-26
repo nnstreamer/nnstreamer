@@ -81,7 +81,7 @@ fbc_get_out_config (const GstCaps * in_cap, GstTensorsConfig * config)
 }
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback
- *  @todo : Consider multi frames, return Bufferlist and 
+ *  @todo : Consider multi frames, return Bufferlist and
  *          remove frame size and the number of frames
  */
 static GstBuffer *
@@ -134,7 +134,7 @@ fbc_convert (GstBuffer * in_buf, gsize * frame_size, guint * frames_in,
     mem_data = g_memdup (tensor_data->data (), mem_size);
 
     out_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        mem_data, mem_size, 0, mem_size, NULL, NULL);
+        mem_data, mem_size, 0, mem_size, mem_data, g_free);
 
     gst_buffer_append_memory (out_buf, out_mem);
   }
