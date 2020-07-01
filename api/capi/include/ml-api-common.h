@@ -4,12 +4,12 @@
  * Copyright (C) 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
  */
 /**
- * @file	ml-api-common.h
- * @date	07 May 2020
- * @brief	ML-API Common Header
- * @see		https://github.com/nnstreamer/nnstreamer
- * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
- * @bug		No known bugs except for NYI items
+ * @file    ml-api-common.h
+ * @date    07 May 2020
+ * @brief   ML-API Common Header
+ * @see     https://github.com/nnstreamer/nnstreamer
+ * @author  MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug     No known bugs except for NYI items
  *
  * @details
  *      More entries might be migrated from nnstreamer.h if
@@ -23,6 +23,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+/**
+ * @addtogroup CAPI_ML_FRAMEWORK
+ * @{
+ */
 
 /**
  * @brief Enumeration for the error codes of NNStreamer.
@@ -40,6 +44,9 @@ typedef enum {
   ML_ERROR_OUT_OF_MEMORY        = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory (Since 6.0) */
 } ml_error_e;
 
+/**
+ * @}
+ */
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
