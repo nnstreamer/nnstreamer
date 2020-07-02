@@ -476,6 +476,79 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testPushToTensorTransform() {
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)5:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_transform mode=arithmetic option=typecast:float32,add:0.5 ! " +
+                "tensor_sink name=sinkx";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            TensorsInfo info = new TensorsInfo();
+            info.addTensorInfo(NNStreamer.TensorType.UINT8, new int[]{5,1,1,1});
+
+            /* register callback */
+            Pipeline.NewDataCallback cb1 = new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data != null) {
+                        TensorsInfo info = data.getTensorsInfo();
+                        ByteBuffer buffer = data.getTensorData(0);
+
+                        /* validate received data (float32 5:1:1:1) */
+                        if (info == null ||
+                            info.getTensorsCount() != 1 ||
+                            info.getTensorType(0) != NNStreamer.TensorType.FLOAT32 ||
+                            !Arrays.equals(info.getTensorDimension(0), new int[]{5,1,1,1})) {
+                            /* received data is invalid */
+                            mInvalidState = true;
+                        }
+
+                        for (int i = 0; i < 5; i++) {
+                            float expected = i * 2 + mReceived + 0.5f;
+
+                            if (expected != buffer.getFloat(i * 4)) {
+                                mInvalidState = true;
+                            }
+                        }
+
+                        mReceived++;
+                    }
+                }
+            };
+
+            pipe.registerSinkCallback("sinkx", cb1);
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                TensorsData in = info.allocate();
+                ByteBuffer buffer = in.getTensorData(0);
+
+                for (int j = 0; j < 5; j++) {
+                    buffer.put(j, (byte) (j * 2 + i));
+                }
+
+                in.setTensorData(0, buffer);
+
+                pipe.inputData("srcx", in);
+                Thread.sleep(50);
+            }
+
+            /* pause pipeline and unregister sink callback */
+            Thread.sleep(200);
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertEquals(10, mReceived);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
     public void testRunModel() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
