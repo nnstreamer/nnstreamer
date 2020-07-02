@@ -130,7 +130,7 @@ struct _GstAMCSrcPrivate
 };
 
 #define GST_AMC_SRC_GET_PRIVATE(obj)  \
-    (G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_AMC_SRC, GstAMCSrcPrivate))
+    ((GstAMCSrcPrivate *) g_type_instance_get_private ((GTypeInstance *) obj, GST_TYPE_AMC_SRC))
 
 #define gst_amc_src_parent_class parent_class
 
@@ -140,67 +140,67 @@ G_DEFINE_TYPE_WITH_CODE (GstAMCSrc, gst_amc_src, GST_TYPE_PUSH_SRC,
         "Android MediaCodec (AMC) Source"))
 
 /** GObject method implementation */
-     static void gst_amc_src_set_property (GObject * object, guint prop_id,
+static void gst_amc_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
-     static void gst_amc_src_get_property (GObject * object, guint prop_id,
+static void gst_amc_src_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-     static void gst_amc_src_finalize (GObject * object);
+static void gst_amc_src_finalize (GObject * object);
 
 /** GstBaseSrc method implementation */
-     static gboolean gst_amc_src_start (GstBaseSrc * src);
-     static gboolean gst_amc_src_stop (GstBaseSrc * src);
-     static GstCaps *gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter);
-     static gboolean gst_amc_src_is_seekable (GstBaseSrc * src);
-     static gboolean gst_amc_src_unlock (GstBaseSrc * src);
-     static gboolean gst_amc_src_unlock_stop (GstBaseSrc * src);
+static gboolean gst_amc_src_start (GstBaseSrc * src);
+static gboolean gst_amc_src_stop (GstBaseSrc * src);
+static GstCaps *gst_amc_src_get_caps (GstBaseSrc * src, GstCaps * filter);
+static gboolean gst_amc_src_is_seekable (GstBaseSrc * src);
+static gboolean gst_amc_src_unlock (GstBaseSrc * src);
+static gboolean gst_amc_src_unlock_stop (GstBaseSrc * src);
 
 /** GstPushSrc method implementation */
-     static GstFlowReturn gst_amc_src_create (GstPushSrc * src,
-    GstBuffer ** buf);
+static GstFlowReturn gst_amc_src_create (GstPushSrc * src, GstBuffer ** buf);
 
 /** GstElement method implementation */
-     static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
+static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
     GstStateChange transition);
 
 /**
  * @brief enum for propery
  */
-     typedef enum
-     {
-       PROP_0,
-       PROP_LOCATION
-     } GstAMCSrcProperty;
+typedef enum
+{
+  PROP_0,
+  PROP_LOCATION
+} GstAMCSrcProperty;
 
 /**
  * @brief enum for codec message
  */
-     typedef enum
-     {
-       MSG_0,
-       MSG_CODEC_BUFFER,
-       MSG_CODEC_DONE,
-       MSG_CODEC_SEEK,
-       MSG_CODEC_PAUSE,
-       MSG_CODEC_PAUSE_ACK,
-       MSG_CODEC_RESUME
-     } GstAMCSrcMsg;
+typedef enum
+{
+  MSG_0,
+  MSG_CODEC_BUFFER,
+  MSG_CODEC_DONE,
+  MSG_CODEC_SEEK,
+  MSG_CODEC_PAUSE,
+  MSG_CODEC_PAUSE_ACK,
+  MSG_CODEC_RESUME
+} GstAMCSrcMsg;
 
 /**
  * @brief structure for a wrapped buffer
  */
-     typedef struct
-     {
-       gsize refcount;
-       GstAMCSrc *amcsrc;
-       guint8 *buf;
-       gint idx;
-     } GstWrappedBuf;
+typedef struct
+{
+  gsize refcount;
+  GstAMCSrc *amcsrc;
+  guint8 *buf;
+  gint idx;
+} GstWrappedBuf;
 
 /**
  * @brief callback for increasing the refcount in a wrapped buffer
  * @param[in] a wrapped buffer
  */
-     static GstWrappedBuf *gst_wrapped_buf_ref (GstWrappedBuf * self)
+static GstWrappedBuf *
+gst_wrapped_buf_ref (GstWrappedBuf * self)
 {
   g_return_val_if_fail (self != NULL, NULL);
   g_return_val_if_fail (self->amcsrc != NULL, NULL);
