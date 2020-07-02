@@ -1535,14 +1535,21 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       if (direction == GST_PAD_SINK) {
           /** src = SINKPAD / dest = SRCPAD */
         out_info->type = filter->data_typecast.to;
+      } else {
+        /* cannot get the incoming data type on sink pad */
+        out_info->type = _NNS_END;
       }
       break;
 
     case GTT_ARITHMETIC:
       /* check arith mode option has typecast operator */
-      if (direction == GST_PAD_SINK &&
-          filter->data_arithmetic.out_type != _NNS_END) {
-        out_info->type = filter->data_arithmetic.out_type;
+      if (filter->data_arithmetic.out_type != _NNS_END) {
+        if (direction == GST_PAD_SINK) {
+          out_info->type = filter->data_arithmetic.out_type;
+        } else {
+          /* cannot get the incoming data type on sink pad */
+          out_info->type = _NNS_END;
+        }
       }
       break;
 
