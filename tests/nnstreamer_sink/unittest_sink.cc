@@ -110,6 +110,8 @@ typedef enum
   TEST_TYPE_VIDEO_RGB_AGGR_3, /**< pipeline to test tensor_aggregator (test to get frames with the property concat) */
   TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor_aggregator */
+  TEST_TYPE_TRANSFORM_CAPS_NEGO_1, /**< pipeline for caps negotiation in tensor_transform (typecast mode) */
+  TEST_TYPE_TRANSFORM_CAPS_NEGO_2, /**< pipeline for caps negotiation in tensor_transform (arithmetic mode) */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
   TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in #739 */
   TEST_TYPE_ISSUE739_MUX_PARALLEL_2, /**< pipeline to test Mux/Parallel case in #739 */
@@ -882,6 +884,22 @@ _setup_pipeline (TestOption & option)
           ("audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=1 ! "
           "tensor_converter frames-per-tensor=500 ! tensor_aggregator frames-in=500 frames-out=100 frames-dim=1 ! tensor_sink name=test_sink",
           option.num_buffers);
+      break;
+    case TEST_TYPE_TRANSFORM_CAPS_NEGO_1:
+      /* test for caps negotiation in tensor_transform, push data to tensor_transform directly. */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! "
+          "tensor_transform mode=typecast option=%s ! tensor_sink name=test_sink",
+          gst_tensor_get_type_string (option.t_type));
+      break;
+    case TEST_TYPE_TRANSFORM_CAPS_NEGO_2:
+      /* test for caps negotiation in tensor_transform, push data to tensor_transform directly. */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! "
+          "tensor_transform mode=arithmetic option=typecast:%s,add:1 ! tensor_sink name=test_sink",
+          gst_tensor_get_type_string (option.t_type));
       break;
     case TEST_TYPE_TYPECAST:
       /** text stream to test typecast */
@@ -4144,14 +4162,13 @@ TEST (tensor_stream_test, demux_properties_3_n)
 }
 
 /**
- * @brief Test for typecast to int32 using tensor_transform.
+ * @brief Internal function to test typecast in tensor_transform.
  */
-TEST (tensor_stream_test, typecast_int32)
+static void
+_test_transform_typecast (TestType test, tensor_type type, gint buffers)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_INT32;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
+  TestOption option = { buffers, test, type };
+  gsize t_size = gst_tensor_get_element_size (type);
   guint timeout_id;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -4164,14 +4181,14 @@ TEST (tensor_stream_test, typecast_int32)
   g_main_loop_run (g_test_data.loop);
   g_source_remove (timeout_id);
 
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  EXPECT_TRUE (_wait_pipeline_process_buffers (buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   /** check eos message */
   EXPECT_EQ (g_test_data.status, TEST_EOS);
 
   /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.received, buffers);
   EXPECT_EQ (g_test_data.mem_blocks, 1U);
   EXPECT_EQ (g_test_data.received_size, 10U * t_size);
 
@@ -4183,7 +4200,7 @@ TEST (tensor_stream_test, typecast_int32)
 
   /** check tensor config for text */
   EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
+  EXPECT_EQ (g_test_data.tensor_config.info.type, type);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
@@ -4193,6 +4210,14 @@ TEST (tensor_stream_test, typecast_int32)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
+}
+
+/**
+ * @brief Test for typecast to int32 using tensor_transform.
+ */
+TEST (tensor_stream_test, typecast_int32)
+{
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT32, 2);
 }
 
 /**
@@ -4200,51 +4225,7 @@ TEST (tensor_stream_test, typecast_int32)
  */
 TEST (tensor_stream_test, typecast_uint32)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_UINT32;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT32, 2);
 }
 
 /**
@@ -4252,51 +4233,7 @@ TEST (tensor_stream_test, typecast_uint32)
  */
 TEST (tensor_stream_test, typecast_int16)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_INT16;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT16, 2);
 }
 
 /**
@@ -4304,51 +4241,7 @@ TEST (tensor_stream_test, typecast_int16)
  */
 TEST (tensor_stream_test, typecast_uint16)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_UINT16;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT16, 2);
 }
 
 /**
@@ -4356,51 +4249,7 @@ TEST (tensor_stream_test, typecast_uint16)
  */
 TEST (tensor_stream_test, typecast_float64)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_FLOAT64;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_FLOAT64, 2);
 }
 
 /**
@@ -4408,51 +4257,7 @@ TEST (tensor_stream_test, typecast_float64)
  */
 TEST (tensor_stream_test, typecast_float32)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_FLOAT32;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_FLOAT32, 2);
 }
 
 /**
@@ -4460,51 +4265,7 @@ TEST (tensor_stream_test, typecast_float32)
  */
 TEST (tensor_stream_test, typecast_int64)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_INT64;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
-
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
-
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
-
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT64, 2);
 }
 
 /**
@@ -4512,51 +4273,39 @@ TEST (tensor_stream_test, typecast_int64)
  */
 TEST (tensor_stream_test, typecast_uint64)
 {
-  const guint num_buffers = 2;
-  const tensor_type t_type = _NNS_UINT64;
-  TestOption option = { num_buffers, TEST_TYPE_TYPECAST, t_type };
-  gsize t_size = gst_tensor_get_element_size (t_type);
-  guint timeout_id;
+  _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT64, 2);
+}
 
-  ASSERT_TRUE (_setup_pipeline (option));
+/**
+ * @brief Test for caps negotiation in tensor_transform.
+ */
+TEST (tensor_stream_test, transform_caps_nego_typecast_float32)
+{
+  _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_1, _NNS_FLOAT32, 2);
+}
 
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+/**
+ * @brief Test for caps negotiation in tensor_transform.
+ */
+TEST (tensor_stream_test, transform_caps_nego_arithmetic_float32)
+{
+  _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_2, _NNS_FLOAT32, 2);
+}
 
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+/**
+ * @brief Test for caps negotiation in tensor_transform.
+ */
+TEST (tensor_stream_test, transform_caps_nego_typecast_uint32)
+{
+  _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_1, _NNS_UINT32, 2);
+}
 
-  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
-  g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
-
-  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
-  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
-
-  /** check eos message */
-  EXPECT_EQ (g_test_data.status, TEST_EOS);
-
-  /** check received buffers */
-  EXPECT_EQ (g_test_data.received, num_buffers);
-  EXPECT_EQ (g_test_data.mem_blocks, 1U);
-  EXPECT_EQ (g_test_data.received_size, 10U * t_size);
-
-  /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
-
-  /** check timestamp */
-  EXPECT_FALSE (g_test_data.invalid_timestamp);
-
-  /** check tensor config for text */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, t_type);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, 0);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
-
-  EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+/**
+ * @brief Test for caps negotiation in tensor_transform.
+ */
+TEST (tensor_stream_test, transform_caps_nego_arithmetic_uint32)
+{
+  _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_2, _NNS_UINT32, 2);
 }
 
 /**
