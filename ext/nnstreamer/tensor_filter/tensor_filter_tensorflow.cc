@@ -95,6 +95,7 @@ private:
   tensor_type getTensorTypeFromTF (TF_DataType tfType);
   TF_DataType getTensorTypeToTF (tensor_type tType);
   int validateTensor (const GstTensorsInfo * tensorInfo, int is_input);
+  static void releaseBuffer (void* data, size_t t);
 };
 
 void init_filter_tf (void) __attribute__ ((constructor));
@@ -192,8 +193,8 @@ TFCore::getModelPath ()
 /**
  * @brief	the definition of a deallocator method
  */
-static void
-DeallocateBuffer (void* data, size_t t) {
+void
+TFCore::releaseBuffer (void* data, size_t t) {
   std::free (data);
 }
 
@@ -232,7 +233,7 @@ TFCore::loadModel ()
   TF_Buffer* buffer = TF_NewBuffer ();
   buffer->data = content;
   buffer->length = file_size;
-  buffer->data_deallocator = DeallocateBuffer;
+  buffer->data_deallocator = releaseBuffer;
 
   graph = TF_NewGraph ();
   g_assert (graph != nullptr);
