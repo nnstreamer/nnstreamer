@@ -20,7 +20,7 @@
 # --target_abi (default 'arm64-v8a', 'armeabi-v7a' available)
 # --run_test (default 'no', 'yes' to run the instrumentation test)
 # --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
-# --enable_nnfw (default 'no', 'yes' to build with sub-plugin for NNFW)
+# --enable_nnfw (default 'yes' to build with sub-plugin for NNFW)
 # --enable_snpe (default 'no', 'yes' to build with sub-plugin for SNPE)
 # --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
 #
@@ -33,7 +33,7 @@ set -e
 # 'all' : default
 # 'lite' : with GStreamer core plugins
 # 'single' : no plugins, single-shot only
-# 'internal' : no plugins, single-shot only, disable SNAP and tf-lite
+# 'internal' : no plugins, single-shot only, enable NNFW only
 build_type="all"
 
 nnstreamer_api_option="all"
@@ -52,7 +52,7 @@ release_bintray="no"
 enable_snap="no"
 
 # Enable NNFW
-enable_nnfw="no"
+enable_nnfw="yes"
 
 # Enable SNPE
 enable_snpe="no"
@@ -61,7 +61,10 @@ enable_snpe="no"
 enable_tflite="yes"
 
 # Set tensorflow-lite version (available: 1.9.0/1.13.1/1.15.2)
-nnstreamer_tf_lite_ver="1.13.1"
+tf_lite_ver="1.13.1"
+
+# Set NNFW version (https://github.com/Samsung/ONE/releases)
+nnfw_ver="1.6.0"
 
 # Parse args
 for arg in "$@"; do
@@ -129,7 +132,7 @@ elif [[ $build_type == "internal" ]]; then
     nnstreamer_api_option="single"
 
     enable_snap="no"
-    enable_nnfw="no"
+    enable_nnfw="yes"
     enable_snpe="no"
     enable_tflite="no"
 
@@ -146,10 +149,9 @@ if [[ $enable_snap == "yes" ]]; then
 fi
 
 if [[ $enable_nnfw == "yes" ]]; then
-    [ -z "$NNFW_DIRECTORY" ] && echo "Need to set NNFW_DIRECTORY, to build sub-plugin for NNFW." && exit 1
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for NNFW." && exit 1
 
-    echo "Build with NNFW: $NNFW_DIRECTORY"
+    echo "Build with NNFW $nnfw_ver"
 fi
 
 if [[ $enable_snpe == "yes" ]]; then
@@ -228,8 +230,14 @@ cp -r ./api/android/* ./$build_dir
 mkdir -p $build_dir/external
 
 svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./$build_dir
-svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz ./$build_dir/external
-svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/external/jni/Android-nnstreamer-prebuilt.mk ./$build_dir/external
+
+if [[ $enable_tflite == "yes" ]]; then
+    wget --directory-prefix=./$build_dir/external https://raw.githubusercontent.com/nnstreamer/nnstreamer-android-resource/master/external/tensorflow-lite-$tf_lite_ver.tar.xz
+fi
+
+if [[ $enable_nnfw == "yes" ]]; then
+    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-$nnfw_ver-android-aarch64.tar.gz
+fi
 
 pushd ./$build_dir
 
@@ -252,21 +260,22 @@ sed -i "s|sdk.dir=sdk-path|sdk.dir=$android_sdk_dir|" local.properties
 
 # Update SNAP option
 if [[ $enable_snap == "yes" ]]; then
-    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
     cp -r $SNAP_DIRECTORY/* api/src/main/jni
 fi
 
 # Update NNFW option
 if [[ $enable_nnfw == "yes" ]]; then
-    sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android.mk
-    cp -r $NNFW_DIRECTORY/* api/src/main/jni
+    mkdir -p api/src/main/jni/nnfw
+    tar -zxf ./external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C ./api/src/main/jni/nnfw
 fi
 
 # Update SNPE option
 if [[ $enable_snpe == "yes" ]]; then
-    sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android.mk
     sed -i "$ a SNPE_DSP_LIBRARY_PATH=src/main/jni/snpe/lib/dsp" gradle.properties
     mkdir -p api/src/main/jni/snpe/lib/dsp/arm64-v8a
@@ -277,9 +286,9 @@ fi
 
 # Update tf-lite option
 if [[ $enable_tflite == "yes" ]]; then
-    sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" external/Android-nnstreamer-prebuilt.mk
+    sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
-    tar xJf ./external/tensorflow-lite-$nnstreamer_tf_lite_ver.tar.xz -C ./api/src/main/jni
+    tar -xJf ./external/tensorflow-lite-$tf_lite_ver.tar.xz -C ./api/src/main/jni
 fi
 
 # Add dependency for release
@@ -327,7 +336,6 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     unzip $nnstreamer_android_api_lib -d aar_extracted
 
     mkdir -p main/java/org/freedesktop
-    mkdir -p main/java/org/nnsuite/nnstreamer
     mkdir -p main/jni/nnstreamer/lib
     mkdir -p main/jni/nnstreamer/include
 
@@ -341,7 +349,6 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     cp -r api/src/main/java/org/freedesktop/* main/java/org/freedesktop
     cp -r aar_extracted/jni/* main/jni/nnstreamer/lib
     cp api/src/main/jni/*-prebuilt.mk main/jni
-    cp external/Android-nnstreamer-prebuilt.mk main/jni
 
     # header for C-API
     cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include

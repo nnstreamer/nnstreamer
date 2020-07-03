@@ -152,7 +152,7 @@ Run the build script in NNStreamer.
       - `--build_type=all` to include all features.
       - `--build_type=single` to enable SingleShot API only.
       - `--build_type=lite` to get the minimized library with GStreamer core elements.
-  3. Including sub-plugins: Default TensorFlow-Lite enabled.
+  3. Including sub-plugins: Default TensorFlow-Lite and NNFW enabled.
     To enable each neural network frameworks, you should download and set-up proper environment.
       - `--enable_tflite=yes` to build with TensorFlow-Lite.
       - `--enable_snpe=yes` to build with SNPE (Qualcomm Snapdragon Neural Processing Engine).
