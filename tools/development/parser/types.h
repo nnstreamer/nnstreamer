@@ -14,27 +14,58 @@
 
 #include <glib-object.h>
 
+/** @brief Simplified GST-Element */
+typedef struct {
+  gchar *element;
+  gchar *name;
+  GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
+} _Element;
+
+/** @brief Simplified GObject Property for GST Element */
+typedef struct {
+  gchar *name;
+  gchar *value;
+} _Property;
+
 /** @brief pipeline element/pad reference */
 typedef struct {
-  GstElement *element;
+  _Element *element;
   gchar *name;
-  GSList *pads;
+  GSList *pads; /**< Unlike original, it's list of string pad-names */
 } reference_t;
 
 /** @brief pad-to-pad linkage relation */
 typedef struct {
   reference_t src;
   reference_t sink;
-  GstCaps *caps;
+  void *caps; /**< In this app, caps is generally unidentifiable */
   gboolean all_pads;
 } link_t;
 
 /** @brief Chain of elements */
 typedef struct {
-  GSList *elements;
+  GSList *elements; /**< Originally its data is "GstElement". It's now _Element */
   reference_t first;
   reference_t last;
 } chain_t;
+
+/**
+ * @brief A dummy created for gst2pbtxt
+ */
+typedef struct {
+  GList *missing_elements;
+} _ParseContext;
+
+/**
+ * @brief A dummy created for gst2pbtxt
+ */
+typedef enum
+{
+  __PARSE_FLAG_NONE = 0,
+  __PARSE_FLAG_FATAL_ERRORS = (1 << 0),
+  __PARSE_FLAG_NO_SINGLE_ELEMENT_BINS = (1 << 1),
+  __PARSE_FLAG_PLACE_IN_BIN = (1 << 2)
+} _ParseFlags;
 
 typedef struct _graph_t graph_t;
 /** @brief The pipeline graph */
@@ -42,8 +73,8 @@ struct _graph_t {
   chain_t *chain; /* links are supposed to be done now */
   GSList *links;
   GError **error;
-  GstParseContext *ctx; /* may be NULL */
-  GstParseFlags flags;
+  _ParseContext *ctx; /* may be NULL */
+  _ParseFlags flags;
 };
 
 
@@ -116,9 +147,9 @@ gst_parse_unescape (gchar *str)
   *str = '\0';
 }
 
-G_GNUC_INTERNAL GstElement *priv_gst_parse_launch (const gchar      * str,
+G_GNUC_INTERNAL _Element *priv_gst_parse_launch (const gchar      * str,
                                                    GError          ** err,
-                                                   GstParseContext  * ctx,
-                                                   GstParseFlags      flags);
+                                                   _ParseContext  * ctx,
+                                                   _ParseFlags      flags);
 
 #endif /* __GST_PARSE_TYPES_H__ */
