@@ -184,14 +184,27 @@ Before running the unit-test, you should download the test model and copy it int
 
 Make directory and copy test model and label files into the internal storage of your own Android target device.
 
-You can download these files from [nnsuite testcases repository](https://github.com/nnsuite/testcases/tree/master/DeepLearningModels/tensorflow-lite/Mobilenet_v1_1.0_224_quant).
+You can download these files from [nnsuite testcases repository](https://github.com/nnsuite/testcases/tree/master/DeepLearningModels/).
 
 ```
 # You must put the below model and label files in the internal storage of your Android target device.
+
+## For TensorFlow Lite
+# Copy {nnsuite testcases repository}/tensorflow-lite/Mobilenet_v1_1.0_224_quant/* into
 {INTERNAL_STORAGE}/nnstreamer/test/mobilenet_v1_1.0_224_quant.tflite
-{INTERNAL_STORAGE}/nnstreamer/test/add.tflite
 {INTERNAL_STORAGE}/nnstreamer/test/labels.txt
 {INTERNAL_STORAGE}/nnstreamer/test/orange.png
+{INTERNAL_STORAGE}/nnstreamer/test/orange.raw
+
+# Copy {nnsuite testcases repository}/tensorflow-lite/add_tflite/add.tflite into
+{INTERNAL_STORAGE}/nnstreamer/test/add.tflite
+
+## For SNPE
+# Copy {nnsuite testcases repository}/snpe/inception_v3/* into
+{INTERNAL_STORAGE}/nnstreamer/snpe_data/inception_v3_quantized.dlc
+{INTERNAL_STORAGE}/nnstreamer/snpe_data/imagenet_slim_labels.txt
+{INTERNAL_STORAGE}/nnstreamer/snpe_data/plastic_cup.jpg
+{INTERNAL_STORAGE}/nnstreamer/snpe_data/plastic_cup.raw
 ```
 
 To check the testcases, run the build script with an option ```--run_test=yes```.
