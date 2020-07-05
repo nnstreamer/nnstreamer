@@ -1656,4 +1656,100 @@ public class APITestPipeline {
             fail();
         }
     }
+
+    /**
+     * Run SNPE with inception model with given runtime.
+     */
+    private void runSNPEInception(String runtime) {
+        File model = APITestCommon.getSNPEModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:299:299:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snpe model=" + model.getAbsolutePath() +
+                " custom=Runtime:" + runtime + " ! " +
+                "tensor_sink name=sinkx";
+
+        /* expected label is measuring_cup (648) */
+        final int expected_label = 648;
+        try (
+            Pipeline pipe = new Pipeline(desc)
+        ) {
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    ByteBuffer buffer = data.getTensorData(0);
+                    int labelIndex = APITestCommon.getMaxScoreSNPE(buffer);
+
+                    /* check label index (measuring cup) */
+                    if (labelIndex != expected_label) {
+                        mInvalidState = true;
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            TensorsData in = APITestCommon.readRawImageDataSNPE();
+            pipe.inputData("srcx", in);
+
+            /* sleep 1000 msec to invoke */
+            Thread.sleep(1000);
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSNPEClassificationResultCPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNPEInception("CPU");
+    }
+
+    @Test
+    public void testSNPEClassificationResultGPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNPEInception("GPU");
+    }
+
+    @Test
+    public void testSNPEClassificationResultDSP() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNPEInception("DSP");
+    }
+
+    @Test
+    public void testSNPEClassificationResultNPU() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runSNPEInception("NPU");
+    }
+
 }
