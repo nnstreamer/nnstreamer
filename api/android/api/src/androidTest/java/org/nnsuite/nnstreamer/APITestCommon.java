@@ -123,6 +123,62 @@ public class APITestCommon {
     }
 
     /**
+     * Reads raw float image file (plastic_cup) and returns TensorsData instance.
+     */
+    public static TensorsData readRawImageDataSNPE() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File raw = new File(root + "/nnstreamer/snpe_data/plastic_cup.raw");
+
+        if (!raw.exists()) {
+            fail();
+        }
+
+        TensorsInfo info = new TensorsInfo();
+        info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3, 299, 299, 1});
+
+        int size = info.getTensorSize(0);
+        TensorsData data = TensorsData.allocate(info);
+
+        try {
+            byte[] content = Files.readAllBytes(raw.toPath());
+            if (content.length != size) {
+                fail();
+            }
+
+            ByteBuffer buffer = TensorsData.allocateByteBuffer(size);
+            buffer.put(content);
+
+            data.setTensorData(0, buffer);
+        } catch (Exception e) {
+            fail();
+        }
+
+        return data;
+    }
+
+    /**
+     * Gets the label index with max score, for SNPE image classification.
+     */
+    public static int getMaxScoreSNPE(ByteBuffer buffer) {
+        int index = -1;
+        float maxScore = -Float.MAX_VALUE;
+
+        if (isValidBuffer(buffer, 4004)) {
+            for (int i = 0; i < 1001; i++) {
+                /* convert to float */
+                float score = buffer.getFloat(i * 4);
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
+    }
+
+    /**
      * Gets the File object of tensorflow-lite model.
      * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
      */

@@ -814,4 +814,38 @@ public class APITestSingleShot {
             fail();
         }
     }
+
+    @Test
+    public void testSNPEClassificationResult() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        /* expected label is measuring_cup (648) */
+        final int expected_label = 648;
+
+        try {
+            File model = APITestCommon.getSNPEModel();
+
+            SingleShot single = new SingleShot(model, NNStreamer.NNFWType.SNPE);
+
+            /* let's ignore timeout (set 10 sec) */
+            single.setTimeout(10000);
+
+            /* single-shot invoke */
+            TensorsData in = APITestCommon.readRawImageDataSNPE();
+            TensorsData out = single.invoke(in);
+            int labelIndex = APITestCommon.getMaxScoreSNPE(out.getTensorData(0));
+
+            /* check label index (measuring cup) */
+            if (labelIndex != expected_label) {
+                fail();
+            }
+
+            single.close();
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }
