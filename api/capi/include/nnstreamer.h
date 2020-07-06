@@ -922,6 +922,7 @@ int ml_tensors_info_get_tensor_size (ml_tensors_info_h info, int index, size_t *
 /**
  * @brief Creates a tensor data frame with the given tensors information.
  * @since_tizen 5.5
+ * @remarks Before 6.0, this function returned #ML_ERROR_STREAMS_PIPE in case of an internal error. Since 6.0, #ML_ERROR_OUT_OF_MEMORY is returned in such cases, so #ML_ERROR_STREAMS_PIPE is not returned by this function anymore.
  * @param[in] info The handle of tensors information for the allocation.
  * @param[out] data The handle of tensors data. The caller is responsible for freeing the allocated data with ml_tensors_data_destroy().
  * @return @c 0 on success. Otherwise a negative error value.
