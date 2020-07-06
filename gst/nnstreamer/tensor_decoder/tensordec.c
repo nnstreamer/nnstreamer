@@ -609,13 +609,14 @@ gst_tensordec_class_finalize (GObject * object)
  * @brief Configure tensor metadata from sink caps
  */
 static gboolean
-gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
+gst_tensordec_configure (GstTensorDec * self, const GstCaps * in_caps,
+    const GstCaps * out_caps)
 {
   GstStructure *structure;
   GstTensorsConfig config;
 
   /** This caps is coming from tensor */
-  structure = gst_caps_get_structure (caps, 0);
+  structure = gst_caps_get_structure (in_caps, 0);
 
   if (!gst_tensors_config_from_structure (&config, structure)) {
     GST_ERROR_OBJECT (self, "Cannot configure tensor from structure");
@@ -627,14 +628,31 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * caps)
     return FALSE;
   }
 
-  if (self->configured && !gst_tensordec_check_consistency (self, &config)) {
-    GST_ERROR_OBJECT (self, "Mismatched to old metadata");
-    return FALSE;
-  }
-
   if (self->decoder == NULL) {
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
     return FALSE;
+  }
+
+  /**
+   * If previous input configuration is set and is not compatible with incoming caps,
+   * get possible media caps from sub-plugin and change input configuration.
+   */
+  if (self->configured && !gst_tensordec_check_consistency (self, &config)) {
+    GstCaps *supposed;
+    gboolean compatible;
+
+    supposed = gst_tensordec_media_caps_from_tensor (self, &config);
+    compatible = gst_caps_is_always_compatible (out_caps, supposed);
+    gst_caps_unref (supposed);
+
+    /** Check if outcaps is compatible with new caps */
+    if (!compatible) {
+      GST_ERROR_OBJECT (self, "The coming tensor config is not valid.");
+      return FALSE;
+    }
+
+    gst_tensor_decoder_clean_plugin (self);
+    self->decoder->init (&self->plugin_data);
   }
 
   self->tensor_config = config;
@@ -797,7 +815,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
     return NULL;
   }
 
-  if (gst_tensordec_configure (self, caps)) {
+  if (gst_tensordec_configure (self, caps, othercaps)) {
     supposed =
         gst_tensordec_media_caps_from_tensor (self, &self->tensor_config);
   } else {
@@ -842,7 +860,7 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
 
-  if (gst_tensordec_configure (self, incaps)) {
+  if (gst_tensordec_configure (self, incaps, outcaps)) {
     GstCaps *supposed = gst_tensordec_media_caps_from_tensor (self,
         &self->tensor_config);
 
