@@ -458,6 +458,9 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
    */
   gst_base_src_set_async (GST_BASE_SRC (self), TRUE);
 
+  /** @todo TBD. Let's assume each frame has a fixed size */
+  gst_base_src_set_dynamic_size (GST_BASE_SRC (self), FALSE);
+
   if (NULL == tizensensors) {
     int i;
     tizensensors = g_hash_table_new (g_direct_hash, g_direct_equal);
@@ -505,15 +508,20 @@ _ts_clean_up_handle (GstTensorSrcTIZENSENSOR * self)
  * @details This is for TZN_SENSOR_MODE_ACTIVE_POLLING
  */
 static void __attribute__ ((unused))
-    _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s * event,
-    void *user_data)
+_ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s events[],
+    int events_count, void *user_data)
 {
   GstTensorSrcTIZENSENSOR *self = (GstTensorSrcTIZENSENSOR *) user_data;
+  sensor_event_s *event;
   sensor_type_e type;
   int n_tensor_size = gst_tensor_get_element_count (self->src_spec->dimension);
 
   g_assert (self->configured);
   g_assert (self->running);
+  g_assert (events_count > 0);
+
+  /** @todo last or first sensor data? */
+  event = &events[events_count - 1];
 
   sensor_get_type (sensor, &type);
 
@@ -616,7 +624,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
       break;
 #if 0 /** Use this if TZN_SENSOR_MODE_ACTIVE_POLLING is implemented */
     case TZN_SENSOR_MODE_ACTIVE_POLLING:
-      ret = sensor_listener_set_event_cb (listener, self->interval_ms,
+      ret = sensor_listener_set_events_cb (listener,
           _ts_tizen_sensor_callback, self);
       if (ret != SENSOR_ERROR_NONE)
         return ret;
@@ -845,6 +853,7 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   int ret = 0;
   GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR_CAST (src);
   gboolean retval = TRUE;
+  guint blocksize;
 
   _LOCK (self);
 
@@ -868,9 +877,6 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   }
   g_assert (self->configured == TRUE);
 
-  /** @todo TBD. Let's assume each frame has a fixed size */
-  gst_base_src_set_dynamic_size (src, FALSE);
-
   /* 3. Fire it up! */
   if (sensor_listener_start (self->listener) != 0) {
     /* Failed to start listener. Clean this up */
@@ -881,6 +887,11 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
     retval = FALSE;
     goto exit;
   }
+
+  /* set data size */
+  blocksize = gst_tensor_info_get_size (self->src_spec);
+  gst_base_src_set_blocksize (src, blocksize);
+
   self->running = TRUE;
 
   /** complete the start of the base src */
@@ -1167,6 +1178,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer * buffer)
 {
   GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR_CAST (src);
+  sensor_event_s *events = NULL;
   GstFlowReturn retval = GST_FLOW_OK;
   GstMemory *mem;
   GstMapInfo map;
@@ -1206,24 +1218,29 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   }
 
   if (self->mode == TZN_SENSOR_MODE_POLLING) {
-    sensor_event_s event;
+    sensor_event_s *event;
+    int count = 0;
     gint64 ts, diff;
+    int ret;
 
     /* 1. Read sensor data directly from Tizen API */
-    int ret = sensor_listener_read_data (self->listener, &event);
+    ret = sensor_listener_read_data_list (self->listener, &events, &count);
 
-    if (ret != SENSOR_ERROR_NONE) {
+    if (ret != SENSOR_ERROR_NONE || count == 0) {
       GST_ERROR_OBJECT (self,
-          "Tizen sensor read failed: sensor_listener_read_data returned %d",
-          ret);
+          "Tizen sensor read failed: sensor_listener_read_data returned %d, count %d",
+          ret, count);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
 
-    if (event.value_count != self->src_spec->dimension[0]) {
+    /** @todo last or first sensor data? */
+    event = &events[count - 1];
+
+    if (event->value_count != self->src_spec->dimension[0]) {
       GST_ERROR_OBJECT (self,
           "The number of values (%d) mismatches the metadata (%d)",
-          event.value_count, self->src_spec->dimension[0]);
+          event->value_count, self->src_spec->dimension[0]);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
@@ -1232,13 +1249,13 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
     /* 2-1. Find out the delay already occured */
     ts = g_get_monotonic_time ();
-    if (ts < event.timestamp) {
+    if (ts < event->timestamp) {
       GST_ERROR_OBJECT (self,
           "Timestamp of the Tizen sensor is from the future.");
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
-    diff = ts - event.timestamp;
+    diff = ts - event->timestamp;
 
     /* 2-2. Adjust the timestamp */
     if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buffer))) {
@@ -1255,7 +1272,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
         dts -= diff;
       GST_BUFFER_DTS (buffer) = dts;
     } else if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_PTS (buffer))) {
-      GstClockTime pts = GST_BUFFER_PTS (buffer) - (ts - event.timestamp);
+      GstClockTime pts = GST_BUFFER_PTS (buffer) - (ts - event->timestamp);
       if (pts < diff)
         pts = 0;
       else
@@ -1266,10 +1283,10 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
       /** @todo NYI. Need research on this matter */
     }
-    GST_BUFFER_PTS (buffer) = event.timestamp;
+    GST_BUFFER_PTS (buffer) = event->timestamp;
 
     /* 3. Write values to buffer. Be careful on type casting */
-    _ts_assign_values (event.values, event.value_count, &map, self->src_spec);
+    _ts_assign_values (event->values, event->value_count, &map, self->src_spec);
 
   } else {
     /** NYI! */
@@ -1280,6 +1297,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   }
 
 exit_unmap:
+  g_free (events);
   gst_memory_unmap (mem, &map);
 exit:
   _UNLOCK (self);

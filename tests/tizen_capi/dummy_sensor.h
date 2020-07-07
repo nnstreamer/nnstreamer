@@ -152,7 +152,7 @@ extern int
 sensor_listener_stop (sensor_listener_h listener);
 
 extern int
-sensor_listener_read_data (sensor_listener_h listener, sensor_event_s *event);
+sensor_listener_read_data_list (sensor_listener_h listener, sensor_event_s ** events, int * count);
 
 
 /* publish data */
