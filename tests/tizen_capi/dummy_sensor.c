@@ -200,19 +200,23 @@ sensor_listener_stop (sensor_listener_h listener)
  * @brief Dummy (simulation) Tizen Sensor Framework API
  */
 int
-sensor_listener_read_data (sensor_listener_h listener, sensor_event_s * event)
+sensor_listener_read_data_list (sensor_listener_h listener,
+    sensor_event_s ** events, int * count)
 {
   sensor_listener_s *ptr = listener;
   sensor_s *s;
 
-  if (NULL == listener || NULL == event)
+  if (NULL == listener || NULL == events || NULL == count)
     return -EINVAL;
 
   s = ptr->listening;
   if (NULL == s || !ptr->is_listening)
     return -EINVAL;
 
-  memcpy (event, &(s->last_recorded), sizeof (sensor_event_s));
+  *count = 1;
+  *events = g_new0 (sensor_event_s, 1);
+
+  memcpy (*events, &(s->last_recorded), sizeof (sensor_event_s));
 
   return 0;
 }
