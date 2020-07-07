@@ -218,11 +218,11 @@ NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
 %endif
 
 %if 0%{?python_support}
-%package -n nnstreamer-python2
+%package python2
 Summary:  NNStreamer Python Custom Filter Support
 Requires: nnstreamer = %{version}-%{release}
 Requires: python
-%description -n nnstreamer-python2
+%description python2
 NNStreamer's tensor_filter subplugin of Python (2.7).
 %endif
 
@@ -251,12 +251,22 @@ NNStreamer filter subplugin for Verisicon Vivante.
 
 # for protobuf
 %if 0%{?protobuf_support}
-%package    nnstreamer-protobuf
+%package    protobuf
 Summary:	NNStreamer Protobuf Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	protobuf
-%description nnstreamer-protobuf
+%description protobuf
 NNStreamer's tensor_converter and decoder subplugin of Protobuf.
+%endif
+
+# for flatbuf
+%if 0%{?flatbuf_support}
+%package    flatbuf
+Summary:	NNStreamer Flatbuf Support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	flatbuffers
+%description flatbuf
+NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif
 
 %package devel
@@ -574,14 +584,15 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
-%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_*.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_bounding_boxes.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_pose_estimation.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_direct_video.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 %{_sysconfdir}/nnstreamer.ini
-%if 0%{?flatbuf_support}
-%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
-%endif
 
 # for tensorflow
 %if 0%{?tensorflow_support}
@@ -599,7 +610,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %if 0%{?python_support}
-%files -n nnstreamer-python2
+%files python2
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
@@ -608,12 +619,20 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %if 0%{?protobuf_support}
-%files nnstreamer-protobuf
+%files protobuf
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_libdir}/libnnstreamer_protobuf.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_protobuf.so
 %{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_protobuf.so
+%endif
+
+%if 0%{?flatbuf_support}
+%files flatbuf
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_flatbuf.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
 %endif
 
 %files devel
