@@ -278,6 +278,12 @@ Requires:	gstreamer-devel
 Development package for custom tensor operator developers (tensor_filter/custom).
 This contains corresponding header files and .pc pkgconfig file.
 
+%package devel-static
+Summary:    Static library for nnstreamer-devel package
+Requires:   devel = %{version}-%{release}
+%description devel-static
+Static library package of nnstreamer-devel.
+
 %package custom-filter-example
 Summary:	NNStreamer example custom plugins and test plugins
 Requires:	nnstreamer = %{version}-%{release}
@@ -321,6 +327,13 @@ Requires:	capi-nnstreamer = %{version}-%{release}
 Requires:	capi-ml-common-devel
 %description -n capi-nnstreamer-devel
 Developmental kit for Tizen Native NNStreamer API.
+
+%package -n capi-nnstreamer-devel-static
+Summary:    Static library for Tizen Native API
+Group:      Multimedia/Framework
+Requires:   capi-nnstreamer-devel = %{version}-%{release}
+%description -n capi-nnstreamer-devel-static
+Static library of capi-nnstreamer-devel package.
 
 %package -n capi-ml-common-devel
 Summary:	Common headers for Tizen Machine Learning API set.
@@ -646,10 +659,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer_version.h
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
 %{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
-%{_libdir}/*.a
-%exclude %{_libdir}/libcapi*.a
 %{_libdir}/pkgconfig/nnstreamer.pc
 %{_libdir}/pkgconfig/nnstreamer-cpp.pc
+
+%files devel-static
+%{_libdir}/*.a
+%exclude %{_libdir}/libcapi*.a
 
 %if 0%{?testcoverage}
 %files unittest-coverage
@@ -673,6 +688,8 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer.h
 %{_includedir}/nnstreamer/nnstreamer-single.h
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
+
+%files -n capi-nnstreamer-devel-static
 %{_libdir}/libcapi-nnstreamer.a
 
 %files -n capi-ml-common-devel
