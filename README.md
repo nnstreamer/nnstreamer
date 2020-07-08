@@ -147,7 +147,7 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 - Movidius-X via ncsdk2 subplugin: Released
 - Movidius-X via openVINO subplugin: Released
 - Edge-TPU via edgetpu subplugin: Released
-- NNRuntime via nnfw subplugin: Released
+- [**ONE**](https://github.com/Samsung/ONE) runtime via nnfw(an old name of **ONE**) subplugin: Released
 - ARMNN via armnn subplugin: Released
 - Verisilicon-Vivante via vivante subplugin: Released
 - Qualcomm SNPE via snpe subplugin: Released
