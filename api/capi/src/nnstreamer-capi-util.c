@@ -1271,7 +1271,7 @@ ml_check_plugin_availability (const char *plugin_name, const char *element_name)
   }
 
   /* nnstreamer elements */
-  if (g_str_equal (plugin_name, "nnstreamer") &&
+  if (g_str_has_prefix (plugin_name, "nnstreamer") &&
       g_str_has_prefix (element_name, "tensor_")) {
     return ML_ERROR_NONE;
   }
