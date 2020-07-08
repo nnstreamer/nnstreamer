@@ -102,7 +102,7 @@ if gtest_dep.found()
     if build_platform != 'macos'
       unittest_src_iio = executable('unittest_src_iio',
         join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
-        dependencies: [nnstreamer_unittest_deps],
+        dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
         install: get_option('install-test'),
         install_dir: unittest_install_dir
       )

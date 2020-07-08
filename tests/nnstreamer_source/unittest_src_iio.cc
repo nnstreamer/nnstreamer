@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <tensor_common.h>
+#include <unittest_util.h>
 
 /**
  * @brief element name to be tested
@@ -1010,8 +1011,7 @@ TEST (test_tensor_src_iio, start_stop)
   EXPECT_EQ (status, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (state, GST_STATE_PAUSED);
 
-  status = gst_element_set_state (src_iio, GST_STATE_PLAYING);
-  EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (setPipelineStateSync (src_iio, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
   status = gst_element_get_state (src_iio, &state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (state, GST_STATE_PLAYING);
@@ -1080,8 +1080,7 @@ TEST (test_tensor_src_iio, \
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL); \
   g_free (parse_launch); \
   /** state transition test upwards */ \
-  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING); \
-  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC); \
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0); \
   status = gst_element_get_state (\
       src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE); \
   EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS); \
@@ -1293,8 +1292,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
   g_free (parse_launch);
   /** state transition test upwards */
-  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
-  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
   status =
       gst_element_get_state (src_iio_pipeline, &state, NULL,
       GST_CLOCK_TIME_NONE);
@@ -1385,8 +1383,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
   g_free (parse_launch);
   /** state transition test upwards */
-  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
-  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
   status =
       gst_element_get_state (src_iio_pipeline, &state, NULL,
       GST_CLOCK_TIME_NONE);
@@ -1496,8 +1493,7 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   write_file_string (dev0->buf_length, buffer_length_char);
 
   /** state transition test upwards */
-  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
-  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
   status =
       gst_element_get_state (src_iio_pipeline, &state, NULL,
       GST_CLOCK_TIME_NONE);
@@ -1620,8 +1616,7 @@ TEST (test_tensor_src_iio, unusual_cases)
   ASSERT_NE (src_iio, nullptr);
 
   /** state transition test upwards */
-  status = gst_element_set_state (src_iio_pipeline, GST_STATE_PLAYING);
-  EXPECT_EQ (status, GST_STATE_CHANGE_ASYNC);
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
   status =
       gst_element_get_state (src_iio_pipeline, &state, NULL,
       GST_CLOCK_TIME_NONE);
