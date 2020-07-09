@@ -51,7 +51,7 @@ public final class SingleShot implements AutoCloseable {
      * @param model The path to the neural network model file
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to construct the pipeline
+     * @throws IllegalStateException if this failed to construct the pipeline
      */
     public SingleShot(@NonNull File model) {
         this(model, null, null);
@@ -65,7 +65,7 @@ public final class SingleShot implements AutoCloseable {
      * @param fw    The neural network framework
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to construct the pipeline
+     * @throws IllegalStateException if this failed to construct the pipeline
      *
      * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
      */
@@ -85,7 +85,7 @@ public final class SingleShot implements AutoCloseable {
      * @param out   The output tensors information
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to construct the pipeline
+     * @throws IllegalStateException if this failed to construct the pipeline
      */
     public SingleShot(@NonNull File model, @Nullable TensorsInfo in, @Nullable TensorsInfo out) {
         this(new File[]{model}, in, out, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
@@ -104,7 +104,7 @@ public final class SingleShot implements AutoCloseable {
      * @param option The custom option string to open the neural network
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to construct the pipeline
+     * @throws IllegalStateException if this failed to construct the pipeline
      *
      * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
      */
@@ -150,7 +150,7 @@ public final class SingleShot implements AutoCloseable {
      *
      * @return The output data (a single frame, tensor/tensors)
      *
-     * @throws IllegalStateException if failed to invoke the model
+     * @throws IllegalStateException if this failed to invoke the model
      * @throws IllegalArgumentException if given param is null
      */
     public TensorsData invoke(@NonNull TensorsData in) {
@@ -173,7 +173,7 @@ public final class SingleShot implements AutoCloseable {
      *
      * @return The tensors information
      *
-     * @throws IllegalStateException if failed to get the input information
+     * @throws IllegalStateException if this failed to get the input information
      */
     public TensorsInfo getInputInfo() {
         checkPipelineHandle();
@@ -191,7 +191,7 @@ public final class SingleShot implements AutoCloseable {
      *
      * @return The tensors information
      *
-     * @throws IllegalStateException if failed to get the output information
+     * @throws IllegalStateException if this failed to get the output information
      */
     public TensorsInfo getOutputInfo() {
         checkPipelineHandle();
@@ -256,7 +256,7 @@ public final class SingleShot implements AutoCloseable {
      * @param timeout The time to wait for an output
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to set the timeout
+     * @throws IllegalStateException if this failed to set the timeout
      */
     public void setTimeout(int timeout) {
         checkPipelineHandle();
@@ -278,7 +278,7 @@ public final class SingleShot implements AutoCloseable {
      *
      * @param in The input tensors information
      *
-     * @throws IllegalStateException if failed to set the input information
+     * @throws IllegalStateException if this failed to set the input information
      * @throws IllegalArgumentException if given param is null
      */
     public void setInputInfo(@NonNull TensorsInfo in) {
