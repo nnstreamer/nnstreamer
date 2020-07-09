@@ -448,6 +448,68 @@ fill_tensors_config_for_test (GstTensorsConfig * conf1, GstTensorsConfig * conf2
 }
 
 /**
+ * @brief Test for data size.
+ */
+TEST (common_tensor_info, size_01_p)
+{
+  GstTensorsInfo info1, info2;
+  gsize size1, size2;
+  guint i;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  size1 = gst_tensor_info_get_size (&info1.info[0]);
+  size2 = gst_tensors_info_get_size (&info1, 0);
+
+  EXPECT_TRUE (size1 == size2);
+
+  size1 = 0;
+  for (i = 0; i < info2.num_tensors; i++) {
+    size1 += gst_tensor_info_get_size (&info2.info[i]);
+  }
+
+  size2 = gst_tensors_info_get_size (&info2, -1);
+
+  EXPECT_TRUE (size1 == size2);
+}
+
+/**
+ * @brief Test for data size.
+ */
+TEST (common_tensor_info, size_02_n)
+{
+  GstTensorsInfo info1, info2;
+  gsize size1;
+  gint index;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* get size with null param */
+  index = (gint) info1.num_tensors - 1;
+  size1 = gst_tensors_info_get_size (NULL, index);
+
+  EXPECT_TRUE (size1 == 0);
+}
+
+/**
+ * @brief Test for data size.
+ */
+TEST (common_tensor_info, size_03_n)
+{
+  GstTensorsInfo info1, info2;
+  gsize size1;
+  gint index;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* get size with invalid index */
+  index = (gint) info1.num_tensors;
+  size1 = gst_tensors_info_get_size (&info1, index);
+
+  EXPECT_TRUE (size1 == 0);
+}
+
+/**
  * @brief Test for same tensors info.
  */
 TEST (common_tensor_info, equal_01_p)

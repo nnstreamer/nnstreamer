@@ -280,6 +280,31 @@ gst_tensors_info_free (GstTensorsInfo * info)
 }
 
 /**
+ * @brief Get data size of single tensor
+ * @param info tensors info structure
+ * @param index the index of tensor (-1 to get total size of tensors)
+ * @return data size
+ */
+gsize
+gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
+{
+  gsize data_size = 0;
+  guint i;
+
+  g_return_val_if_fail (info != NULL, 0);
+  g_return_val_if_fail (index < (gint) info->num_tensors, 0);
+
+  if (index < 0) {
+    for (i = 0; i < info->num_tensors; ++i)
+      data_size += gst_tensor_info_get_size (&info->info[i]);
+  } else {
+    data_size = gst_tensor_info_get_size (&info->info[index]);
+  }
+
+  return data_size;
+}
+
+/**
  * @brief Check the tensors info is valid
  * @param info tensors info structure
  * @return TRUE if info is valid
