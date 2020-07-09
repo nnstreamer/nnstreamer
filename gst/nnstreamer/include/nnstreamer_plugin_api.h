@@ -108,6 +108,15 @@ extern void
 gst_tensors_info_free (GstTensorsInfo * info);
 
 /**
+ * @brief Get data size of single tensor
+ * @param info tensors info structure
+ * @param index the index of tensor (-1 to get total size of tensors)
+ * @return data size
+ */
+gsize
+gst_tensors_info_get_size (const GstTensorsInfo * info, gint index);
+
+/**
  * @brief Parse the string of dimensions
  * @param info tensors info structure
  * @param dim_string string of dimensions
