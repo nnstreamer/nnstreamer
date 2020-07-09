@@ -32,7 +32,7 @@ import java.util.Locale;
  * Note that, to open a machine learning model in the storage,
  * the permission <code>Manifest.permission.READ_EXTERNAL_STORAGE</code> is required before constructing the pipeline.
  * <br>
- * See <a href="https://github.com/nnstreamer/nnstreamer">https://github.com/nnstreamer/nnstreamer</a> for the details.
+ * See <a href="https://github.com/nnstreamer/nnstreamer">NNStreamer repository</a> for the details.
  */
 public final class NNStreamer {
     /**
@@ -50,17 +50,14 @@ public final class NNStreamer {
      */
     public enum NNFWType {
         /**
-         * TensorFlow Lite<br>
-         * <br>
          * <a href="https://www.tensorflow.org/lite">TensorFlow Lite</a> is an open source
-         * deep learning framework for on-device inference.<br>
+         * deep learning framework for on-device inference.
          */
         TENSORFLOW_LITE,
         /**
-         * SNAP (Samsung Neural Acceleration Platform)<br>
-         * <br>
-         * Supports <a href="https://developer.samsung.com/neural">Samsung Neural SDK</a>
-         * (Version 2.0, run only on Samsung devices)<br>
+         * SNAP (Samsung Neural Acceleration Platform)
+         * supports <a href="https://developer.samsung.com/neural">Samsung Neural SDK</a>
+         * (Version 2.0, run only on Samsung devices).<br>
          * To construct a pipeline with SNAP, developer should set the custom option string
          * to specify the neural network and data format.<br>
          * <br>
@@ -69,18 +66,21 @@ public final class NNStreamer {
          * - ExecutionDataType: the execution data type for SNAP (default float32)<br>
          * - ComputingUnit: the computing unit to execute the model (default CPU)<br>
          * - CpuThreadCount: the number of CPU threads to be executed (optional, default 4 if ComputingUnit is CPU)<br>
-         * - GpuCacheSource: the absolute path to GPU Kernel caching (mandatory if ComputingUnit is GPU)<br>
+         * - GpuCacheSource: the absolute path to GPU Kernel caching (mandatory if ComputingUnit is GPU)
          */
         SNAP,
         /**
-         * On-device neural network inference framework, which is developed by SR (Samsung Research).
+         * NNFW is on-device neural network inference framework, which is developed by SR (Samsung Research).<br>
+         * See <a href="https://github.com/Samsung/ONE">ONE (On-device Neural Engine) repository</a> for the details.
          */
         NNFW,
         /**
-         * SNPE (Snapdragon Neural Processing Engine)<br>
+         * <a href="https://developer.qualcomm.com/docs/snpe/index.html">SNPE</a> (Snapdragon Neural Processing Engine)
+         * is a Qualcomm Snapdragon software accelerated runtime for the execution of deep neural networks.<br>
          * <br>
-         * <a href="https://developer.qualcomm.com/docs/snpe/index.html">SNPE</a> is
-         * a Qualcomm Snapdragon software accelerated runtime for the execution of deep neural networks.
+         * Custom options<br>
+         * - Runtime: the computing unit to execute the model (default CPU)<br>
+         * - CPUFallback: CPU fallback mode (default false)
          */
         SNPE,
         /**
