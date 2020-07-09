@@ -1059,30 +1059,40 @@ gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
 /**
  * @brief Set the tensors config structure from video info (internal static function)
  * @param self this pointer to GstTensorConverter
+ * @param caps caps for media stream
  * @param config tensors config structure to be filled
- * @param info video info structure
  * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_video (GstTensorConverter * self,
-    GstTensorsConfig * config, const GstVideoInfo * info)
+    const GstCaps * caps, GstTensorsConfig * config)
 {
   /**
    * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/image
    * A 4-D uint8 or float32 Tensor of shape [batch_size, height, width, channels]
    * where channels is 1, 3, or 4.
    */
+  GstVideoInfo vinfo;
   GstVideoFormat format;
+  gint width, height;
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
+
   gst_tensors_config_init (config);
+
+  gst_video_info_init (&vinfo);
+  if (!gst_video_info_from_caps (&vinfo, caps)) {
+    GST_ERROR_OBJECT (self, "Failed to get video info from caps.");
+    return FALSE;
+  }
+
+  format = GST_VIDEO_INFO_FORMAT (&vinfo);
+  width = GST_VIDEO_INFO_WIDTH (&vinfo);
+  height = GST_VIDEO_INFO_HEIGHT (&vinfo);
+
   config->info.num_tensors = 1;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  format = GST_VIDEO_INFO_FORMAT (info);
 
   /* [color-space][width][height][frames] */
   switch (format) {
@@ -1113,47 +1123,70 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
       break;
   }
 
-  config->info.info[0].dimension[1] = GST_VIDEO_INFO_WIDTH (info);
-  config->info.info[0].dimension[2] = GST_VIDEO_INFO_HEIGHT (info);
+  config->info.info[0].dimension[1] = width;
+  config->info.info[0].dimension[2] = height;
 
   /* Supposed 1 frame in tensor, change dimension[3] if tensor contains N frames. */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++) {
     config->info.info[0].dimension[i] = 1;
   }
 
-  config->rate_n = GST_VIDEO_INFO_FPS_N (info);
-  config->rate_d = GST_VIDEO_INFO_FPS_D (info);
+  config->rate_n = GST_VIDEO_INFO_FPS_N (&vinfo);
+  config->rate_d = GST_VIDEO_INFO_FPS_D (&vinfo);
 
+  /**
+   * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
+   * @todo Add more conditions!
+   */
+  if (gst_tensor_converter_video_stride (format, width)) {
+    self->remove_padding = TRUE;
+    silent_debug ("Set flag to remove padding, width = %d", width);
+
+    GST_WARNING_OBJECT (self,
+        "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
+        "Please use 4 x n as image width for inputs.\n");
+  }
+
+  self->frame_size = GST_VIDEO_INFO_SIZE (&vinfo);
   return (config->info.info[0].type != _NNS_END);
 }
 
 /**
  * @brief Set the tensors config structure from audio info (internal static function)
  * @param self this pointer to GstTensorConverter
+ * @param caps caps for media stream
  * @param config tensors config structure to be filled
- * @param info audio info structure
  * @note Change dimension if tensor contains N frames.
  * @return TRUE if supported type
  */
 static gboolean
 gst_tensor_converter_parse_audio (GstTensorConverter * self,
-    GstTensorsConfig * config, const GstAudioInfo * info)
+    const GstCaps * caps, GstTensorsConfig * config)
 {
   /**
    * Refer: https://www.tensorflow.org/api_docs/python/tf/summary/audio
    * A 3-D float32 Tensor of shape [batch_size, frames, channels]
    * or a 2-D float32 Tensor of shape [batch_size, frames].
    */
+  GstAudioInfo ainfo;
   GstAudioFormat format;
+  gint channels;
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
+
   gst_tensors_config_init (config);
+
+  gst_audio_info_init (&ainfo);
+  if (!gst_audio_info_from_caps (&ainfo, caps)) {
+    GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
+    return FALSE;
+  }
+
+  format = GST_AUDIO_INFO_FORMAT (&ainfo);
+  channels = GST_AUDIO_INFO_CHANNELS (&ainfo);
+
   config->info.num_tensors = 1;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  format = GST_AUDIO_INFO_FORMAT (info);
 
   /* [channels][frames] */
   switch (format) {
@@ -1188,16 +1221,17 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
       break;
   }
 
-  config->info.info[0].dimension[0] = GST_AUDIO_INFO_CHANNELS (info);
+  config->info.info[0].dimension[0] = channels;
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
     config->info.info[0].dimension[i] = 1;
   }
 
-  config->rate_n = GST_AUDIO_INFO_RATE (info);
+  config->rate_n = GST_AUDIO_INFO_RATE (&ainfo);
   config->rate_d = 1;
 
+  self->frame_size = GST_AUDIO_INFO_BPF (&ainfo);
   return (config->info.info[0].type != _NNS_END);
 }
 
@@ -1218,13 +1252,23 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
    * A string-type Tensor
    */
   const gchar *format_string;
-  guint i;
+  guint i, text_size;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensors_config_init (config);
-  config->info.num_tensors = 1;
-
   g_return_val_if_fail (structure != NULL, FALSE);
+
+  gst_tensors_config_init (config);
+
+  /* get fixed size of text string from property */
+  text_size = self->tensor_info.dimension[0];
+  if (text_size == 0) {
+    GST_ERROR_OBJECT (self,
+        "Failed to get tensor info, need to update string size.");
+
+    ml_loge ("Please set the property input-dim to convert stream.\n"
+        "For example, input-dim=30 to handle up to 30 bytes of string per frame.");
+    return FALSE;
+  }
 
   format_string = gst_structure_get_string (structure, "format");
   if (format_string) {
@@ -1233,12 +1277,15 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
     } else {
       /* unsupported format */
       GST_WARNING_OBJECT (self, "Unsupported format = %s\n", format_string);
+      return FALSE;
     }
   }
 
+  config->info.num_tensors = 1;
+
   /* [size][frames] */
   /* Fixed size of string, we cannot get the size from caps. */
-  config->info.info[0].dimension[0] = 0;
+  config->info.info[0].dimension[0] = text_size;
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -1254,6 +1301,7 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
+  self->frame_size = gst_tensor_info_get_size (&config->info.info[0]);
   return (config->info.info[0].type != _NNS_END);
 }
 
@@ -1270,17 +1318,29 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     GstTensorsConfig * config, const GstStructure * structure)
 {
   g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensors_config_init (config);
-  config->info.num_tensors = 1;
-
   g_return_val_if_fail (structure != NULL, FALSE);
+
+  gst_tensors_config_init (config);
+
+  /* update tensor info from properties */
+  if (!gst_tensor_info_validate (&self->tensor_info)) {
+    GST_ERROR_OBJECT (self,
+        "Failed to get tensor info, need to update dimension and type.");
+
+    ml_loge
+        ("Please set the properties input-dim and input-type to convert stream.\n"
+        "For example, input-dim=30 input-type=unit8 to handle 30 bytes of bin data.");
+    return FALSE;
+  }
+
+  config->info.num_tensors = 1;
 
   /**
    * Raw byte-stream (application/octet-stream)
    * We cannot get the exact tensors info from caps.
    * All tensors info should be updated.
    */
-  config->info.info[0].type = _NNS_UINT8;
+  gst_tensor_info_copy (&config->info.info[0], &self->tensor_info);
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1291,6 +1351,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
+  self->frame_size = gst_tensor_info_get_size (&config->info.info[0]);
   return (config->info.info[0].type != _NNS_END);
 }
 
@@ -1509,37 +1570,13 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   switch (in_type) {
     case _NNS_VIDEO:
       if (is_video_supported (self)) {
-        GstVideoInfo info;
-
-        gst_video_info_init (&info);
-        if (!gst_video_info_from_caps (&info, caps)) {
-          GST_ERROR_OBJECT (self, "Failed to get video info from caps.\n");
-          return FALSE;
-        }
-
-        if (!gst_tensor_converter_parse_video (self, &config, &info)) {
+        if (!gst_tensor_converter_parse_video (self, caps, &config)) {
           GST_ERROR_OBJECT (self,
               "Failed to configure tensor from video info.");
           return FALSE;
         }
 
-        /**
-         * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
-         * @todo Add more conditions!
-         */
-        if (gst_tensor_converter_video_stride (GST_VIDEO_INFO_FORMAT (&info),
-                GST_VIDEO_INFO_WIDTH (&info))) {
-          self->remove_padding = TRUE;
-          silent_debug ("Set flag to remove padding, width = %d",
-              GST_VIDEO_INFO_WIDTH (&info));
-
-          GST_WARNING_OBJECT (self,
-              "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
-              "Please use 4 x n as image width for inputs.\n");
-        }
-
         frames_dim = 3;
-        self->frame_size = GST_VIDEO_INFO_SIZE (&info);
       } else {
         ml_loge
             ("\n This binary does not support video type. Please build NNStreamer with disable-video-support : false\n");
@@ -1548,22 +1585,13 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     case _NNS_AUDIO:
       if (is_audio_supported (self)) {
-        GstAudioInfo info;
-
-        gst_audio_info_init (&info);
-        if (!gst_audio_info_from_caps (&info, caps)) {
-          GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
-          return FALSE;
-        }
-
-        if (!gst_tensor_converter_parse_audio (self, &config, &info)) {
+        if (!gst_tensor_converter_parse_audio (self, caps, &config)) {
           GST_ERROR_OBJECT (self,
               "Failed to configure tensor from audio info.");
           return FALSE;
         }
 
         frames_dim = 1;
-        self->frame_size = GST_AUDIO_INFO_BPF (&info);
       } else {
         ml_loge
             ("\n This binary does not support audio type. Please build NNStreamer with disable-audio-support : false\n");
@@ -1571,49 +1599,20 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       }
       break;
     case _NNS_TEXT:
-    {
       if (!gst_tensor_converter_parse_text (self, &config, structure)) {
         GST_ERROR_OBJECT (self, "Failed to configure tensor from text info.");
         return FALSE;
       }
 
-      /* get fixed size of text string from property */
-      if (!gst_tensor_dimension_is_valid (self->tensor_info.dimension)) {
-        GST_ERROR_OBJECT (self,
-            "Failed to get tensor info, need to update string size.");
-
-        ml_loge ("Please set the property input-dim to convert stream.\n"
-            "For example, input-dim=30 to handle up to 30 bytes of string per frame.");
-        return FALSE;
-      }
-
-      config.info.info[0].dimension[0] = self->tensor_info.dimension[0];
       frames_dim = 1;
-      self->frame_size = gst_tensor_info_get_size (&config.info.info[0]);
       break;
-    }
     case _NNS_OCTET:
-    {
       if (!gst_tensor_converter_parse_octet (self, &config, structure)) {
         GST_ERROR_OBJECT (self, "Failed to configure tensors from octet info.");
         return FALSE;
       }
 
-      /* update tensor info from properties */
-      if (!gst_tensor_info_validate (&self->tensor_info)) {
-        GST_ERROR_OBJECT (self,
-            "Failed to get tensor info, need to update dimension and type.");
-
-        ml_loge
-            ("Please set the properties input-dim and input-type to convert stream.\n"
-            "For example, input-dim=30 input-type=unit8 to handle 30 bytes of bin data.");
-        return FALSE;
-      }
-
-      config.info.info[0] = self->tensor_info;
-      self->frame_size = gst_tensor_info_get_size (&config.info.info[0]);
       break;
-    }
     default:
     {
       /* if found, configure in_mdeia_type = _NNS_MEDIA_PLUGINS */
