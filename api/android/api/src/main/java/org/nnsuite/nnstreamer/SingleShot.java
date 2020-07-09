@@ -51,7 +51,7 @@ public final class SingleShot implements AutoCloseable {
      * @param model The path to the neural network model file
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if failed to construct the pipeline
+     * @throws IllegalStateException if this failed to construct the pipeline
      */
     public SingleShot(@NonNull File model) {
         this(model, null, null);
