@@ -638,7 +638,6 @@ static GstTensorFilterFramework NNS_support_openvino = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
-  .checkAvailability = ov_checkAvailability,
 };
 
 /**
@@ -655,6 +654,7 @@ init_filter_openvino (void)
   NNS_support_openvino.invoke_NN = ov_invoke;
   NNS_support_openvino.getInputDimension = ov_getInputDim;
   NNS_support_openvino.getOutputDimension = ov_getOutputDim;
+  NNS_support_openvino.checkAvailability = ov_checkAvailability;
 
   nnstreamer_filter_probe (&NNS_support_openvino);
 }
