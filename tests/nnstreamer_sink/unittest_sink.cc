@@ -93,6 +93,7 @@ typedef enum
   TEST_TYPE_OCTET_VALID_TS, /**< pipeline for octet stream, valid timestamp */
   TEST_TYPE_OCTET_INVALID_TS, /**< pipeline for octet stream, invalid timestamp */
   TEST_TYPE_OCTET_2F, /**< pipeline for octet stream, 2 frames */
+  TEST_TYPE_OCTET_MULTI_TENSORS, /**< pipeline for octet stream, byte array to multi tensors */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
   TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
   TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
@@ -713,6 +714,13 @@ _setup_pipeline (TestOption & option)
           g_strdup_printf
           ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
           "tensor_converter name=convert input-dim=1:5 input-type=int8 ! tensor_sink name=test_sink");
+      break;
+    case TEST_TYPE_OCTET_MULTI_TENSORS:
+      /** byte stream, byte array to multi tensors */
+      str_pipeline =
+          g_strdup_printf
+          ("appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
+          "tensor_converter name=convert input-dim=2,2 input-type=int32,int8 ! tensor_sink name=test_sink");
       break;
     case TEST_TYPE_TENSORS:
       /** other/tensors with tensor_mux */
@@ -2933,6 +2941,85 @@ TEST (tensor_stream_test, octet_2f)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensor_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data ();
+}
+
+/**
+ * @brief Test for octet stream.
+ */
+TEST (tensor_stream_test, octet_multi_tensors)
+{
+  const guint num_buffers = 10;
+  TestOption option = { num_buffers, TEST_TYPE_OCTET_MULTI_TENSORS };
+  GstElement *convert;
+  gchar *prop_str;
+  guint prop_uint;
+  guint timeout_id;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  /* tensor_converter properties */
+  convert = gst_bin_get_by_name (GST_BIN (g_test_data.pipeline), "convert");
+  ASSERT_TRUE (convert != NULL);
+
+  g_object_get (convert, "input-dim", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "2:1:1:1,2:1:1:1");
+  g_free (prop_str);
+
+  g_object_get (convert, "input-type", &prop_str, NULL);
+  EXPECT_STREQ (prop_str, "int32,int8");
+  g_free (prop_str);
+
+  g_object_get (convert, "frames-per-tensor", &prop_uint, NULL);
+  EXPECT_EQ (prop_uint, 1U);
+
+  gst_object_unref (convert);
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 2U);
+  EXPECT_EQ (g_test_data.received_size, 10U);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for multi tensors */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 2U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT32);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 2U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 2U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data ();
