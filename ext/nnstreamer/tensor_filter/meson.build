@@ -371,7 +371,7 @@ if get_option('enable-openvino')
     nnstreamer_filter_openvino_sources,
     cpp_args: openvino_cpp_args,
     dependencies: nnstreamer_filter_openvino_deps,
-    install: false,
+    install: true,
     install_dir: filter_subplugin_install_dir
   )
 
@@ -379,7 +379,7 @@ if get_option('enable-openvino')
     nnstreamer_filter_openvino_sources,
     cpp_args: openvino_cpp_args,
     dependencies: nnstreamer_filter_openvino_deps,
-    install: false,
+    install: true,
     install_dir: nnstreamer_libdir
   )
 
