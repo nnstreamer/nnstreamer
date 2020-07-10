@@ -1756,6 +1756,454 @@ TEST (test_tensor_aggregator, aggregate_5)
   gst_harness_teardown (h);
 }
 
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_1)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "3:4:2:2,3:4:2:2",
+      "input-type", "int32,int32", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+  memcpy (info.data, aggr_test_frames, data_size);
+
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 2U);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  /* 1st tensor */
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 0; i < 48; i++)
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[0][i]);
+  gst_memory_unmap (mem, &info);
+
+  /* 2nd tensor */
+  mem = gst_buffer_peek_memory (out_buf, 1);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 0; i < 48; i++)
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[1][i]);
+  gst_memory_unmap (mem, &info);
+
+  gst_buffer_unref (out_buf);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_2)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "3:4:2:1,3:4:2:1,3:4:2:1,3:4:2:1",
+      "input-type", "int32,int32,int32,int32", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 4;
+
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:1", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:1", config.info.info[1].dimension);
+  config.info.info[2].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:1", config.info.info[2].dimension);
+  config.info.info[3].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:1", config.info.info[3].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+  memcpy (info.data, aggr_test_frames, data_size);
+
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 4U);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  /* 1st tensor */
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 0; i < 24; i++)
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[0][i]);
+  gst_memory_unmap (mem, &info);
+
+  /* 2nd tensor */
+  mem = gst_buffer_peek_memory (out_buf, 1);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 24; i < 48; i++)
+    EXPECT_EQ (((gint *) info.data)[i - 24], aggr_test_frames[0][i]);
+  gst_memory_unmap (mem, &info);
+
+  /* 3rd tensor */
+  mem = gst_buffer_peek_memory (out_buf, 2);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 0; i < 24; i++)
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[1][i]);
+  gst_memory_unmap (mem, &info);
+
+  /* 4th tensor */
+  mem = gst_buffer_peek_memory (out_buf, 3);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 24; i < 48; i++)
+    EXPECT_EQ (((gint *) info.data)[i - 24], aggr_test_frames[1][i]);
+  gst_memory_unmap (mem, &info);
+
+  gst_buffer_unref (out_buf);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_dim_01_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "2:2:2:2",
+      "input-type", "int32,uint64", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_UINT64;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_dim_02_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "2:2:2:2,2:0:1",
+      "input-type", "int32,float32", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("2:2:1:1", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_type_01_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-type", "int64",
+      "input-dim", "2:2:2:2,2:2:2:2", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_INT64;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_UINT64;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_type_02_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "2:2:2:2,2:2:1:1",
+      "input-type", "int16,invalid", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_INT16;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_INT16;
+  gst_tensor_parse_dimension ("2:2:1:1", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_type_03_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "1:1:1:1,2:1:1:1,3",
+      "input-type", "int16,uint16", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 3;
+
+  config.info.info[0].type = _NNS_INT16;
+  gst_tensor_parse_dimension ("1:1:1:1", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_UINT16;
+  gst_tensor_parse_dimension ("2:1:1:1", config.info.info[1].dimension);
+  config.info.info[1].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:1:1:1", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_size_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "2:2:2:2,1:1:1:1",
+      "input-type", "float32,float64", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_FLOAT64;
+  gst_tensor_parse_dimension ("2:2:1:1", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to multi tensors)
+ */
+TEST (test_tensor_converter, bytes_to_multi_invalid_frames_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "2:2:2:2,1:1:1:1",
+      "input-type", "float32,float64", "frames-per-tensor", "2", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 2;
+
+  config.info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("2:2:2:2", config.info.info[0].dimension);
+  config.info.info[1].type = _NNS_FLOAT64;
+  gst_tensor_parse_dimension ("1:1:1:1", config.info.info[1].dimension);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, data_size);
+  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
 #ifdef HAVE_ORC
 #include "transform-orc.h"
 
