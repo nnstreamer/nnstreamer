@@ -343,7 +343,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->frame_size = 0;
   self->remove_padding = FALSE;
   self->externalConverter = NULL;
-  gst_tensor_info_init (&self->tensor_info);
+  gst_tensors_info_init (&self->tensors_info);
 
   self->adapter = gst_adapter_new ();
   g_assert (self->adapter != NULL);
@@ -378,19 +378,48 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorConverter *self;
+  GstTensorsInfo *info;
+  guint i, j, num;
+  const gchar *value_str;
 
   self = GST_TENSOR_CONVERTER (object);
+  info = &self->tensors_info;
 
   switch (prop_id) {
     case PROP_INPUT_DIMENSION:
-      if (gst_tensor_parse_dimension (g_value_get_string (value),
-              self->tensor_info.dimension) == 0)
-        GST_WARNING ("input dimension unknown (optional).");
+      value_str = g_value_get_string (value);
+      num = gst_tensors_info_parse_dimensions_string (info, value_str);
+
+      if (num == 0) {
+        GST_WARNING ("%s is invalid dimension string.", value_str);
+      } else if (info->num_tensors > 0 && info->num_tensors != num) {
+        GST_WARNING ("%s, the number of tensor is %u.", value_str, num);
+      }
+
+      /* prevent invalid value, init dimensions. */
+      for (i = num; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
+        for (j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
+          info->info[i].dimension[j] = 0;
+      }
+
+      info->num_tensors = num;
       break;
     case PROP_INPUT_TYPE:
-      self->tensor_info.type = gst_tensor_get_type (g_value_get_string (value));
-      if (self->tensor_info.type == _NNS_END)
-        GST_WARNING ("input type unknown (optional).");
+      value_str = g_value_get_string (value);
+      num = gst_tensors_info_parse_types_string (info, value_str);
+
+      if (num == 0) {
+        GST_WARNING ("%s is invalid type string.", value_str);
+      } else if (info->num_tensors > 0 && info->num_tensors != num) {
+        GST_WARNING ("%s, the number of tensor is %u.", value_str, num);
+      }
+
+      /* prevent invalid value, init types. */
+      for (i = num; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
+        info->info[i].type = _NNS_END;
+      }
+
+      info->num_tensors = num;
       break;
     case PROP_FRAMES_PER_TENSOR:
       self->frames_per_tensor = g_value_get_uint (value);
@@ -418,22 +447,23 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstTensorConverter *self;
+  GstTensorsInfo *info;
 
   self = GST_TENSOR_CONVERTER (object);
+  info = &self->tensors_info;
 
   switch (prop_id) {
     case PROP_INPUT_DIMENSION:
-      if (gst_tensor_dimension_is_valid (self->tensor_info.dimension)) {
+      if (info->num_tensors > 0) {
         g_value_take_string (value,
-            gst_tensor_get_dimension_string (self->tensor_info.dimension));
+            gst_tensors_info_get_dimensions_string (info));
       } else {
         g_value_set_string (value, "");
       }
       break;
     case PROP_INPUT_TYPE:
-      if (self->tensor_info.type != _NNS_END) {
-        g_value_set_string (value,
-            gst_tensor_get_type_string (self->tensor_info.type));
+      if (info->num_tensors > 0) {
+        g_value_take_string (value, gst_tensors_info_get_types_string (info));
       } else {
         g_value_set_string (value, "");
       }
@@ -691,6 +721,51 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
   }
 }
 
+/** @brief Chain function's private routine to push buffer into src pad */
+static GstFlowReturn
+_gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
+{
+  GstBuffer *buffer = buf;
+
+  if (self->in_media_type == _NNS_OCTET) {
+    /* configure multi tensors */
+    if (self->tensors_info.num_tensors > 1) {
+      GstMemory *mem;
+      GstMapInfo info;
+      gpointer data;
+      gsize idx, size;
+      guint i;
+
+      g_assert (self->frames_per_tensor == 1);
+
+      buffer = gst_buffer_new ();
+
+      mem = gst_buffer_get_all_memory (buf);
+      gst_memory_map (mem, &info, GST_MAP_READ);
+
+      idx = 0;
+      for (i = 0; i < self->tensors_info.num_tensors; ++i) {
+        size = gst_tensors_info_get_size (&self->tensors_info, i);
+        data = g_memdup (info.data + idx, size);
+        idx += size;
+
+        gst_buffer_append_memory (buffer,
+            gst_memory_new_wrapped (0, data, size, 0, size, data, g_free));
+      }
+
+      gst_memory_unmap (mem, &info);
+      gst_memory_unref (mem);
+
+      /* copy timestamps */
+      gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+      gst_buffer_unref (buf);
+    }
+  }
+
+  return gst_pad_push (self->srcpad, buffer);
+}
+
 /** @brief Chain function's private routine to push multiple buffers */
 static GstFlowReturn
 _gst_tensor_converter_chain_chunk (GstTensorConverter * self,
@@ -753,7 +828,7 @@ _gst_tensor_converter_chain_chunk (GstTensorConverter * self,
 
     silent_debug_timestamp (outbuf);
 
-    ret = gst_pad_push (self->srcpad, outbuf);
+    ret = _gst_tensor_converter_chain_push (self, outbuf);
   }
 
   return ret;
@@ -945,7 +1020,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     silent_debug_timestamp (inbuf);
 
     /** do nothing, push the incoming buffer */
-    return gst_pad_push (self->srcpad, inbuf);
+    return _gst_tensor_converter_chain_push (self, inbuf);
   }
 
   /* push multiple buffers */
@@ -1260,7 +1335,7 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
   gst_tensors_config_init (config);
 
   /* get fixed size of text string from property */
-  text_size = self->tensor_info.dimension[0];
+  text_size = self->tensors_info.info[0].dimension[0];
   if (text_size == 0) {
     GST_ERROR_OBJECT (self,
         "Failed to get tensor info, need to update string size.");
@@ -1323,7 +1398,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
   gst_tensors_config_init (config);
 
   /* update tensor info from properties */
-  if (!gst_tensor_info_validate (&self->tensor_info)) {
+  if (!gst_tensors_info_validate (&self->tensors_info)) {
     GST_ERROR_OBJECT (self,
         "Failed to get tensor info, need to update dimension and type.");
 
@@ -1333,14 +1408,18 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     return FALSE;
   }
 
-  config->info.num_tensors = 1;
+  if (self->tensors_info.num_tensors > 1 && self->frames_per_tensor > 1) {
+    ml_loge
+        ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
+    return FALSE;
+  }
 
   /**
    * Raw byte-stream (application/octet-stream)
    * We cannot get the exact tensors info from caps.
    * All tensors info should be updated.
    */
-  gst_tensor_info_copy (&config->info.info[0], &self->tensor_info);
+  gst_tensors_info_copy (&config->info, &self->tensors_info);
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1351,7 +1430,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
-  self->frame_size = gst_tensor_info_get_size (&config->info.info[0]);
+  self->frame_size = gst_tensors_info_get_size (&config->info, -1);
   return (config->info.info[0].type != _NNS_END);
 }
 
@@ -1655,9 +1734,10 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
     GST_ERROR_OBJECT (self, "Failed to configure tensors info.\n");
     return FALSE;
   }
-  if (gst_tensor_info_validate (&self->tensor_info)) {
+
+  if (gst_tensors_info_validate (&self->tensors_info)) {
     /** compare tensor info */
-    if (!gst_tensor_info_is_equal (&self->tensor_info, &config.info.info[0])) {
+    if (!gst_tensors_info_is_equal (&self->tensors_info, &config.info)) {
       GST_ERROR_OBJECT (self, "Failed, mismatched tensor info.\n");
       return FALSE;
     }
