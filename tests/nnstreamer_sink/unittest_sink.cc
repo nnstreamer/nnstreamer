@@ -131,7 +131,7 @@ typedef enum
  */
 typedef struct
 {
-  gint num_buffers; /**< count of buffers */
+  guint num_buffers; /**< count of buffers */
   TestType test_type; /**< test pipeline */
   tensor_type t_type; /**< tensor type */
   char *tmpfile; /**< tmpfile to write */
@@ -160,7 +160,7 @@ typedef struct
   GstTensorConfig tensor_config; /**< tensor config from negotiated caps */
   GstTensorsConfig tensors_config; /**< tensors config from negotiated caps */
   TestOption option; /**< test option */
-  gint buffer_index; /**< index of buffers sent by appsrc */
+  guint buffer_index; /**< index of buffers sent by appsrc */
 } TestData;
 
 /**
@@ -4165,7 +4165,7 @@ TEST (tensor_stream_test, demux_properties_3_n)
  * @brief Internal function to test typecast in tensor_transform.
  */
 static void
-_test_transform_typecast (TestType test, tensor_type type, gint buffers)
+_test_transform_typecast (TestType test, tensor_type type, guint buffers)
 {
   TestOption option = { buffers, test, type };
   gsize t_size = gst_tensor_get_element_size (type);
