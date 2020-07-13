@@ -50,6 +50,14 @@
     } \
   } while (0)
 
+#define silent_debug_timestamp(buf) do { \
+  if (DBG) { \
+    GST_DEBUG_OBJECT (self, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
+    GST_DEBUG_OBJECT (self, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
+    GST_DEBUG_OBJECT (self, "duration = %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (GST_BUFFER_DURATION (buf))); \
+  } \
+} while (0)
+
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_debug);
 #define GST_CAT_DEFAULT gst_tensor_sink_debug
 
@@ -524,6 +532,8 @@ gst_tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
       g_signal_emit (self, _tensor_sink_signals[SIGNAL_NEW_DATA], 0, buffer);
     }
   }
+
+  silent_debug_timestamp (buffer);
 }
 
 /**
