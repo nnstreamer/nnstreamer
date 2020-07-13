@@ -59,7 +59,7 @@
  *
  * @todo Add "power management" options (Tizen sensor f/w accepts such)
  *
- * @todo Some sensor tpes are privileged. We need privilege control.
+ * @todo Some sensor types are privileged. We need privilege control.
  * Some sensor types are privileged. An application should have the privilege http://tizen.org/privilege/healthinfo to get handles for the following sensors: SENSOR_HRM, SENSOR_HRM_LED_GREEN, SENSOR_HRM_LED_IR, SENSOR_HRM_LED_RED, SENSOR_HUMAN_PEDOMETER, SENSOR_HUMAN_SLEEP_MONITOR, SENSOR_HUMAN_SLEEP_DETECTOR, and SENSOR_HUMAN_STRESS_MONITOR.
  *
  * @todo Some sensor types appear to have mixed types (float32 & int32).
@@ -136,7 +136,7 @@ enum
 /**
  * @brief Default sensor retrieving frequency
  */
-#define DEFAULT_PROP_FREQ_N 1
+#define DEFAULT_PROP_FREQ_N 10
 #define DEFAULT_PROP_FREQ_D 1
 
 /**
@@ -166,12 +166,11 @@ static GstCaps *gst_tensor_src_tizensensor_get_caps (GstBaseSrc * src,
 static GstCaps *gst_tensor_src_tizensensor_fixate (GstBaseSrc * src,
     GstCaps * caps);
 static gboolean gst_tensor_src_tizensensor_is_seekable (GstBaseSrc * src);
+static gboolean gst_tensor_src_tizensensor_query (GstBaseSrc * src, GstQuery * query);
 static GstFlowReturn gst_tensor_src_tizensensor_create (GstBaseSrc * src,
     guint64 offset, guint size, GstBuffer ** buf);
 static GstFlowReturn gst_tensor_src_tizensensor_fill (GstBaseSrc * src,
     guint64 offset, guint size, GstBuffer * buf);
-static void gst_tensor_src_tizensensor_get_times (GstBaseSrc * basesrc,
-    GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
 
 /** internal functions */
 
@@ -365,6 +364,10 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
   GstPadTemplate *pad_template;
   GstCaps *pad_caps;
 
+  GST_DEBUG_CATEGORY_INIT (gst_tensor_src_tizensensor_debug,
+      "tensor_src_tizensensor", 0,
+      "src element to support Tizen sensor framework");
+
   gobject_class->set_property = gst_tensor_src_tizensensor_set_property;
   gobject_class->get_property = gst_tensor_src_tizensensor_get_property;
   gobject_class->finalize = gst_tensor_src_tizensensor_finalize;
@@ -417,11 +420,10 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_fixate);
   gstbasesrc_class->is_seekable =
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_is_seekable);
-  gstbasesrc_class->get_times =
-      GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_get_times);
   gstbasesrc_class->start =
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_stop);
+  gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_query);
   gstbasesrc_class->create =
       GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_create);
   gstbasesrc_class->fill = GST_DEBUG_FUNCPTR (gst_tensor_src_tizensensor_fill);
@@ -439,6 +441,8 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   self->configured = FALSE;
   self->silent = DEFAULT_PROP_SILENT;
   self->running = FALSE;
+  self->freq_n = DEFAULT_PROP_FREQ_N;
+  self->freq_d = DEFAULT_PROP_FREQ_D;
 
   g_mutex_init (&self->lock);
 
@@ -448,9 +452,11 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
    * at a fixed frequency, GST_FORMAT_TIME is used
    */
   gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
-  /** set the source to be live */
+  /** set the source to be a live source */
   gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
-  /** set the timestamps on each buffer */
+  /** set base_src to automatically timestamp outgoing buffers
+   * based on the current running_time of the pipeline.
+   */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
   /**
    * set async is necessary to make state change async
@@ -562,7 +568,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   bool supported = false;
 
   if (NULL == val) {
-    ml_loge ("The given sensor type (%d) is not supported.\n", self->type);
+    nns_loge ("The given sensor type (%d) is not supported.\n", self->type);
     return -ENODEV;
   }
   self->src_spec = val;
@@ -571,7 +577,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   /* 1. Check if the sensor supported */
   ret = sensor_is_supported (self->type, &supported);
   if (ret != SENSOR_ERROR_NONE) {
-    ml_loge ("Tizen sensor framework is not working (sensor_is_supported).\n");
+    nns_loge ("Tizen sensor framework is not working (sensor_is_supported).\n");
     return -ENODEV;
   }
 
@@ -586,16 +592,20 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   if (self->sequence == -1) {
     /* Get the default sensor */
     ret = sensor_get_default_sensor (self->type, &self->sensor);
-    if (ret != SENSOR_ERROR_NONE)
+    if (ret != SENSOR_ERROR_NONE) {
+      nns_loge ("Cannot get default sensor");
       return ret;
+    }
   } else {
     sensor_h *list;
     int count;
 
     /* Use the sequence number to choose one */
     ret = sensor_get_sensor_list (self->type, &list, &count);
-    if (ret != SENSOR_ERROR_NONE)
+    if (ret != SENSOR_ERROR_NONE) {
+      nns_loge ("Cannot get sensor list");
       return ret;
+    }
 
     if (count <= self->sequence) {
       GST_ERROR_OBJECT (self,
@@ -611,11 +621,21 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   }
 
   ret = sensor_create_listener (self->sensor, &self->listener);
-  if (ret != SENSOR_ERROR_NONE)
+  if (ret != SENSOR_ERROR_NONE) {
+    nns_loge ("Cannot create sensor listener");
     return ret;
+  }
 
   /* 3. Configure interval_ms */
   self->interval_ms = _ts_get_interval_ms (self);
+
+  ret = sensor_listener_set_interval (self->listener, self->interval_ms);
+  if (ret != SENSOR_ERROR_NONE) {
+    nns_loge ("Cannot set the sensor interval");
+    return ret;
+  }
+
+  nns_logi ("Set sensor_listener interval: %ums", self->interval_ms);
 
   /* 4. Register sensor event handler */
   switch (self->mode) {
@@ -646,11 +666,7 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
 static int
 _ts_reconfigure (GstTensorSrcTIZENSENSOR * self)
 {
-  int ret = _ts_clean_up_handle (self);
-
-  if (ret)
-    return ret;
-
+  _ts_clean_up_handle (self);
   return _ts_configure_handle (self);
 }
 
@@ -765,7 +781,7 @@ gst_tensor_src_tizensensor_set_property (GObject * object,
           n, d, self->freq_n, self->freq_d);
 
       if (n != self->freq_n || d != self->freq_d) {
-        /* Same sensor is kept. Only mode is changed */
+        /* Same sensor is kept. Only frequency is changed */
         if (self->configured)
           ret = _ts_reconfigure (self);
 
@@ -949,26 +965,34 @@ static GstCaps *
 _ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR * self)
 {
   const GstTensorInfo *spec;
-  gchar *tensor;
   GstCaps *retval;
 
-  /** @bug the retrieved spec is not valid...? */
-  spec = g_hash_table_lookup (tizensensors, GINT_TO_POINTER (self->type));
+  spec = self->src_spec;
 
   if (FALSE == self->configured || SENSOR_ALL == self->type || NULL == spec) {
-    tensor = g_strdup_printf ("other/tensor; other/tensors, num_tensors=1");
+    retval = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
+      GST_TENSORS_CAP_WITH_NUM ("1"));
   } else {
-    const gchar *typestr = gst_tensor_get_type_string (spec->type);
-    gchar *dimstr = gst_tensor_get_dimension_string (spec->dimension);
-    g_assert (typestr && typestr[0]);
-    tensor = g_strdup_printf ("other/tensor, dimension=%s, type=%s ; "
-        "other/tensors, num_tensors=1, dimensions=%s, type=%s",
-        dimstr, typestr, dimstr, typestr);
-    g_free (dimstr);
-  }
+    GstTensorConfig tensor_config;
+    GstTensorsConfig tensors_config;
 
-  retval = gst_caps_from_string (tensor);
-  g_free (tensor);
+    gst_tensor_config_init (&tensor_config);
+
+    gst_tensors_config_init (&tensors_config);
+    tensors_config.info.num_tensors = 1;
+
+    gst_tensor_info_copy (&tensor_config.info, spec);
+    tensor_config.rate_n = self->freq_n;
+    tensor_config.rate_d = self->freq_d;
+
+    retval = gst_tensor_caps_from_config (&tensor_config);
+
+    gst_tensor_info_copy (&tensors_config.info.info[0], spec);
+    tensors_config.rate_n = self->freq_n;
+    tensors_config.rate_d = self->freq_d;
+
+    gst_caps_append (retval, gst_tensors_caps_from_config (&tensors_config));
+  }
 
   return retval;
 }
@@ -1051,33 +1075,56 @@ gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
 static gboolean
 gst_tensor_src_tizensensor_is_seekable (GstBaseSrc * src)
 {
+  nns_logd ("tensor_src_tizensensor is not seekable");
   return FALSE;
 }
 
 /**
- * @brief returns the time for the buffers
+ * @brief Handle queries.
+ *
+ * GstBaseSrc method implementation.
  */
-static void
-gst_tensor_src_tizensensor_get_times (GstBaseSrc * basesrc,
-    GstBuffer * buffer, GstClockTime * start, GstClockTime * end)
+static gboolean
+gst_tensor_src_tizensensor_query (GstBaseSrc * src, GstQuery * query)
 {
-  GstClockTime timestamp;
-  GstClockTime duration;
+  gboolean res = FALSE;
+  GstTensorSrcTIZENSENSOR *self = GST_TENSOR_SRC_TIZENSENSOR_CAST (src);
 
-  timestamp = GST_BUFFER_DTS (buffer);
-  duration = GST_BUFFER_DURATION (buffer);
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_LATENCY:
+    {
+      GstClockTime min_latency, max_latency = -1;
+      gint freq_d, freq_n;
 
-  if (!GST_CLOCK_TIME_IS_VALID (timestamp))
-    timestamp = GST_BUFFER_PTS (buffer);
+      freq_d = self->freq_d;
+      freq_n = self->freq_n;
 
-  if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
-    *start = timestamp;
-    if (GST_CLOCK_TIME_IS_VALID (duration)) {
-      *end = timestamp + duration;
+      /* we must have a framerate */
+      if (freq_n <= 0 || freq_d <= 0) {
+        GST_WARNING_OBJECT (self,
+            "Can't give latency since framerate isn't fixated");
+        goto done;
+      }
+
+      /* min latency is the time to capture one frame/field */
+      min_latency = gst_util_uint64_scale_int (GST_SECOND, freq_d, freq_n);
+
+      GST_DEBUG_OBJECT (self,
+          "Reporting latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
+
+      gst_query_set_latency (query, TRUE, min_latency, max_latency);
+
+      res = TRUE;
+      break;
     }
+    default:
+      res = GST_BASE_SRC_CLASS (parent_class)->query (src, query);
+      break;
   }
 
-  /** @todo What do we do if it's still "NOT VALID"? */
+done:
+  return res;
 }
 
 /**
@@ -1183,15 +1230,6 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   GstMemory *mem;
   GstMapInfo map;
 
-  if (self->freq_n > 0) {
-    gulong usec;
-    g_assert (self->freq_d > 0);
-
-    usec = ((gulong) self->freq_d * G_USEC_PER_SEC) / self->freq_n;
-    /** @tood Substract latency of itself */
-    g_usleep (usec);
-  }
-
   _LOCK (self);
 
   if (FALSE == self->configured) {
@@ -1220,12 +1258,11 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   if (self->mode == TZN_SENSOR_MODE_POLLING) {
     sensor_event_s *event;
     int count = 0;
-    gint64 ts, diff;
+    gint64 ts, duration;
     int ret;
 
     /* 1. Read sensor data directly from Tizen API */
     ret = sensor_listener_read_data_list (self->listener, &events, &count);
-
     if (ret != SENSOR_ERROR_NONE || count == 0) {
       GST_ERROR_OBJECT (self,
           "Tizen sensor read failed: sensor_listener_read_data returned %d, count %d",
@@ -1234,9 +1271,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
       goto exit_unmap;
     }
 
-    /** @todo last or first sensor data? */
     event = &events[count - 1];
-
     if (event->value_count != self->src_spec->dimension[0]) {
       GST_ERROR_OBJECT (self,
           "The number of values (%d) mismatches the metadata (%d)",
@@ -1245,9 +1280,10 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
       goto exit_unmap;
     }
 
-    /* 2. Write timestamp/duration info to buffer */
+    /* 2. Do not timestamp. Let BaseSrc timestamp */
 
     /* 2-1. Find out the delay already occured */
+    /* ts and event->timestamp are in microseconds */
     ts = g_get_monotonic_time ();
     if (ts < event->timestamp) {
       GST_ERROR_OBJECT (self,
@@ -1255,39 +1291,22 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }
-    diff = ts - event->timestamp;
 
-    /* 2-2. Adjust the timestamp */
-    if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DURATION (buffer))) {
-      GstClockTime duration = GST_BUFFER_DURATION (buffer);
-      duration += diff;
-      GST_BUFFER_DURATION (buffer) = duration;
-    }
+    nns_logd ("read sensor_data at %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (event->timestamp * 1000));
 
-    if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_DTS (buffer))) {
-      GstClockTime dts = GST_BUFFER_DTS (buffer);
-      if (dts < diff)
-        dts = 0;
-      else
-        dts -= diff;
-      GST_BUFFER_DTS (buffer) = dts;
-    } else if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_PTS (buffer))) {
-      GstClockTime pts = GST_BUFFER_PTS (buffer) - (ts - event->timestamp);
-      if (pts < diff)
-        pts = 0;
-      else
-        pts -= diff;
-      GST_BUFFER_PTS (buffer) = pts;
-    } else {
-      /* There is no valid timestamp. Override the timestamp */
+    /* 2-2. Set duration so that BaseSrc handles the frequency */
+    if (self->freq_n == 0)
+      /* 100ms */
+      duration = 100 * 1000 * 1000;
+    else
+      duration = gst_util_uint64_scale_int (GST_SECOND,
+          self->freq_d, self->freq_n);
 
-      /** @todo NYI. Need research on this matter */
-    }
-    GST_BUFFER_PTS (buffer) = event->timestamp;
+    GST_BUFFER_DURATION (buffer) = duration;
 
     /* 3. Write values to buffer. Be careful on type casting */
     _ts_assign_values (event->values, event->value_count, &map, self->src_spec);
-
   } else {
     /** NYI! */
     GST_ERROR_OBJECT (self,
