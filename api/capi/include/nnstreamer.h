@@ -842,7 +842,7 @@ int ml_tensors_info_set_tensor_name (ml_tensors_info_h info, unsigned int index,
 /**
  * @brief Gets the tensor name with given handle of tensors information.
  * @since_tizen 5.5
- * @remarks If the function succeeds, @a name should be released using g_free().
+ * @remarks Before 6.0 this function returned the internal pointer so application developers do not need to free. Since 6.0 the name string is internally copied and returned. So if the function succeeds, @a name should be released using g_free().
  * @param[in] info The handle of tensors information.
  * @param[in] index The index of the tensor.
  * @param[out] name The tensor name.
