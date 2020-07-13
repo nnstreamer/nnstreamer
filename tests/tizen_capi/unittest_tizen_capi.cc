@@ -2111,7 +2111,7 @@ TEST (nnstreamer_capi_util, data_create_n)
 {
   int status;
   ml_tensors_info_h info;
-  ml_tensors_data_h data;
+  ml_tensors_data_h data = nullptr;
 
   status = ml_tensors_info_create (&info);
   ASSERT_EQ (status, ML_ERROR_NONE);
@@ -2128,6 +2128,9 @@ TEST (nnstreamer_capi_util, data_create_n)
 
   status = ml_tensors_info_destroy (info);
   ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_destroy (data);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
 /**
@@ -3570,7 +3573,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
-  ml_tensors_info_h in_res, out_res;
+  ml_tensors_info_h in_res = nullptr, out_res = nullptr;
   ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim, res_dim;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
@@ -4774,7 +4777,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
       NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
-  ml_tensors_info_h in_res, out_res;
+  ml_tensors_info_h in_res = nullptr, out_res = nullptr;
   ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim, res_dim;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
