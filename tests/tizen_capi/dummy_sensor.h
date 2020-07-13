@@ -115,6 +115,7 @@ typedef void* sensor_h;
 typedef struct {
   sensor_s *listening;
   int is_listening;
+  unsigned int interval_ms;
 } sensor_listener_s;
 
 typedef void* sensor_listener_h;
@@ -150,6 +151,9 @@ sensor_listener_start (sensor_listener_h listener);
 
 extern int
 sensor_listener_stop (sensor_listener_h listener);
+
+extern int
+sensor_listener_set_interval (sensor_listener_h listener, unsigned int interval_ms);
 
 extern int
 sensor_listener_read_data_list (sensor_listener_h listener, sensor_event_s ** events, int * count);

@@ -200,6 +200,21 @@ sensor_listener_stop (sensor_listener_h listener)
  * @brief Dummy (simulation) Tizen Sensor Framework API
  */
 int
+sensor_listener_set_interval (sensor_listener_h listener,
+    unsigned int interval_ms)
+{
+  sensor_listener_s *ptr = listener;
+  if (NULL == listener)
+    return -EINVAL;
+
+  ptr->interval_ms = interval_ms;
+  return SENSOR_ERROR_NONE;
+}
+
+/**
+ * @brief Dummy (simulation) Tizen Sensor Framework API
+ */
+int
 sensor_listener_read_data_list (sensor_listener_h listener,
     sensor_event_s ** events, int * count)
 {
