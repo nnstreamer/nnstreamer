@@ -21,6 +21,9 @@ typedef struct {
   GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
 } _Element;
 
+extern _Element *
+nnstparser_element_make (const gchar *element, const gchar *name);
+
 /** @brief Simplified GObject Property for GST Element */
 typedef struct {
   gchar *name;
@@ -146,6 +149,22 @@ gst_parse_unescape (gchar *str)
   }
   *str = '\0';
 }
+
+GQuark gst2pbtxt_parse_error_quark (void);
+#define GST2PBTXT_PARSE_ERROR gst2pbtxt_parse_error_quark ()
+
+typedef enum
+{
+  GST2PBTXT_PARSE_ERROR_SYNTAX,
+  GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
+  GST2PBTXT_PARSE_ERROR_NO_SUCH_PROPERTY,
+  GST2PBTXT_PARSE_ERROR_LINK,
+  GST2PBTXT_PARSE_ERROR_COULD_NOT_SET_PROPERTY,
+  GST2PBTXT_PARSE_ERROR_EMPTY_BIN,
+  GST2PBTXT_PARSE_ERROR_EMPTY,
+  GST2PBTXT_PARSE_ERROR_DELAYED_LINK
+} Gst2PbtxtParseError;
+
 
 G_GNUC_INTERNAL _Element *priv_gst_parse_launch (const gchar      * str,
                                                    GError          ** err,

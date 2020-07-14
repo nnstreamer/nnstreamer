@@ -31,9 +31,9 @@
 
 #  define SET_ERROR(error, type, ...) \
 G_STMT_START { \
-  GST_CAT_ERROR (GST_CAT_PIPELINE, __VA_ARGS__); \
+  g_printerr (__VA_ARGS__); \
   if ((error) && !*(error)) { \
-    g_set_error ((error), GST_PARSE_ERROR, (type), __VA_ARGS__); \
+    g_set_error ((error), GST2PBTXT_PARSE_ERROR, (type), __VA_ARGS__); \
   } \
 } G_STMT_END
 
@@ -41,9 +41,9 @@ G_STMT_START { \
 
 #  define SET_ERROR(error, type, args...) \
 G_STMT_START { \
-  GST_CAT_ERROR (GST_CAT_PIPELINE, args ); \
+  g_printerr (args ); \
   if ((error) && !*(error)) { \
-    g_set_error ((error), GST_PARSE_ERROR, (type), args ); \
+    g_set_error ((error), GST2PBTXT_PARSE_ERROR, (type), args ); \
   } \
 } G_STMT_END
 
@@ -63,7 +63,7 @@ SET_ERROR (GError **error, gint type, const char *format, ...)
       string = g_strdup_vprintf (format, varargs);
       va_end (varargs);
 
-      g_set_error (error, GST_PARSE_ERROR, type, string);
+      g_set_error (error, GST2PBTXT_PARSE_ERROR, type, string);
 
       g_free (string);
     }
@@ -82,17 +82,17 @@ SET_ERROR (GError **error, gint type, const char *format, ...)
 
 #  ifdef G_HAVE_ISO_VARARGS
 
-/* #  define YYFPRINTF(a, ...) GST_CAT_DEBUG (GST_CAT_PIPELINE, __VA_ARGS__) */
+/* #  define YYFPRINTF(a, ...) g_printerr (__VA_ARGS__) */
 #    define YYFPRINTF(a, ...) \
 G_STMT_START { \
-     GST_CAT_LOG (GST_CAT_PIPELINE, __VA_ARGS__); \
+     g_print (__VA_ARGS__); \
 } G_STMT_END
 
 #  elif defined(G_HAVE_GNUC_VARARGS)
 
 #    define YYFPRINTF(a, args...) \
 G_STMT_START { \
-     GST_CAT_LOG (GST_CAT_PIPELINE, args); \
+     g_print (args); \
 } G_STMT_END
 
 #  else
@@ -105,7 +105,7 @@ YYPRINTF(const char *format, ...)
 
   va_start (varargs, format);
   temp = g_strdup_vprintf (format, varargs);
-  GST_CAT_LOG (GST_CAT_PIPELINE, "%s", temp);
+  g_print ("%s", temp);
   g_free (temp);
   va_end (varargs);
 }
@@ -139,12 +139,12 @@ static void  add_missing_element(graph_t *graph,gchar *name){
 
 #define TRY_SETUP_LINK(l) G_STMT_START { \
    if( (!(l)->src.element) && (!(l)->src.name) ){ \
-     SET_ERROR (graph->error, GST_PARSE_ERROR_LINK, _("link has no source [sink=%s@%p]"), \
+     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, _("link has no source [sink=%s@%p]"), \
 	(l)->sink.name ? (l)->sink.name : "", \
 	(l)->sink.element); \
      gst_parse_free_link (l); \
    }else if( (!(l)->sink.element) && (!(l)->sink.name) ){ \
-     SET_ERROR (graph->error, GST_PARSE_ERROR_LINK, _("link has no sink [source=%s@%p]"), \
+     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, _("link has no sink [source=%s@%p]"), \
 	(l)->src.name ? (l)->src.name : "", \
 	(l)->src.element); \
      gst_parse_free_link (l); \
