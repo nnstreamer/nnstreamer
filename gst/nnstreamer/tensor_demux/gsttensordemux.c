@@ -546,6 +546,12 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
       gint num = g_strv_length (strv);
+
+      /* Before setting the new Tensor Pick data, the existing one should be removed. */
+      if (filter->tensorpick) {
+        g_list_free (filter->tensorpick);
+        filter->tensorpick = NULL;
+      }
       for (i = 0; i < num; i++) {
         val = g_ascii_strtoll (strv[i], NULL, 10);
         filter->tensorpick =
