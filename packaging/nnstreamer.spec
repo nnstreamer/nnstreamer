@@ -30,6 +30,7 @@
 %if 0%{tizen_version_major} >= 6
 %define		tizen_sensor_support 1
 %define		mvncsdk2_support 1
+%define		openvino_support 1
 
 %ifarch aarch64 x86_64
 # This supports 64bit systems only
@@ -162,6 +163,10 @@ BuildRequires: lcov
 
 %if 0%{mvncsdk2_support}
 BuildRequires:	pkgconfig(libmvnc)
+%endif
+
+%if 0%{openvino_support}
+BuildRequires:	pkgconfig(openvino)
 %endif
 
 # for Vivante
@@ -389,6 +394,16 @@ Group:		Multimedia/Framework
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
 %endif # mvncsdk2_support
 
+%if 0%{openvino_support}
+%package	openvino
+Summary:	NNStreamer OpenVino support support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	openvino
+Group:		Multimedia/Framework
+%description	openvino
+NNStreamer's tensor_fliter subplugin for OpenVino support.
+%endif # openvino_support
+
 # Add Tizen's sensor framework API integration
 %if 0%{tizen_sensor_support}
 %package tizen-sensor
@@ -421,6 +436,7 @@ Package containing various unittests of the nnstreamer.
 %define enable_tizen_sensor -Denable-tizen-sensor=false
 %define enable_api -Denable-capi=false
 %define enable_mvncsdk2 -Dmvncsdk2-support=disabled
+%define enable_openvino -Denable-openvino=false
 %define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define element_restriction -Denable-element-restriction=false
 %define enable_tizen_privilege_check -Denable-tizen-privilege-check=true
@@ -430,6 +446,10 @@ Package containing various unittests of the nnstreamer.
 
 %if 0%{mvncsdk2_support}
 %define enable_mvncsdk2 -Dmvncsdk2-support=enabled
+%endif
+
+%if 0%{openvino_support}
+%define enable_openvino -Denable-openvino=true
 %endif
 
 %if 0%{tizen_sensor_support}
@@ -554,7 +574,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
-	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
+	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
 	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
@@ -812,6 +832,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/unittest
 %endif
 
+%if 0%{?openvino_support}
+%files openvino
+%manifest nnstreamer.manifest
+%license LICENSE
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_openvino.so
+%endif
 
 %changelog
 * Thu Jun 04 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
