@@ -13,6 +13,10 @@ foreach h : nnst_common_headers
   nnstreamer_headers += join_paths(meson.current_source_dir(), h)
 endforeach
 
+if get_option('enable-filter-cpp-class')
+  nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_cppplugin_api_filter.hh')
+endif
+
 version_conf = configuration_data()
 version_conf.set('__NNSTREAMER_VERSION_MAJOR__', version_split[0])
 version_conf.set('__NNSTREAMER_VERSION_MINOR__', version_split[1])
@@ -28,9 +32,3 @@ nnstreamer_headers += generated_h
 install_headers(nnstreamer_headers,
   subdir: 'nnstreamer'
 )
-
-if get_option('enable-filter-cpp-class')
-  install_headers(['nnstreamer_cppplugin_api_filter.hh'],
-    subdir: 'nnstreamer'
-  )
-endif
