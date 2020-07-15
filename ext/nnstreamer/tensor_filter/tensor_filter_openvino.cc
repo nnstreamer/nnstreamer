@@ -40,6 +40,13 @@
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
 
+static const gchar *openvino_accl_support[] = {
+  ACCL_NPU_MOVIDIUS_STR,    /** ACCL for default and auto config */
+  ACCL_NPU_STR,
+  ACCL_CPU_STR,
+  NULL
+};
+
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
     {ACCL_CPU, "CPU"},
     {ACCL_NPU, "MYRIAD"},
