@@ -144,6 +144,20 @@ if pytorch_support_is_available
 
   nnstreamer_filter_torch_deps = pytorch_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
+  pytorch_compile_args = []
+
+  torch_ver_dep = dependency('pytorch', version : '>=1.2.0', required : false)
+  if torch_ver_dep.found()
+
+    pytorch_compile_args += '-DPYTORCH_VER_ATLEAST_1_2_0=1'
+  endif
+
+  pytorch_extra_dep = declare_dependency(
+    compile_args : pytorch_compile_args,
+  )
+
+  nnstreamer_filter_torch_deps += pytorch_extra_dep
+
   shared_library('nnstreamer_filter_pytorch',
     nnstreamer_filter_torch_sources,
     dependencies: nnstreamer_filter_torch_deps,
