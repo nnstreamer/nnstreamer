@@ -1792,6 +1792,9 @@ TEST (nnstreamer_capi_util, info_create_2_n)
 {
   GstTensorsInfo gi;
   ml_tensors_info_h i;
+
+  gst_tensors_info_init (&gi);
+
   int status = ml_tensors_info_create_from_gst (&i, nullptr);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_create_from_gst (nullptr, &gi);

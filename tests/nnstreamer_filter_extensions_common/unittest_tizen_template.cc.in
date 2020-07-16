@@ -148,6 +148,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension_fail_n)
   GstTensorsInfo res;
   gchar **model_files;
 
+  gst_tensors_info_init (&res);
+
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
@@ -194,6 +196,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension)
   GstTensorsInfo res;
   gchar **model_files;
 
+  gst_tensors_info_init (&res);
+
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
@@ -237,6 +241,8 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension_fail_n)
   void *data = NULL;
   GstTensorsInfo set;
   gchar **model_files;
+
+  gst_tensors_info_init (&set);
 
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
@@ -286,6 +292,9 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension)
   void *data = NULL;
   GstTensorsInfo set, get;
   gchar **model_files;
+
+  gst_tensors_info_init (&set);
+  gst_tensors_info_init (&get);
 
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
@@ -427,6 +436,9 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
   gchar **model_files;
   GstTensorsInfo input_info, output_info;
   guint i;
+
+  gst_tensors_info_init (&input_info);
+  gst_tensors_info_init (&output_info);
 
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);

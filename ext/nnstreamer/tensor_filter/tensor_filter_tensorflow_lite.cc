@@ -913,7 +913,7 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
-  GstTensorsInfo cur_in_info;
+  GstTensorsInfoDeclare0 (cur_in_info);
   int status, failedAt, recoveryStatus;
 
   g_return_val_if_fail (core, -EINVAL);

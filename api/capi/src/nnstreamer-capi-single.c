@@ -333,7 +333,8 @@ ml_single_get_gst_info (ml_single * single_h, gboolean is_input,
 static int
 ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
 {
-  GstTensorsInfo gst_in_info, gst_out_info;
+  GstTensorsInfo gst_in_info;
+  GstTensorsInfoDeclare0 (gst_out_info);
   int status = ML_ERROR_NONE;
   int ret = -EINVAL;
 

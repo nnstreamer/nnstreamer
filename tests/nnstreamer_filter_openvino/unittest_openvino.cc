@@ -593,6 +593,8 @@ TEST (tensor_filter_openvino, getTensorDim_0)
   gchar *test_model;
   gint ret;
 
+  gst_tensors_info_init (&nns_tensors_info);
+
   /* Check if mandatory methods are contained */
   ASSERT_TRUE (fw && fw->open && fw->close);
 
@@ -671,6 +673,8 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
   gchar *test_model_bin;
   gint ret;
 
+  gst_tensors_info_init (&nns_tensors_info);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -746,6 +750,8 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
   gchar *test_model_bin;
   gint ret;
 
+  gst_tensors_info_init (&nns_tensors_info);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -819,6 +825,8 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
   gchar *test_model_bin;
   gint ret;
 
+  gst_tensors_info_init (&nns_tensors_info);
+
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
@@ -890,6 +898,8 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
   gchar *test_model_xml;
   gchar *test_model_bin;
   gint ret;
+
+  gst_tensors_info_init (&nns_tensors_info);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)

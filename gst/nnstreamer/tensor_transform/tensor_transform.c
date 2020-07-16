@@ -1671,7 +1671,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 {
   GstTensorTransform *filter;
   GstTensorConfig in_config, out_config;
-  GstTensorConfig config;
+  GstTensorConfigDeclare0 (config);
   gboolean allowed = FALSE;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);

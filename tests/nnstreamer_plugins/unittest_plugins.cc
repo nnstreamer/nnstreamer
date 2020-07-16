@@ -64,6 +64,7 @@
       g_object_set (h->element, "mode", GTT_TYPECAST, "option", str_to_t, NULL);  \
       g_object_set (h->element, "acceleration", (gboolean) accel, NULL);  \
       /** input tensor info */ \
+      gst_tensor_config_init (&config); \
       config.info.type = from_nns_t; \
       gst_tensor_parse_dimension (str(size), config.info.dimension); \
       config.rate_n = 0; \
@@ -506,6 +507,7 @@ TEST (test_tensor_transform, arithmetic_1)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -576,6 +578,7 @@ TEST (test_tensor_transform, arithmetic_1_accel)
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -646,6 +649,7 @@ TEST (test_tensor_transform, arithmetic_2)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_FLOAT64;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -716,6 +720,7 @@ TEST (test_tensor_transform, arithmetic_2_accel)
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_FLOAT64;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -787,6 +792,7 @@ TEST (test_tensor_transform, arithmetic_3)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -861,6 +867,7 @@ TEST (test_tensor_transform, arithmetic_3_accel)
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -935,6 +942,7 @@ TEST (test_tensor_transform, arithmetic_4)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -1009,6 +1017,7 @@ TEST (test_tensor_transform, arithmetic_4_accel)
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -1083,6 +1092,7 @@ TEST (test_tensor_transform, arithmetic_5)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -1157,6 +1167,7 @@ TEST (test_tensor_transform, arithmetic_5_accel)
   g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -1228,6 +1239,7 @@ TEST (test_tensor_transform, arithmetic_change_option_string)
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.dimension);
   config.rate_n = 0;
@@ -1408,6 +1420,7 @@ TEST (test_tensor_aggregator, aggregate_1)
   g_object_set (h->element, "frames-out", 2, "frames-dim", 3, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
@@ -1484,6 +1497,7 @@ TEST (test_tensor_aggregator, aggregate_2)
   g_object_set (h->element, "frames-out", 2, "frames-dim", 2, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
@@ -1560,6 +1574,7 @@ TEST (test_tensor_aggregator, aggregate_3)
   g_object_set (h->element, "frames-out", 2, "frames-dim", 1, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
@@ -1636,6 +1651,7 @@ TEST (test_tensor_aggregator, aggregate_4)
   g_object_set (h->element, "frames-out", 2, "frames-dim", 0, NULL);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
@@ -1712,6 +1728,7 @@ TEST (test_tensor_aggregator, aggregate_5)
   g_object_set (h->element, "concat", (gboolean) FALSE, NULL);
 
   /* in/out tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", config.info.dimension);
   config.rate_n = 0;
@@ -3503,6 +3520,7 @@ TEST (test_tensor_filter, reopen_tflite_01_p)
   g_free (str_launch_line);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
   config.rate_n = 0;
@@ -3633,6 +3651,7 @@ TEST (test_tensor_filter, reload_tflite_set_property)
   g_free (str_launch_line);
 
   /* input tensor info */
+  gst_tensor_config_init (&config);
   config.info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
   config.rate_n = 0;

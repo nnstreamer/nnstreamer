@@ -974,7 +974,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     case _NNS_MEDIA_PLUGINS:
     {
-      GstTensorsConfig new_config;
+      GstTensorsConfigDeclare0 (new_config);
 
       if (self->externalConverter == NULL ||
           self->externalConverter->convert == NULL)
@@ -1772,7 +1772,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
       st = gst_caps_get_structure (peer_caps, 0);
 
       if (g_strcmp0 (gst_structure_get_name (st), "other/tensor") == 0) {
-        GstTensorConfig tensor_config;
+        GstTensorConfigDeclare0 (tensor_config);
 
         tensor_config.info = config->info.info[0];
         tensor_config.rate_n = config->rate_n;

@@ -2203,7 +2203,7 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
   self = GST_TENSOR_SRC_IIO_CAST (src);
 
   if (self->is_tensor) {
-    GstTensorConfig tensor_config;
+    GstTensorConfigDeclare0 (tensor_config);
     gst_tensor_info_copy (&tensor_config.info,
         &(self->tensors_config->info.info[0]));
     tensor_config.rate_n = self->tensors_config->rate_n;

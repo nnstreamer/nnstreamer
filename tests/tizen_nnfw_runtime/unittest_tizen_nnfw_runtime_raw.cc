@@ -66,6 +66,9 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
   GstTensorsInfo info, res;
   gchar *model_file;
 
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
+
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
@@ -128,6 +131,10 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
   GstTensorMemory input, output;
   gchar *model_file;
   int tensor_size;
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  gst_tensors_info_init (&res);
 
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
@@ -305,6 +312,9 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   gsize data_read;
   size_t max_idx;
   gboolean status;
+
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
 
   ASSERT_NE (root_path, nullptr);
 

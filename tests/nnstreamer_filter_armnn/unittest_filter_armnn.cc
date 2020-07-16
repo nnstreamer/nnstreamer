@@ -97,6 +97,9 @@ TEST (nnstreamer_filter_armnn, get_dimension)
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorsInfo info, res;
 
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
+
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -257,6 +260,9 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   ssize_t data_read;
   size_t max_idx;
   gboolean status;
+
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
 
   ASSERT_NE (root_path, nullptr);
 

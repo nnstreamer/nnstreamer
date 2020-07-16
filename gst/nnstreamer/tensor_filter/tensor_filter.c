@@ -723,7 +723,7 @@ gst_tensor_filter_caps_from_config (GstTensorFilter * self,
   g_return_val_if_fail (config != NULL, NULL);
 
   if (config->info.num_tensors < 2) {
-    GstTensorConfig c;
+    GstTensorConfigDeclare0 (c);
 
     /**
      * supposed other/tensor if the number of tensor is less than 2.

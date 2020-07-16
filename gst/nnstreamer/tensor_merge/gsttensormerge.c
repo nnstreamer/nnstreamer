@@ -595,8 +595,8 @@ static gboolean
 gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
 {
   if (!tensor_merge->negotiated) {
+    GstTensorConfigDeclare0 (config);
     GstCaps *newcaps;
-    GstTensorConfig config;
 
     if (!gst_tensor_merge_get_merged_config (tensor_merge,
             &tensor_merge->tensors_config, &config)) {
