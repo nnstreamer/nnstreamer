@@ -41,8 +41,8 @@ elif not meson.is_cross_build()
   endif
 endif
 
+# Define warning flags for c and cpp
 warning_flags = [
-  '-Wredundant-decls',
   '-Wwrite-strings',
   '-Wformat',
   '-Wformat-nonliteral',
@@ -64,6 +64,7 @@ warning_c_flags = [
   '-Wdeclaration-after-statement'
 ]
 
+# Setup warning flags for c anc cpp
 foreach extra_arg : warning_flags
   if cc.has_argument (extra_arg)
     add_project_arguments([extra_arg], language: 'c')
@@ -288,13 +289,23 @@ foreach feature_name, data : features
 
 endforeach
 
-
 #Definitions enabled by meson_options.txt
 message('Following project_args are going to be included')
 message(project_args)
 foreach name, value: project_args
   add_project_arguments('-D@0@=@1@'.format(name, value), language: ['c', 'cpp'])
 endforeach
+
+# Add redundant declaration flag when caffe2 and pytorch both are disabled
+if not (pytorch_support_is_available and caffe2_support_is_available)
+  redundant_decls_flag = '-Wredundant-decls'
+  if cc.has_argument (redundant_decls_flag)
+    add_project_arguments([redundant_decls_flag], language: 'c')
+  endif
+  if cxx.has_argument (redundant_decls_flag)
+    add_project_arguments([redundant_decls_flag], language: 'cpp')
+  endif
+endif
 
 # Python
 have_python2 = false

@@ -77,7 +77,7 @@ private:
   bool configured;
   bool first_run;           /**< must be reset after setting input info */
 
-  std::shared_ptr < torch::jit::script::Module > model;
+  std::shared_ptr<torch::jit::script::Module> model;
 
   void setAccelerator (const char *accelerators);
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
@@ -197,7 +197,12 @@ TorchCore::loadModel ()
     return -1;
   }
 
+#ifdef PYTORCH_VER_ATLEAST_1_2_0
+  model = std::make_shared<torch::jit::script::Module>(torch::jit::load (model_path));
+#else
   model = torch::jit::load (model_path);
+#endif
+
   if (model == nullptr) {
     ml_loge ("Failed to read graph.");
     return -2;
@@ -477,12 +482,20 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
       ml_loge ("Output Tensor Information is not valid");
       return -2;
     }
+#ifdef PYTORCH_VER_ATLEAST_1_2_0
+  } else if (output_value.isList ()) {
+    c10::ArrayRef<torch::jit::IValue> output_ref_list =
+      output_value.toListRef ();
+    std::vector<torch::jit::IValue> output_list (
+        output_ref_list.begin (), output_ref_list.end ());
+#else
   } else if (output_value.isGenericList ()) {
-    std::vector < torch::jit::IValue > output_list =
-        output_value.toGenericListRef ();
+    c10::ArrayRef<torch::jit::IValue> output_list =
+      output_value.toGenericListRef ();
+#endif
     g_assert (outputTensorMeta.num_tensors == output_list.size ());
     int idx = 0;
-  for (auto & ivalue_element:output_list) {
+    for (auto & ivalue_element:output_list) {
       if (processIValue (ivalue_element, &output[idx++])) {
         ml_loge ("Output Tensor Information is not valid");
         return -2;
