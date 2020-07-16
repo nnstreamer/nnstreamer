@@ -123,10 +123,8 @@ gst_tensor_info_free (GstTensorInfo * info)
 {
   g_return_if_fail (info != NULL);
 
-  if (info->name) {
-    g_free (info->name);
-    info->name = NULL;
-  }
+  g_free (info->name);
+  info->name = NULL;
 }
 
 /**
@@ -274,7 +272,7 @@ gst_tensors_info_free (GstTensorsInfo * info)
 
   g_return_if_fail (info != NULL);
 
-  for (i = 0; i < info->num_tensors; i++) {
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
     gst_tensor_info_free (&info->info[i]);
   }
 }
