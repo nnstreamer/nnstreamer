@@ -97,6 +97,10 @@ Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
+
+  if (!GlobalInitAlreadyRun () && !GlobalInit ()) {
+    throw std::runtime_error ("Failed to initialize caffe2.");
+  }
 }
 
 /**
@@ -473,9 +477,16 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     caffe2_close (prop, private_data);
   }
 
-  core = new Caffe2Core (init_model, pred_model);
-  if (core == NULL) {
+  try {
+    core = new Caffe2Core (init_model, pred_model);
+  } catch (std::bad_alloc &e) {
     ml_loge ("Failed to allocate memory for filter subplugin: Caffe2\n");
+    return -1;
+  } catch (std::runtime_error &e) {
+    ml_loge ("Error for subplugin Caffe2: %s.", e.what ());
+    return -1;
+  } catch (...) {
+    ml_loge ("Unknown error thrown for subplugin Caffe2.");
     return -1;
   }
 
