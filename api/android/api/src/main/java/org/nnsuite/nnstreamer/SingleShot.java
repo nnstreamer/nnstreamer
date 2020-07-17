@@ -142,7 +142,7 @@ public final class SingleShot implements AutoCloseable {
      * input data frames of an instance of a model should share the same dimension.
      * To change the input information, you should call {@link #setInputInfo(TensorsInfo)} before calling invoke method.
      *
-     * Note that this has a default timeout of 3 seconds.
+     * Note that this will wait for the result until the invoke process is done.
      * If an application wants to change the time to wait for an output,
      * set the timeout using {@link #setTimeout(int)}.
      *
