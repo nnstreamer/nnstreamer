@@ -194,16 +194,13 @@ struct _ml_pipeline {
 };
 
 /**
- * @brief Internal private representation of sink handle of GstTensorSink and GstAppSink
+ * @brief Internal private representation sink callback function for GstTensorSink and GstAppSink
  * @details This represents a single instance of callback registration. This should not be exposed to applications.
  */
-typedef struct _ml_pipeline_sink {
-  ml_pipeline *pipe; /**< The pipeline, which is the owner of this ml_pipeline_sink */
-  ml_pipeline_element *element;
-  guint32 id;
+typedef struct {
   ml_pipeline_sink_cb cb;
   void *pdata;
-} ml_pipeline_sink;
+} callback_info_s;
 
 /**
  * @brief Internal private representation of common element handle (All GstElement except AppSink and TensorSink)
@@ -213,6 +210,7 @@ typedef struct _ml_pipeline_common_elem {
   ml_pipeline *pipe;
   ml_pipeline_element *element;
   guint32 id;
+  callback_info_s *callback_info;   /** < Callback function information, If element is not GstTensorSink or GstAppSink, then it should be NULL */
 } ml_pipeline_common_elem;
 
 /**

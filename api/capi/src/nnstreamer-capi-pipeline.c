@@ -31,8 +31,9 @@
 #include "tensor_filter_custom_easy.h"
 #include "nnstreamer_plugin_api.h"
 
-#define handle_init(type, name, h) \
-  ml_pipeline_##type *name= (h); \
+
+#define handle_init(name, h) \
+  ml_pipeline_common_elem *name= (h); \
   ml_pipeline *p; \
   ml_pipeline_element *elem; \
   int ret = ML_ERROR_NONE; \
@@ -235,10 +236,13 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
 
   /* Iterate e->handles, pass the data to them */
   for (l = elem->handles; l != NULL; l = l->next) {
-    ml_pipeline_sink *sink = l->data;
-    ml_pipeline_sink_cb callback = sink->cb;
+    ml_pipeline_sink_cb callback;
+    ml_pipeline_common_elem *sink = l->data;
+    if (sink->callback_info == NULL)
+      continue;
 
-    callback (data, &elem->tensors_info, sink->pdata);
+    callback = sink->callback_info->cb;
+    callback (data, &elem->tensors_info, sink->callback_info->pdata);
 
     /** @todo Measure time. Warn if it takes long. Kill if it takes too long. */
   }
@@ -312,6 +316,17 @@ cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
 }
 
 /**
+ * @brief Clean up each element of the pipeline.
+ */
+static void
+free_element_handle (gpointer data)
+{
+  ml_pipeline_common_elem *item = (ml_pipeline_common_elem *) data;
+  g_free (item->callback_info);
+  g_free (item);
+}
+
+/**
  * @brief Private function for ml_pipeline_destroy, cleaning up nodes in namednodes
  */
 static void
@@ -333,7 +348,7 @@ cleanup_node (gpointer data)
   }
 
   if (e->handles)
-    g_list_free_full (e->handles, g_free);
+    g_list_free_full (e->handles, free_element_handle);
   e->handles = NULL;
 
   ml_tensors_info_free (&e->tensors_info);
@@ -807,7 +822,7 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
 {
   ml_pipeline_element *elem;
   ml_pipeline *p = pipe;
-  ml_pipeline_sink *sink;
+  ml_pipeline_common_elem *sink;
   int ret = ML_ERROR_NONE;
 
   check_feature_state ();
@@ -880,8 +895,16 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
     }
   }
 
-  sink = *h = g_new0 (ml_pipeline_sink, 1);
+  sink = g_new0 (ml_pipeline_common_elem, 1);
   if (sink == NULL) {
+    ml_loge ("Failed to allocate the sink handle for %s.", sink_name);
+    ret = ML_ERROR_OUT_OF_MEMORY;
+    goto unlock_return;
+  }
+
+  sink->callback_info = g_new (callback_info_s, 1);
+  if (sink->callback_info == NULL) {
+    g_free (sink);
     ml_loge ("Failed to allocate the sink handle for %s.", sink_name);
     ret = ML_ERROR_OUT_OF_MEMORY;
     goto unlock_return;
@@ -889,8 +912,9 @@ ml_pipeline_sink_register (ml_pipeline_h pipe, const char *sink_name,
 
   sink->pipe = p;
   sink->element = elem;
-  sink->cb = cb;
-  sink->pdata = user_data;
+  sink->callback_info->cb = cb;
+  sink->callback_info->pdata = user_data;
+  *h = sink;
 
   g_mutex_lock (&elem->lock);
 
@@ -911,7 +935,7 @@ unlock_return:
 int
 ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
 {
-  handle_init (sink, sink, h);
+  handle_init (sink, h);
 
   if (elem->handle_id > 0) {
     g_signal_handler_disconnect (elem->element, elem->handle_id);
@@ -919,6 +943,7 @@ ml_pipeline_sink_unregister (ml_pipeline_sink_h h)
   }
 
   elem->handles = g_list_remove (elem->handles, sink);
+  g_free (sink->callback_info);
   g_free (sink);
 
   handle_exit (h);
@@ -1064,7 +1089,7 @@ unlock_return:
 int
 ml_pipeline_src_release_handle (ml_pipeline_src_h h)
 {
-  handle_init (common_elem, src, h);
+  handle_init (src, h);
 
   elem->handles = g_list_remove (elem->handles, src);
   g_free (src);
@@ -1087,7 +1112,7 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   ml_tensors_data_s *_data;
   unsigned int i;
 
-  handle_init (common_elem, src, h);
+  handle_init (src, h);
 
   _data = (ml_tensors_data_s *) data;
   if (!_data) {
@@ -1187,7 +1212,7 @@ destroy_data:
 int
 ml_pipeline_src_get_tensors_info (ml_pipeline_src_h h, ml_tensors_info_h * info)
 {
-  handle_init (common_elem, src, h);
+  handle_init (src, h);
 
   if (info == NULL) {
     ret = ML_ERROR_INVALID_PARAMETER;
@@ -1294,7 +1319,7 @@ unlock_return:
 int
 ml_pipeline_switch_release_handle (ml_pipeline_switch_h h)
 {
-  handle_init (common_elem, swtc, h);
+  handle_init (swtc, h);
 
   elem->handles = g_list_remove (elem->handles, swtc);
   g_free (swtc);
@@ -1311,7 +1336,7 @@ ml_pipeline_switch_select (ml_pipeline_switch_h h, const char *pad_name)
   GstPad *active_pad, *new_pad;
   gchar *active_name;
 
-  handle_init (common_elem, swtc, h);
+  handle_init (swtc, h);
 
   if (pad_name == NULL) {
     ml_loge ("The second argument, pad name, is not valid.");
@@ -1365,7 +1390,7 @@ ml_pipeline_switch_get_pad_list (ml_pipeline_switch_h h, char ***list)
   GstPad *pad;
   int counter = 0;
 
-  handle_init (common_elem, swtc, h);
+  handle_init (swtc, h);
 
   if (list == NULL) {
     ml_loge ("The second argument, list, is not valid.");
@@ -1528,7 +1553,7 @@ unlock_return:
 int
 ml_pipeline_valve_release_handle (ml_pipeline_valve_h h)
 {
-  handle_init (common_elem, valve, h);
+  handle_init (valve, h);
 
   elem->handles = g_list_remove (elem->handles, valve);
   g_free (valve);
@@ -1543,7 +1568,7 @@ int
 ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
 {
   gboolean drop = FALSE;
-  handle_init (common_elem, valve, h);
+  handle_init (valve, h);
 
   g_object_get (G_OBJECT (elem->element), "drop", &drop, NULL);
 
@@ -1648,7 +1673,7 @@ unlock_return:
 int
 ml_pipeline_element_release_handle (ml_pipeline_element_h elm_h)
 {
-  handle_init (common_elem, common_elem, elm_h);
+  handle_init (common_elem, elm_h);
 
   elem->handles = g_list_remove (elem->handles, common_elem);
   g_free (common_elem);
@@ -1666,7 +1691,7 @@ int ml_pipeline_element_set_property (ml_pipeline_element_h elm_h,
   va_list args;
   const char *name;
 
-  handle_init (common_elem, common_elem, elm_h);
+  handle_init (common_elem, elm_h);
 
   /* Check input parameter */
   if (first_property_name == NULL) {
@@ -1710,7 +1735,7 @@ int ml_pipeline_element_get_property (ml_pipeline_element_h elm_h,
   va_list args;
   const char *name;
 
-  handle_init (common_elem, common_elem, elm_h);
+  handle_init (common_elem, elm_h);
 
   /* Check input parameter */
   if (first_property_name == NULL) {
