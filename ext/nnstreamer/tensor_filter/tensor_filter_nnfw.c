@@ -43,9 +43,6 @@
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
-/** Maximum rank allowed for tensor dimension */
-#define NNFW_TENSOR_RANK_LIMIT 6
-
 static const gchar *nnfw_accl_support[] = {
   ACCL_CPU_NEON_STR,
   ACCL_CPU_STR,
@@ -382,6 +379,7 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
     const GstTensorsInfo * tensors_info, guint tensor_idx)
 {
   struct nnfw_tensorinfo nnfw_info;
+  NNFW_STATUS status;
   gint err;
   gint idx;
   const GstTensorInfo *info = &tensors_info->info[tensor_idx];
@@ -396,10 +394,21 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   for (idx = nnfw_info.rank - 1; idx >= 0; idx--)
     nnfw_info.dims[nnfw_info.rank - idx - 1] = info->dimension[idx];
 
-  for (idx = NNFW_TENSOR_RANK_LIMIT - 1; idx >= nnfw_info.rank; idx--)
+  /** @note Maximum rank expressible with nnfw is 6 (NNFW_MAX_RANK) */
+  for (idx = NNFW_MAX_RANK - 1; idx >= nnfw_info.rank; idx--)
     nnfw_info.dims[idx] = 0;
 
-  nnfw_apply_tensorinfo (pdata->session, tensor_idx, nnfw_info);
+#if defined (NNFW_USE_OLD_API)
+  /**
+   * @todo nnfw_apply_tensorinfo() will be deprecated.
+   * Use nnfw_set_input_tensorinfo() later (nnfw ver >= 1.6.0).
+   */
+  status = nnfw_apply_tensorinfo (pdata->session, tensor_idx, nnfw_info);
+#else
+  status = nnfw_set_input_tensorinfo (pdata->session, tensor_idx, &nnfw_info);
+#endif
+  if (status != NNFW_STATUS_NO_ERROR)
+    return -EPERM;
 
   return 0;
 }

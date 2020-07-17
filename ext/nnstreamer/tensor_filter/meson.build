@@ -6,8 +6,12 @@ if nnfw_runtime_support_is_available
     nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-
   nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  # Check old function (@todo remove this definition later, nnfw ver >= 1.6.0)
+  if not cc.has_function('nnfw_set_input_tensorinfo', dependencies: nnfw_dep)
+    nnstreamer_filter_nnfw_deps += declare_dependency(compile_args: ['-DNNFW_USE_OLD_API=1'])
+  endif
 
   nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
     nnstreamer_filter_nnfw_sources,
