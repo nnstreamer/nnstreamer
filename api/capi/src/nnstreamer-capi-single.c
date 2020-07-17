@@ -137,13 +137,13 @@ invoke_thread (void *arg)
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   ml_tensors_data_s *in_data, *out_data;
   unsigned int i;
-  int status = ML_ERROR_NONE;
 
   single_h = (ml_single *) arg;
 
   g_mutex_lock (&single_h->mutex);
 
   while (single_h->state <= RUNNING) {
+    int status = ML_ERROR_NONE;
 
     /** wait for data */
     while (single_h->state != RUNNING) {
@@ -174,11 +174,12 @@ invoke_thread (void *arg)
     /** invoke the thread */
     if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
       status = ML_ERROR_STREAMS_PIPE;
-      g_mutex_lock (&single_h->mutex);
-      goto wait_for_next;
     }
 
     g_mutex_lock (&single_h->mutex);
+    if (status != ML_ERROR_NONE)
+      goto wait_for_next;
+
     /** Allocate output buffer */
     if (single_h->ignore_output == FALSE) {
       status = ml_tensors_data_create_no_alloc (&single_h->out_info,
