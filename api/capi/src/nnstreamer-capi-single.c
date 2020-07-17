@@ -31,9 +31,9 @@
 #define ML_SINGLE_MAGIC 0xfeedfeed
 
 /**
- * @brief Default time to wait for an output (3 seconds).
+ * @brief Default time to wait for an output in milliseconds (0 will wait for the output).
  */
-#define SINGLE_DEFAULT_TIMEOUT 3000
+#define SINGLE_DEFAULT_TIMEOUT 0
 
 /**
  * @brief Global lock for single shot API
@@ -840,27 +840,38 @@ ml_single_invoke (ml_single_h single,
   single_h->state = RUNNING;
   single_h->ignore_output = FALSE;
 
-  end_time = g_get_monotonic_time () +
-      single_h->timeout * G_TIME_SPAN_MILLISECOND;
-
   g_cond_broadcast (&single_h->cond);
-  if (g_cond_wait_until (&single_h->cond, &single_h->mutex, end_time)) {
-    status = single_h->status;
-  } else {
-    ml_logw ("Wait for invoke has timed out");
-    status = ML_ERROR_TIMED_OUT;
-    /** This is set to notify invoke_thread to not process if timedout */
-    single_h->ignore_output = TRUE;
 
-    /** Free if any output memory was allocated */
-    if (*single_h->output != NULL) {
-      ml_tensors_data_destroy ((ml_tensors_data_h) * single_h->output);
-      *single_h->output = NULL;
+  if (single_h->timeout > 0) {
+    /* set timeout */
+    end_time = g_get_monotonic_time () +
+        single_h->timeout * G_TIME_SPAN_MILLISECOND;
+
+    if (g_cond_wait_until (&single_h->cond, &single_h->mutex, end_time)) {
+      status = single_h->status;
+    } else {
+      ml_logw ("Wait for invoke has timed out");
+      status = ML_ERROR_TIMED_OUT;
+      /** This is set to notify invoke_thread to not process if timedout */
+      single_h->ignore_output = TRUE;
+
+      /** Free if any output memory was allocated */
+      if (*single_h->output != NULL) {
+        ml_tensors_data_destroy ((ml_tensors_data_h) *single_h->output);
+        *single_h->output = NULL;
+      }
     }
+  } else {
+    /** @todo calling klass->invoke() may suspend current thread */
+    g_cond_wait (&single_h->cond, &single_h->mutex);
+    status = single_h->status;
   }
 
 exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
+
+  if (status != ML_ERROR_NONE)
+    ml_loge ("Failed to invoke the model.");
   return status;
 }
 

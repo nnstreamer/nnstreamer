@@ -90,7 +90,7 @@ int ml_single_close (ml_single_h single);
  * @brief Invokes the model with the given input data.
  * @details Even if the model has flexible input data dimensions,
  *          input data frames of an instance of a model should share the same dimension.
- *          Note that this has a default timeout of 3 seconds. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
+ *          Note that this will wait for the result until the invoke process is done. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
  * @since_tizen 5.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
@@ -109,7 +109,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @brief Invokes the model with the given input data with the given tensors information.
  * @details This function changes the input tensors information for the model, and returns the corresponding output data.
  *          A model/framework may not support changing the information.
- *          Note that this has a default timeout of 3 seconds. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
+ *          Note that this will wait for the result until the invoke process is done. If an application wants to change the time to wait for an output, set the timeout using ml_single_set_timeout().
  * @since_tizen 6.0
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
