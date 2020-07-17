@@ -5950,6 +5950,173 @@ TEST (nnstreamer_capi_element, get_property_04_n)
 }
 
 /**
+ * @brief Test NNStreamer element-wise control functions
+ * @detail Positive scenario test for element-wise control functions
+ */
+TEST (nnstreamer_capi_element, scenario_05_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h sink_h = nullptr;
+  ml_pipeline_sink_h sinkhandle = nullptr;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc name=vsrc is-live=true ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != nullptr);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != nullptr);
+
+  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_usleep (100000);
+
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer element-wise control functions
+ * @detail Negative scenario test for element-wise control functions
+ */
+TEST (nnstreamer_capi_element, scenario_06_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h sink_h = nullptr;
+  ml_pipeline_sink_h sinkhandle = nullptr;
+  gchar *pipeline;
+  guint *count_sink;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != nullptr);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != nullptr);
+
+  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test case */
+  status = ml_pipeline_element_set_property(nullptr, "emit-signals", true, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property(sink_h, "WRONG_PROPERty", true, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_usleep (100000);
+
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (count_sink);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer element-wise control functions
+ * @detail Negative scenario test for element-wise control functions
+ */
+TEST (nnstreamer_capi_element, scenario_07_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h sink_h = nullptr;
+  ml_pipeline_sink_h sinkhandle = nullptr;
+  gchar *pipeline;
+  guint *count_sink;
+  int status;
+  bool ret_sync;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != nullptr);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != nullptr);
+
+  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_usleep (100000);
+
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (*count_sink == 3);
+
+  /* Test case */
+  status = ml_pipeline_element_get_property(nullptr, "sync", &ret_sync, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property(sink_h, "WRONG_NAME", &ret_sync, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (sink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (count_sink);
+  g_free (pipeline);
+}
+
+/**
  * @brief Test for internal function 'ml_tensors_info_copy_from_gst'.
  */
 TEST (nnstreamer_capi_internal, copy_from_gst)
