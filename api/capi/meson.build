@@ -32,8 +32,12 @@ capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
 
-if get_option('enable-tizen')
-  capi_main += join_paths('src', 'nnstreamer-capi-tizen.c')
+if get_option('enable-tizen') and get_option('enable-tizen-feature-check')
+  capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-feature-check.c')
+endif
+
+if get_option('enable-tizen') and get_option('enable-tizen-privilege-check')
+  capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-privilege-check.c')
 endif
 
 capi_devel_main = []
@@ -59,21 +63,27 @@ if (get_option('enable-tizen'))
     tizen_deps = [
       dependency('dpm'),
       dependency('mm-camcorder'),
-      dependency('capi-privacy-privilege-manager'),
       dependency('capi-base-common'),
       dependency('capi-system-info'),
       dependency('dlog')
     ]
+
+    if get_option('enable-tizen-privilege-check')
+      tizen_deps += dependency('capi-privacy-privilege-manager')
+    endif
   else
     tizen_deps = [
       dependency('dpm'),
-      dependency('mm-resource-manager'),
       dependency('mm-camcorder'),
-      dependency('capi-privacy-privilege-manager'),
       dependency('capi-base-common'),
       dependency('capi-system-info'),
       dependency('dlog')
     ]
+
+    if get_option('enable-tizen-privilege-check')
+      tizen_deps += dependency('mm-resource-manager')
+      tizen_deps += dependency('capi-privacy-privilege-manager')
+    endif
   endif
 
   capi_deps += tizen_deps

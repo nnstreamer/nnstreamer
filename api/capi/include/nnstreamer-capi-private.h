@@ -36,6 +36,7 @@
 #if defined (__TIZEN__)
 #include "nnstreamer-tizen-internal.h"
 
+#if defined (__FEATURE_CHECK_SUPPORT__)
 #define check_feature_state() \
   do { \
     int feature_ret = ml_tizen_get_feature_enabled (); \
@@ -44,6 +45,13 @@
   } while (0);
 
 #define set_feature_state(...) ml_tizen_set_feature_state(__VA_ARGS__)
+#else
+#define check_feature_state()
+#define set_feature_state(...)
+#endif  /* __FEATURE_CHECK_SUPPORT__ */
+
+#if defined (__PRIVILEGE_CHECK_SUPPORT__)
+
 #define convert_tizen_element(...) ml_tizen_convert_element(__VA_ARGS__)
 
 #if (TIZENVERSION >= 5) && (TIZENVERSION < 9999)
@@ -63,13 +71,22 @@ typedef enum { MM_RESOURCE_MANAGER_RES_TYPE_MAX } mm_resource_manager_res_type_e
 #endif
 
 #else
+
+#define convert_tizen_element(...) ML_ERROR_NONE
+#define get_tizen_resource(...) ML_ERROR_NONE
+#define release_tizen_resource(...)
+#define TIZEN5PLUS 0
+
+#endif  /* __PRIVILEGE_CHECK_SUPPORT__ */
+
+#else
 #define check_feature_state()
 #define set_feature_state(...)
 #define convert_tizen_element(...) ML_ERROR_NONE
 #define get_tizen_resource(...) ML_ERROR_NONE
 #define release_tizen_resource(...)
 #define TIZEN5PLUS 0
-#endif
+#endif  /* __TIZEN__ */
 
 #ifdef __cplusplus
 extern "C" {
