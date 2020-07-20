@@ -9,6 +9,16 @@
 %define		flatbuf_support 1
 %define		protobuf_support 1
 %define		nnfw_support 1
+%define		check_test 1
+%define		enable_tizen_privilege 1
+%define		enable_tizen_feature 1
+%define		enable_extra_subplugins 1
+
+%if "%{?profile}" == "tv"
+%define		enable_extra_subplugins 0
+%define		enable_tizen_privilege 0
+%define		check_test 0
+%endif
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -50,6 +60,14 @@
 %define	edgetpu_support 0
 %endif
 
+%if !0%{?enable_extra_subplugins}
+%define		flatbuf_support 0
+%define		protobuf_support 0
+%define		python_support 0
+%define		mvncsdk2_support 0
+%define		edgetpu_support 0
+%endif
+
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
 
@@ -88,8 +106,10 @@ BuildRequires:	gst-plugins-base
 # and gtest
 BuildRequires:	gtest-devel
 # a few test cases uses python
+%if 0%{?check_test}
 BuildRequires:	python
 BuildRequires:	python-numpy
+%endif
 %if 0%{?python_support}
 # for python custom filters
 BuildRequires:	pkgconfig(python2)
@@ -151,10 +171,14 @@ BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
 %if %{with tizen}
 BuildRequires:	pkgconfig(dpm)
 %if 0%{tizen_version_major} >= 5
+%if 0%{?enable_tizen_privilege}
 BuildRequires:	pkgconfig(mm-resource-manager)
 %endif
+%endif
 BuildRequires:	pkgconfig(mm-camcorder)
+%if 0%{?enable_tizen_privilege}
 BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
+%endif
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
@@ -386,6 +410,9 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_mvncsdk2 -Dmvncsdk2-support=disabled
 %define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define element_restriction -Denable-element-restriction=false
+%define enable_tizen_privilege_check -Denable-tizen-privilege-check=true
+%define enable_tizen_feature_check -Denable-tizen-feature-check=true
+%define enable_test -Denable-test=true
 
 %if 0%{mvncsdk2_support}
 %define enable_mvncsdk2 -Dmvncsdk2-support=enabled
@@ -395,13 +422,26 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_tizen_sensor -Denable-tizen-sensor=true
 %endif
 
+%if !0%{?check_test}
+%define enable_test -Denable-test=false
+%endif
+
+%if !0%{?enable_tizen_privilege}
+%define enable_tizen_privilege_check -Denable-tizen-privilege-check=false
+%endif
+
+%if !0%{?enable_tizen_feature}
+%define enable_tizen_feature_check -Denable-tizen-feature-check=false
+%endif
+
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
 %ifarch %arm aarch64
 %if 0%{?nnfw_support}
 %define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
-%endif
+%endif  # nnfw_support
+
 %endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay'
@@ -497,7 +537,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_sensor} %{enable_test_coverage} \
+	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} \
 	build
 
 ninja -C build %{?_smp_mflags}
