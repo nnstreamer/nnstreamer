@@ -8,6 +8,7 @@
 %define		vivante_support 0
 %define		flatbuf_support 1
 %define		protobuf_support 1
+%define		nnfw_support 1
 
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
@@ -164,12 +165,14 @@ BuildRequires:	pkgconfig(sensor)
 BuildRequires:	capi-system-sensor-devel
 
 %ifarch %arm aarch64
+%if 0%{?nnfw_support}
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
 BuildRequires:  json-glib-devel
+%endif
 %endif
 %endif  # tizen
 
@@ -396,7 +399,9 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
 %ifarch %arm aarch64
+%if 0%{?nnfw_support}
 %define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
+%endif
 %endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay'
@@ -453,9 +458,9 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 
 # Support flatbuffer
 %if 0%{?flatbuf_support}
-%define enable_flatbuf -Denable-flatbuf=enabled
+%define enable_flatbuf -Dflatbuf-support=enabled
 %else
-%define enable_flatbuf -Denable-flatbuf=disabled
+%define enable_flatbuf -Dflatbuf-support=disabled
 %endif
 
 %prep
@@ -491,7 +496,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
-	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
+	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
 	%{enable_tizen_sensor} %{enable_test_coverage} \
 	build
 
@@ -699,10 +704,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 
 %ifarch %arm aarch64
+%if 0%{?nnfw_support}
 %files nnfw
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
+%endif
 %endif
 
 %if 0%{?armnn_support}
