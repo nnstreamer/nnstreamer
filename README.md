@@ -83,58 +83,27 @@ For more details, please access the following manuals.
 * For macOS systems, press [here](Documentation/getting-started-macos.md).
 * To build an API library for Android, press [here](api/android/README.md).
 
-## Usage Examples
+## Applications
 
-- [Example apps](https://github.com/nnstreamer/nnstreamer-example) (stable)
-- Check some Ubuntu C/C++ Native Examples ⬇️
-
-<table>
-  <thead>
-    <tr>
-      <th>
-        <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_pose_estimation_tflite">
-          Pose Estimation
-        </a>
-      </th>
-      <th>
-        <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_image_classification_tflite">
-          Image Classification
-        </a>
-      </th>
-    </tr>
-  </thead>
+<table border=0 width=100% cellpadding=0 cellspacing=0>
   <tbody>
     <tr>
-      <td rowspan=3>
+      <td rowspan=1>
         <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_pose_estimation_tflite">
-          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_pose_estimation_tflite/yongjoo2.webp">
+          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_pose_estimation_tflite/yongjoo2.webp" height=240>
+        </a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_image_classification_tflite">
+          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_image_classification_tflite/image_classification_tflite_demo.webp" height=240>
+        </a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
+          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_object_detection_tensorflow_lite/object_detection_tflite_demo.webp" height=240>
         </a>
-      </td>
-      <td rowspan=1>
-        <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_image_classification_tflite">
-          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_image_classification_tflite/image_classification_tflite_demo.webp">
-        </a>
-    </tr>
-    <tr>
-      <th>
-        <strong>
-          <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
-            Object Detection
-          </a>
-        </strong>
-      </th>
-    </tr>
-    <tr>
-      <td rowspan=1>
-        <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
-        <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_object_detection_tensorflow_lite/object_detection_tflite_demo.webp">
-      </a>
       </td>
     </tr>
   </tbody>
 </table>
 
-- Wiki page [usage example screenshots](https://github.com/nnstreamer/nnstreamer/wiki/usage-examples-screenshots) (stable)
+- [Edge-AI Examples](Documentation/edge-ai.md)
+- [Products with NNStreamer](Documentation/products.md)
+- NNStreamer example applications: [Github](https://github.com/nnstreamer/nnstreamer-example) / [Screenshots](https://github.com/nnstreamer/nnstreamer/wiki/usage-examples-screenshots)
 
 ## CI Server
 
