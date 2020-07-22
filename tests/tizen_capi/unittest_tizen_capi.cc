@@ -5638,7 +5638,7 @@ TEST (nnstreamer_capi_element, set_property_04_n)
     "sync-mode", &ret_sync_mode, NULL);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (ret_buffer_status, TRUE);
-  EXPECT_EQ (ret_sync_mode, 1);
+  EXPECT_EQ (ret_sync_mode, 1U);
 
   status = ml_pipeline_element_release_handle (selector_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -5780,7 +5780,7 @@ TEST (nnstreamer_capi_element, get_property_01_p)
     "sync-mode", &ret_sync_mode, NULL);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (ret_buffer_status, TRUE);
-  EXPECT_EQ (ret_sync_mode, 1);
+  EXPECT_EQ (ret_sync_mode, 1U);
 
   /* Set "drop" property as FALSE */
   status = ml_pipeline_element_set_property(valve_h, "drop", FALSE, NULL);
