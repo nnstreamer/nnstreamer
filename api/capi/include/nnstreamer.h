@@ -190,6 +190,7 @@ typedef enum {
   ML_PIPELINE_BUF_POLICY_AUTO_FREE      = 0, /**< Default. Application should not deallocate this buffer. NNStreamer will deallocate when the buffer is no more needed. */
   ML_PIPELINE_BUF_POLICY_DO_NOT_FREE    = 1, /**< This buffer is not to be freed by NNStreamer (i.e., it's a static object). However, be careful: NNStreamer might be accessing this object after the return of the API call. */
   ML_PIPELINE_BUF_POLICY_MAX,   /**< Max size of #ml_pipeline_buf_policy_e structure. */
+  ML_PIPELINE_BUF_SRC_EVENT_EOS         = 0x10000, /**< Trigger End-Of-Stream event for the corresponding appsrc and ignore the given input value. The correspnding appsrc will no longer accept new data after this. */
 } ml_pipeline_buf_policy_e;
 
 /**
@@ -417,7 +418,7 @@ int ml_pipeline_src_release_handle (ml_pipeline_src_h src_handle);
  * @param[in] src_handle The source handle returned by ml_pipeline_src_get_handle().
  * @param[in] data The handle of input tensors, in the format of tensors info given by ml_pipeline_src_get_tensors_info().
  *                 This function takes ownership of the data if @a policy is #ML_PIPELINE_BUF_POLICY_AUTO_FREE.
- * @param[in] policy The policy of buffer deallocation.
+ * @param[in] policy The policy of buffer deallocation. The policy value may include buffer deallocation mechanisms or event triggers for appsrc elements. If event triggers are provided, these functions will not give input data to the appsrc element, but will trigger the given event only.
  * @return 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
