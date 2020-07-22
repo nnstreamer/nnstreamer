@@ -111,6 +111,76 @@ typedef struct
 } ml_single;
 
 /**
+ * @brief Internal function to call subplugin's invoke
+ */
+static inline int
+__invoke (ml_single * single_h, GstTensorMemory * out_tensors)
+{
+  ml_tensors_data_s *in_data;
+  unsigned int i;
+  int status = ML_ERROR_NONE;
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+
+  in_data = (ml_tensors_data_s *) single_h->input;
+  /** Setup input buffer */
+  for (i = 0; i < in_data->num_tensors; i++) {
+    in_tensors[i].data = in_data->tensors[i].tensor;
+    in_tensors[i].size = in_data->tensors[i].size;
+    in_tensors[i].type = (tensor_type) single_h->in_info.info[i].type;
+  }
+
+  /** Setup output buffer */
+  for (i = 0; i < single_h->out_info.num_tensors; i++) {
+    /** memory will be allocated by tensor_filter_single */
+    out_tensors[i].data = NULL;
+    out_tensors[i].size = ml_tensor_info_get_size (&single_h->out_info.info[i]);
+    out_tensors[i].type = (tensor_type) single_h->out_info.info[i].type;
+  }
+  /** invoke the thread */
+  if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors))
+    status = ML_ERROR_STREAMS_PIPE;
+
+  return status;
+}
+
+/**
+ * @brief Internal function to post-process given output.
+ */
+static inline int
+__process_output (ml_single * single_h, GstTensorMemory * out_tensors)
+{
+  unsigned int i;
+  int status = ML_ERROR_NONE;
+  ml_tensors_data_s *out_data;
+
+  /** Allocate output buffer */
+  if (single_h->ignore_output == FALSE) {
+    status = ml_tensors_data_create_no_alloc (&single_h->out_info,
+        single_h->output);
+    if (status != ML_ERROR_NONE) {
+      ml_loge ("Failed to allocate the memory block.");
+      (*single_h->output) = NULL;
+      return ML_ERROR_OUT_OF_MEMORY;
+    }
+
+    /** set the result */
+    out_data = (ml_tensors_data_s *) (*single_h->output);
+    for (i = 0; i < single_h->out_info.num_tensors; i++) {
+      out_data->tensors[i].tensor = out_tensors[i].data;
+    }
+  } else {
+    /**
+     * Caller of the invoke thread has returned back with timeout
+     * so, free the memory allocated by the invoke as their is no receiver
+     */
+    for (i = 0; i < single_h->out_info.num_tensors; i++)
+      g_free (out_tensors[i].data);
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
  * @brief thread to execute calls to invoke
  *
  * @details The thread behavior is detailed as below:
@@ -133,10 +203,7 @@ static void *
 invoke_thread (void *arg)
 {
   ml_single *single_h;
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-  ml_tensors_data_s *in_data, *out_data;
-  unsigned int i;
 
   single_h = (ml_single *) arg;
 
@@ -152,57 +219,17 @@ invoke_thread (void *arg)
         goto exit;
     }
 
-    in_data = (ml_tensors_data_s *) single_h->input;
-
-    /** Setup input buffer */
-    for (i = 0; i < in_data->num_tensors; i++) {
-      in_tensors[i].data = in_data->tensors[i].tensor;
-      in_tensors[i].size = in_data->tensors[i].size;
-      in_tensors[i].type = (tensor_type) single_h->in_info.info[i].type;
-    }
-
-    /** Setup output buffer */
-    for (i = 0; i < single_h->out_info.num_tensors; i++) {
-      /** memory will be allocated by tensor_filter_single */
-      out_tensors[i].data = NULL;
-      out_tensors[i].size =
-          ml_tensor_info_get_size (&single_h->out_info.info[i]);
-      out_tensors[i].type = (tensor_type) single_h->out_info.info[i].type;
-    }
     g_mutex_unlock (&single_h->mutex);
-
-    /** invoke the thread */
-    if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
-      status = ML_ERROR_STREAMS_PIPE;
-    }
-
+    status = __invoke (single_h, out_tensors);
     g_mutex_lock (&single_h->mutex);
+
     if (status != ML_ERROR_NONE)
       goto wait_for_next;
 
-    /** Allocate output buffer */
-    if (single_h->ignore_output == FALSE) {
-      status = ml_tensors_data_create_no_alloc (&single_h->out_info,
-          single_h->output);
-      if (status != ML_ERROR_NONE) {
-        ml_loge ("Failed to allocate the memory block.");
-        (*single_h->output) = NULL;
-        goto wait_for_next;
-      }
+    status = __process_output (single_h, out_tensors);
 
-      /** set the result */
-      out_data = (ml_tensors_data_s *) (*single_h->output);
-      for (i = 0; i < single_h->out_info.num_tensors; i++) {
-        out_data->tensors[i].tensor = out_tensors[i].data;
-      }
-    } else {
-      /**
-       * Caller of the invoke thread has returned back with timeout
-       * so, free the memory allocated by the invoke as their is no receiver
-       */
-      for (i = 0; i < single_h->out_info.num_tensors; i++)
-        g_free (out_tensors[i].data);
-    }
+    if (status != ML_ERROR_NONE)
+      goto wait_for_next;
 
     /** loop over to wait for the next element */
   wait_for_next:
@@ -313,7 +340,7 @@ ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
   ml_tensors_info_copy_from_ml (&gst_in_info, info);
 
   ret = single_h->klass->set_input_info (single_h->filter, &gst_in_info,
-          &gst_out_info);
+      &gst_out_info);
   if (ret == 0) {
     ml_tensors_info_copy_from_gst (&single_h->in_info, &gst_in_info);
     ml_tensors_info_copy_from_gst (&single_h->out_info, &gst_out_info);
@@ -629,7 +656,8 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   /* set accelerator, framework, model files and custom option */
   fw_name = ml_get_nnfw_subplugin_name (nnfw);
   hw_name = ml_nnfw_to_str_prop (hw);
-  g_object_set (filter_obj, "accelerator", hw_name, "framework", fw_name, "model", info->models, NULL);
+  g_object_set (filter_obj, "accelerator", hw_name, "framework", fw_name,
+      "model", info->models, NULL);
   g_free (hw_name);
 
   if (info->custom_option) {
@@ -840,9 +868,11 @@ ml_single_invoke (ml_single_h single,
   single_h->state = RUNNING;
   single_h->ignore_output = FALSE;
 
-  g_cond_broadcast (&single_h->cond);
 
   if (single_h->timeout > 0) {
+    /* Wake up "invoke_thread" */
+    g_cond_broadcast (&single_h->cond);
+
     /* set timeout */
     end_time = g_get_monotonic_time () +
         single_h->timeout * G_TIME_SPAN_MILLISECOND;
@@ -857,14 +887,25 @@ ml_single_invoke (ml_single_h single,
 
       /** Free if any output memory was allocated */
       if (*single_h->output != NULL) {
-        ml_tensors_data_destroy ((ml_tensors_data_h) *single_h->output);
+        ml_tensors_data_destroy ((ml_tensors_data_h) * single_h->output);
         *single_h->output = NULL;
       }
     }
   } else {
-    /** @todo calling klass->invoke() may suspend current thread */
-    g_cond_wait (&single_h->cond, &single_h->mutex);
-    status = single_h->status;
+    /**
+     * Don't worry. We have locked single_h->mutex, thus there is no
+     * other thread with ml_single_invoke function on the same handle
+     * that are in this if-then-else block, which means that there is
+     * no other thread with active invoke-thread (calling __invoke())
+     * with the same handle. Thus we can call __invoke without
+     * having yet another mutex for __invoke.
+     */
+    GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+    status = __invoke (single_h, out_tensors);
+    if (status != ML_ERROR_NONE)
+      goto exit;
+    status = __process_output (single_h, out_tensors);
+    single_h->state = IDLE;
   }
 
 exit:
