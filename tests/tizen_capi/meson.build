@@ -12,6 +12,13 @@ unittest_tizen_capi = executable('unittest_tizen_capi',
 )
 test('unittest_tizen_capi', unittest_tizen_capi, env: testenv)
 
+unittest_tizen_capi_latency = executable('unittest_tizen_capi_latency',
+  'unittest_tizen_capi_latency.cc',
+  dependencies: [tizen_apptest_deps, unittest_util_dep],
+  install: false,
+  install_dir: unittest_install_dir
+)
+test('unittest_tizen_capi_latency', unittest_tizen_capi_latency, env: testenv)
 
 if get_option('enable-tizen-sensor')
 

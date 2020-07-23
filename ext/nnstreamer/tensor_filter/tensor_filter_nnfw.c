@@ -62,6 +62,8 @@ static const gchar *nnfw_accl_default = ACCL_CPU_STR;
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
 
+GstTensorFilterFrameworkStatistics nnfw_internal_stats;
+
 /**
  * @brief private data structure for the nnfw framework
  */
@@ -642,10 +644,12 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
     void **private_data, const GstTensorMemory * input,
     GstTensorMemory * output)
 {
+  int64_t start_time, stop_time;
   nnfw_pdata *pdata;
   int err = 0;
   NNFW_STATUS nnfw_status;
 
+  start_time = g_get_monotonic_time ();
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   pdata = (nnfw_pdata *) * private_data;
 
@@ -656,10 +660,19 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
   err = nnfw_tensor_memory_set (prop, pdata, output, FALSE);
   if (err < 0)
     return err;
+  stop_time = g_get_monotonic_time ();
 
+  nnfw_internal_stats.total_overhead_latency += stop_time - start_time;
+
+  start_time = g_get_monotonic_time ();
   nnfw_status = nnfw_run (pdata->session);
+  stop_time = g_get_monotonic_time ();
+
   if (nnfw_status != NNFW_STATUS_NO_ERROR)
     err = -EINVAL;
+
+  nnfw_internal_stats.total_invoke_latency += stop_time - start_time;
+  nnfw_internal_stats.total_invoke_num += 1;
 
   return err;
 }
@@ -689,6 +702,10 @@ static GstTensorFilterFramework NNS_support_nnfw = {
 void
 init_filter_nnfw (void)
 {
+  nnfw_internal_stats.total_invoke_num = 0;
+  nnfw_internal_stats.total_invoke_latency = 0;
+  nnfw_internal_stats.total_overhead_latency = 0;
+
   NNS_support_nnfw.name = filter_subplugin_nnfw;
   NNS_support_nnfw.allow_in_place = FALSE;
   NNS_support_nnfw.allocate_in_invoke = FALSE;
@@ -699,6 +716,7 @@ init_filter_nnfw (void)
   NNS_support_nnfw.getOutputDimension = nnfw_getOutputDim;
   NNS_support_nnfw.setInputDimension = nnfw_setInputDim;
   NNS_support_nnfw.checkAvailability = nnfw_checkAvailability;
+  NNS_support_nnfw.statistics = &nnfw_internal_stats;
 
   nnstreamer_filter_probe (&NNS_support_nnfw);
 }
