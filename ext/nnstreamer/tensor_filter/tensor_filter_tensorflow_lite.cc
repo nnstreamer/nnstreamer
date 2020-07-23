@@ -63,6 +63,8 @@ static const gchar *tflite_accl_auto = ACCL_CPU_STR;
 #endif
 static const gchar *tflite_accl_default = ACCL_CPU_STR;
 
+GstTensorFilterFrameworkStatistics tflite_internal_stats;
+
 /**
  * @brief Wrapper class for TFLite Interpreter to support model switching
  */
@@ -184,16 +186,14 @@ int
 TFLiteInterpreter::invoke (const GstTensorMemory * input,
     GstTensorMemory * output, bool use_nnapi)
 {
-#if (DBG)
-  gint64 start_time = g_get_real_time ();
-#endif
-
+  int64_t start_time, stop_time;
   std::vector <int> tensors_idx;
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
   bool size_mismatch = FALSE;
 
+  start_time = g_get_monotonic_time ();
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
@@ -213,7 +213,10 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     tensor_ptr->data.raw = (char *) input[i].data;
     tensors_idx.push_back (tensor_idx);
   }
+  stop_time = g_get_monotonic_time ();
+  tflite_internal_stats.total_overhead_latency += stop_time - start_time;
 
+  start_time = g_get_monotonic_time ();
   if (!size_mismatch) {
 #ifdef ENABLE_TFLITE_NNAPI_DELEGATE
     if (use_nnapi)
@@ -225,9 +228,12 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     status = kTfLiteError;
   }
 
+  stop_time = g_get_monotonic_time ();
+  tflite_internal_stats.total_invoke_latency += stop_time - start_time;
+  tflite_internal_stats.total_invoke_num += 1;
+
 #if (DBG)
-  gint64 stop_time = g_get_real_time ();
-  g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
+  g_critical ("Invoke() is finished: %" G_GINT64_FORMAT,
       (stop_time - start_time));
 #endif
 
@@ -247,7 +253,7 @@ int
 TFLiteInterpreter::loadModel (bool use_nnapi)
 {
 #if (DBG)
-  gint64 start_time = g_get_real_time ();
+  gint64 start_time = g_get_monotonic_time ();
 #endif
 
   model = tflite::FlatBufferModel::BuildFromFile (model_path);
@@ -283,7 +289,7 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
     return -2;
   }
 #if (DBG)
-  gint64 stop_time = g_get_real_time ();
+  gint64 stop_time = g_get_monotonic_time ();
   g_message ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
   return 0;
@@ -1016,6 +1022,10 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
 void
 init_filter_tflite (void)
 {
+  tflite_internal_stats.total_invoke_num = 0;
+  tflite_internal_stats.total_invoke_latency = 0;
+  tflite_internal_stats.total_overhead_latency = 0;
+
   NNS_support_tensorflow_lite.name = filter_subplugin_tensorflow_lite;
   NNS_support_tensorflow_lite.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
   NNS_support_tensorflow_lite.allocate_in_invoke = FALSE;
@@ -1027,6 +1037,7 @@ init_filter_tflite (void)
   NNS_support_tensorflow_lite.setInputDimension = tflite_setInputDim;
   NNS_support_tensorflow_lite.reloadModel = tflite_reloadModel;
   NNS_support_tensorflow_lite.checkAvailability = tflite_checkAvailability;
+  NNS_support_tensorflow_lite.statistics = &tflite_internal_stats;
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
 }
 

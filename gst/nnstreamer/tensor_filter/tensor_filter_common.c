@@ -393,6 +393,7 @@ gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
   info->hw_list = NULL;
   info->accl_auto = -1;
   info->accl_default = -1;
+  info->statistics = NULL;
 }
 
 /**

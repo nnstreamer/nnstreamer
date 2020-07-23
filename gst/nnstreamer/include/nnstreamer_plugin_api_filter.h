@@ -161,6 +161,16 @@ typedef struct _GstTensorFilterProperties
 } GstTensorFilterProperties;
 
 /**
+ * @brief Structure definition for tensor-filter framework statistics
+ */
+typedef struct _GstTensorFilterFrameworkStatistics
+{
+  int64_t total_invoke_num;      /**< The total number of calls to invoke */
+  int64_t total_invoke_latency;  /**< The total accumulated invoke latency (usec) */
+  int64_t total_overhead_latency;    /**< The total accumulated overhead latency from the extension (usec) */
+} GstTensorFilterFrameworkStatistics;
+
+/**
  * @brief Tensor_Filter Subplugin framework related information
  *
  * All the information except the supported acclerator is provided statically.
@@ -177,6 +187,7 @@ typedef struct _GstTensorFilterFrameworkInfo
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework */
   accl_hw accl_auto;  /**< accelerator to be used in auto mode (acceleration to be used but accelerator is not specified for the filter) - default -1 implies use first entry from hw_list */
   accl_hw accl_default;   /**< accelerator to be used by default (valid user input is not provided) - default -1 implies use first entry from hw_list*/
+  const GstTensorFilterFrameworkStatistics *statistics;  /**< usage statistics by the framework. This is shared across all opened instances of this framework */
 } GstTensorFilterFrameworkInfo;
 
 /**
@@ -289,6 +300,8 @@ struct _GstTensorFilterFramework
       int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate outputptr by itself and return the address via outputptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
       int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
       int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+
+      const GstTensorFilterFrameworkStatistics *statistics;  /**< usage statistics by the framework. This is shared across all opened instances of this framework */
 
       int (*invoke_NN) (const GstTensorFilterProperties * prop, void **private_data,
           const GstTensorMemory * input, GstTensorMemory * output);
