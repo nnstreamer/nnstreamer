@@ -1,3 +1,2 @@
 /usr/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_flatbuf.so
-/usr/lib/*/libnnstreamer_protobuf.so
