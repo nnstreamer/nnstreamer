@@ -943,7 +943,7 @@ ml_single_set_timeout (ml_single_h single, unsigned int timeout)
 
   check_feature_state ();
 
-  if (!single || timeout == 0)
+  if (!single)
     return ML_ERROR_INVALID_PARAMETER;
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
