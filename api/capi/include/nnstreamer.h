@@ -26,6 +26,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include "ml-api-common.h"
 
 #ifdef __cplusplus
@@ -113,7 +114,7 @@ typedef void *ml_pipeline_switch_h;
 typedef void *ml_pipeline_valve_h;
 
 /**
- * @brief A handle of a common element (i.e. All GstElement except AppSrc, AppSink, TensorSink, Selector and Valve) of an NNStreamer pipeline
+ * @brief A handle of a common element (i.e. All GstElement except AppSrc, AppSink, TensorSink, Selector and Valve) of an NNStreamer pipeline.
  * @since_tizen 6.0
  */
 typedef void *ml_pipeline_element_h;
@@ -600,156 +601,293 @@ int ml_pipeline_valve_set_open (ml_pipeline_valve_h valve_handle, bool open);
 /**
  * @brief Gets an element handle in NNStreamer pipelines to control its properties.
  * @since_tizen 6.0
- * @remarks If the function succeeds, @a elm_h handle must be released using ml_pipeline_element_release_handle().
+ * @remarks If the function succeeds, @a elem_h handle must be released using ml_pipeline_element_release_handle().
  * @param[in] pipe The pipeline to be managed.
  * @param[in] element_name The name of element to control.
- * @param[out] elm_h The element handle.
+ * @param[out] elem_h The element handle.
  * @return @c 0 on success. Otherwise a negative error value.
- * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
+ *
+ * Here is an example of the usage:
+ * @code
+ * ml_pipeline_h handle = nullptr;
+ * ml_pipeline_element_h demux_h = nullptr;
+ * gchar *pipeline;
+ * gchar *ret_tensorpick;
+ * int status;
+ *
+ * pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+ *    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+ *
+ * // Construct a pipeline
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+ * if (status != ML_ERROR_NONE) {
+ *  // handle error case
+ *  goto error;
+ * }
+ *
+ * // Get the handle of target element
+ * status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+ * if (status != ML_ERROR_NONE) {
+ *  // handle error case
+ *  goto error;
+ * }
+ *
+ * // Set the string value of given element's property
+ * status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+ * if (status != ML_ERROR_NONE) {
+ *  // handle error case
+ *  goto error;
+ * }
+ *
+ * // Get the string value of given element's property
+ * status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", &ret_tensorpick);
+ * if (status != ML_ERROR_NONE) {
+ *  // handle error case
+ *  goto error;
+ * }
+ * // check the property value of given element
+ * if (!g_str_equal (ret_tensorpick, "1,2")) {
+ *  // handle error case
+ *  goto error;
+ * }
+ *
+ * error:
+ *  ml_pipeline_element_release_handle (demux_h);
+ *  ml_pipeline_destroy (handle);
+ * g_free(pipeline);
+ * @endcode
  */
-int ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name, ml_pipeline_element_h *elm_h);
+int ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name, ml_pipeline_element_h *elem_h);
 
 /**
  * @brief Releases the given element handle.
  * @since_tizen 6.0
- * @param[in] elm_h The handle to be released.
+ * @param[in] elem_h The handle to be released.
  * @return @c 0 on success. Otherwise a negative error value.
- * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_pipeline_element_release_handle (ml_pipeline_element_h elm_h);
+int ml_pipeline_element_release_handle (ml_pipeline_element_h elem_h);
 
 /**
- * @brief Sets element properties in NNStreamer pipelines.
+ * @brief Sets the boolean value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports a varying number of name/value pairs, finished by NULL.
- * @remarks If one of given property name does not exist, all properties are not set.
- * @param[in] elm_h The target element handle.
- * @param[in] first_property_name The name of first property to set.
- * @param[in] ... A varying number of name/value pairs, finished by NULL.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The boolean value to be set.
  * @return @c 0 on success. Otherwise a negative error value.
- * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid or given property name does not exist.
- *
- * Here is an example of the usage:
- * @code
- * ml_pipeline_h handle;
- * ml_pipeline_element_h elem_h;
- * gchar *pipeline;
- * gchar *ret_mode = NULL;
- * gboolean ret_silent;
- * int status;
- *
- * // Pipeline description
- * pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
- * "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
- *
- * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * // Get the handle of target element
- * status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * // Set single property of target element
- * status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest", NULL);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * // Set multiple properties of target element
- * status = ml_pipeline_element_set_property(elem_h, "sync_mode", "nosync",
- *   "silent", TRUE, NULL);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * error:
- * ml_pipeline_element_release_handle (elem_h);
- * ml_pipeline_destroy (handle);
- * g_free(pipeline);
- * @endcode
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not boolean.
  */
-int ml_pipeline_element_set_property (ml_pipeline_element_h elm_h, const char *first_property_name, ...);
+int ml_pipeline_element_set_property_bool (ml_pipeline_element_h elem_h, const char *property_name, const int32_t value);
 
 /**
- * @brief Gets element properties in NNStreamer pipelines.
+ * @brief Sets the string value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports a varying number of name/return location pairs, finished by NULL.
- * @remarks If one of given property name does not exist, error code returns without fetching any properties.
- * @remarks The callers is responsible for freeing the allocated memory by calling g_free().
- * @param[in] elm_h The target element handle.
- * @param[in] first_property_name The name of first property to get.
- * @param[in] ... A varying number of name/return location pairs, finished by NULL.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The string value to be set.
  * @return @c 0 on success. Otherwise a negative error value.
- * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid or given property name does not exist.
- *
- * Here is an example of the usage:
- * @code
- * ml_pipeline_h handle;
- * ml_pipeline_element_h elem_h;
- * gchar *pipeline;
- * gchar *ret_mode = NULL;
- * gboolean ret_silent;
- * int status;
- *
- * // Pipeline description
- * pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
- * "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
- *
- * status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * // Get the handle of target element
- * status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- *
- * // Get single property of target element
- * status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode, NULL);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- * g_assert_true (g_strcmp0 ("slowest", ret_mode) == 0);
- * g_free (ret_mode);
- *
- * // Get multiple properties of target element
- * status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode,
- *   "silent", &ret_silent, NULL);
- * if (status != ML_ERROR_NONE) {
- *   // handle error case
- *   goto error;
- * }
- * g_free (ret_mode);
- *
- * error:
- * ml_pipeline_element_release_handle (elem_h);
- * ml_pipeline_destroy (handle);
- * g_free(pipeline);
- * @endcode
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not string.
  */
-int ml_pipeline_element_get_property (ml_pipeline_element_h elm_h, const char *first_property_name, ...);
+int ml_pipeline_element_set_property_string (ml_pipeline_element_h elem_h, const char *property_name, const char *value);
+
+/**
+ * @brief Sets the integer value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The integer value to be set.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not integer.
+ */
+int ml_pipeline_element_set_property_int32 (ml_pipeline_element_h elem_h, const char *property_name, const int32_t value);
+
+/**
+ * @brief Sets the integer 64bit value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports both Integer64 and Long.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The integer value to be set.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not integer.
+ */
+int ml_pipeline_element_set_property_int64 (ml_pipeline_element_h elem_h, const char *property_name, const int64_t value);
+
+/**
+ * @brief Sets the unsigned integer value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The unsigned integer value to be set.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not unsigned integer.
+ */
+int ml_pipeline_element_set_property_uint32 (ml_pipeline_element_h elem_h, const char *property_name, const uint32_t value);
+
+/**
+ * @brief Sets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports both Unsigned Integer64 and Unsigned Long.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The unsigned integer 64bit value to be set.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not unsigned integer.
+ */
+int ml_pipeline_element_set_property_uint64 (ml_pipeline_element_h elem_h, const char *property_name, const uint64_t value);
+
+/**
+ * @brief Sets the floating point value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports all types of floating point values such as Double and Float.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The floating point integer value to be set.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not floating point number.
+ */
+int ml_pipeline_element_set_property_double (ml_pipeline_element_h elem_h, const char *property_name, const double value);
+
+/**
+ * @brief Sets the enumeration value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks Enumeration value is set as an unsigned integer value and developers can get this information using gst-inspect tool.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[in] value The unsigned integer value to be set, which is corresponding to Enumeration value.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the type is not unsigned integer.
+ */
+int ml_pipeline_element_set_property_enum (ml_pipeline_element_h elem_h, const char *property_name, const uint32_t value);
+
+/**
+ * @brief Gets the boolean value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The boolean value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_bool (ml_pipeline_element_h elem_h, const char *property_name, int32_t *value);
+
+/**
+ * @brief Gets the string value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The string value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_string (ml_pipeline_element_h elem_h, const char *property_name, char **value);
+
+/**
+ * @brief Gets the integer value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The integer value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h, const char *property_name, int32_t *value);
+
+/**
+ * @brief Gets the integer 64bit value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports both Integer64 and Long.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The integer 64bit value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_int64 (ml_pipeline_element_h elem_h, const char *property_name, int64_t *value);
+
+
+/**
+ * @brief Gets the unsigned integer value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The unsigned integer value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_uint32 (ml_pipeline_element_h elem_h, const char *property_name, uint32_t *value);
+
+/**
+ * @brief Gets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports both Unsigned Integer64 and Unsigned Long.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The unsigned integer 64bit value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_uint64 (ml_pipeline_element_h elem_h, const char *property_name, uint64_t *value);
+
+/**
+ * @brief Gets the floating point value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks This function supports all types of floating point values such as Double and Float.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The floating point value of given property.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_double (ml_pipeline_element_h elem_h, const char *property_name, double *value);
+
+/**
+ * @brief Gets the enumeration value of element's property in NNStreamer pipelines.
+ * @since_tizen 6.0
+ * @remarks Enumeration value is get as an unsigned integer value and developers can get this information using gst-inspect tool.
+ * @param[in] elem_h The target element handle.
+ * @param[in] property_name The name of the property.
+ * @param[out] value The unsigned integer value of given property, which is corresponding to Enumeration value.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
+ */
+int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const char *property_name, uint32_t *value);
 
 /****************************************************
  ** NNStreamer Utilities                           **
