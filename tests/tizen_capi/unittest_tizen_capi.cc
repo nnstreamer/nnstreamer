@@ -5293,27 +5293,28 @@ skip_test:
 }
 
 /**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_handle() api and check its result.
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_handle()` API and check its results.
  */
 TEST (nnstreamer_capi_element, get_handle_00_p)
 {
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h  = nullptr;
   int status;
+  gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_release_handle (elem_h);
+  status = ml_pipeline_element_release_handle (vsrc_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
@@ -5323,358 +5324,28 @@ TEST (nnstreamer_capi_element, get_handle_00_p)
 }
 
 /**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_handle() api and check error code.
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_handle()` API and check its results.
  */
 TEST (nnstreamer_capi_element, get_handle_01_n)
 {
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
   gchar *pipeline;
-  int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_handle (NULL, "mux", &elem_h);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, NULL, &elem_h);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_handle() api and check error code.
- */
-TEST (nnstreamer_capi_element, get_handle_02_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  int status;
-
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_handle (handle, "wrong_name", &elem_h);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_release_handle() api and check its result.
- */
-TEST (nnstreamer_capi_element, release_handle_00_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  ml_pipeline_element_h elem2_h;
-  gchar *pipeline;
-  int status;
-
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem2_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (elem2_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_release_handle() api and check its error code.
- */
-TEST (nnstreamer_capi_element, release_handle_01_n)
-{
-  ml_pipeline_element_h elem_h = NULL;
-  int status;
-
-  status = ml_pipeline_element_release_handle (NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_NE (status, ML_ERROR_NONE);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for tensor_mux and check its result.
- */
-TEST (nnstreamer_capi_element, set_property_00_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  int status;
-
-  /* tensor_mux test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest", NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest",
-    "silent", TRUE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for valve & input-selector and check its result.
- */
-TEST (nnstreamer_capi_element, set_property_01_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h valve_h;
-  ml_pipeline_element_h selector_h;
-  gchar *pipeline;
-  int status;
-
-  /* valve & selector test */
-  pipeline = g_strdup("videotestsrc is-live=true ! videoconvert ! videoscale ! " \
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
     "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
     "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "valvex", &valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property(valve_h, "drop", TRUE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(selector_h, "cache-buffers", TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for tensor_sink and check its result.
- */
-TEST (nnstreamer_capi_element, set_property_02_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  int status;
-
-  /* tensor_sink test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_sink name=sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "sink", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* test code */
-  status = ml_pipeline_element_set_property(elem_h, "silent", TRUE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for tensor_mux and check its error code.
- */
-TEST (nnstreamer_capi_element, set_property_03_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  int status;
-
-  /* tensor_mux test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* test code */
-  status = ml_pipeline_element_set_property(elem_h, "wrong_property", "slowest", NULL);
+  status = ml_pipeline_element_get_handle (handle, nullptr, &vsrc_h);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest",
-    "wrong_silent", TRUE, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for valve & selector and check its error code.
- */
-TEST (nnstreamer_capi_element, set_property_04_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h selector_h;
-  gchar *pipeline;
-  gboolean ret_buffer_status;
-  guint ret_sync_mode;
-  int status;
-
-  /* valve & selector test */
-  pipeline = g_strdup("videotestsrc is-live=true ! videoconvert ! videoscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_set_property(selector_h, "cache-buffers", TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(NULL, "cache-buffers", TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(selector_h, NULL, TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(selector_h, "cache-buffers", TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* atomically set so 'sync-mode` should be 1 */
-  status = ml_pipeline_element_set_property(selector_h, "wrong-cache-buffers", FALSE,
-    "sync-mode", 0, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (selector_h, "cache-buffers", &ret_buffer_status,
-    "sync-mode", &ret_sync_mode, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_buffer_status, TRUE);
-  EXPECT_EQ (ret_sync_mode, 1U);
-
-  status = ml_pipeline_element_release_handle (selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_set_property() api for tensor_sink and check its error code.
- */
-TEST (nnstreamer_capi_element, set_property_05_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  int status;
-
-  /* tensor_sink test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_sink name=sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "sink", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* test code */
-  status = ml_pipeline_element_set_property(NULL, "silent", TRUE, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(handle, "silent", TRUE, NULL);
+  status = ml_pipeline_element_get_handle (handle, "WRONG_PROPERTY_NAME", &vsrc_h);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
@@ -5684,299 +5355,1493 @@ TEST (nnstreamer_capi_element, set_property_05_n)
 }
 
 /**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_property() api for tensor_mux and check its result.
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_release_handle()` API and check its results.
  */
-TEST (nnstreamer_capi_element, get_property_00_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  gchar *ret_mode = NULL;
-  gboolean ret_silent;
-  int status;
-
-  /* tensor_mux test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(elem_h, "sync_mode", "slowest", NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_STREQ (ret_mode, "slowest");
-  g_free (ret_mode);
-
-  status = ml_pipeline_element_set_property(elem_h, "sync_mode", "nosync",
-    "silent", FALSE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode,
-    "silent", &ret_silent, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_STREQ (ret_mode, "nosync");
-  EXPECT_EQ (ret_silent, FALSE);
-  g_free (ret_mode);
-
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_property() api for valve & selector and check its result.
- */
-TEST (nnstreamer_capi_element, get_property_01_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h valve_h;
-  ml_pipeline_element_h selector_h;
-  gboolean ret_valve_status;
-  gboolean ret_buffer_status;
-  guint ret_sync_mode;
-  gchar *pipeline;
-  int status;
-
-  /* valve & selector test */
-  pipeline = g_strdup("videotestsrc is-live=true ! videoconvert ! videoscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "valvex", &valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(valve_h, "drop", TRUE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(selector_h, "cache-buffers", TRUE,
-    "sync-mode", 1, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_property (valve_h, "drop", &ret_valve_status, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_valve_status, TRUE);
-
-  status = ml_pipeline_element_get_property (selector_h, "cache-buffers", &ret_buffer_status,
-    "sync-mode", &ret_sync_mode, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_buffer_status, TRUE);
-  EXPECT_EQ (ret_sync_mode, 1U);
-
-  /* Set "drop" property as FALSE */
-  status = ml_pipeline_element_set_property(valve_h, "drop", FALSE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (valve_h, "drop", &ret_valve_status, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_valve_status, FALSE);
-
-  status = ml_pipeline_element_release_handle (valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_property() api for tensor_sink and check its result.
- */
-TEST (nnstreamer_capi_element, get_property_02_p)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  gboolean ret_silnet;
-  int status;
-
-  /* tensor_sink test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_sink name=sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "sink", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(elem_h, "silent", TRUE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* test code */
-  status = ml_pipeline_element_get_property (elem_h, "silent", &ret_silnet, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_silnet, TRUE);
-
-  status = ml_pipeline_element_set_property(elem_h, "silent", FALSE, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* test code */
-  status = ml_pipeline_element_get_property (elem_h, "silent", &ret_silnet, NULL);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (ret_silnet, FALSE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_property() api for tensor_mux and check its error code.
- */
-TEST (nnstreamer_capi_element, get_property_03_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h elem_h;
-  gchar *pipeline;
-  gchar *ret_mode = NULL;
-  gboolean ret_silent;
-  int status;
-
-  /* tensor_mux test */
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux name=mux ! tensor_demux ! tensor_sink");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "mux", &elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_property (NULL, "sync_mode", &ret_mode, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (elem_h, NULL, &ret_mode, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (elem_h, "wrong_mode", &ret_mode, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (elem_h, "sync_mode", &ret_mode,
-    "wrong_silent", &ret_silent, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (elem_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free(pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail run the ml_pipeline_element_get_property() api for valve & selector and check its error code.
- */
-TEST (nnstreamer_capi_element, get_property_04_n)
-{
-  ml_pipeline_h handle;
-  ml_pipeline_element_h valve_h;
-  ml_pipeline_element_h selector_h;
-  gboolean ret_valve_status;
-  gboolean ret_buffer_status;
-  guint ret_sync_mode;
-  gchar *pipeline;
-  int status;
-
-  /* valve & selector test */
-  pipeline = g_strdup("videotestsrc is-live=true ! videoconvert ! videoscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
-
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "valvex", &valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test Code */
-  status = ml_pipeline_element_get_property (NULL, "drop", &ret_valve_status, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (valve_h, NULL, &ret_valve_status, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (valve_h, "wrong_drop", &ret_valve_status, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (NULL, "cache-buffers", &ret_buffer_status,
-    "sync-mode", &ret_sync_mode, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property (selector_h, "wrong-cache-buffers", &ret_buffer_status,
-    "sync-mode", &ret_sync_mode, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (valve_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (selector_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail Positive scenario test for element-wise control functions
- */
-TEST (nnstreamer_capi_element, scenario_05_p)
+TEST (nnstreamer_capi_element, release_handle_02_p)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h sink_h = nullptr;
-  ml_pipeline_sink_h sinkhandle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  ml_pipeline_element_h selector_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_release_handle()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, release_handle_03_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_bool()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_bool_04_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h selector_h = nullptr;
   gchar *pipeline;
   int status;
-  guint *count_sink;
 
-  pipeline = g_strdup ("videotestsrc name=vsrc is-live=true ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", TRUE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_bool()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_bool_05_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h selector_h = nullptr;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_bool(nullptr, "sync-streams", FALSE);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_bool(selector_h, "WRONG_PROPERTY", TRUE);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_bool()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_bool_06_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h selector_h = nullptr;
+  gchar *pipeline;
+  int ret_sync_streams;
+  int status;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_bool (selector_h, "sync-streams", &ret_sync_streams);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_sync_streams, FALSE);
+
+  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", TRUE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_bool (selector_h, "sync-streams", &ret_sync_streams);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_sync_streams, TRUE);
+
+  status = ml_pipeline_element_release_handle (selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_bool()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_bool_07_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h selector_h = nullptr;
+  gchar *pipeline;
+  int ret_sync_streams;
+  int ret_wrong_type;
+  int status;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_bool (nullptr, "sync-streams", &ret_sync_streams);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_bool (selector_h, "WRONG_NAME", &ret_sync_streams);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_bool (selector_h, "sync-streams", nullptr);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (selector_h, "sync-streams", &ret_wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (selector_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_string()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_string_08_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h demux_h = nullptr;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_string()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_string_09_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h demux_h = nullptr;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_string (nullptr, "tensorpick", "1,2");
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_string (demux_h, "WRONG_NAME", "1,2");
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_string()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_string_10_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h demux_h = nullptr;
+  gchar *pipeline;
+  gchar *ret_tensorpick;
+  int status;
+
+  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", &ret_tensorpick);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (g_str_equal (ret_tensorpick, "1,2"));
+  g_free (ret_tensorpick);
+
+  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", &ret_tensorpick);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (g_str_equal (ret_tensorpick, "1"));
+  g_free (ret_tensorpick);
+
+  status = ml_pipeline_element_release_handle (demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_string()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_string_11_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h demux_h = nullptr;
+  gchar *pipeline;
+  gchar *ret_tensorpick;
+  int ret_wrong_type;
+  int status;
+
+  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
+    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_string (nullptr, "tensorpick", &ret_tensorpick);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_string (demux_h, "WRONG_NAME", &ret_tensorpick);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", nullptr);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (demux_h, "tensorpick", &ret_wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (demux_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_int32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_int32_12_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "kx", 10);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "kx", -1234);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_int32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_int32_13_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_int32 (nullptr, "kx", 10);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "WRONG_NAME", 10);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "kx", 10U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_int32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_int32_14_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  int32_t ret_kx;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "kx", 10);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_int32 (vsrc_h, "kx", &ret_kx);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_kx == 10);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "kx", -1234);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vsrc_h, "kx", &ret_kx);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_kx == -1234);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_int32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_int32_15_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  int32_t ret_kx;
+  uint32_t ret_wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "kx", 10);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_int32 (nullptr, "kx", &ret_kx);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vsrc_h, "WRONG_NAME", &ret_kx);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "kx", &ret_wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_int64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_int64_16_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 1234567891234LL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 10LL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_int64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_int64_17_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_int64 (nullptr, "timestamp-offset", 1234567891234LL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "WRONG_NAME", 1234567891234LL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "timestamp-offset", 12LL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_int64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_int64_18_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  int64_t ret_timestame_offset;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 1234567891234LL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_int64 (vsrc_h, "timestamp-offset", &ret_timestame_offset);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_timestame_offset == 1234567891234LL);
+
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 10LL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int64 (vsrc_h, "timestamp-offset", &ret_timestame_offset);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_timestame_offset == 10LL);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_int64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_int64_19_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  int64_t ret_timestame_offset;
+  int wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 1234567891234LL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_int64 (nullptr, "timestamp-offset", &ret_timestame_offset);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int64 (vsrc_h, "WRONG_NAME", &ret_timestame_offset);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vsrc_h, "timestamp-offset", &wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_uint32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_uint32_20_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 123456U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 4294967295U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_uint32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_uint32_21_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_uint32 (nullptr, "foreground-color", 123456U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "WRONG_NAME", 123456U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vsrc_h, "foreground-color", 123456);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_uint32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_uint32_22_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  uint32_t ret_foreground_color;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 123456U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "foreground-color", &ret_foreground_color);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_foreground_color == 123456U);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 4294967295U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "foreground-color", &ret_foreground_color);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_foreground_color == 4294967295U);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_uint32()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_uint32_23_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  int status;
+  uint32_t ret_foreground_color;
+  int32_t wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 123456U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_uint32 (nullptr, "foreground-color", &ret_foreground_color);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "WRONG_NAME", &ret_foreground_color);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vsrc_h, "foreground-color", &wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_uint64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_uint64_24_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h udpsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "usrc", &udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "timeout", 123456789123456789ULL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "timeout", 987654321ULL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_uint64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_uint64_25_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h udpsrc_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "usrc", &udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_uint64 (nullptr, "timeout", 123456789123456789ULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "WRONG_NAME", 123456789123456789ULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (udpsrc_h, "timeout", 123456789ULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_uint64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_uint64_26_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h udpsrc_h = nullptr;
+  int status;
+  uint64_t ret_timeout;
+  gchar *pipeline;
+
+  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "usrc", &udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "timeout", 123456789123456789ULL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_uint64 (udpsrc_h, "timeout", &ret_timeout);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_timeout == 123456789123456789ULL);
+
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "timeout", 987654321ULL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint64 (udpsrc_h, "timeout", &ret_timeout);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (ret_timeout == 987654321ULL);
+
+  status = ml_pipeline_element_release_handle (udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_uint64()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_uint64_27_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h udpsrc_h = nullptr;
+  int status;
+  uint64_t ret_timeout;
+  uint32_t wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "usrc", &udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint64 (udpsrc_h, "timeout", 123456789123456789ULL);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_uint64 (nullptr, "timeout", &ret_timeout);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint64 (udpsrc_h, "WRONG_NAME", &ret_timeout);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (udpsrc_h, "timeout", &wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (udpsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_double()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_double_28_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 0.72);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 1.43);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_double()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_double_29_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 0.72);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 1.43);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_double()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_double_30_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  double ret_sharpness;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 0.72);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_double (vscale_h, "sharpness", &ret_sharpness);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_sharpness, 0.72);
+
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 1.43);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_double (vscale_h, "sharpness", &ret_sharpness);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_sharpness, 1.43);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_double()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_double_31_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  double ret_sharpness;
+  int wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 0.72);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_double (nullptr, "sharpness", &ret_sharpness);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_double (vscale_h, "WRONG_NAME", &ret_sharpness);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vscale_h, "sharpness", &wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_enum()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_enum_32_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_enum (vscale_h, "method", 3U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_enum (vscale_h, "method", 5U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_set_property_enum()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, set_property_enum_33_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_set_property_enum (nullptr, "method", 3U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_enum (vscale_h, "WRONG_NAME", 3U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vscale_h, "method", 3U);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_enum()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_enum_34_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  uint32_t ret_method;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_enum (vscale_h, "method", 3U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_enum (vscale_h, "method", &ret_method);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_method, 3U);
+
+  status = ml_pipeline_element_set_property_enum (vscale_h, "method", 5U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_enum (vscale_h, "method", &ret_method);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_method, 5U);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Run the `ml_pipeline_element_get_property_enum()` API and check its results.
+ */
+TEST (nnstreamer_capi_element, get_property_enum_35_n)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vscale_h = nullptr;
+  int status;
+  uint32_t ret_method;
+  uint32_t wrong_type;
+  gchar *pipeline;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
+    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
+    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vscale", &vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_enum (vscale_h, "method", 3U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test Code */
+  status = ml_pipeline_element_get_property_enum (nullptr, "method", &ret_method);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_enum (vscale_h, "WRONG_NAME", &ret_method);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (vscale_h, "method", &wrong_type);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_release_handle (vscale_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Construct the pipeline and run it during updating elements' property.
+ */
+TEST (nnstreamer_capi_element, scenario_36_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
+  ml_pipeline_state_e state;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! " \
+    "tensor_converter ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_handle (handle, "vsrc", &vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Test code: Set the videotestsrc pattern */
+  status = ml_pipeline_element_set_property_enum (vsrc_h, "pattern", 4);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000);
+
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+
+  /* Stop playing */
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000);
+
+  /* Test code: Set the new videotestsrc pattern */
+  status = ml_pipeline_element_set_property_enum (vsrc_h, "pattern", 12);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Resume playing */
+  status = ml_pipeline_start (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000);
+
+  status = ml_pipeline_get_state (handle, &state);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  wait_for_start (handle, state, status);
+  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+
+  status = ml_pipeline_stop (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_usleep (50000);
+
+  status = ml_pipeline_element_release_handle (vsrc_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free(pipeline);
+}
+
+/**
+ * @brief Test case of Element Property Control.
+ * @detail Construct the pipeline and run it during updating elements' property.
+ */
+TEST (nnstreamer_capi_element, scenario_37_p)
+{
+  ml_pipeline_h handle = nullptr;
+  ml_pipeline_sink_h sinkhandle = nullptr;
+  ml_pipeline_element_h asink_h = nullptr;
+  gchar *pipeline;
+  guint *count_sink;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc is-live=true ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
 
   count_sink = (guint *) g_malloc (sizeof (guint));
-  ASSERT_TRUE (count_sink != nullptr);
+  ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_pipeline_element_get_handle (handle, "sinkx", &asink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (sinkhandle != nullptr);
-
-  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (sinkhandle != NULL);
 
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -5985,105 +6850,12 @@ TEST (nnstreamer_capi_element, scenario_05_p)
 
   status = ml_pipeline_stop (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (*count_sink > 0U);
 
-  status = ml_pipeline_element_release_handle (sink_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free (pipeline);
-  g_free (count_sink);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail Negative scenario test for element-wise control functions
- */
-TEST (nnstreamer_capi_element, scenario_06_n)
-{
-  ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h sink_h = nullptr;
-  ml_pipeline_sink_h sinkhandle = nullptr;
-  gchar *pipeline;
-  guint *count_sink;
-  int status;
-
-  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
-
-  count_sink = (guint *) g_malloc (sizeof (guint));
-  ASSERT_TRUE (count_sink != nullptr);
+  /* Test Code */
   *count_sink = 0;
 
-  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (sinkhandle != nullptr);
-
-  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  /* Test case */
-  status = ml_pipeline_element_set_property(nullptr, "emit-signals", true, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property(sink_h, "WRONG_PROPERty", true, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_start (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_usleep (100000);
-
-  status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (sink_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_free (count_sink);
-  g_free (pipeline);
-}
-
-/**
- * @brief Test NNStreamer element-wise control functions
- * @detail Negative scenario test for element-wise control functions
- */
-TEST (nnstreamer_capi_element, scenario_07_n)
-{
-  ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h sink_h = nullptr;
-  ml_pipeline_sink_h sinkhandle = nullptr;
-  gchar *pipeline;
-  guint *count_sink;
-  int status;
-  bool ret_sync;
-
-  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
-
-  count_sink = (guint *) g_malloc (sizeof (guint));
-  ASSERT_TRUE (count_sink != nullptr);
-  *count_sink = 0;
-
-  status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (sinkhandle != nullptr);
-
-  status = ml_pipeline_element_get_handle (handle, "sinkx", &sink_h);
+  status = ml_pipeline_element_set_property_bool (asink_h, "emit-signals", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_start (handle);
@@ -6091,29 +6863,23 @@ TEST (nnstreamer_capi_element, scenario_07_n)
 
   g_usleep (100000);
 
+  /* Since `emit-signals` property of appsink is set as FALSE, *count_sink should be 0 */
+  EXPECT_TRUE (*count_sink == 0U);
+
   status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  EXPECT_TRUE (*count_sink == 3);
-
-  /* Test case */
-  status = ml_pipeline_element_get_property(nullptr, "sync", &ret_sync, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_get_property(sink_h, "WRONG_NAME", &ret_sync, NULL);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_release_handle (sink_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_sink_unregister (sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_pipeline_element_release_handle (asink_h);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free (count_sink);
   g_free (pipeline);
+  g_free (count_sink);
 }
 
 /**
