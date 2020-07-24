@@ -38,7 +38,11 @@
 /**
  * @brief Macro for debug message.
  */
-#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
+#define _print_log(...) \
+  do { \
+    if (DBG) \
+      g_message (__VA_ARGS__); \
+  } while (0)
 
 #define str(s) #s
 #define TEST_TRANSFORM_TYPECAST(name, num_bufs, size, from_t, from_nns_t, to_t, str_to_t, to_nns_t, accel) \
