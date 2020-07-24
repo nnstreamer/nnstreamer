@@ -12,9 +12,11 @@
  * @bug         No known bugs except for NYI items
  *
  */
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
+
+#ifndef __NNS_PROTOBUF_UTIL_H__
+#define __NNS_PROTOBUF_UTIL_H__
+
+#include <nnstreamer_plugin_api.h>
 
 /**
  * @brief Default static capability for Protocol Buffers
@@ -48,6 +50,4 @@ GstBuffer *
 gst_tensor_converter_protobuf (GstBuffer * in_buf, gsize * frame_size,
     guint * frames_in, GstTensorsConfig * config);
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
+#endif /* __NNS_PROTOBUF_UTIL_H__ */
