@@ -1592,7 +1592,7 @@ ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
  */
 int
 ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
-    ml_pipeline_element_h *elm_h)
+    ml_pipeline_element_h *elem_h)
 {
   int ret = ML_ERROR_NONE;
   ml_pipeline_element *elem;
@@ -1610,11 +1610,11 @@ ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (elm_h == NULL) {
+  if (elem_h == NULL) {
     ml_loge ("The argument element handle is not valid.");
     return ML_ERROR_INVALID_PARAMETER;
   }
-  *elm_h = NULL;
+  *elem_h = NULL;
 
   g_mutex_lock (&p->lock);
 
@@ -1646,7 +1646,7 @@ ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
     goto unlock_return;
   }
 
-  common_elem = *elm_h = g_new0(ml_pipeline_common_elem, 1);
+  common_elem = *elem_h = g_new0(ml_pipeline_common_elem, 1);
   if (common_elem == NULL) {
     ml_loge ("Failed to allocate the internal handler for %s.", element_name);
     ret = ML_ERROR_OUT_OF_MEMORY;
@@ -1671,103 +1671,271 @@ unlock_return:
  * @brief Releases the given element handle.
  */
 int
-ml_pipeline_element_release_handle (ml_pipeline_element_h elm_h)
+ml_pipeline_element_release_handle (ml_pipeline_element_h elem_h)
 {
-  handle_init (common_elem, elm_h);
+  handle_init (common_elem, elem_h);
 
   elem->handles = g_list_remove (elem->handles, common_elem);
   g_free (common_elem);
 
-  handle_exit (elm_h);
+  handle_exit (elem_h);
 }
 
 /**
- * @brief Sets element properties in NNStreamer pipelines.
+ * @brief Check property existence and its type.
  */
-int ml_pipeline_element_set_property (ml_pipeline_element_h elm_h,
-    const char *first_property_name, ...)
+static bool
+ml_pipeline_element_check_property (GObjectClass *class, const char *property_name, const GType type)
 {
-  va_list args_check;
-  va_list args;
-  const char *name;
+  GParamSpec *pspec = NULL;
 
-  handle_init (common_elem, elm_h);
+  /* Check property existence */
+  pspec = g_object_class_find_property (class, property_name);
+  if (pspec == NULL) {
+    ml_loge ("The property name [%s] does not exist.", property_name);
+    return FALSE;
+  }
 
-  /* Check input parameter */
-  if (first_property_name == NULL) {
-    ml_loge ("The second argument, first property name is not valid.");
+  /* Compare property's type with given type */
+  if (!((pspec->value_type == type) ||
+    (type == G_TYPE_ENUM && G_TYPE_IS_ENUM (pspec->value_type)) ||
+    (type == G_TYPE_INT64 && pspec->value_type == G_TYPE_LONG) ||
+    (type == G_TYPE_UINT64 && pspec->value_type == G_TYPE_ULONG) ||
+    (type == G_TYPE_DOUBLE && pspec->value_type == G_TYPE_FLOAT))) {
+    ml_loge ("The type of property name [%s] is '%s'", property_name, g_type_name(pspec->value_type));
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * @brief Sets the value of given element's property in NNStreamer pipelines.
+ */
+static int
+ml_pipeline_element_set_property (ml_pipeline_element_h elem_h,
+  const char *property_name, gpointer value, GType type)
+{
+  handle_init (common_elem, elem_h);
+
+  /* Check the input parameter */
+  if (property_name == NULL) {
+    ml_loge ("The second argument, property name is not valid.");
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  /* Check property existence */
-  va_start (args_check, first_property_name);
-  va_copy (args, args_check);
-
-  name = first_property_name;
-  while (name) {
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (elem->element), name) == NULL) {
-      ml_loge ("The property name [%s] does not exist.", name);
-      ret = ML_ERROR_INVALID_PARAMETER;
-      va_end (args_check);
-      va_end (args);
-      goto unlock_return;
-    }
-    /* The value: skipped */
-    va_arg (args_check, gchar*);
-    name = va_arg (args_check, gchar*);
-  }
-  va_end (args_check);
-
-  g_object_set_valist (G_OBJECT (elem->element), first_property_name, args);
-  va_end (args);
-
-  handle_exit (elm_h);
-}
-
-/**
- * @brief Gets element properties in NNStreamer pipelines.
- */
-int ml_pipeline_element_get_property (ml_pipeline_element_h elm_h,
-    const char *first_property_name, ...)
-{
-  va_list args_check;
-  va_list args;
-  const char *name;
-
-  handle_init (common_elem, elm_h);
-
-  /* Check input parameter */
-  if (first_property_name == NULL) {
-    ml_loge ("The second argument, first property name is not valid.");
+  /* Check property existence & its type */
+  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element), property_name, type)) {
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  /* Check property existence */
-  va_start (args_check, first_property_name);
-  va_copy (args, args_check);
-
-  name = first_property_name;
-  while (name) {
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (elem->element), name) == NULL) {
-      ml_loge ("The property name [%s] does not exist.", name);
-      ret = ML_ERROR_INVALID_PARAMETER;
-      va_end (args_check);
-      va_end (args);
-      goto unlock_return;
-    }
-    /* The value location: skiped */
-    va_arg (args_check, gchar*);
-    name = va_arg (args_check, gchar*);
+  /* Set property */
+  if (type == G_TYPE_DOUBLE || type == G_TYPE_FLOAT) {
+    g_object_set (G_OBJECT (elem->element), property_name, *(double *)value, NULL);
+  } else if (type == G_TYPE_INT64) {
+    g_object_set (G_OBJECT (elem->element), property_name, *(int64_t *)value, NULL);
+  } else if (type == G_TYPE_UINT64) {
+    g_object_set (G_OBJECT (elem->element), property_name, *(uint64_t *)value, NULL);
+  } else {
+    g_object_set (G_OBJECT (elem->element), property_name, value, NULL);
   }
-  va_end (args_check);
+
+  handle_exit (elem_h);
+}
+
+/**
+ * @brief Gets the value of given element's property in NNStreamer pipelines.
+ */
+static int
+ml_pipeline_element_get_property (ml_pipeline_element_h elem_h,
+	const char *property_name, GType type, gpointer pvalue)
+{
+  handle_init (common_elem, elem_h);
+
+  /* Check the input parameter */
+  if (property_name == NULL) {
+    ml_loge ("The second argument, property_name is not valid.");
+    ret = ML_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  if (pvalue == NULL) {
+    ml_loge ("The third argument, value is not valid.");
+    ret = ML_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
+
+  /* Check property existence & its type */
+  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element), property_name, type)) {
+    ret = ML_ERROR_INVALID_PARAMETER;
+    goto unlock_return;
+  }
 
   /* Get property */
-  g_object_get_valist (G_OBJECT (elem->element), first_property_name, args);
-  va_end (args);
+  g_object_get (G_OBJECT (elem->element), property_name, pvalue, NULL);
 
-  handle_exit (elm_h);
+  handle_exit (elem_h);
+}
+
+/**
+ * @brief Sets the boolean value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_bool (ml_pipeline_element_h elem_h,
+  const char *property_name, const int32_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, GINT_TO_POINTER(value), G_TYPE_BOOLEAN);
+}
+
+/**
+ * @brief Sets the string value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_string (ml_pipeline_element_h elem_h,
+  const char *property_name, const char *value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)value, G_TYPE_STRING);
+}
+
+/**
+ * @brief Sets the integer value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_int32 (ml_pipeline_element_h elem_h,
+  const char *property_name, const int32_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, GINT_TO_POINTER(value), G_TYPE_INT);
+}
+
+/**
+ * @brief Sets the integer 64bit value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_int64 (ml_pipeline_element_h elem_h,
+  const char *property_name, const int64_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_INT64);
+}
+
+/**
+ * @brief Sets the unsigned integer value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_uint32 (ml_pipeline_element_h elem_h,
+  const char *property_name, const uint32_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, GUINT_TO_POINTER(value), G_TYPE_UINT);
+}
+
+/**
+ * @brief Sets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_uint64 (ml_pipeline_element_h elem_h,
+  const char *property_name, const uint64_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_UINT64);
+}
+
+/**
+ * @brief Sets the floating point value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_double (ml_pipeline_element_h elem_h,
+  const char *property_name, const double value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_DOUBLE);
+}
+
+/**
+ * @brief Sets the enumeration value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_set_property_enum (ml_pipeline_element_h elem_h,
+  const char *property_name, const uint32_t value)
+{
+  return ml_pipeline_element_set_property (elem_h, property_name, GUINT_TO_POINTER(value), G_TYPE_ENUM);
+}
+
+/**
+ * @brief Gets the boolean value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_bool (ml_pipeline_element_h elem_h,
+  const char *property_name, int32_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_BOOLEAN, (gpointer)value);
+}
+
+/**
+ * @brief Gets the string value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_string (ml_pipeline_element_h elem_h,
+  const char *property_name, char **value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_STRING, (gpointer)value);
+}
+
+/**
+ * @brief Gets the integer value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h,
+  const char *property_name, int32_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_INT, (gpointer)value);
+}
+
+/**
+ * @brief Gets the integer 64bit value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_int64 (ml_pipeline_element_h elem_h,
+  const char *property_name, int64_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_INT64, (gpointer)value);
+}
+
+/**
+ * @brief Gets the unsigned integer value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_uint32 (ml_pipeline_element_h elem_h,
+  const char *property_name, uint32_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_UINT, (gpointer)value);
+}
+
+/**
+ * @brief Gets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_uint64 (ml_pipeline_element_h elem_h,
+  const char *property_name, uint64_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_UINT64, (gpointer)value);
+}
+
+/**
+ * @brief Gets the floating point value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_double (ml_pipeline_element_h elem_h,
+  const char *property_name, double *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_DOUBLE, (gpointer)value);
+}
+
+/**
+ * @brief Gets the enumeration value of element's property in NNStreamer pipelines.
+ */
+int
+ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h,
+  const char *property_name, uint32_t *value)
+{
+  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_ENUM, (gpointer)value);
 }
 
 /**
