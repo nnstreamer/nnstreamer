@@ -387,7 +387,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 
   wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
-  
+
   g_usleep(10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
@@ -432,7 +432,7 @@ TEST (tizensensor_as_source, get_property_1)
 
     sensor_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
     EXPECT_NE (sensor_handle, nullptr);
-    
+
     g_object_set (sensor_handle, "silent", TRUE, NULL);
     g_object_get (sensor_handle, "silent", &silent, NULL);
     EXPECT_TRUE (silent);
@@ -515,7 +515,7 @@ int main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
-  
+
   /* ignore tizen feature status while running the testcases */
   set_feature_state (1);
 
