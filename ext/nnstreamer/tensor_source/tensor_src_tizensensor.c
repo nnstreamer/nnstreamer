@@ -1285,7 +1285,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     /* 2-1. Find out the delay already occured */
     /* ts and event->timestamp are in microseconds */
     ts = g_get_monotonic_time ();
-    if (ts < event->timestamp) {
+    if ((ts + (((guint64) self->interval_ms) * 1000)) < event->timestamp) {
       GST_ERROR_OBJECT (self,
           "Timestamp of the Tizen sensor is from the future.");
       retval = GST_FLOW_ERROR;
