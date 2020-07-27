@@ -16,6 +16,7 @@
 #ifndef __NNS_PROTOBUF_UTIL_H__
 #define __NNS_PROTOBUF_UTIL_H__
 
+#include <gst/gst.h>
 #include <nnstreamer_plugin_api.h>
 
 /**
