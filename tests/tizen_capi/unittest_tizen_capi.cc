@@ -2342,12 +2342,13 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  ml_tensors_info_destroy (in_res);
+  ml_tensors_info_destroy (out_res);
+
 skip_test:
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-  ml_tensors_info_destroy (in_res);
-  ml_tensors_info_destroy (out_res);
 }
 
 /**
