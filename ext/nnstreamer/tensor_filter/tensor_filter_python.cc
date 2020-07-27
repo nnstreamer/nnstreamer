@@ -65,6 +65,7 @@
 
 #include <vector>
 #include <map>
+#include <string>
 
 /**
  * @brief Macro for debug mode.

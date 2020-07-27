@@ -15,7 +15,7 @@
  */
 
 #include <glib.h>
-#include <gst/gstinfo.h>
+#include <gst/gst.h>
 #include <tensor_typedef.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
