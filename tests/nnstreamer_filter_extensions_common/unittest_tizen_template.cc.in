@@ -528,6 +528,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
   int ret;
   void *data = NULL;
   gchar **model_files;
+  GstTensorsInfo info;
   GstTensorMemory input, output;
 
   model_files = get_model_files ();
@@ -555,7 +556,20 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
     ret = sp->reloadModel (&prop, &data);
     EXPECT_EQ (ret, 0);
 
-    output.size = input.size = gst_tensor_get_element_size (_NNS_FLOAT32) * 10;
+    gst_tensors_info_init (&info);
+    ret = sp->getInputDimension (&prop, &data, &info);
+    EXPECT_EQ (ret, 0);
+
+    input.size = gst_tensor_info_get_size (&info.info[0]);
+    gst_tensors_info_free (&info);
+
+    gst_tensors_info_init (&info);
+    ret = sp->getOutputDimension (&prop, &data, &info);
+    EXPECT_EQ (ret, 0);
+
+    output.size = gst_tensor_info_get_size (&info.info[0]);
+    gst_tensors_info_free (&info);
+
     input.data = g_malloc(input.size);
     output.data = g_malloc(output.size);
 

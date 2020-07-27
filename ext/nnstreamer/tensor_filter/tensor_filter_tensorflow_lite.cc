@@ -95,6 +95,8 @@ public:
   void lock () { g_mutex_lock (&mutex); }
   /** @brief unlock this interpreter */
   void unlock () { g_mutex_unlock (&mutex); }
+  /** @brief cache input and output tensor ptr before invoke */
+  int cacheInOutTensorPtr ();
 
 private:
   GMutex mutex;
@@ -108,6 +110,8 @@ private:
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  std::vector<TfLiteTensor *> inputTensorPtr;
+  std::vector<TfLiteTensor *> outputTensorPtr;
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
@@ -133,6 +137,8 @@ public:
   int setInputTensorDim (const GstTensorsInfo * info);
   int reloadModel (const char * model_path);
   int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  /** @brief cache input and output tensor ptr before invoke */
+  int cacheInOutTensorPtr ();
 
 private:
   bool use_nnapi;
@@ -187,45 +193,32 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     GstTensorMemory * output, bool use_nnapi)
 {
   int64_t start_time, stop_time;
-  int tensor_idx;
   TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
-  bool size_mismatch = FALSE;
 
   start_time = g_get_monotonic_time ();
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    tensor_idx = interpreter->outputs ()[i];
-    tensor_ptr = interpreter->tensor (tensor_idx);
-
-    if (tensor_ptr->bytes != output[i].size)
-      size_mismatch = TRUE;
+    tensor_ptr = outputTensorPtr[i];
     tensor_ptr->data.raw = (char *) output[i].data;
   }
 
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    tensor_idx = interpreter->inputs ()[i];
-    tensor_ptr = interpreter->tensor (tensor_idx);
-
-    if (tensor_ptr->bytes != input[i].size)
-      size_mismatch = TRUE;
+    tensor_ptr = inputTensorPtr[i];
     tensor_ptr->data.raw = (char *) input[i].data;
   }
   stop_time = g_get_monotonic_time ();
+
   tflite_internal_stats.total_overhead_latency += stop_time - start_time;
 
   start_time = g_get_monotonic_time ();
-  if (!size_mismatch) {
 #ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-    if (use_nnapi)
-      status = nnfw_delegate->Invoke (interpreter.get ());
-    else
+  if (use_nnapi)
+    status = nnfw_delegate->Invoke (interpreter.get ());
+  else
 #endif
-      status = interpreter->Invoke ();
-  } else {
-    status = kTfLiteError;
-  }
-
+    status = interpreter->Invoke ();
   stop_time = g_get_monotonic_time ();
+
   tflite_internal_stats.total_invoke_latency += stop_time - start_time;
   tflite_internal_stats.total_invoke_num += 1;
 
@@ -498,7 +491,51 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
 #ifdef ENABLE_TFLITE_NNAPI_DELEGATE
   nnfw_delegate = std::move (interp.nnfw_delegate);
 #endif
+  inputTensorPtr = std::move (interp.inputTensorPtr);
+  outputTensorPtr = std::move (interp.outputTensorPtr);
   setModelPath (interp.getModelPath ());
+}
+
+/**
+ * @brief cache input and output tensor ptr before invoke
+ * @return 0 on success. -errno on failure.
+ */
+int
+TFLiteInterpreter::cacheInOutTensorPtr ()
+{
+  int tensor_idx;
+  TfLiteTensor *tensor_ptr;
+
+  inputTensorPtr.clear ();
+  inputTensorPtr.reserve (inputTensorMeta.num_tensors);
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    tensor_idx = interpreter->inputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    if (tensor_ptr->bytes != gst_tensor_info_get_size(&inputTensorMeta.info[i]))
+      goto fail_exit;
+
+    inputTensorPtr.push_back (tensor_ptr);
+  }
+
+  outputTensorPtr.clear ();
+  outputTensorPtr.reserve (outputTensorMeta.num_tensors);
+  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    tensor_idx = interpreter->outputs ()[i];
+    tensor_ptr = interpreter->tensor (tensor_idx);
+
+    if (tensor_ptr->bytes != gst_tensor_info_get_size(&outputTensorMeta.info[i]))
+      goto fail_exit;
+
+    outputTensorPtr.push_back (tensor_ptr);
+  }
+
+  return 0;
+
+fail_exit:
+  inputTensorPtr.clear();
+  outputTensorPtr.clear();
+  return -EINVAL;
 }
 
 /**
@@ -547,6 +584,7 @@ use_nnapi_ini:
  *        -1 if the model is not loaded.
  *        -2 if the initialization of input tensor is failed.
  *        -3 if the initialization of output tensor is failed.
+ *        -4 if the caching of input and output tensors failed.
  */
 int
 TFLiteCore::init ()
@@ -562,6 +600,10 @@ TFLiteCore::init ()
   if (setOutputTensorProp ()) {
     ml_loge ("Failed to initialize output tensor\n");
     return -3;
+  }
+  if (cacheInOutTensorPtr ()) {
+    ml_loge ("Failed to cache input and output tensors storage\n");
+    return -4;
   }
   return 0;
 }
@@ -722,6 +764,11 @@ TFLiteCore::reloadModel (const char * _model_path)
     ml_loge ("Failed to initialize output tensor\n");
     goto out_unlock;
   }
+  err = interpreter_sub.cacheInOutTensorPtr ();
+  if (err != 0) {
+    ml_loge ("Failed to cache input and output tensors storage\n");
+    goto out_unlock;
+  }
 
   /* Also, we need to check input/output tensors have the same info */
   if (!gst_tensors_info_is_equal (
@@ -763,6 +810,21 @@ TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 
   interpreter.lock ();
   err = interpreter.invoke (input, output, use_nnapi);
+  interpreter.unlock ();
+
+  return err;
+}
+
+/**
+ * @brief cache input and output tensor ptr before invoke
+ */
+int
+TFLiteCore::cacheInOutTensorPtr ()
+{
+  int err;
+
+  interpreter.lock ();
+  err = interpreter.cacheInOutTensorPtr ();
   interpreter.unlock ();
 
   return err;
@@ -896,13 +958,40 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
   return core->getOutputTensorDim (info);
 }
 
-#define tryRecovery(failedAt, status, location, exp) do { \
-      status = (exp); \
-      if (status != 0) { \
-        failedAt = location; \
-        goto recovery_fail; \
-      } \
-    } while (0)
+#define tryRecovery(failedAt, status, location, exp) \
+  do { \
+    status = (exp); \
+    if (status != 0) { \
+      failedAt = location; \
+      goto recovery_fail; \
+    } \
+  } while (0)
+
+static void
+tflite_setInputDim_recovery (TFLiteCore *core, GstTensorsInfo *cur_in_info,
+    const char * reason, int mode)
+{
+  int failedAt, status;
+
+  tryRecovery (failedAt, status, __LINE__,
+      core->setInputTensorDim (cur_in_info));
+  if (mode >= 1)
+    tryRecovery (failedAt, status, __LINE__,
+        core->setInputTensorProp ());
+  if (mode >= 2)
+    tryRecovery (failedAt, status, __LINE__,
+        core->setOutputTensorProp ());
+  tryRecovery (failedAt, status, __LINE__,
+      core->cacheInOutTensorPtr ());
+
+  return;
+
+recovery_fail:
+  ml_logf
+      ("Tensorflow-lite's setInputDim failed (%s) and its recovery failed (at %d line with error %d), too. "
+       "The behavior will be unstable.\n", reason, failedAt, status);
+}
+
 /**
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
@@ -917,7 +1006,7 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
 {
   TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
   GstTensorsInfo cur_in_info;
-  int status, failedAt, recoveryStatus;
+  int status;
 
   g_return_val_if_fail (core, -EINVAL);
   g_return_val_if_fail (in_info, -EINVAL);
@@ -931,48 +1020,42 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /** set new input tensor info */
   status = core->setInputTensorDim (in_info);
   if (status != 0) {
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorDim (&cur_in_info));
+    tflite_setInputDim_recovery (core, &cur_in_info,
+        "while setting input tensor info", 0);
     return status;
   }
 
   /** update input tensor info */
   if ((status = core->setInputTensorProp ()) != 0) {
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorDim (&cur_in_info));
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorProp ());
+    tflite_setInputDim_recovery (core, &cur_in_info,
+        "while updating input tensor info", 1);
     return status;
   }
 
   /** update output tensor info */
   if ((status = core->setOutputTensorProp ()) != 0) {
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorDim (&cur_in_info));
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorProp ());
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setOutputTensorProp ());
+    tflite_setInputDim_recovery (core, &cur_in_info,
+        "while updating output tensor info", 2);
+    return status;
+  }
+
+  /** update the input and output tensor cache */
+  status = core->cacheInOutTensorPtr ();
+  if (status != 0) {
+    tflite_setInputDim_recovery (core, &cur_in_info,
+        "while updating input and output tensor cache", 2);
     return status;
   }
 
   /** get output tensor info to be returned */
   status = core->getOutputTensorDim (out_info);
   if (status != 0) {
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorDim (&cur_in_info));
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setInputTensorProp ());
-    tryRecovery (failedAt, recoveryStatus, __LINE__,
-        core->setOutputTensorProp ());
+    tflite_setInputDim_recovery (core, &cur_in_info,
+        "while retreiving update output tensor info", 2);
     return status;
   }
 
   return 0;
-recovery_fail:
-  ml_logf
-      ("tensorflow-lite's setInputDim failed (%d) and its recovery failed, too. The behavior will be unstable.\n", failedAt);
-  return status;
 }
 
 /**
