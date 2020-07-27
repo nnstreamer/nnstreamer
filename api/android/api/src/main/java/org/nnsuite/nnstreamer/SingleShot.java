@@ -261,7 +261,7 @@ public final class SingleShot implements AutoCloseable {
     public void setTimeout(int timeout) {
         checkPipelineHandle();
 
-        if (timeout <= 0) {
+        if (timeout < 0) {
             throw new IllegalArgumentException("Given timeout is invalid");
         }
 
