@@ -187,7 +187,6 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     GstTensorMemory * output, bool use_nnapi)
 {
   int64_t start_time, stop_time;
-  std::vector <int> tensors_idx;
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
   TfLiteStatus status;
@@ -201,7 +200,6 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     if (tensor_ptr->bytes != output[i].size)
       size_mismatch = TRUE;
     tensor_ptr->data.raw = (char *) output[i].data;
-    tensors_idx.push_back (tensor_idx);
   }
 
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
@@ -211,7 +209,6 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     if (tensor_ptr->bytes != input[i].size)
       size_mismatch = TRUE;
     tensor_ptr->data.raw = (char *) input[i].data;
-    tensors_idx.push_back (tensor_idx);
   }
   stop_time = g_get_monotonic_time ();
   tflite_internal_stats.total_overhead_latency += stop_time - start_time;
