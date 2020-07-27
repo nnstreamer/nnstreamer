@@ -100,7 +100,9 @@
  */
 typedef enum _nns_tensor_type
 {
-  _NNS_INT32 = 0,
+  _NNS_NONE = 0,
+
+  _NNS_INT32,
   _NNS_UINT32,
   _NNS_INT16,
   _NNS_UINT16,
@@ -111,7 +113,7 @@ typedef enum _nns_tensor_type
   _NNS_INT64,
   _NNS_UINT64,
 
-  _NNS_END,
+  _NNS_MAX,
 } tensor_type;
 
 /**
@@ -172,6 +174,7 @@ typedef struct
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
 } GstTensorInfo;
+#define GstTensorInfoDeclare0(info) GstTensorInfo info = {0}
 
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
@@ -181,6 +184,7 @@ typedef struct
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
 } GstTensorsInfo;
+#define GstTensorsInfoDeclare0(info) GstTensorsInfo info = {0}
 
 /**
  * @brief Internal data structure for configured tensor info (for other/tensor).
@@ -191,6 +195,7 @@ typedef struct
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorConfig;
+#define GstTensorConfigDeclare0(config) GstTensorConfig config = {0}
 
 /**
  * @brief Internal data structure for configured tensors info (for other/tensors).
@@ -201,5 +206,6 @@ typedef struct
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;
+#define GstTensorsConfigDeclare0(config) GstTensorsConfig config = {0}
 
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
