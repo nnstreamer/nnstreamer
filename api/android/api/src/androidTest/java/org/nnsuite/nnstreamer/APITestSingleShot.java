@@ -411,23 +411,6 @@ public class APITestSingleShot {
     }
 
     @Test
-    public void testSetZeroTimeout_n() {
-        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
-            /* cannot run the test */
-            return;
-        }
-
-        try {
-            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
-
-            single.setTimeout(0);
-            fail();
-        } catch (Exception e) {
-            /* expected */
-        }
-    }
-
-    @Test
     public void testSetInvalidTimeout_n() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
