@@ -488,7 +488,6 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
   if (nullptr == param)
     throw std::runtime_error ("PyList_New(); has failed.");
 
-  inputTensorMeta.num_tensors = in_info->num_tensors;
   for (unsigned int i = 0; i < in_info->num_tensors; i++) {
     PyObject *shape = PyTensorShape_New (&in_info->info[i]);
     if (nullptr == shape)
@@ -508,9 +507,10 @@ PYCore::setInputTensorDim (const GstTensorsInfo * in_info, GstTensorsInfo * out_
   Py_XDECREF (param);
 
   if (result) {
+    gst_tensors_info_copy (&inputTensorMeta, in_info);
     res = parseOutputTensors(result, out_info);
     if (res == 0)
-      outputTensorMeta.num_tensors = out_info->num_tensors;
+      gst_tensors_info_copy (&outputTensorMeta, out_info);
     Py_XDECREF(result);
   } else {
     Py_ERRMSG("Fail to call 'setInputDim'");
