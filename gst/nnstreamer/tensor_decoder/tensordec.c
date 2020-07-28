@@ -700,7 +700,6 @@ gst_tensordec_transform (GstBaseTransform * trans,
 
       input[i].data = in_info[i].data;
       input[i].size = in_info[i].size;
-      input[i].type = self->tensor_config.info.info[i].type;
     }
 
     res = self->decoder->decode (&self->plugin_data, &self->tensor_config,

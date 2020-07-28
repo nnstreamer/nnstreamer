@@ -95,9 +95,9 @@ TensorFilterOpenvino::convertFromIETypeStr (std::string type)
 InferenceEngine::Blob::Ptr
 TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (
     const InferenceEngine::TensorDesc tensorDesc,
-    const GstTensorMemory * gstTensor)
+    const GstTensorMemory * gstTensor, const tensor_type gstType)
 {
-  switch (gstTensor->type) {
+  switch (gstType) {
     case _NNS_UINT8:
       return InferenceEngine::Blob::Ptr (
           new InferenceEngine::TBlob<uint8_t>(
@@ -428,7 +428,7 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
   for (i = 0; i < num_tensors; ++i) {
     const GstTensorInfo *info = &((prop->input_meta).info[i]);
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
-        this->_inputTensorDescs[i], &(input[i]));
+        this->_inputTensorDescs[i], &(input[i]), prop->input_meta.info[i].type);
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the input tensor: %u", i);
       return RetEInval;
@@ -441,7 +441,8 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
   for (i = 0; i < num_tensors; ++i) {
     const GstTensorInfo *info = &((prop->output_meta).info[i]);
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
-        this->_outputTensorDescs[i], &(output[i]));
+        this->_outputTensorDescs[i], &(output[i]),
+        prop->output_meta.info[i].type);
     outBlobMap.insert (make_pair (std::string(info->name), blob));
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the output tensor: %u", i);

@@ -128,7 +128,6 @@ __setup_in_out_tensors (ml_single * single_h)
     /** memory will be setup during invoke */
     in_tensors[i].data = NULL;
     in_tensors[i].size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
-    in_tensors[i].type = (tensor_type) single_h->in_info.info[i].type;
   }
 
   /** Setup output buffer */
@@ -136,7 +135,6 @@ __setup_in_out_tensors (ml_single * single_h)
     /** memory will be allocated by tensor_filter_single */
     out_tensors[i].data = NULL;
     out_tensors[i].size = ml_tensor_info_get_size (&single_h->out_info.info[i]);
-    out_tensors[i].type = (tensor_type) single_h->out_info.info[i].type;
   }
 }
 

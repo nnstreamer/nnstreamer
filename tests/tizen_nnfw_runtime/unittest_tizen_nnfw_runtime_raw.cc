@@ -198,9 +198,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
   input.size = gst_tensor_info_get_size (&in_info.info[0]);
   output.size = gst_tensor_info_get_size (&out_info.info[0]);
 
-  input.type = in_info.info[0].type;
-  output.type = out_info.info[0].type;
-
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
 
@@ -246,7 +243,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
 
-  output.type = input.type = _NNS_FLOAT32;
   output.size = input.size = sizeof (float) * 1;
 
   input.data = g_malloc (input.size);
@@ -374,7 +370,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
-  input.type = res.info[0].type;
   input.size = gst_tensor_info_get_size (&res.info[0]);
 
   ret = sp->getOutputDimension (&prop, &data, &res);
@@ -394,7 +389,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
-  output.type = res.info[0].type;
   output.size = gst_tensor_info_get_size (&res.info[0]);
 
   input.data = NULL;

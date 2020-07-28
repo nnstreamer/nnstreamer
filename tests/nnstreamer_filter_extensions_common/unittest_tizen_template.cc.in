@@ -394,8 +394,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
-  input[0].type = output[0].type = _NNS_FLOAT32;
-  input[0].size = output[0].size = 1 * gst_tensor_get_element_size (output[0].type);
+  input[0].size = output[0].size = 1 * gst_tensor_get_element_size (_NNS_FLOAT32);
   input[0].data = g_malloc (input[0].size);
   output[0].data = g_malloc (output[0].size);
 
@@ -491,13 +490,11 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
 
   for (i = 0; i < input_info.num_tensors; ++i) {
     input[i].size = gst_tensor_info_get_size (&input_info.info[i]);
-    input[i].type = input_info.info[i].type;
     input[i].data = g_malloc (input[i].size);
   }
 
   for (i = 0; i < output_info.num_tensors; ++i) {
     output[i].size = gst_tensor_info_get_size (&output_info.info[i]);
-    output[i].type = output_info.info[i].type;
     output[i].data = g_malloc (output[i].size);
   }
 
@@ -558,8 +555,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
     ret = sp->reloadModel (&prop, &data);
     EXPECT_EQ (ret, 0);
 
-    output.type = input.type = _NNS_FLOAT32;
-    output.size = input.size = gst_tensor_get_element_size (input.type) * 10;
+    output.size = input.size = gst_tensor_get_element_size (_NNS_FLOAT32) * 10;
     input.data = g_malloc(input.size);
     output.data = g_malloc(output.size);
 
