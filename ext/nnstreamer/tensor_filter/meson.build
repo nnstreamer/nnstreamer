@@ -9,7 +9,7 @@ if nnfw_runtime_support_is_available
   nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   # Check old function (@todo remove this definition later, nnfw ver >= 1.6.0)
-  if not cc.has_function('nnfw_set_input_tensorinfo', dependencies: nnfw_dep)
+  if not cc.has_header_symbol('nnfw/nnfw.h', 'nnfw_set_input_tensorinfo', dependencies: nnfw_dep)
     nnstreamer_filter_nnfw_deps += declare_dependency(compile_args: ['-DNNFW_USE_OLD_API=1'])
   endif
 
@@ -144,19 +144,10 @@ if pytorch_support_is_available
 
   nnstreamer_filter_torch_deps = pytorch_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
-  pytorch_compile_args = []
-
-  torch_ver_dep = dependency('pytorch', version : '>=1.2.0', required : false)
-  if torch_ver_dep.found()
-
-    pytorch_compile_args += '-DPYTORCH_VER_ATLEAST_1_2_0=1'
+  # pytorch version
+  if pytorch_support_deps[0].version() >= '1.2.0'
+    nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-DPYTORCH_VER_ATLEAST_1_2_0=1'])
   endif
-
-  pytorch_extra_dep = declare_dependency(
-    compile_args : pytorch_compile_args,
-  )
-
-  nnstreamer_filter_torch_deps += pytorch_extra_dep
 
   shared_library('nnstreamer_filter_pytorch',
     nnstreamer_filter_torch_sources,
