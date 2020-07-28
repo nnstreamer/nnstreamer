@@ -1885,6 +1885,7 @@ gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
     priv->prop.fwname = NULL;
     priv->fw = NULL;
     priv->privateData = NULL;
+    priv->configured = FALSE;
   }
 }
 
