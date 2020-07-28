@@ -152,6 +152,7 @@ __process_output (ml_single * single_h, GstTensorMemory * out_tensors)
   unsigned int i;
   int status = ML_ERROR_NONE;
   ml_tensors_data_s *out_data;
+  gboolean need_free = TRUE;
 
   /** Allocate output buffer */
   if (single_h->ignore_output == FALSE) {
@@ -160,10 +161,12 @@ __process_output (ml_single * single_h, GstTensorMemory * out_tensors)
     if (status != ML_ERROR_NONE) {
       ml_loge ("Failed to allocate the memory block.");
       (*single_h->output) = NULL;
-      return ML_ERROR_OUT_OF_MEMORY;
+      status = ML_ERROR_OUT_OF_MEMORY;
+      goto free_output;
     }
 
     /** set the result */
+    need_free = FALSE;
     out_data = (ml_tensors_data_s *) (*single_h->output);
     for (i = 0; i < single_h->out_info.num_tensors; i++) {
       out_data->tensors[i].tensor = out_tensors[i].data;
@@ -173,11 +176,16 @@ __process_output (ml_single * single_h, GstTensorMemory * out_tensors)
      * Caller of the invoke thread has returned back with timeout
      * so, free the memory allocated by the invoke as their is no receiver
      */
+    goto free_output;
+  }
+
+free_output:
+  if (need_free) {
     for (i = 0; i < single_h->out_info.num_tensors; i++)
       g_free (out_tensors[i].data);
   }
 
-  return ML_ERROR_NONE;
+  return status;
 }
 
 /**
