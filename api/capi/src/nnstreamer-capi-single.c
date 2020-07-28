@@ -108,24 +108,26 @@ typedef struct
   thread_state state;                 /**< current state of the thread */
   gboolean ignore_output;             /**< ignore and free the output */
   int status;                         /**< status of processing */
+
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];    /**< input tensor wrapper for processing */
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];   /**< output tensor wrapper for processing */
 } ml_single;
 
 /**
- * @brief Internal function to call subplugin's invoke
+ * @brief setup input and output tensor memory to pass to the tensor_filter.
+ * @note this tensor memory wrapper will be reused for each invoke.
  */
-static inline int
-__invoke (ml_single * single_h, GstTensorMemory * out_tensors)
+static void
+__setup_in_out_tensors (ml_single * single_h)
 {
-  ml_tensors_data_s *in_data;
-  unsigned int i;
-  int status = ML_ERROR_NONE;
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  int i;
+  GstTensorMemory * out_tensors = single_h->out_tensors;
+  GstTensorMemory * in_tensors = single_h->in_tensors;
 
-  in_data = (ml_tensors_data_s *) single_h->input;
-  /** Setup input buffer */
-  for (i = 0; i < in_data->num_tensors; i++) {
-    in_tensors[i].data = in_data->tensors[i].tensor;
-    in_tensors[i].size = in_data->tensors[i].size;
+  for (i = 0; i < single_h->in_info.num_tensors; i++) {
+    /** memory will be setup during invoke */
+    in_tensors[i].data = NULL;
+    in_tensors[i].size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
     in_tensors[i].type = (tensor_type) single_h->in_info.info[i].type;
   }
 
@@ -136,6 +138,26 @@ __invoke (ml_single * single_h, GstTensorMemory * out_tensors)
     out_tensors[i].size = ml_tensor_info_get_size (&single_h->out_info.info[i]);
     out_tensors[i].type = (tensor_type) single_h->out_info.info[i].type;
   }
+}
+
+/**
+ * @brief Internal function to call subplugin's invoke
+ */
+static inline int
+__invoke (ml_single * single_h)
+{
+  ml_tensors_data_s *in_data;
+  unsigned int i;
+  int status = ML_ERROR_NONE;
+  GstTensorMemory * out_tensors = single_h->out_tensors;
+  GstTensorMemory * in_tensors = single_h->in_tensors;
+
+  in_data = (ml_tensors_data_s *) single_h->input;
+  /** Setup input buffer */
+  for (i = 0; i < in_data->num_tensors; i++) {
+    in_tensors[i].data = in_data->tensors[i].tensor;
+  }
+
   /** invoke the thread */
   if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors))
     status = ML_ERROR_STREAMS_PIPE;
@@ -147,12 +169,13 @@ __invoke (ml_single * single_h, GstTensorMemory * out_tensors)
  * @brief Internal function to post-process given output.
  */
 static inline int
-__process_output (ml_single * single_h, GstTensorMemory * out_tensors)
+__process_output (ml_single * single_h)
 {
   unsigned int i;
   int status = ML_ERROR_NONE;
   ml_tensors_data_s *out_data;
   gboolean need_free = TRUE;
+  GstTensorMemory * out_tensors = single_h->out_tensors;
 
   /** Allocate output buffer */
   if (single_h->ignore_output == FALSE) {
@@ -170,6 +193,7 @@ __process_output (ml_single * single_h, GstTensorMemory * out_tensors)
     out_data = (ml_tensors_data_s *) (*single_h->output);
     for (i = 0; i < single_h->out_info.num_tensors; i++) {
       out_data->tensors[i].tensor = out_tensors[i].data;
+      out_tensors[i].data = NULL;
     }
   } else {
     /**
@@ -181,8 +205,10 @@ __process_output (ml_single * single_h, GstTensorMemory * out_tensors)
 
 free_output:
   if (need_free) {
-    for (i = 0; i < single_h->out_info.num_tensors; i++)
+    for (i = 0; i < single_h->out_info.num_tensors; i++) {
       g_free (out_tensors[i].data);
+      out_tensors[i].data = NULL;
+    }
   }
 
   return status;
@@ -211,7 +237,6 @@ static void *
 invoke_thread (void *arg)
 {
   ml_single *single_h;
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
 
   single_h = (ml_single *) arg;
 
@@ -228,13 +253,13 @@ invoke_thread (void *arg)
     }
 
     g_mutex_unlock (&single_h->mutex);
-    status = __invoke (single_h, out_tensors);
+    status = __invoke (single_h);
     g_mutex_lock (&single_h->mutex);
 
     if (status != ML_ERROR_NONE)
       goto wait_for_next;
 
-    status = __process_output (single_h, out_tensors);
+    status = __process_output (single_h);
 
     if (status != ML_ERROR_NONE)
       goto wait_for_next;
@@ -282,6 +307,7 @@ ml_single_update_info (ml_single_h single,
   if (status != ML_ERROR_NONE)
     return status;
 
+  __setup_in_out_tensors (single);
   return ml_single_get_output_info (single, out_info);
 }
 
@@ -352,6 +378,7 @@ ml_single_set_gst_info (ml_single * single_h, const ml_tensors_info_h info)
   if (ret == 0) {
     ml_tensors_info_copy_from_gst (&single_h->in_info, &gst_in_info);
     ml_tensors_info_copy_from_gst (&single_h->out_info, &gst_out_info);
+    __setup_in_out_tensors (single_h);
   } else if (ret == -ENOENT) {
     status = ML_ERROR_NOT_SUPPORTED;
   } else {
@@ -691,6 +718,9 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
     goto error;
   }
 
+  /* Setup input and output memory buffers for invoke */
+  __setup_in_out_tensors (single_h);
+
   *single = single_h;
   return ML_ERROR_NONE;
 
@@ -908,11 +938,10 @@ ml_single_invoke (ml_single_h single,
      * with the same handle. Thus we can call __invoke without
      * having yet another mutex for __invoke.
      */
-    GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-    status = __invoke (single_h, out_tensors);
+    status = __invoke (single_h);
     if (status != ML_ERROR_NONE)
       goto exit;
-    status = __process_output (single_h, out_tensors);
+    status = __process_output (single_h);
     single_h->state = IDLE;
   }
 
