@@ -393,8 +393,6 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory * output)
   /** make the memory contiguous for direct access */
   output_tensor = output_tensor.contiguous ();
 
-  output->type = getTensorTypeFromTorch (output_tensor.scalar_type ());
-
   /* validate output tensor once */
   if (!configured && validateOutputTensor (output_tensor)) {
     ml_loge ("Output Tensor Information is not valid");
@@ -434,8 +432,8 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     input_shape.assign (&inputTensorMeta.info[i].dimension[0],
         &inputTensorMeta.info[i].dimension[0] + NNS_TENSOR_RANK_LIMIT);
 
-    if (!getTensorTypeToTorch (input[i].type, &type)) {
-      ml_loge ("This data type is not valid: %d", input[i].type);
+    if (!getTensorTypeToTorch (inputTensorMeta.info[i].type, &type)) {
+      ml_loge ("This data type is not valid: %d", inputTensorMeta.info[i].type);
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);

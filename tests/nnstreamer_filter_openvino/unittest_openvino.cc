@@ -1089,8 +1089,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
       InferenceEngine::Blob::Ptr ret; \
       GstTensorMemory mem; \
       \
-      mem.type = nns_type; \
-      mem.size = gst_tensor_get_element_size (mem.type); \
+      mem.size = gst_tensor_get_element_size (nns_type); \
       for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) { \
         dims[i] = MOBINET_V2_IN_DIMS[i]; \
         mem.size *= MOBINET_V2_IN_DIMS[i]; \
@@ -1098,9 +1097,9 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
       tensorTestDesc.setDims (dims); \
       mem.data = (void *) g_malloc0 (mem.size); \
       \
-      ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem); \
+      ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem, nns_type); \
       EXPECT_EQ (mem.size, ret->byteSize ()); \
-      EXPECT_EQ (gst_tensor_get_element_size (mem.type), ret->element_size ()); \
+      EXPECT_EQ (gst_tensor_get_element_size (nns_type), ret->element_size ()); \
       g_free (mem.data); \
     } while (0);
 

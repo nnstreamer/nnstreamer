@@ -59,7 +59,7 @@ public:
   static tensor_type convertFromIETypeStr (std::string type);
   static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
       const InferenceEngine::TensorDesc tensorDesc,
-      const GstTensorMemory * gstTensor);
+      const GstTensorMemory * gstTensor, const tensor_type gstType);
   static bool isAcclDevSupported (std::vector<std::string> &devsVector,
       accl_hw hw);
 

@@ -188,7 +188,6 @@ TEST (nnstreamer_filter_armnn, invoke_00)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *) NULL);
 
-  output.type = input.type = _NNS_FLOAT32;
   output.size = input.size = sizeof(float) * 1;
 
   input.data = g_malloc(input.size);
@@ -301,7 +300,6 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
-  input.type = res.info[0].type;
   input.size = gst_tensor_info_get_size (&res.info[0]);
 
   ret = sp->getOutputDimension (&prop, &data, &res);
@@ -321,7 +319,6 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
-  output.type = res.info[0].type;
   output.size = gst_tensor_info_get_size (&res.info[0]);
 
   input.data = g_malloc(input.size);
@@ -400,8 +397,7 @@ TEST (nnstreamer_filter_armnn, invoke_01)
         &input_uint8_size, NULL));
 
   /** Convert the data from uint8 to float */
-  input.type = _NNS_FLOAT32;
-  input.size = input_uint8_size * gst_tensor_get_element_size (input.type);
+  input.size = input_uint8_size * gst_tensor_get_element_size (_NNS_FLOAT32);
   input.data = g_malloc (input.size);
   for (gsize idx=0; idx < input_uint8_size; idx ++) {
     ((float *) input.data)[idx] =
@@ -413,8 +409,7 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *) NULL);
 
-  output.type = _NNS_FLOAT32;
-  output.size = gst_tensor_get_element_size (output.type) * num_labels;
+  output.size = gst_tensor_get_element_size (_NNS_FLOAT32) * num_labels;
   output.data = g_malloc(output.size);
 
   ret = sp->open (&prop, &data);

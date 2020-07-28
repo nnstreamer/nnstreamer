@@ -596,19 +596,23 @@ nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
   int err = 0;
   guint idx;
   unsigned int num_tensors = 0;
+  const GstTensorsInfo *info;
 
   g_return_val_if_fail (prop != NULL, -EINVAL);
   g_return_val_if_fail (mem != NULL, -EINVAL);
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (pdata->session != NULL, -EPERM);
 
-  if (is_input)
+  if (is_input) {
     num_tensors = pdata->in_info.num_tensors;
-  else
+    info = &pdata->in_info;
+  } else {
     num_tensors = pdata->out_info.num_tensors;
+    info = &pdata->out_info;
+  }
 
   for (idx = 0; idx < num_tensors; idx++) {
-    err = nnfw_tensor_type_from_gst (mem[idx].type, &nnfw_type);
+    err = nnfw_tensor_type_from_gst (info->info[idx].type, &nnfw_type);
     if (err != 0)
       return err;
 
