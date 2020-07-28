@@ -102,6 +102,7 @@ g_tensor_filter_single_init (GTensorFilterSingle * self)
   priv = &self->priv;
 
   gst_tensor_filter_common_init_property (priv);
+  self->allocate_in_invoke = FALSE;
 }
 
 /**
@@ -205,15 +206,18 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   priv = &self->priv;
 
   /** open framework, load model */
-  if (priv->fw == NULL)
+  if (G_UNLIKELY (priv->fw == NULL))
     return FALSE;
 
   gst_tensor_filter_common_open_fw (priv);
 
-  if (priv->prop.fw_opened == FALSE)
+  if (G_UNLIKELY (priv->prop.fw_opened == FALSE))
     return FALSE;
 
   gst_tensor_filter_load_tensor_info (&self->priv);
+  self->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
+
+  priv->configured = TRUE;
 
   return TRUE;
 }
@@ -249,35 +253,17 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   GstTensorFilterPrivate *priv;
   guint i;
   gint status;
-  gboolean allocate_in_invoke;
-  gboolean run_without_model;
 
   priv = &self->priv;
-
-  if (G_UNLIKELY (!priv->fw))
-    return FALSE;
-
-  if (GST_TF_FW_V0 (priv->fw))
-    run_without_model = priv->fw->run_without_model;
-  else
-    run_without_model = priv->info.run_without_model;
-
-  if (G_UNLIKELY (!run_without_model) &&
-      G_UNLIKELY (!(priv->prop.model_files &&
-              priv->prop.num_models > 0 && priv->prop.model_files[0])))
-    return FALSE;
 
   /** start if not already started */
   if (priv->configured == FALSE) {
     if (!g_tensor_filter_single_start (self)) {
       return FALSE;
     }
-    priv->configured = TRUE;
   }
 
-  /** Setup output buffer */
-  allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
-  if (allocate_in_invoke == FALSE) {
+  if (self->allocate_in_invoke == FALSE) {
     /* allocate memory if allocate_in_invoke is FALSE */
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       output[i].data = g_malloc (output[i].size);
@@ -295,7 +281,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 
 error:
   /* if failed to invoke the model, release allocated memory. */
-  if (allocate_in_invoke == FALSE) {
+  if (self->allocate_in_invoke == FALSE) {
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
       output[i].data = NULL;
