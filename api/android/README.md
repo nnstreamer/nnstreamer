@@ -100,14 +100,15 @@ $ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.
 $ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
 ```
 
-Modify the gstreamer-1.0.mk file for NDK build to prevent build error.
+Modify `gstreamer-1.0.mk` and `gstreamer_android-1.0.c.in` files for NDK build to prevent error case.
 Supported target ABIs are `arm64` and `armv7`.
 
 ```
 $GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.mk
+$GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer_android-1.0.c.in
 ```
 
-- Add directory separator.
+- Add directory separator (gstreamer-1.0.mk)
 
 ```diff
 @@ -127,2 +127,2 @@
@@ -133,6 +134,26 @@ copyjavasource_$(TARGET_ARCH_ABI):
     $(hide)$(foreach file,$(GSTREAMER_PLUGINS_CLASSES), \
 -       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
 +       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
+```
+
+- Clear exceptions for native developers (gstreamer_android-1.0.c.in)
+
+```diff
+@@ -592,9 +592,10 @@
+
+   if (!klass) {
+     __android_log_print (ANDROID_LOG_ERROR, "GStreamer",
+         "Could not retrieve class org.freedesktop.gstreamer.GStreamer");
+-    return 0;
+-  }
+-  if ((*env)->RegisterNatives (env, klass, native_methods,
++
++    if ((*env)->ExceptionCheck (env))
++      (*env)->ExceptionClear (env);
++  } else if ((*env)->RegisterNatives (env, klass, native_methods,
+           G_N_ELEMENTS (native_methods))) {
+     __android_log_print (ANDROID_LOG_ERROR, "GStreamer",
+         "Could not register native methods for org.freedesktop.gstreamer.GStreamer");
 ```
 
 ### Download NNStreamer source code
