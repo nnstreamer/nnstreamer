@@ -168,7 +168,8 @@ typedef enum {
  */
 typedef enum _ml_tensor_type_e
 {
-  ML_TENSOR_TYPE_INT32 = 0,      /**< Integer 32bit */
+  ML_TENSOR_TYPE_UNKNOWN = 0,    /**< Unknown type */
+  ML_TENSOR_TYPE_INT32,          /**< Integer 32bit */
   ML_TENSOR_TYPE_UINT32,         /**< Unsigned integer 32bit */
   ML_TENSOR_TYPE_INT16,          /**< Integer 16bit */
   ML_TENSOR_TYPE_UINT16,         /**< Unsigned integer 16bit */
@@ -178,7 +179,6 @@ typedef enum _ml_tensor_type_e
   ML_TENSOR_TYPE_FLOAT32,        /**< Float 32bit */
   ML_TENSOR_TYPE_INT64,          /**< Integer 64bit */
   ML_TENSOR_TYPE_UINT64,         /**< Unsigned integer 64bit */
-  ML_TENSOR_TYPE_UNKNOWN         /**< Unknown type */
 } ml_tensor_type_e;
 
 /**

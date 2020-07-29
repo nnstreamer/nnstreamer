@@ -1082,7 +1082,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
     tensor_type ret_type;
 
     ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_str);
-    EXPECT_EQ (_NNS_END, ret_type);
+    EXPECT_EQ (_NNS_NONE, ret_type);
   }
 
   g_free (test_model_xml);

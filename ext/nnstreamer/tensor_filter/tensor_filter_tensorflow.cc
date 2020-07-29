@@ -307,7 +307,7 @@ TFCore::getTensorTypeFromTF (TF_DataType tfType)
       break;
   }
 
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**

@@ -5,16 +5,17 @@ package nnstreamer.protobuf;
 message Tensor {
   string name = 1;
   enum Tensor_type {
-    NNS_INT32 = 0;
-    NNS_UINT32 = 1;
-    NNS_INT16 = 2;
-    NNS_UINT16 = 3;
-    NNS_INT8 = 4;
-    NNS_UINT8 = 5;
-    NNS_FLOAT64 = 6;
-    NNS_FLOAT32 = 7;
-    NNS_INT64 = 8;
-    NNS_UINT64 = 9;
+    NNS_NONE = 0;
+    NNS_INT32 = 1;
+    NNS_UINT32 = 2;
+    NNS_INT16 = 3;
+    NNS_UINT16 = 4;
+    NNS_INT8 = 5;
+    NNS_UINT8 = 6;
+    NNS_FLOAT64 = 7;
+    NNS_FLOAT32 = 8;
+    NNS_INT64 = 9;
+    NNS_UINT64 = 10;
   }
   Tensor_type type = 2;
   repeated uint32 dimension = 3;

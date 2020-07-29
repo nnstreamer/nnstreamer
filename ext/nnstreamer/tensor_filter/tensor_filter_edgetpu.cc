@@ -492,7 +492,7 @@ tensor_type edgetpu_subplugin::getTensorType (TfLiteType tfType)
       break;
   }
 
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**

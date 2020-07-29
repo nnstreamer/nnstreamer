@@ -720,7 +720,7 @@ PYCore::getTensorType (NPY_TYPES npyType)
       break;
   }
 
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**

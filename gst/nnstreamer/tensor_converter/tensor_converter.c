@@ -416,7 +416,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
 
       /* prevent invalid value, init types. */
       for (i = num; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
-        info->info[i].type = _NNS_END;
+        info->info[i].type = _NNS_NONE;
       }
 
       info->num_tensors = num;
@@ -1223,7 +1223,7 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   }
 
   self->frame_size = GST_VIDEO_INFO_SIZE (&vinfo);
-  return (config->info.info[0].type != _NNS_END);
+  return (config->info.info[0].type != _NNS_NONE);
 }
 
 /**
@@ -1307,7 +1307,7 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
   config->rate_d = 1;
 
   self->frame_size = GST_AUDIO_INFO_BPF (&ainfo);
-  return (config->info.info[0].type != _NNS_END);
+  return (config->info.info[0].type != _NNS_NONE);
 }
 
 /**
@@ -1377,7 +1377,7 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
   }
 
   self->frame_size = gst_tensor_info_get_size (&config->info.info[0]);
-  return (config->info.info[0].type != _NNS_END);
+  return (config->info.info[0].type != _NNS_NONE);
 }
 
 /**
@@ -1431,7 +1431,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
   }
 
   self->frame_size = gst_tensors_info_get_size (&config->info, -1);
-  return (config->info.info[0].type != _NNS_END);
+  return (config->info.info[0].type != _NNS_NONE);
 }
 
 /**
@@ -1520,7 +1520,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
           case _NNS_AUDIO:
             /* audio caps from tensor info */
             if (is_audio_supported (self)
-                && config.info.info[0].type != _NNS_END) {
+                && config.info.info[0].type != _NNS_NONE) {
               gint ch, rate;
               GstAudioFormat aformat;
 

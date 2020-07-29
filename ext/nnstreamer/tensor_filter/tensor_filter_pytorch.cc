@@ -250,7 +250,7 @@ TorchCore::getTensorTypeFromTorch (torch::Dtype torchType)
       break;
   }
 
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**

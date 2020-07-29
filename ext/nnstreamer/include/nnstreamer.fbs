@@ -9,8 +9,10 @@
 
 namespace nnstreamer.flatbuf;
 
-enum Tensor_type : int { 
-  NNS_INT32 = 0,
+enum Tensor_type : int {
+  NNS_NONE = 0,
+
+  NNS_INT32,
   NNS_UINT32,
   NNS_INT16,
   NNS_UINT16,
@@ -20,8 +22,6 @@ enum Tensor_type : int {
   NNS_FLOAT32,
   NNS_INT64,
   NNS_UINT64,
-
-  NNS_END
   }
 
 struct frame_rate {
@@ -31,9 +31,9 @@ struct frame_rate {
 
 table Tensor {
   name  : string;
-  type : Tensor_type = NNS_END;
+  type : Tensor_type = NNS_NONE;
   dimension : [uint32]; // support up to 4th ranks.
-  data : [ubyte]; 
+  data : [ubyte];
 }
 
 table Tensors {

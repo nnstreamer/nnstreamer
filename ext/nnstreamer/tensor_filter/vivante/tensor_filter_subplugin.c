@@ -254,7 +254,7 @@ convert_tensortype (unsigned tensor_type)
     /** @todo Support other types */
     break;
   }
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**

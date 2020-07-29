@@ -439,7 +439,7 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
       break;
   }
 
-  return _NNS_END;
+  return _NNS_NONE;
 }
 
 /**
@@ -472,14 +472,14 @@ ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
     }
 
     /* Set the type */
-    if (gst_info->type == _NNS_END) {
+    if (gst_info->type == _NNS_NONE) {
       gst_info->type = getGstTensorType (arm_info.GetDataType ());
     } else if (gst_info->type != getGstTensorType (arm_info.GetDataType ())) {
       ml_logw ("Provided data type info does not match with model.");
       return -EINVAL;
     }
 
-    if (gst_info->type == _NNS_END) {
+    if (gst_info->type == _NNS_NONE) {
       ml_logw ("Data type not supported.");
       return -EINVAL;
     }

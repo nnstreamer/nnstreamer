@@ -92,7 +92,7 @@ typedef struct _tensor_transform_dimchg {
  * @brief Internal data structure for typecast mode.
  */
 typedef struct _tensor_transform_typecast {
-  tensor_type to; /**< tensor_type after cast. _NNS_END if unknown */
+  tensor_type to; /**< tensor_type after cast. _NNS_NONE if unknown */
 } tensor_transform_typecast;
 
 /**

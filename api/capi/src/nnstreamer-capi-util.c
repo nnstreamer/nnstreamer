@@ -135,7 +135,7 @@ ml_tensor_info_validate (const ml_tensor_info_s * info)
   if (!info)
     return FALSE;
 
-  if (info->type < 0 || info->type >= ML_TENSOR_TYPE_UNKNOWN)
+  if (info->type <= ML_TENSOR_TYPE_UNKNOWN || info->type > ML_TENSOR_TYPE_UINT64)
     return FALSE;
 
   for (i = 0; i < ML_TENSOR_RANK_LIMIT; i++) {
@@ -862,7 +862,7 @@ ml_tensors_info_copy_from_ml (GstTensorsInfo * gst_info,
         gst_info->info[i].type = _NNS_UINT64;
         break;
       default:
-        gst_info->info[i].type = _NNS_END;
+        gst_info->info[i].type = _NNS_NONE;
         break;
     }
 

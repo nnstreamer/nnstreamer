@@ -59,7 +59,7 @@ const std::string TensorFilterOpenvino::extXml = ".xml";
 /**
  * @brief Convert the string representing the tensor data type to _nns_tensor_type
  * @param type a std::string representing the tensor data type in InferenceEngine
- * @return _nns_tensor_type corresponding to the tensor data type in InferenceEngine if OK, otherwise _NNS_END
+ * @return _nns_tensor_type corresponding to the tensor data type in InferenceEngine if OK, otherwise _NNS_NONE
  */
 tensor_type
 TensorFilterOpenvino::convertFromIETypeStr (std::string type)
@@ -80,9 +80,9 @@ TensorFilterOpenvino::convertFromIETypeStr (std::string type)
     if (type[2] == '3')
       return _NNS_FLOAT32;
     else
-      return _NNS_END;
+      return _NNS_NONE;
   } else {
-    return _NNS_END;
+    return _NNS_NONE;
   }
 }
 
@@ -316,7 +316,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
 
     ieTensorTypeStr = eachInputInfo->getPrecision ().name ();
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
-    if (nnsTensorType == _NNS_END) {
+    if (nnsTensorType == _NNS_NONE) {
       ml_loge ("The type of tensor elements, %s, "
           "in the model is not supported", ieTensorTypeStr.c_str ());
       ret = RetEInval;
@@ -388,7 +388,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
 
     ieTensorTypeStr = eachOutputInfo->getPrecision ().name ();
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
-    if (nnsTensorType == _NNS_END) {
+    if (nnsTensorType == _NNS_NONE) {
       ml_loge ("The type of tensor elements, %s, "
           "in the model is not supported", ieTensorTypeStr.c_str ());
       ret = RetEInval;

@@ -342,34 +342,34 @@ public final class TensorsInfo implements AutoCloseable, Cloneable {
             NNStreamer.TensorType type = NNStreamer.TensorType.UNKNOWN;
 
             switch (value) {
-                case 0:
+                case 1:
                     type = NNStreamer.TensorType.INT32;
                     break;
-                case 1:
+                case 2:
                     type = NNStreamer.TensorType.UINT32;
                     break;
-                case 2:
+                case 3:
                     type = NNStreamer.TensorType.INT16;
                     break;
-                case 3:
+                case 4:
                     type = NNStreamer.TensorType.UINT16;
                     break;
-                case 4:
+                case 5:
                     type = NNStreamer.TensorType.INT8;
                     break;
-                case 5:
+                case 6:
                     type = NNStreamer.TensorType.UINT8;
                     break;
-                case 6:
+                case 7:
                     type = NNStreamer.TensorType.FLOAT64;
                     break;
-                case 7:
+                case 8:
                     type = NNStreamer.TensorType.FLOAT32;
                     break;
-                case 8:
+                case 9:
                     type = NNStreamer.TensorType.INT64;
                     break;
-                case 9:
+                case 10:
                     type = NNStreamer.TensorType.UINT64;
                     break;
                 default:

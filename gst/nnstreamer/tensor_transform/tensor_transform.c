@@ -432,7 +432,7 @@ gst_tensor_transform_set_value (GstTensorTransform * filter,
 
   /* init tensor value */
   memset (value, 0, sizeof (tensor_transform_operand_s));
-  value->type = _NNS_END;
+  value->type = _NNS_NONE;
 
   switch (type) {
     case _NNS_INT32:
@@ -653,7 +653,7 @@ gst_tensor_transform_typecast_value (GstTensorTransform * filter,
   gboolean is_float;
 
   g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (type != _NNS_END, FALSE);
+  g_return_val_if_fail (type != _NNS_NONE, FALSE);
 
   /* do nothing when transform to same type */
   if (value->type != type) {
@@ -778,7 +778,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       guint i, num_operators, num_op;
       GRegex *regex_option_tc;
 
-      filter->data_arithmetic.out_type = _NNS_END;
+      filter->data_arithmetic.out_type = _NNS_NONE;
 
       if (filter->operators) {
         GST_WARNING_OBJECT (filter,
@@ -1537,18 +1537,18 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
         out_info->type = filter->data_typecast.to;
       } else {
         /* cannot get the incoming data type on sink pad */
-        out_info->type = _NNS_END;
+        out_info->type = _NNS_NONE;
       }
       break;
 
     case GTT_ARITHMETIC:
       /* check arith mode option has typecast operator */
-      if (filter->data_arithmetic.out_type != _NNS_END) {
+      if (filter->data_arithmetic.out_type != _NNS_NONE) {
         if (direction == GST_PAD_SINK) {
           out_info->type = filter->data_arithmetic.out_type;
         } else {
           /* cannot get the incoming data type on sink pad */
-          out_info->type = _NNS_END;
+          out_info->type = _NNS_NONE;
         }
       }
       break;

@@ -30,6 +30,7 @@
  * @brief String representations for each tensor element type.
  */
 static const gchar *tensor_element_typename[] = {
+  [_NNS_NONE] = NULL,
   [_NNS_INT32] = "int32",
   [_NNS_UINT32] = "uint32",
   [_NNS_INT16] = "int16",
@@ -40,13 +41,13 @@ static const gchar *tensor_element_typename[] = {
   [_NNS_FLOAT32] = "float32",
   [_NNS_INT64] = "int64",
   [_NNS_UINT64] = "uint64",
-  [_NNS_END] = NULL,
 };
 
 /**
  * @brief Byte-per-element of each tensor element type.
  */
 static const guint tensor_element_size[] = {
+  [_NNS_NONE] = 0,
   [_NNS_INT32] = 4,
   [_NNS_UINT32] = 4,
   [_NNS_INT16] = 2,
@@ -57,8 +58,6 @@ static const guint tensor_element_size[] = {
   [_NNS_FLOAT32] = 4,
   [_NNS_INT64] = 8,
   [_NNS_UINT64] = 8,
-
-  [_NNS_END] = 0,
 };
 
 /**
@@ -107,7 +106,7 @@ gst_tensor_info_init (GstTensorInfo * info)
   g_return_if_fail (info != NULL);
 
   info->name = NULL;
-  info->type = _NNS_END;
+  info->type = _NNS_NONE;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     info->dimension[i] = 0;
@@ -155,7 +154,7 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 {
   g_return_val_if_fail (info != NULL, FALSE);
 
-  if (info->type == _NNS_END) {
+  if (info->type == _NNS_NONE) {
     return FALSE;
   }
 
@@ -712,7 +711,7 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
     g_free (dim_str);
   }
 
-  if (config->info.type != _NNS_END) {
+  if (config->info.type != _NNS_NONE) {
     gst_caps_set_simple (caps, "type", G_TYPE_STRING,
         gst_tensor_get_type_string (config->info.type), NULL);
   }
@@ -1010,7 +1009,7 @@ gst_tensor_get_element_size (tensor_type type)
 
 /**
  * @brief Get tensor type from string input.
- * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
+ * @return Corresponding tensor_type. _NNS_NONE if unrecognized value is there.
  * @param typestr The string type name, supposed to be one of tensor_element_typename[]
  */
 tensor_type
@@ -1018,10 +1017,10 @@ gst_tensor_get_type (const gchar * typestr)
 {
   gsize size, len;
   gchar *type_string;
-  tensor_type type = _NNS_END;
+  tensor_type type = _NNS_NONE;
 
   if (typestr == NULL)
-    return _NNS_END;
+    return _NNS_NONE;
 
   /* remove spaces */
   type_string = g_strdup (typestr);
@@ -1031,7 +1030,7 @@ gst_tensor_get_type (const gchar * typestr)
 
   if (len == 0) {
     g_free (type_string);
-    return _NNS_END;
+    return _NNS_NONE;
   }
 
   if (g_regex_match_simple ("^uint(8|16|32|64)$",

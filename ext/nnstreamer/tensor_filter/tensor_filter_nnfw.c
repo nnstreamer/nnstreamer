@@ -327,7 +327,7 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
       *type = _NNS_UINT8;
       break;
     default:
-      *type = _NNS_END;
+      *type = _NNS_NONE;
       err = -EINVAL;
   }
 
