@@ -1087,12 +1087,15 @@ _gtfc_setprop_INPUT (GstTensorFilterPrivate * priv,
     num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
         g_value_get_string (value));
 
-    if (prop->input_meta.num_tensors > 0 &&
-        prop->input_meta.num_tensors != num_dims) {
-      ml_logw ("Invalid input-dim, given param does not match with old value.");
-    }
+    if (num_dims > 0) {
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_dims) {
+        ml_logw
+            ("Invalid input-dim, given param does not match with old value.");
+      }
 
-    prop->input_meta.num_tensors = num_dims;
+      prop->input_meta.num_tensors = num_dims;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1112,13 +1115,15 @@ _gtfc_setprop_OUTPUT (GstTensorFilterPrivate * priv,
     num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
         g_value_get_string (value));
 
-    if (prop->output_meta.num_tensors > 0 &&
-        prop->output_meta.num_tensors != num_dims) {
-      ml_logw
-          ("Invalid output-dim, given param does not match with old value.");
-    }
+    if (num_dims > 0) {
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_dims) {
+        ml_logw
+            ("Invalid output-dim, given param does not match with old value.");
+      }
 
-    prop->output_meta.num_tensors = num_dims;
+      prop->output_meta.num_tensors = num_dims;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1138,13 +1143,15 @@ _gtfc_setprop_INPUTTYPE (GstTensorFilterPrivate * priv,
     num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
         g_value_get_string (value));
 
-    if (prop->input_meta.num_tensors > 0 &&
-        prop->input_meta.num_tensors != num_types) {
-      ml_logw
-          ("Invalid input-type, given param does not match with old value.");
-    }
+    if (num_types > 0) {
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_types) {
+        ml_logw
+            ("Invalid input-type, given param does not match with old value.");
+      }
 
-    prop->input_meta.num_tensors = num_types;
+      prop->input_meta.num_tensors = num_types;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1164,13 +1171,15 @@ _gtfc_setprop_OUTPUTTYPE (GstTensorFilterPrivate * priv,
     num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
         g_value_get_string (value));
 
-    if (prop->output_meta.num_tensors > 0 &&
-        prop->output_meta.num_tensors != num_types) {
-      ml_logw
-          ("Invalid output-type, given param does not match with old value.");
-    }
+    if (num_types > 0) {
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_types) {
+        ml_logw
+            ("Invalid output-type, given param does not match with old value.");
+      }
 
-    prop->output_meta.num_tensors = num_types;
+      prop->output_meta.num_tensors = num_types;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1190,13 +1199,15 @@ _gtfc_setprop_INPUTNAME (GstTensorFilterPrivate * priv,
     num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
         g_value_get_string (value));
 
-    if (prop->input_meta.num_tensors > 0 &&
-        prop->input_meta.num_tensors != num_names) {
-      ml_logw
-          ("Invalid input-name, given param does not match with old value.");
-    }
+    if (num_names > 0) {
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_names) {
+        ml_logw
+            ("Invalid input-name, given param does not match with old value.");
+      }
 
-    prop->input_meta.num_tensors = num_names;
+      prop->input_meta.num_tensors = num_names;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1216,13 +1227,15 @@ _gtfc_setprop_OUTPUTNAME (GstTensorFilterPrivate * priv,
     num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
         g_value_get_string (value));
 
-    if (prop->output_meta.num_tensors > 0 &&
-        prop->output_meta.num_tensors != num_names) {
-      ml_logw
-          ("Invalid output-name, given param does not match with old value.");
-    }
+    if (num_names > 0) {
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_names) {
+        ml_logw
+            ("Invalid output-name, given param does not match with old value.");
+      }
 
-    prop->output_meta.num_tensors = num_names;
+      prop->output_meta.num_tensors = num_names;
+    }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
@@ -1335,12 +1348,14 @@ _gtfc_setprop_INPUTLAYOUT (GstTensorFilterPrivate * priv,
     num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
         g_value_get_string (value));
 
-    if (prop->input_meta.num_tensors > 0 &&
-        prop->input_meta.num_tensors != num_layouts) {
-      ml_logw ("Invalid input-layout, given param does not fit.");
-    }
+    if (num_layouts > 0) {
+      if (prop->input_meta.num_tensors > 0 &&
+          prop->input_meta.num_tensors != num_layouts) {
+        ml_logw ("Invalid input-layout, given param does not fit.");
+      }
 
-    prop->input_meta.num_tensors = num_layouts;
+      prop->input_meta.num_tensors = num_layouts;
+    }
   } else if (value) {
     /** Update the properties */
     if (GST_TF_FW_V0 (priv->fw)) {
@@ -1354,17 +1369,19 @@ _gtfc_setprop_INPUTLAYOUT (GstTensorFilterPrivate * priv,
       num_layouts = gst_tensors_parse_layouts_string (data.layout,
           g_value_get_string (value));
 
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_layouts) {
-        ml_logw ("Invalid input-layout, given param does not fit.");
-      }
+      if (num_layouts > 0) {
+        if (prop->input_meta.num_tensors > 0 &&
+            prop->input_meta.num_tensors != num_layouts) {
+          ml_logw ("Invalid input-layout, given param does not fit.");
+        }
 
-      if (priv->fw->eventHandler
-          (priv->fw, prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
-        memcpy (priv->prop.input_layout, data.layout,
-            sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
-      } else {
-        ml_logw ("Unable to update input layout.");
+        if (priv->fw->eventHandler
+            (priv->fw, prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
+          memcpy (priv->prop.input_layout, data.layout,
+              sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+        } else {
+          ml_logw ("Unable to update input layout.");
+        }
       }
     }
   }
@@ -1382,12 +1399,14 @@ _gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
     num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
         g_value_get_string (value));
 
-    if (prop->output_meta.num_tensors > 0 &&
-        prop->output_meta.num_tensors != num_layouts) {
-      ml_logw ("Invalid output-layout, given param does not fit.");
-    }
+    if (num_layouts > 0) {
+      if (prop->output_meta.num_tensors > 0 &&
+          prop->output_meta.num_tensors != num_layouts) {
+        ml_logw ("Invalid output-layout, given param does not fit.");
+      }
 
-    prop->output_meta.num_tensors = num_layouts;
+      prop->output_meta.num_tensors = num_layouts;
+    }
   } else if (value) {
     /** Update the properties */
     if (GST_TF_FW_V0 (priv->fw)) {
@@ -1401,17 +1420,19 @@ _gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
       num_layouts = gst_tensors_parse_layouts_string (data.layout,
           g_value_get_string (value));
 
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_layouts) {
-        ml_logw ("Invalid output-layout, given param does not fit.");
-      }
+      if (num_layouts > 0) {
+        if (prop->output_meta.num_tensors > 0 &&
+            prop->output_meta.num_tensors != num_layouts) {
+          ml_logw ("Invalid output-layout, given param does not fit.");
+        }
 
-      if (priv->fw->eventHandler
-          (priv->fw, prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
-        memcpy (priv->prop.output_layout, data.layout,
-            sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
-      } else {
-        ml_logw ("Unable to update output layout.");
+        if (priv->fw->eventHandler
+            (priv->fw, prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
+          memcpy (priv->prop.output_layout, data.layout,
+              sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+        } else {
+          ml_logw ("Unable to update output layout.");
+        }
       }
     }
   }
