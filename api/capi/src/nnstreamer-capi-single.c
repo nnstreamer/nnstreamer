@@ -109,6 +109,7 @@ typedef struct
   gboolean ignore_output;             /**< ignore and free the output */
   int status;                         /**< status of processing */
 
+  ml_tensors_data_s in_tensors;    /**< input tensor wrapper for processing */
   ml_tensors_data_s out_tensors;   /**< output tensor wrapper for processing */
 } ml_single;
 
@@ -120,7 +121,17 @@ static void
 __setup_in_out_tensors (ml_single * single_h)
 {
   int i;
+  ml_tensors_data_s *in_tensors = &single_h->in_tensors;
   ml_tensors_data_s *out_tensors = &single_h->out_tensors;
+
+  /** Setup input buffer */
+  in_tensors->num_tensors = single_h->in_info.num_tensors;
+  for (i = 0; i < single_h->in_info.num_tensors; i++) {
+    /** memory will be allocated by tensor_filter_single */
+    in_tensors->tensors[i].tensor = NULL;
+    in_tensors->tensors[i].size =
+        ml_tensor_info_get_size (&single_h->in_info.info[i]);
+  }
 
   /** Setup output buffer */
   out_tensors->num_tensors = single_h->out_info.num_tensors;
@@ -830,10 +841,10 @@ ml_single_invoke (ml_single_h single,
   }
 
   /* Validate input data */
-  if (in_data->num_tensors != single_h->in_info.num_tensors) {
+  if (in_data->num_tensors != single_h->in_tensors.num_tensors) {
     ml_loge
         ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
-        in_data->num_tensors, single_h->in_info.num_tensors);
+        in_data->num_tensors, single_h->in_tensors.num_tensors);
     status = ML_ERROR_INVALID_PARAMETER;
     goto exit;
   }
@@ -847,8 +858,7 @@ ml_single_invoke (ml_single_h single,
       goto exit;
     }
 
-    raw_size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
-
+    raw_size = single_h->in_tensors.tensors[i].size;
     if (in_data->tensors[i].size != raw_size) {
       ml_loge
           ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
