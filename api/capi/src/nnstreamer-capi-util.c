@@ -601,6 +601,38 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
 }
 
 /**
+ * @brief Clones the given tensor data frame from the given tensors data. (more info in nnstreamer.h)
+ * @note Memory ptr for data buffer is copied. No new memory for data buffer is allocated.
+ */
+int
+ml_tensors_data_clone_no_alloc (const ml_tensors_data_s * data_src,
+    ml_tensors_data_h * data)
+{
+  ml_tensors_data_s *_data;
+
+  check_feature_state ();
+
+  if (data == NULL || data_src == NULL)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *data = NULL;
+
+  _data = g_try_new0 (ml_tensors_data_s, 1);
+  if (!_data) {
+    ml_loge ("Failed to allocate the tensors data handle.");
+    return ML_ERROR_OUT_OF_MEMORY;
+  }
+
+  _data->num_tensors = data_src->num_tensors;
+  memcpy(_data->tensors, data_src->tensors,
+      sizeof (ml_tensor_data_s) * data_src->num_tensors);
+
+  *data = _data;
+  return ML_ERROR_NONE;
+}
+
+/**
  * @brief Allocates a tensor data frame with the given tensors info. (more info in nnstreamer.h)
  */
 int

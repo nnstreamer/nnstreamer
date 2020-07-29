@@ -337,6 +337,18 @@ void ml_tensors_info_copy_from_ml (GstTensorsInfo *gst_info, const ml_tensors_in
 int ml_tensors_data_create_no_alloc (const ml_tensors_info_h info, ml_tensors_data_h *data);
 
 /**
+ * @brief Creates a tensor data frame without allocating new buffer cloning the given tensors data.
+ * @details If @a data_src is null, this returns error.
+ * @param[in] data_src The handle of tensors data to be cloned.
+ * @param[out] data The handle of tensors data.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory.
+ */
+int ml_tensors_data_clone_no_alloc (const ml_tensors_data_s * data_src, ml_tensors_data_h * data);
+
+/**
  * @brief Initializes the GStreamer library. This is internal function.
  */
 int ml_initialize_gstreamer (void);

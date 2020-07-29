@@ -103,14 +103,13 @@ typedef struct
   GMutex mutex;                       /**< mutex for synchronization */
   GCond cond;                         /**< condition for synchronization */
   ml_tensors_data_h input;            /**< input received from user */
-  ml_tensors_data_h *output;          /**< output to be sent back to user */
+  ml_tensors_data_h output;           /**< output to be sent back to user */
   guint timeout;                      /**< timeout for invoking */
   thread_state state;                 /**< current state of the thread */
   gboolean ignore_output;             /**< ignore and free the output */
   int status;                         /**< status of processing */
 
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];    /**< input tensor wrapper for processing */
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];   /**< output tensor wrapper for processing */
+  ml_tensors_data_s out_tensors;   /**< output tensor wrapper for processing */
 } ml_single;
 
 /**
@@ -121,20 +120,15 @@ static void
 __setup_in_out_tensors (ml_single * single_h)
 {
   int i;
-  GstTensorMemory * out_tensors = single_h->out_tensors;
-  GstTensorMemory * in_tensors = single_h->in_tensors;
-
-  for (i = 0; i < single_h->in_info.num_tensors; i++) {
-    /** memory will be setup during invoke */
-    in_tensors[i].data = NULL;
-    in_tensors[i].size = ml_tensor_info_get_size (&single_h->in_info.info[i]);
-  }
+  ml_tensors_data_s *out_tensors = &single_h->out_tensors;
 
   /** Setup output buffer */
+  out_tensors->num_tensors = single_h->out_info.num_tensors;
   for (i = 0; i < single_h->out_info.num_tensors; i++) {
     /** memory will be allocated by tensor_filter_single */
-    out_tensors[i].data = NULL;
-    out_tensors[i].size = ml_tensor_info_get_size (&single_h->out_info.info[i]);
+    out_tensors->tensors[i].tensor = NULL;
+    out_tensors->tensors[i].size =
+        ml_tensor_info_get_size (&single_h->out_info.info[i]);
   }
 }
 
@@ -144,21 +138,27 @@ __setup_in_out_tensors (ml_single * single_h)
 static inline int
 __invoke (ml_single * single_h)
 {
-  ml_tensors_data_s *in_data;
-  unsigned int i;
+  ml_tensors_data_s *in_data, *out_data;
   int status = ML_ERROR_NONE;
-  GstTensorMemory * out_tensors = single_h->out_tensors;
-  GstTensorMemory * in_tensors = single_h->in_tensors;
+  GstTensorMemory *in_tensors, *out_tensors;
+
+  status = ml_tensors_data_clone_no_alloc (&single_h->out_tensors,
+      &single_h->output);
+  if (status != ML_ERROR_NONE)
+    return status;
 
   in_data = (ml_tensors_data_s *) single_h->input;
-  /** Setup input buffer */
-  for (i = 0; i < in_data->num_tensors; i++) {
-    in_tensors[i].data = in_data->tensors[i].tensor;
-  }
+  out_data = (ml_tensors_data_s *) single_h->output;
+
+  in_tensors = (GstTensorMemory *) in_data->tensors;
+  out_tensors = (GstTensorMemory *) out_data->tensors;
 
   /** invoke the thread */
-  if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors))
+  if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
     status = ML_ERROR_STREAMS_PIPE;
+    ml_tensors_data_destroy (single_h->output);
+    single_h->output = NULL;
+  }
 
   return status;
 }
@@ -166,50 +166,17 @@ __invoke (ml_single * single_h)
 /**
  * @brief Internal function to post-process given output.
  */
-static inline int
+static inline void
 __process_output (ml_single * single_h)
 {
-  unsigned int i;
-  int status = ML_ERROR_NONE;
-  ml_tensors_data_s *out_data;
-  gboolean need_free = TRUE;
-  GstTensorMemory * out_tensors = single_h->out_tensors;
-
-  /** Allocate output buffer */
-  if (single_h->ignore_output == FALSE) {
-    status = ml_tensors_data_create_no_alloc (&single_h->out_info,
-        single_h->output);
-    if (status != ML_ERROR_NONE) {
-      ml_loge ("Failed to allocate the memory block.");
-      (*single_h->output) = NULL;
-      status = ML_ERROR_OUT_OF_MEMORY;
-      goto free_output;
-    }
-
-    /** set the result */
-    need_free = FALSE;
-    out_data = (ml_tensors_data_s *) (*single_h->output);
-    for (i = 0; i < single_h->out_info.num_tensors; i++) {
-      out_data->tensors[i].tensor = out_tensors[i].data;
-      out_tensors[i].data = NULL;
-    }
-  } else {
+  if (single_h->ignore_output == TRUE) {
     /**
      * Caller of the invoke thread has returned back with timeout
      * so, free the memory allocated by the invoke as their is no receiver
      */
-    goto free_output;
+    ml_tensors_data_destroy (single_h->output);
+    single_h->output = NULL;
   }
-
-free_output:
-  if (need_free) {
-    for (i = 0; i < single_h->out_info.num_tensors; i++) {
-      g_free (out_tensors[i].data);
-      out_tensors[i].data = NULL;
-    }
-  }
-
-  return status;
 }
 
 /**
@@ -257,10 +224,7 @@ invoke_thread (void *arg)
     if (status != ML_ERROR_NONE)
       goto wait_for_next;
 
-    status = __process_output (single_h);
-
-    if (status != ML_ERROR_NONE)
-      goto wait_for_next;
+    __process_output (single_h);
 
     /** loop over to wait for the next element */
   wait_for_next:
@@ -524,6 +488,8 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
   single_h->state = IDLE;
   single_h->ignore_output = FALSE;
   single_h->thread = NULL;
+  single_h->input = NULL;
+  single_h->output = NULL;
 
   ml_tensors_info_initialize (&single_h->in_info);
   ml_tensors_info_initialize (&single_h->out_info);
@@ -900,10 +866,8 @@ ml_single_invoke (ml_single_h single,
   }
 
   single_h->input = input;
-  single_h->output = output;
   single_h->state = RUNNING;
   single_h->ignore_output = FALSE;
-
 
   if (single_h->timeout > 0) {
     /* Wake up "invoke_thread" */
@@ -920,12 +884,6 @@ ml_single_invoke (ml_single_h single,
       status = ML_ERROR_TIMED_OUT;
       /** This is set to notify invoke_thread to not process if timedout */
       single_h->ignore_output = TRUE;
-
-      /** Free if any output memory was allocated */
-      if (*single_h->output != NULL) {
-        ml_tensors_data_destroy ((ml_tensors_data_h) * single_h->output);
-        *single_h->output = NULL;
-      }
     }
   } else {
     /**
@@ -939,8 +897,13 @@ ml_single_invoke (ml_single_h single,
     status = __invoke (single_h);
     if (status != ML_ERROR_NONE)
       goto exit;
-    status = __process_output (single_h);
+    __process_output (single_h);
     single_h->state = IDLE;
+  }
+
+  if (single_h->ignore_output == FALSE) {
+    *output = single_h->output;
+    single_h->output = NULL;
   }
 
 exit:
