@@ -11,9 +11,9 @@
  * @see		https://developer.qualcomm.com/software/qualcomm-neural-processing-sdk
  * @author	Yongjoo Ahn <yongjoo1.ahn@samsung.com>
  * @bug		No known bugs except for NYI items
- * 
+ *
  * This is the per-NN-framework plugin (SNPE) for tensor_filter.
- * 
+ *
  * @todo This supports only ITensor for input. Do support IUserBuffer.
  * @todo This supports float32 input output only. Do support Tf8 using IUserBuffer.
  * @todo This supports only CPU runtime on linux-x86_64. Do support others.
@@ -79,7 +79,7 @@ private:
   zdl::DlSystem::TensorMap input_tensor_map;
   zdl::DlSystem::TensorMap output_tensor_map;
   std::vector<std::unique_ptr <zdl::DlSystem::ITensor>> input_tensors;
-  
+
   static const char *name;
   static snpe_subplugin *registeredRepresentation;
 
@@ -129,7 +129,7 @@ void snpe_subplugin::cleanup ()
 {
   if (empty_model)
     return;
-  
+
   if (container) {
     container = nullptr;
   }
@@ -244,7 +244,7 @@ bool snpe_subplugin::parse_custom_prop (const char *custom_prop)
     }
 
     g_strfreev (option);
-    
+
     if (invalid_option)
       break;
   }
@@ -292,7 +292,7 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   model_path = g_strdup (prop->model_files[0]);
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
-  
+
   zdl::SNPE::SNPEBuilder snpe_builder (container.get());
   snpe_builder.setOutputLayers ({});
   snpe_builder.setUseUserSuppliedBuffers (false);
@@ -305,15 +305,15 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     nns_loge ("fail to build snpe");
   }
 
-  const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt = 
+  const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt =
       snpe->getInputTensorNames ();
- 
+
   assert (strList_opt);
 
   const zdl::DlSystem::StringList &strList = *strList_opt;
 
   for (size_t i = 0; i < strList.size (); ++i) {
-    const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt = 
+    const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt =
       snpe->getInputDimensions (strList.at (i));
     const zdl::DlSystem::TensorShape &input_shape = *inputDims_opt;
 
@@ -342,7 +342,7 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
 #endif
 
   /* Configure inputs */
-  for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) { 
+  for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
     float *finput = (float *) input[i].data;
     size_t fsize =  input_tensors[i].get ()->getSize ();
     std::copy (finput, finput + fsize, input_tensors[i].get ()->begin ());
@@ -352,7 +352,7 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   snpe->execute (input_tensor_map, output_tensor_map);
 
   for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-    zdl::DlSystem::ITensor *output_tensor = 
+    zdl::DlSystem::ITensor *output_tensor =
         output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
     float *foutput = (float *) output[i].data;
     std::copy (output_tensor->cbegin (), output_tensor->cend (), foutput);
@@ -404,10 +404,10 @@ void snpe_subplugin::setTensorProp (GstTensorsInfo & tensor_meta,
     tensor_meta.info[i].name = g_strdup (tensor_map.getTensorNames ().at (i));
     tensor_meta.info[i].type = _NNS_FLOAT32;
 
-    unsigned int rank = 
+    unsigned int rank =
       tensor_map.getTensor (tensor_meta.info[i].name)->getShape ().rank ();
     for (unsigned int j = 0; j < rank; ++j) {
-      tensor_meta.info[i].dimension[j] = 
+      tensor_meta.info[i].dimension[j] =
         tensor_map.getTensor (tensor_meta.info[i].name)->getShape () [rank - j - 1];
     }
     for (unsigned int j = rank; j < NNS_TENSOR_RANK_LIMIT; ++j) {
