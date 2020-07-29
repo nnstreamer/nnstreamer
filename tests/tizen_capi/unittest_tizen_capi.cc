@@ -4806,6 +4806,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   in_dim[2] = 1;
   in_dim[3] = 1;
   ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_name (in_info, 0, "input");
   ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
 
@@ -4814,6 +4815,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   out_dim[2] = 1;
   out_dim[3] = 1;
   ml_tensors_info_set_count (out_info, 1);
+  ml_tensors_info_set_tensor_name (out_info, 0, "output");
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 

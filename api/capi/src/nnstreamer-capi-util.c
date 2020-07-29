@@ -550,11 +550,15 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
 
   _data = (ml_tensors_data_s *) data;
 
+  /**
+   * Memory for the all the tensors is allocated at once. Freeing memory at
+   * 0th tensor frees all the allocated memory for the tensors.
+   */
+  if (_data->tensors[0].tensor)
+    g_free (_data->tensors[0].tensor);
+
   for (i = 0; i < ML_TENSOR_SIZE_LIMIT; i++) {
-    if (_data->tensors[i].tensor) {
-      g_free (_data->tensors[i].tensor);
-      _data->tensors[i].tensor = NULL;
-    }
+    _data->tensors[i].tensor = NULL;
   }
 
   g_free (_data);
@@ -609,6 +613,8 @@ ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h * data)
   gint status = ML_ERROR_STREAMS_PIPE;
   ml_tensors_data_s *_data = NULL;
   gint i;
+  void *tensor;
+  size_t total_size = 0;
 
   check_feature_state ();
 
@@ -622,30 +628,32 @@ ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h * data)
 
   status =
       ml_tensors_data_create_no_alloc (info, (ml_tensors_data_h *) & _data);
-
   if (status != ML_ERROR_NONE) {
     return status;
   }
 
+  /** Get the total combined size for the tensor */
   for (i = 0; i < _data->num_tensors; i++) {
-    _data->tensors[i].tensor = g_malloc0 (_data->tensors[i].size);
-    if (_data->tensors[i].tensor == NULL) {
-      status = ML_ERROR_OUT_OF_MEMORY;
-      goto failed;
-    }
+    total_size += _data->tensors[i].size;
+  }
+
+  /** Allocate all the memory at once */
+  tensor = g_malloc0 (total_size);
+  if (tensor == NULL) {
+    ml_tensors_data_destroy (_data);
+    ml_loge ("Failed to allocate the memory block.");
+    return ML_ERROR_OUT_OF_MEMORY;
+  }
+
+  /** Set memory location appropriately */
+  total_size = 0;
+  for (i = 0; i < _data->num_tensors; i++) {
+    _data->tensors[i].tensor = (void *) ((char *) tensor + total_size);
+    total_size += _data->tensors[i].size;
   }
 
   *data = _data;
   return ML_ERROR_NONE;
-
-failed:
-  for (i = 0; i < _data->num_tensors; i++) {
-    g_free (_data->tensors[i].tensor);
-  }
-  g_free (_data);
-
-  ml_loge ("Failed to allocate the memory block.");
-  return status;
 }
 
 /**

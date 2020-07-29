@@ -66,6 +66,8 @@ static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
 /* Private functions */
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_stop (GTensorFilterSingle * self);
+static void g_tensor_filter_single_cache_output_size (GTensorFilterSingle *
+    self);
 
 /**
  * @brief initialize the tensor_filter's class
@@ -100,6 +102,7 @@ g_tensor_filter_single_init (GTensorFilterSingle * self)
   GstTensorFilterPrivate *priv;
 
   priv = &self->priv;
+  self->total_output_size = 0;
 
   gst_tensor_filter_common_init_property (priv);
 }
@@ -214,6 +217,7 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
     return FALSE;
 
   gst_tensor_filter_load_tensor_info (&self->priv);
+  g_tensor_filter_single_cache_output_size (self);
 
   return TRUE;
 }
@@ -233,6 +237,27 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
   /** close framework, unload model */
   gst_tensor_filter_common_close_fw (priv);
   return TRUE;
+}
+
+/**
+ * @brief Cache the output data tensor combined size
+ */
+static void
+g_tensor_filter_single_cache_output_size (GTensorFilterSingle * self)
+{
+  GstTensorFilterPrivate *priv;
+  int i;
+
+  priv = &self->priv;
+
+  self->total_output_size = 0;
+
+  /** Calculate total memory to be allocated */
+  for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
+    self->output_offset[i] = self->total_output_size;
+    self->total_output_size +=
+        gst_tensor_info_get_size (&priv->prop.output_meta.info[i]);
+  }
 }
 
 /**
@@ -278,13 +303,24 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   /** Setup output buffer */
   allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
   if (allocate_in_invoke == FALSE) {
-    /* allocate memory if allocate_in_invoke is FALSE */
-    for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
-      output[i].data = g_malloc (output[i].size);
-      if (!output[i].data) {
+    /** Allocate memory if allocate_in_invoke is FALSE */
+    void *tensor_data;
+
+    /** Allocate all the memory at once */
+    if (self->total_output_size > 0) {
+      tensor_data = g_malloc (self->total_output_size);
+      if (!tensor_data) {
         g_critical ("Failed to allocate the output tensor.");
         goto error;
       }
+
+      /** Setup memory locations */
+      for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
+        output[i].data = (void *) ((char *) tensor_data + self->output_offset[i]);
+      }
+    } else {
+      g_critical ("Failed to allocate output tensor. Info incomplete.");
+      return FALSE;
     }
   }
 
@@ -296,8 +332,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 error:
   /* if failed to invoke the model, release allocated memory. */
   if (allocate_in_invoke == FALSE) {
+    g_free (output[0].data);
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
-      g_free (output[i].data);
       output[i].data = NULL;
     }
   }
@@ -338,6 +374,7 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   if (status == 0) {
     gst_tensors_info_copy (&priv->prop.input_meta, in_info);
     gst_tensors_info_copy (&priv->prop.output_meta, out_info);
+    g_tensor_filter_single_cache_output_size (self);
   }
 
   return status;

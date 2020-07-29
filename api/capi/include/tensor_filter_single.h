@@ -52,6 +52,8 @@ typedef struct _GTensorFilterSingleClass GTensorFilterSingleClass;
 struct _GTensorFilterSingle
 {
   GObject element;     /**< This is the parent object */
+  size_t total_output_size;     /**< Total size of the output tensor data */
+  size_t output_offset[NNS_TENSOR_SIZE_LIMIT];  /**< Offset of each output from base memory */
 
   GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
 };
