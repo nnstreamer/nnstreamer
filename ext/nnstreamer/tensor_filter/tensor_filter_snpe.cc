@@ -449,6 +449,9 @@ static gboolean _snpe_set_env (JNIEnv * env, jobject context)
   const gchar *native_library_dir_path_str;
   gchar *new_path;
 
+  g_return_val_if_fail (env != NULL, FALSE);
+  g_return_val_if_fail (context != NULL, FALSE);
+
   context_class = env->GetObjectClass (context);
   if (!context_class) {
     nns_loge ("Failed to get context class.");

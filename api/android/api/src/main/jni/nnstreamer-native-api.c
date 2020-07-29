@@ -682,13 +682,22 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
 
   G_LOCK (nns_native_lock);
 
-  if (!gst_is_initialized ())
-    gst_android_init (env, context);
+#if !defined (NNS_SINGLE_ONLY)
+  /* single-shot does not require gstreamer */
+  if (!gst_is_initialized ()) {
+    if (env && context) {
+      gst_android_init (env, context);
+    } else {
+      nns_loge ("Invalid params, cannot initialize GStreamer.");
+      goto done;
+    }
+  }
 
   if (!gst_is_initialized ()) {
     nns_loge ("GStreamer is not initialized.");
     goto done;
   }
+#endif
 
   if (nns_is_initilaized == FALSE) {
     /* register nnstreamer plugins */
