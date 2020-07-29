@@ -74,12 +74,15 @@ typedef struct
   nnfw_session *session;
   gchar *model_file;
   accl_hw accelerator;
+
+  NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];   /**< cached input tensor types */
+  NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];  /**< cached output tensor types */
 } nnfw_pdata;
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
 static int nnfw_tensors_info_get (const nnfw_pdata * pdata,
-    const gboolean is_input, GstTensorsInfo * info);
+    const gboolean is_input, GstTensorsInfo * info, NNFW_TYPE * type);
 static int nnfw_tensor_type_from_gst (const tensor_type type,
     NNFW_TYPE * nnfw_type);
 
@@ -245,13 +248,13 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto session_exit;
   }
 
-  err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info);
+  err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info, pdata->in_type);
   if (err) {
     g_printerr ("Error retrieving input info from nnfw-runtime.\n");
     goto session_exit;
   }
 
-  err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info);
+  err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info, pdata->out_type);
   if (err) {
     g_printerr ("Error retrieving output info from nnfw-runtime.\n");
     goto session_exit;
@@ -424,7 +427,7 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
  */
 static int
 nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
-    GstTensorsInfo * info)
+    GstTensorsInfo * info, NNFW_TYPE * type)
 {
   NNFW_STATUS status;
   struct nnfw_tensorinfo nnfw_info_t;
@@ -454,6 +457,8 @@ nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
     err = nnfw_tensor_info_copy (&nnfw_info_t, &info->info[idx]);
     if (err < 0)
       return err;
+
+    type[idx] = nnfw_info_t.dtype;
   }
 
   return 0;
@@ -508,6 +513,8 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   nnfw_pdata *pdata;
   int err, idx;
   GstTensorsInfo updated_info;
+  NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];
+  NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
@@ -528,16 +535,18 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
       goto error;
   }
 
-  err = nnfw_tensors_info_get (pdata, TRUE, &updated_info);
+  err = nnfw_tensors_info_get (pdata, TRUE, &updated_info, in_type);
   if (err || !gst_tensors_info_is_equal (in_info, &updated_info))
     goto error;
 
-  err = nnfw_tensors_info_get (pdata, FALSE, out_info);
+  err = nnfw_tensors_info_get (pdata, FALSE, out_info, out_type);
   if (err)
     goto error;
 
   gst_tensors_info_copy (&pdata->in_info, in_info);
   gst_tensors_info_copy (&pdata->out_info, out_info);
+  memcpy (pdata->in_type, in_type, sizeof (NNFW_TYPE) * NNS_TENSOR_SIZE_LIMIT);
+  memcpy (pdata->out_type, out_type, sizeof (NNFW_TYPE) * NNS_TENSOR_SIZE_LIMIT);
 
   return 0;
 
@@ -593,47 +602,33 @@ nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
     const nnfw_pdata * pdata, const GstTensorMemory * mem,
     const gboolean is_input)
 {
-  NNFW_TYPE nnfw_type;
   NNFW_STATUS nnfw_status;
-  int err = 0;
   guint idx;
   unsigned int num_tensors = 0;
-  const GstTensorsInfo *info;
 
-  g_return_val_if_fail (prop != NULL, -EINVAL);
-  g_return_val_if_fail (mem != NULL, -EINVAL);
-  g_return_val_if_fail (pdata != NULL, -EINVAL);
-  g_return_val_if_fail (pdata->session != NULL, -EPERM);
+  g_return_val_if_fail (
+      G_UNLIKELY (prop != NULL && mem != NULL && pdata != NULL), -EINVAL);
+  g_return_val_if_fail (G_UNLIKELY (pdata->session != NULL), -EPERM);
 
   if (is_input) {
     num_tensors = pdata->in_info.num_tensors;
-    info = &pdata->in_info;
   } else {
     num_tensors = pdata->out_info.num_tensors;
-    info = &pdata->out_info;
   }
 
   for (idx = 0; idx < num_tensors; idx++) {
-    err = nnfw_tensor_type_from_gst (info->info[idx].type, &nnfw_type);
-    if (err != 0)
-      return err;
-
     if (is_input) {
-      g_return_val_if_fail (mem[idx].size ==
-          gst_tensor_info_get_size (&pdata->in_info.info[idx]), -EINVAL);
-      nnfw_status = nnfw_set_input (pdata->session, idx, nnfw_type,
+      nnfw_status = nnfw_set_input (pdata->session, idx, pdata->in_type[idx],
           mem[idx].data, mem[idx].size);
     } else {
-      g_return_val_if_fail (mem[idx].size ==
-          gst_tensor_info_get_size (&pdata->out_info.info[idx]), -EINVAL);
-      nnfw_status = nnfw_set_output (pdata->session, idx, nnfw_type,
+      nnfw_status = nnfw_set_output (pdata->session, idx, pdata->out_type[idx],
           mem[idx].data, mem[idx].size);
     }
     if (nnfw_status != NNFW_STATUS_NO_ERROR)
       return -EINVAL;
   }
 
-  return err;
+  return 0;
 }
 
 /**
@@ -650,15 +645,15 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
   NNFW_STATUS nnfw_status;
 
   start_time = g_get_monotonic_time ();
-  g_return_val_if_fail (private_data != NULL, -EINVAL);
+  g_return_val_if_fail (G_UNLIKELY(private_data != NULL), -EINVAL);
   pdata = (nnfw_pdata *) * private_data;
 
   err = nnfw_tensor_memory_set (prop, pdata, input, TRUE);
-  if (err < 0)
+  if (G_UNLIKELY(err < 0))
     return err;
 
   err = nnfw_tensor_memory_set (prop, pdata, output, FALSE);
-  if (err < 0)
+  if (G_UNLIKELY(err < 0))
     return err;
   stop_time = g_get_monotonic_time ();
 
@@ -668,7 +663,7 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
   nnfw_status = nnfw_run (pdata->session);
   stop_time = g_get_monotonic_time ();
 
-  if (nnfw_status != NNFW_STATUS_NO_ERROR)
+  if (G_UNLIKELY(nnfw_status != NNFW_STATUS_NO_ERROR))
     err = -EINVAL;
 
   nnfw_internal_stats.total_invoke_latency += stop_time - start_time;
