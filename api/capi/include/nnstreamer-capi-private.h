@@ -227,7 +227,7 @@ typedef struct _ml_pipeline_common_elem {
   ml_pipeline *pipe;
   ml_pipeline_element *element;
   guint32 id;
-  callback_info_s *callback_info;   /** < Callback function information, If element is not GstTensorSink or GstAppSink, then it should be NULL */
+  callback_info_s *callback_info;   /**< Callback function information. If element is not GstTensorSink or GstAppSink, then it should be NULL. */
 } ml_pipeline_common_elem;
 
 /**
