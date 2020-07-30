@@ -1701,6 +1701,8 @@ ml_pipeline_element_check_property (GObjectClass *class, const char *property_na
     (type == G_TYPE_ENUM && G_TYPE_IS_ENUM (pspec->value_type)) ||
     (type == G_TYPE_INT64 && pspec->value_type == G_TYPE_LONG) ||
     (type == G_TYPE_UINT64 && pspec->value_type == G_TYPE_ULONG) ||
+    (type == G_TYPE_INT && G_TYPE_IS_ENUM (pspec->value_type)) ||
+    (type == G_TYPE_UINT && G_TYPE_IS_ENUM (pspec->value_type)) ||
     (type == G_TYPE_DOUBLE && pspec->value_type == G_TYPE_FLOAT))) {
     ml_loge ("The type of property name [%s] is '%s'", property_name, g_type_name(pspec->value_type));
     return FALSE;
