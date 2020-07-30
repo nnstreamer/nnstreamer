@@ -6609,6 +6609,12 @@ TEST (nnstreamer_capi_element, set_property_enum_32_p)
   status = ml_pipeline_element_set_property_enum (vscale_h, "method", 5U);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  status = ml_pipeline_element_set_property_int32 (vscale_h, "method", 4);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_uint32 (vscale_h, "method", 2U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   status = ml_pipeline_element_release_handle (vscale_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -6646,7 +6652,7 @@ TEST (nnstreamer_capi_element, set_property_enum_33_n)
   status = ml_pipeline_element_set_property_enum (vscale_h, "WRONG_NAME", 3U);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_uint32 (vscale_h, "method", 3U);
+  status = ml_pipeline_element_set_property_double (vscale_h, "method", 3.0);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (vscale_h);
@@ -6668,6 +6674,7 @@ TEST (nnstreamer_capi_element, get_property_enum_34_p)
   ml_pipeline_element_h vscale_h = nullptr;
   int status;
   uint32_t ret_method;
+  int32_t ret_signed_method;
   gchar *pipeline;
 
   pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
@@ -6695,6 +6702,20 @@ TEST (nnstreamer_capi_element, get_property_enum_34_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (ret_method, 5U);
 
+  status = ml_pipeline_element_set_property_uint32 (vscale_h, "method", 2U);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_uint32 (vscale_h, "method", &ret_method);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_method, 2U);
+
+  status = ml_pipeline_element_set_property_int32 (vscale_h, "method", 4);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_get_property_int32 (vscale_h, "method", &ret_signed_method);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (ret_signed_method, 4);
+
   status = ml_pipeline_element_release_handle (vscale_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -6714,7 +6735,7 @@ TEST (nnstreamer_capi_element, get_property_enum_35_n)
   ml_pipeline_element_h vscale_h = nullptr;
   int status;
   uint32_t ret_method;
-  uint32_t wrong_type;
+  double wrong_type;
   gchar *pipeline;
 
   pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
@@ -6737,7 +6758,7 @@ TEST (nnstreamer_capi_element, get_property_enum_35_n)
   status = ml_pipeline_element_get_property_enum (vscale_h, "WRONG_NAME", &ret_method);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_property_uint32 (vscale_h, "method", &wrong_type);
+  status = ml_pipeline_element_get_property_double (vscale_h, "method", &wrong_type);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (vscale_h);

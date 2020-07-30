@@ -715,7 +715,6 @@ int ml_pipeline_element_set_property_int32 (ml_pipeline_element_h elem_h, const 
 /**
  * @brief Sets the integer 64bit value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports both Integer64 and Long.
  * @param[in] elem_h The target element handle.
  * @param[in] property_name The name of the property.
  * @param[in] value The integer value to be set.
@@ -741,7 +740,6 @@ int ml_pipeline_element_set_property_uint32 (ml_pipeline_element_h elem_h, const
 /**
  * @brief Sets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports both Unsigned Integer64 and Unsigned Long.
  * @param[in] elem_h The target element handle.
  * @param[in] property_name The name of the property.
  * @param[in] value The unsigned integer 64bit value to be set.
@@ -822,7 +820,6 @@ int ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h, const 
 /**
  * @brief Gets the integer 64bit value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports both Integer64 and Long.
  * @param[in] elem_h The target element handle.
  * @param[in] property_name The name of the property.
  * @param[out] value The integer 64bit value of given property.
@@ -832,7 +829,6 @@ int ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h, const 
  * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
  */
 int ml_pipeline_element_get_property_int64 (ml_pipeline_element_h elem_h, const char *property_name, int64_t *value);
-
 
 /**
  * @brief Gets the unsigned integer value of element's property in NNStreamer pipelines.
@@ -850,7 +846,6 @@ int ml_pipeline_element_get_property_uint32 (ml_pipeline_element_h elem_h, const
 /**
  * @brief Gets the unsigned integer 64bit value of element's property in NNStreamer pipelines.
  * @since_tizen 6.0
- * @remarks This function supports both Unsigned Integer64 and Unsigned Long.
  * @param[in] elem_h The target element handle.
  * @param[in] property_name The name of the property.
  * @param[out] value The unsigned integer 64bit value of given property.
