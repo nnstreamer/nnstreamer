@@ -88,6 +88,8 @@ typedef enum { MM_RESOURCE_MANAGER_RES_TYPE_MAX } mm_resource_manager_res_type_e
 #define TIZEN5PLUS 0
 #endif  /* __TIZEN__ */
 
+#define EOS_MESSAGE_TIME_LIMIT 100
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -205,6 +207,7 @@ struct _ml_pipeline {
   GstBus *bus;            /**< The bus of the pipeline */
   gulong signal_msg;      /**< The message signal (connected to bus) */
   GMutex lock;            /**< Lock for pipeline operations */
+  gboolean isEOS;         /**< The pipeline is EOS state */
   GHashTable *namednodes; /**< hash table of "element"s. */
   GHashTable *resources;  /**< hash table of resources to construct the pipeline */
   pipeline_state_cb_s state_cb; /**< Callback to notify the change of pipeline state */
