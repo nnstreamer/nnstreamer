@@ -294,6 +294,9 @@ cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
     return;
 
   switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_EOS:
+      pipe_h->isEOS = TRUE;
+      break;
     case GST_MESSAGE_STATE_CHANGED:
       if (GST_MESSAGE_SRC (message) == GST_OBJECT_CAST (pipe_h->element)) {
         GstState old_state, new_state;
@@ -335,6 +338,26 @@ cleanup_node (gpointer data)
   ml_pipeline_element *e = data;
 
   g_mutex_lock (&e->lock);
+  if (e->type == ML_PIPELINE_ELEMENT_APP_SRC && !e->pipe->isEOS) {
+    int eos_check_cnt = 0;
+
+    /** to push EOS event, the pipeline should be in PLAYING state */
+    gst_element_set_state (e->pipe->element, GST_STATE_PLAYING);
+    
+    if (gst_app_src_end_of_stream (GST_APP_SRC (e->element)) != GST_FLOW_OK) {
+      ml_logw ("Failed to set EOS in %s", e->name);
+    }
+    while (!e->pipe->isEOS) {
+      eos_check_cnt++;
+      /** check EOS every 1ms */
+      g_usleep (1000);
+      if (eos_check_cnt >= EOS_MESSAGE_TIME_LIMIT) {
+        ml_loge ("Failed to get EOS message");
+        break;
+      }
+    }
+  }
+
   g_free (e->name);
   if (e->src)
     gst_object_unref (e->src);
@@ -555,6 +578,7 @@ construct_pipeline_internal (const char *pipeline_description,
 
   g_mutex_init (&pipe_h->lock);
 
+  pipe_h->isEOS = FALSE;
   pipe_h->namednodes =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
 
@@ -662,10 +686,6 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
 
   /* Before changing the state, remove all callbacks. */
   p->state_cb.cb = NULL;
-  if (p->bus) {
-    g_signal_handler_disconnect (p->bus, p->signal_msg);
-    gst_object_unref (p->bus);
-  }
 
   g_hash_table_remove_all (p->namednodes);
   g_hash_table_remove_all (p->resources);
@@ -699,6 +719,11 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
 
     gst_object_unref (p->element);
     p->element = NULL;
+  }
+
+  if (p->bus) {
+    g_signal_handler_disconnect (p->bus, p->signal_msg);
+    gst_object_unref (p->bus);
   }
 
   /* Destroy registered callback handles and resources */
