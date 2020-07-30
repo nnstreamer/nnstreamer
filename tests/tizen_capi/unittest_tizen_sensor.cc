@@ -412,6 +412,46 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 }
 
 /**
+ * @brief Test pipeline creation with not supported sensor (negative)
+ */
+TEST (tizensensor_as_source, virtual_sensor_create_06_n)
+{
+  gchar *pipeline;
+  int status = 0;
+  ml_pipeline_h handle;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_HRM_LED_GREEN ! tensor_sink");
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test pipeline creation with invalid sensor (negative)
+ */
+TEST (tizensensor_as_source, virtual_sensor_create_07_n)
+{
+  gchar *pipeline;
+  int status = 0;
+  ml_pipeline_h handle;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=invalid_sensor ! tensor_sink");
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (pipeline);
+}
+
+/**
  * @brief Test for tizen sensor get property
  */
 TEST (tizensensor_as_source, get_property_1)
@@ -469,7 +509,7 @@ TEST (tizensensor_as_source, get_property_1)
 /**
  * @brief Test for tizen sensor get property
  */
-TEST (tizensensor_as_source, get_propery_2_n)
+TEST (tizensensor_as_source, get_property_2_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -491,6 +531,70 @@ TEST (tizensensor_as_source, get_propery_2_n)
     EXPECT_TRUE (str == NULL);
 
     status = 0;
+    gst_object_unref (sensor_handle);
+    gst_object_unref (gstpipe);
+  } else {
+    status = -1;
+    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n",
+      pipeline, (err) ? err->message : "unknown reason");
+    g_clear_error (&err);
+  }
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for tizen sensor set and get property
+ */
+TEST (tizensensor_as_source, get_property_3_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  int status = 0;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("tensor_src_tizensensor name=srcx ! fakesink");
+  gstpipe = gst_parse_launch (pipeline, &err);
+  if (gstpipe) {
+    guint freq_n, freq_d, mode;
+    GEnumValue sensor_type;
+    GstElement *sensor_handle;
+
+    sensor_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+    EXPECT_NE (sensor_handle, nullptr);
+
+    g_object_set (sensor_handle, "type", SENSOR_HRM_LED_GREEN, NULL);
+    g_object_get (sensor_handle, "type", &sensor_type, NULL);
+    EXPECT_EQ (sensor_type.value, SENSOR_HRM_LED_GREEN);
+
+    g_object_set (sensor_handle, "type", SENSOR_LIGHT, NULL);
+    g_object_get (sensor_handle, "type", &sensor_type, NULL);
+    EXPECT_EQ (sensor_type.value, SENSOR_LIGHT);
+
+    g_object_set (sensor_handle, "mode", 0, NULL);
+    g_object_get (sensor_handle, "mode", &mode, NULL);
+    EXPECT_EQ (mode, 0);
+
+    g_object_set (sensor_handle, "mode", 1, NULL);
+    g_object_get (sensor_handle, "mode", &mode, NULL);
+    EXPECT_NE (mode, 1);
+
+    g_object_set (sensor_handle, "framerate", 0, 1, NULL);
+    g_object_get (sensor_handle, "framerate", &freq_n, &freq_d, NULL);
+    EXPECT_EQ (freq_n, 0);
+    EXPECT_EQ (freq_d, 1);
+
+    g_object_set (sensor_handle, "framerate", 30, 1, NULL);
+    g_object_get (sensor_handle, "framerate", &freq_n, &freq_d, NULL);
+    EXPECT_EQ (freq_n, 30);
+    EXPECT_EQ (freq_d, 1);
+
+    g_object_set (sensor_handle, "framerate", -1, -1, NULL);
+    g_object_get (sensor_handle, "framerate", &freq_n, &freq_d, NULL);
+    EXPECT_NE (freq_n, -1);
+    EXPECT_NE (freq_d, -1);
+
     gst_object_unref (sensor_handle);
     gst_object_unref (gstpipe);
   } else {
