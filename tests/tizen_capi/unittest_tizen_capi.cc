@@ -6475,11 +6475,14 @@ TEST (nnstreamer_capi_element, set_property_double_29_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 0.72);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_element_set_property_double (nullptr, "sharpness", 0.72);
+  EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_double (vscale_h, "sharpness", 1.43);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  status = ml_pipeline_element_set_property_double (vscale_h, "WRONG_NAME", 1.43);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_element_set_property_int32 (vscale_h, "sharpness", 10);
+  EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (vscale_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
