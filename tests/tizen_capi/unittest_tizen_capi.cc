@@ -2227,6 +2227,141 @@ TEST (nnstreamer_capi_util, data_set_tdata_n)
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  */
+TEST (nnstreamer_capi_singleshot, invoke_invalid_param_01_n)
+{
+  ml_single_h single;
+  int status;
+  ml_tensors_info_h in_info;
+  ml_tensors_data_h input, output;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_invoke (NULL, input, &output);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke (single, NULL, &output);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_invoke (single, input, NULL);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+
+skip_test:
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ */
+TEST (nnstreamer_capi_singleshot, invoke_invalid_param_02_n)
+{
+  ml_single_h single;
+  int status;
+  ml_tensors_info_h in_info;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  if (is_enabled_tensorflow_lite) {
+    ASSERT_EQ (status, ML_ERROR_NONE);
+  } else {
+    ASSERT_NE (status, ML_ERROR_NONE);
+    goto skip_test;
+  }
+
+  ml_tensors_info_create (&in_info);
+
+  in_dim[0] = 3;
+  in_dim[1] = 224;
+  in_dim[2] = 224;
+  in_dim[3] = 1;
+  ml_tensors_info_set_count (in_info, 1);
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  /* handle null data */
+  status = ml_tensors_data_create_no_alloc (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (input);
+
+  /* set invalid type to test wrong data size */
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT32);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_data_destroy (input);
+
+  /* set invalid input tensor number */
+  ml_tensors_info_set_count (in_info, 2);
+  ml_tensors_info_set_tensor_type (in_info, 1, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (in_info, 1, in_dim);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+
+skip_test:
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ */
 TEST (nnstreamer_capi_singleshot, invoke_01)
 {
   ml_single_h single;
@@ -3374,7 +3509,7 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Try setting dimensions for input tensor.
  */
-TEST (nnstreamer_capi_singleshot, set_input_info_fail)
+TEST (nnstreamer_capi_singleshot, set_input_info_fail_01_n)
 {
   int status;
   ml_single_h single;
@@ -3432,7 +3567,7 @@ skip_test:
  * @brief Test NNStreamer single shot (tensorflow-lite)
  * @detail Try setting number of input tensors and its type
  */
-TEST (nnstreamer_capi_singleshot, set_input_info_fail_01)
+TEST (nnstreamer_capi_singleshot, set_input_info_fail_02_n)
 {
   ml_single_h single;
   ml_tensors_info_h in_info;

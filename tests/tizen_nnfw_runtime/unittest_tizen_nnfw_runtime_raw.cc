@@ -31,7 +31,9 @@ get_model_file ()
   gchar *model_path;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
-  g_return_val_if_fail (root_path != nullptr, FALSE);
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
 
   /** nnfw needs a directory with model file and metadata in that directory */
   model_path = g_build_filename (root_path, "tests", "test_models", "models",
@@ -306,7 +308,9 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
   size_t max_idx;
   gboolean status;
 
-  ASSERT_NE (root_path, nullptr);
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
 
   /** nnfw needs a directory with model file and metadata in that directory */
   model_file = g_build_filename (root_path, "tests", "test_models", "models",
