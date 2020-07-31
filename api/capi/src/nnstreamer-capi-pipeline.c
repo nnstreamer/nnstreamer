@@ -302,14 +302,14 @@ cb_bus_sync_message (GstBus * bus, GstMessage * message, gpointer user_data)
         GstState old_state, new_state;
 
         gst_message_parse_state_changed (message, &old_state, &new_state, NULL);
+        pipe_h->pipe_state = (ml_pipeline_state_e) new_state;
 
         ml_logd ("The pipeline state changed from %s to %s.",
             gst_element_state_get_name (old_state),
             gst_element_state_get_name (new_state));
 
         if (pipe_h->state_cb.cb) {
-          ml_pipeline_state_e ml_state = (ml_pipeline_state_e) new_state;
-          pipe_h->state_cb.cb (ml_state, pipe_h->state_cb.user_data);
+          pipe_h->state_cb.cb (pipe_h->pipe_state, pipe_h->state_cb.user_data);
         }
       }
       break;
@@ -579,6 +579,7 @@ construct_pipeline_internal (const char *pipeline_description,
   g_mutex_init (&pipe_h->lock);
 
   pipe_h->isEOS = FALSE;
+  pipe_h->pipe_state = ML_PIPELINE_STATE_UNKNOWN;
   pipe_h->namednodes =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, cleanup_node);
 
@@ -676,6 +677,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
   ml_pipeline *p = pipe;
   GstStateChangeReturn scret;
   GstState state;
+  guint check_paused_cnt = 0;
 
   check_feature_state ();
 
@@ -701,13 +703,16 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
       }
     }
 
-    /** @todo Ensure all callbacks are gone. (kill'em all!) THIS IS CRITICAL! */
     g_mutex_unlock (&p->lock);
-    /**
-     * Do 50ms sleep until we have it implemented.
-     * Let them complete. And hope they don't call start().
-     */
-    g_usleep (50000);
+    while (p->pipe_state == ML_PIPELINE_STATE_PLAYING) {
+      check_paused_cnt++;
+      /** check PAUSED every 1ms */
+      g_usleep (1000);
+      if (check_paused_cnt >= WAIT_PAUSED_TIME_LIMIT) {
+        ml_loge ("Failed to wait until state changed to PAUSED");
+        break;
+      }
+    }
     g_mutex_lock (&p->lock);
 
     /* Stop (NULL State) the pipeline */
