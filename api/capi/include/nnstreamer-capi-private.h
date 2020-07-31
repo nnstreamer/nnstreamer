@@ -89,6 +89,7 @@ typedef enum { MM_RESOURCE_MANAGER_RES_TYPE_MAX } mm_resource_manager_res_type_e
 #endif  /* __TIZEN__ */
 
 #define EOS_MESSAGE_TIME_LIMIT 100
+#define WAIT_PAUSED_TIME_LIMIT 100
 
 #ifdef __cplusplus
 extern "C" {
@@ -203,14 +204,15 @@ typedef struct {
  * @details This should not be exposed to applications
  */
 struct _ml_pipeline {
-  GstElement *element;    /**< The pipeline itself (GstPipeline) */
-  GstBus *bus;            /**< The bus of the pipeline */
-  gulong signal_msg;      /**< The message signal (connected to bus) */
-  GMutex lock;            /**< Lock for pipeline operations */
-  gboolean isEOS;         /**< The pipeline is EOS state */
-  GHashTable *namednodes; /**< hash table of "element"s. */
-  GHashTable *resources;  /**< hash table of resources to construct the pipeline */
-  pipeline_state_cb_s state_cb; /**< Callback to notify the change of pipeline state */
+  GstElement *element;            /**< The pipeline itself (GstPipeline) */
+  GstBus *bus;                    /**< The bus of the pipeline */
+  gulong signal_msg;              /**< The message signal (connected to bus) */
+  GMutex lock;                    /**< Lock for pipeline operations */
+  gboolean isEOS;                 /**< The pipeline is EOS state */
+  ml_pipeline_state_e pipe_state; /**< The state of pipeline */
+  GHashTable *namednodes;         /**< hash table of "element"s. */
+  GHashTable *resources;          /**< hash table of resources to construct the pipeline */
+  pipeline_state_cb_s state_cb;   /**< Callback to notify the change of pipeline state */
 };
 
 /**
