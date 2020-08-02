@@ -11,7 +11,7 @@
  *
  * This scales a tensor of [N][y][x][M] to [N][1][1][M]
  *
- * This heavliy suffers from overflows. Do not use this for real applications!!!!!!
+ * This heavily suffers from overflows. Do not use this for real applications!!!!!!
  * @bug		No known bugs except for NYI items
  */
 
