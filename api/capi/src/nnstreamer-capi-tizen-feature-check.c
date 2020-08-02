@@ -42,7 +42,7 @@
 typedef struct
 {
   GMutex mutex;
-  int feature_state;
+  feature_state_t feature_state;
 } feature_info_s;
 
 static feature_info_s *feature_info = NULL;
@@ -58,7 +58,7 @@ ml_tizen_initialize_feature_state (void)
     g_assert (feature_info);
 
     g_mutex_init (&feature_info->mutex);
-    feature_info->feature_state = -1;
+    feature_info->feature_state = NOT_CHECKED_YET;
   }
 }
 
@@ -96,21 +96,21 @@ ml_tizen_get_feature_enabled (void)
   feature_enabled = feature_info->feature_state;
   g_mutex_unlock (&feature_info->mutex);
 
-  if (0 == feature_enabled) {
+  if (NOT_SUPPORTED == feature_enabled) {
     ml_loge ("machine_learning.inference NOT supported");
     return ML_ERROR_NOT_SUPPORTED;
-  } else if (-1 == feature_enabled) {
+  } else if (NOT_CHECKED_YET == feature_enabled) {
     bool ml_inf_supported = false;
     ret =
         system_info_get_platform_bool (ML_INF_FEATURE_PATH, &ml_inf_supported);
     if (0 == ret) {
       if (false == ml_inf_supported) {
         ml_loge ("machine_learning.inference NOT supported");
-        ml_tizen_set_feature_state (0);
+        ml_tizen_set_feature_state (NOT_SUPPORTED);
         return ML_ERROR_NOT_SUPPORTED;
       }
 
-      ml_tizen_set_feature_state (1);
+      ml_tizen_set_feature_state (SUPPORTED);
     } else {
       switch (ret) {
         case SYSTEM_INFO_ERROR_INVALID_PARAMETER:

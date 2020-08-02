@@ -36,6 +36,13 @@
 #if defined (__TIZEN__)
 #include "nnstreamer-tizen-internal.h"
 
+typedef enum
+{
+  NOT_CHECKED_YET = -1,
+  NOT_SUPPORTED = 0,
+  SUPPORTED = 1
+} feature_state_t;
+
 #if defined (__FEATURE_CHECK_SUPPORT__)
 #define check_feature_state() \
   do { \
