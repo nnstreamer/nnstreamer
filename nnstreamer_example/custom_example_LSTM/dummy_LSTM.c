@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <math.h>
 #include <tensor_filter_custom.h>
+#include <glib.h>
 
 #define TSIZE   (4)
 
@@ -67,8 +68,27 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
   assert (data);
+
+  g_free (data->info[0].name);
+  g_free (data->info[1].name);
+  g_free (data->info[2].name);
   free (data);
 }
+
+/**
+ * @brief copy tensor info
+ */
+#define copy_tensor_info(_info, _data) \
+  do { \
+    unsigned int i = 0; \
+    unsigned int num_tensors = 0; \
+    num_tensors = _info->num_tensors; \
+    assert (0 < num_tensors && num_tensors <= NNS_TENSOR_SIZE_LIMIT); \
+    for (i = 0; i < num_tensors; ++i) { \
+      _info->info[i] = _data->info[i]; \
+      _info->info[i].name = g_strdup(_data->info[i].name); \
+    } \
+  } while (0)
 
 /**
  * @brief get the input tensor dimensions of dummy-LSTM (4:4:4 float32, 4:4:4 float32)
@@ -83,10 +103,7 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 3;
-  /** @todo use common function to copy tensor info */
-  info->info[0] = data->info[0];
-  info->info[1] = data->info[1];
-  info->info[2] = data->info[2];
+  copy_tensor_info(info, data);
   return 0;
 }
 
@@ -103,9 +120,7 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
 
   info->num_tensors = 2;
-  /** @todo use common function to copy tensor info */
-  info->info[0] = data->info[0];
-  info->info[1] = data->info[1];
+  copy_tensor_info(info, data);
   return 0;
 }
 
