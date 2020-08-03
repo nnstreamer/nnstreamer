@@ -55,12 +55,12 @@ G_LOCK_DEFINE_STATIC (magic);
 #define ML_SINGLE_GET_VALID_HANDLE_LOCKED(single_h, single, reset) do { \
   G_LOCK (magic); \
   single_h = (ml_single *) single; \
-  if (single_h->magic != ML_SINGLE_MAGIC) { \
+  if (G_UNLIKELY(single_h->magic != ML_SINGLE_MAGIC)) { \
     ml_loge ("The given param, single is invalid."); \
     G_UNLOCK (magic); \
     return ML_ERROR_INVALID_PARAMETER; \
   } \
-  if (reset) \
+  if (G_UNLIKELY(reset)) \
     single_h->magic = 0; \
   g_mutex_lock (&single_h->mutex); \
   G_UNLOCK (magic); \
@@ -804,19 +804,19 @@ ml_single_invoke (ml_single_h single,
 
   check_feature_state ();
 
-  if (!single) {
+  if (G_UNLIKELY(!single)) {
     ml_loge
         ("The first argument of ml_single_invoke() is not valid. Please check the single handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (!input) {
+  if (G_UNLIKELY(!input)) {
     ml_loge
         ("The second argument of ml_single_invoke() is not valid. Please check the input data handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (!output) {
+  if (G_UNLIKELY(!output)) {
     ml_loge
         ("The third argument of ml_single_invoke() is not valid. Please check the output data handle.");
     return ML_ERROR_INVALID_PARAMETER;
@@ -827,21 +827,15 @@ ml_single_invoke (ml_single_h single,
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
 
-  if (!single_h->filter) {
+  if (G_UNLIKELY(!single_h->filter)) {
     ml_loge
         ("The tensor_filter element is not valid. It is not correctly created or already freed.");
     status = ML_ERROR_INVALID_PARAMETER;
     goto exit;
   }
 
-  if (single_h->state == JOIN_REQUESTED) {
-    ml_loge ("The handle is closed or being closed.");
-    status = ML_ERROR_STREAMS_PIPE;
-    goto exit;
-  }
-
   /* Validate input data */
-  if (in_data->num_tensors != single_h->in_tensors.num_tensors) {
+  if (G_UNLIKELY(in_data->num_tensors != single_h->in_tensors.num_tensors)) {
     ml_loge
         ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
         in_data->num_tensors, single_h->in_tensors.num_tensors);
@@ -852,14 +846,14 @@ ml_single_invoke (ml_single_h single,
   for (i = 0; i < in_data->num_tensors; i++) {
     size_t raw_size;
 
-    if (!in_data->tensors[i].tensor) {
+    if (G_UNLIKELY(!in_data->tensors[i].tensor)) {
       ml_loge ("The %d-th input tensor is not valid.", i);
       status = ML_ERROR_INVALID_PARAMETER;
       goto exit;
     }
 
     raw_size = single_h->in_tensors.tensors[i].size;
-    if (in_data->tensors[i].size != raw_size) {
+    if (G_UNLIKELY(in_data->tensors[i].size != raw_size)) {
       ml_loge
           ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
           i, in_data->tensors[i].size, raw_size,
@@ -870,6 +864,11 @@ ml_single_invoke (ml_single_h single,
   }
 
   if (single_h->state != IDLE) {
+    if (G_UNLIKELY(single_h->state == JOIN_REQUESTED)) {
+      ml_loge ("The handle is closed or being closed.");
+      status = ML_ERROR_STREAMS_PIPE;
+      goto exit;
+    }
     ml_loge ("The single invoking thread is not idle.");
     status = ML_ERROR_TRY_AGAIN;
     goto exit;
@@ -919,7 +918,7 @@ ml_single_invoke (ml_single_h single,
 exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
 
-  if (status != ML_ERROR_NONE)
+  if (G_UNLIKELY(status != ML_ERROR_NONE))
     ml_loge ("Failed to invoke the model.");
   return status;
 }
