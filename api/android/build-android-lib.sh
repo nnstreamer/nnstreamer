@@ -64,7 +64,7 @@ enable_tflite="yes"
 tf_lite_ver="1.13.1"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
-nnfw_ver="1.6.1"
+nnfw_ver="1.6.0"
 
 # Parse args
 for arg in "$@"; do
