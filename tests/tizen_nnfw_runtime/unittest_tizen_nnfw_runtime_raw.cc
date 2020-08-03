@@ -405,7 +405,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
 
   /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt */
   max_idx = get_argmax ((guint8 *) output.data, output.size);
-  EXPECT_EQ (max_idx, 951);
+  EXPECT_EQ (max_idx, 951U);
 
   g_free (data_file);
   g_free (output.data);
@@ -969,19 +969,19 @@ new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
   ml_tensor_dimension out_dim;
 
   ml_tensors_info_get_count (info, &cnt);
-  EXPECT_EQ (cnt, 1);
+  EXPECT_EQ (cnt, 1U);
 
   ml_tensors_info_get_tensor_dimension (info, 0, out_dim);
-  EXPECT_EQ (out_dim[0], 1001);
-  EXPECT_EQ (out_dim[1], 1);
-  EXPECT_EQ (out_dim[2], 1);
-  EXPECT_EQ (out_dim[3], 1);
+  EXPECT_EQ (out_dim[0], 1001U);
+  EXPECT_EQ (out_dim[1], 1U);
+  EXPECT_EQ (out_dim[2], 1U);
+  EXPECT_EQ (out_dim[3], 1U);
 
   status =
       ml_tensors_data_get_tensor_data (data, 0, (void **) &data_ptr,
       &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (data_size, 1001);
+  EXPECT_EQ (data_size, 1001U);
 
   *checks = *checks + 1;
 }
@@ -1032,7 +1032,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   if (ret != 0) {
     g_free (model_file);
     g_free (manifest_file);
-    ASSERT_EQ (ret, 0);
+    ASSERT_EQ (ret, 0U);
   }
 
   pipeline =
@@ -1086,7 +1086,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
       ml_tensors_data_get_tensor_data (input_0, 0, (void **) &data0,
       &data_size0);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (data_size0, 3 * 112 * 224);
+  EXPECT_EQ (data_size0, 3U * 112U * 224U);
 
   status = ml_tensors_data_create (info, &input_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
