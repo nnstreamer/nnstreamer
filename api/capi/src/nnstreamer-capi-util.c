@@ -1187,8 +1187,8 @@ ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw)
     [ML_NNFW_TYPE_VIVANTE] = "vivante",
     [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
     [ML_NNFW_TYPE_ARMNN] = "armnn",
-    [ML_NNFW_TYPE_SNAP] = "snap",
     [ML_NNFW_TYPE_SNPE] = "snpe",
+    [ML_NNFW_TYPE_SNAP] = "snap", /* Android only */
     NULL
   };
 
