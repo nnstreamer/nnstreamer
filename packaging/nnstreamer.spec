@@ -13,6 +13,7 @@
 %define		enable_tizen_privilege 1
 %define		enable_tizen_feature 1
 %define		enable_extra_subplugins 1
+%define		package_test 1
 
 %if "%{?profile}" == "tv"
 %define		enable_extra_subplugins 0
@@ -66,6 +67,10 @@
 %define		python_support 0
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
+%endif
+
+%if !0%{?check_test}
+%define package_test 0
 %endif
 
 # If it is tizen, we can export Tizen API packages.
@@ -403,6 +408,14 @@ Requires:	nnstreamer = %{version}-%{release}
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
 %endif
 
+%if 0%{?package_test}
+%package unittests
+Summary:	NNStreamer unittests for core, API and plugins
+Requires:	nnstreamer = %{version}-%{release}
+%description unittests
+Package containing various unittests of the nnstreamer.
+%endif
+
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
@@ -413,6 +426,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 %define enable_tizen_privilege_check -Denable-tizen-privilege-check=true
 %define enable_tizen_feature_check -Denable-tizen-feature-check=true
 %define enable_test -Denable-test=true
+%define install_test -Dinstall-test=false
 
 %if 0%{mvncsdk2_support}
 %define enable_mvncsdk2 -Dmvncsdk2-support=enabled
@@ -424,6 +438,10 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 
 %if !0%{?check_test}
 %define enable_test -Denable-test=false
+%endif
+
+%if 0%{?package_test}
+%define install_test -Dinstall-test=true
 %endif
 
 %if !0%{?enable_tizen_privilege}
@@ -537,7 +555,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} \
+	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -786,6 +804,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_edgetpu.so
 %endif
+
+%if 0%{?package_test}
+%files unittests
+%manifest nnstreamer.manifest
+%{_libdir}/libnnstreamer_unittest_util.so
+%{_prefix}/lib/nnstreamer/unittest
+%endif
+
 
 %changelog
 * Thu Jun 04 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
