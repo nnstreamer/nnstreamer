@@ -105,25 +105,6 @@ public final class TensorsData implements AutoCloseable {
     /**
      * Adds a new tensor data.
      *
-     * @param data The byte array to be added
-     *
-     * @throws IllegalArgumentException if given data is invalid
-     * @throws IndexOutOfBoundsException when the maximum number of tensors in the list
-     */
-    private void addTensorData(@NonNull byte[] data) {
-        if (data == null) {
-            throw new IllegalArgumentException("Given data is null");
-        }
-
-        ByteBuffer buffer = allocateByteBuffer(data.length);
-        buffer.put(data);
-
-        addTensorData(buffer);
-    }
-
-    /**
-     * Adds a new tensor data.
-     *
      * @param data The tensor data to be added
      *
      * @throws IllegalArgumentException if given data is invalid
@@ -132,8 +113,12 @@ public final class TensorsData implements AutoCloseable {
     private void addTensorData(@NonNull ByteBuffer data) {
         int index = getTensorsCount();
 
-        checkByteBuffer(index, data);
+        if (data.isDirect() && data.order() != ByteOrder.nativeOrder()) {
+            /* From native function NewDirectByteBuffer(), we should change the byte order. */
+            data = data.order(ByteOrder.nativeOrder());
+        }
 
+        checkByteBuffer(index, data);
         mDataList.add(data);
     }
 
