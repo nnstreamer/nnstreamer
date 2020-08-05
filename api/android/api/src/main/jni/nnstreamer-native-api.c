@@ -162,7 +162,7 @@ nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
   info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>",
       "(L" NNS_CLS_TINFO ";)V");
   info->mid_add_data = (*env)->GetMethodID (env, info->cls, "addTensorData",
-      "([B)V");
+      "(Ljava/nio/ByteBuffer;)V");
   info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
       "()[Ljava/lang/Object;");
   info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
@@ -408,11 +408,9 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   }
 
   for (i = 0; i < data->num_tensors; i++) {
-    jsize buffer_size = (jsize) data->tensors[i].size;
-    jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
-
-    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
-        (jbyte *) data->tensors[i].tensor);
+    gsize data_size = data->tensors[i].size;
+    gpointer data_ptr = data->tensors[i].tensor;
+    jobject buffer = (*env)->NewDirectByteBuffer (env, data_ptr, data_size);
 
     (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_add_data, buffer);
     (*env)->DeleteLocalRef (env, buffer);
@@ -428,7 +426,7 @@ done:
  */
 gboolean
 nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
-    jobject obj_data, ml_tensors_data_h * data_h, ml_tensors_info_h * info_h)
+    jobject obj_data, gboolean clone, ml_tensors_data_h * data_h, ml_tensors_info_h * info_h)
 {
   guint i;
   data_class_info_s *dcls_info;
@@ -463,19 +461,22 @@ nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
       gsize data_size = (gsize) (*env)->GetDirectBufferCapacity (env, tensor);
       gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor);
 
-      if (data->tensors[i].tensor == NULL)
-        data->tensors[i].tensor = g_malloc (data_size);
-      if (data->tensors[i].tensor == NULL) {
-        nns_loge ("Failed to allocate memory %zd, index %d.", data_size, i);
-        (*env)->DeleteLocalRef (env, tensor);
-        failed = TRUE;
-        goto done;
+      if (clone) {
+        if (data->tensors[i].tensor == NULL)
+          data->tensors[i].tensor = g_malloc (data_size);
+
+        memcpy (data->tensors[i].tensor, data_ptr, data_size);
+      } else {
+        data->tensors[i].tensor = data_ptr;
       }
 
-      memcpy (data->tensors[i].tensor, data_ptr, data_size);
       data->tensors[i].size = data_size;
 
       (*env)->DeleteLocalRef (env, tensor);
+    } else {
+      nns_loge ("Failed to get array element in tensors data object.");
+      failed = TRUE;
+      goto done;
     }
   }
 

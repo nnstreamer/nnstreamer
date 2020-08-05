@@ -225,7 +225,7 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
   single = pipe_info->pipeline_handle;
   in_data = out_data = NULL;
 
-  if (!nns_parse_tensors_data (pipe_info, env, in, &in_data, NULL)) {
+  if (!nns_parse_tensors_data (pipe_info, env, in, FALSE, &in_data, NULL)) {
     nns_loge ("Failed to parse input tensors data.");
     goto done;
   }
@@ -242,7 +242,8 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
   }
 
 done:
-  ml_tensors_data_destroy (in_data);
+  /* do not free input tensors (direct access from object) */
+  g_free (in_data);
   ml_tensors_data_destroy (out_data);
   return result;
 }

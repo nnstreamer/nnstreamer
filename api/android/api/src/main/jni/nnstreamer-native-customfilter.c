@@ -127,7 +127,7 @@ nns_customfilter_invoke (const ml_tensors_data_h in, ml_tensors_data_h out,
     goto done;
   }
 
-  if (!nns_parse_tensors_data (pipe_info, env, obj_out_data, &out, NULL)) {
+  if (!nns_parse_tensors_data (pipe_info, env, obj_out_data, TRUE, &out, NULL)) {
     nns_loge ("Failed to parse output data.");
     goto done;
   }

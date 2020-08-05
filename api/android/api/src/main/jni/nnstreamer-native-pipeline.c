@@ -516,13 +516,13 @@ nns_native_pipe_input_data (JNIEnv * env, jobject thiz, jlong handle,
     goto done;
   }
 
-  if (!nns_parse_tensors_data (pipe_info, env, in, &in_data, NULL)) {
+  if (!nns_parse_tensors_data (pipe_info, env, in, FALSE, &in_data, NULL)) {
     nns_loge ("Failed to parse input data.");
     goto done;
   }
 
   status = ml_pipeline_src_input_data (src, in_data,
-      ML_PIPELINE_BUF_POLICY_AUTO_FREE);
+      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   if (status != ML_ERROR_NONE) {
     nns_loge ("Failed to input tensors data to source node %s.", element_name);
     goto done;
@@ -532,6 +532,8 @@ nns_native_pipe_input_data (JNIEnv * env, jobject thiz, jlong handle,
 
 done:
   (*env)->ReleaseStringUTFChars (env, name, element_name);
+  /* do not free input tensors (direct access from object) */
+  g_free (in_data);
   return res;
 }
 
