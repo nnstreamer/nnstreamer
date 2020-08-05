@@ -65,6 +65,7 @@ tf_lite_ver="1.13.1"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
 nnfw_ver="1.6.0"
+enable_nnfw_ext="no"
 
 # Parse args
 for arg in "$@"; do
@@ -114,6 +115,9 @@ for arg in "$@"; do
         --enable_nnfw=*)
             enable_nnfw=${arg#*=}
             ;;
+        --enable_nnfw_ext=*)
+            enable_nnfw_ext=${arg#*=}
+            ;;
         --enable_snpe=*)
             enable_snpe=${arg#*=}
             ;;
@@ -133,6 +137,7 @@ elif [[ $build_type == "internal" ]]; then
 
     enable_snap="no"
     enable_nnfw="yes"
+    enable_nnfw_ext="yes"
     enable_snpe="no"
     enable_tflite="no"
 
@@ -152,6 +157,10 @@ if [[ $enable_nnfw == "yes" ]]; then
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for NNFW." && exit 1
 
     echo "Build with NNFW $nnfw_ver"
+
+    if [[ $enable_nnfw_ext == "yes" ]]; then
+        [ -z "$NNFW_DIRECTORY" ] && echo "Need to set NNFW_DIRECTORY, to get NNFW-ext library." && exit 1
+    fi
 fi
 
 if [[ $enable_snpe == "yes" ]]; then
@@ -237,6 +246,11 @@ fi
 
 if [[ $enable_nnfw == "yes" ]]; then
     wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-$nnfw_ver-android-aarch64.tar.gz
+
+   # You should get ONE-EXT release and copy it into NNFW_DIRECTORY.
+   if [[ $enable_nnfw_ext == "yes" ]]; then
+      cp $NNFW_DIRECTORY/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz ./$build_dir/external
+   fi
 fi
 
 pushd ./$build_dir
@@ -271,6 +285,11 @@ if [[ $enable_nnfw == "yes" ]]; then
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android.mk
     mkdir -p api/src/main/jni/nnfw
     tar -zxf ./external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C ./api/src/main/jni/nnfw
+
+    if [[ $enable_nnfw_ext == "yes" ]]; then
+        sed -i "s|ENABLE_NNFW_EXT := false|ENABLE_NNFW_EXT := true|" api/src/main/jni/Android-nnfw-prebuilt.mk
+        tar -zxf ./external/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz -C ./api/src/main/jni/nnfw
+    fi
 fi
 
 # Update SNPE option
