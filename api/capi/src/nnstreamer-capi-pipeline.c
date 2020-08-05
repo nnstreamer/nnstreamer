@@ -66,7 +66,7 @@ unlock_return: \
   return ret;
 
 /**
- * @brief Internal function to create a refereable element in a pipeline
+ * @brief Internal function to create a referable element in a pipeline
  */
 static ml_pipeline_element *
 construct_element (GstElement * e, ml_pipeline * p, const char *name,
