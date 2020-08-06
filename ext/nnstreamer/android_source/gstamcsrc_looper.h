@@ -49,6 +49,7 @@ class Looper {
     Looper ();
 
     void loop (void);
+    void start (void);
     void exit (void);
     void post (gint cmd, void *data, bool flush);
     void add_msg (looper_message *new_msg, bool flush);
