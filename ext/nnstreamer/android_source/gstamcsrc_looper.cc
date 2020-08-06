@@ -42,21 +42,28 @@
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
 /**
- * @brief Looper constructor; it creates a looper thread
+ * @brief Looper constructor
  */
-Looper::Looper() 
+Looper::Looper()
 {
-  pthread_attr_t attr;
-
   head = NULL;
   running = FALSE;
   num_msg = 0;
+  handle = NULL;
 
   pthread_mutex_init(&mutex, NULL);
   pthread_cond_init(&cond, NULL);
+}
+
+/**
+ * @brief Creates a looper thread
+ */
+void Looper::start(void)
+{
+  pthread_attr_t attr;
 
   pthread_attr_init (&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED); 
+  pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
 
   pthread_create (&thread, &attr, entry, this);
 
@@ -69,7 +76,7 @@ Looper::Looper()
  * @param[in] data argument
  * @param[in] flush whether flushing the pending messages
  */
-void Looper::post(gint cmd, void *data, bool flush) 
+void Looper::post(gint cmd, void *data, bool flush)
 {
   looper_message *msg = new looper_message();
 
@@ -85,7 +92,7 @@ void Looper::post(gint cmd, void *data, bool flush)
  * @param[in] new_msg new message to append
  * @param[in] flush whether flushing the pending messages
  */
-void Looper::add_msg(looper_message *new_msg, bool flush) 
+void Looper::add_msg(looper_message *new_msg, bool flush)
 {
   looper_message *msg;
 
@@ -107,10 +114,10 @@ void Looper::add_msg(looper_message *new_msg, bool flush)
   /** Append new message */
   if (head) {
     msg = head;
-    while (msg->next) 
+    while (msg->next)
       msg = msg->next;
     msg->next = new_msg;
-  } else 
+  } else
     head = new_msg;
 
   num_msg++;
@@ -122,7 +129,7 @@ void Looper::add_msg(looper_message *new_msg, bool flush)
 /**
  * @brief looper's entry function
  */
-void* Looper::entry(void *data) 
+void* Looper::entry(void *data)
 {
   ((Looper*)data)->loop();
   return NULL;
@@ -131,7 +138,7 @@ void* Looper::entry(void *data)
 /**
  * @brief looper's loop function
  */
-void Looper::loop(void) 
+void Looper::loop(void)
 {
   LOG ("AMC looper started!");
   running = TRUE;
@@ -142,7 +149,7 @@ void Looper::loop(void)
     /** Wait new message */
     pthread_mutex_lock (&mutex);
     while (!(num_msg > 0)) {
-      pthread_cond_wait (&cond, &mutex); 
+      pthread_cond_wait (&cond, &mutex);
     }
 
     msg = head;
@@ -150,8 +157,9 @@ void Looper::loop(void)
     num_msg--;
 
     pthread_mutex_unlock (&mutex);
-   
-    handle (msg->cmd, msg->data);
+
+    if (handle)
+      handle (msg->cmd, msg->data);
     delete msg;
   }
 
@@ -173,13 +181,16 @@ void Looper::exit(void)
 void *
 Looper_new (void)
 {
-  return new Looper();
+  Looper *looper = new Looper();
+
+  looper->start();
+  return looper;
 }
 
 /**
  * @brief C-wrapper for Looper post function
  */
-void 
+void
 Looper_post (void *looper, gint cmd, void *data, gboolean flush)
 {
   ((Looper*) looper)->post (cmd, data, flush);
