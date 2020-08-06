@@ -722,13 +722,13 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
       return ML_ERROR_STREAMS_PIPE;
     }
 
+    if (p->bus) {
+      g_signal_handler_disconnect (p->bus, p->signal_msg);
+      gst_object_unref (p->bus);
+    }
+
     gst_object_unref (p->element);
     p->element = NULL;
-  }
-
-  if (p->bus) {
-    g_signal_handler_disconnect (p->bus, p->signal_msg);
-    gst_object_unref (p->bus);
   }
 
   /* Destroy registered callback handles and resources */
