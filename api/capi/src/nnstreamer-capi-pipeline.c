@@ -343,7 +343,7 @@ cleanup_node (gpointer data)
 
     /** to push EOS event, the pipeline should be in PLAYING state */
     gst_element_set_state (e->pipe->element, GST_STATE_PLAYING);
-    
+
     if (gst_app_src_end_of_stream (GST_APP_SRC (e->element)) != GST_FLOW_OK) {
       ml_logw ("Failed to set EOS in %s", e->name);
     }
@@ -1193,17 +1193,12 @@ ml_pipeline_src_input_data (ml_pipeline_src_h h, ml_tensors_data_h data,
   /* Create buffer to be pushed from buf[] */
   buffer = gst_buffer_new ();
   for (i = 0; i < _data->num_tensors; i++) {
+    mem_data = _data->tensors[i].tensor;
     mem_size = _data->tensors[i].size;
 
-    if (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) {
-      mem_data = _data->tensors[i].tensor;
-    } else {
-      /** @todo later work, remove memcpy() */
-      mem_data = g_memdup (_data->tensors[i].tensor, mem_size);
-    }
-
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        mem_data, mem_size, 0, mem_size, mem_data, g_free);
+        mem_data, mem_size, 0, mem_size, mem_data,
+        (policy == ML_PIPELINE_BUF_POLICY_AUTO_FREE) ? g_free : NULL);
 
     gst_buffer_append_memory (buffer, mem);
     /** @todo Verify that gst_buffer_append lists tensors/gstmem in the correct order */
