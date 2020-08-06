@@ -21,13 +21,13 @@ import android.support.annotation.NonNull;
  * Provides interfaces to create a custom-filter in the pipeline.<br>
  * <br>
  * To register a new custom-filter, an application should call
- * {@link #registerCustomFilter(String, TensorsInfo, TensorsInfo, CustomFilterCallback)}
+ * {@link #create(String, TensorsInfo, TensorsInfo, Callback)}
  * before constructing the pipeline.
  */
 public final class CustomFilter implements AutoCloseable {
     private long mHandle = 0;
     private String mName = null;
-    private CustomFilterCallback mCallback = null;
+    private Callback mCallback = null;
 
     private native long nativeInitialize(String name, TensorsInfo in, TensorsInfo out);
     private native void nativeDestroy(long handle);
@@ -35,9 +35,9 @@ public final class CustomFilter implements AutoCloseable {
     /**
      * Interface definition for a callback to be invoked while processing the pipeline.
      *
-     * @see #registerCustomFilter(String, TensorsInfo, TensorsInfo, CustomFilterCallback)
+     * @see #create(String, TensorsInfo, TensorsInfo, Callback)
      */
-    public interface CustomFilterCallback {
+    public interface Callback {
         /**
          * Called synchronously while processing the pipeline.
          *
@@ -52,10 +52,11 @@ public final class CustomFilter implements AutoCloseable {
     }
 
     /**
-     * Registers new custom-filter with input and output tensors information.
+     * Creates new custom-filter with input and output tensors information.
      *
      * NNStreamer processes the tensors with 'custom-easy' framework which can execute without the model file.
-     * Note that if given name is duplicated in the pipeline, the registration will be failed and throw an exception.
+     * Note that if given name is duplicated in the pipeline or same name already exists,
+     * the registration will be failed and throw an exception.
      *
      * @param name     The name of custom-filter
      * @param in       The input tensors information
@@ -64,11 +65,11 @@ public final class CustomFilter implements AutoCloseable {
      *
      * @return {@link CustomFilter} instance
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to initialize custom-filter
      */
-    public static CustomFilter registerCustomFilter(@NonNull String name, @NonNull TensorsInfo in,
-            @NonNull TensorsInfo out, @NonNull CustomFilterCallback callback) {
+    public static CustomFilter create(@NonNull String name, @NonNull TensorsInfo in,
+            @NonNull TensorsInfo out, @NonNull Callback callback) {
         return new CustomFilter(name, in, out, callback);
     }
 
@@ -89,10 +90,10 @@ public final class CustomFilter implements AutoCloseable {
      * @param out      The output tensors information
      * @param callback The function to be called while processing the pipeline
      *
-     * @throws IllegalArgumentException if given param is null
+     * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if failed to initialize custom-filter
      */
-    private CustomFilter(String name, TensorsInfo in, TensorsInfo out, CustomFilterCallback callback) {
+    private CustomFilter(String name, TensorsInfo in, TensorsInfo out, Callback callback) {
         if (name == null) {
             throw new IllegalArgumentException("Given name is null");
         }

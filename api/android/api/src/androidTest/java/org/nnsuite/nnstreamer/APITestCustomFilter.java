@@ -60,8 +60,8 @@ public class APITestCustomFilter {
             TensorsInfo outputInfo = inputInfo.clone();
 
             /* register custom-filter (passthrough) */
-            mCustomPassthrough = CustomFilter.registerCustomFilter("custom-passthrough",
-                    inputInfo, outputInfo, new CustomFilter.CustomFilterCallback() {
+            mCustomPassthrough = CustomFilter.create("custom-passthrough",
+                    inputInfo, outputInfo, new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
@@ -70,8 +70,8 @@ public class APITestCustomFilter {
 
             /* register custom-filter (convert data type to float) */
             outputInfo.setTensorType(0, NNStreamer.TensorType.FLOAT32);
-            mCustomConvert = CustomFilter.registerCustomFilter("custom-convert",
-                    inputInfo, outputInfo, new CustomFilter.CustomFilterCallback() {
+            mCustomConvert = CustomFilter.create("custom-convert",
+                    inputInfo, outputInfo, new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     TensorsInfo info = in.getTensorsInfo();
@@ -94,8 +94,8 @@ public class APITestCustomFilter {
 
             /* register custom-filter (add constant) */
             inputInfo.setTensorType(0, NNStreamer.TensorType.FLOAT32);
-            mCustomAdd = CustomFilter.registerCustomFilter("custom-add",
-                    inputInfo, outputInfo, new CustomFilter.CustomFilterCallback() {
+            mCustomAdd = CustomFilter.create("custom-add",
+                    inputInfo, outputInfo, new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     TensorsInfo info = in.getTensorsInfo();
@@ -211,8 +211,8 @@ public class APITestCustomFilter {
 
         TensorsInfo outputInfo = inputInfo.clone();
 
-        CustomFilter customDrop = CustomFilter.registerCustomFilter("custom-drop",
-                inputInfo, outputInfo, new CustomFilter.CustomFilterCallback() {
+        CustomFilter customDrop = CustomFilter.create("custom-drop",
+                inputInfo, outputInfo, new CustomFilter.Callback() {
             int received = 0;
 
             @Override
@@ -283,8 +283,8 @@ public class APITestCustomFilter {
         TensorsInfo outputInfo = inputInfo.clone();
 
         try {
-            CustomFilter.registerCustomFilter(null, inputInfo, outputInfo,
-                    new CustomFilter.CustomFilterCallback() {
+            CustomFilter.create(null, inputInfo, outputInfo,
+                    new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
@@ -303,8 +303,8 @@ public class APITestCustomFilter {
         outputInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{10});
 
         try {
-            CustomFilter.registerCustomFilter("custom-invalid-info", null, outputInfo,
-                    new CustomFilter.CustomFilterCallback() {
+            CustomFilter.create("custom-invalid-info", null, outputInfo,
+                    new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
@@ -323,8 +323,8 @@ public class APITestCustomFilter {
         inputInfo.addTensorInfo(NNStreamer.TensorType.INT32, new int[]{10});
 
         try {
-            CustomFilter.registerCustomFilter("custom-invalid-info", inputInfo, null,
-                    new CustomFilter.CustomFilterCallback() {
+            CustomFilter.create("custom-invalid-info", inputInfo, null,
+                    new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
@@ -345,7 +345,7 @@ public class APITestCustomFilter {
         TensorsInfo outputInfo = inputInfo.clone();
 
         try {
-            CustomFilter.registerCustomFilter("custom-invalid-cb", inputInfo, outputInfo, null);
+            CustomFilter.create("custom-invalid-cb", inputInfo, outputInfo, null);
 
             fail();
         } catch (Exception e) {
@@ -361,8 +361,8 @@ public class APITestCustomFilter {
         TensorsInfo outputInfo = inputInfo.clone();
 
         try {
-            CustomFilter.registerCustomFilter(mCustomPassthrough.getName(), inputInfo, outputInfo,
-                    new CustomFilter.CustomFilterCallback() {
+            CustomFilter.create(mCustomPassthrough.getName(), inputInfo, outputInfo,
+                    new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
@@ -383,8 +383,8 @@ public class APITestCustomFilter {
         TensorsInfo outputInfo = inputInfo.clone();
 
         try {
-            CustomFilter.registerCustomFilter("auto", inputInfo, outputInfo,
-                    new CustomFilter.CustomFilterCallback() {
+            CustomFilter.create("auto", inputInfo, outputInfo,
+                    new CustomFilter.Callback() {
                 @Override
                 public TensorsData invoke(TensorsData in) {
                     return in;
