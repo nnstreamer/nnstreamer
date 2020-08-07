@@ -5,14 +5,14 @@
 # Copyright (C) 2018 Samsung Electronics
 #
 # This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Library General Public
+# modify it under the terms of the GNU Lesser General Public
 # License as published by the Free Software Foundation;
 # version 2.1 of the License.
 #
 # This library is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Library General Public License for more details.
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# Lesser General Public License for more details.
 
 ##
 # @file   nnstreamer-toolkit.py
@@ -156,14 +156,14 @@ class PyApp(gtk.Window):
       md.destroy()
 
    def on_color(self, widget):
-      #Color Chooser Dialog usage cde
+      # Color Chooser Dialog usage code
       dlg = gtk.ColorSelectionDialog("Select color")
       col = dlg.run()
       sel = dlg.colorsel.get_current_color()
       self.text.modify_fg(gtk.STATE_NORMAL, sel)
 
    def on_abtdlg(self, widget):
-      #About Dialog usage code
+      # About Dialog usage code
       about = gtk.AboutDialog()
       about.set_program_name("NNStreamer Toolkit")
       about.set_version("0.0.1")
