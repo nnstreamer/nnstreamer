@@ -891,7 +891,7 @@ ml_single_invoke (ml_single_h single,
     } else {
       ml_logw ("Wait for invoke has timed out");
       status = ML_ERROR_TIMED_OUT;
-      /** This is set to notify invoke_thread to not process if timedout */
+      /** This is set to notify invoke_thread to not process if timed out */
       single_h->ignore_output = TRUE;
     }
   } else {
