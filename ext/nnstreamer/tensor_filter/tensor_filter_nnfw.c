@@ -62,7 +62,7 @@ static const gchar *nnfw_accl_default = ACCL_CPU_STR;
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
 
-GstTensorFilterFrameworkStatistics nnfw_internal_stats;
+static GstTensorFilterFrameworkStatistics nnfw_internal_stats;
 
 /**
  * @brief private data structure for the nnfw framework

@@ -63,7 +63,7 @@ static const gchar *tflite_accl_auto = ACCL_CPU_STR;
 #endif
 static const gchar *tflite_accl_default = ACCL_CPU_STR;
 
-GstTensorFilterFrameworkStatistics tflite_internal_stats;
+static GstTensorFilterFrameworkStatistics tflite_internal_stats;
 
 /**
  * @brief Wrapper class for TFLite Interpreter to support model switching
