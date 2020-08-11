@@ -1258,7 +1258,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   if (self->mode == TZN_SENSOR_MODE_POLLING) {
     sensor_event_s *event;
     int count = 0;
-    gint64 ts, duration;
+    gint64 duration;
     int ret;
 
     /* 1. Read sensor data directly from Tizen API */
@@ -1282,20 +1282,10 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
     /* 2. Do not timestamp. Let BaseSrc timestamp */
 
-    /* 2-1. Find out the delay already occured */
-    /* ts and event->timestamp are in microseconds */
-    ts = g_get_monotonic_time ();
-    if ((ts + (((guint64) self->interval_ms) * 1000)) < event->timestamp) {
-      GST_ERROR_OBJECT (self,
-          "Timestamp of the Tizen sensor is from the future.");
-      retval = GST_FLOW_ERROR;
-      goto exit_unmap;
-    }
-
     nns_logd ("read sensor_data at %" GST_TIME_FORMAT,
         GST_TIME_ARGS (event->timestamp * 1000));
 
-    /* 2-2. Set duration so that BaseSrc handles the frequency */
+    /* 3. Set duration so that BaseSrc handles the frequency */
     if (self->freq_n == 0)
       /* 100ms */
       duration = 100 * 1000 * 1000;
@@ -1305,7 +1295,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
     GST_BUFFER_DURATION (buffer) = duration;
 
-    /* 3. Write values to buffer. Be careful on type casting */
+    /* 4. Write values to buffer. Be careful on type casting */
     _ts_assign_values (event->values, event->value_count, &map, self->src_spec);
   } else {
     /** NYI! */
