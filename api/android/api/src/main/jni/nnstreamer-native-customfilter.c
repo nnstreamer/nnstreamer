@@ -202,6 +202,8 @@ nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name,
 
 done:
   (*env)->ReleaseStringUTFChars (env, name, model_name);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
 
   if (!is_done) {
     nns_destroy_pipe_info (pipe_info, env);
