@@ -1,0 +1,28 @@
+version: 2
+test:
+  - name: GTEST_CPP_EXAMPLE
+    testCaseLanguage: CPP
+    testFW: GTEST
+    testCaseFolder:
+      - ./tests/
+  
+    testFile:
+      - extension: cc
+        starts:
+          - unittest
+ 
+    testCase:
+      - condition:
+        - functionName:
+            starts:
+              - 'TEST'
+ 
+    negativeTestCase:
+      - condition:
+        - testName:
+            ends:
+              - _n
+
+    positiveTestCase:
+      - condition:
+        - inverse: negativeTestCase
