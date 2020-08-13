@@ -163,5 +163,13 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
 extern gboolean
 nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean def);
 
+/**
+ * @brief NNStreamer configuration dump as string.
+ * @param[out] str Preallocated string for the output (dump).
+ * @param[in] size The size of given str.
+ */
+extern void
+nnsconf_dump (gchar * str, gulong size);
+
 G_END_DECLS
 #endif /* __GST_NNSTREAMER_CONF_H__ */
