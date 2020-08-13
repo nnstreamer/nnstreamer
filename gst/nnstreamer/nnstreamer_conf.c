@@ -320,6 +320,7 @@ nnsconf_loadconf (gboolean force_reload)
   if (TRUE == force_reload && TRUE == conf.loaded) {
     /* Do Clean Up */
     g_free (conf.conffile);
+    conf.conffile = NULL;
 
     for (t = 0; t < NNSCONF_PATH_END; t++) {
 
@@ -360,6 +361,7 @@ nnsconf_loadconf (gboolean force_reload)
     if (!g_file_test (conf.conffile, G_FILE_TEST_IS_REGULAR)) {
       /* File not found or not configured */
       g_free (conf.conffile);
+      conf.conffile = NULL;
 
       if (g_file_test (NNSTREAMER_DEFAULT_CONF_FILE, G_FILE_TEST_IS_REGULAR)) {
         conf.conffile = g_strdup (NNSTREAMER_DEFAULT_CONF_FILE);
@@ -558,4 +560,52 @@ nnsconf_get_custom_value_bool (const gchar * group, const gchar * key,
 
   g_free (strval);
   return ret;
+}
+
+#define STR_BOOL(x) ((x) ? "TRUE" : "FALSE")
+/**
+ * @brief Print out configurations
+ * @todo Add more configuration values to dump.
+ */
+void
+nnsconf_dump (gchar * str, gulong size)
+{
+  gchar *cur = str;
+  gulong _size = size;
+  gint len;
+
+  if (FALSE == conf.loaded)
+    nnsconf_loadconf (FALSE);
+
+  len = g_snprintf (cur, _size,
+      "Configuration Loaded: %s\n"
+      "Configuration file path: %s\n"
+      "    Candidates: envvar(NNSTREAMER_CONF): %s\n"
+      "                build-config: %s\n"
+      "                hard-coded: %s\n"
+      "[Common]\n"
+      "  Enable envvar: %s\n"
+      "  Enable sym-linked subplugins: %s\n"
+      "[Filter]\n"
+      "  Filter paths from .ini: %s\n"
+      "             from envvar: %s\n"
+      "         from hard-coded: %s\n", STR_BOOL (conf.loaded),
+      /* 1. Configuration file path */
+      (conf.conffile ? conf.conffile : "<error> config file not loaded"),
+#ifdef __TIZEN__
+      "Not available (Tizen)",
+#else
+      g_getenv (NNSTREAMER_ENVVAR_CONF_FILE),
+#endif
+      NNSTREAMER_CONF_FILE, NNSTREAMER_DEFAULT_CONF_FILE,
+      /* 2. [Common] */
+      STR_BOOL (conf.enable_envvar), STR_BOOL (conf.enable_symlink),
+      /* 3. [Filter] */
+      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI],
+      (conf.enable_envvar) ?
+      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_ENVVAR] : "<disabled>",
+      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_HARDCODE]);
+
+  if (len <= 0)
+    g_printerr ("Config dump is too large. The results show partially.\n");
 }
