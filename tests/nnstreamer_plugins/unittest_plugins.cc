@@ -128,18 +128,14 @@
 /**
  * @brief Macro for tensor filter auto option test
  */
-#define TEST_TENSOR_FILTER_AUTO_OPTION_P(pipeline_desc, fw_name) do { \
-  GstElement *gstpipe, *filter; \
+#define TEST_TENSOR_FILTER_AUTO_OPTION_P(gstpipe, fw_name) do { \
+  GstElement *filter; \
   gchar *prop_string; \
- \
-  gstpipe = gst_parse_launch (pipeline_desc, NULL); \
-  g_free (pipeline_desc); \
-  EXPECT_TRUE (gstpipe != nullptr); \
   \
   filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter"); \
   EXPECT_NE (filter, nullptr); \
   g_object_get (filter, "framework", &prop_string, NULL); \
-  EXPECT_STREQ (prop_string, #fw_name); \
+  EXPECT_STREQ (prop_string, fw_name); \
   \
   g_free (prop_string); \
   g_free (test_model); \
@@ -150,40 +146,29 @@
 /**
  * @brief Macro for check errorneous pipeline
  */
-#define TEST_TENSOR_FILTER_AUTO_OPTION_N(pipeline_desc, fw_name) do { \
-  GError *err = NULL; \
+#define TEST_TENSOR_FILTER_AUTO_OPTION_N(gstpipe, fw_name) do { \
   int status = 0; \
-  GstElement *gstpipe; \
   GstStateChangeReturn ret; \
   \
-  gstpipe = gst_parse_launch (pipeline_desc, &err); \
-  if (gstpipe) { \
-    status = 0; \
-    \
-    if ( fw_name ) { \
-      GstElement *filter; \
-      gchar *prop_string; \
-      filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter"); \
-      EXPECT_NE (filter, nullptr); \
-      g_object_get (filter, "framework", &prop_string, NULL); \
-      EXPECT_STREQ (prop_string, fw_name); \
-      gst_object_unref (filter); \
-    } \
-    gst_element_set_state (gstpipe, GST_STATE_PLAYING); \
-    g_usleep(100000); \
-    ret = gst_element_get_state (gstpipe, NULL, NULL, GST_CLOCK_TIME_NONE); \
-    EXPECT_TRUE (ret == GST_STATE_CHANGE_FAILURE); \
-    \
-    gst_object_unref (gstpipe); \
-  } else { \
-    status = -1; \
-    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n", \
-      pipeline_desc, (err) ? err->message : "unknown reason"); \
-    g_clear_error (&err); \
+  status = 0; \
+  if ( fw_name ) { \
+    GstElement *filter; \
+    gchar *prop_string; \
+    filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter"); \
+    EXPECT_NE (filter, nullptr); \
+    g_object_get (filter, "framework", &prop_string, NULL); \
+    EXPECT_STREQ (prop_string, fw_name); \
+    gst_object_unref (filter); \
   } \
+  gst_element_set_state (gstpipe, GST_STATE_PLAYING); \
+  g_usleep(100000); \
+  ret = gst_element_get_state (gstpipe, NULL, NULL, GST_CLOCK_TIME_NONE); \
+  EXPECT_TRUE (ret == GST_STATE_CHANGE_FAILURE); \
+  \
+  gst_object_unref (gstpipe); \
+  \
   EXPECT_EQ (status, 0); \
   \
-  g_free (pipeline_desc); \
 } while (0);
 
 #define wait_for_element_state(element,state) do { \
@@ -3952,10 +3937,15 @@ TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
 TEST (test_tensor_filter, framework_auto_ext_tflite_01)
 {
   gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow-lite";
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter framework=auto model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, tensorflow-lite)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 }
 
 /**
@@ -3965,10 +3955,15 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_01)
 TEST (test_tensor_filter, framework_auto_ext_tflite_02)
 {
   gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow-lite";
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter model=%s framework=auto ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, tensorflow-lite)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 }
 
 /**
@@ -3978,10 +3973,15 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_02)
 TEST (test_tensor_filter, framework_auto_ext_tflite_03)
 {
   gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow-lite";
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter model=%s framework=AutO ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, tensorflow-lite)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 }
 
 /**
@@ -3993,6 +3993,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
 
   if (root_path == NULL)
     root_path = "..";
@@ -4000,7 +4001,10 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
   test_model = g_build_filename (root_path, "tests", "test_models", "models", "mirage.tflite", NULL);
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=auto model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
 }
@@ -4013,10 +4017,14 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
+  GstElement *gstpipe;
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.invalid)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=auto model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
 }
@@ -4030,13 +4038,18 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
   int ret;
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
+  GstElement *gstpipe;
+
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   ret = g_chmod (test_model, 0000);
   EXPECT_TRUE (ret == 0);
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=auto model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   ret = g_chmod (test_model, 0664);
   EXPECT_TRUE (ret == 0);
@@ -4053,9 +4066,13 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
+  GstElement *gstpipe;
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=auta model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
 }
@@ -4068,10 +4085,14 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
+  GstElement *gstpipe;
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter framework=auto model=%s input=784:1 ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
 }
@@ -4084,10 +4105,14 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
+  GstElement *gstpipe;
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter framework=auto model=%s  inputtype=float32 ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
 }
@@ -4100,10 +4125,15 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
 TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
 {
   gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "nnfw";
   GET_MODEL_PATH (mobilenet_v1_1.0_224_quant.tflite)
 
   str_launch_line = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter framework=auto model=%s ! tensor_sink", test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, nnfw)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
 
@@ -4115,6 +4145,8 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
 TEST (test_tensor_filter, framework_auto_ext_pb_01)
 {
   gchar *test_model, *str_launch_line, *data_path;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow";
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
@@ -4127,7 +4159,10 @@ TEST (test_tensor_filter, framework_auto_ext_pb_01)
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter name=tfilter framework=auto model=%s input=784:1 inputtype=float32 inputname=input output=10:1 outputtype=float32 outputname=softmax ! tensor_sink", data_path, test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, tensorflow)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 
   g_free (data_path);
 }
@@ -4141,6 +4176,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
   gchar *test_model, *str_launch_line, *data_path;
   const gchar *fw_name = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
 
   if (root_path == NULL)
     root_path = "..";
@@ -4152,7 +4188,10 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter name=tfilter framework=auto model=%s input=784:1 inputtype=float32 inputname=input output=10:1 outputtype=float32 outputname=softmax ! tensor_sink", data_path, test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
   g_free (data_path);
@@ -4167,6 +4206,8 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
 TEST (test_tensor_filter, framework_auto_ext_pb_03)
 {
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "caffe2";
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
@@ -4181,7 +4222,10 @@ TEST (test_tensor_filter, framework_auto_ext_pb_03)
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=%s,%s inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, caffe2)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 
   g_free (test_model_2);
   g_free (data_path);
@@ -4197,6 +4241,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
   const gchar *fw_name = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
 
   if (root_path == NULL)
     root_path = "..";
@@ -4210,7 +4255,10 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
   ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter name=tfilter framework=caffe2 model=%s,%s inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink", data_path, test_model, test_model_2);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (test_model);
   g_free (test_model_2);
@@ -4226,6 +4274,8 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
 TEST (test_tensor_filter, framework_auto_ext_pt_01)
 {
   gchar *test_model, *str_launch_line, *image_path;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "pytorch";
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   if (root_path == NULL)
@@ -4238,7 +4288,10 @@ TEST (test_tensor_filter, framework_auto_ext_pt_01)
   ASSERT_TRUE (g_file_test (image_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter name=tfilter framework=auto model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink", image_path, test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_P (str_launch_line, pytorch)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name)
 
   g_free (image_path);
 }
@@ -4253,6 +4306,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
 
   if (root_path == NULL)
     root_path = "..";
@@ -4264,7 +4318,10 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
   ASSERT_TRUE (g_file_test (image_path, G_FILE_TEST_EXISTS));
 
   str_launch_line = g_strdup_printf ("filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=auto model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink", image_path, test_model);
-  TEST_TENSOR_FILTER_AUTO_OPTION_N (str_launch_line, fw_name)
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name)
 
   g_free (image_path);
   g_free (test_model);

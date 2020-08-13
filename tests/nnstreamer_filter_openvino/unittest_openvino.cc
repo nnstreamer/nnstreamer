@@ -1110,8 +1110,8 @@ TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   std::string str_test_model;
-  gchar *test_model_xml;
-  gchar *test_model_bin;
+  gchar *test_model_xml = NULL;
+  gchar *test_model_bin = NULL;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -1121,10 +1121,13 @@ TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
       "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
       .append (TensorFilterOpenvino::extXml).c_str (),
       NULL);
+  EXPECT_EQ (g_file_test (test_model_xml, G_FILE_TEST_IS_REGULAR), TRUE);
+
   test_model_bin = g_build_filename (root_path, "tests", "test_models",
       "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
       .append (TensorFilterOpenvino::extBin).c_str (),
       NULL);
+  EXPECT_EQ (g_file_test (test_model_bin, G_FILE_TEST_IS_REGULAR), TRUE);
 
   TEST_BLOB (InferenceEngine::Precision::FP32, _NNS_FLOAT32);
   TEST_BLOB (InferenceEngine::Precision::U8, _NNS_UINT8);
