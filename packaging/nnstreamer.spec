@@ -542,6 +542,7 @@ Package containing various unittests of the nnstreamer.
 %endif
 
 %prep
+rm -rf ./build
 %setup -q
 cp %{SOURCE1001} .
 %if %{with tizen}
