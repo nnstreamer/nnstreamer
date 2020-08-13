@@ -188,6 +188,20 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
+# Disable pytorch and caffe2 for ubuntu version less than 18.04
+pytorch_dep = dependency('', required: false)
+caffe2_dep = dependency('', required: false)
+if (not get_option('pytorch-support').disabled()) or (not get_option('caffe2-support').disabled())
+  os_name = run_command('sed', ['-n', '-e', '/\<NAME\>/ s/.*\= *//p', '/etc/os-release']).stdout()
+  os_version = run_command('sed', ['-n', '-e', '/VERSION_ID/ s/.*\= *//p', '/etc/os-release']).stdout()
+  if os_name.contains('Ubuntu') and os_version.version_compare('<16.04')
+    message('pytorch and caffe2 support is only for Ubuntu version 18.04 or higher')
+  else
+    pytorch_dep = declare_dependency()
+    caffe2_dep = declare_dependency()
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -212,10 +226,12 @@ features = {
   },
   'pytorch-support': {
     'target': 'pytorch',
+    'extra_deps': [ pytorch_dep ],
     'project_args': { 'ENABLE_PYTORCH': 1 }
   },
   'caffe2-support': {
     'target': 'caffe2',
+    'extra_deps': [ caffe2_dep ],
     'project_args': { 'ENABLE_CAFFE2': 1 }
   },
   'mvncsdk2-support': {
