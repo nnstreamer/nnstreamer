@@ -60,7 +60,7 @@ enable_snpe="no"
 # Enable tensorflow-lite
 enable_tflite="yes"
 
-# Set tensorflow-lite version (available: 1.9.0/1.13.1/1.15.2)
+# Set tensorflow-lite version (available: 1.9.0 / 1.13.1 / 1.15.2 / 2.3.0)
 tf_lite_ver="1.13.1"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
@@ -169,6 +169,10 @@ if [[ $enable_snpe == "yes" ]]; then
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNPE." && exit 1
 
     echo "Build with SNPE: $SNPE_DIRECTORY"
+fi
+
+if [[ $enable_tflite == "yes" ]]; then
+    echo "Build with tensorflow-lite $tf_lite_ver"
 fi
 
 if [[ $release_bintray == "yes" ]]; then
