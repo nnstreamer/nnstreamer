@@ -396,7 +396,7 @@ NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2
 
 %if 0%{openvino_support}
 %package	openvino
-Summary:	NNStreamer OpenVino support support
+Summary:	NNStreamer OpenVino support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	openvino
 Group:		Multimedia/Framework
