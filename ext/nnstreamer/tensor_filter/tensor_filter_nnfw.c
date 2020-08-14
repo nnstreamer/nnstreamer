@@ -327,6 +327,9 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
     case NNFW_TYPE_TENSOR_INT32:
       *type = _NNS_INT32;
       break;
+    case NNFW_TYPE_TENSOR_INT64:
+      *type = _NNS_INT64;
+      break;
     case NNFW_TYPE_TENSOR_QUANT8_ASYMM:
       /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
       *type = _NNS_UINT8;
@@ -577,6 +580,9 @@ nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
       break;
     case _NNS_INT32:
       *nnfw_type = NNFW_TYPE_TENSOR_INT32;
+      break;
+    case _NNS_INT64:
+      *nnfw_type = NNFW_TYPE_TENSOR_INT64;
       break;
     case _NNS_UINT8:
       /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
