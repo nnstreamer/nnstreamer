@@ -28,6 +28,8 @@
  *
  * option1: Decoder mode of bounding box.
  *          Available: tflite-ssd (single shot multibox detector with priors.)
+ *                     tf-ssd
+ *                     ov-person-detection
  * option2: Location of label file
  *          This is independent from option1
  * option3: Location of box prior file (ssd) or any option1-dependent values
@@ -65,12 +67,16 @@ void fini_bb (void) __attribute__ ((destructor));
 /* font.c */
 extern uint8_t rasters[][13];
 
-#define BOX_SIZE                  4
-#define TFLITE_SSD_DETECTION_MAX  1917
-#define TFLITE_SSD_MAX_TENSORS    2
-#define TF_SSD_DETECTION_MAX      100
-#define TF_SSD_MAX_TENSORS        4
-#define PIXEL_VALUE               (0xFF0000FF)  /* RED 100% in RGBA */
+#define BOX_SIZE                                (4)
+#define TFLITE_SSD_DETECTION_MAX                (1917)
+#define TFLITE_SSD_MAX_TENSORS                  (2U)
+#define TF_SSD_DETECTION_MAX                    (100)
+#define TF_SSD_MAX_TENSORS                      (4U)
+#define OV_PERSON_DETECTION_MAX                 (200U)
+#define OV_PERSON_DETECTION_MAX_TENSORS         (1U)
+#define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
+#define OV_PERSON_DETECTION_CONF_THRESHOLD      (0.8)
+#define PIXEL_VALUE                             (0xFF0000FF) /* RED 100% in RGBA */
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -86,6 +92,7 @@ typedef enum
 {
   TFLITE_SSD_BOUNDING_BOX = 0,
   TF_SSD_BOUNDING_BOX = 1,
+  OV_PERSON_DETECTION_BOUNDING_BOX = 2,
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -95,6 +102,7 @@ typedef enum
 static const char *bb_modes[] = {
   [TFLITE_SSD_BOUNDING_BOX] = "tflite-ssd",
   [TF_SSD_BOUNDING_BOX] = "tf-ssd",
+  [OV_PERSON_DETECTION_BOUNDING_BOX] = "ov-person-detection",
   NULL,
 };
 
@@ -133,6 +141,7 @@ typedef struct
   guint i_height; /**< Input Video Height */
 
   guint max_detection;
+  gboolean flag_use_label;
 } bounding_boxes;
 
 /** @brief Initialize bounding_boxes per mode */
@@ -143,6 +152,8 @@ _init_modes (bounding_boxes * bdata)
     /* properties_TFLite_SSD *data = &bdata->tflite-ssd; */
     return TRUE;
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+    return TRUE;
+  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
     return TRUE;
   }
   return TRUE;
@@ -166,6 +177,7 @@ bb_init (void **pdata)
   bdata->height = 0;
   bdata->i_width = 0;
   bdata->i_height = 0;
+  bdata->flag_use_label = FALSE;
 
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
@@ -180,6 +192,7 @@ _exit_modes (bounding_boxes * bdata)
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* properties_TFLite_SSD *data = &bdata->tflite_ssd; */
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
   }
 }
 
@@ -412,6 +425,18 @@ _check_tensors (const GstTensorsConfig * config, const int limit)
 }
 
 /**
+ * @brief check the label relevant properties are valid
+*/
+static gboolean
+_check_label_props(bounding_boxes * data)
+{
+  if ((!data->label_path) || (!data->labeldata.labels) ||
+      (data->labeldata.total_labels <= 0))
+    return FALSE;
+  return TRUE;
+}
+
+/**
  * @brief set the max_detection
 */
 static int
@@ -521,6 +546,22 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     if (!_set_max_detection (data, max_detection, TF_SSD_DETECTION_MAX)) {
       return NULL;
     }
+  } else if (data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
+    const guint *dim;
+
+    if (!_check_tensors (config, OV_PERSON_DETECTION_MAX_TENSORS))
+      return NULL;
+
+    /**
+     * The shape of the ouput tensor is [7, N, 1, 1], where N is the maximum
+     * number (i.e., 200) of detected bounding boxes.
+     */
+    dim = config->info.info[0].dimension;
+    g_return_val_if_fail (dim[0] == OV_PERSON_DETECTION_SIZE_DETECTION_DESC,
+        NULL);
+    g_return_val_if_fail (dim[1] == OV_PERSON_DETECTION_MAX, NULL);
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
+      g_return_val_if_fail (dim[i] == 1, NULL);
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
@@ -749,6 +790,53 @@ nms (GArray * results)
 #define _get_objects_tf_(type, typename) \
   _get_objects_tf (bdata, type, typename, (mem_num->data), (mem_classes->data), (mem_scores->data), (mem_boxes->data), config, results)
 
+/**
+ * @brief C++-Template-like box location calculation for OpenVino Person Detection Model
+ * @param[in] bb The configuration, "bounding_boxes"
+ * @param[in] type The tensor type of inputptr
+ * @param[in] intputptr Input tensor Data
+ * @param[in] typename nnstreamer enum corresponding to the type
+ * @param[out] results The object returned. (GArray with detectedObject)
+ */
+#define _get_persons_ov(bb, type, inputptr, typename, results) \
+  case typename: \
+  { \
+    detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0 }; \
+    type *typed_inputptr = (type *) inputptr; \
+    guint d; \
+    \
+    for (d = 0; d < OV_PERSON_DETECTION_MAX; ++d) { \
+      struct { \
+        type image_id; \
+        type label; \
+        type conf; \
+        type x_min; \
+        type y_min; \
+        type x_max; \
+        type y_max; \
+      } desc; \
+      \
+      memcpy (&desc, typed_inputptr, sizeof(desc)); \
+      typed_inputptr += (sizeof(desc) / sizeof(type)); \
+      object.valid = FALSE; \
+      \
+      if (desc.image_id < 0) { \
+        bb->max_detection = (int) (d - 1); \
+        break; \
+      } \
+      object.class_id = -1; \
+      object.x = (int) (desc.x_min * (type) bb->i_width); \
+      object.y = (int) (desc.y_min * (type) bb->i_height); \
+      object.width = (int) ((desc.x_max  - desc.x_min) * (type) bb->i_width); \
+      object.height = (int) ((desc.y_max - desc.y_min)* (type) bb->i_height); \
+      if (desc.conf < OV_PERSON_DETECTION_CONF_THRESHOLD) \
+        continue; \
+      object.prob = 1; \
+      object.valid = TRUE; \
+      g_array_append_val (results, object); \
+    } \
+  } \
+  break
 
 /**
  * @brief Draw with the given results (obejcts[TFLITE_SSD_DETECTION_MAX]) to the output buffer
@@ -770,7 +858,9 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     int label_len;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
-    if (a->class_id <= 0 || a->class_id >= bdata->labeldata.total_labels) {
+
+    if ((bdata->flag_use_label) &&
+        ((a->class_id <= 0 || a->class_id >= bdata->labeldata.total_labels))) {
       /** @todo make it "logw_once" after we get logw_once API. */
       ml_logw ("Invalid class found with tensordec-boundingbox.c.\n");
       continue;
@@ -780,7 +870,6 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     x1 = (bdata->width * a->x) / bdata->i_width;
     x2 = MIN (bdata->width - 1,
         (bdata->width * (a->x + a->width)) / bdata->i_width);
-
     y1 = (bdata->height * a->y) / bdata->i_height;
     y2 = MIN (bdata->height - 1,
         (bdata->height * (a->y + a->height)) / bdata->i_height);
@@ -806,26 +895,28 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     }
 
     /* 2. Write Labels */
-    label = bdata->labeldata.labels[a->class_id];
-    label_len = strlen (label);
-    /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
-    y1 = MAX (0, (y1 - 14));
-    pos1 = &frame[y1 * bdata->width + x1];
-    for (j = 0; j < label_len; j++) {
-      unsigned int char_index = label[j];
-      if ((x1 + 8) > bdata->width)
-        break;                  /* Stop drawing if it may overfill */
-      pos2 = pos1;
-      for (y2 = 0; y2 < 13; y2++) {
-        /* 13 : character height */
-        for (x2 = 0; x2 < 8; x2++) {
-          /* 8: character width */
-          *(pos2 + x2) = singleLineSprite[char_index][y2][x2];
+    if (bdata->flag_use_label) {
+      label = bdata->labeldata.labels[a->class_id];
+      label_len = strlen (label);
+      /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
+      y1 = MAX (0, (y1 - 14));
+      pos1 = &frame[y1 * bdata->width + x1];
+      for (j = 0; j < label_len; j++) {
+        unsigned int char_index = label[j];
+        if ((x1 + 8) > bdata->width)
+          break;                  /* Stop drawing if it may overfill */
+        pos2 = pos1;
+        for (y2 = 0; y2 < 13; y2++) {
+          /* 13 : character height */
+          for (x2 = 0; x2 < 8; x2++) {
+            /* 8: character width */
+            *(pos2 + x2) = singleLineSprite[char_index][y2][x2];
+          }
+          pos2 += bdata->width;
         }
-        pos2 += bdata->width;
+        x1 += 9;
+        pos1 += 9;                /* charater width + 1px */
       }
-      x1 += 9;
-      pos1 += 9;                /* charater width + 1px */
     }
   }
 }
@@ -840,9 +931,15 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
-  const int num_tensors = config->info.num_tensors;
+  const guint num_tensors = config->info.num_tensors;
 
   g_assert (outbuf);
+
+  if (_check_label_props(bdata))
+    bdata->flag_use_label = TRUE;
+  else
+    bdata->flag_use_label = FALSE;
+
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
@@ -919,13 +1016,34 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       default:
         g_assert (0);
     }
+  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
+        OV_PERSON_DETECTION_MAX);
+
+    /* Already checked with getOutCaps. Thus, this is an internal bug */
+    g_assert (num_tensors >= OV_PERSON_DETECTION_MAX_TENSORS);
+
+    switch (config->info.info[0].type) {
+      _get_persons_ov(bdata, uint8_t, input[0].data, _NNS_UINT8, results);
+      _get_persons_ov(bdata, int8_t, input[0].data, _NNS_INT8, results);
+      _get_persons_ov(bdata, uint16_t, input[0].data, _NNS_UINT16, results);
+      _get_persons_ov(bdata, int16_t, input[0].data, _NNS_INT16, results);
+      _get_persons_ov(bdata, uint32_t, input[0].data, _NNS_UINT32, results);
+      _get_persons_ov(bdata, int32_t, input[0].data, _NNS_INT32, results);
+      _get_persons_ov(bdata, uint64_t, input[0].data, _NNS_UINT64, results);
+      _get_persons_ov(bdata, int64_t, input[0].data, _NNS_INT64, results);
+      _get_persons_ov(bdata, float, input[0].data, _NNS_FLOAT32, results);
+      _get_persons_ov(bdata, double, input[0].data, _NNS_FLOAT64, results);
+      default:
+        g_assert (0);
+    }
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
     return GST_FLOW_ERROR;
   }
 
   draw (&out_info, bdata, results);
-  g_array_free (results, TRUE);
+  g_array_free (results, FALSE);
 
   gst_memory_unmap (out_mem, &out_info);
 
