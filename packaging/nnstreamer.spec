@@ -432,6 +432,11 @@ Requires:	nnstreamer = %{version}-%{release}
 Package containing various unittests of the nnstreamer.
 %endif
 
+%package util
+Summary:	NNStreamer developer utilities
+%description util
+NNStreamer developer utilities include nnstreamer configuration checker.
+
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
@@ -610,8 +615,17 @@ export NNSTREAMER_CONVERTERS=$(pwd)/build/ext/nnstreamer/tensor_converter
 
 python tools/development/count_test_cases.py build tests/summary.txt
 
+pushd tools/development/confchk
+    rm -rf build
+    meson --prefix=%{_prefix} build
+    ninja -C build
+popd
+
 %install
 DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
+pushd tools/development/confchk
+DESTDIR=%{buildroot} ninja -C build install
+popd
 
 pushd %{buildroot}%{_libdir}
 ln -sf %{gstlibdir}/libnnstreamer.so libnnstreamer.so
@@ -840,6 +854,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_openvino.so
 %endif
+
+%files util
+%{_bindir}/nnstreamer-check
 
 %changelog
 * Thu Jun 04 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
