@@ -463,7 +463,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
   status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_AUTO);
+      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_CPU);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* let's ignore timeout (30 sec) */

@@ -666,7 +666,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   /* set accelerator, framework, model files and custom option */
   fw_name = ml_get_nnfw_subplugin_name (nnfw);
   hw_name = ml_nnfw_to_str_prop (hw);
-  g_object_set (filter_obj, "accelerator", hw_name, "framework", fw_name,
+  g_object_set (filter_obj, "framework", fw_name, "accelerator", hw_name,
       "model", info->models, NULL);
   g_free (hw_name);
 
