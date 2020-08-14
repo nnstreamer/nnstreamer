@@ -96,7 +96,7 @@ function run_pipeline() {
 }
 
 arch=$(uname -m)
-if [ "$arch" = "armv7l" ]; then
+if [ "$arch" = "aarch64" ] || [ "$arch" = "armv7l" ]; then
   auto_accl="cpu.neon"
 elif [ "$arch" = "x86_64" ]; then
   auto_accl="cpu.simd"
@@ -188,6 +188,11 @@ testResult $? 2-16 "NNAPI activation test" 0 1
 run_pipeline true:${auto_accl},cpu
 cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-17 "NNAPI activation test" 0 1
+
+# Property reading test for nnapi before setting the framework (analogous test is 2-3)
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log 2>info
+cat info | grep "nnapi = 1, accl = gpu$"
+testResult $? 2-18 "NNAPI activation test" 0 1
 
 # Cleanup
 rm info

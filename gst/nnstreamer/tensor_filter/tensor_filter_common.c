@@ -95,6 +95,10 @@ static const gchar *regex_accl_elem_utils[] = {
  */
 static GList *parse_accl_hw_all (const gchar * accelerators,
     const gchar ** supported_accelerators);
+static gint _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value);
+static gint _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
+    GstTensorFilterProperties * prop, const GValue * value);
 
 /**
  * @brief GstTensorFilter properties.
@@ -1005,7 +1009,9 @@ static gint
 _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
+  gint status;
   const gchar *fw_name = g_value_get_string (value);
+  GValue val = G_VALUE_INIT;
 
   if (priv->fw != NULL) {
     if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
@@ -1019,6 +1025,29 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
   }
 
   gst_tensor_filter_get_available_framework (priv, fw_name);
+
+  /** set PROP_IS_UPDATABLE in case it was set before framework */
+  g_value_init (&val, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&val, priv->is_updatable);
+  status = _gtfc_setprop_IS_UPDATABLE (priv, prop, &val);
+  g_value_unset (&val);
+  if (status != 0) {
+    g_warning ("Set propery is-updatable failed with error: %d", status);
+    return status;
+  }
+
+  /** set PROP_ACCELERATOR in case it was set before framework */
+  if (prop->accl_str) {
+    g_value_init (&val, G_TYPE_STRING);
+    g_value_set_string (&val, prop->accl_str);
+    status = _gtfc_setprop_ACCELERATOR (priv, prop, &val);
+    g_value_unset (&val);
+    if (status != 0) {
+      g_warning ("Set propery accelerator failed with error: %d", status);
+      return status;
+    }
+  }
+
   return 0;
 }
 
@@ -1318,11 +1347,15 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     return 0;
   }
 
-  if (GST_TF_FW_V0 (priv->fw)) {
-    g_free_const (prop->accl_str);
+  if (priv->fw) {
+    if (GST_TF_FW_V0 (priv->fw)) {
+      g_free_const (prop->accl_str);
+      prop->accl_str = g_strdup (accelerators);
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
+    }
+  } else {
     prop->accl_str = g_strdup (accelerators);
-  } else if (GST_TF_FW_V1 (priv->fw)) {
-    gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
   }
   return 0;
 }
@@ -1332,13 +1365,17 @@ static gint
 _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
-  if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
-    return 0;
-  } else if (GST_TF_FW_V1 (priv->fw) &&
-      priv->fw->eventHandler (priv->fw, prop, priv->privateData, RELOAD_MODEL,
-          NULL)
-      == -ENOENT) {
-    return 0;
+  if (priv->fw) {
+    if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
+      priv->is_updatable = FALSE;
+      return 0;
+    } else if (GST_TF_FW_V1 (priv->fw) &&
+        priv->fw->eventHandler (priv->fw, prop, priv->privateData, RELOAD_MODEL,
+            NULL)
+        == -ENOENT) {
+      priv->is_updatable = FALSE;
+      return 0;
+    }
   }
 
   priv->is_updatable = g_value_get_boolean (value);
