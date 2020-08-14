@@ -1,3 +1,50 @@
+1.5.3 -> 1.6.0
+	- This is an official release for Tizen (6.0-M2) and Android developers. 1.6.y will be an LTS released with hotfixes in the future. We will move on to 1.7.0 after this release.
+
+	- Tizen
+		- Minor API and documentation updates
+		- APIs for custom filters
+		- C API latency optimization
+
+	- Android
+		- Java API latency optimization
+		- nnfw (ONE) runtime support, custom-easy support.
+		- Size optimization for products.
+
+	- Major features
+		- Plug-and-play sub-plugins for converters
+		- Flatbuf --> NNStreamer converter
+		- Protobuf --> NNStreamer converter
+		- NNStreamer --> Flatbuf decoder
+		- NNStreamer-Check utility for nnstreamer developers.
+		- Decoders accept dynamic configurations.
+		- Converters may emit multi-tensor streams.
+		- NNShark subproject being integrated.
+		- Tensorflow-lite 2 support
+
+	- Minor features
+		- Decoder subplugins w/ NEON support (depth/deeplab)
+		- Unregister for custom-easy
+		- Version fetching mechanisms.
+		- More profiling capabilities.
+		- Edge-AI examples and tests.
+		- NNFW support for latest versions and more tensor types.
+		- Product-wise size and build-time optimization.
+		- Memory operation optimization.
+		- More exception handling routines.
+		- NEON and other CPU optimization techniques determined in run-time.
+
+	- Fixes
+		- Each instance of a custom filter or subplugin now have independent properties.
+		- Decoder (image-seg), performance profiling property of filter
+		- Transform negotiation errors, auto-fw filter, repo-sink, memory leaks
+		- Build-deps cleaned up, Code-style check setup for C++,
+		- Edge-TPU & Movidius subplugins tested and fixed.
+		- Packaging issues, permission issues of sensor-src (Tizen)
+		- Caffe2/Pytorch w/ Protobuf issues. Per-arch build and test issues.
+		- EOS handling with APIs.
+		- 0 SVACE and 0 Coverity issues.
+
 1.5.2 -> 1.5.3
 	- Mediapipe's graphs (NNStreamer pipeline equivalent) may be embedded as an element in NNStreamer pipeline
 	- Qualcomm SNPE is supported (tensor-filter subplugin)

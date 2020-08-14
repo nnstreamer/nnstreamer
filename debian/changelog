@@ -1,3 +1,9 @@
+nnstreamer (1.6.0.0) unstable xenial bionic; urgency=medium
+
+  * 1.6.0 Release (LTS for Tizen 6.0 M2 / Android-next products)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 09 Sep 2020 19:09:53 +0900
+
 nnstreamer (1.5.3.0) unstable xenial bionic; urgency=medium
 
   * 1.5.3 development starts (1.6.0.RC4)
