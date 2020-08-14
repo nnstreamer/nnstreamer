@@ -41,9 +41,11 @@ override_dh_auto_configure:
 	-Dinstall-example=true -Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
 	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
 	-Denable-openvino=true build
+	cd tools/development/confchk && meson --prefix=/usr build && cd ../../..
 
 override_dh_auto_build:
 	ninja -C build
+	cd tools/development/confchk && ninja -C build && cd ../../..
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
@@ -56,6 +58,7 @@ override_dh_link:
 
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C build install
+	cd tools/development/confchk && DESTDIR=$(CURDIR)/debian/tmp ninja -C build install && cd ../../..
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing

@@ -113,3 +113,11 @@ Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is development package for nnstreamer.
  If you want to develop Android applications with nnstreamer+gstreamer, you need the libnnstreamer.a from this package.
+
+Package: nnstreamer-util
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer utility
+ Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
+ This is a configuration checker utility for nnstreamer.
