@@ -93,6 +93,7 @@ typedef enum
   TFLITE_SSD_BOUNDING_BOX = 0,
   TF_SSD_BOUNDING_BOX = 1,
   OV_PERSON_DETECTION_BOUNDING_BOX = 2,
+  OV_FACE_DETECTION_BOUNDING_BOX = 3,
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -103,6 +104,7 @@ static const char *bb_modes[] = {
   [TFLITE_SSD_BOUNDING_BOX] = "tflite-ssd",
   [TF_SSD_BOUNDING_BOX] = "tf-ssd",
   [OV_PERSON_DETECTION_BOUNDING_BOX] = "ov-person-detection",
+  [OV_FACE_DETECTION_BOUNDING_BOX] = "ov-face-detection",
   NULL,
 };
 
@@ -153,8 +155,6 @@ _init_modes (bounding_boxes * bdata)
     return TRUE;
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
     return TRUE;
-  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
-    return TRUE;
   }
   return TRUE;
 }
@@ -192,7 +192,6 @@ _exit_modes (bounding_boxes * bdata)
   if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
     /* properties_TFLite_SSD *data = &bdata->tflite_ssd; */
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
-  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
   }
 }
 
@@ -546,7 +545,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     if (!_set_max_detection (data, max_detection, TF_SSD_DETECTION_MAX)) {
       return NULL;
     }
-  } else if (data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
+  } else if ((data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
+      (data->mode == OV_FACE_DETECTION_BOUNDING_BOX)){
     const guint *dim;
 
     if (!_check_tensors (config, OV_PERSON_DETECTION_MAX_TENSORS))
@@ -1016,7 +1016,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       default:
         g_assert (0);
     }
-  } else if (bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) {
+  } else if ((bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
+      (bdata->mode == OV_FACE_DETECTION_BOUNDING_BOX))  {
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
         OV_PERSON_DETECTION_MAX);
 
