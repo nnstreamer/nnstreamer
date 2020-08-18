@@ -55,6 +55,17 @@ namespace nnstreamer {
     return c; \
   } while (0);
 
+#define GET_TFSP_WITH_CHECKS(obj, private_data) \
+  do { \
+    try { \
+      obj = get_tfsp_with_checks (private_data); \
+    } catch (const std::exception &e) { \
+      /** @todo Write exception handlers. */ \
+      return -EINVAL; \
+      /** @todo return different error codes according to exceptions */ \
+    } \
+  } while (0);
+
 /**
  * @brief C tensor-filter wrapper callback function, "open"
  */
@@ -107,9 +118,10 @@ tensor_filter_subplugin * tensor_filter_subplugin::get_tfsp_with_checks (
     void * ptr)
 {
   tensor_filter_subplugin *t = (tensor_filter_subplugin *) ptr;
-  assert (t);
-  assert (t->sanity == _SANITY_CHECK);
-  assert (t->fwdesc.v1.subplugin_data == nullptr);
+  if (!t || t->sanity != _SANITY_CHECK || t->fwdesc.v1.subplugin_data != nullptr) {
+    throw std::invalid_argument ("tfsp pointer is invalid");
+  }
+
   return t;
 }
 
@@ -119,7 +131,14 @@ tensor_filter_subplugin * tensor_filter_subplugin::get_tfsp_with_checks (
 void tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties * prop,
     void **private_data)
 {
-  tensor_filter_subplugin *obj = get_tfsp_with_checks (*private_data);
+  tensor_filter_subplugin *obj;
+
+  try {
+    obj = get_tfsp_with_checks (private_data);
+  } catch (...) {
+    /** @todo Write exception handlers. */
+    return;
+  }
 
   *private_data = nullptr;
   delete obj;
@@ -132,7 +151,9 @@ int tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework * tf,
     const GstTensorFilterProperties *prop, void *private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
-  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
+  tensor_filter_subplugin *obj;
+
+  GET_TFSP_WITH_CHECKS (obj, private_data);
 
   try {
     obj->invoke (input, output);
@@ -167,7 +188,7 @@ int tensor_filter_subplugin::cpp_getFrameworkInfo (
 
     obj = (tensor_filter_subplugin *) tfsp->v1.subplugin_data;
   } else {
-    obj = get_tfsp_with_checks (private_data);
+    GET_TFSP_WITH_CHECKS (obj, private_data);
   }
 
   try {
@@ -189,7 +210,9 @@ int tensor_filter_subplugin::cpp_getModelInfo (
     const GstTensorFilterProperties * prop, void *private_data,
     model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
-  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
+  tensor_filter_subplugin *obj;
+
+  GET_TFSP_WITH_CHECKS (obj, private_data);
   return obj->getModelInfo (ops, *in_info, *out_info);
 }
 
@@ -201,7 +224,9 @@ int tensor_filter_subplugin::cpp_eventHandler (
     const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
     GstTensorFilterFrameworkEventData *data)
 {
-  tensor_filter_subplugin *obj = get_tfsp_with_checks (private_data);
+  tensor_filter_subplugin *obj;
+
+  GET_TFSP_WITH_CHECKS (obj, private_data);
   return obj->eventHandler (ops, *data);
 }
 
