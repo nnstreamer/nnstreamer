@@ -96,7 +96,7 @@ function run_pipeline() {
 }
 
 arch=$(uname -m)
-if [ "$arch" = "aarch64" ] || [ "$arch" = "armv7l" ]; then
+if [ "$arch" = "armv7l" ]; then
   auto_accl="cpu.neon"
 elif [ "$arch" = "x86_64" ]; then
   auto_accl="cpu.simd"

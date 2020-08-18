@@ -24,6 +24,14 @@
  */
 
 #include <string.h>
+#if defined(__aarch64__) || defined(__arm__)
+#include <sys/auxv.h>
+#if defined(__ANDROID__)
+#include <asm/hwcap.h>
+#else /* __ANDROID __ */
+#include <asm-arm/hwcap.h>
+#endif /* __android __ */
+#endif /* __arch64__ __arm__ */
 
 #include <nnstreamer_log.h>
 #include <tensor_common.h>
@@ -2056,9 +2064,64 @@ add_basic_supported_accelerators (const gchar ** supported_accelerators)
 }
 
 /**
+ * @brief Filter accelerators based on the runtime system
+ * @note returned array must be freed by the caller
+ * @details This filters out NEON accelerator if the system running the
+ * tensor_filter does not support NEON instructions
+ */
+static const gchar **
+filter_supported_accelerators (const gchar ** supported_accelerators)
+{
+  gint num_hw = 0, idx = 0;
+  const gchar **accl_support;
+  gboolean neon_support = TRUE;
+
+#if defined(__aarch64__) || defined(__arm__)
+  glong hwcap_flag;
+
+#if defined(__aarch64__)
+  hwcap_flag = HWCAP_ASIMD;
+#elif defined(__arm__)
+  hwcap_flag = HWCAP_NEON;
+#endif
+
+  if (getauxval (AT_HWCAP) & hwcap_flag) {
+    neon_support = TRUE;
+  } else {
+    neon_support = FALSE;
+  }
+#endif
+
+  /** Count number of elements for the array */
+  while (supported_accelerators[num_hw] != NULL) {
+    num_hw += 1;
+  }
+
+  /** Allocate the array */
+  accl_support = g_malloc (sizeof (gchar *) * (num_hw + 1));
+
+  /** Fill the array */
+  idx = 0;
+  num_hw = 0;
+  while (supported_accelerators[idx] != NULL) {
+    if (get_accl_hw_type (supported_accelerators[idx]) == ACCL_CPU_NEON &&
+        !neon_support) {
+      g_critical ("Neon instructions are not available on this device.");
+    } else {
+      accl_support[num_hw] = supported_accelerators[idx];
+      num_hw += 1;
+    }
+    idx += 1;
+  }
+  accl_support[num_hw] = NULL;
+
+  return accl_support;
+}
+
+/**
  * @brief parse user given string to extract accelerator based on given regex
  * @param[in] accelerators user given input
- * @param[in] supported_accelerators list ofi supported accelerators
+ * @param[in] supported_accelerators list of supported accelerators
  * @param[in] auto_accelerator accelerator to use in auto case (when acceleration is enabled but specific accelerator is not provided or not matching)
  * @param[in] default_accelerator accelerator to use by default
  * @return Corresponding accelerator. Returns ACCL_NONE if not found.
@@ -2101,6 +2164,36 @@ parse_accl_hw_util (const gchar * accelerators,
 }
 
 /**
+ * @brief Check if this accelerator can be used based on the runtime system
+ * @retval 0 if filter can be used, -errno otherwise
+ */
+static gint
+runtime_check_supported_accelerator (const gchar * accl)
+{
+  const gchar **accl_support, **filtered_accl_support;
+  gint ret = 0;
+
+  /** Allocate the array */
+  accl_support = g_malloc (sizeof (gchar *) * (2));
+
+  /** Fill the array */
+  accl_support[0] = accl;
+  accl_support[1] = NULL;
+
+  filtered_accl_support = filter_supported_accelerators (accl_support);
+  if (!filtered_accl_support || filtered_accl_support[0] == NULL) {
+    ret = -ENOENT;
+  } else {
+    ret = 0;
+  }
+
+  g_free (filtered_accl_support);
+  g_free (accl_support);
+
+  return ret;
+}
+
+/**
  * @brief parse user given string to extract accelerator based on given regex filling in optional arguments
  */
 accl_hw
@@ -2109,14 +2202,45 @@ parse_accl_hw_fill (parse_accl_args accl_args)
   const gchar *in_accl = accl_args.in_accl;
   const gchar **sup_accl = accl_args.sup_accl;
   const gchar *def_accl, *auto_accl;
+  const gchar **filtered_accl;
+  accl_hw ret = ACCL_NONE;
 
   if (accl_args.sup_accl == NULL || accl_args.sup_accl[0] == NULL)
-    return ACCL_NONE;
+    return ret;
 
-  def_accl = accl_args.def_accl ? accl_args.def_accl : accl_args.sup_accl[0];
-  auto_accl = accl_args.auto_accl ? accl_args.auto_accl : accl_args.sup_accl[0];
+  /** remove unsupported accelerators from this list based on runtime system */
+  filtered_accl = filter_supported_accelerators (accl_args.sup_accl);
+  if (!filtered_accl) {
+    return ret;
+  }
 
-  return parse_accl_hw_util (in_accl, sup_accl, auto_accl, def_accl);
+  /** filtered supported accelerators can be empty */
+  sup_accl = filtered_accl;
+  if (sup_accl[0] == NULL) {
+    g_free (filtered_accl);
+    return ret;
+  }
+
+  /** update default accelerator if it is not available at runtime */
+  if (accl_args.def_accl &&
+      runtime_check_supported_accelerator (accl_args.def_accl) == 0) {
+    def_accl = accl_args.def_accl;
+  } else {
+    def_accl = sup_accl[0];
+  }
+
+  /** update auto accelerator if it is not available at runtime */
+  if (accl_args.auto_accl &&
+      runtime_check_supported_accelerator (accl_args.auto_accl) == 0) {
+    auto_accl = accl_args.auto_accl;
+  } else {
+    auto_accl = sup_accl[0];
+  }
+
+  ret = parse_accl_hw_util (in_accl, sup_accl, auto_accl, def_accl);
+  g_free (filtered_accl);
+
+  return ret;
 }
 
 /**
