@@ -380,6 +380,7 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
 
 /**
  * @brief Convert tensors data to TensorsData object.
+ * @note This function will create new direct buffer object with tensors. You should not release the tensor data in data_h.
  */
 gboolean
 nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,

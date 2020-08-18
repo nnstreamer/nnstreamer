@@ -242,9 +242,9 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
   }
 
 done:
-  /* do not free input tensors (direct access from object) */
+  /* do not free input/output tensors (direct access from object) */
   g_free (in_data);
-  ml_tensors_data_destroy (out_data);
+  g_free (out_data);
   return result;
 }
 
