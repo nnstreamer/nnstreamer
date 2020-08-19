@@ -358,6 +358,20 @@ TEST (nnstreamer_capi_valve, test01)
  */
 TEST (nnstreamer_capi_valve, failure_01_n)
 {
+  ml_pipeline_valve_h valve_h;
+  int status;
+
+  /* invalid param : pipe */
+  status = ml_pipeline_valve_get_handle (NULL, "valvex", &valve_h);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test NNStreamer pipeline valve
+ * @detail Failure case to handle valve element with invalid param.
+ */
+TEST (nnstreamer_capi_valve, failure_02_n)
+{
   ml_pipeline_h handle;
   ml_pipeline_valve_h valve_h;
   gchar *pipeline;
@@ -368,21 +382,81 @@ TEST (nnstreamer_capi_valve, failure_01_n)
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /* invalid param : pipe */
-  status = ml_pipeline_valve_get_handle (NULL, "valvex", &valve_h);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
   /* invalid param : name */
   status = ml_pipeline_valve_get_handle (handle, NULL, &valve_h);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+/**
+ * @brief Test NNStreamer pipeline valve
+ * @detail Failure case to handle valve element with invalid param.
+ */
+TEST (nnstreamer_capi_valve, failure_03_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_valve_h valve_h;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong name */
   status = ml_pipeline_valve_get_handle (handle, "wrongname", &valve_h);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline valve
+ * @detail Failure case to handle valve element with invalid param.
+ */
+TEST (nnstreamer_capi_valve, failure_04_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_valve_h valve_h;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : invalid type */
   status = ml_pipeline_valve_get_handle (handle, "sinkx", &valve_h);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline valve
+ * @detail Failure case to handle valve element with invalid param.
+ */
+TEST (nnstreamer_capi_valve, failure_05_n)
+{
+  ml_pipeline_h handle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : handle */
   status = ml_pipeline_valve_get_handle (handle, "valvex", NULL);
@@ -706,6 +780,27 @@ TEST (nnstreamer_capi_sink, register_duplicated)
  */
 TEST (nnstreamer_capi_sink, failure_01_n)
 {
+  ml_pipeline_sink_h sinkhandle;
+  int status;
+  guint *count_sink;
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  /* invalid param : pipe */
+  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_02_n)
+{
   ml_pipeline_h handle;
   ml_pipeline_sink_h sinkhandle;
   gchar *pipeline;
@@ -721,49 +816,124 @@ TEST (nnstreamer_capi_sink, failure_01_n)
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /* invalid param : pipe */
-  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
   /* invalid param : name */
   status = ml_pipeline_sink_register (handle, NULL, test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_03_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_sink_h sinkhandle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong name */
   status = ml_pipeline_sink_register (handle, "wrongname", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_04_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_sink_h sinkhandle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : invalid type */
   status = ml_pipeline_sink_register (handle, "valvex", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_05_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_sink_h sinkhandle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : callback */
   status = ml_pipeline_sink_register (handle, "sinkx", NULL, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  g_free (pipeline);
+  g_free (count_sink);
+}
+
+/**
+ * @brief Test NNStreamer pipeline sink
+ * @detail Failure case to register callback with invalid param.
+ */
+TEST (nnstreamer_capi_sink, failure_06_n)
+{
+  ml_pipeline_h handle;
+  gchar *pipeline;
+  int status;
+  guint *count_sink;
+
+  pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
+
+  count_sink = (guint *) g_malloc (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : handle */
   status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (sinkhandle != NULL);
-
-  status = ml_pipeline_start (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  g_usleep (100000); /* 100ms. Let a few frames flow. */
-
-  status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_sink_unregister (sinkhandle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  EXPECT_TRUE (*count_sink > 0U);
 
   g_free (pipeline);
   g_free (count_sink);
@@ -968,21 +1138,67 @@ TEST (nnstreamer_capi_src, failure_02_n)
   int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /* invalid param : pipe */
-  status = ml_pipeline_src_get_handle (NULL, "mysource", &srchandle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
   /* invalid param : name */
   status = ml_pipeline_src_get_handle (handle, NULL, &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when the name of source node is wrong.
+ */
+TEST (nnstreamer_capi_src, failure_03_n)
+{
+  const char *pipeline = "appsrc name=mysource ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! valve name=valvex ! tensor_sink";
+  ml_pipeline_h handle;
+  ml_pipeline_src_h srchandle;
+
+  int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong name */
   status = ml_pipeline_src_get_handle (handle, "wrongname", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when the name of source node is wrong.
+ */
+TEST (nnstreamer_capi_src, failure_04_n)
+{
+  const char *pipeline = "appsrc name=mysource ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! valve name=valvex ! tensor_sink";
+  ml_pipeline_h handle;
+  ml_pipeline_src_h srchandle;
+
+  int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : invalid type */
   status = ml_pipeline_src_get_handle (handle, "valvex", &srchandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer pipeline src
+ * @detail Failure case when the name of source node is wrong.
+ */
+TEST (nnstreamer_capi_src, failure_05_n)
+{
+  const char *pipeline = "appsrc name=mysource ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! valve name=valvex ! tensor_sink";
+  ml_pipeline_h handle;
+
+  int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : handle */
   status = ml_pipeline_src_get_handle (handle, "mysource", NULL);
@@ -996,7 +1212,7 @@ TEST (nnstreamer_capi_src, failure_02_n)
  * @brief Test NNStreamer pipeline src
  * @detail Failure case when the number of tensors is 0 or bigger than ML_TENSOR_SIZE_LIMIT;
  */
-TEST (nnstreamer_capi_src, failure_03_n)
+TEST (nnstreamer_capi_src, failure_06_n)
 {
   const char *pipeline = "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! tensor_sink";
   ml_pipeline_h handle;
@@ -1233,6 +1449,21 @@ TEST (nnstreamer_capi_switch, dummy_02)
  */
 TEST (nnstreamer_capi_switch, failure_01_n)
 {
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_switch_e type;
+  int status;
+
+  /* invalid param : pipe */
+  status = ml_pipeline_switch_get_handle (NULL, "ins", &type, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_02_n)
+{
   ml_pipeline_h handle;
   ml_pipeline_switch_h switchhandle;
   ml_pipeline_switch_e type;
@@ -1246,25 +1477,119 @@ TEST (nnstreamer_capi_switch, failure_01_n)
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /* invalid param : pipe */
-  status = ml_pipeline_switch_get_handle (NULL, "ins", &type, &switchhandle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
   /* invalid param : name */
   status = ml_pipeline_switch_get_handle (handle, NULL, &type, &switchhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_03_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_switch_e type;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong name */
   status = ml_pipeline_switch_get_handle (handle, "wrongname", &type, &switchhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_04_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  ml_pipeline_switch_e type;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : invalid type */
   status = ml_pipeline_switch_get_handle (handle, "sinkx", &type, &switchhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_05_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_e type;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : handle */
   status = ml_pipeline_switch_get_handle (handle, "ins", &type, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_06_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* succesfully get switch handle if the param type is null */
   status = ml_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
@@ -1274,9 +1599,71 @@ TEST (nnstreamer_capi_switch, failure_01_n)
   status = ml_pipeline_switch_select (NULL, "invalidpadname");
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
+  status = ml_pipeline_switch_release_handle (switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_07_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* succesfully get switch handle if the param type is null */
+  status = ml_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   /* invalid param : pad name */
   status = ml_pipeline_switch_select (switchhandle, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_pipeline_switch_release_handle (switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test NNStreamer pipeline switch
+ * @detail Failure case to handle input-selector element with invalid param.
+ */
+TEST (nnstreamer_capi_switch, failure_08_n)
+{
+  ml_pipeline_h handle;
+  ml_pipeline_switch_h switchhandle;
+  gchar *pipeline;
+  int status;
+
+  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* succesfully get switch handle if the param type is null */
+  status = ml_pipeline_switch_get_handle (handle, "ins", NULL, &switchhandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong pad name */
   status = ml_pipeline_switch_select (switchhandle, "wrongpadname");
@@ -1294,12 +1681,20 @@ TEST (nnstreamer_capi_switch, failure_01_n)
 /**
  * @brief Test NNStreamer Utility for checking plugin availability (invalid param)
  */
-TEST (nnstreamer_capi_util, plugin_availability_fail_invalid_n)
+TEST (nnstreamer_capi_util, plugin_availability_fail_invalid_01_n)
 {
   int status;
 
-  status = ml_check_plugin_availability ("nnstreamer", NULL);
+  status = ml_check_plugin_availability (NULL, "tensor_filter");
   EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking plugin availability (invalid param)
+ */
+TEST (nnstreamer_capi_util, plugin_availability_fail_invalid_02_n)
+{
+  int status;
 
   status = ml_check_plugin_availability (NULL, "tensor_filter");
   EXPECT_NE (status, ML_ERROR_NONE);
@@ -1308,13 +1703,21 @@ TEST (nnstreamer_capi_util, plugin_availability_fail_invalid_n)
 /**
  * @brief Test NNStreamer Utility for checking nnfw availability (invalid param)
  */
-TEST (nnstreamer_capi_util, nnfw_availability_fail_invalid_n)
+TEST (nnstreamer_capi_util, nnfw_availability_fail_invalid_01_n)
 {
-  bool result;
   int status;
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking nnfw availability (invalid param)
+ */
+TEST (nnstreamer_capi_util, nnfw_availability_fail_invalid_02_n)
+{
+  bool result;
+  int status;
 
   /* any is unknown nnfw type */
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY, &result);
@@ -1790,11 +2193,18 @@ TEST (nnstreamer_capi_util, info_create_1_n)
  */
 TEST (nnstreamer_capi_util, info_create_2_n)
 {
-  GstTensorsInfo gi;
   ml_tensors_info_h i;
   int status = ml_tensors_info_create_from_gst (&i, nullptr);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_create_from_gst (nullptr, &gi);
+}
+
+/**
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_create_3_n)
+{
+  GstTensorsInfo gi;
+  int status = ml_tensors_info_create_from_gst (nullptr, &gi);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
@@ -1819,25 +2229,116 @@ TEST (nnstreamer_capi_util, info_init_n)
 /**
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_valid_n)
+TEST (nnstreamer_capi_util, info_valid_01_n)
 {
   bool valid;
   int status = ml_tensors_info_validate (nullptr, &valid);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_validate (nullptr, nullptr);
+}
+
+/**
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_valid_02_n)
+{
+  ml_tensors_info_h info;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+  int status;
+
+  status = ml_tensors_info_create (&info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (info, 1);
+  ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info, 0, dim);
+
+  status = ml_tensors_info_validate (info, nullptr);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /*
  * @brief Test utility functions (internal)
  */
-TEST (nnstreamer_capi_util, info_comp_n)
+TEST (nnstreamer_capi_util, info_comp_01_n)
 {
+  ml_tensors_info_h info;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
   bool equal;
-  int status = ml_tensors_info_compare (nullptr, nullptr, &equal);
+  int status;
+
+  status = ml_tensors_info_create (&info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (info, 1);
+  ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info, 0, dim);
+
+  status = ml_tensors_info_compare (nullptr, info, &equal);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_compare (nullptr, nullptr, nullptr);
+
+  status = ml_tensors_info_destroy (info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_comp_02_n)
+{
+  ml_tensors_info_h info;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  bool equal;
+  int status;
+
+  status = ml_tensors_info_create (&info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (info, 1);
+  ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info, 0, dim);
+
+  status = ml_tensors_info_compare (info, nullptr, &equal);
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (internal)
+ */
+TEST (nnstreamer_capi_util, info_comp_03_n)
+{
+  ml_tensors_info_h info1, info2;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+  int status;
+
+  status = ml_tensors_info_create (&info1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (info1, 1);
+  ml_tensors_info_set_tensor_type (info1, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info1, 0, dim);
+
+  status = ml_tensors_info_create (&info2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_set_count (info2, 1);
+  ml_tensors_info_set_tensor_type (info2, 0, ML_TENSOR_TYPE_UINT8);
+  ml_tensors_info_set_tensor_dimension (info2, 0, dim);
+
+  status = ml_tensors_info_compare (info1, info2, nullptr);
+  ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_destroy (info2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
 /*
@@ -1936,7 +2437,7 @@ TEST (nnstreamer_capi_util, info_set_tname_1)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_get_tname_n)
+TEST (nnstreamer_capi_util, info_get_tname_01_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -1949,8 +2450,25 @@ TEST (nnstreamer_capi_util, info_get_tname_n)
 
   status = ml_tensors_info_get_tensor_name (nullptr, 0, &name);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_get_tensor_name (info, 0, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_tname_02_n)
+{
+  int status;
+  ml_tensors_info_h info;
+  char *name = NULL;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
   status = ml_tensors_info_get_tensor_name (info, 2, &name);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -1961,7 +2479,39 @@ TEST (nnstreamer_capi_util, info_get_tname_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_set_ttype_n)
+TEST (nnstreamer_capi_util, info_get_tname_03_n)
+{
+  int status;
+  ml_tensors_info_h info;
+  char *name = NULL;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_get_tensor_name (info, 2, &name);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_ttype_01_n)
+{
+  int status;
+
+  status = ml_tensors_info_set_tensor_type (nullptr, 0, ML_TENSOR_TYPE_INT16);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_ttype_02_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -1971,10 +2521,26 @@ TEST (nnstreamer_capi_util, info_set_ttype_n)
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_set_tensor_type (nullptr, 0, ML_TENSOR_TYPE_INT16);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UNKNOWN);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_ttype_03_n)
+{
+  int status;
+  ml_tensors_info_h info;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
   status = ml_tensors_info_set_tensor_type (info, 2, ML_TENSOR_TYPE_INT16);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -1985,7 +2551,40 @@ TEST (nnstreamer_capi_util, info_set_ttype_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_get_ttype_n)
+TEST (nnstreamer_capi_util, info_get_ttype_01_n)
+{
+  int status;
+  ml_tensor_type_e type;
+
+  status = ml_tensors_info_get_tensor_type (nullptr, 0, &type);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_ttype_02_n)
+{
+  int status;
+  ml_tensors_info_h info;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_get_tensor_type (info, 0, nullptr);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_ttype_03_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -1996,10 +2595,6 @@ TEST (nnstreamer_capi_util, info_get_ttype_n)
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_get_tensor_type (nullptr, 0, &type);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_get_tensor_type (info, 0, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_get_tensor_type (info, 2, &type);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -2010,7 +2605,19 @@ TEST (nnstreamer_capi_util, info_get_ttype_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_set_tdimension_n)
+TEST (nnstreamer_capi_util, info_set_tdimension_01_n)
+{
+  int status;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  status = ml_tensors_info_set_tensor_dimension (nullptr, 0, dim);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_set_tdimension_02_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -2021,8 +2628,6 @@ TEST (nnstreamer_capi_util, info_set_tdimension_n)
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_set_tensor_dimension (nullptr, 0, dim);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_set_tensor_dimension (info, 2, dim);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -2033,7 +2638,19 @@ TEST (nnstreamer_capi_util, info_set_tdimension_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_get_tdimension_n)
+TEST (nnstreamer_capi_util, info_get_tdimension_01_n)
+{
+  int status;
+  ml_tensor_dimension dim;
+
+  status = ml_tensors_info_get_tensor_dimension (nullptr, 0, dim);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_tdimension_02_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -2044,8 +2661,6 @@ TEST (nnstreamer_capi_util, info_get_tdimension_n)
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_get_tensor_dimension (nullptr, 0, dim);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_get_tensor_dimension (info, 2, dim);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -2056,7 +2671,39 @@ TEST (nnstreamer_capi_util, info_get_tdimension_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_get_tsize_n)
+TEST (nnstreamer_capi_util, info_get_tsize_01_n)
+{
+  int status;
+  ml_tensors_info_h info;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_get_tensor_size (info, 0, nullptr);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_tsize_02_n)
+{
+  int status;
+  size_t data_size;
+
+  status = ml_tensors_info_get_tensor_size (nullptr, 0, &data_size);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, info_get_tsize_03_n)
 {
   int status;
   size_t data_size;
@@ -2067,10 +2714,6 @@ TEST (nnstreamer_capi_util, info_get_tsize_n)
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_get_tensor_size (info, 0, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_get_tensor_size (nullptr, 0, &data_size);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_get_tensor_size (info, 2, &data_size);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_info_get_tensor_size (info, 0, &data_size);
@@ -2083,23 +2726,17 @@ TEST (nnstreamer_capi_util, info_get_tsize_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, info_clone_n)
+TEST (nnstreamer_capi_util, info_clone_01_n)
 {
   int status;
-  ml_tensors_info_h desc, src;
+  ml_tensors_info_h src;
 
-  status = ml_tensors_info_create (&desc);
-  ASSERT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_create (&src);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
   status = ml_tensors_info_clone (nullptr, src);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_info_clone (desc, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
-  status = ml_tensors_info_destroy (desc);
-  ASSERT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_destroy (src);
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
@@ -2107,7 +2744,56 @@ TEST (nnstreamer_capi_util, info_clone_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, data_create_n)
+TEST (nnstreamer_capi_util, info_clone_02_n)
+{
+  int status;
+  ml_tensors_info_h desc;
+
+  status = ml_tensors_info_create (&desc);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_info_clone (desc, nullptr);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (desc);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_create_01_n)
+{
+  int status;
+  ml_tensors_data_h data = nullptr;
+
+  status = ml_tensors_data_create (nullptr, &data);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_create_02_n)
+{
+  int status;
+  ml_tensors_info_h info;
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+
+  status = ml_tensors_data_create (info, nullptr);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_create_03_n)
 {
   int status;
   ml_tensors_info_h info;
@@ -2115,12 +2801,6 @@ TEST (nnstreamer_capi_util, data_create_n)
 
   status = ml_tensors_info_create (&info);
   ASSERT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_tensors_data_create (nullptr, &data);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
-  status = ml_tensors_data_create (info, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid info */
   status = ml_tensors_data_create (info, &data);
@@ -2147,7 +2827,82 @@ TEST (nnstreamer_capi_util, data_create_internal_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, data_get_tdata_n)
+TEST (nnstreamer_capi_util, data_get_tdata_01_n)
+{
+  int status;
+  size_t data_size;
+  void *raw_data;
+
+  status = ml_tensors_data_get_tensor_data (nullptr, 0, &raw_data, &data_size);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_get_tdata_02_n)
+{
+  int status;
+  size_t data_size;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, dim);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_data_create (info, &data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_get_tensor_data (data, 0, nullptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_data_destroy (data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_get_tdata_03_n)
+{
+  int status;
+  void *raw_data;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, dim);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_data_create (info, &data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_get_tensor_data (data, 0, &raw_data, nullptr);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_data_destroy (data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_get_tdata_04_n)
 {
   int status;
   size_t data_size;
@@ -2167,12 +2922,6 @@ TEST (nnstreamer_capi_util, data_get_tdata_n)
   status = ml_tensors_data_create (info, &data);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_data_get_tensor_data (nullptr, 0, &raw_data, &data_size);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_data_get_tensor_data (data, 0, nullptr, &data_size);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_data_get_tensor_data (data, 0, &raw_data, nullptr);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_data_get_tensor_data (data, 2, &raw_data, &data_size);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
@@ -2185,7 +2934,53 @@ TEST (nnstreamer_capi_util, data_get_tdata_n)
 /*
  * @brief Test utility functions (public)
  */
-TEST (nnstreamer_capi_util, data_set_tdata_n)
+TEST (nnstreamer_capi_util, data_set_tdata_01_n)
+{
+  int status;
+  void *raw_data;
+
+  raw_data = g_malloc (1024); /* larger than tensor */
+
+  status = ml_tensors_data_set_tensor_data (nullptr, 0, raw_data, 16);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  g_free (raw_data);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_set_tdata_02_n)
+{
+  int status;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, dim);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_data_create (info, &data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_set_tensor_data (data, 0, nullptr, 16);
+  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_data_destroy (data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_set_tdata_03_n)
 {
   int status;
   void *raw_data;
@@ -2206,14 +3001,74 @@ TEST (nnstreamer_capi_util, data_set_tdata_n)
   status = ml_tensors_data_create (info, &data);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_data_set_tensor_data (nullptr, 0, raw_data, 16);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-  status = ml_tensors_data_set_tensor_data (data, 0, nullptr, 16);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
   status = ml_tensors_data_set_tensor_data (data, 2, raw_data, 16);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_data_destroy (data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  g_free (raw_data);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_set_tdata_04_n)
+{
+  int status;
+  void *raw_data;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  raw_data = g_malloc (1024); /* larger than tensor */
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, dim);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_data_create (info, &data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
   status = ml_tensors_data_set_tensor_data (data, 0, raw_data, 0);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+
+  status = ml_tensors_data_destroy (data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_destroy (info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  g_free (raw_data);
+}
+
+/*
+ * @brief Test utility functions (public)
+ */
+TEST (nnstreamer_capi_util, data_set_tdata_05_n)
+{
+  int status;
+  void *raw_data;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  ml_tensor_dimension dim = { 2, 2, 2, 2 };
+
+  raw_data = g_malloc (1024); /* larger than tensor */
+
+  status = ml_tensors_info_create (&info);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_count (info, 1);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_type (info, 0, ML_TENSOR_TYPE_UINT8);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_info_set_tensor_dimension (info, 0, dim);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+  status = ml_tensors_data_create (info, &data);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
   status = ml_tensors_data_set_tensor_data (data, 0, raw_data, 1024);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
