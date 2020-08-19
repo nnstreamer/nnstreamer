@@ -663,8 +663,8 @@ find . -name "CMakeCXXCompilerId*.gcda" -delete
 #find . -path "/build/*.j
 # Generate report
 lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
-# Exclude generated files (Orc)
-lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/meson*/*" "*/*@sha/*" -o unittest-filtered.info
+# Exclude generated files (Orc) and device-dependent filters.
+lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/meson*/*" "*/*@sha/*" "*/*_openvino*" "*/*_edgetpu*" "*/*_movidius_ncsdk2*" -o unittest-filtered.info
 # Visualize the report
 genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
 
