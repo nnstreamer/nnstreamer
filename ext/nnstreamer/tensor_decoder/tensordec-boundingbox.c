@@ -805,7 +805,7 @@ nms (GArray * results)
     type *typed_inputptr = (type *) inputptr; \
     guint d; \
     \
-    for (d = 0; d < OV_PERSON_DETECTION_MAX; ++d) { \
+    for (d = 1; d <= OV_PERSON_DETECTION_MAX; ++d) { \
       struct { \
         type image_id; \
         type label; \
@@ -820,8 +820,8 @@ nms (GArray * results)
       typed_inputptr += (sizeof(desc) / sizeof(type)); \
       object.valid = FALSE; \
       \
-      if (desc.image_id < 0) { \
-        bb->max_detection = (int) (d - 1); \
+      if ((int) desc.image_id < 0) { \
+        bb->max_detection = (d - 1); \
         break; \
       } \
       object.class_id = -1; \
