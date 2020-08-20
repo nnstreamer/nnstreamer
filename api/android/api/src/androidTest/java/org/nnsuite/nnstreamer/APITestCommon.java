@@ -57,9 +57,10 @@ public class APITestCommon {
      */
     public static File getTFLiteImgModel() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        File model = new File(root + "/nnstreamer/test/mobilenet_v1_1.0_224_quant.tflite");
+        File model = new File(root + "/nnstreamer/test/imgclf/mobilenet_v1_1.0_224_quant.tflite");
+        File meta = new File(root + "/nnstreamer/test/imgclf/metadata/MANIFEST");
 
-        if (!model.exists()) {
+        if (!model.exists() || !meta.exists()) {
             fail();
         }
 
@@ -184,8 +185,8 @@ public class APITestCommon {
      */
     public static File getTFLiteAddModel() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        File model = new File(root + "/nnstreamer/test/add.tflite");
-        File meta = new File(root + "/nnstreamer/test/metadata/MANIFEST");
+        File model = new File(root + "/nnstreamer/test/add/add.tflite");
+        File meta = new File(root + "/nnstreamer/test/add/metadata/MANIFEST");
 
         if (!model.exists() || !meta.exists()) {
             fail();
