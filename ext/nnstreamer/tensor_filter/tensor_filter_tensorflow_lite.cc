@@ -216,7 +216,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
     status = nnfw_delegate->Invoke (interpreter.get ());
   else
 #endif
-    status = interpreter->Invoke ();
+  status = interpreter->Invoke ();
   stop_time = g_get_monotonic_time ();
 
   tflite_internal_stats.total_invoke_latency += stop_time - start_time;
@@ -414,7 +414,7 @@ int
 TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
 {
   TfLiteStatus status = kTfLiteOk;
-  const std::vector<int> &input_idx_list = interpreter->inputs();
+  const std::vector<int> &input_idx_list = interpreter->inputs ();
 
   /** Cannot change the number of inputs */
   if (info->num_tensors != input_idx_list.size ())
@@ -440,7 +440,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
      */
     input_rank = gst_tensor_info_get_rank (&info->info[tensor_idx]);
     for (int rank = NNS_TENSOR_RANK_LIMIT; rank >= input_rank; rank--) {
-      std::vector<int> dims(rank);
+      std::vector<int> dims (rank);
       /* the order of dimension is reversed at CAPS negotiation */
       for (int idx = 0; idx < rank; ++idx) {
         /** check overflow when storing uint32_t in int container */
@@ -512,7 +512,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    if (tensor_ptr->bytes != gst_tensor_info_get_size(&inputTensorMeta.info[i]))
+    if (tensor_ptr->bytes != gst_tensor_info_get_size (&inputTensorMeta.info[i]))
       goto fail_exit;
 
     inputTensorPtr.push_back (tensor_ptr);
@@ -524,7 +524,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    if (tensor_ptr->bytes != gst_tensor_info_get_size(&outputTensorMeta.info[i]))
+    if (tensor_ptr->bytes != gst_tensor_info_get_size (&outputTensorMeta.info[i]))
       goto fail_exit;
 
     outputTensorPtr.push_back (tensor_ptr);
@@ -533,8 +533,8 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
   return 0;
 
 fail_exit:
-  inputTensorPtr.clear();
-  outputTensorPtr.clear();
+  inputTensorPtr.clear ();
+  outputTensorPtr.clear ();
   return -EINVAL;
 }
 
@@ -551,7 +551,7 @@ TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
 
   setAccelerator (accelerators);
   if (accelerators != NULL) {
-    g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str(accelerator));
+    g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str (accelerator));
   }
 }
 
@@ -683,7 +683,7 @@ int
 TFLiteCore::getInputTensorDim (GstTensorsInfo * info)
 {
   interpreter.lock ();
-  gst_tensors_info_copy (info, interpreter.getInputTensorsInfo());
+  gst_tensors_info_copy (info, interpreter.getInputTensorsInfo ());
   interpreter.unlock ();
 
   return 0;
@@ -699,7 +699,7 @@ int
 TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
 {
   interpreter.lock ();
-  gst_tensors_info_copy (info, interpreter.getOutputTensorsInfo());
+  gst_tensors_info_copy (info, interpreter.getOutputTensorsInfo ());
   interpreter.unlock ();
 
   return 0;
