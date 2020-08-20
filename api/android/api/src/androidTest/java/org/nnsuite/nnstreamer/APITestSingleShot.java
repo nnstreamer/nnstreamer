@@ -178,18 +178,12 @@ public class APITestSingleShot {
         }
     }
 
-    @Test
-    public void testClassificationResult() {
-        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
-            /* cannot run the test */
-            return;
-        }
-
+    /**
+     * Run image classification and validate result.
+     */
+    private void runImageClassification(NNStreamer.NNFWType fw) {
         try {
-            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
-
-            /* let's ignore timeout (set 10 sec) */
-            single.setTimeout(10000);
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel(), fw);
 
             /* single-shot invoke */
             TensorsData in = APITestCommon.readRawImageData();
@@ -205,6 +199,26 @@ public class APITestSingleShot {
         } catch (Exception e) {
             fail();
         }
+    }
+
+    @Test
+    public void testClassificationResultTFLite() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runImageClassification(NNStreamer.NNFWType.TENSORFLOW_LITE);
+    }
+
+    @Test
+    public void testClassificationResultNNFW() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runImageClassification(NNStreamer.NNFWType.NNFW);
     }
 
     @Test
