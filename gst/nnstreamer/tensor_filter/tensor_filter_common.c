@@ -2037,7 +2037,11 @@ add_basic_supported_accelerators (const gchar ** supported_accelerators)
   num_hw += 2;
 
   /** Allocate the array */
-  accl_support = g_malloc (sizeof (gchar *) * (num_hw + 1));
+  accl_support = g_try_malloc0 (sizeof (gchar *) * (num_hw + 1));
+  if (accl_support == NULL) {
+    ml_loge ("Failed to allocate memory for accelerators");
+    return NULL;
+  }
 
   /** Fill the array */
   while (supported_accelerators[idx] != NULL) {
