@@ -167,7 +167,7 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     if (fd >= 0) {
       resetDataFile ();
       data_read = read (fd, data, data_size);
-      EXPECT_EQ (data_read, data_size);
+      EXPECT_EQ ((size_t) data_read, data_size);
     }
 
     /** Benchmark the invoke duration */
