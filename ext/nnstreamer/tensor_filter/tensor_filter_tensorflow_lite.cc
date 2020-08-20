@@ -101,6 +101,7 @@ public:
 private:
   GMutex mutex;
   char *model_path;
+  bool is_cached_after_first_invoke;  /**< To cache again after first invoke */
 
   std::unique_ptr <tflite::Interpreter> interpreter;
   std::unique_ptr <tflite::FlatBufferModel> model;
@@ -171,6 +172,8 @@ TFLiteInterpreter::TFLiteInterpreter ()
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
+
+  is_cached_after_first_invoke = false;
 }
 
 /**
@@ -230,6 +233,14 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   if (status != kTfLiteOk) {
     ml_loge ("Failed to invoke");
     return -1;
+  }
+
+  if (!is_cached_after_first_invoke) {
+    if (cacheInOutTensorPtr () == 0) {
+      is_cached_after_first_invoke = true;
+    } else {
+      ml_logw ("Failed to cache tensor memory ptr");
+    }
   }
 
   return 0;
