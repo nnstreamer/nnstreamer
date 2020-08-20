@@ -60,6 +60,7 @@
 %if 0%{?_with_da_profile}
 %define	mvncsdk2_support 0
 %define	edgetpu_support 0
+%define	openvino_support 0
 %endif
 
 %if !0%{?enable_extra_subplugins}
