@@ -1156,6 +1156,7 @@ int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *avai
  * ml_pipeline_h pipe;
  * ml_custom_easy_filter_h custom;
  * ml_tensors_info_h in_info, out_info;
+ * ml_tensor_dimension dim = { 2, 1, 1, 1 };
  *
  * // Set input and output tensors information.
  * ml_tensors_info_create (&in_info);
