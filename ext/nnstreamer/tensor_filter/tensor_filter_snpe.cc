@@ -272,7 +272,7 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
 
   if (!configure_option (prop)) {
-    nns_loge ("Failed to configure SNPE options.");
+    throw std::invalid_argument ("Failed to configure SNPE option.");
     return;
   }
 
