@@ -2462,14 +2462,13 @@ TEST (nnstreamer_capi_util, info_get_tname_02_n)
 {
   int status;
   ml_tensors_info_h info;
-  char *name = NULL;
 
   status = ml_tensors_info_create (&info);
   ASSERT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_count (info, 1);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_tensors_info_get_tensor_name (info, 2, &name);
+  status = ml_tensors_info_get_tensor_name (info, 0, nullptr);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   status = ml_tensors_info_destroy (info);
