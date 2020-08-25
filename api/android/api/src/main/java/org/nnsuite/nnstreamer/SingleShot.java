@@ -131,7 +131,7 @@ public final class SingleShot implements AutoCloseable {
 
         mHandle = nativeOpen(path, in, out, fw.ordinal(), option);
         if (mHandle == 0) {
-            throw new IllegalStateException("Failed to construct the pipeline");
+            throw new IllegalStateException("Failed to construct the single-shot instance");
         }
     }
 
