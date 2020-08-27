@@ -59,7 +59,7 @@
  * features, please define the features in your manifest file using the manifest
  * editor in the SDK.\n
  * For example, your application accesses to the camera device,
- * then you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.\n
+ * then you have to add '%http://tizen.org/privilege/camera' into the manifest of your application.\n
  * More details on featuring your application can be found from
  * <a href="https://docs.tizen.org/application/tizen-studio/native-tools/manifest-text-editor#feature-element">
  *    <b>Feature Element</b>.
@@ -100,7 +100,7 @@
  * features, please define the features in your manifest file using the manifest
  * editor in the SDK.\n
  * For example, your application accesses to the camera device,
- * then you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.\n
+ * then you have to add '%http://tizen.org/privilege/camera' into the manifest of your application.\n
  * More details on featuring your application can be found from
  * <a href="https://docs.tizen.org/application/tizen-studio/native-tools/manifest-text-editor#feature-element">
  *    <b>Feature Element</b>.
