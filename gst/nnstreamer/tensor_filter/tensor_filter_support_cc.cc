@@ -91,7 +91,7 @@ int tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties * prop,
   obj.fwdesc.v1.subplugin_data = nullptr;
 
   /* 4. Save the object as *private_data */
-#if __GNUC__ < 5 || __cpllusplus < 201103L
+#if __GNUC__ < 5 || __cplusplus < 201103L
   *private_data = &(obj);
 #else /* It is safer w/ addressof, but old gcc doesn't appear to support it */
   *private_data = std::addressof (obj);
