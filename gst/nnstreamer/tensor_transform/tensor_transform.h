@@ -128,7 +128,7 @@ typedef struct _tensor_transform_transpose {
 } tensor_transform_transpose;
 
 /**
- * @brief Internal data structure for arithmetic mode.
+ * @brief Internal data structure for stand mode.
  */
 typedef struct _tensor_transform_stand {
   tensor_transform_stand_mode mode;
