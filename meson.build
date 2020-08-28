@@ -240,6 +240,10 @@ features = {
     'target': 'tensorflow-lite',
     'project_args': { 'ENABLE_TENSORFLOW_LITE': 1 }
   },
+  'tflite2-support': {
+    'target': 'tensorflow2-lite',
+    'project_args': { 'ENABLE_TENSORFLOW2_LITE': 1 }
+  },
   'pytorch-support': {
     'target': 'pytorch',
     'project_args': { 'ENABLE_PYTORCH': 1 }
