@@ -95,6 +95,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_DIMCHG_OPTION "^([0-3]):([0-3])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
+#define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
+    "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(32|64)),)?"\
     "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+)(,|))+$"
 #define REGEX_ARITH_OPTION_TYPECAST "(typecast:([u]?int(8|16|32|64)|float(32|64)))"
@@ -200,6 +202,9 @@ gst_tensor_transform_mode_get_type (void)
       {GTT_STAND, "Mode for statistical standardization of tensor, "
             "option=default",
           "stand"},
+      {GTT_CLAMP, "Mode for clamping all elements of tensor into the range, "
+            "option=CLAMP_MIN:CLAMP_MAX",
+          "clamp"},
       {GTT_UNKNOWN, "Unknown or not-implemented-yet mode",
           "unknown"},
       {0, NULL, NULL},
@@ -924,6 +929,45 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       ret = filter->loaded = TRUE;
       break;
     }
+    case GTT_CLAMP:
+    {
+      gchar **strv = NULL;
+
+      if (!g_regex_match_simple (REGEX_CLAMP_OPTION, filter->option, 0, 0)) {
+        ml_loge
+            ("%s: clamp: \'%s\' is not valid option string: it should be in the form of [CLAMP_MIN:CLAMP_MAX]\n",
+            filter_name, filter->option);
+        break;
+      }
+
+      strv = g_strsplit (filter->option, ":", 2);
+
+      filter->data_clamp.min = g_ascii_strtod (strv[0], NULL);
+      if (errno == ERANGE) {
+        ml_loge ("%s: clamp: CLAMP_MIN value has an invalid range\n",
+            filter_name);
+        g_strfreev (strv);
+        break;
+      }
+      filter->data_clamp.max = g_ascii_strtod (strv[1], NULL);
+      if (errno == ERANGE) {
+        ml_loge ("%s: clamp: CLAMP_MAX value has an invalid range\n",
+            filter_name);
+        g_strfreev (strv);
+        break;
+      }
+
+      g_strfreev (strv);
+
+      if (filter->data_clamp.min > filter->data_clamp.max) {
+        ml_loge ("%s: clamp: CLAMP_MIN is larger than CLAMP_MAX\n",
+            filter_name);
+        break;
+      }
+
+      ret = filter->loaded = TRUE;
+      break;
+    }
     default:
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       ret = FALSE;
@@ -1391,6 +1435,58 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
 }
 
 /**
+ * @brief subrouting for tensor-tranform, "clamp" case.
+ *        : pixel = if (pixel > max) ? max :
+ *                  if (pixel < min) ? min : pixel
+ * @param[in/out] filter "this" pointer
+ * @param[in] inptr input tensor
+ * @param[out] outptr output tensor
+ * @return Gst flow status
+ */
+static GstFlowReturn
+gst_tensor_transform_clamp (GstTensorTransform * filter,
+    const uint8_t * inptr, uint8_t * outptr)
+{
+  tensor_type in_tensor_type = filter->in_config.info.type;
+  tensor_type out_tensor_type = filter->out_config.info.type;
+
+  gsize in_element_size, out_element_size;
+  gulong i, num, data_idx;
+
+  /* let's utilize transform typecast */
+  tensor_transform_operand_s value;
+  gdouble tmp;
+
+  in_element_size = gst_tensor_get_element_size (in_tensor_type);
+  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+  num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+
+  for (i = 0; i < num; ++i) {
+    /* extract the value */
+    data_idx = in_element_size * i;
+    gst_tensor_transform_set_value (filter, &value, in_tensor_type,
+        (gpointer) (inptr + data_idx));
+
+    /* in_tensor_type to double */
+    gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
+    gst_tensor_transform_get_value (filter, &value, (gpointer) (&tmp));
+
+    tmp = CLAMP (tmp, filter->data_clamp.min, filter->data_clamp.max);
+
+    /* double to out_tensor_type */
+    gst_tensor_transform_set_value (filter, &value, _NNS_FLOAT64, &tmp);
+    gst_tensor_transform_typecast_value (filter, &value, out_tensor_type);
+
+    /* store the value */
+    data_idx = out_element_size * i;
+    gst_tensor_transform_get_value (filter, &value,
+        (gpointer) (outptr + data_idx));
+  }
+
+  return GST_FLOW_OK;
+}
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -1437,6 +1533,9 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       break;
     case GTT_STAND:
       res = gst_tensor_transform_stand (filter, inptr, outptr);
+      break;
+    case GTT_CLAMP:
+      res = gst_tensor_transform_clamp (filter, inptr, outptr);
       break;
     default:
       res = GST_FLOW_NOT_SUPPORTED;
@@ -1570,6 +1669,8 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_STAND:
+      /* no-break */
+    case GTT_CLAMP:
       /* same tensors info, do nothing. */
       break;
 
