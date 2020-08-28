@@ -4,6 +4,7 @@
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
 %define		tensorflow_support 0
 %define		tensorflow_lite_support	1
+%define		tensorflow2_lite_support 1
 %define		armnn_support 0
 %define		vivante_support 0
 %define		flatbuf_support 1
@@ -132,6 +133,10 @@ BuildRequires: flatbuffers-devel
 # for tensorflow-lite
 BuildRequires: tensorflow-lite-devel
 %endif
+%if 0%{?tensorflow2_lite_support}
+# for tensorflow2-lite
+BuildRequires: tensorflow2-lite-devel
+%endif
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
@@ -253,6 +258,16 @@ Requires:	nnstreamer = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
+%endif
+
+# for tensorflow2-lite
+%if 0%{?tensorflow2_lite_support}
+%package tensorflow2-lite
+Summary:	NNStreamer TensorFlow2 Lite Support
+Requires:	nnstreamer = %{version}-%{release}
+# tensorflow2-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
+%description tensorflow2-lite
+NNStreamer's tensor_fliter subplugin of TensorFlow2 Lite.
 %endif
 
 %if 0%{?python_support}
@@ -498,11 +513,19 @@ NNStreamer developer utilities include nnstreamer configuration checker.
 %else
 %define enable_tf -Dtf-support=disabled
 %endif
+
 # Support tensorflow-lite
 %if 0%{?tensorflow_lite_support}
 %define enable_tf_lite -Dtflite-support=enabled
 %else
 %define enable_tf_lite -Dtflite-support=disabled
+%endif
+
+# Support tensorflow2-lite
+%if 0%{?tensorflow2_lite_support}
+%define enable_tf2_lite -Dtflite2-support=enabled
+%else
+%define enable_tf2_lite -Dtflite2-support=disabled
 %endif
 
 # Support pytorch
@@ -580,7 +603,7 @@ mkdir -p build
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_tf_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
+	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
 	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
@@ -719,6 +742,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
+%endif
+
+# for tensorflow2-lite
+%if 0%{?tensorflow2_lite_support}
+%files tensorflow2-lite
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow2-lite.so
 %endif
 
 %if 0%{?python_support}
