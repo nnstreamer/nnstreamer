@@ -112,6 +112,7 @@ if tflite_support_is_available
   if cxx.has_type('kTfLiteComplex64', prefix : '#include <tensorflow/contrib/lite/model.h>')
     tflite_compile_args += '-DTFLITE_COMPLEX64=1'
   endif
+  tflite_compile_args += '-DTFLITE_VERSION=1'
 
   tflite_extra_dep = declare_dependency(
     compile_args : tflite_compile_args,
@@ -129,6 +130,53 @@ if tflite_support_is_available
   static_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
+if tflite2_support_is_available
+  filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
+
+  nnstreamer_filter_tflite2_sources = []
+  foreach s : filter_sub_tflite2_sources
+    nnstreamer_filter_tflite2_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_tflite2_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  tflite2_compile_args = []
+
+  if cxx.has_type('kTfLiteInt8', prefix : '#include <tensorflow2/contrib/lite/model.h>')
+    tflite2_compile_args += '-DTFLITE_INT8=1'
+  endif
+  if cxx.has_type('kTfLiteInt16', prefix : '#include <tensorflow2/contrib/lite/model.h>')
+    tflite2_compile_args += '-DTFLITE_INT16=1'
+  endif
+  if cxx.has_type('kTfLiteFloat16', prefix : '#include <tensorflow2/contrib/lite/model.h>')
+    tflite2_compile_args += '-DTFLITE_FLOAT16=1'
+  endif
+  if cxx.has_type('kTfLiteComplex64', prefix : '#include <tensorflow2/contrib/lite/model.h>')
+    tflite2_compile_args += '-DTFLITE_COMPLEX64=1'
+  endif
+  tflite2_compile_args += '-DTFLITE_VERSION=2'
+
+  tflite2_extra_dep = declare_dependency(
+    compile_args : tflite2_compile_args,
+  )
+
+  nnstreamer_filter_tflite2_deps += tflite2_extra_dep
+
+  shared_library('nnstreamer_filter_tensorflow2-lite',
+    nnstreamer_filter_tflite2_sources,
+    dependencies: nnstreamer_filter_tflite2_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_tensorflow2-lite',
+    nnstreamer_filter_tflite2_sources,
+    dependencies: nnstreamer_filter_tflite2_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )

@@ -180,6 +180,9 @@ if get_option('install-test')
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_tests_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_tests_install_dir)
   endif
+  if tflite2_support_is_available
+    install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_tests_install_dir)
+  endif
   if have_python2 or have_python3
     install_subdir('nnstreamer_filter_python', install_dir: unittest_tests_install_dir)
   endif
