@@ -21,7 +21,9 @@
  * @author HyoungJoo Ahn <hello.ahn@samsung.com>
  * @bug    No known bugs except for NYI items
  *
- * This is the per-NN-framework plugin (tensorflow-lite) for tensor_filter.
+ * This is the per-NN-framework plugin (tensorflow-lite, tensorflow2-lite)
+ * for tensor_filter. The meson build system generates two .so files
+ * (e.g., TF-Lite and TF2-Lite) from this source code.
  */
 
 #include <unistd.h>
@@ -1074,7 +1076,11 @@ tflite_checkAvailability (accl_hw hw)
   return -ENOENT;
 }
 
+#if TFLITE_VERSION == 1
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
+#else
+static gchar filter_subplugin_tensorflow_lite[] = "tensorflow2-lite";
+#endif
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
