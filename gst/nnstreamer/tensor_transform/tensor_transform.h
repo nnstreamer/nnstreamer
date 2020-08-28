@@ -60,6 +60,7 @@ typedef enum _tensor_transform_mode
   GTT_ARITHMETIC,     /* Arithmetic. "arithmetic" */
   GTT_TRANSPOSE,      /* Transpose. "transpose" */
   GTT_STAND,          /* Standardization. "stand" */
+  GTT_CLAMP,          /* Clamp, "clamp" */
 
   GTT_UNKNOWN = -1,   /* Unknown/Not-implemented-yet Mode. "unknown" */
 } tensor_transform_mode;
@@ -135,6 +136,13 @@ typedef struct _tensor_transform_stand {
 } tensor_transform_stand;
 
 /**
+ * @brief Internal data structure for clamp mode.
+ */
+typedef struct _tensor_transform_clamp {
+  double min, max;
+} tensor_transform_clamp;
+
+/**
  * @brief Internal data structure for tensor_transform instances.
  */
 struct _GstTensorTransform
@@ -150,6 +158,7 @@ struct _GstTensorTransform
     tensor_transform_arithmetic data_arithmetic; /**< Parsed option value for "arithmetic" mode. */
     tensor_transform_transpose data_transpose; /**< Parsed option value for "transpose" mode. */
     tensor_transform_stand data_stand; /**< Parsed option value for "stand" mode. */
+    tensor_transform_clamp data_clamp; /**< Parsed option value for "clamp" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
   gboolean acceleration; /**< TRUE to set orc acceleration */
