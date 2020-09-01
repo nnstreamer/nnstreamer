@@ -161,8 +161,8 @@ nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
 
   info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>",
       "(L" NNS_CLS_TINFO ";)V");
-  info->mid_add_data = (*env)->GetMethodID (env, info->cls, "addTensorData",
-      "(Ljava/nio/ByteBuffer;)V");
+  info->mid_add_data = (*env)->GetMethodID (env, info->cls,
+      "addTensorFromNative", "([B)V");
   info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
       "()[Ljava/lang/Object;");
   info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
@@ -380,7 +380,6 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
 
 /**
  * @brief Convert tensors data to TensorsData object.
- * @note This function will create new direct buffer object with tensors. You should not release the tensor data in data_h.
  */
 gboolean
 nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
@@ -409,9 +408,11 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   }
 
   for (i = 0; i < data->num_tensors; i++) {
-    gsize data_size = data->tensors[i].size;
-    gpointer data_ptr = data->tensors[i].tensor;
-    jobject buffer = (*env)->NewDirectByteBuffer (env, data_ptr, data_size);
+    jsize buffer_size = (jsize) data->tensors[i].size;
+    jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
+
+    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
+        (jbyte *) data->tensors[i].tensor);
 
     (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_add_data, buffer);
     (*env)->DeleteLocalRef (env, buffer);
