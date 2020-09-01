@@ -525,7 +525,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
         0,
         input_encoded,
         total_size,
-        &DeallocateInputTensor,
+        DeallocateInputTensor,
         &input_tensor_info[i]);
     } else {
       in_tensor = TF_NewTensor (
