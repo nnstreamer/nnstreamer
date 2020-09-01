@@ -115,62 +115,6 @@ nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
 }
 
 /**
- * @brief Verify the provided model file matches the existing metadata file
- */
-static int
-nnfw_metadata_verify (const char *meta_file, const char *model_file)
-{
-  int err = -EINVAL;
-  JsonParser *parser;
-  JsonNode *root;
-  JsonNode *model_node;
-  GError *error;
-  JsonObject *object;
-  JsonArray *filenames;
-  GValue model_value = G_VALUE_INIT;
-  gchar *basename_ref, *basename_in;
-  const gchar *filename;
-
-  parser = json_parser_new ();
-  if (json_parser_load_from_file (parser, meta_file, &error)) {
-    root = json_parser_get_root (parser);
-    object = json_node_get_object (root);
-
-    /** Parse the list of models from the metadata file */
-    if (object && json_object_has_member (object, "models")) {
-      filenames = json_object_get_array_member (object, "models");
-
-      /** Ensure that the first element is the model file to be run */
-      if (filenames && json_array_get_length (filenames) > 0) {
-        model_node = json_array_get_element (filenames, 0);
-        json_node_get_value (model_node, &model_value);
-
-        if (G_VALUE_HOLDS_STRING (&model_value)) {
-          filename = g_value_get_string (&model_value);
-
-          basename_ref = g_path_get_basename (model_file);
-          basename_in = g_path_get_basename (filename);
-          if (g_strcmp0 (basename_in, basename_ref) == 0) {
-            err = 0;
-          }
-
-          g_free (basename_ref);
-          g_free (basename_in);
-        }
-        g_value_unset (&model_value);
-      }
-    }
-  } else {
-    err = -1 * error->code;
-    g_printerr ("Unable to parse %s: %s\n", meta_file, error->message);
-    g_error_free (error);
-  }
-
-  g_object_unref (parser);
-  return err;
-}
-
-/**
  * @brief The standard tensor_filter callback
  */
 static int
@@ -180,7 +124,6 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   int err = 0;
   nnfw_pdata *pdata;
   char *model_path = NULL;
-  char *meta_file = NULL;
   const char *accelerator = NULL;
 
   if (*private_data != NULL) {
@@ -190,6 +133,12 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     } else {
       return 1;
     }
+  }
+
+  /* validate model file first */
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
+    g_printerr ("Cannot find model file %s.", prop->model_files[0]);
+    return -EINVAL;
   }
 
   pdata = *private_data = g_new0 (nnfw_pdata, 1);
@@ -207,25 +156,9 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   /** @note nnfw opens the first model listed in the MANIFEST file */
   model_path = g_path_get_dirname (prop->model_files[0]);
-  meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
-
-  if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR) ||
-      !g_file_test (meta_file, G_FILE_TEST_IS_REGULAR)) {
-    err = -EINVAL;
-    g_printerr ("Model file (%s) or its metadata is not valid (not regular).\n",
-        prop->model_files[0]);
-    goto session_exit;
-  }
-
-  /** ensure the provided filename matches with info in metadata */
-  if (nnfw_metadata_verify (meta_file, prop->model_files[0]) != 0) {
-    err = -EINVAL;
-    g_printerr ("Provided model file (%s) and its metadata mismatch.\n",
-        prop->model_files[0]);
-    goto session_exit;
-  }
-
   status = nnfw_load_model_from_file (pdata->session, model_path);
+  g_free (model_path);
+
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot load the model file: %s\n", prop->model_files[0]);
@@ -261,17 +194,12 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   pdata->model_file = g_strdup (prop->model_files[0]);
-  g_free (meta_file);
-  g_free (model_path);
-
   return 0;
 
 session_exit:
   status = nnfw_close_session (pdata->session);
   if (status != NNFW_STATUS_NO_ERROR)
     g_printerr ("Closing the session just opened by %s has failed\n", __func__);
-  g_free (meta_file);
-  g_free (model_path);
 unalloc_exit:
   g_free (pdata);
   *private_data = NULL;
