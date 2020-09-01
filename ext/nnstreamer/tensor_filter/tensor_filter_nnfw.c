@@ -30,7 +30,6 @@
 #include <string.h>
 #include <glib.h>
 #include <glib-object.h>
-#include <json-glib/json-glib.h>
 
 #include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
