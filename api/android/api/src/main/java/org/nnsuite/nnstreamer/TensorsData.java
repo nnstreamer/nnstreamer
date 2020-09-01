@@ -113,13 +113,18 @@ public final class TensorsData implements AutoCloseable {
     private void addTensorData(@NonNull ByteBuffer data) {
         int index = getTensorsCount();
 
-        if (data.isDirect() && data.order() != ByteOrder.nativeOrder()) {
-            /* From native function NewDirectByteBuffer(), we should change the byte order. */
-            data = data.order(ByteOrder.nativeOrder());
-        }
-
         checkByteBuffer(index, data);
         mDataList.add(data);
+    }
+
+    /**
+     * Internal method called from native to add tensor.
+     */
+    private void addTensorFromNative(byte[] data) {
+        ByteBuffer buffer = allocateByteBuffer(data.length);
+        buffer.put(data);
+
+        addTensorData(buffer);
     }
 
     /**
