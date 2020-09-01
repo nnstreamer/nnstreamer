@@ -150,8 +150,6 @@ fb_comp = find_program('flatc', required : get_option('flatbuf-support'))
 # Protobuf compiler
 pb_comp = find_program('protoc', required: get_option('protobuf-support'))
 
-json_glib_dep = dependency('json-glib-1.0', required: get_option('nnfw-runtime-support'))
-
 #orc
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
@@ -223,7 +221,7 @@ features = {
     'project_args': { 'ENABLE_MOVIDIUS_NCSDK2' : 1}
   },
   'nnfw-runtime-support': {
-    'extra_deps': [ nnfw_dep, json_glib_dep ],
+    'extra_deps': [ nnfw_dep ],
     'project_args': { 'ENABLE_NNFW_RUNTIME': 1 }
   },
   'tflite-nnapi-delegation': {

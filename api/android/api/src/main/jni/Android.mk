@@ -136,7 +136,7 @@ GSTREAMER_NDK_BUILD_PATH := $(GSTREAMER_ROOT)/share/gst-android/ndk-build/
 include $(LOCAL_PATH)/Android-gst-plugins.mk
 
 GSTREAMER_PLUGINS        := $(GST_REQUIRED_PLUGINS)
-GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS) gio-2.0 gmodule-2.0 json-glib-1.0
+GSTREAMER_EXTRA_DEPS     := $(GST_REQUIRED_DEPS) gio-2.0 gmodule-2.0
 GSTREAMER_EXTRA_LIBS     := $(GST_REQUIRED_LIBS) -liconv
 
 ifeq ($(NNSTREAMER_API_OPTION),all)
