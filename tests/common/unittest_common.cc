@@ -998,18 +998,19 @@ TEST (conf_custom, env_str_01)
   EXPECT_FALSE (nnsconf_get_custom_value_bool ("customW", "n05", FALSE));
   EXPECT_TRUE (nnsconf_get_custom_value_bool ("customW", "n05", TRUE));
 
-  if (confenv) {
-    g_setenv ("NNSTREAMER_CONF", confenv, TRUE);
-    g_free (confenv);
-  } else {
-    g_unsetenv ("NNSTREAMER_CONF");
-  }
   g_free (f1);
   g_free (f2);
   g_free (f3);
   g_free (f4);
   g_free (f5);
   g_free (f6);
+
+  if (confenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
+    g_free (confenv);
+  } else {
+    g_unsetenv ("NNSTREAMER_CONF");
+  }
 }
 
 /**
