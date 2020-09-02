@@ -413,12 +413,10 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
   gsize size, offset;
   GstMapInfo src_info, dest_info;
 
-  size = 0;
-  offset = 0;
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
-
-  size += gst_tensor_get_element_count (*dim) *
+  size = gst_tensor_get_element_count (*dim) *
       gst_tensor_get_element_size (split->sink_tensor_conf.info.type);
+
   mem = gst_allocator_alloc (NULL, size, NULL);
   if (FALSE == gst_memory_map (mem, &dest_info, GST_MAP_WRITE)) {
     ml_logf ("Cannot map memory for destination buffer.\n");
@@ -430,9 +428,11 @@ gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
     return NULL;
   }
 
+  offset = 0;
   for (i = 0; i < nth; i++) {
     dim = g_array_index (split->tensorseg, tensor_dim *, i);
-    offset += gst_tensor_get_element_count (*dim);
+    offset += gst_tensor_get_element_count (*dim) *
+        gst_tensor_get_element_size (split->sink_tensor_conf.info.type);
   }
 
   nns_memcpy (dest_info.data, src_info.data + offset, size);
