@@ -312,22 +312,10 @@ gst_tensor_filter_destroy_notify (void *data)
 {
   GPtrArray *array = (GPtrArray *) data;
   GstTensorFilter *self = (GstTensorFilter *) g_ptr_array_index (array, 0);
-  GstTensorFilterPrivate *priv = &self->priv;
   void *tensor_data = (void *) g_ptr_array_index (array, 1);
-  GstTensorFilterFrameworkEventData event_data;
   g_ptr_array_free (array, TRUE);
 
-  if (GST_TF_FW_V0 (priv->fw) && priv->fw->destroyNotify) {
-    priv->fw->destroyNotify (&priv->privateData, tensor_data);
-  } else if (GST_TF_FW_V1 (priv->fw)) {
-    event_data.data = tensor_data;
-    if (priv->fw->eventHandler (priv->fw, &priv->prop, priv->privateData,
-            DESTROY_NOTIFY, &event_data) == -ENOENT) {
-      g_free (tensor_data);
-    }
-  } else {
-    g_free (tensor_data);
-  }
+  gst_tensor_filter_destroy_notify_util (&self->priv, tensor_data);
 }
 
 /**
