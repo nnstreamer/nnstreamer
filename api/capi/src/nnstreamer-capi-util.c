@@ -540,6 +540,7 @@ ml_tensors_info_free (ml_tensors_info_s * info)
 int
 ml_tensors_data_destroy (ml_tensors_data_h data)
 {
+  gint status = ML_ERROR_NONE;
   ml_tensors_data_s *_data;
   guint i;
 
@@ -550,15 +551,19 @@ ml_tensors_data_destroy (ml_tensors_data_h data)
 
   _data = (ml_tensors_data_s *) data;
 
-  for (i = 0; i < ML_TENSOR_SIZE_LIMIT; i++) {
-    if (_data->tensors[i].tensor) {
-      g_free (_data->tensors[i].tensor);
-      _data->tensors[i].tensor = NULL;
+  if (_data->handle != NULL) {
+    status = ml_single_destroy_notify (_data->handle, _data);
+  } else {
+    for (i = 0; i < ML_TENSOR_SIZE_LIMIT; i++) {
+      if (_data->tensors[i].tensor) {
+        g_free (_data->tensors[i].tensor);
+        _data->tensors[i].tensor = NULL;
+      }
     }
   }
 
   g_free (_data);
-  return ML_ERROR_NONE;
+  return status;
 }
 
 /**
@@ -587,6 +592,7 @@ ml_tensors_data_create_no_alloc (const ml_tensors_info_h info,
     return ML_ERROR_OUT_OF_MEMORY;
   }
 
+  _data->handle = NULL;
   _info = (ml_tensors_info_s *) info;
   if (_info != NULL) {
     _data->num_tensors = _info->num_tensors;
@@ -624,6 +630,7 @@ ml_tensors_data_clone_no_alloc (const ml_tensors_data_s * data_src,
     return ML_ERROR_OUT_OF_MEMORY;
   }
 
+  _data->handle = NULL;
   _data->num_tensors = data_src->num_tensors;
   memcpy(_data->tensors, data_src->tensors,
       sizeof (ml_tensor_data_s) * data_src->num_tensors);

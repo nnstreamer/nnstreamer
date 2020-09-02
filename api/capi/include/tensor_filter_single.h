@@ -78,6 +78,10 @@ struct _GTensorFilterSingleClass
   /** Set the info about the input tensor */
   gint (*set_input_info) (GTensorFilterSingle * self,
       const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
+  /** Check if the filter performs allocate_in_invoke */
+  gboolean (*allocate_in_invoke) (GTensorFilterSingle * self);
+  /** Free the data allocated by the tensor filter in invoke */
+  void (*destroy_notify) (GTensorFilterSingle * self, GstTensorMemory * mem);
 };
 
 /**

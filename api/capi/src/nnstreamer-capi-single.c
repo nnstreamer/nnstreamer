@@ -111,6 +111,8 @@ typedef struct
 
   ml_tensors_data_s in_tensors;    /**< input tensor wrapper for processing */
   ml_tensors_data_s out_tensors;   /**< output tensor wrapper for processing */
+
+  GList *destroy_data_list;         /**< data to be freed by filter */
 } ml_single;
 
 /**
@@ -141,6 +143,80 @@ __setup_in_out_tensors (ml_single * single_h)
     out_tensors->tensors[i].size =
         ml_tensor_info_get_size (&single_h->out_info.info[i]);
   }
+}
+
+/**
+ * @brief setup the destroy notify for the allocated output data.
+ * @note this stores the data entry in the single list.
+ * @note this has not overhead if the allocation of output is not performed by
+ * the framework but by tensor filter element.
+ */
+static inline void
+set_destroy_notify (ml_single * single_h, ml_tensors_data_s * data)
+{
+  if (single_h->klass->allocate_in_invoke (single_h->filter) == TRUE) {
+    data->handle = single_h;
+    single_h->destroy_data_list = g_list_append (single_h->destroy_data_list,
+        (gpointer) data);
+  }
+}
+
+/**
+ * @brief To call the framework to destroy the allocated output data
+ */
+static inline void
+__destroy_notify (gpointer data_h, gpointer single_data)
+{
+  ml_single *single_h;
+  ml_tensors_data_s *data;
+
+  data = (ml_tensors_data_s *) data_h;
+  single_h = (ml_single *) single_data;
+  if (G_LIKELY (single_h->filter)) {
+    single_h->klass->destroy_notify (single_h->filter,
+        (GstTensorMemory *) data->tensors);
+  }
+}
+
+/**
+ * @brief call the framework to destroy the allocated output data before closing
+ */
+static inline void
+__destroy_notify_free_data (gpointer data_h, gpointer single_data)
+{
+  __destroy_notify (data_h, single_data);
+  g_free(data_h);
+}
+
+/**
+ * @brief Wrapper function for __destroy_notify
+ */
+int
+ml_single_destroy_notify (ml_single_h single, ml_tensors_data_s * data)
+{
+  ml_single *single_h;
+  int status = ML_ERROR_NONE;
+
+  if (G_UNLIKELY (!single || !data))
+    return ML_ERROR_INVALID_PARAMETER;
+
+  ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
+
+  if (G_UNLIKELY (!single_h->filter)) {
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto exit;
+  }
+
+  single_h->destroy_data_list =
+      g_list_remove (single_h->destroy_data_list, data);
+  __destroy_notify (data, single_h);
+
+exit:
+  ML_SINGLE_HANDLE_UNLOCK (single_h);
+
+  if (G_UNLIKELY (status != ML_ERROR_NONE))
+    ml_loge ("Failed to destroy the data.");
+  return status;
 }
 
 /**
@@ -180,6 +256,8 @@ __invoke (ml_single * single_h)
 static inline void
 __process_output (ml_single * single_h)
 {
+  ml_tensors_data_s *out_data;
+
   if (single_h->ignore_output == TRUE) {
     /**
      * Caller of the invoke thread has returned back with timeout
@@ -187,6 +265,9 @@ __process_output (ml_single * single_h)
      */
     ml_tensors_data_destroy (single_h->output);
     single_h->output = NULL;
+  } else {
+    out_data = (ml_tensors_data_s *) single_h->output;
+    set_destroy_notify (single_h, out_data);
   }
 }
 
@@ -501,6 +582,7 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
   single_h->thread = NULL;
   single_h->input = NULL;
   single_h->output = NULL;
+  single_h->destroy_data_list = NULL;
 
   ml_tensors_info_initialize (&single_h->in_info);
   ml_tensors_info_initialize (&single_h->out_info);
@@ -757,6 +839,10 @@ ml_single_close (ml_single_h single)
 
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
+    g_list_foreach (single_h->destroy_data_list, __destroy_notify_free_data,
+        single_h);
+    g_list_free (single_h->destroy_data_list);
+
     if (single_h->klass)
       single_h->klass->stop (single_h->filter);
 
@@ -804,19 +890,19 @@ ml_single_invoke (ml_single_h single,
 
   check_feature_state ();
 
-  if (G_UNLIKELY(!single)) {
+  if (G_UNLIKELY (!single)) {
     ml_loge
         ("The first argument of ml_single_invoke() is not valid. Please check the single handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (G_UNLIKELY(!input)) {
+  if (G_UNLIKELY (!input)) {
     ml_loge
         ("The second argument of ml_single_invoke() is not valid. Please check the input data handle.");
     return ML_ERROR_INVALID_PARAMETER;
   }
 
-  if (G_UNLIKELY(!output)) {
+  if (G_UNLIKELY (!output)) {
     ml_loge
         ("The third argument of ml_single_invoke() is not valid. Please check the output data handle.");
     return ML_ERROR_INVALID_PARAMETER;
@@ -827,7 +913,7 @@ ml_single_invoke (ml_single_h single,
   in_data = (ml_tensors_data_s *) input;
   *output = NULL;
 
-  if (G_UNLIKELY(!single_h->filter)) {
+  if (G_UNLIKELY (!single_h->filter)) {
     ml_loge
         ("The tensor_filter element is not valid. It is not correctly created or already freed.");
     status = ML_ERROR_INVALID_PARAMETER;
@@ -835,7 +921,7 @@ ml_single_invoke (ml_single_h single,
   }
 
   /* Validate input data */
-  if (G_UNLIKELY(in_data->num_tensors != single_h->in_tensors.num_tensors)) {
+  if (G_UNLIKELY (in_data->num_tensors != single_h->in_tensors.num_tensors)) {
     ml_loge
         ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
         in_data->num_tensors, single_h->in_tensors.num_tensors);
@@ -846,14 +932,14 @@ ml_single_invoke (ml_single_h single,
   for (i = 0; i < in_data->num_tensors; i++) {
     size_t raw_size;
 
-    if (G_UNLIKELY(!in_data->tensors[i].tensor)) {
+    if (G_UNLIKELY (!in_data->tensors[i].tensor)) {
       ml_loge ("The %d-th input tensor is not valid.", i);
       status = ML_ERROR_INVALID_PARAMETER;
       goto exit;
     }
 
     raw_size = single_h->in_tensors.tensors[i].size;
-    if (G_UNLIKELY(in_data->tensors[i].size != raw_size)) {
+    if (G_UNLIKELY (in_data->tensors[i].size != raw_size)) {
       ml_loge
           ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
           i, in_data->tensors[i].size, raw_size,
@@ -864,7 +950,7 @@ ml_single_invoke (ml_single_h single,
   }
 
   if (single_h->state != IDLE) {
-    if (G_UNLIKELY(single_h->state == JOIN_REQUESTED)) {
+    if (G_UNLIKELY (single_h->state == JOIN_REQUESTED)) {
       ml_loge ("The handle is closed or being closed.");
       status = ML_ERROR_STREAMS_PIPE;
       goto exit;
@@ -918,7 +1004,7 @@ ml_single_invoke (ml_single_h single,
 exit:
   ML_SINGLE_HANDLE_UNLOCK (single_h);
 
-  if (G_UNLIKELY(status != ML_ERROR_NONE))
+  if (G_UNLIKELY (status != ML_ERROR_NONE))
     ml_loge ("Failed to invoke the model.");
   return status;
 }

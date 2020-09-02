@@ -148,6 +148,7 @@ typedef struct {
 typedef struct {
   unsigned int num_tensors; /**< The number of tensors. */
   ml_tensor_data_s tensors[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
+  void *handle; /**< The handle which owns this buffer and will be used to de-alloc the data */
 } ml_tensors_data_s;
 
 /**
@@ -389,6 +390,8 @@ const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
  * @return The reference of pipeline itself. Null if the pipeline is not constructed or closed.
  */
 GstElement* ml_pipeline_get_gst_element (ml_pipeline_h pipe);
+
+int ml_single_destroy_notify (ml_single_h single, ml_tensors_data_s *data);
 
 #if defined (__TIZEN__)
 /**

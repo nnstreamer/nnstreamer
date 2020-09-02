@@ -62,6 +62,10 @@ static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
 static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
+static void
+g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
+    GstTensorMemory * mem);
+static gboolean g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self);
 
 /* Private functions */
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
@@ -89,6 +93,8 @@ g_tensor_filter_single_class_init (GTensorFilterSingleClass * klass)
   klass->input_configured = g_tensor_filter_input_configured;
   klass->output_configured = g_tensor_filter_output_configured;
   klass->set_input_info = g_tensor_filter_set_input_info;
+  klass->destroy_notify = g_tensor_filter_destroy_notify;
+  klass->allocate_in_invoke = g_tensor_filter_allocate_in_invoke;
 }
 
 /**
@@ -194,6 +200,16 @@ g_tensor_filter_output_configured (GTensorFilterSingle * self)
 }
 
 /**
+ * @brief Determine if this filter framework supports allocation in invoke
+ */
+static inline gboolean
+g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
+{
+  return self->allocate_in_invoke;
+}
+
+
+/**
  * @brief Called when the element starts processing, if fw not laoded
  * @param self "this" pointer
  * @return TRUE if there is no error.
@@ -240,6 +256,25 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
 }
 
 /**
+ * @brief Called to notify the framework to destroy the allocated memory
+ * @param self "this" pointer
+ * @param mem Memory wrapper for the allocated memory by the filter
+ */
+static void
+g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
+    GstTensorMemory * mem)
+{
+  guint i;
+  GstTensorFilterPrivate *priv;
+
+  priv = &self->priv;
+
+  for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
+    gst_tensor_filter_destroy_notify_util (priv, mem[i].data);
+  }
+}
+
+/**
  * @brief Called when an input supposed to be invoked
  * @param self "this" pointer
  * @param input memory containing input data to run processing on
@@ -275,6 +310,9 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   }
 
   GST_TF_FW_INVOKE_COMPAT (priv, status, input, output);
+
+  if (self->allocate_in_invoke) {
+  }
 
   if (status == 0)
     return TRUE;

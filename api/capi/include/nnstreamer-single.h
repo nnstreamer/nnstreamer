@@ -96,6 +96,7 @@ int ml_single_close (ml_single_h single);
  * @param[in] input The input data to be inferred.
  * @param[out] output The allocated output buffer. The caller is responsible for freeing the output buffer with ml_tensors_data_destroy().
  * @return @c 0 on success. Otherwise a negative error value.
+ * @note If the data for the output buffer is allocated by the neural network framework (ML_NNFW_TYPE_CUSTOM_FILTER supports this), then this data will be freed when closing the @a single automatically by the neural network framework, and will not available for use later. It is recommended to copy the data from @a output if it is required to use it after the @a single handle is closed.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Fail. The parameter is invalid.

@@ -570,6 +570,30 @@ gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv)
 }
 
 /**
+ * @brief Free the data allocated for tensor filter output
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] data Data to be freed
+ */
+void
+gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate * priv,
+    void *data)
+{
+  GstTensorFilterFrameworkEventData event_data;
+
+  if (GST_TF_FW_V0 (priv->fw) && priv->fw->destroyNotify) {
+    priv->fw->destroyNotify (&priv->privateData, data);
+  } else if (GST_TF_FW_V1 (priv->fw)) {
+    event_data.data = data;
+    if (priv->fw->eventHandler (priv->fw, &priv->prop, priv->privateData,
+            DESTROY_NOTIFY, &event_data) == -ENOENT) {
+      g_free (data);
+    }
+  } else {
+    g_free (data);
+  }
+}
+
+/**
  * @brief Printout the comparison results of two tensors.
  * @param[in] info1 The tensors to be shown on the left hand side
  * @param[in] info2 The tensors to be shown on the right hand side

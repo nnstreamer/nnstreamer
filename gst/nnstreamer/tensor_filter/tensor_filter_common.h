@@ -210,4 +210,10 @@ extern gboolean
 gst_tensor_filter_check_hw_availability (const GstTensorFilterFramework *fw,
     accl_hw hw);
 
+/**
+ * @brief Free the data allocated for tensor filter output
+ */
+extern void
+gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate *priv, void *data);
+
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */
