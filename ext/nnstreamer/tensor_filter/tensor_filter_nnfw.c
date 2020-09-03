@@ -36,7 +36,7 @@
 #include <nnfw.h>
 
 /** backends supported by nnfw */
-#define NNFW_CPU_BACKEND  "cpu"
+#define NNFW_CPU_BACKEND  "cpu;bcq"
 #define NNFW_GPU_BACKEND  "acl_cl"
 #define NNFW_NEON_BACKEND "acl_neon"
 #define NNFW_SRCN_BACKEND  "srcn"
