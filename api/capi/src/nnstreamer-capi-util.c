@@ -935,13 +935,19 @@ ml_initialize_gstreamer (void)
  * @brief Internal helper function to validate model files.
  */
 static int
-_ml_validate_model_file (char **model, unsigned int num_models)
+_ml_validate_model_file (char **model, unsigned int num_models,
+    gboolean * is_dir)
 {
   guint i;
 
   if (!model || num_models < 1) {
     ml_loge ("The required param, model is not provided (null).");
     return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (g_file_test (model[0], G_FILE_TEST_IS_DIR)) {
+    *is_dir = TRUE;
+    return ML_ERROR_NONE;
   }
 
   for (i = 0; i < num_models; i++) {
@@ -1017,15 +1023,29 @@ ml_validate_model_file (char **model, unsigned int num_models,
     ml_nnfw_type_e * nnfw)
 {
   int status = ML_ERROR_NONE;
+  gboolean is_dir = FALSE;
   gchar *pos;
   gchar **file_ext;
   guint i;
 
-  if ((status = _ml_validate_model_file (model, num_models)) != ML_ERROR_NONE)
-    return status;
-
   if (!nnfw)
     return ML_ERROR_INVALID_PARAMETER;
+
+  status = _ml_validate_model_file (model, num_models, &is_dir);
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  /* supposed it is ONE if given model is directory */
+  if (is_dir) {
+    if (*nnfw == ML_NNFW_TYPE_ANY) {
+      *nnfw = ML_NNFW_TYPE_NNFW;
+    } else if (*nnfw != ML_NNFW_TYPE_NNFW) {
+      ml_loge ("The given model is directory, check model and framework.");
+      status = ML_ERROR_INVALID_PARAMETER;
+    }
+
+    return status;
+  }
 
   /* Check file extention. */
   file_ext = g_malloc0 (sizeof (char *) * (num_models + 1));
@@ -1060,27 +1080,11 @@ ml_validate_model_file (char **model, unsigned int num_models,
       }
       break;
     case ML_NNFW_TYPE_NNFW:
-    {
-      gchar *model_path = NULL;
-      gchar *meta = NULL;
-
-      if (g_ascii_strcasecmp (file_ext[0], ".tflite") != 0 &&
-          g_ascii_strcasecmp (file_ext[0], ".circle") != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-        break;
-      }
-
-      model_path = g_path_get_dirname (model[0]);
-      meta = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
-      if (!g_file_test (meta, G_FILE_TEST_IS_REGULAR)) {
-        ml_loge ("The given model path [%s] is missing metadata.", model_path);
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-
-      g_free (model_path);
-      g_free (meta);
+      /**
+       * We cannot check the file ext with NNFW.
+       * NNFW itself will validate metadata and model file.
+       */
       break;
-    }
     case ML_NNFW_TYPE_VIVANTE:
     {
       if (num_models != 2) {

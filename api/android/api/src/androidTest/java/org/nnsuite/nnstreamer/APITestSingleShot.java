@@ -776,6 +776,39 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testNNFWOpenDir() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            File model = new File(APITestCommon.getTFLiteAddModelPath());
+
+            new SingleShot(model, NNStreamer.NNFWType.NNFW);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testNNFWOpenInvalidDir_n() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        try {
+            File model = new File(APITestCommon.getTFLiteAddModelPath() + "/invaliddir");
+
+            new SingleShot(model, NNStreamer.NNFWType.NNFW);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testSNPE() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
             /* cannot run the test */

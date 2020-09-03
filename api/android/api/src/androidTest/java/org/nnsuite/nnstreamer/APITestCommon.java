@@ -180,13 +180,21 @@ public class APITestCommon {
     }
 
     /**
-     * Gets the File object of tensorflow-lite model.
+     * Gets the path string of tensorflow-lite add.tflite model.
+     */
+    public static String getTFLiteAddModelPath() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        return root + "/nnstreamer/test/add";
+    }
+
+    /**
+     * Gets the File object of tensorflow-lite add.tflite model.
      * Note that, to invoke model in the storage, the permission READ_EXTERNAL_STORAGE is required.
      */
     public static File getTFLiteAddModel() {
-        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
-        File model = new File(root + "/nnstreamer/test/add/add.tflite");
-        File meta = new File(root + "/nnstreamer/test/add/metadata/MANIFEST");
+        String path = getTFLiteAddModelPath();
+        File model = new File(path + "/add.tflite");
+        File meta = new File(path + "/metadata/MANIFEST");
 
         if (!model.exists() || !meta.exists()) {
             fail();

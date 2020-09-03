@@ -5208,6 +5208,35 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   ml_tensors_info_destroy (in_res);
   ml_tensors_info_destroy (out_res);
 }
+
+/**
+ * @brief Test NNStreamer single shot (nnfw backend using model path)
+ */
+TEST (nnstreamer_capi_singleshot, open_dir)
+{
+  ml_single_h single;
+  int status;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+}
+
 #endif  /* ENABLE_NNFW_RUNTIME */
 
 #ifdef ENABLE_ARMNN
@@ -9130,10 +9159,6 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
   status = ml_validate_model_file (&test_model1, 1, &nnfw);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  nnfw = ML_NNFW_TYPE_NNFW;
-  status = ml_validate_model_file (&test_model1, 1, &nnfw);
-  EXPECT_NE (status, ML_ERROR_NONE);
-
   /* snap only for android */
   nnfw = ML_NNFW_TYPE_SNAP;
   status = ml_validate_model_file (&test_model1, 1, &nnfw);
@@ -9162,6 +9187,48 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
 
   g_free (test_model1);
   g_free (test_model2);
+}
+
+/**
+ * @brief Test for internal function 'ml_validate_model_file'.
+ * @detail Invalid model path.
+ */
+TEST (nnstreamer_capi_internal, validate_model_file_03_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  int status;
+  ml_nnfw_type_e nnfw;
+  gchar *test_dir1, *test_dir2;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* test model path */
+  test_dir1 = g_build_filename (root_path, "tests", "test_models", "models", NULL);
+
+  /* invalid dir */
+  test_dir2 = g_build_filename (test_dir1, "invaliddir", NULL);
+
+  nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
+  status = ml_validate_model_file (&test_dir1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_TENSORFLOW;
+  status = ml_validate_model_file (&test_dir1, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  nnfw = ML_NNFW_TYPE_NNFW;
+  status = ml_validate_model_file (&test_dir2, 1, &nnfw);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  /* only NNFW supports dir path */
+  nnfw = ML_NNFW_TYPE_NNFW;
+  status = ml_validate_model_file (&test_dir1, 1, &nnfw);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_dir1);
+  g_free (test_dir2);
 }
 
 /**

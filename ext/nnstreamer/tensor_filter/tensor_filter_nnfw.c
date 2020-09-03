@@ -153,8 +153,13 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto unalloc_exit;
   }
 
-  /** @note nnfw opens the first model listed in the MANIFEST file */
-  model_path = g_path_get_dirname (prop->model_files[0]);
+  /** @todo NNFW now uses package path. Fix when file path is available to open NNFW. */
+  if (g_file_test (prop->model_files[0], G_FILE_TEST_IS_DIR)) {
+    model_path = g_strdup (prop->model_files[0]);
+  } else {
+    model_path = g_path_get_dirname (prop->model_files[0]);
+  }
+
   status = nnfw_load_model_from_file (pdata->session, model_path);
   g_free (model_path);
 

@@ -861,6 +861,12 @@ gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
   gchar **fw_priority_str_arr;
   guint i;
 
+  /* supposed it is ONE if given model is directory */
+  if (g_file_test (model_files[0], G_FILE_TEST_IS_DIR)) {
+    detected_fw = g_strdup ("nnfw");
+    goto done;
+  }
+
   file_extension = strrchr (model_files[0], '.');
 
   /* Detect framework based on file extension */
@@ -921,13 +927,13 @@ gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
     g_strfreev (fw_priority_str_arr);
   }
 
+done:
   if (detected_fw) {
     nns_logi ("Automatically detected framework is %s.", detected_fw);
     nns_logd
         ("If you want to change priority of framework for auto detection, Please edit meson_option.txt. You can find the file at root path of nnstreamer. \n");
   } else {
-    nns_logw ("Cannot get any neural network framework of %s. \n",
-        file_extension);
+    nns_logw ("Cannot get any neural network framework for given model");
   }
 
   return detected_fw;
