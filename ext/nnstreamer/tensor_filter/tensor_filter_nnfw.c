@@ -72,7 +72,7 @@ typedef struct
   GstTensorsInfo out_info;
   nnfw_session *session;
   gchar *model_file;
-  accl_hw accelerator;
+  gchar *accelerator;
 
   NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];   /**< cached input tensor types */
   NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];  /**< cached output tensor types */
@@ -94,10 +94,10 @@ static int nnfw_tensor_type_from_gst (const tensor_type type,
 static const char *
 nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
 {
-  pdata->accelerator = parse_accl_hw (accelerators, nnfw_accl_support,
+  accl_hw accel = parse_accl_hw (accelerators, nnfw_accl_support,
       nnfw_accl_auto, nnfw_accl_default);
 
-  switch (pdata->accelerator) {
+  switch (accel) {
     case ACCL_NPU:
       return NNFW_SRCN_BACKEND;
     case ACCL_NPU_SRCN:
@@ -114,6 +114,47 @@ nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
 }
 
 /**
+ * @brief Parse accelerator and other option.
+ */
+static void
+nnfw_parse_custom_option (const GstTensorFilterProperties * prop,
+    nnfw_pdata * pdata)
+{
+  if (prop->custom_properties) {
+    gchar **options;
+    guint i, len;
+
+    options = g_strsplit (prop->custom_properties, ",", -1);
+    len = g_strv_length (options);
+
+    for (i = 0; i < len; ++i) {
+      gchar **option = g_strsplit (options[i], ":", -1);
+
+      if (g_strv_length (option) > 1) {
+        g_strstrip (option[0]);
+        g_strstrip (option[1]);
+
+        if (g_ascii_strcasecmp (option[0], "Runtime") == 0) {
+          pdata->accelerator = g_strdup (option[1]);
+        } else {
+          g_warning ("Unknown option (%s).", options[i]);
+        }
+      }
+
+      g_strfreev (option);
+    }
+
+    g_strfreev (options);
+  }
+
+  /* set accelerator if custom option does not include accelerator */
+  if (pdata->accelerator == NULL) {
+    const char *accel = nnfw_get_accelerator (pdata, prop->accl_str);
+    pdata->accelerator = g_strdup (accel);
+  }
+}
+
+/**
  * @brief The standard tensor_filter callback
  */
 static int
@@ -123,7 +164,6 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   int err = 0;
   nnfw_pdata *pdata;
   char *model_path = NULL;
-  const char *accelerator = NULL;
 
   if (*private_data != NULL) {
     pdata = *private_data;
@@ -145,6 +185,8 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     g_printerr ("Failed to allocate memory for filter subplugin.\n");
     return -ENOMEM;
   }
+
+  nnfw_parse_custom_option (prop, pdata);
 
   status = nnfw_create_session (&pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {
@@ -169,11 +211,10 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto error_exit;
   }
 
-  accelerator = nnfw_get_accelerator (pdata, prop->accl_str);
-  status = nnfw_set_available_backends (pdata->session, accelerator);
+  status = nnfw_set_available_backends (pdata->session, pdata->accelerator);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    g_printerr ("Cannot set nnfw-runtime backend to %s\n", accelerator);
+    g_printerr ("Cannot set nnfw-runtime backend to %s\n", pdata->accelerator);
     goto error_exit;
   }
 
@@ -232,6 +273,9 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
 
   g_free (pdata->model_file);
   pdata->model_file = NULL;
+
+  g_free (pdata->accelerator);
+  pdata->accelerator = NULL;
 
   g_free (pdata);
   *private_data = NULL;

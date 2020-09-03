@@ -54,7 +54,7 @@ public final class SingleShot implements AutoCloseable {
      * @throws IllegalStateException if this failed to construct the pipeline
      */
     public SingleShot(@NonNull File model) {
-        this(model, null, null);
+        this(new File[]{model}, null, null, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
     }
 
     /**
@@ -71,6 +71,23 @@ public final class SingleShot implements AutoCloseable {
      */
     public SingleShot(@NonNull File model, NNStreamer.NNFWType fw) {
         this(new File[]{model}, null, null, fw, null);
+    }
+
+    /**
+     * Creates a new {@link SingleShot} instance with the given model and custom option.
+     * If the model has flexible data dimensions, the pipeline will not be constructed and this will make an exception.
+     *
+     * @param model  The {@link File} object to the neural network model file
+     * @param fw     The neural network framework
+     * @param option The custom option string to open the neural network
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException if this failed to construct the pipeline
+     *
+     * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
+     */
+    public SingleShot(@NonNull File model, NNStreamer.NNFWType fw, @Nullable String option) {
+        this(new File[]{model}, null, null, fw, option);
     }
 
     /**
