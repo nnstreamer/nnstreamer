@@ -12,66 +12,13 @@ ifndef NNFW_LIB_PATH
 $(error NNFW_LIB_PATH is not defined!)
 endif
 
-# include EXT
-ENABLE_NNFW_EXT := false
-
 NNFW_PREBUILT_LIBS :=
 
 #------------------------------------------------------
 # nnfw prebuilt shared libraries
 #------------------------------------------------------
 include $(CLEAR_VARS)
-LOCAL_MODULE := nnfw-libbackend_cpu
-LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libbackend_cpu.so
-include $(PREBUILT_SHARED_LIBRARY)
-NNFW_PREBUILT_LIBS += nnfw-libbackend_cpu
-
-ifeq ($(ENABLE_NNFW_EXT),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := nnfw-libbackend_cpu-boost
-LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libbackend_cpu-boost.so
-include $(PREBUILT_SHARED_LIBRARY)
-NNFW_PREBUILT_LIBS += nnfw-libbackend_cpu-boost
-endif
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := nnfw-libcircle_loader
-LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libcircle_loader.so
-include $(PREBUILT_SHARED_LIBRARY)
-NNFW_PREBUILT_LIBS += nnfw-libcircle_loader
-
-#include $(CLEAR_VARS)
-#LOCAL_MODULE := nnfw-libneuralnetworks
-#LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libneuralnetworks.so
-#include $(PREBUILT_SHARED_LIBRARY)
-#NNFW_PREBUILT_LIBS += nnfw-libneuralnetworks
-
-include $(CLEAR_VARS)
 LOCAL_MODULE := nnfw-libnnfw-dev
 LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libnnfw-dev.so
 include $(PREBUILT_SHARED_LIBRARY)
 NNFW_PREBUILT_LIBS += nnfw-libnnfw-dev
-
-#include $(CLEAR_VARS)
-#LOCAL_MODULE := nnfw-libnnfw_lib_benchmark
-#LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libnnfw_lib_benchmark.so
-#include $(PREBUILT_SHARED_LIBRARY)
-#NNFW_PREBUILT_LIBS += nnfw-libnnfw_lib_benchmark
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := nnfw-libonert_core
-LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libonert_core.so
-include $(PREBUILT_SHARED_LIBRARY)
-NNFW_PREBUILT_LIBS += nnfw-libonert_core
-
-#include $(CLEAR_VARS)
-#LOCAL_MODULE := nnfw-libtensorflowlite_jni
-#LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libtensorflowlite_jni.so
-#include $(PREBUILT_SHARED_LIBRARY)
-#NNFW_PREBUILT_LIBS += nnfw-libtensorflowlite_jni
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := nnfw-libtflite_loader
-LOCAL_SRC_FILES := $(NNFW_LIB_PATH)/libtflite_loader.so
-include $(PREBUILT_SHARED_LIBRARY)
-NNFW_PREBUILT_LIBS += nnfw-libtflite_loader
