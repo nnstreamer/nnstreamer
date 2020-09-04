@@ -287,13 +287,25 @@ fi
 if [[ $enable_nnfw == "yes" ]]; then
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_NNFW := false|ENABLE_NNFW := true|" api/src/main/jni/Android.mk
-    mkdir -p api/src/main/jni/nnfw
-    tar -zxf ./external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C ./api/src/main/jni/nnfw
+    sed -i "$ a NNFW_EXT_LIBRARY_PATH=src/main/jni/nnfw/ext" gradle.properties
+
+    mkdir -p external/nnfw
+    tar -zxf external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
 
     if [[ $enable_nnfw_ext == "yes" ]]; then
-        sed -i "s|ENABLE_NNFW_EXT := false|ENABLE_NNFW_EXT := true|" api/src/main/jni/Android-nnfw-prebuilt.mk
-        tar -zxf ./external/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz -C ./api/src/main/jni/nnfw
+        tar -zxf external/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
     fi
+
+    # Remove duplicated file c++shared.so
+    if [[ -e external/nnfw/lib/libc++_shared.so ]]; then
+        rm external/nnfw/lib/libc++_shared.so
+    fi
+
+    mkdir -p api/src/main/jni/nnfw/include api/src/main/jni/nnfw/lib
+    mkdir -p api/src/main/jni/nnfw/ext/arm64-v8a
+    mv external/nnfw/include/* api/src/main/jni/nnfw/include
+    mv external/nnfw/lib/libnnfw-dev.so api/src/main/jni/nnfw/lib
+    mv external/nnfw/lib/* api/src/main/jni/nnfw/ext/arm64-v8a
 fi
 
 # Update SNPE option

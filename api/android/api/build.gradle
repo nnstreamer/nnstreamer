@@ -66,6 +66,11 @@ android {
                 jniLibs.srcDirs += project.properties['SNPE_EXT_LIBRARY_PATH']
                 println 'Set jniLibs.srcDirs includes libraries for SNPE'
             }
+
+            if (project.hasProperty('NNFW_EXT_LIBRARY_PATH')) {
+                jniLibs.srcDirs += project.properties['NNFW_EXT_LIBRARY_PATH']
+                println 'Set jniLibs.srcDirs includes libraries for NNFW'
+            }
         }
     }
     packagingOptions {
