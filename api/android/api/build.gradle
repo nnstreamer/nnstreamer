@@ -62,9 +62,9 @@ android {
     }
     sourceSets {
         main {
-            if (project.hasProperty('SNPE_DSP_LIBRARY_PATH')) {
-                jniLibs.srcDirs += project.properties['SNPE_DSP_LIBRARY_PATH']
-                println 'Set jniLibs.srcDirs includes libraries for SNPE DSP runtime'
+            if (project.hasProperty('SNPE_EXT_LIBRARY_PATH')) {
+                jniLibs.srcDirs += project.properties['SNPE_EXT_LIBRARY_PATH']
+                println 'Set jniLibs.srcDirs includes libraries for SNPE'
             }
         }
     }
