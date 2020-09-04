@@ -300,11 +300,16 @@ fi
 if [[ $enable_snpe == "yes" ]]; then
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNPE := false|ENABLE_SNPE := true|" api/src/main/jni/Android.mk
-    sed -i "$ a SNPE_DSP_LIBRARY_PATH=src/main/jni/snpe/lib/dsp" gradle.properties
-    mkdir -p api/src/main/jni/snpe/lib/dsp/arm64-v8a
+    sed -i "$ a SNPE_EXT_LIBRARY_PATH=src/main/jni/snpe/lib/ext" gradle.properties
+
+    mkdir -p api/src/main/jni/snpe/lib/ext/arm64-v8a
     cp -r $SNPE_DIRECTORY/include api/src/main/jni/snpe
-    cp -r $SNPE_DIRECTORY/lib/aarch64-android-clang6.0 api/src/main/jni/snpe/lib/aarch64-android-clang6.0
-    cp $SNPE_DIRECTORY/lib/dsp/libsnpe*.so api/src/main/jni/snpe/lib/dsp/arm64-v8a
+    cp $SNPE_DIRECTORY/lib/aarch64-android-clang6.0/libSNPE.so api/src/main/jni/snpe/lib
+
+    # Copy external so files for SNPE
+    cp $SNPE_DIRECTORY/lib/aarch64-android-clang6.0/lib*dsp*.so api/src/main/jni/snpe/lib/ext/arm64-v8a
+    cp $SNPE_DIRECTORY/lib/aarch64-android-clang6.0/libhta.so api/src/main/jni/snpe/lib/ext/arm64-v8a
+    cp $SNPE_DIRECTORY/lib/dsp/libsnpe*.so api/src/main/jni/snpe/lib/ext/arm64-v8a
 fi
 
 # Update tf-lite option
