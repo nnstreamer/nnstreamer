@@ -150,7 +150,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot create nnfw-runtime session\n");
-    goto unalloc_exit;
+    goto error_exit;
   }
 
   /** @todo NNFW now uses package path. Fix when file path is available to open NNFW. */
@@ -166,7 +166,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot load the model file: %s\n", prop->model_files[0]);
-    goto session_exit;
+    goto error_exit;
   }
 
   accelerator = nnfw_get_accelerator (pdata, prop->accl_str);
@@ -174,7 +174,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
     g_printerr ("Cannot set nnfw-runtime backend to %s\n", accelerator);
-    goto session_exit;
+    goto error_exit;
   }
 
   status = nnfw_prepare (pdata->session);
@@ -182,31 +182,26 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     err = -EINVAL;
     g_printerr ("nnfw-runtime cannot prepare the session for %s\n",
         prop->model_files[0]);
-    goto session_exit;
+    goto error_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info, pdata->in_type);
   if (err) {
     g_printerr ("Error retrieving input info from nnfw-runtime.\n");
-    goto session_exit;
+    goto error_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info, pdata->out_type);
   if (err) {
     g_printerr ("Error retrieving output info from nnfw-runtime.\n");
-    goto session_exit;
+    goto error_exit;
   }
 
   pdata->model_file = g_strdup (prop->model_files[0]);
   return 0;
 
-session_exit:
-  status = nnfw_close_session (pdata->session);
-  if (status != NNFW_STATUS_NO_ERROR)
-    g_printerr ("Closing the session just opened by %s has failed\n", __func__);
-unalloc_exit:
-  g_free (pdata);
-  *private_data = NULL;
+error_exit:
+  nnfw_close (prop, private_data);
   return err;
 }
 
@@ -218,21 +213,22 @@ static void
 nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   nnfw_pdata *pdata;
+
+  if (private_data == NULL || *private_data == NULL)
+      return;
+
   pdata = *private_data;
 
-  if (pdata && pdata->session) {
+  if (pdata->session) {
     NNFW_STATUS status = nnfw_close_session (pdata->session);
 
     if (status != NNFW_STATUS_NO_ERROR) {
       g_printerr ("cannot close nnfw-runtime session for %s\n",
           pdata->model_file);
     }
-  } else {
-    g_printerr ("nnfw_close called without proper nnfw_open\n");
-    if (pdata == NULL)
-      return;
+
+    pdata->session = NULL;
   }
-  pdata->session = NULL;
 
   g_free (pdata->model_file);
   pdata->model_file = NULL;
