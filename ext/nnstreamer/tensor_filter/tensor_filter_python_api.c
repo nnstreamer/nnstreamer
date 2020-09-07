@@ -246,6 +246,11 @@ initnnstreamer_python (void)
 #endif
   PyObject *type_object = (PyObject *) & TensorShapeType;
   PyObject *module;
+
+  /** Check TensorShape type */
+  if (PyType_Ready (&TensorShapeType) < 0)
+    return RETVAL (NULL);
+
 #if PY_VERSION_HEX >= 0x03000000
   module = PyModule_Create (&nnstreamer_python_module);
 #else
@@ -256,9 +261,6 @@ initnnstreamer_python (void)
 
   /** For numpy array init. */
   import_array ();
-
-  /** Check TensorShape type */
-  g_assert (!(PyType_Ready (&TensorShapeType) < 0));
 
   Py_INCREF (type_object);
   PyModule_AddObject (module, "TensorShape", type_object);
