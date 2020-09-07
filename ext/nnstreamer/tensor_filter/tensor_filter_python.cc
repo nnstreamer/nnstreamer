@@ -74,10 +74,15 @@
 #define DBG FALSE
 #endif
 
-#if PY_VERSION_HEX >= 0x03080000 || PY_VERSION_HEX < 0x03000000
-#define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.so.1.0"
+#ifdef __MACOS__
+#define SO_EXT  "dylib"
 #else
-#define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.so.1.0"
+#define SO_EXT  "so.1.0"
+#endif
+#if PY_VERSION_HEX >= 0x03080000 || PY_VERSION_HEX < 0x03000000
+#define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.%s"
+#else
+#define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.%s"
 #endif
 
 #define Py_ERRMSG(...) do {PyErr_Print(); ml_loge (__VA_ARGS__);} while (0);
@@ -171,7 +176,7 @@ PYCore::PYCore (const char* _script_path, const char* _custom)
   gchar libname[32] = { 0, };
 
   g_snprintf (libname, sizeof (libname), PYCORE_LIB_NAME_FORMAT,
-      PY_MAJOR_VERSION, PY_MINOR_VERSION);
+      PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
 
   handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
   if (nullptr == handle)

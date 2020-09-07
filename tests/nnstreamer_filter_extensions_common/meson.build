@@ -11,8 +11,8 @@ tizen_apptest_deps = [
 # [name, extension abbreviation, dependencies, model file name/folder path/file path, test name]
 extensions = []
 
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.so', 'custom']]
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.so', 'custom-set']]
+extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.' + so_ext, 'custom']]
+extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.' + so_ext, 'custom-set']]
 
 if tflite_support_is_available
   extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'mobilenet_v1_1.0_224_quant.tflite', 'tensorflow_lite']]
@@ -87,7 +87,7 @@ foreach ext : extensions
     run_command('rm', '-rf', py2_module_path, check : true)
     run_command('mkdir', '-p', py2_module_path, check : true)
     run_command('ln', '-sf',
-        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python2.so'),
+        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python2.' + so_ext),
         py2_module_path + '/nnstreamer_python.so', check : true)
     filter_ext_common_testenv.set('PYTHONPATH', py2_module_path)
   elif ext[0] == 'python3'
@@ -95,7 +95,7 @@ foreach ext : extensions
     run_command('rm', '-rf', py3_module_path, check : true)
     run_command('mkdir', '-p', py3_module_path, check : true)
     run_command('ln', '-sf',
-        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python3.so'),
+        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python3.' + so_ext),
         py3_module_path + '/nnstreamer_python.so', check : true)
     filter_ext_common_testenv.set('PYTHONPATH', py3_module_path)
   endif
