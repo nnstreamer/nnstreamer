@@ -22,6 +22,7 @@ add_project_arguments('-DVERSION_MICRO="' + version_split[2] + '"', language: ['
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 build_platform = ''
+so_ext = 'so'
 
 if get_option('enable-tizen')
   # Pass __TIZEN__ to the compiler
@@ -45,6 +46,7 @@ elif not meson.is_cross_build()
       # Pass __MACOS__ to the compiler
       add_project_arguments('-D__MACOS__=1', language: ['c', 'cpp'])
       build_platform = 'macos'
+      so_ext = 'dylib'
     endif
   endif
 endif
