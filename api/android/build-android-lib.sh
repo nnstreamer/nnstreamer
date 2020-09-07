@@ -250,6 +250,7 @@ fi
 
 if [[ $enable_nnfw == "yes" ]]; then
     wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-$nnfw_ver-android-aarch64.tar.gz
+    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-devel-$nnfw_ver.tar.gz
 
    # You should get ONE-EXT release and copy it into NNFW_DIRECTORY.
    if [[ $enable_nnfw_ext == "yes" ]]; then
@@ -291,6 +292,7 @@ if [[ $enable_nnfw == "yes" ]]; then
 
     mkdir -p external/nnfw
     tar -zxf external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
+    tar -zxf external/nnfw-devel-$nnfw_ver.tar.gz -C external/nnfw
 
     if [[ $enable_nnfw_ext == "yes" ]]; then
         tar -zxf external/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
