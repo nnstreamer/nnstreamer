@@ -350,7 +350,10 @@ endif
 # Check python 3.x
 python3_dep = dependency('python3', required: get_option('python3-support'))
 if python3_dep.found()
-
+  if python3_dep.version().version_compare('>= 3.8')
+    # The name of .pc file provides C/CXX/LD_FLAGS for Python C API has been changed since v3.8
+    python3_dep = dependency('python3-embed', required: get_option('python3-support'))
+  endif
   python3_inc_args = []
   python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
   python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
