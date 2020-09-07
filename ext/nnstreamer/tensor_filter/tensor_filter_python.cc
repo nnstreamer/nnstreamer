@@ -74,7 +74,7 @@
 #define DBG FALSE
 #endif
 
-#if PY_VERSION_HEX < 0x03000000
+#if PY_VERSION_HEX >= 0x03080000 || PY_VERSION_HEX < 0x03000000
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.so.1.0"
 #else
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.so.1.0"
