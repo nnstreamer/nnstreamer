@@ -24,15 +24,8 @@
  */
 
 #include <string.h>
-#if defined(__aarch64__) || defined(__arm__)
-#include <sys/auxv.h>
-#if defined(__ANDROID__)
-#include <asm/hwcap.h>
-#else /* __ANDROID __ */
-#include <asm-arm/hwcap.h>
-#endif /* __android __ */
-#endif /* __arch64__ __arm__ */
 
+#include <hw_accel.h>
 #include <nnstreamer_log.h>
 #include <tensor_common.h>
 
@@ -2141,23 +2134,7 @@ filter_supported_accelerators (const gchar ** supported_accelerators)
 {
   gint num_hw = 0, idx = 0;
   const gchar **accl_support;
-  gboolean neon_support = TRUE;
-
-#if defined(__aarch64__) || defined(__arm__)
-  glong hwcap_flag;
-
-#if defined(__aarch64__)
-  hwcap_flag = HWCAP_ASIMD;
-#elif defined(__arm__)
-  hwcap_flag = HWCAP_NEON;
-#endif
-
-  if (getauxval (AT_HWCAP) & hwcap_flag) {
-    neon_support = TRUE;
-  } else {
-    neon_support = FALSE;
-  }
-#endif
+  gint neon_available = cpu_neon_accel_available ();
 
   /** Count number of elements for the array */
   while (supported_accelerators[num_hw] != NULL) {
@@ -2171,8 +2148,8 @@ filter_supported_accelerators (const gchar ** supported_accelerators)
   idx = 0;
   num_hw = 0;
   while (supported_accelerators[idx] != NULL) {
-    if (get_accl_hw_type (supported_accelerators[idx]) == ACCL_CPU_NEON &&
-        !neon_support) {
+    if (g_ascii_strncasecmp (supported_accelerators[idx], ACCL_CPU_NEON_STR,
+            strlen (ACCL_CPU_NEON_STR)) == 0 && neon_available != 0) {
       g_critical ("Neon instructions are not available on this device.");
     } else {
       accl_support[num_hw] = supported_accelerators[idx];
