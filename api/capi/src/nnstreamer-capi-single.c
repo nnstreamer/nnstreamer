@@ -151,10 +151,10 @@ __setup_in_out_tensors (ml_single * single_h)
  * @note this has not overhead if the allocation of output is not performed by
  * the framework but by tensor filter element.
  */
-static inline void
+static void
 set_destroy_notify (ml_single * single_h, ml_tensors_data_s * data)
 {
-  if (single_h->klass->allocate_in_invoke (single_h->filter) == TRUE) {
+  if (single_h->klass->allocate_in_invoke (single_h->filter)) {
     data->handle = single_h;
     single_h->destroy_data_list = g_list_append (single_h->destroy_data_list,
         (gpointer) data);
@@ -176,16 +176,16 @@ __destroy_notify (gpointer data_h, gpointer single_data)
     single_h->klass->destroy_notify (single_h->filter,
         (GstTensorMemory *) data->tensors);
   }
+  data->handle = NULL;
 }
 
 /**
- * @brief call the framework to destroy the allocated output data before closing
+ * @brief Wrapper for ml_tensors_data_destroy with signature of GDestroyNotify
  */
-static inline void
-__destroy_notify_free_data (gpointer data_h, gpointer single_data)
+static void
+ml_tensors_data_destroy_gwrapper (gpointer data)
 {
-  __destroy_notify (data_h, single_data);
-  g_free(data_h);
+  ml_tensors_data_destroy (data);
 }
 
 /**
@@ -839,9 +839,9 @@ ml_single_close (ml_single_h single)
 
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
-    g_list_foreach (single_h->destroy_data_list, __destroy_notify_free_data,
-        single_h);
-    g_list_free (single_h->destroy_data_list);
+    g_list_foreach (single_h->destroy_data_list, __destroy_notify, single_h);
+    g_list_free_full (single_h->destroy_data_list,
+        ml_tensors_data_destroy_gwrapper);
 
     if (single_h->klass)
       single_h->klass->stop (single_h->filter);

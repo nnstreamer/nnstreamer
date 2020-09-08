@@ -5788,6 +5788,259 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
 
 /**
  * @brief Test NNStreamer single shot (custom filter)
+ * @detail Run pipeline with custom filter with allocate in invoke, handle multi tensors.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_10_p)
+{
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
+      NNSTREAMER_SO_FILE_EXTENSION;
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim;
+  int status;
+  unsigned int i;
+  void *data_ptr;
+  size_t data_size;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_scaler", cf_name, NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  ml_tensors_info_set_count (in_info, 1);
+
+  in_dim[0] = 10;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  ml_tensors_info_clone (out_info, in_info);
+
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  input = output = NULL;
+
+  /* generate input data */
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_TRUE (input != NULL);
+
+  status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  for (i = 0; i < 10; i++) {
+    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+  }
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
+
+  /**
+   * since the output data was allocated by the tensor filter element in the single API,
+   * closing this single handle will also delete the data
+   */
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_destroy (input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  /** This will destroy twice resulting in UB */
+  // EXPECT_DEATH (ml_tensors_data_destroy (output), ".*");
+}
+
+/**
+ * @brief Test NNStreamer single shot (custom filter)
+ * @detail Run pipeline with custom filter with allocate in invoke, handle multi tensors.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_11_p)
+{
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
+      NNSTREAMER_SO_FILE_EXTENSION;
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output;
+  ml_tensor_dimension in_dim;
+  int status;
+  unsigned int i;
+  void *data_ptr;
+  size_t data_size;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_scaler", cf_name, NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  ml_tensors_info_set_count (in_info, 1);
+
+  in_dim[0] = 10;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  ml_tensors_info_clone (out_info, in_info);
+
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  input = output = NULL;
+
+  /* generate input data */
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_TRUE (input != NULL);
+
+  status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  for (i = 0; i < 10; i++) {
+    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+  }
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
+
+  status = ml_tensors_data_destroy (input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /** Access data before destroy works */
+  status = ml_tensors_data_get_tensor_data (output, 0, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /** User can destroy by themselves */
+  status = ml_tensors_data_destroy (output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /** Close handle works normally */
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+}
+
+/**
+ * @brief Test NNStreamer single shot (custom filter)
+ * @detail Run pipeline with custom filter with allocate in invoke, handle multi tensors.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_12_p)
+{
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
+      NNSTREAMER_SO_FILE_EXTENSION;
+  ml_single_h single;
+  ml_tensors_info_h in_info, out_info;
+  ml_tensors_data_h input, output1, output2;
+  ml_tensor_dimension in_dim;
+  int status;
+  unsigned int i;
+  void *data_ptr;
+  size_t data_size;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+      "custom_example_scaler", cf_name, NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  ml_tensors_info_create (&in_info);
+  ml_tensors_info_create (&out_info);
+
+  ml_tensors_info_set_count (in_info, 1);
+
+  in_dim[0] = 10;
+  in_dim[1] = 1;
+  in_dim[2] = 1;
+  in_dim[3] = 1;
+
+  ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT16);
+  ml_tensors_info_set_tensor_dimension (in_info, 0, in_dim);
+
+  ml_tensors_info_clone (out_info, in_info);
+
+  status = ml_single_open (&single, test_model, in_info, out_info,
+      ML_NNFW_TYPE_CUSTOM_FILTER, ML_NNFW_HW_ANY);
+  ASSERT_EQ (status, ML_ERROR_NONE);
+
+  input = output1 = output2 = NULL;
+
+  /* generate input data */
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  ASSERT_TRUE (input != NULL);
+
+  status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  for (i = 0; i < 10; i++) {
+    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+  }
+
+  status = ml_single_invoke (single, input, &output1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output1 != NULL);
+
+  status = ml_single_invoke (single, input, &output2);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output2 != NULL);
+
+  status = ml_tensors_data_destroy (input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /** Destroy one data by user */
+  status = ml_tensors_data_destroy (output1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /** Destroy the other data by closing the handle */
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  g_free (test_model);
+  ml_tensors_info_destroy (in_info);
+  ml_tensors_info_destroy (out_info);
+
+  /** This will destroy twice resulting in UB */
+  // EXPECT_DEATH (ml_tensors_data_destroy (output2), ".*");
+}
+
+/**
+ * @brief Test NNStreamer single shot (custom filter)
  * @detail Change the number of input tensors, run the model and verify output
  */
 TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
