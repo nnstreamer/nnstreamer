@@ -140,8 +140,8 @@ void tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties * prop,
     return;
   }
 
-  *private_data = nullptr;
   delete obj;
+  *private_data = nullptr;
 }
 
 /**
