@@ -271,6 +271,7 @@ g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
 
   for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
     gst_tensor_filter_destroy_notify_util (priv, mem[i].data);
+    mem[i].data = NULL;
   }
 }
 
@@ -310,9 +311,6 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   }
 
   GST_TF_FW_INVOKE_COMPAT (priv, status, input, output);
-
-  if (self->allocate_in_invoke) {
-  }
 
   if (status == 0)
     return TRUE;
