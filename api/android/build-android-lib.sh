@@ -64,7 +64,7 @@ enable_tflite="yes"
 tf_lite_ver="1.13.1"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
-nnfw_ver="1.8.0"
+nnfw_ver="1.9.0"
 enable_nnfw_ext="no"
 
 # Parse args
