@@ -32,6 +32,7 @@ NNSTREAMER_INCLUDES := \
 
 # nnstreamer common sources. (including tensor-filter common, custom filter)
 NNSTREAMER_COMMON_SRCS := \
+    $(NNSTREAMER_GST_HOME)/hw_accel.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
     $(NNSTREAMER_GST_HOME)/tensor_common.c \

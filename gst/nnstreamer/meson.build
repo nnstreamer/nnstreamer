@@ -29,6 +29,7 @@ nnstreamer_internal_deps = []
 # Add nnstreamer registerer and common sources
 nnst_common_sources = [
   'registerer/nnstreamer.c',
+  'hw_accel.c',
   'nnstreamer_conf.c',
   'nnstreamer_subplugin.c',
   'tensor_common.c',
