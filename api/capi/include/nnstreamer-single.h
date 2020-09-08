@@ -50,8 +50,8 @@ typedef void *ml_single_h;
  * @details Even if the model has flexible input data dimensions,
  *          input data frames of an instance of a model should share the same dimension.
  * @since_tizen 5.5
- * @remarks http://tizen.org/privilege/mediastorage is needed if @a model is relevant to media storage.
- * @remarks http://tizen.org/privilege/externalstorage is needed if @a model is relevant to external storage.
+ * @remarks %http://tizen.org/privilege/mediastorage is needed if @a model is relevant to media storage.
+ * @remarks %http://tizen.org/privilege/externalstorage is needed if @a model is relevant to external storage.
  * @param[out] single This is the model handle opened. Users are required to close
  *                   the given instance with ml_single_close().
  * @param[in] model This is the path to the neural network model file.

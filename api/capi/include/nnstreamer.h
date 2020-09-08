@@ -41,7 +41,7 @@ extern "C" {
 /**
  * @brief The virtual name to set the video source of camcorder in Tizen.
  * @details If an application needs to access the camera device to construct the pipeline, set the virtual name as a video source element.
- *          Note that you have to add 'http://tizen.org/privilege/camera' into the manifest of your application.
+ *          Note that you have to add '%http://tizen.org/privilege/camera' into the manifest of your application.
  * @since_tizen 5.5
  */
 #define ML_TIZEN_CAM_VIDEO_SRC "tizencamvideosrc"
@@ -49,7 +49,7 @@ extern "C" {
 /**
  * @brief The virtual name to set the audio source of camcorder in Tizen.
  * @details If an application needs to access the recorder device to construct the pipeline, set the virtual name as an audio source element.
- *          Note that you have to add 'http://tizen.org/privilege/recorder' into the manifest of your application.
+ *          Note that you have to add '%http://tizen.org/privilege/recorder' into the manifest of your application.
  * @since_tizen 5.5
  */
 #define ML_TIZEN_CAM_AUDIO_SRC "tizencamaudiosrc"
@@ -235,10 +235,10 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
  * @details Use this function to create gst_parse_launch compatible NNStreamer pipelines.
  * @since_tizen 5.5
  * @remarks If the function succeeds, @a pipe handle must be released using ml_pipeline_destroy().
- * @remarks http://tizen.org/privilege/mediastorage is needed if @a pipeline_description is relevant to media storage.
- * @remarks http://tizen.org/privilege/externalstorage is needed if @a pipeline_description is relevant to external storage.
- * @remarks http://tizen.org/privilege/camera is needed if @a pipeline_description accesses the camera device.
- * @remarks http://tizen.org/privilege/recorder is needed if @a pipeline_description accesses the recorder device.
+ * @remarks %http://tizen.org/privilege/mediastorage is needed if @a pipeline_description is relevant to media storage.
+ * @remarks %http://tizen.org/privilege/externalstorage is needed if @a pipeline_description is relevant to external storage.
+ * @remarks %http://tizen.org/privilege/camera is needed if @a pipeline_description accesses the camera device.
+ * @remarks %http://tizen.org/privilege/recorder is needed if @a pipeline_description accesses the recorder device.
  * @param[in] pipeline_description The pipeline description compatible with GStreamer gst_parse_launch(). Refer to GStreamer manual or NNStreamer (https://github.com/nnsuite/nnstreamer) documentation for examples and the grammar.
  * @param[in] cb The function to be called when the pipeline state is changed. You may set NULL if it's not required.
  * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
