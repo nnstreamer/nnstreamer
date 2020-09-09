@@ -92,7 +92,7 @@ typedef struct
 {
   jclass cls;
   jmethodID mid_init;
-  jmethodID mid_add_data;
+  jmethodID mid_alloc;
   jmethodID mid_get_array;
   jmethodID mid_get_info;
 } data_class_info_s;
