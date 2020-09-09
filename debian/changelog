@@ -1,3 +1,9 @@
+nnstreamer (1.7.0.0) unstable xenial bionic; urgency=medium
+
+  * 1.7.0 development starts (1.8.0.RC1)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 09 Sep 2020 20:40:57 +0900
+
 nnstreamer (1.6.0.0) unstable xenial bionic; urgency=medium
 
   * 1.6.0 Release (LTS for Tizen 6.0 M2 / Android-next products)
