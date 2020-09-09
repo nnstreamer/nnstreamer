@@ -36,10 +36,6 @@
 #include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
 
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-#include "tflite/ext/nnapi_delegate.h"
-#endif
-
 /**
  * @brief Macro for debug mode.
  */
@@ -105,9 +101,6 @@ private:
 
   std::unique_ptr <tflite::Interpreter> interpreter;
   std::unique_ptr <tflite::FlatBufferModel> model;
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  std::unique_ptr <nnfw::tflite::NNAPIDelegate> nnfw_delegate;
-#endif
 
   GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
@@ -163,9 +156,6 @@ TFLiteInterpreter::TFLiteInterpreter ()
 {
   interpreter = nullptr;
   model = nullptr;
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  nnfw_delegate = nullptr;
-#endif
   model_path = nullptr;
 
   g_mutex_init (&mutex);
@@ -214,11 +204,6 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   tflite_internal_stats.total_overhead_latency += stop_time - start_time;
 
   start_time = g_get_monotonic_time ();
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  if (use_nnapi)
-    status = nnfw_delegate->Invoke (interpreter.get ());
-  else
-#endif
   status = interpreter->Invoke ();
   stop_time = g_get_monotonic_time ();
 
@@ -276,15 +261,6 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
 
   interpreter->UseNNAPI (use_nnapi);
 
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  if (use_nnapi) {
-    nnfw_delegate.reset (new ::nnfw::tflite::NNAPIDelegate);
-    if (nnfw_delegate->BuildGraph (interpreter) != kTfLiteOk) {
-      ml_loge ("Fail to BuildGraph");
-      return -3;
-    }
-  }
-#endif
   if (interpreter->AllocateTensors () != kTfLiteOk) {
     ml_loge ("Failed to allocate tensors\n");
     return -2;
@@ -499,9 +475,6 @@ TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
 {
   interpreter = std::move (interp.interpreter);
   model = std::move (interp.model);
-#ifdef ENABLE_TFLITE_NNAPI_DELEGATE
-  nnfw_delegate = std::move (interp.nnfw_delegate);
-#endif
   inputTensorPtr = std::move (interp.inputTensorPtr);
   outputTensorPtr = std::move (interp.outputTensorPtr);
   setModelPath (interp.getModelPath ());
