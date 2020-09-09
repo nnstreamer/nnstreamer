@@ -118,16 +118,6 @@ public final class TensorsData implements AutoCloseable {
     }
 
     /**
-     * Internal method called from native to add tensor.
-     */
-    private void addTensorFromNative(byte[] data) {
-        ByteBuffer buffer = allocateByteBuffer(data.length);
-        buffer.put(data);
-
-        addTensorData(buffer);
-    }
-
-    /**
      * Gets a tensor data of given index.
      *
      * @param index The index of the tensor in the list

@@ -161,8 +161,8 @@ nns_construct_tdata_class_info (JNIEnv * env, data_class_info_s * info)
 
   info->mid_init = (*env)->GetMethodID (env, info->cls, "<init>",
       "(L" NNS_CLS_TINFO ";)V");
-  info->mid_add_data = (*env)->GetMethodID (env, info->cls,
-      "addTensorFromNative", "([B)V");
+  info->mid_alloc = (*env)->GetStaticMethodID (env, info->cls, "allocate",
+      "(L" NNS_CLS_TINFO ";)L" NNS_CLS_TDATA ";");
   info->mid_get_array = (*env)->GetMethodID (env, info->cls, "getDataArray",
       "()[Ljava/lang/Object;");
   info->mid_get_info = (*env)->GetMethodID (env, info->cls, "getTensorsInfo",
@@ -388,6 +388,7 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   guint i;
   data_class_info_s *dcls_info;
   jobject obj_data = NULL;
+  jobjectArray data_arr;
   ml_tensors_data_s *data;
 
   g_return_val_if_fail (pipe_info, FALSE);
@@ -399,24 +400,31 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
   dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) data_h;
 
-  obj_data = (*env)->NewObject (env, dcls_info->cls, dcls_info->mid_init,
-      obj_info);
+  obj_data = (*env)->CallStaticObjectMethod (env, dcls_info->cls,
+      dcls_info->mid_alloc, obj_info);
   if ((*env)->ExceptionCheck (env) || !obj_data) {
     nns_loge ("Failed to allocate object for tensors data.");
     (*env)->ExceptionClear (env);
+
+    if (obj_data) {
+      (*env)->DeleteLocalRef (env, obj_data);
+      obj_data = NULL;
+    }
+
     goto done;
   }
 
+  data_arr = (*env)->CallObjectMethod (env, obj_data, dcls_info->mid_get_array);
+
   for (i = 0; i < data->num_tensors; i++) {
-    jsize buffer_size = (jsize) data->tensors[i].size;
-    jbyteArray buffer = (*env)->NewByteArray (env, buffer_size);
+    jobject tensor = (*env)->GetObjectArrayElement (env, data_arr, i);
+    gpointer data_ptr = (*env)->GetDirectBufferAddress (env, tensor);
 
-    (*env)->SetByteArrayRegion (env, buffer, 0, buffer_size,
-        (jbyte *) data->tensors[i].tensor);
-
-    (*env)->CallVoidMethod (env, obj_data, dcls_info->mid_add_data, buffer);
-    (*env)->DeleteLocalRef (env, buffer);
+    memcpy (data_ptr, data->tensors[i].tensor, data->tensors[i].size);
+    (*env)->DeleteLocalRef (env, tensor);
   }
+
+  (*env)->DeleteLocalRef (env, data_arr);
 
 done:
   *result = obj_data;
@@ -428,7 +436,8 @@ done:
  */
 gboolean
 nns_parse_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
-    jobject obj_data, gboolean clone, ml_tensors_data_h * data_h, ml_tensors_info_h * info_h)
+    jobject obj_data, gboolean clone, ml_tensors_data_h * data_h,
+    ml_tensors_info_h * info_h)
 {
   guint i;
   data_class_info_s *dcls_info;
