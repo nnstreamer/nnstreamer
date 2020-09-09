@@ -94,10 +94,6 @@ if tflite_support_is_available
 
   nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
-  if tflite_nnapi_delegation_is_available
-      nnstreamer_filter_tflite_deps += tflite_nnapi_delegation_deps
-  endif
-
   tflite_compile_args = []
 
   if cxx.has_type('kTfLiteInt8', prefix : '#include <tensorflow/contrib/lite/model.h>')
