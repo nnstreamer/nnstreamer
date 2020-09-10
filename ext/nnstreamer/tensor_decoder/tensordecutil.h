@@ -18,6 +18,8 @@ extern "C" {
 #endif
 #include <stdint.h>
 #include <glib.h>
+#include <gst/gstcaps.h>
+#include <tensor_typedef.h>
 
 typedef uint32_t singleLineSprite_t[256][13][8];
 typedef uint8_t rasters_t[][13];
@@ -35,6 +37,8 @@ extern void
 initSingleLineSprite (singleLineSprite_t v, rasters_t r, uint32_t pv);
 
 extern void _free_labels (imglabel_t *data);
+
+extern void setFramerateFromConfig  (GstCaps *caps, const GstTensorsConfig * config);
 
 #ifdef __cplusplus
 }

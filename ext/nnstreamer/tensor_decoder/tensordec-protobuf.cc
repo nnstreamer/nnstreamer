@@ -21,6 +21,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
 #include "nnstreamer_protobuf.h"
+#include "tensordecutil.h"
 
 void init_pb (void) __attribute__ ((constructor));
 void fini_pb (void) __attribute__ ((destructor));
@@ -59,7 +60,10 @@ pb_setOption (void **pdata, int opNum, const char *param)
 static GstCaps *
 pb_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
-  return gst_caps_from_string (GST_PROTOBUF_TENSOR_CAP_DEFAULT);
+  GstCaps *caps;
+  caps = gst_caps_from_string (GST_PROTOBUF_TENSOR_CAP_DEFAULT);
+  setFramerateFromConfig (caps, config);
+  return caps;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */

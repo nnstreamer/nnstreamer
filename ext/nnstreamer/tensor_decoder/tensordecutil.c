@@ -16,6 +16,7 @@
 #include <string.h>
 #include <nnstreamer_log.h>
 #include "tensordecutil.h"
+#include <gst/gstvalue.h>
 
 /**
  * @brief Load label file into the internal data
@@ -115,4 +116,24 @@ _free_labels (imglabel_t * data)
   data->labels = NULL;
   data->total_labels = 0;
   data->max_word_length = 0;
+}
+
+/**
+ * @brief Copy framerate caps from tensor config
+ *
+ * @param[out]  caps to configure
+ * @param[in]   config to copy from
+ */
+void
+setFramerateFromConfig  (GstCaps * caps, const GstTensorsConfig * config)
+{
+  gint fn, fd;
+
+  /** @todo Verify if this rate is ok */
+  fn = config->rate_n;
+  fd = config->rate_d;
+  if (fn >= 0 && fd > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
+  }
+  return;
 }
