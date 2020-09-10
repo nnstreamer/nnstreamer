@@ -217,14 +217,17 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
     return FALSE;
   }
 
-  data->eos = FALSE;
-  data->buffer = NULL;
   g_cond_init (&data->cond_push);
   g_cond_init (&data->cond_pull);
   g_mutex_init (&data->lock);
+
+  g_mutex_lock (&data->lock);
+  data->eos = FALSE;
+  data->buffer = NULL;
   data->sink_changed = FALSE;
   data->src_changed = FALSE;
   data->pushed = FALSE;
+  g_mutex_unlock (&data->lock);
 
   GST_REPO_LOCK ();
   ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), data);
