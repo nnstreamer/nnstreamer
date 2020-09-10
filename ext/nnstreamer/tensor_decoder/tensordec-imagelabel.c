@@ -108,6 +108,7 @@ static GstCaps *
 il_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   const uint32_t *dim;
+  GstCaps *caps;
   int i;
 
   g_return_val_if_fail (config != NULL, NULL);
@@ -120,7 +121,9 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
     g_return_val_if_fail (dim[i] == 1, NULL);
 
-  return gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
+  caps = gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
+  setFramerateFromConfig (caps, config);
+  return caps;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
