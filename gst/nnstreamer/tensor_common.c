@@ -466,7 +466,6 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
 
   if (name_string) {
     guint i;
-    gchar *str_name;
     gchar **str_names;
 
     str_names = g_strsplit (name_string, ",", -1);
@@ -480,13 +479,12 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     }
 
     for (i = 0; i < num_names; i++) {
-      str_name = g_strdup (str_names[i]);
-      g_strstrip (str_name);
+      gchar *str_name = g_strdup (str_names[i]);
 
       g_free (info->info[i].name);
       info->info[i].name = NULL;
 
-      if (str_name && strlen (str_name))
+      if (str_name && strlen (g_strstrip (str_name)))
         info->info[i].name = str_name;
       else
         g_free (str_name);
