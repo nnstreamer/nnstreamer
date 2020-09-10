@@ -31,6 +31,7 @@
 #include <gst/video/video-format.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_log.h>
+#include "tensordecutil.h"
 
 void init_dv (void) __attribute__ ((constructor));
 void fini_dv (void) __attribute__ ((destructor));
@@ -69,7 +70,7 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   /* Old gst_tensordec_video_caps_from_config () had this */
   GstVideoFormat format;
-  gint width, height, fn, fd;
+  gint width, height;
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
@@ -96,8 +97,6 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 
   width = config->info.info[0].dimension[1];
   height = config->info.info[0].dimension[2];
-  fn = config->rate_n; /** @todo Verify if this rate is ok */
-  fd = config->rate_d;
 
   if (format != GST_VIDEO_FORMAT_UNKNOWN) {
     const char *format_string = gst_video_format_to_string (format);
@@ -112,9 +111,7 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "height", G_TYPE_INT, height, NULL);
   }
 
-  if (fn >= 0 && fd > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
-  }
+  setFramerateFromConfig (caps, config);
 
   return gst_caps_simplify (caps);
 }
