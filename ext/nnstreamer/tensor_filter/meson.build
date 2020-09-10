@@ -527,3 +527,36 @@ if snpe_support_is_available
     include_directories: snpe_incdir
   )
 endif
+
+if nntrainer_support_is_available
+  filter_sub_nntrainer_sources = ['tensor_filter_nntrainer.cc']
+  nntrainer_inc=[]
+
+  if not get_option('enable-tizen')
+     nntrainer_inc += include_directories('../../../api/capi/include/platform')
+     nntrainer_inc += include_directories('../../../api/capi/include')
+  endif
+
+  nnstreamer_filter_nntrainer_sources = []
+  foreach s : filter_sub_nntrainer_sources
+    nnstreamer_filter_nntrainer_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_nntrainer_deps = nntrainer_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_nntrainer',
+    nnstreamer_filter_nntrainer_sources,
+    dependencies: nnstreamer_filter_nntrainer_deps,
+    include_directories: nntrainer_inc,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_nntrainer',
+    nnstreamer_filter_nntrainer_sources,
+    dependencies: nnstreamer_filter_nntrainer_deps,
+    include_directories: nntrainer_inc,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
