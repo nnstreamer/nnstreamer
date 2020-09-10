@@ -186,6 +186,15 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
+# nntrainer
+nntrainer_dep = dependency('', required: false)
+if not get_option('nntrainer-support').disabled()
+   nntrainer_dep = dependency('nntrainer', required:false)
+   if not nntrainer_dep.found()
+      nntrainer_dep = cc.find_library('nntrainer-dev', required: get_option('nntrainer-support'))
+   endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -249,6 +258,10 @@ features = {
   },
   'protobuf-support': {
     'extra_deps': [ pb_comp ]
+  },
+  'nntrainer-support': {
+    'target': 'nntrainer',
+    'extra_deps': [ nntrainer_dep ]
   }
 }
 

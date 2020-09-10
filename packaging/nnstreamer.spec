@@ -9,6 +9,7 @@
 %define		flatbuf_support 1
 %define		protobuf_support 1
 %define		nnfw_support 1
+%define		nntrainer_support 1
 %define		check_test 1
 %define		enable_tizen_privilege 1
 %define		enable_tizen_feature 1
@@ -154,6 +155,12 @@ BuildConflicts: libarmcl-release
 
 %if 0%{?edgetpu_support}
 BuildRequires:	pkgconfig(edgetpu)
+%endif
+
+# for nntrainer
+%if 0%{?nntrainer_support}
+BuildRequires: nntrainer
+BuildRequires: nntrainer-devel
 %endif
 
 %if 0%{?testcoverage}
