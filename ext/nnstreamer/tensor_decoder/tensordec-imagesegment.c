@@ -81,6 +81,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include "tensordecutil.h"
 
 #if defined(__aarch64__)
 #include <arm_neon.h>
@@ -281,7 +282,6 @@ static GstCaps *
 is_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   image_segments *idata = *pdata;
-  gint fn, fd;
   GstCaps *caps;
   char *str;
 
@@ -300,12 +300,7 @@ is_getOutCaps (void **pdata, const GstTensorsConfig * config)
   str = g_strdup_printf ("video/x-raw, format = RGBA, "
       "width = %u, height = %u", idata->width, idata->height);
   caps = gst_caps_from_string (str);
-  fn = config->rate_n; /** @todo Verify if this rate is ok */
-  fd = config->rate_d;
-
-  if (fn >= 0 && fd > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, fn, fd, NULL);
-  }
+  setFramerateFromConfig (caps, config);
   g_free (str);
 
   return gst_caps_simplify (caps);
