@@ -85,6 +85,12 @@ if tf_support_is_available
 endif
 
 if tflite_support_is_available
+  if not get_option('flatbuf-support').disabled()
+    if not flatbuf_dep.found()
+      error ('flatbuf devel package should be install to build the tensorflow lite.')
+    endif
+  endif
+
   filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
 
   nnstreamer_filter_tflite_sources = []
