@@ -1,6 +1,7 @@
 # direct video
 decoder_sub_direct_video_sources = [
-  'tensordec-directvideo.c'
+  'tensordec-directvideo.c',
+  'tensordecutil.c'
 ]
 
 nnstreamer_decoder_direct_video_sources = []
@@ -98,6 +99,7 @@ static_library('nnstreamer_decoder_pose_estimation',
 # image segmentation
 decoder_sub_image_segment_sources = [
   'tensordec-imagesegment.c',
+  'tensordecutil.c'
 ]
 
 nnstreamer_decoder_image_segment_sources = []
@@ -122,6 +124,7 @@ static_library('nnstreamer_decoder_image_segment',
 if protobuf_support_is_available
   decoder_sub_protobuf_sources = [
     'tensordec-protobuf.cc',
+    'tensordecutil.c'
   ]
 
   nnstreamer_decoder_protobuf_sources = []
@@ -141,6 +144,7 @@ endif
 if flatbuf_support_is_available
   decoder_sub_flatbuf_sources = [
     'tensordec-flatbuf.cc',
+    'tensordecutil.c'
   ]
 
   nnstreamer_decoder_flatbuf_sources = [fb_gen_src]
