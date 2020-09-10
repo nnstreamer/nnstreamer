@@ -34,7 +34,7 @@ Use gst-launch-1.0 --gst-debug-help to obtain the list of all registered categor
 $ gst-launch-1.0 --gst-debug-help
 ```
 
-#### Case study: Tracing Gstreamer plugins with GST_DEBUG
+#### Case study 1: Tracing Gstreamer plugins with GST_DEBUG
 Traces for buffer flow, events and messages in TRACE level.
 ```bash
 $ GST_DEBUG="GST_TRACER:7,GST_BUFFER*:7,GST_EVENT:7,GST_MESSAGE:7" \
@@ -72,6 +72,17 @@ Check if any GstEvent or GstMessage is leaked and raise a warning.
 $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="leaks(GstEvent,GstMessage)" \
 gst-launch-1.0 videotestsrc num-buffers=10 ! fakesink
 ```
+
+#### Case study 2: Tracing individual NNStreamer elements with GST_DEBUG and silent property
+
+Each NNStreamer element has the `silent` property. An NNStreamer element can be traced in verbose mode by setting `FALSE` to the `silent` property.
+
+```bash
+$ GST_DEBUG="tensor_converter:7" \
+gst-launch-1.0 videotestsrc ! tensor_converter silent=FALSE ! tensor_sink
+```
+
+In each element's source code, there is `DEFAULT_SILENT` macro that allows you to change the default `silent` value. Setting `FALSE` to `DEFAULT_SILENT` and rebuilding the library will set verbose mode of the element by default without changing your application code.
 
 ### Generating pipeline graph with $GST_DEBUG_DUMP_DOT_DIR
 
