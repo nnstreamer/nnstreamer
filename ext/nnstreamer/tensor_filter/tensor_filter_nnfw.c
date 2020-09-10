@@ -41,6 +41,7 @@
 #define NNFW_NEON_BACKEND "acl_neon"
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
+#define NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED (0)
 
 static const gchar *nnfw_accl_support[] = {
   ACCL_CPU_NEON_STR,
@@ -82,8 +83,6 @@ static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
 static int nnfw_tensors_info_get (const nnfw_pdata * pdata,
     const gboolean is_input, GstTensorsInfo * info, NNFW_TYPE * type);
-static int nnfw_tensor_type_from_gst (const tensor_type type,
-    NNFW_TYPE * nnfw_type);
 
 /**
  * @brief parse user given input to extract accelerator to be used by nnfw
@@ -347,6 +346,39 @@ nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
   return 0;
 }
 
+#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
+/**
+ * @brief Convert from gst tensor type to NNFW type
+ * @param[in] type type given in gst format
+ * @param[out] nnfw_type container to receive type in nnfw tensor format
+ * @return 0 on sucess, negative errno on error
+ */
+static int
+nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
+{
+  int err = 0;
+
+  switch (type) {
+    case _NNS_FLOAT32:
+      *nnfw_type = NNFW_TYPE_TENSOR_FLOAT32;
+      break;
+    case _NNS_INT32:
+      *nnfw_type = NNFW_TYPE_TENSOR_INT32;
+      break;
+    case _NNS_INT64:
+      *nnfw_type = NNFW_TYPE_TENSOR_INT64;
+      break;
+    case _NNS_UINT8:
+      /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
+      *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM;
+      break;
+    default:
+      err = -EINVAL;
+  }
+
+  return err;
+}
+
 /**
  * @brief register/set input tensor info with nnfw
  * @param[in] pdata private data for nnfw opened instance
@@ -392,6 +424,7 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
 
   return 0;
 }
+#endif
 
 /**
  * @brief get nnfw tensor info in gst format info format from private data
@@ -486,10 +519,12 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   nnfw_pdata *pdata;
+#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
   int err, idx;
   GstTensorsInfo updated_info;
   NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];
   NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];
+#endif
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
@@ -501,9 +536,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   if (in_info->num_tensors != pdata->in_info.num_tensors)
     return -EPERM;
 
-  /** Return -ENOENT till nnfw supports set input dimension internally */
-  return -ENOENT;
-
+#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
   for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     err = nnfw_tensor_info_set (pdata, in_info, idx);
     if (err)
@@ -533,38 +566,10 @@ error:
   }
 
   return err;
-}
-
-/**
- * @brief Convert from gst tensor type to NNFW type
- * @param[in] type type given in gst format
- * @param[out] nnfw_type container to receive type in nnfw tensor format
- * @return 0 on sucess, negative errno on error
- */
-static int
-nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
-{
-  int err = 0;
-
-  switch (type) {
-    case _NNS_FLOAT32:
-      *nnfw_type = NNFW_TYPE_TENSOR_FLOAT32;
-      break;
-    case _NNS_INT32:
-      *nnfw_type = NNFW_TYPE_TENSOR_INT32;
-      break;
-    case _NNS_INT64:
-      *nnfw_type = NNFW_TYPE_TENSOR_INT64;
-      break;
-    case _NNS_UINT8:
-      /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
-      *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM;
-      break;
-    default:
-      err = -EINVAL;
-  }
-
-  return err;
+#else
+  /** Return -ENOENT till nnfw supports set input dimension internally */
+  return -ENOENT;
+#endif
 }
 
 /**
