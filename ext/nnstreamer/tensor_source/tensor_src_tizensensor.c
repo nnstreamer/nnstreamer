@@ -825,10 +825,6 @@ gst_tensor_src_tizensensor_get_property (GObject * object,
       g_value_set_enum (value, self->mode);
       break;
     case PROP_FREQ:
-      if (self->freq_d < 1)
-        self->freq_d = 1;
-      if (self->freq_n < 0)
-        self->freq_n = 0;
       gst_value_set_fraction (value, self->freq_n, self->freq_d);
       break;
     default:
