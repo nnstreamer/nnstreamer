@@ -1130,11 +1130,11 @@ ml_validate_model_file (char **model, unsigned int num_models,
 #if !defined(__ANDROID__)
       ml_loge ("Given framework, SNPE is not supported yet for non Android (arm64-v8a).");
       status = ML_ERROR_NOT_SUPPORTED;
-      break;
-#endif
+#else
       if (g_ascii_strcasecmp (file_ext[0], ".dlc") != 0) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
+#endif
       break;
     case ML_NNFW_TYPE_ARMNN:
       if (g_ascii_strcasecmp (file_ext[0], ".caffemodel") != 0 &&
