@@ -19,6 +19,7 @@
 %if "%{?profile}" == "tv"
 %define		enable_extra_subplugins 0
 %define		enable_tizen_privilege 0
+%define		nntrainer_support 0
 %define		check_test 0
 %endif
 
@@ -62,6 +63,7 @@
 %define	mvncsdk2_support 0
 %define	edgetpu_support 0
 %define	openvino_support 0
+%define	nntrainer_support 0
 %endif
 
 %if !0%{?enable_extra_subplugins}
