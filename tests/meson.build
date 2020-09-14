@@ -123,7 +123,35 @@ if gtest_dep.found()
     test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
   endif
 
-endif
+  # Tizen C-API
+  if get_option('enable-capi')
+    subdir('tizen_capi')
+  endif
+
+  # Tensor filter extensions basic test cases
+  subdir('nnstreamer_filter_extensions_common')
+
+  # Tizen NNFW runtime
+  if nnfw_runtime_support_is_available
+    subdir('tizen_nnfw_runtime')
+  endif
+
+  if tflite_support_is_available and get_option('enable-edgetpu')
+    subdir('nnstreamer_filter_edgetpu')
+  endif
+
+  if mvncsdk2_support_is_available
+    subdir('nnstreamer_filter_mvncsdk2')
+  endif
+
+  if get_option('enable-cppfilter')
+    subdir('cpp_methods')
+  endif
+
+  if get_option('enable-openvino')
+    subdir('nnstreamer_filter_openvino')
+  endif
+endif # gtest_dep.found()
 
 # Install data required for unittest
 unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
@@ -138,34 +166,6 @@ if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ex
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
 
-# Tizen C-API
-if get_option('enable-capi')
-  subdir('tizen_capi')
-endif
-
-# Tizen NNFW runtime
-if nnfw_runtime_support_is_available
-  subdir('tizen_nnfw_runtime')
-endif
-
-if tflite_support_is_available and get_option('enable-edgetpu')
-  subdir('nnstreamer_filter_edgetpu')
-endif
-
-if mvncsdk2_support_is_available
-  subdir('nnstreamer_filter_mvncsdk2')
-endif
-
-if get_option('enable-cppfilter') and gtest_dep.found()
-  subdir('cpp_methods')
-endif
-
-if get_option('enable-openvino')
-  subdir('nnstreamer_filter_openvino')
-endif
-
-# Tensor filter extensions basic test cases
-subdir('nnstreamer_filter_extensions_common')
 
 # Install Unittest
 if get_option('install-test')
