@@ -244,7 +244,7 @@ features = {
     'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
   },
   'flatbuf-support': {
-    'extra_deps': [ fb_comp ],
+    'extra_deps': [ fb_comp, flatbuf_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {
