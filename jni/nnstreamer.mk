@@ -117,12 +117,13 @@ NNSTREAMER_DECODER_BB_SRCS := \
 
 # decoder directvideo
 NNSTREAMER_DECODER_DV_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-directvideo.c
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-directvideo.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
 
 # decoder imagelabel
 NNSTREAMER_DECODER_IL_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagelabel.c
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagelabel.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
 
 # decoder pose estimation
 NNSTREAMER_DECODER_PE_SRCS := \
@@ -132,7 +133,8 @@ NNSTREAMER_DECODER_PE_SRCS := \
 
 # decoder image segment
 NNSTREAMER_DECODER_IS_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagesegment.c
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagesegment.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
 
 # common features
 NO_AUDIO := false
