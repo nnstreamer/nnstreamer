@@ -41,7 +41,6 @@
 #define NNFW_NEON_BACKEND "acl_neon"
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
-#define NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED (0)
 
 static const gchar *nnfw_accl_support[] = {
   ACCL_CPU_NEON_STR,
@@ -346,7 +345,6 @@ nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
   return 0;
 }
 
-#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
 /**
  * @brief Convert from gst tensor type to NNFW type
  * @param[in] type type given in gst format
@@ -424,7 +422,6 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
 
   return 0;
 }
-#endif
 
 /**
  * @brief get nnfw tensor info in gst format info format from private data
@@ -519,12 +516,10 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   nnfw_pdata *pdata;
-#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
   int err, idx;
   GstTensorsInfo updated_info;
   NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];
   NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];
-#endif
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
@@ -536,7 +531,6 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   if (in_info->num_tensors != pdata->in_info.num_tensors)
     return -EPERM;
 
-#if NNFW_FEATURE_SETINPUTDIM_IMPLEMENTED
   for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     err = nnfw_tensor_info_set (pdata, in_info, idx);
     if (err)
@@ -566,10 +560,6 @@ error:
   }
 
   return err;
-#else
-  /** Return -ENOENT till nnfw supports set input dimension internally */
-  return -ENOENT;
-#endif
 }
 
 /**
