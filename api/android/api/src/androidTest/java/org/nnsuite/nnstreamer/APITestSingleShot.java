@@ -221,30 +221,43 @@ public class APITestSingleShot {
         runImageClassification(NNStreamer.NNFWType.NNFW);
     }
 
-    @Test
-    public void testInvokeDynamicVary() {
-        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
-            /* cannot run the test */
-            return;
-        }
-
+    /**
+     * Run dynamic invoke with add.tflite model.
+     */
+    private void runInvokeDynamic(NNStreamer.NNFWType fw) {
         try {
-            SingleShot single = new SingleShot(APITestCommon.getTFLiteAddModel());
+            File model = APITestCommon.getTFLiteAddModel();
+            SingleShot single = new SingleShot(model, fw);
+            TensorsInfo info = single.getInputInfo();
 
             /* single-shot invoke */
-            for (int i = 1; i < 2; i++) {
-                TensorsInfo info = new TensorsInfo();
-                info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{1,1,1,i});
-
+            for (int i = 1; i < 5; i++) {
                 /* change input information */
+                info.setTensorDimension(0, new int[]{i,1,1,1});
                 single.setInputInfo(info);
 
-                /* dummy input */
-                TensorsData out = single.invoke(TensorsData.allocate(info));
+                TensorsData input = TensorsData.allocate(info);
+                ByteBuffer inBuffer = input.getTensorData(0);
 
-                /* output: float32 1:1:1:i */
-                assertEquals(1, out.getTensorsCount());
-                assertEquals(i * Float.BYTES, out.getTensorData(0).capacity());
+                for (int j = 0; j < i; j++) {
+                    inBuffer.putFloat(j * 4, j + 1.5f);
+                }
+
+                input.setTensorData(0, inBuffer);
+
+                /* invoke */
+                TensorsData output = single.invoke(input);
+
+                /* output: float32 i:1:1:1 */
+                assertEquals(1, output.getTensorsCount());
+
+                ByteBuffer outBuffer = output.getTensorData(0);
+                assertEquals(i * Float.BYTES, outBuffer.capacity());
+
+                for (int j = 0; j < i; j++) {
+                    float expected = j + 3.5f;
+                    assertEquals(expected, outBuffer.getFloat(j * 4), 0.0f);
+                }
 
                 Thread.sleep(30);
             }
@@ -253,6 +266,16 @@ public class APITestSingleShot {
         } catch (Exception e) {
             fail();
         }
+    }
+
+    @Test
+    public void testInvokeDynamicTFLite() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runInvokeDynamic(NNStreamer.NNFWType.TENSORFLOW_LITE);
     }
 
     @Test
