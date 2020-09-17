@@ -199,6 +199,12 @@ extern gboolean
 nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name, element_data_s * item);
 
 /**
+ * @brief Create new data object with given tensors info. Caller should unref the result object.
+ */
+extern gboolean
+nns_create_tensors_data_object (pipeline_info_s * pipe_info, JNIEnv * env, jobject obj_info, jobject * result);
+
+/**
  * @brief Convert tensors data to TensorsData object.
  */
 extern gboolean
