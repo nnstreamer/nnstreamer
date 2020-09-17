@@ -379,6 +379,40 @@ nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
 }
 
 /**
+ * @brief Create new data object with given tensors info. Caller should unref the result object.
+ */
+gboolean
+nns_create_tensors_data_object (pipeline_info_s * pipe_info, JNIEnv * env,
+    jobject obj_info, jobject * result)
+{
+  data_class_info_s *dcls_info;
+  jobject obj_data;
+
+  g_return_val_if_fail (pipe_info, FALSE);
+  g_return_val_if_fail (env, FALSE);
+  g_return_val_if_fail (result, FALSE);
+  g_return_val_if_fail (obj_info, FALSE);
+
+  dcls_info = &pipe_info->data_cls_info;
+  *result = NULL;
+
+  obj_data = (*env)->CallStaticObjectMethod (env, dcls_info->cls,
+      dcls_info->mid_alloc, obj_info);
+  if ((*env)->ExceptionCheck (env) || !obj_data) {
+    nns_loge ("Failed to allocate object for tensors data.");
+    (*env)->ExceptionClear (env);
+
+    if (obj_data)
+      (*env)->DeleteLocalRef (env, obj_data);
+
+    return FALSE;
+  }
+
+  *result = obj_data;
+  return TRUE;
+}
+
+/**
  * @brief Convert tensors data to TensorsData object.
  */
 gboolean
@@ -399,20 +433,10 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
 
   dcls_info = &pipe_info->data_cls_info;
   data = (ml_tensors_data_s *) data_h;
+  *result = NULL;
 
-  obj_data = (*env)->CallStaticObjectMethod (env, dcls_info->cls,
-      dcls_info->mid_alloc, obj_info);
-  if ((*env)->ExceptionCheck (env) || !obj_data) {
-    nns_loge ("Failed to allocate object for tensors data.");
-    (*env)->ExceptionClear (env);
-
-    if (obj_data) {
-      (*env)->DeleteLocalRef (env, obj_data);
-      obj_data = NULL;
-    }
-
-    goto done;
-  }
+  if (!nns_create_tensors_data_object (pipe_info, env, obj_info, &obj_data))
+    return FALSE;
 
   data_arr = (*env)->CallObjectMethod (env, obj_data, dcls_info->mid_get_array);
 
@@ -426,9 +450,8 @@ nns_convert_tensors_data (pipeline_info_s * pipe_info, JNIEnv * env,
 
   (*env)->DeleteLocalRef (env, data_arr);
 
-done:
   *result = obj_data;
-  return (obj_data != NULL);
+  return TRUE;
 }
 
 /**
