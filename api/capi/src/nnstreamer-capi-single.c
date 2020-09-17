@@ -107,6 +107,7 @@ typedef struct
   guint timeout;                      /**< timeout for invoking */
   thread_state state;                 /**< current state of the thread */
   gboolean ignore_output;             /**< ignore and free the output */
+  gboolean free_output;               /**< true if output tensors are allocated in single-shot */
   int status;                         /**< status of processing */
 
   ml_tensors_data_s in_tensors;    /**< input tensor wrapper for processing */
@@ -229,11 +230,6 @@ __invoke (ml_single * single_h)
   int status = ML_ERROR_NONE;
   GstTensorMemory *in_tensors, *out_tensors;
 
-  status = ml_tensors_data_clone_no_alloc (&single_h->out_tensors,
-      &single_h->output);
-  if (status != ML_ERROR_NONE)
-    return status;
-
   in_data = (ml_tensors_data_s *) single_h->input;
   out_data = (ml_tensors_data_s *) single_h->output;
 
@@ -243,7 +239,8 @@ __invoke (ml_single * single_h)
   /** invoke the thread */
   if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
     status = ML_ERROR_STREAMS_PIPE;
-    ml_tensors_data_destroy (single_h->output);
+    if (single_h->free_output)
+      ml_tensors_data_destroy (single_h->output);
     single_h->output = NULL;
   }
 
@@ -257,6 +254,11 @@ static inline void
 __process_output (ml_single * single_h)
 {
   ml_tensors_data_s *out_data;
+
+  if (!single_h->free_output) {
+    /* Do nothing. The output handle is not allocated in single-shot process. */
+    return;
+  }
 
   if (single_h->ignore_output == TRUE) {
     /**
@@ -866,7 +868,60 @@ ml_single_close (ml_single_h single)
 }
 
 /**
- * @brief Invokes the model with the given input data.
+ * @brief Internal function to validate input/output data.
+ */
+static int
+_ml_single_invoke_validate_data (ml_single_h single,
+    const ml_tensors_data_h data, const gboolean is_input)
+{
+  ml_single *single_h;
+  ml_tensors_data_s *_data;
+  ml_tensors_data_s *_model;
+  guint i;
+  size_t raw_size;
+
+  single_h = (ml_single *) single;
+  _data = (ml_tensors_data_s *) data;
+
+  if (G_UNLIKELY (!_data)) {
+    ml_loge ("The data handle to invoke the model is invalid.");
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  if (is_input)
+    _model = &single_h->in_tensors;
+  else
+    _model = &single_h->out_tensors;
+
+  if (G_UNLIKELY (_data->num_tensors != _model->num_tensors)) {
+    ml_loge
+        ("The number of %s tensors is not compatible with model. Given: %u, Expected: %u.",
+        (is_input) ? "input" : "output", _data->num_tensors,
+        _model->num_tensors);
+    return ML_ERROR_INVALID_PARAMETER;
+  }
+
+  for (i = 0; i < _data->num_tensors; i++) {
+    if (G_UNLIKELY (!_data->tensors[i].tensor)) {
+      ml_loge ("The %d-th input tensor is not valid.", i);
+      return ML_ERROR_INVALID_PARAMETER;
+    }
+
+    raw_size = _model->tensors[i].size;
+    if (G_UNLIKELY (_data->tensors[i].size != raw_size)) {
+      ml_loge
+          ("The size of %d-th %s tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
+          i, (is_input) ? "input" : "output", _data->tensors[i].size, raw_size,
+          single_h->in_info.info[i].type);
+      return ML_ERROR_INVALID_PARAMETER;
+    }
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Internal function to invoke the model.
  *
  * @details State changes performed by this function:
  *          IDLE -> RUNNING - on receiving a valid request
@@ -878,14 +933,13 @@ ml_single_close (ml_single_h single)
  *
  * @note IDLE is the valid thread state before and after this function call.
  */
-int
-ml_single_invoke (ml_single_h single,
-    const ml_tensors_data_h input, ml_tensors_data_h * output)
+static int
+_ml_single_invoke_internal (ml_single_h single,
+    const ml_tensors_data_h input, ml_tensors_data_h * output,
+    const gboolean need_alloc)
 {
   ml_single *single_h;
-  ml_tensors_data_s *in_data;
   gint64 end_time;
-  unsigned int i;
   int status = ML_ERROR_NONE;
 
   check_feature_state ();
@@ -910,9 +964,6 @@ ml_single_invoke (ml_single_h single,
 
   ML_SINGLE_GET_VALID_HANDLE_LOCKED (single_h, single, 0);
 
-  in_data = (ml_tensors_data_s *) input;
-  *output = NULL;
-
   if (G_UNLIKELY (!single_h->filter)) {
     ml_loge
         ("The tensor_filter element is not valid. It is not correctly created or already freed.");
@@ -920,33 +971,15 @@ ml_single_invoke (ml_single_h single,
     goto exit;
   }
 
-  /* Validate input data */
-  if (G_UNLIKELY (in_data->num_tensors != single_h->in_tensors.num_tensors)) {
-    ml_loge
-        ("The number of input tensors is not compatible with model. Given: %u, Expected: %u.",
-        in_data->num_tensors, single_h->in_tensors.num_tensors);
-    status = ML_ERROR_INVALID_PARAMETER;
+  /* Validate input/output data */
+  status = _ml_single_invoke_validate_data (single, input, TRUE);
+  if (status != ML_ERROR_NONE)
     goto exit;
-  }
 
-  for (i = 0; i < in_data->num_tensors; i++) {
-    size_t raw_size;
-
-    if (G_UNLIKELY (!in_data->tensors[i].tensor)) {
-      ml_loge ("The %d-th input tensor is not valid.", i);
-      status = ML_ERROR_INVALID_PARAMETER;
+  if (!need_alloc) {
+    status = _ml_single_invoke_validate_data (single, *output, FALSE);
+    if (status != ML_ERROR_NONE)
       goto exit;
-    }
-
-    raw_size = single_h->in_tensors.tensors[i].size;
-    if (G_UNLIKELY (in_data->tensors[i].size != raw_size)) {
-      ml_loge
-          ("The size of %d-th input tensor is not compatible with model. Given: %zu, Expected: %zu (type: %d).",
-          i, in_data->tensors[i].size, raw_size,
-          single_h->in_info.info[i].type);
-      status = ML_ERROR_INVALID_PARAMETER;
-      goto exit;
-    }
   }
 
   if (single_h->state != IDLE) {
@@ -960,9 +993,23 @@ ml_single_invoke (ml_single_h single,
     goto exit;
   }
 
+  /* prepare output data */
+  if (need_alloc) {
+    *output = NULL;
+
+    status = ml_tensors_data_clone_no_alloc (&single_h->out_tensors,
+        &single_h->output);
+    if (status != ML_ERROR_NONE)
+      goto exit;
+  } else {
+    /** @todo implement no-alloc (invoke with allocated output data) */
+    single_h->output = *output;
+  }
+
   single_h->input = input;
   single_h->state = RUNNING;
   single_h->ignore_output = FALSE;
+  single_h->free_output = need_alloc;
 
   if (single_h->timeout > 0) {
     /* Wake up "invoke_thread" */
@@ -997,7 +1044,8 @@ ml_single_invoke (ml_single_h single,
   }
 
   if (single_h->ignore_output == FALSE) {
-    *output = single_h->output;
+    if (need_alloc)
+      *output = single_h->output;
     single_h->output = NULL;
   }
 
@@ -1007,6 +1055,16 @@ exit:
   if (G_UNLIKELY (status != ML_ERROR_NONE))
     ml_loge ("Failed to invoke the model.");
   return status;
+}
+
+/**
+ * @brief Invokes the model with the given input data.
+ */
+int
+ml_single_invoke (ml_single_h single,
+    const ml_tensors_data_h input, ml_tensors_data_h * output)
+{
+  return _ml_single_invoke_internal (single, input, output, TRUE);
 }
 
 /**
