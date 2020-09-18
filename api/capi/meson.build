@@ -95,6 +95,7 @@ shared_library ('capi-nnstreamer',
   include_directories: capi_inc,
   install: true,
   install_dir: nnstreamer_libdir,
+  version: meson.project_version(),
 )
 nnstreamer_capi_lib = static_library ('capi-nnstreamer',
   capi_main,
