@@ -638,6 +638,11 @@ ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python
 popd
 %endif
 
+# Hotfix: Support the backward compatibility of the .Net APIs
+pushd %{buildroot}%{_libdir}
+ln -sf libcapi-nnstreamer.so.%{version} libcapi-nnstreamer.so.0
+popd
+
 %if 0%{?testcoverage}
 ##
 # The included directories are:
