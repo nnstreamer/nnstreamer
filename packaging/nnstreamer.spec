@@ -638,11 +638,6 @@ ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python
 popd
 %endif
 
-# Hotfix: Support backward compatibility
-pushd %{buildroot}%{_libdir}
-ln -sf ./libcapi-nnstreamer.so libcapi-nnstreamer.so.0
-popd
-
 %if 0%{?testcoverage}
 ##
 # The included directories are:
@@ -780,12 +775,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n capi-nnstreamer
 %manifest capi-nnstreamer.manifest
 %license LICENSE
-%{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/libcapi-nnstreamer.so.*
 
 %files -n capi-nnstreamer-devel
 %{_includedir}/nnstreamer/nnstreamer.h
 %{_includedir}/nnstreamer/nnstreamer-single.h
+%{_libdir}/libcapi-nnstreamer.so
 %{_libdir}/pkgconfig/capi-nnstreamer.pc
 
 %files -n capi-nnstreamer-devel-static
