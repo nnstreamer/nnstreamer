@@ -143,9 +143,14 @@ thread_dep = dependency('threads') # pthread for tensorflow-lite
 # Protobuf
 protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 
-# Flatbuffer compiler
-flatbuf_dep = cc.find_library('flatbuffers', required : get_option('flatbuf-support'))
-fb_comp = find_program('flatc', required : get_option('flatbuf-support'))
+# Flatbuffers compiler and libraries
+flatc = find_program('flatc', required : get_option('flatbuf-support'))
+flatbuf_dep = disabler()
+if flatc.found()
+  flatc_ver = run_command(flatc, '--version').stdout().split()[2]
+  flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
+      required : get_option('flatbuf-support'))
+endif
 
 # Protobuf compiler
 pb_comp = find_program('protoc', required: get_option('protobuf-support'))
@@ -244,7 +249,7 @@ features = {
     'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
   },
   'flatbuf-support': {
-    'extra_deps': [ fb_comp, flatbuf_dep ],
+    'extra_deps': [ flatc, flatbuf_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {

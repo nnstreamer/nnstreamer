@@ -1,7 +1,7 @@
 if flatbuf_support_is_available
   # Compile flatbuffers schema file
-  fb_gen = generator(fb_comp, output : '@BASENAME@_generated.h',
-                 arguments : ['--cpp', '-o', '@BUILD_DIR@', '@INPUT@'])
+  fb_gen = generator(flatc, output : '@BASENAME@_generated.h',
+      arguments : ['--cpp', '-o', '@BUILD_DIR@', '@INPUT@'])
   fb_gen_src = fb_gen.process('./include/nnstreamer.fbs')
 endif
 
