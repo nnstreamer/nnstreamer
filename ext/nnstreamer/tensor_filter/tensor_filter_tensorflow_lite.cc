@@ -63,7 +63,11 @@ static const gchar *tflite_accl_auto = ACCL_CPU_STR;
 #endif
 static const gchar *tflite_accl_default = ACCL_CPU_STR;
 
-static GstTensorFilterFrameworkStatistics tflite_internal_stats;
+static GstTensorFilterFrameworkStatistics tflite_internal_stats = {
+  .total_invoke_num = 0,
+  .total_invoke_latency = 0,
+  .total_overhead_latency = 0,
+};
 
 /**
  * @brief Wrapper class for TFLite Interpreter to support model switching
@@ -1112,10 +1116,6 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
 void
 init_filter_tflite (void)
 {
-  tflite_internal_stats.total_invoke_num = 0;
-  tflite_internal_stats.total_invoke_latency = 0;
-  tflite_internal_stats.total_overhead_latency = 0;
-
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
 }
 
