@@ -63,7 +63,11 @@ static const gchar *nnfw_accl_default = ACCL_CPU_STR;
 void init_filter_nnfw (void) __attribute__ ((constructor));
 void fini_filter_nnfw (void) __attribute__ ((destructor));
 
-static GstTensorFilterFrameworkStatistics nnfw_internal_stats;
+static GstTensorFilterFrameworkStatistics nnfw_internal_stats = {
+  .total_invoke_num = 0,
+  .total_invoke_latency = 0,
+  .total_overhead_latency = 0,
+};
 
 /**
  * @brief private data structure for the nnfw framework
@@ -690,10 +694,6 @@ static GstTensorFilterFramework NNS_support_nnfw = {
 void
 init_filter_nnfw (void)
 {
-  nnfw_internal_stats.total_invoke_num = 0;
-  nnfw_internal_stats.total_invoke_latency = 0;
-  nnfw_internal_stats.total_overhead_latency = 0;
-
   nnstreamer_filter_probe (&NNS_support_nnfw);
 }
 
