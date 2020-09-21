@@ -26,9 +26,9 @@
 
 #include <glib.h>
 #include <nnstreamer_log.h>
-#define __NO_ANONYMOUS_NESTED_STRUCT
+#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef __NO_ANONYMOUS_NESTED_STRUCT
+#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <tensor_common.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
