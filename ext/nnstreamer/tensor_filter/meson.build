@@ -182,18 +182,10 @@ if tflite2_support_is_available
   nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   tflite2_compile_args = []
-  if cxx.has_type('kTfLiteInt8', prefix : '#include <tensorflow2/contrib/lite/model.h>')
-    tflite2_compile_args += '-DTFLITE_INT8=1'
-  endif
-  if cxx.has_type('kTfLiteInt16', prefix : '#include <tensorflow2/contrib/lite/model.h>')
-    tflite2_compile_args += '-DTFLITE_INT16=1'
-  endif
-  if cxx.has_type('kTfLiteFloat16', prefix : '#include <tensorflow2/contrib/lite/model.h>')
-    tflite2_compile_args += '-DTFLITE_FLOAT16=1'
-  endif
-  if cxx.has_type('kTfLiteComplex64', prefix : '#include <tensorflow2/contrib/lite/model.h>')
-    tflite2_compile_args += '-DTFLITE_COMPLEX64=1'
-  endif
+  tflite2_compile_args += '-DTFLITE_INT8=1'
+  tflite2_compile_args += '-DTFLITE_INT16=1'
+  tflite2_compile_args += '-DTFLITE_FLOAT16=1'
+  tflite2_compile_args += '-DTFLITE_COMPLEX64=1'
 
   tflite2_extra_dep = declare_dependency(
     compile_args : tflite2_compile_args
