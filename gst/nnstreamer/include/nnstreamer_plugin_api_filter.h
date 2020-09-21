@@ -386,7 +386,7 @@ struct _GstTensorFilterFramework
         * @return 0 if supported. -errno if not supported.
         */
     }
-#ifdef __NO_ANONYMOUS_NESTED_STRUCT
+#ifdef NO_ANONYMOUS_NESTED_STRUCT
         v0
 #endif
     ;
@@ -467,7 +467,7 @@ struct _GstTensorFilterFramework
        */
       void *subplugin_data; /**< This is used by tensor_filter infrastructure. Subplugin authors should NEVER update this. Only the files in /gst/nnstreamer/tensor_filter/ are allowed to access this. */
     }
-#ifdef __NO_ANONYMOUS_NESTED_STRUCT
+#ifdef NO_ANONYMOUS_NESTED_STRUCT
         v1
 #endif
     ;

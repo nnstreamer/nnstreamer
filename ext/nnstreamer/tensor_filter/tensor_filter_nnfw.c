@@ -32,9 +32,9 @@
 #include <glib-object.h>
 
 #include <tensor_common.h>
-#define __NO_ANONYMOUS_NESTED_STRUCT
+#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef __NO_ANONYMOUS_NESTED_STRUCT
+#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnfw.h>
 
 /** backends supported by nnfw */

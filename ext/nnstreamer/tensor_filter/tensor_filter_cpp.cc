@@ -35,9 +35,9 @@
 #include <gmodule.h>
 
 #include <nnstreamer_log.h>
-#define __NO_ANONYMOUS_NESTED_STRUCT
+#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef __NO_ANONYMOUS_NESTED_STRUCT
+#undef NO_ANONYMOUS_NESTED_STRUCT
 
 #include "tensor_filter_cpp.hh"
 
