@@ -35,7 +35,9 @@
 #include <gmodule.h>
 
 #include <nnstreamer_log.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 
 #include "tensor_filter_cpp.hh"
 
@@ -50,6 +52,19 @@ static GstTensorFilterFramework NNS_support_cpp = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tensor_filter_cpp::open,
   .close = tensor_filter_cpp::close,
+  {
+    .v0 = {
+      .name = filter_subplugin_cpp,
+      .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = tensor_filter_cpp::invoke,
+      .getInputDimension = tensor_filter_cpp::getInputDim,
+      .getOutputDimension = tensor_filter_cpp::getOutputDim,
+      .setInputDimension = tensor_filter_cpp::setInputDim,
+    }
+  }
 };
 
 G_BEGIN_DECLS
@@ -60,15 +75,6 @@ void fini_filter_cpp (void) __attribute__ ((destructor));
 void
 init_filter_cpp (void)
 {
-  NNS_support_cpp.name = filter_subplugin_cpp;
-  NNS_support_cpp.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
-  NNS_support_cpp.allocate_in_invoke = FALSE;
-  NNS_support_cpp.run_without_model = FALSE;
-  NNS_support_cpp.verify_model_path = FALSE;
-  NNS_support_cpp.invoke_NN = tensor_filter_cpp::invoke;
-  NNS_support_cpp.getInputDimension = tensor_filter_cpp::getInputDim;
-  NNS_support_cpp.getOutputDimension = tensor_filter_cpp::getOutputDim;
-  NNS_support_cpp.setInputDimension = tensor_filter_cpp::setInputDim;
   nnstreamer_filter_probe (&NNS_support_cpp);
 }
 
@@ -76,7 +82,7 @@ init_filter_cpp (void)
 void
 fini_filter_cpp (void)
 {
-  nnstreamer_filter_exit (NNS_support_cpp.name);
+  nnstreamer_filter_exit (NNS_support_cpp.v0.name);
   tensor_filter_cpp::close_all_handles ();
 }
 G_END_DECLS
@@ -247,7 +253,7 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
   cpp->ref_count++;
   cpp->prop = prop;
 
-  NNS_support_cpp.allocate_in_invoke = ! cpp->isAllocatedBeforeInvoke();
+  NNS_support_cpp.v0.allocate_in_invoke = ! cpp->isAllocatedBeforeInvoke();
 
   return 0;
 }

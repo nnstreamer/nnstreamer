@@ -60,7 +60,9 @@
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 
 #include <vector>
@@ -966,25 +968,28 @@ static GstTensorFilterFramework NNS_support_python = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = py_open,
   .close = py_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_python,
+      .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+      .allocate_in_invoke = TRUE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = py_run,
+      /** dimension-related callbacks are dynamically updated */
+      .getInputDimension = py_getInputDim,
+      .getOutputDimension = py_getOutputDim,
+      .setInputDimension = py_setInputDim,
+      .destroyNotify = py_destroyNotify,
+      .checkAvailability = py_checkAvailability,
+    }
+  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_py (void)
 {
-  NNS_support_python.name = filter_subplugin_python;
-  NNS_support_python.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
-  NNS_support_python.allocate_in_invoke = TRUE;
-  NNS_support_python.run_without_model = FALSE;
-  NNS_support_python.verify_model_path = FALSE;
-  NNS_support_python.invoke_NN = py_run;
-  /** dimension-related callbacks are dynamically updated */
-  NNS_support_python.getInputDimension = py_getInputDim;
-  NNS_support_python.getOutputDimension = py_getOutputDim;
-  NNS_support_python.setInputDimension = py_setInputDim;
-  NNS_support_python.destroyNotify = py_destroyNotify;
-  NNS_support_python.checkAvailability = py_checkAvailability;
-
   nnstreamer_filter_probe (&NNS_support_python);
   /** Python should be initialized and finalized only once */
   Py_Initialize();
@@ -996,5 +1001,5 @@ fini_filter_py (void)
 {
   /** Python should be initialized and finalized only once */
   Py_Finalize();
-  nnstreamer_filter_exit (NNS_support_python.name);
+  nnstreamer_filter_exit (NNS_support_python.v0.name);
 }

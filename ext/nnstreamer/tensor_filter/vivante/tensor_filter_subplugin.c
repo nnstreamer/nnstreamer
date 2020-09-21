@@ -72,7 +72,9 @@
 #include <glib.h>
 #include <errno.h>
 
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 
 #include <dlfcn.h>
 
@@ -581,19 +583,23 @@ static GstTensorFilterFramework NNS_support_vivante = {
 #endif
   .open = vivante_open,
   .close = vivante_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_vivante,
+      .allow_in_place = FALSE,
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .invoke_NN = vivante_invoke,
+      .getInputDimension = vivante_getInputDim,
+      .getOutputDimension = vivante_getOutputDim,
+    }
+  }
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_vivante (void)
 {
-  NNS_support_vivante.name = filter_subplugin_vivante;
-  NNS_support_vivante.allow_in_place = FALSE;
-  NNS_support_vivante.allocate_in_invoke = FALSE;
-  NNS_support_vivante.run_without_model = FALSE;
-  NNS_support_vivante.invoke_NN = vivante_invoke;
-  NNS_support_vivante.getInputDimension = vivante_getInputDim;
-  NNS_support_vivante.getOutputDimension = vivante_getOutputDim;
   nnstreamer_filter_probe (&NNS_support_vivante);
 }
 
@@ -601,5 +607,5 @@ init_filter_vivante (void)
 void
 fini_filter_vivante (void)
 {
-  nnstreamer_filter_exit (NNS_support_vivante.name);
+  nnstreamer_filter_exit (NNS_support_vivante.v0.name);
 }

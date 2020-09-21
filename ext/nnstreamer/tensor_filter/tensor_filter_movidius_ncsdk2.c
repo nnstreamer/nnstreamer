@@ -32,7 +32,9 @@
 #include <gst/gst.h>
 #include <mvnc2/mvnc.h>
 #include <nnstreamer_log.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -437,21 +439,24 @@ static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = _mvncsdk2_open,
   .close = _mvncsdk2_close,
-  .checkAvailability = _mvncsdk2_checkAvailability,
+  {
+    .v0 = {
+      .name = filter_subplugin_movidius_ncsdk2,
+      .allow_in_place = FALSE,
+      .allocate_in_invoke = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = _mvncsdk2_invoke,
+      .getInputDimension = _mvncsdk2_getInputDim,
+      .getOutputDimension = _mvncsdk2_getOutputDim,
+      .checkAvailability = _mvncsdk2_checkAvailability,
+    }
+  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_mvncsdk2 (void)
 {
-  NNS_support_movidius_ncsdk2.name = filter_subplugin_movidius_ncsdk2;
-  NNS_support_movidius_ncsdk2.allow_in_place = FALSE;
-  NNS_support_movidius_ncsdk2.allocate_in_invoke = FALSE;
-  NNS_support_movidius_ncsdk2.verify_model_path = FALSE;
-  NNS_support_movidius_ncsdk2.invoke_NN = _mvncsdk2_invoke;
-  NNS_support_movidius_ncsdk2.getInputDimension = _mvncsdk2_getInputDim;
-  NNS_support_movidius_ncsdk2.getOutputDimension = _mvncsdk2_getOutputDim;
-
   nnstreamer_filter_probe (&NNS_support_movidius_ncsdk2);
 }
 
@@ -459,5 +464,5 @@ init_filter_mvncsdk2 (void)
 void
 fini_filter_mvncsdk2 (void)
 {
-  nnstreamer_filter_exit (NNS_support_movidius_ncsdk2.name);
+  nnstreamer_filter_exit (NNS_support_movidius_ncsdk2.v0.name);
 }

@@ -32,7 +32,9 @@
 #include <glib-object.h>
 
 #include <tensor_common.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnfw.h>
 
 /** backends supported by nnfw */
@@ -664,6 +666,21 @@ static GstTensorFilterFramework NNS_support_nnfw = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = nnfw_open,
   .close = nnfw_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_nnfw,
+      .allow_in_place = FALSE,
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .statistics = &nnfw_internal_stats,
+      .invoke_NN = nnfw_invoke,
+      .getInputDimension = nnfw_getInputDim,
+      .getOutputDimension = nnfw_getOutputDim,
+      .setInputDimension = nnfw_setInputDim,
+      .checkAvailability = nnfw_checkAvailability,
+    }
+  }
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
@@ -674,18 +691,6 @@ init_filter_nnfw (void)
   nnfw_internal_stats.total_invoke_latency = 0;
   nnfw_internal_stats.total_overhead_latency = 0;
 
-  NNS_support_nnfw.name = filter_subplugin_nnfw;
-  NNS_support_nnfw.allow_in_place = FALSE;
-  NNS_support_nnfw.allocate_in_invoke = FALSE;
-  NNS_support_nnfw.run_without_model = FALSE;
-  NNS_support_nnfw.verify_model_path = FALSE;
-  NNS_support_nnfw.invoke_NN = nnfw_invoke;
-  NNS_support_nnfw.getInputDimension = nnfw_getInputDim;
-  NNS_support_nnfw.getOutputDimension = nnfw_getOutputDim;
-  NNS_support_nnfw.setInputDimension = nnfw_setInputDim;
-  NNS_support_nnfw.checkAvailability = nnfw_checkAvailability;
-  NNS_support_nnfw.statistics = &nnfw_internal_stats;
-
   nnstreamer_filter_probe (&NNS_support_nnfw);
 }
 
@@ -693,5 +698,5 @@ init_filter_nnfw (void)
 void
 fini_filter_nnfw (void)
 {
-  nnstreamer_filter_exit (NNS_support_nnfw.name);
+  nnstreamer_filter_exit (NNS_support_nnfw.v0.name);
 }

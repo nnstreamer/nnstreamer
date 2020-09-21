@@ -29,7 +29,9 @@
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 
 #include <iostream>
 #include <fstream>
@@ -764,23 +766,26 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tf_open,
   .close = tf_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_tensorflow,
+      .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+      .allocate_in_invoke = TRUE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = tf_run,
+      .getInputDimension = tf_getInputDim,
+      .getOutputDimension = tf_getOutputDim,
+      .destroyNotify = tf_destroyNotify,
+      .checkAvailability = tf_checkAvailability,
+    }
+  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_tf (void)
 {
-  NNS_support_tensorflow.name = filter_subplugin_tensorflow;
-  NNS_support_tensorflow.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
-  NNS_support_tensorflow.allocate_in_invoke = TRUE;
-  NNS_support_tensorflow.run_without_model = FALSE;
-  NNS_support_tensorflow.verify_model_path = FALSE;
-  NNS_support_tensorflow.invoke_NN = tf_run;
-  NNS_support_tensorflow.getInputDimension = tf_getInputDim;
-  NNS_support_tensorflow.getOutputDimension = tf_getOutputDim;
-  NNS_support_tensorflow.destroyNotify = tf_destroyNotify;
-  NNS_support_tensorflow.checkAvailability = tf_checkAvailability;
-
   nnstreamer_filter_probe (&NNS_support_tensorflow);
 }
 
@@ -788,5 +793,5 @@ init_filter_tf (void)
 void
 fini_filter_tf (void)
 {
-  nnstreamer_filter_exit (NNS_support_tensorflow.name);
+  nnstreamer_filter_exit (NNS_support_tensorflow.v0.name);
 }

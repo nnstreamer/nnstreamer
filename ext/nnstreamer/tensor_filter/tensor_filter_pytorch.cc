@@ -28,7 +28,9 @@
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 
 #include <nnstreamer_conf.h>
 
@@ -682,22 +684,25 @@ static GstTensorFilterFramework NNS_support_pytorch = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = torch_open,
   .close = torch_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_pytorch,
+      .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = torch_invoke,
+      .getInputDimension = torch_getInputDim,
+      .getOutputDimension = torch_getOutputDim,
+      .checkAvailability = torch_checkAvailability,
+    }
+  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_torch (void)
 {
-  NNS_support_pytorch.name = filter_subplugin_pytorch;
-  NNS_support_pytorch.allow_in_place = FALSE;
-  NNS_support_pytorch.allocate_in_invoke = FALSE;
-  NNS_support_pytorch.run_without_model = FALSE;
-  NNS_support_pytorch.verify_model_path = FALSE;
-  NNS_support_pytorch.invoke_NN = torch_invoke;
-  NNS_support_pytorch.getInputDimension = torch_getInputDim;
-  NNS_support_pytorch.getOutputDimension = torch_getOutputDim;
-  NNS_support_pytorch.checkAvailability = torch_checkAvailability;
-
   nnstreamer_filter_probe (&NNS_support_pytorch);
 }
 
@@ -705,5 +710,5 @@ init_filter_torch (void)
 void
 fini_filter_torch (void)
 {
-  nnstreamer_filter_exit (NNS_support_pytorch.name);
+  nnstreamer_filter_exit (NNS_support_pytorch.v0.name);
 }
