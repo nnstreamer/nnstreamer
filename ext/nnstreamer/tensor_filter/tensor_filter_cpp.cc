@@ -59,10 +59,15 @@ static GstTensorFilterFramework NNS_support_cpp = {
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = tensor_filter_cpp::invoke,
       .getInputDimension = tensor_filter_cpp::getInputDim,
       .getOutputDimension = tensor_filter_cpp::getOutputDim,
       .setInputDimension = tensor_filter_cpp::setInputDim,
+      .destroyNotify = nullptr,
+      .reloadModel = nullptr,
+      .checkAvailability = nullptr,
+      .allocateInInvoke = nullptr,
     }
   }
 };

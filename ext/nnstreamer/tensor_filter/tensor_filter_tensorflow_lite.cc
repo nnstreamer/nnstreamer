@@ -1100,8 +1100,10 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
       .getInputDimension = tflite_getInputDim,
       .getOutputDimension = tflite_getOutputDim,
       .setInputDimension = tflite_setInputDim,
+      .destroyNotify = nullptr,
       .reloadModel = tflite_reloadModel,
       .checkAvailability = tflite_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };

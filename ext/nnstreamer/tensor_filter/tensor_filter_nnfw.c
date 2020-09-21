@@ -678,7 +678,10 @@ static GstTensorFilterFramework NNS_support_nnfw = {
       .getInputDimension = nnfw_getInputDim,
       .getOutputDimension = nnfw_getOutputDim,
       .setInputDimension = nnfw_setInputDim,
+      .destroyNotify = NULL,
+      .reloadModel = NULL,
       .checkAvailability = nnfw_checkAvailability,
+      .allocateInInvoke = NULL,
     }
   }
 };

@@ -773,11 +773,15 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
       .allocate_in_invoke = TRUE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = tf_run,
       .getInputDimension = tf_getInputDim,
       .getOutputDimension = tf_getOutputDim,
+      .setInputDimension = nullptr,
       .destroyNotify = tf_destroyNotify,
+      .reloadModel = nullptr,
       .checkAvailability = tf_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };

@@ -975,13 +975,16 @@ static GstTensorFilterFramework NNS_support_python = {
       .allocate_in_invoke = TRUE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = py_run,
       /** dimension-related callbacks are dynamically updated */
       .getInputDimension = py_getInputDim,
       .getOutputDimension = py_getOutputDim,
       .setInputDimension = py_setInputDim,
       .destroyNotify = py_destroyNotify,
+      .reloadModel = nullptr,
       .checkAvailability = py_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };
