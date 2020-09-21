@@ -750,10 +750,15 @@ static GstTensorFilterFramework NNS_support_armnn = {
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = armnn_invoke,
       .getInputDimension = armnn_getInputDim,
       .getOutputDimension = armnn_getOutputDim,
+      .setInputDimension = nullptr,
+      .destroyNotify = nullptr,
+      .reloadModel = nullptr,
       .checkAvailability = armnn_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };

@@ -655,10 +655,15 @@ static GstTensorFilterFramework NNS_support_openvino = {
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = ov_invoke,
       .getInputDimension = ov_getInputDim,
       .getOutputDimension = ov_getOutputDim,
+      .setInputDimension = nullptr,
+      .destroyNotify = nullptr,
+      .reloadModel = nullptr,
       .checkAvailability = ov_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };

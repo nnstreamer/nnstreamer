@@ -444,11 +444,17 @@ static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
       .name = filter_subplugin_movidius_ncsdk2,
       .allow_in_place = FALSE,
       .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = NULL,
       .invoke_NN = _mvncsdk2_invoke,
       .getInputDimension = _mvncsdk2_getInputDim,
       .getOutputDimension = _mvncsdk2_getOutputDim,
+      .setInputDimension = NULL,
+      .destroyNotify = NULL,
+      .reloadModel = NULL,
       .checkAvailability = _mvncsdk2_checkAvailability,
+      .allocateInInvoke = NULL,
     }
   }
 };

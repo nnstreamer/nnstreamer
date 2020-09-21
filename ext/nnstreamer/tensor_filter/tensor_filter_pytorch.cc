@@ -691,10 +691,15 @@ static GstTensorFilterFramework NNS_support_pytorch = {
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = torch_invoke,
       .getInputDimension = torch_getInputDim,
       .getOutputDimension = torch_getOutputDim,
+      .setInputDimension = nullptr,
+      .destroyNotify = nullptr,
+      .reloadModel = nullptr,
       .checkAvailability = torch_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };

@@ -589,9 +589,16 @@ static GstTensorFilterFramework NNS_support_vivante = {
       .allow_in_place = FALSE,
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .statistics = NULL,
       .invoke_NN = vivante_invoke,
       .getInputDimension = vivante_getInputDim,
       .getOutputDimension = vivante_getOutputDim,
+      .setInputDimension = NULL,
+      .destroyNotify = NULL,
+      .reloadModel = NULL,
+      .checkAvailability = NULL,
+      .allocateInInvoke = NULL,
     }
   }
 };

@@ -606,11 +606,15 @@ static GstTensorFilterFramework NNS_support_caffe2 = {
       .allocate_in_invoke = TRUE,
       .run_without_model = FALSE,
       .verify_model_path = FALSE,
+      .statistics = nullptr,
       .invoke_NN = caffe2_run,
       .getInputDimension = caffe2_getInputDim,
       .getOutputDimension = caffe2_getOutputDim,
+      .setInputDimension = nullptr,
       .destroyNotify = caffe2_destroyNotify,
+      .reloadModel = nullptr,
       .checkAvailability = caffe2_checkAvailability,
+      .allocateInInvoke = nullptr,
     }
   }
 };
