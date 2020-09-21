@@ -32,7 +32,9 @@
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 
 #include <tensorflow/contrib/lite/model.h>
@@ -1086,6 +1088,22 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tflite_open,
   .close = tflite_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_tensorflow_lite,
+      .allow_in_place = FALSE,  /** @todo: support this to optimize performance later. */
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .verify_model_path = TRUE,
+      .statistics = &tflite_internal_stats,
+      .invoke_NN = tflite_invoke,
+      .getInputDimension = tflite_getInputDim,
+      .getOutputDimension = tflite_getOutputDim,
+      .setInputDimension = tflite_setInputDim,
+      .reloadModel = tflite_reloadModel,
+      .checkAvailability = tflite_checkAvailability,
+    }
+  }
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
@@ -1096,18 +1114,6 @@ init_filter_tflite (void)
   tflite_internal_stats.total_invoke_latency = 0;
   tflite_internal_stats.total_overhead_latency = 0;
 
-  NNS_support_tensorflow_lite.name = filter_subplugin_tensorflow_lite;
-  NNS_support_tensorflow_lite.allow_in_place = FALSE;      /** @todo: support this to optimize performance later. */
-  NNS_support_tensorflow_lite.allocate_in_invoke = FALSE;
-  NNS_support_tensorflow_lite.run_without_model = FALSE;
-  NNS_support_tensorflow_lite.verify_model_path = TRUE;
-  NNS_support_tensorflow_lite.invoke_NN = tflite_invoke;
-  NNS_support_tensorflow_lite.getInputDimension = tflite_getInputDim;
-  NNS_support_tensorflow_lite.getOutputDimension = tflite_getOutputDim;
-  NNS_support_tensorflow_lite.setInputDimension = tflite_setInputDim;
-  NNS_support_tensorflow_lite.reloadModel = tflite_reloadModel;
-  NNS_support_tensorflow_lite.checkAvailability = tflite_checkAvailability;
-  NNS_support_tensorflow_lite.statistics = &tflite_internal_stats;
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
 }
 
@@ -1115,5 +1121,5 @@ init_filter_tflite (void)
 void
 fini_filter_tflite (void)
 {
-  nnstreamer_filter_exit (NNS_support_tensorflow_lite.name);
+  nnstreamer_filter_exit (NNS_support_tensorflow_lite.v0.name);
 }

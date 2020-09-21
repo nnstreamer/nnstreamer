@@ -26,7 +26,9 @@
 
 #include <glib.h>
 #include <nnstreamer_log.h>
+#define __NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
+#undef __NO_ANONYMOUS_NESTED_STRUCT
 #include <tensor_common.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
@@ -646,6 +648,19 @@ static GstTensorFilterFramework NNS_support_openvino = {
   .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
+  {
+    .v0 = {
+      .name = filter_subplugin_openvino,
+      .allow_in_place = FALSE,
+      .allocate_in_invoke = FALSE,
+      .run_without_model = FALSE,
+      .verify_model_path = FALSE,
+      .invoke_NN = ov_invoke,
+      .getInputDimension = ov_getInputDim,
+      .getOutputDimension = ov_getOutputDim,
+      .checkAvailability = ov_checkAvailability,
+    }
+  }
 };
 
 /**
@@ -654,16 +669,6 @@ static GstTensorFilterFramework NNS_support_openvino = {
 void
 init_filter_openvino (void)
 {
-  NNS_support_openvino.name = filter_subplugin_openvino;
-  NNS_support_openvino.allow_in_place = FALSE;
-  NNS_support_openvino.allocate_in_invoke = FALSE;
-  NNS_support_openvino.run_without_model = FALSE;
-  NNS_support_openvino.verify_model_path = FALSE;
-  NNS_support_openvino.invoke_NN = ov_invoke;
-  NNS_support_openvino.getInputDimension = ov_getInputDim;
-  NNS_support_openvino.getOutputDimension = ov_getOutputDim;
-  NNS_support_openvino.checkAvailability = ov_checkAvailability;
-
   nnstreamer_filter_probe (&NNS_support_openvino);
 }
 
@@ -673,5 +678,5 @@ init_filter_openvino (void)
 void
 fini_filter_openvino (void)
 {
-  nnstreamer_filter_exit (NNS_support_openvino.name);
+  nnstreamer_filter_exit (NNS_support_openvino.v0.name);
 }
