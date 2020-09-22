@@ -104,37 +104,95 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
  */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
-    GST_PAD_ALWAYS,
+    GST_PAD_SOMETIMES,
     GST_STATIC_CAPS (CAPS_STRING));
 
 #define gst_tensor_if_parent_class parent_class
-G_DEFINE_TYPE (GstTensorIf, gst_tensor_if, GST_TYPE_BASE_TRANSFORM);
+G_DEFINE_TYPE (GstTensorIf, gst_tensor_if, GST_TYPE_ELEMENT);
 
 /* GObject vmethod implementations */
 static void gst_tensor_if_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_if_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_tensor_if_finalize (GObject * object);
 
-/* GstBaseTransform vmethod implementations */
-static GstFlowReturn gst_tensor_if_transform (GstBaseTransform * trans,
-    GstBuffer * inbuf, GstBuffer * outbuf);
-static GstCaps *gst_tensor_if_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * _if);
-static GstCaps *gst_tensor_if_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
-static gboolean gst_tensor_if_set_caps (GstBaseTransform * trans,
-    GstCaps * incaps, GstCaps * outcaps);
-static gboolean gst_tensor_if_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize);
-static gboolean gst_tensor_if_start (GstBaseTransform * trans);
-static gboolean gst_tensor_if_stop (GstBaseTransform * trans);
-static gboolean gst_tensor_if_sink_event (GstBaseTransform * trans,
+static GstFlowReturn gst_tensor_if_chain (GstPad * pad, GstObject * parent,
+    GstBuffer * buf);
+static gboolean gst_tensor_if_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
+static void gst_tensor_if_dispose (GObject * object);
 
 static void gst_tensor_if_install_properties (GObjectClass * gobject_class);
+
+#define GST_TYPE_TENSOR_IF_CV (gst_tensor_if_cv_get_type ())
+/**
+ * @brief A private function to register GEnumValue array for the 'compared_value' property
+ *        to a GType and return it
+ */
+static GType
+gst_tensor_if_cv_get_type (void)
+{
+  static GType mode_type = 0;
+
+  if (mode_type == 0) {
+    static GEnumValue mode_types[] = {
+      {TIFCV_A_VALUE, "A_VALUE", "a_value"},
+      {0, NULL, NULL},
+    };
+    mode_type = g_enum_register_static ("tensor_if_compared_value", mode_types);
+  }
+
+  return mode_type;
+}
+
+#define GST_TYPE_TENSOR_IF_OP (gst_tensor_if_op_get_type ())
+/**
+ * @brief A private function to register GEnumValue array for the 'operator' property
+ *        to a GType and return it
+ */
+static GType
+gst_tensor_if_op_get_type (void)
+{
+  static GType mode_type = 0;
+
+  if (mode_type == 0) {
+    static GEnumValue mode_types[] = {
+      {TIFOP_EQ, "EQ", "eqaual"},
+      {TIFOP_NE, "NE", "not_eqaual"},
+      {TIFOP_GT, "GT", "greater_than"},
+      {TIFOP_GE, "GE", "greater_or_equal"},
+      {TIFOP_LT, "LT", "less_than"},
+      {TIFOP_LE, "LE", "less_or_equal"},
+      {0, NULL, NULL},
+    };
+    mode_type = g_enum_register_static ("tensor_if_operator", mode_types);
+  }
+
+  return mode_type;
+}
+
+#define GST_TYPE_TENSOR_IF_ACT (gst_tensor_if_act_get_type ())
+/**
+ * @brief A private function to register GEnumValue array for the 'then' and 'else' properties
+ *        to a GType and return it
+ */
+static GType
+gst_tensor_if_act_get_type (void)
+{
+  static GType mode_type = 0;
+
+  if (mode_type == 0) {
+    static GEnumValue mode_types[] = {
+      {TIFB_PASSTHROUGH, "PASSTHROUGH", "passthrough"},
+      {TIFB_SKIP, "SKIP", "skip"},
+      {TIFB_TENSORPICK, "TENSORPICK", "tensorpick"},
+      {0, NULL, NULL},
+    };
+    mode_type = g_enum_register_static ("tensor_if_behavior", mode_types);
+  }
+
+  return mode_type;
+}
 
 /**
  * @brief initialize the tensor_if's class (GST Standard)
@@ -144,18 +202,18 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
-  GstBaseTransformClass *trans_class;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_if_debug, "tensor_if", 0,
       "Tensor if to control streams based on tensor(s) values");
 
-  trans_class = (GstBaseTransformClass *) klass;
-  gstelement_class = (GstElementClass *) trans_class;
-  gobject_class = (GObjectClass *) gstelement_class;
+  gobject_class = (GObjectClass *) klass;
+  gstelement_class = (GstElementClass *) klass;
+
+  parent_class = g_type_class_peek_parent (klass);
 
   gobject_class->set_property = gst_tensor_if_set_property;
   gobject_class->get_property = gst_tensor_if_get_property;
-  gobject_class->finalize = gst_tensor_if_finalize;
+  gobject_class->dispose = gst_tensor_if_dispose;
 
   gst_tensor_if_install_properties (gobject_class);
 
@@ -169,33 +227,6 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sink_factory));
-
-  /* Refer: https://gstreamer.freedesktop.org/documentation/additional/design/element-transform.html */
-  trans_class->passthrough_on_same_caps = FALSE;
-  /**
-   * Tensor-IF always have the same caps on src/sink; however,
-   * it won't pass-through the data
-   */
-
-  /* Processing units */
-  trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensor_if_transform);
-
-  /* Negotiation units */
-  trans_class->transform_caps =
-      GST_DEBUG_FUNCPTR (gst_tensor_if_transform_caps);
-  trans_class->fixate_caps = GST_DEBUG_FUNCPTR (gst_tensor_if_fixate_caps);
-  trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_if_set_caps);
-
-  /* Allocation units */
-  trans_class->transform_size =
-      GST_DEBUG_FUNCPTR (gst_tensor_if_transform_size);
-
-  /* setup sink event */
-  trans_class->sink_event = GST_DEBUG_FUNCPTR (gst_tensor_if_sink_event);
-
-  /* start/stop to call open/close */
-  trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_if_start);
-  trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_if_stop);
 }
 
 /**
@@ -205,23 +236,54 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
  * initialize instance structure
  */
 static void
-gst_tensor_if_init (GstTensorIf * self)
+gst_tensor_if_init (GstTensorIf * tensor_if)
 {
-  /** @todo NYI: initialize values of self */
-  self->silent = TRUE;
+  tensor_if->silent = TRUE;
+  gst_tensors_config_init (&tensor_if->in_config);
+  gst_tensors_config_init (&tensor_if->out_config);
+
+  tensor_if->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
+  gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), tensor_if->sinkpad);
+  gst_pad_set_chain_function (tensor_if->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_if_chain));
+  gst_pad_set_event_function (tensor_if->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_if_event));
+
+  tensor_if->num_srcpads = 0;
+  tensor_if->srcpads = NULL;
 }
 
 /**
- * @brief Function to finalize instance. (GST Standard)
+ * @brief dispose function for tensor if (gst element vmethod)
  */
 static void
-gst_tensor_if_finalize (GObject * object)
+gst_tensor_if_dispose (GObject * object)
 {
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
+  G_OBJECT_CLASS (parent_class)->dispose (object);
+}
 
-  /** @todo NYI: finialize (free-up) everything in self */
+/**
+ * @brief Convert GValue to GList according to delimiters
+ */
+static GList *
+gst_tensor_if_set_property_glist (const GValue * value, GList * prop_list,
+    const gchar *delimiters)
+{
+  gint i;
+  gint64 val;
+  const gchar *param = g_value_get_string (value);
+  gchar **strv = g_strsplit_set (param, delimiters, -1);
+  gint num = g_strv_length (strv);
+  g_critical ("option num : %d", num);
+  for (i = 0; i < num; i++) {
+    val = g_ascii_strtoll (strv[i], NULL, 10);
+    g_critical ("cv option %d th option : %ld", i, val);
+    prop_list =
+        g_list_append (prop_list, GINT_TO_POINTER (val));
+  }
+  g_strfreev (strv);
 
-  G_OBJECT_CLASS (parent_class)->finalize (object);
+  return prop_list;
 }
 
 /**
@@ -231,8 +293,53 @@ static void
 gst_tensor_if_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-  /** @todo NYI! */
+  GstTensorIf *self = GST_TENSOR_IF (object);
+
+  g_critical ("Setting property for prop %d.\n", prop_id);
+
+  switch (prop_id) {
+    case PROP_CV:
+      self->cv = g_value_get_enum (value);
+      g_critical ("Compared value : %d", self->cv);
+      break;
+    case PROP_CV_OPTION:
+    {
+      self->cv_option = gst_tensor_if_set_property_glist (value, self->cv_option, ":,");
+      break;
+    }
+    case PROP_OP:
+      self->op = g_value_get_enum (value);
+      g_critical ("operator : %d", self->op);
+      break;
+    case PROP_SV:
+    {
+      self->sv = gst_tensor_if_set_property_glist (value, self->sv, ",");
+      break;
+    }
+    case PROP_SV_OPTION:
+      break;
+    case PROP_THEN:
+      self->act_then = g_value_get_enum (value);
+      g_critical ("Set act_then = %d", self->act_then);
+      break;
+    case PROP_THEN_OPTION:
+      self->then_option = gst_tensor_if_set_property_glist (value, self->then_option, ",");
+      break;
+    case PROP_ELSE:
+      self->act_else = g_value_get_enum (value);
+      g_critical ("Set act_else = %d", self->act_else);
+      break;
+    case PROP_ELSE_OPTION:
+      self->else_option = gst_tensor_if_set_property_glist (value, self->else_option, ",");
+      break;
+    case PROP_SILENT:
+      self->silent = g_value_get_boolean (value);
+      g_critical ("Set silent = %d", self->silent);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 /**
@@ -242,124 +349,35 @@ static void
 gst_tensor_if_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-  /** @todo NYI! */
-}
+  GstTensorIf *self = GST_TENSOR_IF (object);
+  g_critical ("Getting property for prop %d.\n", prop_id);
 
-/**
- * @brief non-ip transform. required vmethod of GstBaseTransform.
- */
-static GstFlowReturn
-gst_tensor_if_transform (GstBaseTransform * trans,
-    GstBuffer * inbuf, GstBuffer * outbuf)
-{
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-
-  return GST_FLOW_ERROR; /** @todo NYI! */
-}
-
-/**
- * @brief configure tensor-srcpad cap from "proposed" cap. (GST Standard)
- *
- * @trans ("this" pointer)
- * @direction (why do we need this?)
- * @caps sinkpad cap (if direction GST_PAD_SINK)
- * @if this element's cap (don't know specifically.)
- *
- * Be careful not to fix/set caps at this stage. Negotiation not completed yet.
- */
-static GstCaps *
-gst_tensor_if_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * filter)
-{
-  /** @todo : SRC and SINK caps are identical! */
-  return NULL; /** @todo NYI! */
-}
-
-
-/**
- * @brief fixate caps. required vmethod of GstBaseTransform.
- */
-static GstCaps *
-gst_tensor_if_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
-{
-  /** @todo : SRC and SINK caps are identical! */
-  return NULL; /** @todo NYI! */
-}
-
-/**
- * @brief set caps. required vmethod of GstBaseTransform.
- */
-static gboolean
-gst_tensor_if_set_caps (GstBaseTransform * trans,
-    GstCaps * incaps, GstCaps * outcaps)
-{
-  /** @todo : SRC and SINK caps are identical! */
-  return FALSE; /** @todo NYI! */
-}
-
-/**
- * @brief Tell the framework the required size of buffer based on the info of the other side pad. optional vmethod of BaseTransform
- *
- * This is called when non-ip mode is used.
- */
-static gboolean
-gst_tensor_if_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
-{
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-
-  /** @todo : SRC and SINK caps are identical! */
-  return FALSE; /** @todo NYI! */
-}
-
-/**
- * @brief Event handler for sink pad of tensor if.
- * @param trans "this" pointer
- * @param event a passed event object
- * @return TRUE if there is no error.
- */
-static gboolean
-gst_tensor_if_sink_event (GstBaseTransform * trans, GstEvent * event)
-{
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-
-  switch (GST_EVENT_TYPE (event)) {
-    /** @todo NYI! */
+  switch (prop_id) {
+    case PROP_CV:
+      g_value_set_enum (value, self->cv);
+      break;
+    case PROP_CV_OPTION:
+      break;
+    case PROP_OP:
+      break;
+    case PROP_SV:
+      break;
+    case PROP_SV_OPTION:
+      break;
+    case PROP_THEN:
+      break;
+    case PROP_THEN_OPTION:
+      break;
+    case PROP_ELSE:
+      break;
+    case PROP_ELSE_OPTION:
+      break;
+    case PROP_SILENT:
+      break;
     default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-
-  /** other events are handled in the default event handler */
-  return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
-}
-
-/**
- * @brief Called when the element starts processing. optional vmethod of BaseTransform
- * @param trans "this" pointer
- * @return TRUE if there is no error.
- */
-static gboolean
-gst_tensor_if_start (GstBaseTransform * trans)
-{
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-
-  return FALSE; /** @todo NYI! Do not allow to start! */
-}
-
-/**
- * @brief Called when the element stops processing. optional vmethod of BaseTransform
- * @param trans "this" pointer
- * @return TRUE if there is no error.
- */
-static gboolean
-gst_tensor_if_stop (GstBaseTransform * trans)
-{
-  /* GstTensorIf *self = GST_TENSOR_IF (object); */
-
-  return TRUE; /** @todo NYI! but, let's allow to stop! */
 }
 
 /**
@@ -372,4 +390,321 @@ gst_tensor_if_install_properties (GObjectClass * gobject_class)
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_CV,
+    g_param_spec_enum ("compared-value", "CV", "Compared value from input tensor(s)",
+        GST_TYPE_TENSOR_IF_CV, TIFCV_A_VALUE,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_CV_OPTION,
+    g_param_spec_string ("compared-value-option", "CV_OPTION",
+        "Specify an element of the nth tensor or pick tensor ", "",
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_SV,
+    g_param_spec_string ("supplied-value", "SV",
+        " Supplied Value by user ", "",
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_OP,
+    g_param_spec_enum ("operator", "OP", "Comparison Operator",
+        GST_TYPE_TENSOR_IF_OP, TIFOP_EQ,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_THEN,
+    g_param_spec_enum ("then", "THEN", "Action if it is TRUE",
+        GST_TYPE_TENSOR_IF_ACT, TIFB_PASSTHROUGH,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_THEN_OPTION,
+    g_param_spec_string ("then-option", "THEN_OPTION",
+        "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_ELSE,
+    g_param_spec_enum ("else", "ELSE", "Action if it is FALSE",
+        GST_TYPE_TENSOR_IF_ACT, TIFB_PASSTHROUGH,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_ELSE_OPTION,
+    g_param_spec_string ("else-option", "THEN_OPTION",
+        "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+}
+
+/**
+ * @brief Parse caps and configure tensors info.
+ * @param tensor_if GstTensorIf Ojbect
+ * @param caps incomming capablity
+ * @return TRUE/FALSE (if successfully configured, return TRUE)
+ */
+static gboolean
+gst_tensor_if_parse_caps (GstTensorIf * tensor_if, GstCaps * caps)
+{
+  GstStructure *structure;
+  GstTensorsConfig *config;
+
+  config = &tensor_if->in_config;
+
+  structure = gst_caps_get_structure (caps, 0);
+  gst_tensors_config_from_structure (config, structure);
+
+  return gst_tensors_config_validate (config);
+}
+
+/**
+ * @brief event function for sink (gst element vmethod)
+ */
+static gboolean
+gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
+{
+  GstTensorIf *tensor_if;
+  tensor_if = GST_TENSOR_IF (parent);
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+    {
+      GstCaps *caps;
+      gst_event_parse_caps (event, &caps);
+      gst_tensor_if_parse_caps (tensor_if, caps);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return gst_pad_event_default (pad, parent, event);
+}
+
+
+/**
+ * @brief Get tensor config info from configured tensors
+ * @param tensor_if "this" pointer
+ * @param config tensor config to be filled
+ * @param index index of configured tensors
+ * @return
+ */
+static gboolean
+gst_tensor_if_get_tensor_config (GstTensorIf * tensor_if,
+    GstTensorConfig * config, guint index)
+{
+  GstTensorsConfig *tensors_info;
+
+  g_return_val_if_fail (tensor_if != NULL, FALSE);
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  gst_tensor_config_init (config);
+
+  tensors_info = &tensor_if->in_config;
+  g_return_val_if_fail (index < tensors_info->info.num_tensors, FALSE);
+
+  config->info = tensors_info->info.info[index];
+  config->rate_n = tensors_info->rate_n;
+  config->rate_d = tensors_info->rate_d;
+
+  return TRUE;
+}
+
+/**
+ * @brief Checking if the source pad is created and if not, create TensorPad
+ * @param tesnor_if TensorIf Object
+ * @param[out] created will be updated in this function
+ * @param nth source ordering
+ * @return TensorPad if pad is already created, then return created pad.
+ *         If not return new pad after creation.
+ */
+static GstTensorPad *
+gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
+    gboolean * created, gint nth)
+{
+  GSList *walk;
+  GstPad *pad;
+  GstTensorPad *tensorpad;
+  gchar *name;
+  GstEvent *event;
+  gchar *stream_id;
+  GstCaps *caps;
+  GstTensorConfig config;
+
+  walk = tensor_if->srcpads;
+  while (walk) {
+    GstTensorPad *pad = (GstTensorPad *) walk->data;
+    if (nth == pad->nth) {
+      if (created) {
+        *created = FALSE;
+      }
+      return pad;
+    }
+    walk = walk->next;
+  }
+
+  tensorpad = g_new0 (GstTensorPad, 1);
+  g_assert (tensorpad != NULL);
+  GST_DEBUG_OBJECT (tensor_if, "createing pad: %d(%dth)",
+      tensor_if->num_srcpads, nth);
+
+  name = g_strdup_printf ("src_%u", tensor_if->num_srcpads);
+  pad = gst_pad_new_from_static_template (&src_factory, name);
+  g_free (name);
+
+  tensorpad->pad = pad;
+  tensorpad->nth = nth;
+  tensorpad->last_ret = GST_FLOW_OK;
+  tensorpad->last_ts = GST_CLOCK_TIME_NONE;
+
+  tensor_if->srcpads = g_slist_append (tensor_if->srcpads, tensorpad);
+  gst_tensor_if_get_tensor_config (tensor_if, &config, nth);
+
+  tensor_if->num_srcpads++;
+
+  gst_pad_use_fixed_caps (pad);
+  gst_pad_set_active (pad, TRUE);
+
+
+  if (!tensor_if->have_group_id) {
+    event =
+        gst_pad_get_sticky_event (tensor_if->sinkpad, GST_EVENT_STREAM_START,
+        0);
+    if (event) {
+      tensor_if->have_group_id =
+          gst_event_parse_group_id (event, &tensor_if->group_id);
+      gst_event_unref (event);
+    } else if (!tensor_if->have_group_id) {
+      tensor_if->have_group_id = TRUE;
+      tensor_if->group_id = gst_util_group_id_next ();
+    }
+  }
+
+  stream_id =
+      gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (tensor_if),
+      "other/tensors");
+
+  event = gst_event_new_stream_start (stream_id);
+  if (tensor_if->have_group_id)
+    gst_event_set_group_id (event, tensor_if->group_id);
+
+  gst_pad_store_sticky_event (pad, event);
+  g_free (stream_id);
+  gst_event_unref (event);
+
+  caps = gst_tensor_caps_from_config (&config);
+  gst_pad_set_caps (pad, caps);
+  gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), pad);
+
+  gst_caps_unref (caps);
+
+  if (created) {
+    *created = TRUE;
+  }
+
+  if (tensor_if->then_option != NULL) {
+    GST_DEBUG_OBJECT (tensor_if, "TensorPick is set! : %dth tensor\n", nth);
+    if (g_list_length (tensor_if->then_option) == tensor_if->num_srcpads) {
+      gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_if));
+    }
+  }
+
+  return tensorpad;
+}
+
+
+/**
+ * @brief Check the status among sources in if
+ * @param tensor_if TensorIf Object
+ * @param TensorPad Tensorpad
+ * @param ret return status of current pad
+ * @return return status after check sources
+ */
+static GstFlowReturn
+gst_tensor_if_combine_flows (GstTensorIf * tensor_if,
+    GstTensorPad * pad, GstFlowReturn ret)
+{
+  GSList *walk;
+  pad->last_ret = ret;
+
+  if (ret != GST_FLOW_NOT_LINKED)
+    goto done;
+
+  for (walk = tensor_if->srcpads; walk; walk = g_slist_next (walk)) {
+    GstTensorPad *opad = (GstTensorPad *) walk->data;
+    ret = opad->last_ret;
+    if (ret != GST_FLOW_NOT_LINKED)
+      goto done;
+  }
+done:
+  return ret;
+}
+
+/**
+ * @brief chain function for sink (gst element vmethod)
+ */
+static GstFlowReturn
+gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+{
+  gint num_tensors, i;
+  GstFlowReturn res = GST_FLOW_OK;
+  GstTensorIf *tensor_if;
+  tensor_if = GST_TENSOR_IF (parent);
+
+  num_tensors = tensor_if->in_config.info.num_tensors;
+  GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %d", num_tensors);
+
+  /* supposed n memory blocks in buffer */
+  g_assert (gst_buffer_n_memory (buf) == num_tensors);
+
+  for (i = 0; i < num_tensors; i++) {
+    GstTensorPad *srcpad;
+    GstBuffer *outbuf;
+    GstMemory *mem;
+    gboolean created;
+    GstClockTime ts;
+
+    if (tensor_if->then_option != NULL) {
+      gboolean found = FALSE;
+      GList *list;
+      for (list = tensor_if->then_option; list != NULL; list = list->next) {
+        if (i == GPOINTER_TO_INT (list->data)) {
+          found = TRUE;
+          break;
+        }
+      }
+      if (!found)
+        continue;
+    }
+
+    srcpad = gst_tensor_if_get_tensor_pad (tensor_if, &created, i);
+
+    outbuf = gst_buffer_new ();
+    mem = gst_buffer_get_memory (buf, i);
+    gst_buffer_append_memory (outbuf, mem);
+    ts = GST_BUFFER_TIMESTAMP (buf);
+
+    if (created) {
+      GstSegment segment;
+      gst_segment_init (&segment, GST_FORMAT_TIME);
+      gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+    }
+
+    outbuf = gst_buffer_make_writable (outbuf);
+
+    /* metadata from incoming buffer */
+    gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+    if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
+      srcpad->last_ts = ts;
+    } else {
+      GST_DEBUG_OBJECT (tensor_if, "invalid timestamp %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (ts));
+    }
+
+    GST_DEBUG_OBJECT (tensor_if,
+        "pushing buffer with timestamp %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));
+    res = gst_pad_push (srcpad->pad, outbuf);
+    res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
+
+    if (res != GST_FLOW_OK)
+      break;
+  }
+
+  gst_buffer_unref (buf);
+  return res;
 }

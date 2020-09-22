@@ -84,6 +84,7 @@ typedef enum {
   TIFB_FILL_WITH_FILE_RPT,	/**< Fill output frame with a user given file (a raw data of tensor/tensors)
 				     If the filesize is smally, the file is repeatedly used */
   TIFB_REPEAT_PREVIOUS_FRAME,	/**< Resend the previous output frame. If this is the first, send ZERO values. */
+  TIFB_TENSORPICK, /**< Choose nth tensor (or tensors) among tensors */
   TIFB_END,
 } tensor_if_behavior;
 
@@ -93,8 +94,24 @@ typedef enum {
 struct _GstTensorIf
 {
   GstBaseTransform element;     /**< This is the parent object */
-
+  GstPad *sinkpad;
+  GSList *srcpads;
   gboolean silent;
+
+  GstTensorsConfig in_config; /**< input tensor info */
+  GstTensorsConfig out_config; /**< output tensor info */
+  guint32 num_srcpads;
+  gboolean have_group_id;
+  guint group_id;
+
+  tensor_if_compared_value cv; /**< compared value */
+  tensor_if_operator op;
+  tensor_if_behavior act_then;
+  tensor_if_behavior act_else;
+  GList *cv_option;
+  GList *sv;
+  GList *then_option;
+  GList *else_option;
 };
 
 /**
