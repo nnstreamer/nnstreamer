@@ -57,7 +57,7 @@ static void g_tensor_filter_single_get_property (GObject * object,
 
 /* GTensorFilterSingle method implementations */
 static gboolean g_tensor_filter_single_invoke (GTensorFilterSingle * self,
-    const GstTensorMemory * input, GstTensorMemory * output);
+    const GstTensorMemory * input, GstTensorMemory * output, gboolean allocate);
 static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
 static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
@@ -280,13 +280,17 @@ g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
  * @param self "this" pointer
  * @param input memory containing input data to run processing on
  * @param output memory to put output data into after processing
+ * @param allocate true to allocate output data (false means tensor data is already allocated)
  * @return TRUE if there is no error.
  */
 static gboolean
 g_tensor_filter_single_invoke (GTensorFilterSingle * self,
-    const GstTensorMemory * input, GstTensorMemory * output)
+    const GstTensorMemory * input, GstTensorMemory * output,
+    gboolean allocate)
 {
   GstTensorFilterPrivate *priv;
+  GstTensorMemory *_out;
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   guint i;
   gint status;
 
@@ -299,25 +303,49 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     }
   }
 
-  if (self->allocate_in_invoke == FALSE) {
+  /* set output tensors for given params */
+  _out = output;
+
+  if (self->allocate_in_invoke) {
+    if (!allocate) {
+      /**
+       * @todo how can we remove memcpy if output data is already allocated
+       * single-shot should fill the output data, but sub-plugin allocates new memory.
+       */
+      _out = out_tensors;
+
+      for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
+        out_tensors[i].size = output[i].size;
+    }
+  } else {
     /* allocate memory if allocate_in_invoke is FALSE */
-    for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
-      output[i].data = g_malloc (output[i].size);
-      if (!output[i].data) {
-        g_critical ("Failed to allocate the output tensor.");
-        goto error;
+    if (allocate) {
+      for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
+        output[i].data = g_try_malloc (output[i].size);
+        if (!output[i].data) {
+          g_critical ("Failed to allocate the output tensor.");
+          goto error;
+        }
       }
     }
   }
 
-  GST_TF_FW_INVOKE_COMPAT (priv, status, input, output);
+  GST_TF_FW_INVOKE_COMPAT (priv, status, input, _out);
 
-  if (status == 0)
+  if (status == 0) {
+    if (_out != output) {
+      for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
+        memcpy (output[i].data, _out[i].data, output[i].size);
+
+      g_tensor_filter_destroy_notify (self, _out);
+    }
+
     return TRUE;
+  }
 
 error:
   /* if failed to invoke the model, release allocated memory. */
-  if (self->allocate_in_invoke == FALSE) {
+  if (self->allocate_in_invoke == FALSE && allocate) {
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
       output[i].data = NULL;

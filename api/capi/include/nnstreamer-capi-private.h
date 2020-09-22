@@ -263,6 +263,13 @@ typedef struct {
 int ml_single_open_custom (ml_single_h *single, ml_single_preset *info);
 
 /**
+ * @brief Invokes the model with the given input data.
+ * This function does not allocate data handle and updates output data.
+ * @todo consider to open new api (invoke with preallocated output handle)
+ */
+int ml_single_invoke_no_alloc (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h output);
+
+/**
  * @brief Macro to check the availability of given NNFW.
  */
 #define ml_nnfw_is_available(f,h) ({bool a; (ml_check_nnfw_availability ((f), (h), &a) == ML_ERROR_NONE && a);})
