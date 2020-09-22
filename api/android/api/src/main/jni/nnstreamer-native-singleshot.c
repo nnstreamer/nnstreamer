@@ -219,6 +219,7 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
   ml_single_h single;
   ml_tensors_data_h in_data, out_data;
   jobject result = NULL;
+  gboolean failed = FALSE;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   priv = (singleshot_priv_data_s *) pipe_info->priv_data;
@@ -227,24 +228,35 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
 
   if (!nns_parse_tensors_data (pipe_info, env, in, FALSE, &in_data, NULL)) {
     nns_loge ("Failed to parse input tensors data.");
+    failed = TRUE;
     goto done;
   }
 
-  if (ml_single_invoke (single, in_data, &out_data) != ML_ERROR_NONE) {
-    nns_loge ("Failed to get the result from pipeline.");
+  /* create output object and get the direct buffer address */
+  if (!nns_create_tensors_data_object (pipe_info, env, priv->out_info_obj, &result) ||
+      !nns_parse_tensors_data (pipe_info, env, result, FALSE, &out_data, NULL)) {
+    nns_loge ("Failed to create output tensors object.");
+    failed = TRUE;
     goto done;
   }
 
-  if (!nns_convert_tensors_data (pipe_info, env, out_data, priv->out_info_obj,
-          &result)) {
-    nns_loge ("Failed to convert the result to data-object.");
-    result = NULL;
+  if (ml_single_invoke_no_alloc (single, in_data, out_data) != ML_ERROR_NONE) {
+    nns_loge ("Failed to invoke the model.");
+    failed = TRUE;
+    goto done;
   }
 
 done:
-  /* do not free input tensors (direct access from object) */
+  if (failed) {
+    if (result) {
+      (*env)->DeleteLocalRef (env, result);
+      result = NULL;
+    }
+  }
+
+  /* do not free input/output tensors (direct access from object) */
   g_free (in_data);
-  ml_tensors_data_destroy (out_data);
+  g_free (out_data);
   return result;
 }
 
