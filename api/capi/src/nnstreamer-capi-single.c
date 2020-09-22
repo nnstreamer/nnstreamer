@@ -237,7 +237,8 @@ __invoke (ml_single * single_h)
   out_tensors = (GstTensorMemory *) out_data->tensors;
 
   /** invoke the thread */
-  if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors)) {
+  if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors,
+      single_h->free_output)) {
     status = ML_ERROR_STREAMS_PIPE;
     if (single_h->free_output)
       ml_tensors_data_destroy (single_h->output);
@@ -1002,7 +1003,6 @@ _ml_single_invoke_internal (ml_single_h single,
     if (status != ML_ERROR_NONE)
       goto exit;
   } else {
-    /** @todo implement no-alloc (invoke with allocated output data) */
     single_h->output = *output;
   }
 
@@ -1065,6 +1065,17 @@ ml_single_invoke (ml_single_h single,
     const ml_tensors_data_h input, ml_tensors_data_h * output)
 {
   return _ml_single_invoke_internal (single, input, output, TRUE);
+}
+
+/**
+ * @brief Invokes the model with the given input data.
+ * This function does not allocate data handle and updates output data.
+ */
+int
+ml_single_invoke_no_alloc (ml_single_h single,
+    const ml_tensors_data_h input, ml_tensors_data_h output)
+{
+  return _ml_single_invoke_internal (single, input, &output, FALSE);
 }
 
 /**
