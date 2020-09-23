@@ -464,13 +464,11 @@ subdir('ext')
 # Build API
 subdir('api')
 
-# Build nnstreamer examples
-if get_option('enable-test') or get_option('install-example')
-  subdir('nnstreamer_example')
-endif
-
 # Build unittests
 if get_option('enable-test')
+  # Build nnstreamer examples
+  subdir('nnstreamer_example')
+
   # temporary ini file for test, enable env variables.
   nnstreamer_test_conf = configuration_data()
   nnstreamer_test_conf.merge_from(nnstreamer_conf)

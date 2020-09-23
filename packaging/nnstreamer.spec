@@ -337,13 +337,6 @@ Requires:   devel = %{version}-%{release}
 %description devel-static
 Static library package of nnstreamer-devel.
 
-%package custom-filter-example
-Summary:	NNStreamer example custom plugins and test plugins
-Requires:	nnstreamer = %{version}-%{release}
-%description custom-filter-example
-Example custom tensor_filter subplugins and
-plugins created for test purpose.
-
 %if 0%{?testcoverage}
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
@@ -444,7 +437,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 Summary:	NNStreamer unittests for core, API and plugins
 Requires:	nnstreamer = %{version}-%{release}
 %description unittests
-Package containing various unittests of the nnstreamer.
+Various unit test cases and custom subplugin examples for NNStreamer.
 %endif
 
 %package util
@@ -601,7 +594,7 @@ CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
 mkdir -p build
 
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
-	--bindir=%{nnstexampledir} --includedir=%{_includedir} -Dinstall-example=true \
+	--bindir=%{nnstexampledir} --includedir=%{_includedir} \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
@@ -801,12 +794,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_datadir}/nnstreamer/unittest/*
 %endif
 
-%files custom-filter-example
-%manifest nnstreamer.manifest
-%defattr(-,root,root,-)
-%license LICENSE
-%{_prefix}/lib/nnstreamer/customfilters/*.so
-
 %if %{with tizen}
 %files -n capi-nnstreamer
 %manifest capi-nnstreamer.manifest
@@ -876,6 +863,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files unittests
 %manifest nnstreamer.manifest
 %{_libdir}/libnnstreamer_unittest_util.so
+%{_prefix}/lib/nnstreamer/customfilters/*.so
 %{_prefix}/lib/nnstreamer/unittest
 %endif
 
