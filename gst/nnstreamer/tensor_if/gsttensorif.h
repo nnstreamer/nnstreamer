@@ -89,6 +89,25 @@ typedef enum {
 } tensor_if_behavior;
 
 /**
+ * @brief Internal data structure for value
+ */
+typedef struct
+{
+  tensor_type type;
+  tensor_element data;
+} tensor_if_data_s;
+
+/**
+ * @brief Internal data structure for supplied value
+ */
+typedef struct
+{
+  guint32 num;
+  tensor_type type;
+  tensor_element data[2];
+} tensor_if_sv_s;
+
+/**
  * @brief Tensor If data structure
  */
 struct _GstTensorIf
@@ -108,8 +127,8 @@ struct _GstTensorIf
   tensor_if_operator op;
   tensor_if_behavior act_then;
   tensor_if_behavior act_else;
+  tensor_if_sv_s sv[2];
   GList *cv_option;
-  GList *sv;
   GList *then_option;
   GList *else_option;
 };
