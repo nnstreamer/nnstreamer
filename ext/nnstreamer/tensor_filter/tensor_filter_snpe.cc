@@ -110,11 +110,12 @@ class snpe_subplugin final : public tensor_filter_subplugin
 
 const char *snpe_subplugin::name = "snpe";
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Constructor for snpe_subplugin.
+ */
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
-      runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
-      container (nullptr), snpe (nullptr)
+    snpe (nullptr)
 {
   inputInfo.num_tensors = 0;
   outputInfo.num_tensors = 0;
@@ -124,7 +125,9 @@ snpe_subplugin::snpe_subplugin ()
 #endif
 }
 
-/** @brief exit helper */
+/**
+ * @brief Method to cleanup snpe subplugin.
+ */
 void
 snpe_subplugin::cleanup ()
 {
@@ -154,7 +157,9 @@ snpe_subplugin::cleanup ()
   empty_model = true;
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Destructor for snpe subplugin.
+ */
 snpe_subplugin::~snpe_subplugin ()
 {
 #if (DBG)
@@ -167,16 +172,19 @@ snpe_subplugin::~snpe_subplugin ()
   cleanup ();
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Method to get empty object.
+ */
 tensor_filter_subplugin &
 snpe_subplugin::getEmptyInstance ()
 {
   return *(new snpe_subplugin ());
 }
 
-/** @brief private method. ANYJ: please fill in. */
-const char *
-snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
+/**
+ * @brief Method to get string of SNPE runtime.
+ */
+const char * snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 {
   switch (runtime) {
   case zdl::DlSystem::Runtime_t::CPU:
@@ -275,9 +283,10 @@ snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
   return true;
 }
 
-/** @brief tensor-filter subplugin API function */
-void
-snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+/**
+ * @brief Method to prepare/configure SNPE instance.
+ */
+void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   nns_logi ("SNPE Version: %s",
       zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
@@ -344,9 +353,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   empty_model = false;
 }
 
-/** @brief tensor-filter subplugin API function */
-void
-snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+/**
+ * @brief Method to execute the model.
+ */
+void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   assert (!empty_model);
   assert (snpe);
@@ -380,7 +390,9 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 #endif
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Method to get the information of SNPE subplugin.
+ */
 void
 snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
@@ -391,7 +403,9 @@ snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.verify_model_path = 1;
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Method to get the model information.
+ */
 int
 snpe_subplugin::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
@@ -405,14 +419,18 @@ snpe_subplugin::getModelInfo (
   return -ENOENT;
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Method to handle events.
+ */
 int
 snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
   return -ENOENT;
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Method to set tensor properties.
+ */
 void
 snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map)
 {
@@ -555,7 +573,9 @@ done:
   return !(snpe_failed);
 }
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Register the sub-plugin for SNPE in Android.
+ */
 void
 init_filter_snpe (JNIEnv *env, jobject context)
 {
@@ -572,7 +592,9 @@ init_filter_snpe (JNIEnv *env, jobject context)
   snpe_subplugin::init_filter_snpe ();
 }
 #else
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Register the sub-plugin for SNPE.
+ */
 void
 init_filter_snpe ()
 {
@@ -580,7 +602,9 @@ init_filter_snpe ()
 }
 #endif
 
-/** @brief tensor-filter subplugin API function */
+/**
+ * @brief Destruct the sub-plugin for SNPE.
+ */
 void
 fini_filter_snpe ()
 {
