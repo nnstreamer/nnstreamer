@@ -23,7 +23,6 @@ option('enable-test', type: 'boolean', value: true)
 option('install-test', type: 'boolean', value: false)
 option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value, can be specified at run time
 option('enable-mediapipe', type: 'boolean', value: false)
-option('install-example', type: 'boolean', value: false)
 option('enable-env-var', type: 'boolean', value: true)
 option('enable-symbolic-link', type: 'boolean', value: true)
 option('enable-capi', type: 'boolean', value: true)

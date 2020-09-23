@@ -38,7 +38,7 @@ override_dh_auto_clean:
 override_dh_auto_configure:
 	mkdir -p build
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Dinstall-example=true -Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
+	-Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
 	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
 	-Denable-openvino=true build
 	cd tools/development/confchk && meson --prefix=/usr build && cd ../../..
