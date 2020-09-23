@@ -76,6 +76,7 @@ class snpe_subplugin final : public tensor_filter_subplugin
   /* options for snpe builder */
   zdl::DlSystem::RuntimeList runtime_list;
   bool use_cpu_fallback;
+  std::vector<std::string> output_layer_names;
 
   std::unique_ptr<zdl::DlContainer::IDlContainer> container;
   std::unique_ptr<zdl::SNPE::SNPE> snpe;
@@ -90,6 +91,7 @@ class snpe_subplugin final : public tensor_filter_subplugin
   void cleanup ();
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
+  bool set_output_layer_names (const GstTensorsInfo *info);
   static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map);
   static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
@@ -115,7 +117,8 @@ const char *snpe_subplugin::name = "snpe";
  */
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
-    snpe (nullptr)
+      runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
+      container (nullptr), snpe (nullptr)
 {
   inputInfo.num_tensors = 0;
   outputInfo.num_tensors = 0;
@@ -184,7 +187,8 @@ snpe_subplugin::getEmptyInstance ()
 /**
  * @brief Method to get string of SNPE runtime.
  */
-const char * snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
+const char *
+snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 {
   switch (runtime) {
   case zdl::DlSystem::Runtime_t::CPU:
@@ -198,6 +202,25 @@ const char * snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
   default:
     return "invalid_runtime...";
   }
+}
+
+/**
+ * @brief Internal method to get names of output layers from tensors information.
+ */
+bool
+snpe_subplugin::set_output_layer_names (const GstTensorsInfo *info)
+{
+  for (unsigned int i = 0; i < info->num_tensors; ++i) {
+    if (info->info[i].name == nullptr) {
+      /* failed */
+      nns_loge ("Given layer name with index %u is invalid.", i);
+      output_layer_names.clear ();
+      return false;
+    }
+    nns_logd ("Add output layer name of %s", info->info[i].name);
+    output_layer_names.emplace_back (std::string (info->info[i].name));
+  }
+  return true;
 }
 
 /**
@@ -254,6 +277,20 @@ snpe_subplugin::parse_custom_prop (const char *custom_prop)
           nns_loge ("Unknown cpu_fallback option");
           invalid_option = true;
         }
+      } else if (g_ascii_strcasecmp (option[0], "OutputLayer") == 0) {
+        gchar **names = g_strsplit (option[1], ";", -1);
+        guint num_names = g_strv_length (names);
+        for (guint i = 0; i < num_names; ++i) {
+          if (g_strcmp0 (names[i], "") == 0) {
+            nns_loge ("Given layer name with index %u is invalid.", i);
+            output_layer_names.clear ();
+            invalid_option = true;
+            break;
+          }
+          nns_logd ("Add output layer name of %s", names[i]);
+          output_layer_names.emplace_back (std::string (names[i]));
+        }
+        g_strfreev (names);
       } else {
         nns_logw ("Unknown option (%s).", options[op]);
       }
@@ -286,10 +323,16 @@ snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
 /**
  * @brief Method to prepare/configure SNPE instance.
  */
-void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+void
+snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   nns_logi ("SNPE Version: %s",
       zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+
+  if (!set_output_layer_names (&prop->output_meta)) {
+    nns_loge ("Failed to set output layer names");
+    return;
+  }
 
   if (!configure_option (prop)) {
     throw std::invalid_argument ("Failed to configure SNPE option.");
@@ -313,8 +356,13 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
 
-  zdl::SNPE::SNPEBuilder snpe_builder (container.get ());
-  snpe_builder.setOutputLayers ({});
+  zdl::DlSystem::StringList _output_layer_names;
+  for (size_t i = 0; i < output_layer_names.size (); ++i) {
+    _output_layer_names.append (output_layer_names.at(i).c_str ());
+  }
+
+  zdl::SNPE::SNPEBuilder snpe_builder (container.get());
+  snpe_builder.setOutputLayers (_output_layer_names);
   snpe_builder.setUseUserSuppliedBuffers (false);
   snpe_builder.setInitCacheMode (false);
   snpe_builder.setRuntimeProcessorOrder (runtime_list);
@@ -356,7 +404,8 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 /**
  * @brief Method to execute the model.
  */
-void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+void
+snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   assert (!empty_model);
   assert (snpe);
