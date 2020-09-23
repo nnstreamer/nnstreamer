@@ -265,25 +265,26 @@ gst_tensor_if_dispose (GObject * object)
 /**
  * @brief Convert GValue to GList according to delimiters
  */
-static GList *
-gst_tensor_if_set_property_glist (const GValue * value, GList * prop_list,
-    const gchar *delimiters)
+static void
+gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
+    const gchar * delimiters)
 {
   gint i;
   gint64 val;
   const gchar *param = g_value_get_string (value);
   gchar **strv = g_strsplit_set (param, delimiters, -1);
   gint num = g_strv_length (strv);
-  g_critical ("option num : %d", num);
+  *prop_list = NULL;
+
   for (i = 0; i < num; i++) {
     val = g_ascii_strtoll (strv[i], NULL, 10);
-    g_critical ("cv option %d th option : %ld", i, val);
-    prop_list =
-        g_list_append (prop_list, GINT_TO_POINTER (val));
+    if (errno == ERANGE) {
+      ml_loge ("Overflow occured during converting %s to a gint64 value",
+          strv[i]);
+    }
+    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
   }
   g_strfreev (strv);
-
-  return prop_list;
 }
 
 /**
@@ -295,46 +296,35 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
 
-  g_critical ("Setting property for prop %d.\n", prop_id);
-
   switch (prop_id) {
     case PROP_CV:
       self->cv = g_value_get_enum (value);
-      g_critical ("Compared value : %d", self->cv);
       break;
     case PROP_CV_OPTION:
-    {
-      self->cv_option = gst_tensor_if_set_property_glist (value, self->cv_option, ":,");
+      gst_tensor_if_set_property_glist (value, &self->cv_option, ":,");
       break;
-    }
     case PROP_OP:
       self->op = g_value_get_enum (value);
-      g_critical ("operator : %d", self->op);
       break;
     case PROP_SV:
-    {
-      self->sv = gst_tensor_if_set_property_glist (value, self->sv, ",");
+      gst_tensor_if_set_property_glist (value, &self->sv, ",");
       break;
-    }
     case PROP_SV_OPTION:
       break;
     case PROP_THEN:
       self->act_then = g_value_get_enum (value);
-      g_critical ("Set act_then = %d", self->act_then);
       break;
     case PROP_THEN_OPTION:
-      self->then_option = gst_tensor_if_set_property_glist (value, self->then_option, ",");
+      gst_tensor_if_set_property_glist (value, &self->then_option, ",");
       break;
     case PROP_ELSE:
       self->act_else = g_value_get_enum (value);
-      g_critical ("Set act_else = %d", self->act_else);
       break;
     case PROP_ELSE_OPTION:
-      self->else_option = gst_tensor_if_set_property_glist (value, self->else_option, ",");
+      gst_tensor_if_set_property_glist (value, &self->else_option, ",");
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
-      g_critical ("Set silent = %d", self->silent);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -343,32 +333,68 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
 }
 
 /**
+ * @brief Convert GList to GValue
+ */
+static void
+gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
+    guint prop_id)
+{
+  GList *list;
+  gchar *p;
+  GPtrArray *arr = g_ptr_array_new ();
+  gchar **strings;
+
+  for (list = prop_list; list != NULL; list = list->next) {
+    g_ptr_array_add (arr, g_strdup_printf ("%i", GPOINTER_TO_INT (list->data)));
+  }
+  g_ptr_array_add (arr, NULL);
+  strings = (gchar **) g_ptr_array_free (arr, FALSE);
+
+  if (prop_id == PROP_CV_OPTION) {
+    gchar *dim =
+        g_strjoin (":", strings[0], strings[1], strings[2], strings[3], NULL);
+    p = g_strjoin (",", dim, strings[4], NULL);
+    g_free (dim);
+  } else {
+    p = g_strjoinv (",", strings);
+  }
+
+  g_strfreev (strings);
+  g_value_take_string (value, p);
+}
+
+/**
  * @brief Getter for tensor_if properties.
  */
+/** @todo Get properties */
 static void
 gst_tensor_if_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
-  g_critical ("Getting property for prop %d.\n", prop_id);
 
   switch (prop_id) {
     case PROP_CV:
       g_value_set_enum (value, self->cv);
       break;
     case PROP_CV_OPTION:
+      gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
       break;
     case PROP_OP:
+      g_value_set_enum (value, self->op);
       break;
     case PROP_SV:
+      gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
       break;
     case PROP_SV_OPTION:
       break;
     case PROP_THEN:
+      g_value_set_enum (value, self->act_then);
       break;
     case PROP_THEN_OPTION:
       break;
     case PROP_ELSE:
+      g_value_set_enum (value, self->act_else);
       break;
     case PROP_ELSE_OPTION:
       break;
@@ -392,42 +418,42 @@ gst_tensor_if_install_properties (GObjectClass * gobject_class)
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CV,
-    g_param_spec_enum ("compared-value", "CV", "Compared value from input tensor(s)",
-        GST_TYPE_TENSOR_IF_CV, TIFCV_A_VALUE,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_enum ("compared-value", "CV",
+          "Compared value from input tensor(s)", GST_TYPE_TENSOR_IF_CV,
+          TIFCV_A_VALUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CV_OPTION,
-    g_param_spec_string ("compared-value-option", "CV_OPTION",
-        "Specify an element of the nth tensor or pick tensor ", "",
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_string ("compared-value-option", "CV_OPTION",
+          "Specify an element of the nth tensor or pick tensor ", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_SV,
-    g_param_spec_string ("supplied-value", "SV",
-        " Supplied Value by user ", "",
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_string ("supplied-value", "SV",
+          " Supplied Value by user ", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_OP,
-    g_param_spec_enum ("operator", "OP", "Comparison Operator",
-        GST_TYPE_TENSOR_IF_OP, TIFOP_EQ,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_enum ("operator", "OP", "Comparison Operator",
+          GST_TYPE_TENSOR_IF_OP, TIFOP_EQ,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_THEN,
-    g_param_spec_enum ("then", "THEN", "Action if it is TRUE",
-        GST_TYPE_TENSOR_IF_ACT, TIFB_PASSTHROUGH,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_enum ("then", "THEN", "Action if it is TRUE",
+          GST_TYPE_TENSOR_IF_ACT, TIFB_PASSTHROUGH,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_THEN_OPTION,
-    g_param_spec_string ("then-option", "THEN_OPTION",
-        "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_string ("then-option", "THEN_OPTION",
+          "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_ELSE,
-    g_param_spec_enum ("else", "ELSE", "Action if it is FALSE",
-        GST_TYPE_TENSOR_IF_ACT, TIFB_PASSTHROUGH,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_enum ("else", "ELSE", "Action if it is FALSE",
+          GST_TYPE_TENSOR_IF_ACT, TIFB_SKIP,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_ELSE_OPTION,
-    g_param_spec_string ("else-option", "THEN_OPTION",
-        "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_string ("else-option", "ELSE_OPTION",
+          "Pick tensor ", "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -519,8 +545,6 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   GstPad *pad;
   GstTensorPad *tensorpad;
   gchar *name;
-  GstEvent *event;
-  gchar *stream_id;
   GstCaps *caps;
   GstTensorConfig config;
 
@@ -551,39 +575,14 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
 
   tensor_if->srcpads = g_slist_append (tensor_if->srcpads, tensorpad);
+
+  /** @todo Support other/tensors for src pad*/
   gst_tensor_if_get_tensor_config (tensor_if, &config, nth);
 
   tensor_if->num_srcpads++;
 
   gst_pad_use_fixed_caps (pad);
   gst_pad_set_active (pad, TRUE);
-
-
-  if (!tensor_if->have_group_id) {
-    event =
-        gst_pad_get_sticky_event (tensor_if->sinkpad, GST_EVENT_STREAM_START,
-        0);
-    if (event) {
-      tensor_if->have_group_id =
-          gst_event_parse_group_id (event, &tensor_if->group_id);
-      gst_event_unref (event);
-    } else if (!tensor_if->have_group_id) {
-      tensor_if->have_group_id = TRUE;
-      tensor_if->group_id = gst_util_group_id_next ();
-    }
-  }
-
-  stream_id =
-      gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (tensor_if),
-      "other/tensors");
-
-  event = gst_event_new_stream_start (stream_id);
-  if (tensor_if->have_group_id)
-    gst_event_set_group_id (event, tensor_if->group_id);
-
-  gst_pad_store_sticky_event (pad, event);
-  g_free (stream_id);
-  gst_event_unref (event);
 
   caps = gst_tensor_caps_from_config (&config);
   gst_pad_set_caps (pad, caps);
@@ -593,13 +592,6 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
 
   if (created) {
     *created = TRUE;
-  }
-
-  if (tensor_if->then_option != NULL) {
-    GST_DEBUG_OBJECT (tensor_if, "TensorPick is set! : %dth tensor\n", nth);
-    if (g_list_length (tensor_if->then_option) == tensor_if->num_srcpads) {
-      gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_if));
-    }
   }
 
   return tensorpad;
@@ -634,6 +626,120 @@ done:
 }
 
 /**
+ * @brief Get comparison value
+ */
+static gboolean
+gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if, uint8_t cv)
+{
+  gboolean ret = FALSE;
+  GList *list = tensor_if->sv;
+  uint8_t sv_0 = 0, sv_1 = 0;
+
+  sv_0 = GPOINTER_TO_INT (list->data);
+  if (list->next != NULL) {
+    sv_1 = GPOINTER_TO_INT (list->next->data);
+  }
+
+  switch (tensor_if->op) {
+    case TIFOP_EQ:
+      ret = (cv == sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_NE:
+      ret = (cv != sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_GT:
+      ret = (cv > sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_GE:
+      ret = (cv >= sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_LT:
+      ret = (cv < sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_LE:
+      ret = (cv <= sv_0) ? TRUE : FALSE;
+      break;
+    case TIFOP_RANGE_INCLUSIVE:
+      ret = ((sv_0 <= cv) && (cv <= sv_1)) ? TRUE : FALSE;
+      break;
+    case TIFOP_RANGE_EXCLUSIVE:
+      ret = ((sv_0 < cv) && (cv < sv_1)) ? TRUE : FALSE;
+      break;
+    case TIFOP_NOT_IN_RANGE_INCLUSIVE:
+      ret = ((cv < sv_0) && (sv_1 < cv)) ? TRUE : FALSE;
+      break;
+    case TIFOP_NOT_IN_RANGE_EXCLUSIVE:
+      ret = ((cv <= sv_0) && (sv_1 <= cv)) ? TRUE : FALSE;
+      break;
+    default:
+      break;
+  }
+  return ret;
+}
+
+/**
+ * @brief Calculate compared value
+ */
+static uint8_t
+gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf)
+{
+  uint8_t cv = 0;
+  switch (tensor_if->cv) {
+    /** @todo The cases will be separated into functions later */
+    case TIFCV_A_VALUE:
+    {
+      GstMemory *in_mem;
+      GstMapInfo in_info;
+      GList *list;
+      tensor_dim target;
+      const uint32_t *in_dim;
+      uint32_t nth, idx, i, offset = 1;
+
+      idx = 0;
+      for (list = tensor_if->cv_option; list->next != NULL; list = list->next) {
+        target[idx++] = GPOINTER_TO_INT (list->data);
+      }
+      nth = GPOINTER_TO_INT (list->data);
+
+      in_dim = &(tensor_if->in_config.info.info[nth].dimension[0]);
+      in_mem = gst_buffer_peek_memory (buf, nth);
+      gst_memory_map (in_mem, &in_info, GST_MAP_READ);
+
+      /* Find data index for mem access */
+      idx = target[0];
+      for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        offset *= in_dim[i - 1];
+        idx += (target[i]) * offset;
+      }
+      cv = in_info.data[idx];
+      gst_memory_unmap (in_mem, &in_info);
+      break;
+    }
+    default:
+      GST_DEBUG_OBJECT (tensor_if,
+          " Compared value is not supported yet or not defined");
+  }
+
+  return cv;
+}
+
+/**
+ * @brief Determining whether a given condition is true or false
+ * @param tensor_if TensorIf Object
+ * @param buf gstbuffer from sink pad
+ * @return return TRUE if given condition is true. else FALSE (default FALSE)
+ */
+static gboolean
+gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf)
+{
+  /** @todo Let's make it as generic type.*/
+  uint8_t a_value;
+
+  a_value = gst_tensor_if_calculate_cv (tensor_if, buf);
+  return gst_tensor_if_get_comparison_result (tensor_if, a_value);
+}
+
+/**
  * @brief chain function for sink (gst element vmethod)
  */
 static GstFlowReturn
@@ -642,6 +748,8 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorIf *tensor_if;
+  gboolean condition_result, created;
+  GstClockTime ts;
   tensor_if = GST_TENSOR_IF (parent);
 
   num_tensors = tensor_if->in_config.info.num_tensors;
@@ -650,32 +758,30 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /* supposed n memory blocks in buffer */
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
 
+  condition_result = gst_tensor_if_check_condition (tensor_if, buf);
+  if (condition_result == FALSE)
+    goto done;
+
   for (i = 0; i < num_tensors; i++) {
     GstTensorPad *srcpad;
     GstBuffer *outbuf;
     GstMemory *mem;
-    gboolean created;
-    GstClockTime ts;
 
-    if (tensor_if->then_option != NULL) {
-      gboolean found = FALSE;
-      GList *list;
-      for (list = tensor_if->then_option; list != NULL; list = list->next) {
-        if (i == GPOINTER_TO_INT (list->data)) {
-          found = TRUE;
-          break;
-        }
-      }
-      if (!found)
-        continue;
-    }
+    /** @todo For TENSORPICK action. */
+    // if (tensor_if->then_option != NULL) {
+    //   gboolean found = FALSE;
+    //   GList *list;
+    //   for (list = tensor_if->then_option; list != NULL; list = list->next) {
+    //     if (i == GPOINTER_TO_INT (list->data)) {
+    //       found = TRUE;
+    //       break;
+    //     }
+    //   }
+    //   if (!found)
+    //     continue;
+    // }
 
     srcpad = gst_tensor_if_get_tensor_pad (tensor_if, &created, i);
-
-    outbuf = gst_buffer_new ();
-    mem = gst_buffer_get_memory (buf, i);
-    gst_buffer_append_memory (outbuf, mem);
-    ts = GST_BUFFER_TIMESTAMP (buf);
 
     if (created) {
       GstSegment segment;
@@ -683,11 +789,16 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
     }
 
+    outbuf = gst_buffer_new ();
+    mem = gst_buffer_get_memory (buf, i);
+    gst_buffer_append_memory (outbuf, mem);
+
     outbuf = gst_buffer_make_writable (outbuf);
 
     /* metadata from incoming buffer */
     gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
 
+    ts = GST_BUFFER_TIMESTAMP (buf);
     if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
       srcpad->last_ts = ts;
     } else {
@@ -695,16 +806,13 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           GST_TIME_ARGS (ts));
     }
 
-    GST_DEBUG_OBJECT (tensor_if,
-        "pushing buffer with timestamp %" GST_TIME_FORMAT,
-        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));
     res = gst_pad_push (srcpad->pad, outbuf);
     res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
 
     if (res != GST_FLOW_OK)
       break;
   }
-
+done:
   gst_buffer_unref (buf);
   return res;
 }
