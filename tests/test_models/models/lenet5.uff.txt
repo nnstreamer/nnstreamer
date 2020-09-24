@@ -1,0 +1,604 @@
+version: 1
+descriptor_core_version: 1
+descriptors {
+  id: "tensorflow_extension"
+  version: 1
+}
+graphs {
+  id: "main"
+  nodes {
+    id: "out"
+    inputs: "matmul2"
+    inputs: "bout"
+    operation: "Binary"
+    fields {
+      key: "func"
+      value {
+        s: "add"
+      }
+    }
+  }
+  nodes {
+    id: "bout"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 10
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_bout"
+      }
+    }
+  }
+  nodes {
+    id: "matmul2"
+    inputs: "relu"
+    inputs: "wout"
+    operation: "FullyConnected"
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_NC_CK"
+      }
+    }
+  }
+  nodes {
+    id: "wout"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 500
+          val: 10
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_wout"
+      }
+    }
+  }
+  nodes {
+    id: "relu"
+    inputs: "add1"
+    operation: "Activation"
+    fields {
+      key: "func"
+      value {
+        s: "relu"
+      }
+    }
+  }
+  nodes {
+    id: "add1"
+    inputs: "matmul1"
+    inputs: "bd1"
+    operation: "Binary"
+    fields {
+      key: "func"
+      value {
+        s: "add"
+      }
+    }
+  }
+  nodes {
+    id: "bd1"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 500
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_bd1"
+      }
+    }
+  }
+  nodes {
+    id: "matmul1"
+    inputs: "reshape1"
+    inputs: "wd1"
+    operation: "FullyConnected"
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_NC_CK"
+      }
+    }
+  }
+  nodes {
+    id: "wd1"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 800
+          val: 500
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_wd1"
+      }
+    }
+  }
+  nodes {
+    id: "reshape1"
+    inputs: "maxpool2"
+    inputs: "reshape1/shape"
+    operation: "Reshape"
+  }
+  nodes {
+    id: "reshape1/shape"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_INT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 2
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_reshape1/shape"
+      }
+    }
+  }
+  nodes {
+    id: "maxpool2"
+    inputs: "Relu_1"
+    operation: "Pool"
+    fields {
+      key: "func"
+      value {
+        s: "max"
+      }
+    }
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_N+C"
+      }
+    }
+    fields {
+      key: "kernel"
+      value {
+        i_list {
+          val: 2
+          val: 2
+        }
+      }
+    }
+    fields {
+      key: "strides"
+      value {
+        i_list {
+          val: 2
+          val: 2
+        }
+      }
+    }
+  }
+  nodes {
+    id: "Relu_1"
+    inputs: "conv2_bias"
+    operation: "Activation"
+    fields {
+      key: "func"
+      value {
+        s: "relu"
+      }
+    }
+  }
+  nodes {
+    id: "bc2"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 50
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_bc2"
+      }
+    }
+  }
+  nodes {
+    id: "conv2_bias"
+    inputs: "conv2"
+    inputs: "bc2"
+    operation: "Binary"
+    fields {
+      key: "func"
+      value {
+        s: "add"
+      }
+    }
+  }
+  nodes {
+    id: "conv2"
+    inputs: "maxpool1"
+    inputs: "wc2"
+    operation: "Conv"
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_N+C_+CK"
+      }
+    }
+    fields {
+      key: "strides"
+      value {
+        i_list {
+          val: 1
+          val: 1
+        }
+      }
+    }
+  }
+  nodes {
+    id: "wc2"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 5
+          val: 5
+          val: 20
+          val: 50
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_wc2"
+      }
+    }
+  }
+  nodes {
+    id: "maxpool1"
+    inputs: "Relu"
+    operation: "Pool"
+    fields {
+      key: "func"
+      value {
+        s: "max"
+      }
+    }
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_N+C"
+      }
+    }
+    fields {
+      key: "kernel"
+      value {
+        i_list {
+          val: 2
+          val: 2
+        }
+      }
+    }
+    fields {
+      key: "strides"
+      value {
+        i_list {
+          val: 2
+          val: 2
+        }
+      }
+    }
+  }
+  nodes {
+    id: "Relu"
+    inputs: "conv1_bias"
+    operation: "Activation"
+    fields {
+      key: "func"
+      value {
+        s: "relu"
+      }
+    }
+  }
+  nodes {
+    id: "bc1"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 20
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_bc1"
+      }
+    }
+  }
+  nodes {
+    id: "conv1_bias"
+    inputs: "conv1"
+    inputs: "bc1"
+    operation: "Binary"
+    fields {
+      key: "func"
+      value {
+        s: "add"
+      }
+    }
+  }
+  nodes {
+    id: "conv1"
+    inputs: "in"
+    inputs: "wc1"
+    operation: "Conv"
+    fields {
+      key: "inputs_orders"
+      value {
+        ref: "orders_N+C_+CK"
+      }
+    }
+    fields {
+      key: "strides"
+      value {
+        i_list {
+          val: 1
+          val: 1
+        }
+      }
+    }
+  }
+  nodes {
+    id: "wc1"
+    operation: "Const"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+          val: 5
+          val: 5
+          val: 1
+          val: 20
+        }
+      }
+    }
+    fields {
+      key: "values"
+      value {
+        ref: "weights_wc1"
+      }
+    }
+  }
+  nodes {
+    id: "in"
+    operation: "Input"
+    fields {
+      key: "dtype"
+      value {
+        dtype: DT_FLOAT32
+      }
+    }
+    fields {
+      key: "shape"
+      value {
+        i_list {
+        }
+      }
+    }
+  }
+  nodes {
+    id: "MarkOutput_0"
+    inputs: "out"
+    operation: "MarkOutput"
+  }
+}
+referenced_data {
+  key: "orders_N+C"
+  value {
+    dim_orders_list {
+      val {
+        orders {
+          key: -1
+          value {
+            val: 0
+            val: 2
+            val: 2147483647
+            val: 1
+          }
+        }
+      }
+    }
+  }
+}
+referenced_data {
+  key: "orders_N+C_+CK"
+  value {
+    dim_orders_list {
+      val {
+        orders {
+          key: -1
+          value {
+            val: 0
+            val: 2
+            val: 2147483647
+            val: 1
+          }
+        }
+      }
+      val {
+        orders {
+          key: -1
+          value {
+            val: 2
+            val: 2147483647
+            val: 1
+            val: 0
+          }
+        }
+      }
+    }
+  }
+}
+referenced_data {
+  key: "orders_NC_CK"
+  value {
+    dim_orders_list {
+      val {
+        orders {
+          key: -1
+          value {
+            val: 0
+            val: 1
+          }
+        }
+      }
+      val {
+        orders {
+          key: -1
+          value {
+            val: 1
+            val: 0
+          }
+        }
+      }
+    }
+  }
+}
+referenced_data {
+  key: "weights_bc1"
+  value {
+    blob: "(...80 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_bc2"
+  value {
+    blob: "(...200 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_bd1"
+  value {
+    blob: "(...2000 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_bout"
+  value {
+    blob: "(...40 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_reshape1/shape"
+  value {
+    blob: "\377\377\377\377 \003\000\000"
+  }
+}
+referenced_data {
+  key: "weights_wc1"
+  value {
+    blob: "(...2000 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_wc2"
+  value {
+    blob: "(...100000 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_wd1"
+  value {
+    blob: "(...1600000 bytes skipped...)"
+  }
+}
+referenced_data {
+  key: "weights_wout"
+  value {
+    blob: "(...20000 bytes skipped...)"
+  }
+}
