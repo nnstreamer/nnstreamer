@@ -2,7 +2,7 @@ if meson.project_name() != 'nnstreamer'
 
   project('capi-nnstreamer', 'c',
     version: '0.1',
-    license: ['LGPL'],
+    license: ['LGPL-2.1'],
     meson_version: '>=0.50.0',
     default_options: [
       'werror=true',

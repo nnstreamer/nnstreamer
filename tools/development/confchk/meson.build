@@ -1,6 +1,6 @@
 project('nnstreamer-check', 'c',
   version: '1.0.0',
-  license: ['LGPL'],
+  license: ['LGPL-2.1'],
   meson_version: '>=0.50.0',
   default_options: [
     'werror=true',
