@@ -3,7 +3,7 @@
 
 project('nnstreamer', 'c', 'cpp',
   version: '1.7.0',
-  license: ['LGPL'],
+  license: ['LGPL-2.1'],
   meson_version: '>=0.50.0',
   default_options: [
     'werror=true',

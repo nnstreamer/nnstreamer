@@ -360,7 +360,7 @@ NNStreamer_custom_class *NNStreamer_custom = &{sname}_body;
 meson_script = """
 project('{fname}', 'c',
   version: '1.0',
-  license: ['LGPL'],
+  license: ['LGPL-2.1'],
   meson_version: '>=0.50.0',
   default_options: [
     'warning_level=1',
