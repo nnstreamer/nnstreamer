@@ -55,6 +55,7 @@ nnst_plugins = [
   'tensor_filter',
   'tensor_repo',
   'tensor_if',
+  'tensor_rate',
 ]
 
 foreach p : nnst_plugins

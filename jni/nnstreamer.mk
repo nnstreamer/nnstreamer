@@ -59,7 +59,8 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c \
-    $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c
+    $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c \
+    $(NNSTREAMER_GST_HOME)/tensor_rate/gsttensorrate.c
 
 # nnstreamer c-api
 NNSTREAMER_CAPI_INCLUDES := \
