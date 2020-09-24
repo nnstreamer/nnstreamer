@@ -30,6 +30,9 @@ if [[ "${KernelName}" != "Darwin" ]]; then
     fi
 fi
 
+# Test for TensorRT installed, enable TENSORRT test if TensorRT is found
+TEST_TENSORRT="NO"
+
 if [ -z ${SO_EXT} ]; then
     SO_EXT="so"
 fi
@@ -174,6 +177,22 @@ if [ "$TEST_OPENCV" == "YES" ]; then
 
         callCompareTest testcase15.opencv.average.log testcase15.average.log 15 "Compare 15" 0 0
     fi
+fi
+
+# TensorRT Test
+# Test reshape using TensorRT (16)
+if [ "$TEST_TENSORRT" == "YES" ]; then
+  if [[ -z "${CUSTOMLIB_DIR}" ]]; then
+    PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_tensorrt/libnnstreamer_customfilter_tensorrt_reshape.${SO_EXT}"
+  else
+    PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_tensorrt_reshape.${SO_EXT}"
+  fi
+
+  if [ -e $PATH_TO_MODEL ]; then
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320:240:3\" ! tensor_transform mode=typecast option=uint8 ! tensor_transform mode=transpose option=2:0:1:3 ! filesink location=\"testcase16.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase16.direct.log\" sync=true" 16 0 0 $PERFORMANCE
+    python checkScaledTensor.py testcase16.direct.log 640 480 testcase16.scaled.log 320 240 3
+    testResult $? 16 "Golden test comparison" 0 1
+  fi
 fi
 
 report
