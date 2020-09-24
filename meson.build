@@ -220,7 +220,10 @@ if not get_option('tensorrt-support').disabled()
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
   nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
 
-  tensorrt_deps = [ nvinfer_dep, cuda_dep, cudart_dep ]
+  nvparsers_lib = cxx.find_library('nvparsers', required: false)
+  nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
+
+  tensorrt_deps = [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ]
 endif
 
 # features registration to be controlled
