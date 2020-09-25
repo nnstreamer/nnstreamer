@@ -52,6 +52,19 @@
 #define DBG FALSE
 #endif
 
+/**
+ * @brief Option to open tf-lite model.
+ */
+typedef struct
+{
+  const gchar *model_file; /**< path to tensorflow-lite model file */
+  const gchar *accelerators; /**< accelerators set for this subplugin */
+  gboolean use_nnapi; /**< flag to use NNAPI */
+} tflite_option_s;
+
+/**
+ * @brief Possible accelerators.
+ */
 static const gchar *tflite_accl_support[] = {
   ACCL_CPU_NEON_STR,
   ACCL_CPU_SIMD_STR,
@@ -132,7 +145,7 @@ private:
 class TFLiteCore
 {
 public:
-  TFLiteCore (const char *_model_path, const char *accelerators);
+  TFLiteCore (tflite_option_s * option);
 
   int init ();
   int loadModel ();
@@ -154,7 +167,7 @@ private:
   TFLiteInterpreter interpreter;
   TFLiteInterpreter interpreter_sub;
 
-  void setAccelerator (const char * accelerators);
+  void setAccelerator (const char * accelerators, bool nnapi);
 };
 
 extern "C" { /* accessed by android api */
@@ -537,31 +550,30 @@ fail_exit:
 
 /**
  * @brief	TFLiteCore creator
- * @param	_model_path	: the logical path to '{model_name}.tflite' file
- * @param	accelerators  : the accelerators property set for this subplugin
+ * @param	option options to initialize tf-lite model
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-TFLiteCore::TFLiteCore (const char * _model_path, const char * accelerators)
+TFLiteCore::TFLiteCore (tflite_option_s * option)
 {
-  interpreter.setModelPath (_model_path);
+  interpreter.setModelPath (option->model_file);
 
-  setAccelerator (accelerators);
-  if (accelerators != NULL) {
-    g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str (accelerator));
-  }
+  setAccelerator (option->accelerators, option->use_nnapi);
+  g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str (accelerator));
 }
 
 /**
  * @brief	Set the accelerator for the tf engine
  */
-void TFLiteCore::setAccelerator (const char * accelerators)
+void TFLiteCore::setAccelerator (const char * accelerators, bool nnapi)
 {
-  use_nnapi = TRUE;
+  use_nnapi = nnapi;
   accelerator = parse_accl_hw (accelerators, tflite_accl_support,
       tflite_accl_auto, tflite_accl_default);
-  if (accelerators == NULL || accelerator == ACCL_NONE)
+  if (accelerators == NULL || accelerator == ACCL_NONE) {
+    g_warning ("Try to get nnapi flag from the configuration.");
     goto use_nnapi_ini;
+  }
 
   return;
 
@@ -828,6 +840,51 @@ TFLiteCore::cacheInOutTensorPtr ()
 }
 
 /**
+ * @brief Internal function to get the option for tf-lite model.
+ */
+static int
+tflite_parseCustomOption (const GstTensorFilterProperties * prop,
+    tflite_option_s * option)
+{
+  if (prop->num_models != 1 || prop->model_files[0] == NULL)
+    return -1;
+
+  option->model_file = prop->model_files[0];
+  option->accelerators = prop->accl_str;
+  option->use_nnapi = FALSE;
+
+  if (prop->custom_properties) {
+    gchar **strv;
+    guint i, len;
+
+    strv = g_strsplit (prop->custom_properties, ",", -1);
+    len = g_strv_length (strv);
+
+    for (i = 0; i < len; ++i) {
+      gchar **pair = g_strsplit (strv[i], ":", -1);
+
+      if (g_strv_length (pair) > 1) {
+        g_strstrip (pair[0]);
+        g_strstrip (pair[1]);
+
+        if (g_ascii_strcasecmp (pair[0], "UseNNAPI") == 0) {
+          if (g_ascii_strcasecmp (pair[1], "true") == 0)
+            option->use_nnapi = TRUE;
+        } else {
+          g_warning ("Unknown option (%s).", strv[i]);
+        }
+      }
+
+      g_strfreev (pair);
+    }
+
+    g_strfreev (strv);
+  }
+
+  return 0;
+}
+
+/**
  * @brief Free privateData and move on.
  */
 static void
@@ -855,25 +912,23 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     void **private_data)
 {
   TFLiteCore *core;
-  const gchar *model_file;
+  tflite_option_s option = { 0, };
 
-  if (prop->num_models != 1)
+  if (tflite_parseCustomOption (prop, &option) != 0) {
+    g_printerr ("Failed to parse options to initialize tensorflow-lite model.");
     return -1;
+  }
 
   core = static_cast<TFLiteCore *>(*private_data);
-  model_file = prop->model_files[0];
-
-  if (model_file == NULL)
-    return -1;
 
   if (core != NULL) {
-    if (core->compareModelPath (model_file))
+    if (core->compareModelPath (option.model_file))
       return 1; /* skipped */
 
     tflite_close (prop, private_data);
   }
 
-  core = new TFLiteCore (model_file, prop->accl_str);
+  core = new TFLiteCore (&option);
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
     return -1;
