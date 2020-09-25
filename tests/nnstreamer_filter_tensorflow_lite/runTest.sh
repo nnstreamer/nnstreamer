@@ -92,7 +92,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoc
 # Test the backend setting done with tensorflow-lite
 # This also performs tests for generic backend configuration parsing
 function run_pipeline() {
-    gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} accelerator=$1 ! filesink location=tensorfilter.out.log 2>info
+    gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} accelerator=$1 custom=UseNNAPI:true ! filesink location=tensorfilter.out.log 2>info
 }
 
 arch=$(uname -m)
@@ -190,7 +190,7 @@ cat info | grep "nnapi = 1, accl = ${auto_accl}$"
 testResult $? 2-17 "NNAPI activation test" 0 1
 
 # Property reading test for nnapi before setting the framework (analogous test is 2-3)
-gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log 2>info
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow-lite model=${PATH_TO_MODEL} custom=UseNNAPI:true ! filesink location=tensorfilter.out.log 2>info
 cat info | grep "nnapi = 1, accl = gpu$"
 testResult $? 2-18 "NNAPI activation test" 0 1
 
