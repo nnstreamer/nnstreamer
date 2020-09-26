@@ -1,6 +1,6 @@
 ## Getting Started: Meson/Ninja Build
 
-NNStreamer uses meson/ninja as its standard build envrionment; both Tizen(GBS-OBS/.rpm) and Ubuntu(pdebuild/.deb) builds uses meson/ninja.
+NNStreamer uses meson/ninja as its standard build environment; both Tizen(GBS-OBS/.rpm) and Ubuntu(pdebuild/.deb) builds uses meson/ninja.
 
 With meson/ninja, you may build in the git repo directory and install nnstreamer binaries to your designated directories.
 However, you should be careful on configuring nnstreamer; i.e., the paths of subplugins and .ini file locations. Please note that nnstreamer tries to load /etc/nnstreamer.ini by default.
@@ -20,6 +20,10 @@ The following dependencies are needed to compile/build/run.
 * [SSAT](https://github.com/myungjoo/SSAT) (optional. required for unit testing)
 * gtest (optional. required for unit testing)
 
+The minimal requirement to build nnstreamer with default configuration is
+```bash
+$ sudo apt install meson ninja-build gcc g++ libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+```
 
 ***1. Clone the needed repositories***
 
