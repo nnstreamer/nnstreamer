@@ -2217,7 +2217,7 @@ TEST (nnstreamer_capi_util, info_destroy_n)
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (internal)
  */
 TEST (nnstreamer_capi_util, info_init_n)
@@ -2259,7 +2259,7 @@ TEST (nnstreamer_capi_util, info_valid_02_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (internal)
  */
 TEST (nnstreamer_capi_util, info_comp_01_n)
@@ -2283,7 +2283,7 @@ TEST (nnstreamer_capi_util, info_comp_01_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (internal)
  */
 TEST (nnstreamer_capi_util, info_comp_02_n)
@@ -2308,7 +2308,7 @@ TEST (nnstreamer_capi_util, info_comp_02_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (internal)
  */
 TEST (nnstreamer_capi_util, info_comp_03_n)
@@ -2341,7 +2341,7 @@ TEST (nnstreamer_capi_util, info_comp_03_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (internal)
  */
 TEST (nnstreamer_capi_util, info_comp_0)
@@ -2369,7 +2369,7 @@ TEST (nnstreamer_capi_util, info_comp_0)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_count_n)
@@ -2378,7 +2378,7 @@ TEST (nnstreamer_capi_util, info_set_count_n)
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_count_n)
@@ -2387,7 +2387,7 @@ TEST (nnstreamer_capi_util, info_get_count_n)
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_tname_0_n)
@@ -2396,7 +2396,7 @@ TEST (nnstreamer_capi_util, info_set_tname_0_n)
   ASSERT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_tname_1_n)
@@ -2414,7 +2414,7 @@ TEST (nnstreamer_capi_util, info_set_tname_1_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_tname_1)
@@ -2434,7 +2434,7 @@ TEST (nnstreamer_capi_util, info_set_tname_1)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tname_01_n)
@@ -2455,7 +2455,7 @@ TEST (nnstreamer_capi_util, info_get_tname_01_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tname_02_n)
@@ -2475,7 +2475,7 @@ TEST (nnstreamer_capi_util, info_get_tname_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tname_03_n)
@@ -2496,7 +2496,7 @@ TEST (nnstreamer_capi_util, info_get_tname_03_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_ttype_01_n)
@@ -2507,7 +2507,7 @@ TEST (nnstreamer_capi_util, info_set_ttype_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_ttype_02_n)
@@ -2527,7 +2527,7 @@ TEST (nnstreamer_capi_util, info_set_ttype_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_ttype_03_n)
@@ -2547,7 +2547,7 @@ TEST (nnstreamer_capi_util, info_set_ttype_03_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_ttype_01_n)
@@ -2560,7 +2560,7 @@ TEST (nnstreamer_capi_util, info_get_ttype_01_n)
 
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_ttype_02_n)
@@ -2580,7 +2580,7 @@ TEST (nnstreamer_capi_util, info_get_ttype_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_ttype_03_n)
@@ -2601,7 +2601,7 @@ TEST (nnstreamer_capi_util, info_get_ttype_03_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_tdimension_01_n)
@@ -2613,7 +2613,7 @@ TEST (nnstreamer_capi_util, info_set_tdimension_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_set_tdimension_02_n)
@@ -2634,7 +2634,7 @@ TEST (nnstreamer_capi_util, info_set_tdimension_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tdimension_01_n)
@@ -2646,7 +2646,7 @@ TEST (nnstreamer_capi_util, info_get_tdimension_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tdimension_02_n)
@@ -2667,7 +2667,7 @@ TEST (nnstreamer_capi_util, info_get_tdimension_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tsize_01_n)
@@ -2687,7 +2687,7 @@ TEST (nnstreamer_capi_util, info_get_tsize_01_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tsize_02_n)
@@ -2699,7 +2699,7 @@ TEST (nnstreamer_capi_util, info_get_tsize_02_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_get_tsize_03_n)
@@ -2722,7 +2722,7 @@ TEST (nnstreamer_capi_util, info_get_tsize_03_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_clone_01_n)
@@ -2740,7 +2740,7 @@ TEST (nnstreamer_capi_util, info_clone_01_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, info_clone_02_n)
@@ -2758,7 +2758,7 @@ TEST (nnstreamer_capi_util, info_clone_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_create_01_n)
@@ -2770,7 +2770,7 @@ TEST (nnstreamer_capi_util, data_create_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_create_02_n)
@@ -2789,7 +2789,7 @@ TEST (nnstreamer_capi_util, data_create_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_create_03_n)
@@ -2823,7 +2823,7 @@ TEST (nnstreamer_capi_util, data_create_internal_n)
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_get_tdata_01_n)
@@ -2836,7 +2836,7 @@ TEST (nnstreamer_capi_util, data_get_tdata_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_get_tdata_02_n)
@@ -2867,7 +2867,7 @@ TEST (nnstreamer_capi_util, data_get_tdata_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_get_tdata_03_n)
@@ -2898,7 +2898,7 @@ TEST (nnstreamer_capi_util, data_get_tdata_03_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_get_tdata_04_n)
@@ -2930,7 +2930,7 @@ TEST (nnstreamer_capi_util, data_get_tdata_04_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_set_tdata_01_n)
@@ -2946,7 +2946,7 @@ TEST (nnstreamer_capi_util, data_set_tdata_01_n)
   g_free (raw_data);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_set_tdata_02_n)
@@ -2976,7 +2976,7 @@ TEST (nnstreamer_capi_util, data_set_tdata_02_n)
   ASSERT_EQ (status, ML_ERROR_NONE);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_set_tdata_03_n)
@@ -3010,7 +3010,7 @@ TEST (nnstreamer_capi_util, data_set_tdata_03_n)
   g_free (raw_data);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_set_tdata_04_n)
@@ -3044,7 +3044,7 @@ TEST (nnstreamer_capi_util, data_set_tdata_04_n)
   g_free (raw_data);
 }
 
-/*
+/**
  * @brief Test utility functions (public)
  */
 TEST (nnstreamer_capi_util, data_set_tdata_05_n)
