@@ -16,11 +16,14 @@
 ROOT_DIR:=$(shell pwd)
 export DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 export DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
-export GST_PLUGIN_PATH=${ROOT_DIR}/build/gst/nnstreamer
-export NNSTREAMER_CONF=${ROOT_DIR}/build/nnstreamer-test.ini
-export NNSTREAMER_FILTERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_filter
-export NNSTREAMER_DECODERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_decoder
-export NNSTREAMER_CONVERTERS=${ROOT_DIR}/build/ext/nnstreamer/tensor_converter
+export BUILDDIR=build
+export NNSTREAMER_SOURCE_ROOT_PATH=$(ROOT_DIR)
+export NNSTREAMER_BUILD_ROOT_PATH=${NNSTREAMER_SOURCE_ROOT_PATH}/${BUILDDIR}
+export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst/nnstreamer
+export NNSTREAMER_CONF=${NNSTREAMER_BUILD_ROOT_PATH}/nnstreamer-test.ini
+export NNSTREAMER_FILTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_filter
+export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export PYTHONIOENCODING=utf-8
 
 ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
@@ -33,19 +36,19 @@ endif
 	dh $@ --parallel
 
 override_dh_auto_clean:
-	rm -rf build
+	rm -rf ${BUILDDIR}
 
 override_dh_auto_configure:
-	mkdir -p build
+	mkdir -p ${BUILDDIR}
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Dinstall-example=true -Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
 	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
-	-Denable-openvino=true build
-	cd tools/development/confchk && meson --prefix=/usr build && cd ../../..
+	-Denable-openvino=true ${BUILDDIR}
+	cd tools/development/confchk && meson --prefix=/usr ${BUILDDIR} && cd ../../..
 
 override_dh_auto_build:
-	ninja -C build
-	cd tools/development/confchk && ninja -C build && cd ../../..
+	ninja -C ${BUILDDIR}
+	cd tools/development/confchk && ninja -C ${BUILDDIR} && cd ../../..
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
@@ -57,8 +60,8 @@ override_dh_link:
 	dh_link /usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so  /usr/lib/$(DEB_HOST_MULTIARCH)/libnnstreamer.so
 
 override_dh_auto_install:
-	DESTDIR=$(CURDIR)/debian/tmp ninja -C build install
-	cd tools/development/confchk && DESTDIR=$(CURDIR)/debian/tmp ninja -C build install && cd ../../..
+	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install
+	cd tools/development/confchk && DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install && cd ../../..
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing

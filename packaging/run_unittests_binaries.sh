@@ -8,11 +8,13 @@
 ## @brief Runs all the unittests binaries in the specified folder or file
 input=$1
 
+export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 pushd build
-export NNSTREAMER_CONF=$(pwd)/nnstreamer-test.ini
-export NNSTREAMER_FILTERS=$(pwd)/ext/nnstreamer/tensor_filter
-export NNSTREAMER_DECODERS=$(pwd)/ext/nnstreamer/tensor_decoder
-export NNSTREAMER_CONVERTERS=$(pwd)/ext/nnstreamer/tensor_converter
+export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
+export NNSTREAMER_CONF=${NNSTREAMER_BUILD_ROOT_PATH}/nnstreamer-test.ini
+export NNSTREAMER_FILTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_filter
+export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export _PYTHONPATH=${PYTHONPATH}
 
 run_entry() {
