@@ -3518,14 +3518,14 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_passthrough", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -5803,14 +5803,14 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_scaler", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -5885,14 +5885,14 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_scaler", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -5969,14 +5969,14 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   void *data_ptr;
   size_t data_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_scaler", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -6056,7 +6056,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
   unsigned int count = 0;
   int status, tensor_size;
 
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
@@ -6064,7 +6064,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
     root_path = "..";
 
   /* custom-passthrough */
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_passthrough", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -9349,14 +9349,14 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
       NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model = g_build_filename (root_path, "nnstreamer_example",
       "custom_example_passthrough", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
@@ -9382,17 +9382,20 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
       NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw;
-  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *sroot_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *broot_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
   gchar *test_model1, *test_model2;
   gchar *test_models[2];
 
   /* supposed to run test in build directory */
-  if (root_path == NULL)
-    root_path = "..";
+  if (sroot_path == NULL)
+    sroot_path = "..";
+  if (broot_path == NULL)
+    broot_path = ".";
 
-  test_model1 = g_build_filename (root_path, "build", "nnstreamer_example",
+  test_model1 = g_build_filename (broot_path, "nnstreamer_example",
       "custom_example_passthrough", cf_name, NULL);
-  test_model2 = g_build_filename (root_path, "tests", "test_models", "models",
+  test_model2 = g_build_filename (sroot_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model1, G_FILE_TEST_EXISTS));
   ASSERT_TRUE (g_file_test (test_model2, G_FILE_TEST_EXISTS));

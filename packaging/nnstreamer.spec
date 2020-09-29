@@ -604,25 +604,26 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 ninja -C build %{?_smp_mflags}
 
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
-export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
-export NNSTREAMER_CONF=$(pwd)/build/nnstreamer-test.ini
-export NNSTREAMER_FILTERS=$(pwd)/build/ext/nnstreamer/tensor_filter
-export NNSTREAMER_DECODERS=$(pwd)/build/ext/nnstreamer/tensor_decoder
-export NNSTREAMER_CONVERTERS=$(pwd)/build/ext/nnstreamer/tensor_converter
+export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)/build
+export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst/nnstreamer
+export NNSTREAMER_CONF=${NNSTREAMER_BUILD_ROOT_PATH}/nnstreamer-test.ini
+export NNSTREAMER_FILTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_filter
+export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
+export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
 %if %{with tizen}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
-    GST_PLUGIN_PATH=${NNSTREAMER_SOURCE_ROOT_PATH}/build/ext/nnstreamer/tensor_source:${GST_PLUGIN_PATH} bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
+    GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_source:${GST_PLUGIN_PATH} bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
 %endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
-    LD_LIBRARY_PATH=${NNSTREAMER_SOURCE_ROOT_PATH}/build/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
+    LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %ifarch aarch64 x86_64
-    LD_LIBRARY_PATH=${NNSTREAMER_SOURCE_ROOT_PATH}/build/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
+    LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif #ifarch 64
     pushd tests
     ssat -n --summary summary.txt -cn _n

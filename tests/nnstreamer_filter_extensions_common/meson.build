@@ -10,9 +10,10 @@ tizen_apptest_deps = [
 # Format for adding subplugin into extensions -
 # [name, extension abbreviation, dependencies, model file name/folder path/file path, test name]
 extensions = []
-
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.' + so_ext, 'custom']]
-extensions += [['custom', 'custom', nnstreamer_unittest_deps, '../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.' + so_ext, 'custom-set']]
+custom_filter_path = join_paths(meson.build_root(), 'nnstreamer_example',
+    'custom_example_passthrough', 'libnnstreamer_customfilter_passthrough.' + so_ext)
+extensions += [['custom', 'custom', nnstreamer_unittest_deps, custom_filter_path, 'custom']]
+extensions += [['custom', 'custom', nnstreamer_unittest_deps, custom_filter_path, 'custom-set']]
 
 if tflite_support_is_available
   extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'mobilenet_v1_1.0_224_quant.tflite', 'tensorflow_lite']]

@@ -498,6 +498,7 @@ if get_option('enable-test')
   testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
   testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
   testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
+  testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.build_root())
 
   subdir('tests')
 endif
