@@ -219,13 +219,6 @@ TFCore::loadModel ()
   gchar *content = nullptr;
   GError *file_error = nullptr;
 
-  g_assert (model_path != nullptr);
-
-  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("the file of model_path (%s) is not valid (not regular)\n", model_path);
-    return -1;
-  }
-
   if (!g_file_get_contents (model_path, &content, &file_size, &file_error)) {
     ml_loge ("Error reading model file!! - %s", file_error->message);
     g_clear_error (&file_error);
@@ -772,7 +765,7 @@ static GstTensorFilterFramework NNS_support_tensorflow = {
       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
       .allocate_in_invoke = TRUE,
       .run_without_model = FALSE,
-      .verify_model_path = FALSE,
+      .verify_model_path = TRUE, /* check that the given .pb files are valid */
       .statistics = nullptr,
       .invoke_NN = tf_run,
       .getInputDimension = tf_getInputDim,
