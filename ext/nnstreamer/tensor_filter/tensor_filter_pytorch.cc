@@ -183,8 +183,7 @@ TorchCore::getModelPath ()
  * @brief	load the torch model
  * @note	the model will be loaded
  * @return 0 if OK. non-zero if error.
- *        -1 if the modelfile is not valid(or not exist).
- *        -2 if the pt file is not loaded.
+ *        -1 if the pt file is not loaded.
  */
 int
 TorchCore::loadModel ()
@@ -192,12 +191,6 @@ TorchCore::loadModel ()
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-
-  if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("the file of model_path (%s) is not valid (not regular).",
-        model_path);
-    return -1;
-  }
 
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
   model = std::make_shared<torch::jit::script::Module>(torch::jit::load (model_path));
@@ -207,7 +200,7 @@ TorchCore::loadModel ()
 
   if (model == nullptr) {
     ml_loge ("Failed to read graph.");
-    return -2;
+    return -1;
   }
 
   if (use_gpu) {
@@ -690,7 +683,7 @@ static GstTensorFilterFramework NNS_support_pytorch = {
       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
       .allocate_in_invoke = FALSE,
       .run_without_model = FALSE,
-      .verify_model_path = FALSE,
+      .verify_model_path = TRUE, /* check that the given .pt files are valid */
       .statistics = nullptr,
       .invoke_NN = torch_invoke,
       .getInputDimension = torch_getInputDim,
