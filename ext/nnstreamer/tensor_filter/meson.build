@@ -607,3 +607,33 @@ if snpe_support_is_available
     include_directories: snpe_incdir
   )
 endif
+
+if mxnet_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for MXNet.')
+  endif
+
+  filter_sub_mxnet_sources = [
+    'tensor_filter_mxnet.cc'
+  ]
+
+  nnstreamer_filter_mxnet_sources = []
+  foreach s : filter_sub_mxnet_sources
+    nnstreamer_filter_mxnet_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_mxnet_deps = mxnet_support_deps + [glib_dep, gst_dep, nnstreamer_dep, libdl_dep]
+
+  nnstreamer_filter_mxnet_so_lib = shared_library('nnstreamer_filter_mxnet',
+    nnstreamer_filter_mxnet_sources,
+    dependencies: nnstreamer_filter_mxnet_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir,
+    cpp_args: ['-Wno-non-virtual-dtor']
+  )
+
+  nnstreamer_filter_mxnet_dep = declare_dependency(
+    link_with: nnstreamer_filter_mxnet_so_lib,
+    include_directories: include_directories('.')
+  )
+endif
