@@ -294,6 +294,16 @@ if not get_option('armnn-support').disabled()
   endif
 endif
 
+# mxnet
+if not get_option('mxnet-support').disabled()
+  mxnet_dep = cxx.find_library('mxnet', required: false)
+  if not mxnet_dep.found()
+    if cxx.check_header('mxnet-cpp/MxNetCpp.h', required: get_option('mxnet-support'))
+      mxnet_dep = declare_dependency(link_args: ['-lmxnet'])
+    endif
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -391,6 +401,9 @@ features = {
   'aitt-support': {
     'target': 'aitt',
     'project_args': { 'ENABLE_AITT' : 1 }
+  },
+  'mxnet-support': {
+    'extra_deps': [ mxnet_dep ]
   }
 }
 
