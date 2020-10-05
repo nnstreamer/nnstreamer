@@ -37,8 +37,13 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 
+#if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
+#include <tensorflow/lite/model.h>
+#include <tensorflow/lite/kernels/register.h>
+#else
 #include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
+#endif
 
 /**
  * @brief Macro for debug mode.
@@ -959,6 +964,9 @@ tflite_getOutputDim (const GstTensorFilterProperties * prop,
     } \
   } while (0)
 
+/**
+ * @brief A fallback function to recover input tensor dimensions
+ */
 static void
 tflite_setInputDim_recovery (TFLiteCore *core, GstTensorsInfo *cur_in_info,
     const char * reason, int mode)
@@ -1082,7 +1090,7 @@ tflite_checkAvailability (accl_hw hw)
   return -ENOENT;
 }
 
-#if TFLITE_VERSION == 1
+#if TFLITE_VERSION_MAJOR == 1
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 #else
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow2-lite";
