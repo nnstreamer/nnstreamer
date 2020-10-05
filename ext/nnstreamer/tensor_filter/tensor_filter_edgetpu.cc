@@ -39,8 +39,8 @@
 using nnstreamer::tensor_filter_subplugin;
 using edgetpu::EdgeTpuContext;
 
-#if defined (TFLITE_VER)
-constexpr char tflite_ver[] = TFLITE_VER;
+#if defined (TFLITE_VERSION)
+constexpr char tflite_ver[] = G_STRINGIFY(TFLITE_VERSION);
 #else
 constexpr char tflite_ver[] = "1.x";
 #endif /* defined (TFLITE_VER) */
@@ -51,7 +51,7 @@ namespace tensorfilter_edgetpu {
 void _init_filter_edgetpu (void) __attribute__ ((constructor));
 void _fini_filter_edgetpu (void) __attribute__ ((destructor));
 
-
+/** @brief enum for edgetpu device type */
 enum class edgetpu_subplugin_device_type : uint32_t {
   USB = static_cast<uint32_t>(edgetpu::DeviceType::kApexUsb),
   PCI = static_cast<uint32_t>(edgetpu::DeviceType::kApexPci),
@@ -59,6 +59,7 @@ enum class edgetpu_subplugin_device_type : uint32_t {
   DUMMY = 99,
 };
 
+/** @brief get device typename */
 static const std::string edgetpu_subplugin_device_type_name (
     edgetpu_subplugin_device_type t)
 {
@@ -74,6 +75,7 @@ static const std::string edgetpu_subplugin_device_type_name (
     }
 }
 
+/** @brief edgetpu subplugin class */
 class edgetpu_subplugin final : public tensor_filter_subplugin {
 private:
   bool empty_model;
@@ -129,6 +131,7 @@ public:
 const char *edgetpu_subplugin::name = "edgetpu";
 const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU };
 
+/** @brief edgetpu class constructor */
 edgetpu_subplugin::edgetpu_subplugin () :
     tensor_filter_subplugin (),
     empty_model (true),
@@ -143,6 +146,7 @@ edgetpu_subplugin::edgetpu_subplugin () :
   /** Nothing to do. Just let it have an empty instance */
 }
 
+/** @brief cleanup resources used by edgetpu subplugin */
 void edgetpu_subplugin::cleanup ()
 {
   if (empty_model)
@@ -171,11 +175,13 @@ void edgetpu_subplugin::cleanup ()
   empty_model = true;
 }
 
+/** @brief edgetpu class destructor */
 edgetpu_subplugin::~edgetpu_subplugin ()
 {
   cleanup ();
 }
 
+/** @brief get empty instance of edgetpu subplugin */
 tensor_filter_subplugin & edgetpu_subplugin::getEmptyInstance ()
 {
   return *(new edgetpu_subplugin());
@@ -240,6 +246,7 @@ edgetpu_subplugin_device_type edgetpu_subplugin::parse_custom_prop (
   return edgetpu_subplugin_device_type::DEFAULT;
 }
 
+/** @brief configure edgetpu instance */
 void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   const std::string _model_path = prop->model_files[0];
@@ -319,6 +326,7 @@ void edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *pro
   empty_model = false;
 }
 
+/** @brief invoke using edgetpu */
 void edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   unsigned int i;
@@ -389,6 +397,7 @@ void edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *o
   }
 }
 
+/** @brief Get framework information */
 void edgetpu_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
   info.name = name;
@@ -400,6 +409,7 @@ void edgetpu_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.num_hw = num_hw;
 }
 
+/** @brief Get model information */
 int edgetpu_subplugin::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   if (ops == GET_IN_OUT_INFO) {
@@ -412,6 +422,7 @@ int edgetpu_subplugin::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info
   return -ENOENT;
 }
 
+/** @brief Event handler (TBD) */
 int edgetpu_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
   return -ENOENT;
@@ -523,13 +534,14 @@ void edgetpu_subplugin::setTensorProp (tflite::Interpreter *interpreter,
 
 edgetpu_subplugin *edgetpu_subplugin::registeredRepresentation = nullptr;
 
-/**@brief Initialize this object for tensor_filter subplugin runtime register */
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
 void edgetpu_subplugin::init_filter_edgetpu (void)
 {
   registeredRepresentation =
       tensor_filter_subplugin::register_subplugin<edgetpu_subplugin> ();
 }
 
+/** @brief initializer */
 void _init_filter_edgetpu ()
 {
   edgetpu_subplugin::init_filter_edgetpu();
@@ -542,6 +554,7 @@ void edgetpu_subplugin::fini_filter_edgetpu (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
+/** @brief finalizer */
 void _fini_filter_edgetpu ()
 {
   edgetpu_subplugin::fini_filter_edgetpu();

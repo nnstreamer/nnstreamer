@@ -84,7 +84,22 @@ if tf_support_is_available
   )
 endif
 
+tflite_ver_dep = disabler()
 if tflite_support_is_available
+  tflite_ver = tflite_support_deps[0].version()
+  tflite_ver_major = tflite_ver.split('.')[0]
+  tflite_ver_minor = tflite_ver.split('.')[1]
+  tflite_ver_micro = tflite_ver.split('.')[2]
+
+  tflite_ver_dep = declare_dependency (
+    compile_args : [
+      '-DTFLITE_VERSION=' + tflite_ver,
+      '-DTFLITE_VERSION_MAJOR=' + tflite_ver_major,
+      '-DTFLITE_VERSION_MINOR=' + tflite_ver_minor,
+      '-DTFLITE_VERSION_MICRO=' + tflite_ver_micro,
+    ],
+  )
+
   if not flatbuf_support_is_available
     flatbuf_dep = dependency('flatbuffers', required : true, \
         not_found_message : 'flatbuf devel package should be install to build the tensorflow lite subplugin.')
@@ -99,27 +114,32 @@ if tflite_support_is_available
 
   nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
-  tflite_compile_args = []
+  # Since tf-1.13, tflite has moved from contrib to core
+  tflite_h_prefix='#include <tensorflow/lite/model.h>'
+  if tflite_ver_minor.to_int() < 13
+    tflite_h_prefix='#include <tensorflow/contrib/lite/model.h>'
+  endif
 
-  if cxx.has_type('kTfLiteInt8', prefix : '#include <tensorflow/contrib/lite/model.h>')
+  tflite_compile_args = []
+  if cxx.has_type('kTfLiteInt8', prefix : tflite_h_prefix)
     tflite_compile_args += '-DTFLITE_INT8=1'
   endif
-  if cxx.has_type('kTfLiteInt16', prefix : '#include <tensorflow/contrib/lite/model.h>')
+  if cxx.has_type('kTfLiteInt16', prefix : tflite_h_prefix)
     tflite_compile_args += '-DTFLITE_INT16=1'
   endif
-  if cxx.has_type('kTfLiteFloat16', prefix : '#include <tensorflow/contrib/lite/model.h>')
+  if cxx.has_type('kTfLiteFloat16', prefix : tflite_h_prefix)
     tflite_compile_args += '-DTFLITE_FLOAT16=1'
   endif
-  if cxx.has_type('kTfLiteComplex64', prefix : '#include <tensorflow/contrib/lite/model.h>')
+  if cxx.has_type('kTfLiteComplex64', prefix : tflite_h_prefix)
     tflite_compile_args += '-DTFLITE_COMPLEX64=1'
   endif
-  tflite_compile_args += '-DTFLITE_VERSION=1'
 
   tflite_extra_dep = declare_dependency(
-    compile_args : tflite_compile_args,
+    compile_args : tflite_compile_args
   )
 
   nnstreamer_filter_tflite_deps += tflite_extra_dep
+  nnstreamer_filter_tflite_deps += tflite_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow-lite',
     nnstreamer_filter_tflite_sources,
@@ -136,7 +156,22 @@ if tflite_support_is_available
   )
 endif
 
+tflite2_ver_dep = disabler()
 if tflite2_support_is_available
+  tflite2_ver = tflite2_support_deps[0].version()
+  tflite2_ver_major = tflite2_ver.split('.')[0]
+  tflite2_ver_minor = tflite2_ver.split('.')[1]
+  tflite2_ver_micro = tflite2_ver.split('.')[2]
+
+  tflite2_ver_dep = declare_dependency (
+    compile_args : [
+      '-DTFLITE_VERSION=' + tflite2_ver,
+      '-DTFLITE_VERSION_MAJOR=' + tflite2_ver_major,
+      '-DTFLITE_VERSION_MINOR=' + tflite2_ver_minor,
+      '-DTFLITE_VERSION_MICRO=' + tflite2_ver_micro,
+    ],
+  )
+
   filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
 
   nnstreamer_filter_tflite2_sources = []
@@ -147,7 +182,6 @@ if tflite2_support_is_available
   nnstreamer_filter_tflite2_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
   tflite2_compile_args = []
-
   if cxx.has_type('kTfLiteInt8', prefix : '#include <tensorflow2/contrib/lite/model.h>')
     tflite2_compile_args += '-DTFLITE_INT8=1'
   endif
@@ -160,13 +194,13 @@ if tflite2_support_is_available
   if cxx.has_type('kTfLiteComplex64', prefix : '#include <tensorflow2/contrib/lite/model.h>')
     tflite2_compile_args += '-DTFLITE_COMPLEX64=1'
   endif
-  tflite2_compile_args += '-DTFLITE_VERSION=2'
 
   tflite2_extra_dep = declare_dependency(
-    compile_args : tflite2_compile_args,
+    compile_args : tflite2_compile_args
   )
 
   nnstreamer_filter_tflite2_deps += tflite2_extra_dep
+  nnstreamer_filter_tflite2_deps += tflite2_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow2-lite',
     nnstreamer_filter_tflite2_sources,
@@ -388,9 +422,6 @@ if get_option('enable-edgetpu')
 
     endif
 
-    tflite_ver_dep = declare_dependency (
-      compile_args : ['-DTFLITE_VER="' + tflite_support_deps[0].version() +'"', ],
-    )
     shared_library('nnstreamer_filter_edgetpu',
       nnstreamer_filter_edgetpu_sources,
       dependencies: tflite_support_deps + [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep, tflite_ver_dep],
