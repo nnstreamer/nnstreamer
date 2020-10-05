@@ -54,7 +54,7 @@ fi
 
 # Test constant passthrough custom filter (1, 2)
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough.${SO_EXT}"
+    PATH_TO_MODEL="../../build/nnstreamer_example/libnnstreamer_customfilter_passthrough.${SO_EXT}"
 else
     PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_passthrough.${SO_EXT}"
 fi
@@ -70,7 +70,7 @@ callCompareTest testcase02.direct.log testcase02.passthrough.log 2 "Compare 2" 0
 # Test variable-dim passthrough custom filter (3, 4)
 
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL_V="../../build/nnstreamer_example/custom_example_passthrough/libnnstreamer_customfilter_passthrough_variable.${SO_EXT}"
+    PATH_TO_MODEL_V="../../build/nnstreamer_example/libnnstreamer_customfilter_passthrough_variable.${SO_EXT}"
 else
     PATH_TO_MODEL_V="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_passthrough_variable.${SO_EXT}"
 fi
@@ -91,7 +91,7 @@ callCompareTest testcase04.tensors.direct.log testcase04.tensors.passthrough.log
 
 # Test scaler (5, 6, 7)
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL_S="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler.${SO_EXT}"
+    PATH_TO_MODEL_S="../../build/nnstreamer_example/libnnstreamer_customfilter_scaler.${SO_EXT}"
 else
     PATH_TO_MODEL_S="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_scaler.${SO_EXT}"
 fi
@@ -108,7 +108,7 @@ testResult $? 7 "Golden test comparison" 0 1
 
 # Test average (8)
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.${SO_EXT}"
+    PATH_TO_MODEL_A="../../build/nnstreamer_example/libnnstreamer_customfilter_average.${SO_EXT}"
 else
     PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_average.${SO_EXT}"
 fi
@@ -123,7 +123,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 
 # Test scaler + in-invoke allocator (11)
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL_SI="../../build/nnstreamer_example/custom_example_scaler/libnnstreamer_customfilter_scaler_allocator.${SO_EXT}"
+    PATH_TO_MODEL_SI="../../build/nnstreamer_example/libnnstreamer_customfilter_scaler_allocator.${SO_EXT}"
 else
     PATH_TO_MODEL_SI="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_scaler_allocator.${SO_EXT}"
 fi
@@ -136,7 +136,7 @@ testResult $? 11 "Golden test comparison" 0 1
 # Test scaler using OpenCV (12, 13, 14)
 if [ "$TEST_OPENCV" == "YES" ]; then
     if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-        PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_opencv/libnnstreamer_customfilter_opencv_scaler.${SO_EXT}"
+        PATH_TO_MODEL="../../build/nnstreamer_example/libnnstreamer_customfilter_opencv_scaler.${SO_EXT}"
     else
         PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_scaler.${SO_EXT}"
     fi
@@ -159,7 +159,7 @@ if [ "$TEST_OPENCV" == "YES" ]; then
     # Test average using OpenCV (15)
     # custom version
     if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-        PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_average/libnnstreamer_customfilter_average.${SO_EXT}"
+        PATH_TO_MODEL_A="../../build/nnstreamer_example/libnnstreamer_customfilter_average.${SO_EXT}"
     else
         PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_average.${SO_EXT}"
     fi
@@ -167,7 +167,7 @@ if [ "$TEST_OPENCV" == "YES" ]; then
 
     # OpenCV version
     if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-        PATH_TO_MODEL_A="../../build/nnstreamer_example/custom_example_opencv/libnnstreamer_customfilter_opencv_average.${SO_EXT}"
+        PATH_TO_MODEL_A="../../build/nnstreamer_example/libnnstreamer_customfilter_opencv_average.${SO_EXT}"
     else
         PATH_TO_MODEL_A="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_opencv_average.${SO_EXT}"
     fi
@@ -183,7 +183,7 @@ fi
 # Test reshape using TensorRT (16)
 if [ "$TEST_TENSORRT" == "YES" ]; then
   if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    PATH_TO_MODEL="../../build/nnstreamer_example/custom_example_tensorrt/libnnstreamer_customfilter_tensorrt_reshape.${SO_EXT}"
+    PATH_TO_MODEL="../../build/nnstreamer_example/libnnstreamer_customfilter_tensorrt_reshape.${SO_EXT}"
   else
     PATH_TO_MODEL="${CUSTOMLIB_DIR}/libnnstreamer_customfilter_tensorrt_reshape.${SO_EXT}"
   fi

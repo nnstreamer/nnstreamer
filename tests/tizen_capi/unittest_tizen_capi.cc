@@ -3525,8 +3525,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_passthrough", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5810,8 +5809,8 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_scaler", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
+      NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5892,8 +5891,8 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_scaler", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
+      NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5976,8 +5975,8 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_scaler", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
+      NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -6064,8 +6063,8 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
     root_path = "..";
 
   /* custom-passthrough */
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_passthrough", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
+      NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -9356,8 +9355,8 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example",
-      "custom_example_passthrough", cf_name, NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
+      NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_validate_model_file (NULL, 1, &nnfw);
@@ -9393,8 +9392,8 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
   if (broot_path == NULL)
     broot_path = ".";
 
-  test_model1 = g_build_filename (broot_path, "nnstreamer_example",
-      "custom_example_passthrough", cf_name, NULL);
+  test_model1 = g_build_filename (broot_path, "nnstreamer_example", cf_name,
+      NULL);
   test_model2 = g_build_filename (sroot_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model1, G_FILE_TEST_EXISTS));

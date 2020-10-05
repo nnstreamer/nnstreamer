@@ -39,7 +39,7 @@ if [ ! -d "${PATH_TO_PLUGIN}" ]; then
 fi
 
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    LSTM_DIR="../../build/nnstreamer_example/custom_example_LSTM"
+    LSTM_DIR="../../build/nnstreamer_example"
 else
     LSTM_DIR="${CUSTOMLIB_DIR}"
 fi

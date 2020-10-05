@@ -25,7 +25,7 @@ if [ ! -d "${PATH_TO_PLUGIN}" ]; then
 fi
 
 if [[ -z "${CUSTOMLIB_DIR}" ]]; then
-    RNN_DIR="../../build/nnstreamer_example/custom_example_RNN"
+    RNN_DIR="../../build/nnstreamer_example"
 else
     RNN_DIR="${CUSTOMLIB_DIR}"
 fi
