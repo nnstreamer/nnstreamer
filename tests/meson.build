@@ -1,18 +1,3 @@
-# These custom filters are used in unittest_sink.
-library('nnscustom_framecounter',
-  join_paths('nnstreamer_sink', 'nnscustom_framecounter.c'),
-  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
-  install: get_option('install-test'),
-  install_dir: customfilter_install_dir
-)
-
-library('nnscustom_drop_buffer',
-  join_paths('nnstreamer_sink', 'nnscustom_drop_buffer.c'),
-  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
-  install: get_option('install-test'),
-  install_dir: customfilter_install_dir
-)
-
 # Build and copy exe for ssat
 copy = find_program('cp', required: true)
 libpng_dep = dependency('libpng', required: false)
