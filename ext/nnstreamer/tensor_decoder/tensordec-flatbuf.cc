@@ -70,6 +70,7 @@ fb_decode (void **pdata, const GstTensorsConfig * config,
 {
   char *name;
   Tensor_type type;
+  guint rank;
   GstMapInfo out_info;
   GstMemory *out_mem;
   unsigned int i, num_tensors = config->info.num_tensors;
@@ -96,13 +97,14 @@ fb_decode (void **pdata, const GstTensorsConfig * config,
       tensor_name = builder.CreateString (name);
 
     type = (Tensor_type) config->info.info[i].type;
+    rank = config->info.info[i].rank;
 
     /* Create the vector first, and fill in data later */
     /** @todo Consider to remove memcpy */
     input_vector = builder.CreateUninitializedVector<unsigned char> (input[i].size, &tmp_buf);
     memcpy (tmp_buf, input[i].data, input[i].size);
 
-    tensor = CreateTensor (builder, tensor_name, type, dim, input_vector);
+    tensor = CreateTensor (builder, tensor_name, type, dim, rank, input_vector);
     tensor_vector.push_back (tensor);
   }
 

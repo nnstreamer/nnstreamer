@@ -108,6 +108,7 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   info->name = NULL;
   info->type = _NNS_END;
+  info->rank = 0;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     info->dimension[i] = 0;
@@ -208,6 +209,9 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
 
   dest->name = g_strdup (src->name);
   dest->type = src->type;
+
+  if (src->rank > 0 && src->rank <= NNS_TENSOR_RANK_LIMIT)
+    dest->rank = src->rank;
 
   for (i = 0; i < n; i++) {
     dest->dimension[i] = src->dimension[i];
@@ -403,7 +407,8 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     }
 
     for (i = 0; i < num_dims; i++) {
-      gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
+      info->info[i].rank =
+          gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
     }
 
     g_strfreev (str_dims);
@@ -677,7 +682,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
 
   if (gst_structure_has_field (structure, "dimension")) {
     const gchar *dim_str = gst_structure_get_string (structure, "dimension");
-    gst_tensor_parse_dimension (dim_str, info->dimension);
+    info->rank = gst_tensor_parse_dimension (dim_str, info->dimension);
   }
 
   if (gst_structure_has_field (structure, "type")) {

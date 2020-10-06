@@ -79,6 +79,8 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig * config,
       tensor->add_dimension (config->info.info[i].dimension[j]);
     }
 
+    tensor->set_rank (config->info.info[i].rank);
+
     tensor->set_data (input[i].data, (int) input[i].size);
   }
 
@@ -144,6 +146,7 @@ gst_tensor_converter_protobuf (GstBuffer * in_buf, gsize * frame_size,
     const nnstreamer::protobuf::Tensor *tensor = &tensors.tensor (i);
     config->info.info[i].name = g_strdup (tensor->name ().c_str ());
     config->info.info[i].type = (tensor_type) tensor->type ();
+    config->info.info[i].rank = tensor->rank ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
       config->info.info[i].dimension[j] = tensor->dimension (j);
     }

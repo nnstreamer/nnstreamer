@@ -33,6 +33,7 @@ table Tensor {
   name  : string;
   type : Tensor_type = NNS_END;
   dimension : [uint32]; // support up to 4th ranks.
+  rank : uint32;
   data : [ubyte]; 
 }
 

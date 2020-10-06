@@ -63,8 +63,9 @@ fbc_get_out_config (const GstCaps * in_cap, GstTensorsConfig * config)
   /* All tensor info should be updated later in chain function. */
   config->info.info[0].type = _NNS_UINT8;
   config->info.num_tensors = 1;
-  if (gst_tensor_parse_dimension ("1:1:1:1",
-          config->info.info[0].dimension) == 0) {
+  config->info.info[0].rank = gst_tensor_parse_dimension ("1:1:1:1", config->info.info[0].dimension);
+
+  if (config->info.info[0].rank == 0) {
     ml_loge ("Failed to set initial dimension for subplugin");
     return FALSE;
   }

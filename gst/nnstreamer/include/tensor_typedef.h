@@ -172,6 +172,7 @@ typedef struct
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+  unsigned int rank; /** < Rank of the tensor. */
 } GstTensorInfo;
 
 /**

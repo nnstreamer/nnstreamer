@@ -18,7 +18,8 @@ message Tensor {
   }
   Tensor_type type = 2;
   repeated uint32 dimension = 3;
-  bytes data = 4;
+  uint32 rank = 4;
+  bytes data = 5;
 }
 
 message Tensors {

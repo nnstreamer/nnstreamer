@@ -789,6 +789,37 @@ TEST (common_tensors_info_string, names)
 }
 
 /**
+ * @brief Test for rank in tensors info, which is based on dimensions string.
+ */
+TEST (common_tensors_info_string, rank)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+
+  /* Default rank: 0 */
+  EXPECT_EQ (info.info[0].rank, 0U);
+
+  /* The rank of single tensor: 2 */
+  gst_tensors_info_parse_dimensions_string (&info, "1024:768");
+  EXPECT_EQ (info.info[0].rank, 2U);
+
+  /* The rank of single tensor: 4 */
+  gst_tensors_info_parse_dimensions_string (&info, "1:2:3:4");
+  EXPECT_EQ (info.info[0].rank, 4U);
+
+  /* The rank of 4 tensors: 1, 2, 3 and 4 */
+  gst_tensors_info_parse_dimensions_string (&info, "1, 2:2, 3:3:3, 4:4:4:4");
+  for (unsigned int i = 1; i <= 4; ++i)
+    EXPECT_EQ (info.info[i-1].rank, i);
+
+  /* All rank of 4 tensors: 4 */
+  gst_tensors_info_parse_dimensions_string (&info, "1:1:1:1, 2:2:2:2, 3:3:3:3, 4:4:4:4");
+  for (unsigned int i = 1; i <= 4; ++i)
+    EXPECT_EQ (info.info[i-1].rank, 4U);
+}
+
+/**
  * @brief Test to replace string.
  */
 TEST (common_string_util, replace_str_01)
