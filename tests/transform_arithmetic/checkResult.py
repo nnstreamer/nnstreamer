@@ -67,7 +67,7 @@ def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, v
   return 0
 
 def readfile (filename):
-  F = open(filename, 'r')
+  F = open(filename, 'rb')
   readfile = F.read()
   F.close
   return readfile
