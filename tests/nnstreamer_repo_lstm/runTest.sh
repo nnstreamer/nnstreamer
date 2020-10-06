@@ -61,7 +61,7 @@ tensor_demux name=demux \
         t. ! queue ! multifilesink location=\"out_%1d.log\" \
     tensor_reposrc slot-index=0 silent=false caps=\"other/tensor,dimension=(string)4:4:4:1,type=(string)float32,framerate=(fraction)0/1\" ! mux.sink_0 \
     tensor_reposrc slot-index=1 silent=false caps=\"other/tensor,dimension=(string)4:4:4:1,type=(string)float32,framerate=(fraction)0/1\" ! mux.sink_1 \
-    filesrc location=\"video_4x4xBGRx.xraw\" ! application/octet-stream ! tensor_converter input-dim=4:4:4:1 input-type=float32 ! mux.sink_2" 
+    filesrc location=\"video_4x4xBGRx.xraw\" ! application/octet-stream ! tensor_converter input-dim=4:4:4:1 input-type=float32 ! mux.sink_2" \
 1 0 0 $PERFORMANCE
 
 callCompareTest lstm.golden out_9.log 1-1 "Compare 1-1" 1 0
