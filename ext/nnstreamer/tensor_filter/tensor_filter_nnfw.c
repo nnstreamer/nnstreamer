@@ -82,6 +82,9 @@ static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
 static int nnfw_tensors_info_get (const nnfw_pdata * pdata,
     const gboolean is_input, GstTensorsInfo * info, NNFW_TYPE * type);
+static int nnfw_invoke (const GstTensorFilterProperties * prop,
+    void **private_data, const GstTensorMemory * input,
+    GstTensorMemory * output);
 
 /**
  * @brief parse user given input to extract accelerator to be used by nnfw
@@ -509,6 +512,47 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Internal function to invoke with dummy data.
+ * When changing the input shape, NNFW will update the output shape after the invoke process is done.
+ */
+static void
+nnfw_invoke_dummy (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  guint i;
+
+  for (i = 0; i < in_info->num_tensors; ++i) {
+    input[i].size = gst_tensor_info_get_size (&in_info->info[i]);
+    input[i].data = g_malloc (input[i].size);
+  }
+
+  /* The output shape would be changed, set enough size for output buffer. */
+  for (i = 0; i < out_info->num_tensors; ++i) {
+    output[i].size = gst_tensor_info_get_size (&out_info->info[i]) * 2;
+    output[i].data = g_malloc (output[i].size);
+  }
+
+  while (nnfw_invoke (prop, private_data,  input, output) != 0) {
+    g_warning ("Invoke failed, reallocate output tensors and retry.");
+    for (i = 0; i < out_info->num_tensors; ++i) {
+      output[i].size *= 2;
+      output[i].data = g_realloc (output[i].data, output[i].size);
+    }
+  }
+
+  for (i = 0; i < in_info->num_tensors; ++i) {
+    g_free (input[i].data);
+    input[i].data = NULL;
+  }
+  for (i = 0; i < out_info->num_tensors; ++i) {
+    g_free (output[i].data);
+    output[i].data = NULL;
+  }
+}
+
+/**
  * @brief The standard tensor_filter callback
  */
 static int
@@ -541,6 +585,9 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   if (err || !gst_tensors_info_is_equal (in_info, &updated_info))
     goto error;
 
+  /* Invoke with dummy. NNFW updates output info after the invoke is done. */
+  nnfw_invoke_dummy (prop, private_data, &updated_info, &pdata->out_info);
+
   err = nnfw_tensors_info_get (pdata, FALSE, out_info, out_type);
   if (err)
     goto error;
@@ -559,6 +606,7 @@ error:
     nnfw_tensor_info_set (pdata, &pdata->in_info, idx);
   }
 
+  nnfw_invoke_dummy (prop, private_data, &pdata->in_info, &pdata->out_info);
   return err;
 }
 
@@ -636,8 +684,10 @@ nnfw_invoke (const GstTensorFilterProperties * prop,
   nnfw_status = nnfw_run (pdata->session);
   stop_time = g_get_monotonic_time ();
 
-  if (G_UNLIKELY(nnfw_status != NNFW_STATUS_NO_ERROR))
+  if (G_UNLIKELY (nnfw_status != NNFW_STATUS_NO_ERROR)) {
+    g_printerr ("Failed to invoke the model in nnfw (%d).", nnfw_status);
     err = -EINVAL;
+  }
 
   nnfw_internal_stats.total_invoke_latency += stop_time - start_time;
   nnfw_internal_stats.total_invoke_num += 1;
