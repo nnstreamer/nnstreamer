@@ -242,7 +242,7 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
       break;
   }
 
-  return idx + 1;
+  return NNS_TENSOR_RANK_LIMIT - idx;
 }
 
 /**
