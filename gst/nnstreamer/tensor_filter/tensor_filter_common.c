@@ -1676,8 +1676,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         dim_str = gst_tensors_info_get_dimensions_string (&prop->input_meta);
 
-        g_value_set_string (value, dim_str);
-        g_free (dim_str);
+        g_value_take_string (value, dim_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1688,8 +1687,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         dim_str = gst_tensors_info_get_dimensions_string (&prop->output_meta);
 
-        g_value_set_string (value, dim_str);
-        g_free (dim_str);
+        g_value_take_string (value, dim_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1700,8 +1698,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         type_str = gst_tensors_info_get_types_string (&prop->input_meta);
 
-        g_value_set_string (value, type_str);
-        g_free (type_str);
+        g_value_take_string (value, type_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1712,8 +1709,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         type_str = gst_tensors_info_get_types_string (&prop->output_meta);
 
-        g_value_set_string (value, type_str);
-        g_free (type_str);
+        g_value_take_string (value, type_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1724,8 +1720,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         name_str = gst_tensors_info_get_names_string (&prop->input_meta);
 
-        g_value_set_string (value, name_str);
-        g_free (name_str);
+        g_value_take_string (value, name_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1736,8 +1731,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 
         name_str = gst_tensors_info_get_names_string (&prop->output_meta);
 
-        g_value_set_string (value, name_str);
-        g_free (name_str);
+        g_value_take_string (value, name_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1803,8 +1797,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         layout_str = gst_tensors_get_layout_string (&prop->input_meta,
             prop->input_layout);
 
-        g_value_set_string (value, layout_str);
-        g_free (layout_str);
+        g_value_take_string (value, layout_str);
       } else {
         g_value_set_string (value, "");
       }
@@ -1816,8 +1809,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         layout_str = gst_tensors_get_layout_string (&prop->output_meta,
             prop->output_layout);
 
-        g_value_set_string (value, layout_str);
-        g_free (layout_str);
+        g_value_take_string (value, layout_str);
       } else {
         g_value_set_string (value, "");
       }
