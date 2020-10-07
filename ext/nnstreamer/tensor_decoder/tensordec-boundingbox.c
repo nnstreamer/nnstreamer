@@ -776,10 +776,10 @@ nms (GArray * results)
       detectedObject object; \
       object.valid = TRUE; \
       object.class_id = (int) classes_[d]; \
-      object.x = (int) (boxes_[d * boxbpi + 1] * bb->width); \
-      object.y = (int) (boxes_[d * boxbpi] * bb->height); \
-      object.width = (int) ((boxes_[d * boxbpi + 3] - boxes_[d * boxbpi + 1]) * bb->width); \
-      object.height = (int) ((boxes_[d * boxbpi + 2] - boxes_[d * boxbpi]) * bb->height); \
+      object.x = (int) (boxes_[d * boxbpi + 1] * bb->i_width); \
+      object.y = (int) (boxes_[d * boxbpi] * bb->i_height); \
+      object.width = (int) ((boxes_[d * boxbpi + 3] - boxes_[d * boxbpi + 1]) * bb->i_width); \
+      object.height = (int) ((boxes_[d * boxbpi + 2] - boxes_[d * boxbpi]) * bb->i_height); \
       object.prob = scores_[d]; \
       g_array_append_val (results, object); \
     } \
