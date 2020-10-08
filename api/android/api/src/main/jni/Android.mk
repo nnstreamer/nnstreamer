@@ -63,8 +63,6 @@ endif
 #------------------------------------------------------
 ifeq ($(ENABLE_TF_LITE),true)
 NNS_API_FLAGS += -DENABLE_TENSORFLOW_LITE=1
-# define types in tensorflow-lite sub-plugin. This assumes tensorflow-lite >= 1.13 (older versions don't have INT8/INT16)
-NNS_API_FLAGS += -DTFLITE_INT8=1 -DTFLITE_INT16=1
 NNS_SUBPLUGINS += tensorflow-lite-subplugin
 
 include $(LOCAL_PATH)/Android-tensorflow-lite.mk

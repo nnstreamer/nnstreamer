@@ -330,6 +330,7 @@ fi
 if [[ $enable_tflite == "yes" ]]; then
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
+    sed -i "s|TFLITE_VERSION := 1.13.1|TFLITE_VERSION := $tf_lite_ver|" api/src/main/jni/Android-tensorflow-lite.mk
     tar -xJf ./external/tensorflow-lite-$tf_lite_ver.tar.xz -C ./api/src/main/jni
 fi
 
