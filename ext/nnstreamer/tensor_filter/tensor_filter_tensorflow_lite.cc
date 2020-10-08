@@ -1145,10 +1145,10 @@ tflite_checkAvailability (accl_hw hw)
   return -ENOENT;
 }
 
-#if TFLITE_VERSION_MAJOR == 1
-static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
-#else
+#if TFLITE_VERSION_MAJOR == 2 && !defined(__ANDROID__)
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow2-lite";
+#else
+static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 #endif
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite = {
