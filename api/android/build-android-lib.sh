@@ -13,7 +13,7 @@
 # - NNSTREAMER_ROOT: NNStreamer root directory
 #
 # To include sub-plugin for SNAP, you also should define the variable 'SNAP_DIRECTORY'.
-# - SNAP_DIRECTORY: Absolute path for SNAP, tensor-filter sub-plugin and prebuilt library.
+# - SNAP_DIRECTORY: Absolute path to SNAP SDK interface.
 #
 # Build options
 # --build_type (default 'all', 'lite' to build with GStreamer core plugins)
@@ -281,7 +281,10 @@ sed -i "s|sdk.dir=sdk-path|sdk.dir=$android_sdk_dir|" local.properties
 if [[ $enable_snap == "yes" ]]; then
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android-nnstreamer-prebuilt.mk
     sed -i "s|ENABLE_SNAP := false|ENABLE_SNAP := true|" api/src/main/jni/Android.mk
-    cp -r $SNAP_DIRECTORY/* api/src/main/jni
+
+    mkdir -p api/src/main/jni/snap/include api/src/main/jni/snap/lib
+    cp $SNAP_DIRECTORY/*.h api/src/main/jni/snap/include
+    cp $SNAP_DIRECTORY/*.so api/src/main/jni/snap/lib
 fi
 
 # Update NNFW option
