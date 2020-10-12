@@ -109,6 +109,10 @@ NNSTREAMER_FILTER_CAFFE2_SRCS := \
 NNSTREAMER_FILTER_SNPE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe.cc
 
+# filter snap
+NNSTREAMER_FILTER_SNAP_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc
+
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c \
