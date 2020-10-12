@@ -369,8 +369,14 @@ replace_string (gchar * source, const gchar * what, const gchar * to, const gcha
 extern gchar *
 nnstreamer_version_string (void);
 
-extern void nnstreamer_version_fetch (guint * major, guint * minor,
-    guint * micro);
+/**
+ * @brief Get the version of NNStreamer (int, divided).
+ * @param[out] major MAJOR.minor.micro, won't set if it's null.
+ * @param[out] minor major.MINOR.micro, won't set if it's null.
+ * @param[out] micro major.minor.MICRO, won't set if it's null.
+ */
+extern void
+nnstreamer_version_fetch (guint * major, guint * minor, guint * micro);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
