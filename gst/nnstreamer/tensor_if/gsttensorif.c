@@ -983,6 +983,8 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstTensorIf *tensor_if;
   gboolean condition_result, created;
   GstClockTime ts;
+  tensor_if_behavior curr_act;
+  GList *curr_act_option;
   tensor_if = GST_TENSOR_IF (parent);
 
   num_tensors = tensor_if->in_config.info.num_tensors;
@@ -992,60 +994,72 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
 
   condition_result = gst_tensor_if_check_condition (tensor_if, buf);
-  if (condition_result == FALSE)
-    goto done;
-
-  for (i = 0; i < num_tensors; i++) {
-    GstTensorPad *srcpad;
-    GstBuffer *outbuf;
-    GstMemory *mem;
-
-    /** @todo For TENSORPICK action. */
-    // if (tensor_if->then_option != NULL) {
-    //   gboolean found = FALSE;
-    //   GList *list;
-    //   for (list = tensor_if->then_option; list != NULL; list = list->next) {
-    //     if (i == GPOINTER_TO_INT (list->data)) {
-    //       found = TRUE;
-    //       break;
-    //     }
-    //   }
-    //   if (!found)
-    //     continue;
-    // }
-
-    srcpad = gst_tensor_if_get_tensor_pad (tensor_if, &created, i);
-
-    if (created) {
-      GstSegment segment;
-      gst_segment_init (&segment, GST_FORMAT_TIME);
-      gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
-    }
-
-    outbuf = gst_buffer_new ();
-    mem = gst_buffer_get_memory (buf, i);
-    gst_buffer_append_memory (outbuf, mem);
-
-    outbuf = gst_buffer_make_writable (outbuf);
-
-    /* metadata from incoming buffer */
-    gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-    ts = GST_BUFFER_TIMESTAMP (buf);
-    if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
-      srcpad->last_ts = ts;
-    } else {
-      GST_DEBUG_OBJECT (tensor_if, "invalid timestamp %" GST_TIME_FORMAT,
-          GST_TIME_ARGS (ts));
-    }
-
-    res = gst_pad_push (srcpad->pad, outbuf);
-    res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
-
-    if (res != GST_FLOW_OK)
-      break;
+  if (condition_result == TRUE) {
+    curr_act = tensor_if->act_then;
+    curr_act_option = tensor_if->then_option;
+  } else {
+    curr_act = tensor_if->act_else;
+    curr_act_option = tensor_if->else_option;
   }
-done:
+
+  switch (curr_act) {
+    case TIFB_PASSTHROUGH:
+    case TIFB_TENSORPICK:
+    {
+      for (i = 0; i < num_tensors; i++) {
+        GstTensorPad *srcpad;
+        GstBuffer *outbuf;
+        GstMemory *mem;
+
+        if (curr_act == TIFB_TENSORPICK && curr_act_option != NULL) {
+          gboolean found = FALSE;
+          GList *list;
+          for (list = curr_act_option; list != NULL; list = list->next) {
+            if (i == GPOINTER_TO_INT (list->data)) {
+              found = TRUE;
+              break;
+            }
+          }
+          if (!found) {
+            continue;
+          }
+        }
+
+        srcpad = gst_tensor_if_get_tensor_pad (tensor_if, &created, i);
+
+        if (created) {
+          GstSegment segment;
+          gst_segment_init (&segment, GST_FORMAT_TIME);
+          gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+        }
+
+        outbuf = gst_buffer_new ();
+        mem = gst_buffer_get_memory (buf, i);
+        gst_buffer_append_memory (outbuf, mem);
+
+        outbuf = gst_buffer_make_writable (outbuf);
+
+        /* metadata from incoming buffer */
+        gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+        ts = GST_BUFFER_TIMESTAMP (buf);
+        if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
+          srcpad->last_ts = ts;
+        } else {
+          GST_DEBUG_OBJECT (tensor_if, "invalid timestamp %" GST_TIME_FORMAT,
+              GST_TIME_ARGS (ts));
+        }
+
+        res = gst_pad_push (srcpad->pad, outbuf);
+        res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
+      }
+    case TIFB_SKIP:
+      break;
+    default:
+      GST_DEBUG_OBJECT (tensor_if, " Not defined behavior");
+      break;
+    }
+  }
   gst_buffer_unref (buf);
   return res;
 }
