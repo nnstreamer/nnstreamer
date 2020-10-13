@@ -31,7 +31,4 @@ RUN apt install -y \
 
 WORKDIR /opt/nnstreamer/
 RUN meson build
-RUN ninja -C build
-
-WORKDIR /opt/nnstreamer/build/
-RUN ninja install
+RUN ninja -C build install
