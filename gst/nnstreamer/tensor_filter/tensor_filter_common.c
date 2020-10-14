@@ -106,10 +106,12 @@ enum
   PROP_INPUTTYPE,
   PROP_INPUTNAME,
   PROP_INPUTLAYOUT,
+  PROP_INPUTRANKS,
   PROP_OUTPUT,
   PROP_OUTPUTTYPE,
   PROP_OUTPUTNAME,
   PROP_OUTPUTLAYOUT,
+  PROP_OUTPUTRANKS,
   PROP_CUSTOM,
   PROP_SUBPLUGINS,
   PROP_ACCELERATOR,
@@ -128,6 +130,18 @@ gst_tensors_layout_init (tensors_layout layout)
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
     layout[i] = _NNS_LAYOUT_ANY;
+  }
+}
+
+/**
+ * @brief Initialize the tensors ranks
+ */
+static void
+gst_tensors_rank_init (unsigned int ranks[])
+{
+  int i;
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
+    ranks[i] = 0;
   }
 }
 
@@ -204,6 +218,52 @@ gst_tensors_parse_layouts_string (tensors_layout layout,
   }
 
   return num_layouts;
+}
+
+/**
+ * @brief Get the rank string of the tensors
+ * @param prop GstTensorFilterProperties object
+ * @param isInput TRUE if target is input tensors
+ * @return rank string of the tensors
+ */
+static gchar *
+gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
+    gboolean isInput)
+{
+  gchar *rank_str = NULL;
+  guint i;
+  guint num_tenosrs;
+
+  g_return_val_if_fail (prop != NULL, NULL);
+
+  num_tenosrs =
+      isInput ? prop->input_meta.num_tensors : prop->output_meta.num_tensors;
+
+  if (num_tenosrs > 0) {
+    GString *rank = g_string_new (NULL);
+
+    for (i = 0; i < num_tenosrs; ++i) {
+      if (isInput) {
+        if (prop->input_ranks[i] != 0)
+          g_string_append_printf (rank, "%u", prop->input_ranks[i]);
+        else
+          g_string_append_printf (rank, "%d",
+              gst_tensor_info_get_rank (&prop->input_meta.info[i]));
+      } else {
+        if (prop->output_ranks[i] != 0)
+          g_string_append_printf (rank, "%u", prop->output_ranks[i]);
+        else
+          g_string_append_printf (rank, "%d",
+              gst_tensor_info_get_rank (&prop->output_meta.info[i]));
+      }
+
+      if (i < num_tenosrs - 1)
+        g_string_append_printf (rank, ",");
+    }
+    rank_str = g_string_free (rank, FALSE);
+  }
+
+  return rank_str;
 }
 
 /**
@@ -375,10 +435,12 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
   prop->input_configured = FALSE;
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_layout_init (prop->input_layout);
+  gst_tensors_rank_init (prop->input_ranks);
 
   prop->output_configured = FALSE;
   gst_tensors_info_init (&prop->output_meta);
   gst_tensors_layout_init (prop->output_layout);
+  gst_tensors_rank_init (prop->output_ranks);
 
   prop->custom_properties = NULL;
   prop->accl_str = NULL;
@@ -681,6 +743,10 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "Set channel first (NCHW) or channel last layout (NHWC) or None for input data. "
           "Layout of the data can be any or NHWC or NCHW or none for now. ",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INPUTRANKS,
+      g_param_spec_string ("inputranks", "Rank of Input Tensor",
+          "The Rank of the Input Tensor, which is separated with ',' in case of multiple Tensors",
+          "", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTNAME,
       g_param_spec_string ("outputname", "Name of Output Tensor",
           "The Name of Output Tensor", "",
@@ -698,6 +764,10 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "Set channel first (NCHW) or channel last layout (NHWC) or None for output data. "
           "Layout of the data can be any or NHWC or NCHW or none for now. ",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTRANKS,
+      g_param_spec_string ("outputranks", "Rank of Out Tensor",
+          "The Rank of the Out Tensor, which is separated with ',' in case of multiple Tensors",
+          "", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CUSTOM,
       g_param_spec_string ("custom", "Custom properties for subplugins",
           "Custom properties for subplugins ?", "",
@@ -1144,9 +1214,24 @@ _gtfc_setprop_INPUT (GstTensorFilterPrivate * priv,
 {
   if (!prop->input_configured && value) {
     guint num_dims;
+    gchar **str_dims;
+    guint i;
 
-    num_dims = gst_tensors_info_parse_dimensions_string (&prop->input_meta,
-        g_value_get_string (value));
+    str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
+    num_dims = g_strv_length (str_dims);
+
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
+          num_dims, NNS_TENSOR_SIZE_LIMIT);
+
+      num_dims = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_dims; ++i) {
+      prop->input_ranks[i] = gst_tensor_parse_dimension (str_dims[i],
+          prop->input_meta.info[i].dimension);
+    }
+    g_strfreev (str_dims);
 
     if (num_dims > 0) {
       if (prop->input_meta.num_tensors > 0 &&
@@ -1172,9 +1257,24 @@ _gtfc_setprop_OUTPUT (GstTensorFilterPrivate * priv,
 {
   if (!prop->output_configured && value) {
     guint num_dims;
+    gchar **str_dims;
+    guint i;
 
-    num_dims = gst_tensors_info_parse_dimensions_string (&prop->output_meta,
-        g_value_get_string (value));
+    str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
+    num_dims = g_strv_length (str_dims);
+
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
+      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
+          num_dims, NNS_TENSOR_SIZE_LIMIT);
+
+      num_dims = NNS_TENSOR_SIZE_LIMIT;
+    }
+
+    for (i = 0; i < num_dims; ++i) {
+      prop->output_ranks[i] = gst_tensor_parse_dimension (str_dims[i],
+          prop->output_meta.info[i].dimension);
+    }
+    g_strfreev (str_dims);
 
     if (num_dims > 0) {
       if (prop->output_meta.num_tensors > 0 &&
@@ -1689,6 +1789,30 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         dim_str = gst_tensors_info_get_dimensions_string (&prop->output_meta);
 
         g_value_take_string (value, dim_str);
+      } else {
+        g_value_set_string (value, "");
+      }
+      break;
+    case PROP_INPUTRANKS:
+      if (prop->input_meta.num_tensors > 0) {
+        gchar *rank_str;
+
+        rank_str = gst_tensors_get_rank_string (prop, TRUE);
+
+        g_value_set_string (value, rank_str);
+        g_free (rank_str);
+      } else {
+        g_value_set_string (value, "");
+      }
+      break;
+    case PROP_OUTPUTRANKS:
+      if (prop->output_meta.num_tensors > 0) {
+        gchar *rank_str;
+
+        rank_str = gst_tensors_get_rank_string (prop, FALSE);
+
+        g_value_set_string (value, rank_str);
+        g_free (rank_str);
       } else {
         g_value_set_string (value, "");
       }
