@@ -239,6 +239,10 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
 #if (DBG)
   g_critical ("Invoke() is finished: %" G_GINT64_FORMAT,
       (stop_time - start_time));
+  g_critical ("%ld invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
+      tflite_internal_stats.total_invoke_num,
+      (tflite_internal_stats.total_invoke_latency / tflite_internal_stats.total_invoke_num),
+      tflite_internal_stats.total_overhead_latency);
 #endif
 
   if (status != kTfLiteOk) {
