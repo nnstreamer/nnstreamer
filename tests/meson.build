@@ -136,6 +136,10 @@ if gtest_dep.found()
   if get_option('enable-openvino')
     subdir('nnstreamer_filter_openvino')
   endif
+
+  if mxnet_support_is_available
+    subdir('nnstreamer_filter_mxnet')
+  endif
 endif # gtest_dep.found()
 
 # Install data required for unittest
@@ -146,7 +150,8 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     have_python2 or have_python3 or \
     pytorch_support_is_available or caffe2_support_is_available or \
     nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
-    mvncsdk2_support_is_available or get_option('enable-openvino')
+    mvncsdk2_support_is_available or get_option('enable-openvino') or \
+    mxnet_support_is_available
 if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
@@ -182,6 +187,9 @@ if get_option('install-test')
   endif
   if mvncsdk2_support_is_available
     install_subdir('unittest_filter_mvncsdk2', install_dir: unittest_tests_install_dir)
+  endif
+  if mxnet_support_is_available
+    install_subdir('unittest_filter_mxnet', install_dir: unittest_tests_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_rate', install_dir: unittest_tests_install_dir)
