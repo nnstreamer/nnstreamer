@@ -1854,3 +1854,18 @@ findExternalConverter (const char *media_type)
 
   return NULL;
 }
+
+/**
+ * @brief set custom property description for tensor converter sub-plugin
+ */
+void
+nnstreamer_converter_set_custom_property_desc (const char *name,
+    const char *prop, ...)
+{
+  va_list varargs;
+
+  va_start (varargs, prop);
+  subplugin_set_custom_property_desc (NNS_SUBPLUGIN_CONVERTER, name, prop,
+      varargs);
+  va_end (varargs);
+}

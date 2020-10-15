@@ -120,6 +120,12 @@ nnstreamer_decoder_exit (const char *name);
 extern const GstTensorDecoderDef *
 nnstreamer_decoder_find (const char *name);
 
+/**
+ * @brief set custom property description for tensor decoder sub-plugin
+ */
+extern void
+nnstreamer_decoder_set_custom_property_desc (const char *name, const char *prop, ...);
+
 #ifdef __cplusplus
 }
 #endif

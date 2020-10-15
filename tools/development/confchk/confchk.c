@@ -23,11 +23,16 @@
 
 #define STR_BOOL(x) ((x) ? "TRUE" : "FALSE")
 
+/**
+ * @brief Dump NNStreamer configurations
+ * @param[in] path the filepath of nnstreamer library
+ */
 static int
 get_nnsconf_dump (const gchar * path)
 {
   void *handle;
   void (*nnsconf_dump) (gchar * str, gulong size);
+  void (*nnsconf_subplugin_dump) (gchar * str, gulong size);
   gchar dump[8192];
 
   handle = dlopen (path, RTLD_LAZY);
@@ -37,16 +42,20 @@ get_nnsconf_dump (const gchar * path)
   }
 
   nnsconf_dump = dlsym (handle, "nnsconf_dump");
-
   if (!nnsconf_dump) {
     g_printerr ("Error loading nnsconf_dump: %s\n", dlerror ());
     dlclose (handle);
     return -2;
   }
 
-  nnsconf_dump (dump, 8192);
+  nnsconf_subplugin_dump = dlsym (handle, "nnsconf_subplugin_dump");
+  if (!nnsconf_subplugin_dump) {
+    g_printerr ("Error loading nnsconf_subplugin_dump: %s\n", dlerror ());
+    dlclose (handle);
+    return -2;
+  }
 
-  dlclose (handle);
+  nnsconf_dump (dump, 8192);
 
   g_print ("\n");
   g_print ("NNStreamer configuration:\n");
@@ -54,9 +63,22 @@ get_nnsconf_dump (const gchar * path)
   g_print ("%s\n", dump);
   g_print ("============================================================\n");
 
+  nnsconf_subplugin_dump (dump, 8192);
+
+  g_print ("\n");
+  g_print ("NNStreamer registered sub-plugins:\n");
+  g_print ("============================================================\n");
+  g_print ("%s\n", dump);
+  g_print ("============================================================\n");
+
+  dlclose (handle);
+
   return 0;
 }
 
+/**
+ * @brief Main routine
+ */
 int
 main (int argc, char *argv[])
 {

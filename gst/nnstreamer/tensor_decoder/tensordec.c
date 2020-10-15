@@ -202,6 +202,21 @@ nnstreamer_decoder_find (const char *name)
 }
 
 /**
+ * @brief set custom property description for tensor decoder sub-plugin
+ */
+void
+nnstreamer_decoder_set_custom_property_desc (const char *name, const char *prop,
+    ...)
+{
+  va_list varargs;
+
+  va_start (varargs, prop);
+  subplugin_set_custom_property_desc (NNS_SUBPLUGIN_DECODER, name, prop,
+      varargs);
+  va_end (varargs);
+}
+
+/**
  * @brief Macro to clean sub-plugin data
  */
 #define gst_tensor_decoder_clean_plugin(self) do { \

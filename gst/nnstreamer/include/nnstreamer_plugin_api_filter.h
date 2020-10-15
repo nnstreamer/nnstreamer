@@ -501,6 +501,12 @@ extern const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name);
 
 /**
+ * @brief set custom property description for tensor filter sub-plugin
+ */
+extern void
+nnstreamer_filter_set_custom_property_desc (const char *name, const char *prop, ...);
+
+/**
  * @brief return accl_hw type from string
  */
 extern accl_hw

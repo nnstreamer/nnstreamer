@@ -171,5 +171,8 @@ nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean 
 extern void
 nnsconf_dump (gchar * str, gulong size);
 
+extern void
+nnsconf_subplugin_dump (gchar * str, gulong size);
+
 G_END_DECLS
 #endif /* __GST_NNSTREAMER_CONF_H__ */
