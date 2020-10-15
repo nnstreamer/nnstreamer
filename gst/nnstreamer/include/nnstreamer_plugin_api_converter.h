@@ -87,6 +87,12 @@ extern int registerExternalConverter (NNStreamerExternalConverter * ex);
  */
 extern void unregisterExternalConverter (const char *prefix);
 
+/**
+ * @brief set custom property description for tensor converter sub-plugin
+ */
+extern void
+nnstreamer_converter_set_custom_property_desc (const char *name, const char *prop, ...);
+
 #ifdef __cplusplus
 }
 #endif

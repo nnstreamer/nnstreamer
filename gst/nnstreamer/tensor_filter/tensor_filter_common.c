@@ -600,6 +600,21 @@ nnstreamer_filter_exit (const char *name)
 }
 
 /**
+ * @brief set custom property description for tensor filter sub-plugin
+ */
+void
+nnstreamer_filter_set_custom_property_desc (const char *name, const char *prop,
+    ...)
+{
+  va_list varargs;
+
+  va_start (varargs, prop);
+  subplugin_set_custom_property_desc (NNS_SUBPLUGIN_FILTER, name, prop,
+      varargs);
+  va_end (varargs);
+}
+
+/**
  * @brief Find filter sub-plugin with the name.
  * @param[in] name The name of filter sub-plugin.
  * @return NULL if not found or the sub-plugin object has an error.

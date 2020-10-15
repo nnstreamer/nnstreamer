@@ -40,6 +40,7 @@ typedef struct
 {
   char *name; /**< The name of subplugin */
   const void *data; /**< subplugin specific data forwarded from the subplugin */
+  GData *custom_dlist; /**< [OPTIONAL] subplugin specific custom property desc list */
 } subpluginData;
 
 static GHashTable *subplugins[NNS_SUBPLUGIN_END] = { 0 };
@@ -52,6 +53,9 @@ static void
 _spdata_destroy (gpointer _data)
 {
   subpluginData *data = _data;
+
+  g_datalist_clear (&data->custom_dlist);
+
   g_free (data->name);
   g_free (data);
 }
@@ -205,6 +209,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
 
   spdata->name = g_strdup (name);
   spdata->data = data;
+  g_datalist_init (&spdata->custom_dlist);
 
   G_LOCK (splock);
   ret = g_hash_table_insert (subplugins[type], g_strdup (name), spdata);
@@ -248,6 +253,54 @@ _close_handle (gpointer data)
 #else
   g_module_close ((GModule *) data);
 #endif
+}
+
+/**
+ * @brief common interface to set custom property description of a sub-plugin.
+ */
+void
+subplugin_set_custom_property_desc (subpluginType type, const char *name,
+    const gchar * prop, va_list varargs)
+{
+  subpluginData *spdata;
+
+  g_return_if_fail (name != NULL);
+  g_return_if_fail (subplugins[type] != NULL);
+
+  spdata = _get_subplugin_data (type, name);
+  g_return_if_fail (spdata != NULL);
+
+  g_datalist_clear (&spdata->custom_dlist);
+
+  while (prop) {
+    gchar *desc = va_arg (varargs, gchar *);
+
+    if (G_UNLIKELY (desc == NULL)) {
+      g_critical ("no description for %s", prop);
+      return;
+    }
+
+    g_datalist_set_data (&spdata->custom_dlist, prop, desc);
+    prop = va_arg (varargs, gchar *);
+  }
+}
+
+/**
+ * @brief common interface to get custom property description of a sub-plugin.
+ */
+GData *
+subplugin_get_custom_property_desc (subpluginType type, const char *name)
+{
+  subpluginData *spdata;
+
+  g_return_val_if_fail (name != NULL, NULL);
+  g_return_val_if_fail (subplugins[type] != NULL, NULL);
+
+  spdata = _get_subplugin_data (type, name);
+  if (spdata)
+    return spdata->custom_dlist;
+
+  return NULL;
 }
 
 /** @brief Create handles at the start of library */

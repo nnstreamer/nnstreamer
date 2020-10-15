@@ -27,6 +27,7 @@
 
 #include "nnstreamer_log.h"
 #include "nnstreamer_conf.h"
+#include "nnstreamer_subplugin.h"
 
 /**
  * Note that users still can place their custom filters anywhere if they
@@ -608,4 +609,86 @@ nnsconf_dump (gchar * str, gulong size)
 
   if (len <= 0)
     g_printerr ("Config dump is too large. The results show partially.\n");
+}
+
+typedef struct
+{
+  gchar *base;
+  gulong size;
+  gulong pos;
+} dump_buf;
+
+/**
+ * @brief foreach callback for custom property
+ */
+static void
+_foreach_custom_property (GQuark key_id, gpointer data, gpointer user_data)
+{
+  dump_buf *buf = (dump_buf *) user_data;
+
+  if (buf->size > buf->pos) {
+    buf->pos += g_snprintf (buf->base + buf->pos, buf->size - buf->pos,
+        "    - %s: %s\n", g_quark_to_string (key_id), (gchar *) data);
+  }
+}
+
+/**
+ * @brief Print out the information of registered sub-plugins
+ */
+void
+nnsconf_subplugin_dump (gchar * str, gulong size)
+{
+  static const nnsconf_type_path dump_list_type[] = {
+    NNSCONF_PATH_FILTERS, NNSCONF_PATH_DECODERS, NNSCONF_PATH_CONVERTERS
+  };
+  static const char *dump_list_str[] = {
+    "Filter", "Decoder", "Conterver"
+  };
+
+  dump_buf buf;
+  subplugin_info_s info;
+  guint i, j, ret;
+
+  if (FALSE == conf.loaded)
+    nnsconf_loadconf (FALSE);
+
+  buf.base = str;
+  buf.size = size;
+  buf.pos = 0;
+
+  for (i = 0; i < sizeof (dump_list_type) / sizeof (nnsconf_type_path); i++) {
+    buf.pos += g_snprintf (buf.base + buf.pos, buf.size - buf.pos,
+        "\n[%s]\n", dump_list_str[i]);
+    if (buf.size <= buf.pos)
+      goto truncated;
+
+    ret = nnsconf_get_subplugin_info (dump_list_type[i], &info);
+    for (j = 0; j < ret; j++) {
+      GData *data;
+
+      if (!get_subplugin (dump_list_type[i], info.names[j]))
+        break;
+
+      buf.pos += g_snprintf (buf.base + buf.pos, buf.size - buf.pos,
+          "  %s\n", info.names[j]);
+      if (buf.size <= buf.pos)
+        goto truncated;
+
+      data =
+          subplugin_get_custom_property_desc (dump_list_type[i], info.names[j]);
+      if (data) {
+        g_datalist_foreach (&data, _foreach_custom_property, &buf);
+      } else {
+        buf.pos += g_snprintf (buf.base + buf.pos, buf.size - buf.pos,
+            "    - No custom property found\n");
+      }
+
+      if (buf.size <= buf.pos)
+        goto truncated;
+    }
+  }
+  return;
+
+truncated:
+  g_printerr ("Config dump is too large. The results show partially.\n");
 }
