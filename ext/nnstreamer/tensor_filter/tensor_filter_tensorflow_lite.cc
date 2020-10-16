@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <algorithm>
+#include <thread>
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
@@ -60,6 +61,7 @@ typedef struct
   const gchar *model_file; /**< path to tensorflow-lite model file */
   const gchar *accelerators; /**< accelerators set for this subplugin */
   gboolean use_nnapi; /**< flag to use NNAPI */
+  gint num_threads; /**< the number of threads */
 } tflite_option_s;
 
 /**
@@ -97,7 +99,7 @@ public:
   ~TFLiteInterpreter ();
 
   int invoke (const GstTensorMemory * input, GstTensorMemory * output, bool use_nnapi);
-  int loadModel (bool use_nnapi);
+  int loadModel (bool use_nnapi, int num_threads);
   void moveInternals (TFLiteInterpreter& interp);
 
   int setInputTensorProp ();
@@ -145,9 +147,7 @@ private:
 class TFLiteCore
 {
 public:
-  TFLiteCore (tflite_option_s * option);
-
-  int init ();
+  int init (tflite_option_s * option);
   int loadModel ();
   gboolean compareModelPath (const char *model_path);
   int setInputTensorProp ();
@@ -162,6 +162,7 @@ public:
 
 private:
   bool use_nnapi;
+  int num_threads;
   accl_hw accelerator;
 
   TFLiteInterpreter interpreter;
@@ -266,7 +267,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteInterpreter::loadModel (bool use_nnapi)
+TFLiteInterpreter::loadModel (bool use_nnapi, int num_threads)
 {
 #if (DBG)
   gint64 start_time = g_get_monotonic_time ();
@@ -290,6 +291,13 @@ TFLiteInterpreter::loadModel (bool use_nnapi)
   }
 
   interpreter->UseNNAPI (use_nnapi);
+  if (num_threads > 0) {
+    int n = static_cast<int> (std::thread::hardware_concurrency ());
+
+    n = MIN (n, num_threads);
+    ml_logi ("Set the number of threads (%d)", n);
+    interpreter->SetNumThreads (n);
+  }
 
   if (interpreter->AllocateTensors () != kTfLiteOk) {
     ml_loge ("Failed to allocate tensors\n");
@@ -553,23 +561,10 @@ fail_exit:
 }
 
 /**
- * @brief	TFLiteCore creator
- * @param	option options to initialize tf-lite model
- * @note	the model of _model_path will be loaded simultaneously
- * @return	Nothing
- */
-TFLiteCore::TFLiteCore (tflite_option_s * option)
-{
-  interpreter.setModelPath (option->model_file);
-
-  setAccelerator (option->accelerators, option->use_nnapi);
-  g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str (accelerator));
-}
-
-/**
  * @brief	Set the accelerator for the tf engine
  */
-void TFLiteCore::setAccelerator (const char * accelerators, bool nnapi)
+void
+TFLiteCore::setAccelerator (const char * accelerators, bool nnapi)
 {
   use_nnapi = nnapi;
   accelerator = parse_accl_hw (accelerators, tflite_accl_support,
@@ -593,6 +588,7 @@ use_nnapi_ini:
 
 /**
  * @brief	initialize the object with tflite model
+ * @param	option options to initialize tf-lite model
  * @return 0 if OK. non-zero if error.
  *        -1 if the model is not loaded.
  *        -2 if the initialization of input tensor is failed.
@@ -600,8 +596,14 @@ use_nnapi_ini:
  *        -4 if the caching of input and output tensors failed.
  */
 int
-TFLiteCore::init ()
+TFLiteCore::init (tflite_option_s * option)
 {
+  interpreter.setModelPath (option->model_file);
+  num_threads = option->num_threads;
+
+  setAccelerator (option->accelerators, option->use_nnapi);
+  g_message ("nnapi = %d, accl = %s", use_nnapi, get_accl_hw_str (accelerator));
+
   if (loadModel ()) {
     ml_loge ("Failed to load model\n");
     return -1;
@@ -648,7 +650,7 @@ TFLiteCore::loadModel ()
   int err;
 
   interpreter.lock ();
-  err = interpreter.loadModel (use_nnapi);
+  err = interpreter.loadModel (use_nnapi, num_threads);
   interpreter.unlock ();
 
   return err;
@@ -762,7 +764,7 @@ TFLiteCore::reloadModel (const char * _model_path)
    * load a model into sub interpreter. This loading overhead is indenendent
    * with main one's activities.
    */
-  err = interpreter_sub.loadModel (use_nnapi);
+  err = interpreter_sub.loadModel (use_nnapi, num_threads);
   if (err != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
     goto out_unlock;
@@ -856,6 +858,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties * prop,
   option->model_file = prop->model_files[0];
   option->accelerators = prop->accl_str;
   option->use_nnapi = FALSE;
+  option->num_threads = -1;
 
   if (prop->custom_properties) {
     gchar **strv;
@@ -874,6 +877,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties * prop,
         if (g_ascii_strcasecmp (pair[0], "UseNNAPI") == 0) {
           if (g_ascii_strcasecmp (pair[1], "true") == 0)
             option->use_nnapi = TRUE;
+        } else if (g_ascii_strcasecmp (pair[0], "NumThreads") == 0) {
+          option->num_threads = (int) g_ascii_strtoll (pair[1], NULL, 10);
         } else {
           g_warning ("Unknown option (%s).", strv[i]);
         }
@@ -932,13 +937,13 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
     tflite_close (prop, private_data);
   }
 
-  core = new TFLiteCore (&option);
+  core = new TFLiteCore ();
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
     return -1;
   }
 
-  if (core->init () != 0) {
+  if (core->init (&option) != 0) {
     *private_data = NULL;
     delete core;
 
