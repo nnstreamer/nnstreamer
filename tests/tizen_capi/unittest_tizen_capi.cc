@@ -3400,16 +3400,17 @@ skip_test:
 }
 
 /**
- * @brief Test NNStreamer single shot (tensorflow-lite)
- * @note Measure the loading time and total time for the run
+ * @brief Measure the loading time and total time for the run
  */
-TEST (nnstreamer_capi_singleshot, benchmark_time)
+static void
+benchmark_single (const gboolean no_alloc, const gboolean no_timeout,
+    const int count)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim;
-  int status, count;
+  int status;
   unsigned long open_duration=0, invoke_duration=0, close_duration=0;
   gint64 start, end;
 
@@ -3443,13 +3444,6 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  input = output = NULL;
-
-  /* generate dummy data */
-  status = ml_tensors_data_create (in_info, &input);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (input != NULL);
-
   /** Initial run to warm up the cache */
   status = ml_single_open (&single, test_model, in_info, out_info,
       ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
@@ -3462,30 +3456,50 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  count = 1;
-  for (int i=0; i<count; i++) {
-    start = g_get_real_time();
+  for (int i = 0; i < count; i++) {
+    start = g_get_monotonic_time ();
     status = ml_single_open (&single, test_model, in_info, out_info,
         ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
-    end = g_get_real_time();
+    end = g_get_monotonic_time ();
     open_duration += end - start;
     ASSERT_EQ (status, ML_ERROR_NONE);
 
-    status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
-    EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
+    if (!no_timeout) {
+      status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
+      EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
+    }
 
-    start = g_get_real_time();
-    status = ml_single_invoke (single, input, &output);
-    end = g_get_real_time();
+    /* generate dummy data */
+    input = output = NULL;
+
+    status = ml_tensors_data_create (in_info, &input);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+    EXPECT_TRUE (input != NULL);
+
+    if (no_alloc) {
+      status = ml_tensors_data_create (out_info, &output);
+      EXPECT_EQ (status, ML_ERROR_NONE);
+      EXPECT_TRUE (output != NULL);
+    }
+
+    start = g_get_monotonic_time ();
+    if (no_alloc)
+      status = ml_single_invoke_no_alloc (single, input, output);
+    else
+      status = ml_single_invoke (single, input, &output);
+    end = g_get_monotonic_time ();
     invoke_duration += end - start;
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_TRUE (output != NULL);
 
-    start = g_get_real_time();
+    start = g_get_monotonic_time ();
     status = ml_single_close (single);
-    end = g_get_real_time();
+    end = g_get_monotonic_time ();
     close_duration = end - start;
     EXPECT_EQ (status, ML_ERROR_NONE);
+
+    ml_tensors_data_destroy (input);
+    ml_tensors_data_destroy (output);
   }
 
   g_warning ("Time to open single = %f us", (open_duration * 1.0)/count);
@@ -3493,12 +3507,22 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
   g_warning ("Time to close single = %f us", (close_duration * 1.0)/count);
 
 skip_test:
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tensorflow-lite)
+ * @note Measure the loading time and total time for the run
+ */
+TEST (nnstreamer_capi_singleshot, benchmark_time)
+{
+  g_warning ("Benchmark (no timeout)");
+  benchmark_single (FALSE, TRUE, 1);
+
+  g_warning ("Benchmark (no alloc, no timeout)");
+  benchmark_single (TRUE, TRUE, 1);
 }
 
 /**

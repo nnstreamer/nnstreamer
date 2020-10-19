@@ -258,14 +258,14 @@ typedef struct {
 
 /**
  * @brief Opens an ML model with the custom options and returns the instance as a handle.
- * @todo consider to open new api ml_single_open_custom()
+ * @todo consider to open new api (function name ml_single_open_custom or other name)
  */
 int ml_single_open_custom (ml_single_h *single, ml_single_preset *info);
 
 /**
  * @brief Invokes the model with the given input data.
  * This function does not allocate data handle and updates output data.
- * @todo consider to open new api (invoke with preallocated output handle)
+ * @todo consider to open new api (function name ml_single_invoke_no_alloc or other name)
  */
 int ml_single_invoke_no_alloc (ml_single_h single, const ml_tensors_data_h input, ml_tensors_data_h output);
 
