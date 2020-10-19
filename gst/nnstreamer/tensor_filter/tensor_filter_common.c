@@ -267,6 +267,41 @@ gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Get the dimension string of tensors considering rank count.
+ * @param[in] prop GstTensorFilterProperties object
+ * @param isInput TRUE if target is input tensors
+ * @return dimension string of tensors
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ */
+static gchar *
+gst_tensor_filter_get_dimensions_string (GstTensorFilterProperties * prop,
+    const gboolean isInput)
+{
+  gchar *dim_str = NULL;
+  GstTensorsInfo *tinfo = isInput ? &prop->input_meta : &prop->output_meta;
+
+  if (tinfo->num_tensors > 0) {
+    guint i;
+    GString *dimensions = g_string_new (NULL);
+
+    unsigned int *_rank = (isInput) ? prop->input_ranks : prop->output_ranks;
+    for (i = 0; i < tinfo->num_tensors; ++i) {
+      dim_str =
+          gst_tensor_get_rank_dimension_string (tinfo->info[i].dimension,
+          *(_rank + i));
+      g_string_append (dimensions, dim_str);
+
+      if (i < tinfo->num_tensors - 1) {
+        g_string_append (dimensions, ",");
+      }
+      g_free (dim_str);
+    }
+    dim_str = g_string_free (dimensions, FALSE);
+  }
+  return dim_str;
+}
+
+/**
  * @brief Get layout string of tensor layout.
  * @param layout layout of the tensor
  * @return string of layout in tensor
@@ -1732,6 +1767,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
   return TRUE;
 }
 
+
 /**
  * @brief Get the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -1778,7 +1814,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       if (prop->input_meta.num_tensors > 0) {
         gchar *dim_str;
 
-        dim_str = gst_tensors_info_get_dimensions_string (&prop->input_meta);
+        dim_str = gst_tensor_filter_get_dimensions_string (prop, TRUE);
 
         g_value_take_string (value, dim_str);
       } else {
@@ -1789,7 +1825,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       if (prop->output_meta.num_tensors > 0) {
         gchar *dim_str;
 
-        dim_str = gst_tensors_info_get_dimensions_string (&prop->output_meta);
+        dim_str = gst_tensor_filter_get_dimensions_string (prop, FALSE);
 
         g_value_take_string (value, dim_str);
       } else {

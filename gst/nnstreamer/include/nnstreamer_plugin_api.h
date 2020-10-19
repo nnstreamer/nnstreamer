@@ -313,6 +313,17 @@ extern gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim);
 
 /**
+ * @brief Get dimension string from given tensor dimension and rank count.
+ * @param dim tensor dimension
+ * @param rank rank count of given tensor dimension
+ * @return Formatted string of given dimension
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ * The returned value should be freed with g_free().
+ */
+extern gchar *
+gst_tensor_get_rank_dimension_string (const tensor_dim dim, const unsigned int rank);
+
+/**
  * @brief Count the number of elements of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
