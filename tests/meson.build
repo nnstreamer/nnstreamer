@@ -184,6 +184,7 @@ if get_option('install-test')
     install_subdir('unittest_filter_mvncsdk2', install_dir: unittest_tests_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_tests_install_dir)
+  install_subdir('nnstreamer_rate', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_repo', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_repo_dynamicity', install_dir: unittest_tests_install_dir)
   install_subdir('nnstreamer_repo_lstm', install_dir: unittest_tests_install_dir)
