@@ -4359,12 +4359,13 @@ TEST (test_tensor_filter, property_rank_01_p)
   filter = gst_harness_find_element (hrnss, "tensor_filter");
   ASSERT_TRUE (filter != NULL);
 
+  /* Check input dimension '3:224:224' */
   gchar * input_dim;
   g_object_get (filter, "input", &input_dim, NULL);
-  EXPECT_STREQ (input_dim, "3:224:224:1");
+  EXPECT_STREQ (input_dim, "3:224:224");
   g_free (input_dim);
 
-  /* Rank should be 3 since dimension string of the output is explicitly '3:224:224'. */
+  /* Rank should be 3 since dimension string of the input is explicitly '3:224:224'. */
   gchar * input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
   EXPECT_STREQ (input_ranks, "3");
@@ -4420,6 +4421,7 @@ TEST (test_tensor_filter, property_rank_02_p)
   EXPECT_STREQ (input_dim, "3:224:224:1");
   g_free (input_dim);
 
+  /* Rank should be 3 since input dimension string is not given. */
   gchar * input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
   EXPECT_STREQ (input_ranks, "3");
@@ -4430,10 +4432,63 @@ TEST (test_tensor_filter, property_rank_02_p)
   EXPECT_STREQ (output_dim, "1001:1:1:1");
   g_free (output_dim);
 
-  /* Rank should be 1 since dimension string is not given. */
+  /* Rank should be 1 since output dimension string is not given. */
   gchar * output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
   EXPECT_STREQ (output_ranks, "1");
+  g_free (output_ranks);
+
+  g_object_unref (filter);
+  gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief Test for inputranks and outputranks property of the tensor_filter
+ * @details Given dimension string, check its rank value.
+ */
+TEST (test_tensor_filter, property_rank_03_n)
+{
+  gchar *str_launch_line;
+  GstHarness *hrnss;
+  GstElement *filter;
+  gchar *test_model;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+
+  str_launch_line = g_strdup_printf ("tensor_filter framework=auto model=%s input=3:224:224 inputtype=uint8 \
+      output=1001:1 outputtype=uint8 ", test_model);
+  gst_harness_add_parse (hrnss,  str_launch_line);
+  g_free (str_launch_line);
+
+  filter = gst_harness_find_element (hrnss, "tensor_filter");
+  ASSERT_TRUE (filter != NULL);
+
+  /* The input dimension string should be '3:224:224' since it is given in the pipeline. */
+  gchar * input_dim;
+  g_object_get (filter, "input", &input_dim, NULL);
+  EXPECT_STRNE (input_dim, "3:224:224:1");
+  g_free (input_dim);
+
+  /* The input dimension string should be '1001:1' since it is given in the pipeline. */
+  gchar * output_dim;
+  g_object_get (filter, "output", &output_dim, NULL);
+  EXPECT_STRNE (output_dim, "1001:1:1:1");
+  g_free (output_dim);
+
+  /* Rank should be 2 since dimension string of the output is explicitly '1000:1:1:1'. */
+  gchar * output_ranks;
+  g_object_get (filter, "outputranks", &output_ranks, NULL);
+  EXPECT_STREQ (output_ranks, "2");
   g_free (output_ranks);
 
   g_object_unref (filter);
