@@ -982,6 +982,40 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
 }
 
 /**
+ * @brief Get dimension string from given tensor dimension and rank count.
+ * @param dim tensor dimension
+ * @param rank rank count of given tensor dimension
+ * @return Formatted string of given dimension
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ * The returned value should be freed with g_free().
+ */
+gchar *
+gst_tensor_get_rank_dimension_string (const tensor_dim dim,
+    const unsigned int rank)
+{
+  guint i;
+  GString *dim_str;
+  guint actual_rank;
+
+  dim_str = g_string_new (NULL);
+
+  if (rank == 0 || rank > NNS_TENSOR_RANK_LIMIT)
+    actual_rank = NNS_TENSOR_RANK_LIMIT;
+  else
+    actual_rank = rank;
+
+  for (i = 0; i < actual_rank; i++) {
+    g_string_append_printf (dim_str, "%d", dim[i]);
+
+    if (i < actual_rank - 1) {
+      g_string_append (dim_str, ":");
+    }
+  }
+
+  return g_string_free (dim_str, FALSE);
+}
+
+/**
  * @brief Count the number of elements of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
