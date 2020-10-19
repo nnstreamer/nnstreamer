@@ -132,26 +132,33 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     EXPECT_EQ (max_idx, 951U);
   }
 
-  /** Resets the data file to the start */
+  /**
+   * @brief Resets the data file to the start
+   */
   void resetDataFile ()
   {
     status = lseek (fd, 0, SEEK_SET);
     EXPECT_EQ (status, 0);
   }
 
-  /** Benchmark the invoke time for the single API */
-  void benchmarkSingleInvoke (ml_nnfw_type_e nnfw)
+  /**
+   * @brief Benchmark the invoke time for the single API
+   */
+  void benchmarkSingleInvoke (ml_nnfw_type_e nnfw, const bool no_alloc)
   {
     ml_single_h single;
-    ml_tensors_info_h in_info;
+    ml_tensors_info_h in_info, out_info;
     ml_tensors_data_h input, output;
 
     /** Open the single handle */
     status = ml_single_open (&single, model_file, NULL, NULL, nnfw, ML_NNFW_HW_ANY);
     ASSERT_EQ (status, ML_ERROR_NONE);
 
-    /** Get input data info */
+    /** Get input/output data info */
     status = ml_single_get_input_info (single, &in_info);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_single_get_output_info (single, &out_info);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
     /** Allocate input data */
@@ -159,7 +166,6 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     status = ml_tensors_data_create (in_info, &input);
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_TRUE (input != NULL);
-    ml_tensors_info_destroy (in_info);
 
     /** Load input data into the buffer */
     status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
@@ -172,8 +178,17 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
 
     /** Benchmark the invoke duration */
     for (int idx = 0; idx < RUN_COUNT; ++idx) {
+      if (no_alloc) {
+        status = ml_tensors_data_create (out_info, &output);
+        EXPECT_EQ (status, ML_ERROR_NONE);
+        EXPECT_TRUE (output != NULL);
+      }
+
       start = g_get_monotonic_time ();
-      status = ml_single_invoke (single, input, &output);
+      if (no_alloc)
+        status = ml_single_invoke_no_alloc (single, input, output);
+      else
+        status = ml_single_invoke (single, input, &output);
       end = g_get_monotonic_time ();
       single_total_invoke_duration += end - start;
       EXPECT_EQ (status, ML_ERROR_NONE);
@@ -198,15 +213,19 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     EXPECT_EQ (status, ML_ERROR_NONE);
 
     ml_tensors_data_destroy (input);
+    ml_tensors_info_destroy (in_info);
+    ml_tensors_info_destroy (out_info);
   }
 
-  /** Benchmark the latency by the single API invoke */
-  void benchmarkSingleInvokeLatency (ml_nnfw_type_e nnfw, const char * fw)
+  /**
+   * @brief Benchmark the latency by the single API invoke
+   */
+  void benchmarkSingleInvokeLatency (ml_nnfw_type_e nnfw, const char * fw, const bool no_alloc)
   {
     /** sleep 30 sec for cooldown from any previous runs */
     sleep (30);
 
-    benchmarkSingleInvoke (nnfw);
+    benchmarkSingleInvoke (nnfw, no_alloc);
     extractInternalInvokeTime (fw);
 
     g_warning ("Total Latency added by single API over framework %s for invoke"
@@ -229,25 +248,34 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
   float single_invoke_duration_f, direct_invoke_duration_f;
 };
 
+#if defined(ENABLE_TENSORFLOW_LITE)
 /**
  * @brief Measure latency for NNStreamer single shot (tensorflow-lite)
  * @note Measure the invoke latency added by NNStreamer single shot
  */
-#if defined(ENABLE_TENSORFLOW_LITE)
 TEST_F (nnstreamer_capi_singleshot_latency, benchmarkTensorflowLite)
 {
-  benchmarkSingleInvokeLatency (ML_NNFW_TYPE_TENSORFLOW_LITE, "tensorflow-lite");
+  benchmarkSingleInvokeLatency (ML_NNFW_TYPE_TENSORFLOW_LITE, "tensorflow-lite", false);
+}
+
+/**
+ * @brief Measure latency for NNStreamer single shot (tensorflow-lite, no output alloc in invoke)
+ * @note Measure the invoke latency added by NNStreamer single shot
+ */
+TEST_F (nnstreamer_capi_singleshot_latency, benchmarkTensorflowLite_no_alloc)
+{
+  benchmarkSingleInvokeLatency (ML_NNFW_TYPE_TENSORFLOW_LITE, "tensorflow-lite", true);
 }
 #endif
 
+#if defined(ENABLE_NNFW_RUNTIME)
 /**
  * @brief Measure latency for NNStreamer single shot (nnfw-runtime)
  * @note Measure the invoke latency added by NNStreamer single shot
  */
-#if defined(ENABLE_NNFW_RUNTIME)
 TEST_F (nnstreamer_capi_singleshot_latency, benchmarkNNFWRuntime)
 {
-  benchmarkSingleInvokeLatency (ML_NNFW_TYPE_NNFW, "nnfw");
+  benchmarkSingleInvokeLatency (ML_NNFW_TYPE_NNFW, "nnfw", false);
 }
 #endif
 
