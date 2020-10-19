@@ -279,6 +279,16 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testInvokeDynamicNNFW() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.NNFW)) {
+            /* cannot run the test */
+            return;
+        }
+
+        runInvokeDynamic(NNStreamer.NNFWType.NNFW);
+    }
+
+    @Test
     public void testInvokeTimeout_n() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */

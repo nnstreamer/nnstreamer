@@ -64,7 +64,7 @@ enable_tflite="yes"
 tf_lite_ver="1.13.1"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
-nnfw_ver="1.9.0"
+nnfw_ver="1.10.0"
 enable_nnfw_ext="no"
 
 # Parse args
@@ -249,12 +249,12 @@ if [[ $enable_tflite == "yes" ]]; then
 fi
 
 if [[ $enable_nnfw == "yes" ]]; then
-    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-$nnfw_ver-android-aarch64.tar.gz
-    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/nnfw-devel-$nnfw_ver.tar.gz
+    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/onert-$nnfw_ver-android-aarch64.tar.gz
+    wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/onert-devel-$nnfw_ver.tar.gz
 
    # You should get ONE-EXT release and copy it into NNFW_DIRECTORY.
    if [[ $enable_nnfw_ext == "yes" ]]; then
-      cp $NNFW_DIRECTORY/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz ./$build_dir/external
+      cp $NNFW_DIRECTORY/onert-ext-$nnfw_ver-android-aarch64.tar.gz ./$build_dir/external
    fi
 fi
 
@@ -291,11 +291,11 @@ if [[ $enable_nnfw == "yes" ]]; then
     sed -i "$ a NNFW_EXT_LIBRARY_PATH=src/main/jni/nnfw/ext" gradle.properties
 
     mkdir -p external/nnfw
-    tar -zxf external/nnfw-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
-    tar -zxf external/nnfw-devel-$nnfw_ver.tar.gz -C external/nnfw
+    tar -zxf external/onert-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
+    tar -zxf external/onert-devel-$nnfw_ver.tar.gz -C external/nnfw
 
     if [[ $enable_nnfw_ext == "yes" ]]; then
-        tar -zxf external/nnfw-ext-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
+        tar -zxf external/onert-ext-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
     fi
 
     # Remove duplicated file c++shared.so
