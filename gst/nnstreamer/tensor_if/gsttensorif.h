@@ -89,6 +89,15 @@ typedef enum {
 } tensor_if_behavior;
 
 /**
+ * @brief Which src pad
+ */
+typedef enum
+{
+  TIFSP_THEN_PAD = 0,
+  TIFSP_ELSE_PAD,
+} tensor_if_srcpads;
+
+/**
  * @brief Internal data structure for value
  */
 typedef struct
@@ -118,7 +127,7 @@ struct _GstTensorIf
   gboolean silent;
 
   GstTensorsConfig in_config; /**< input tensor info */
-  GstTensorsConfig out_config; /**< output tensor info */
+  GstTensorsConfig out_config[2]; /**< output tensor info */
   guint32 num_srcpads;
   gboolean have_group_id;
   guint group_id;
