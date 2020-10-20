@@ -31,7 +31,7 @@
  * <refsect2>
  * <title>Example launch line with simple if condition</title>
  * gst-launch ... (some tensor stream) !
- *      tensor_if name-tif
+ *      tensor_if name=tif
  *        compared_value=A_VALUE compared_value_option=3:4:2:5,0
  *        operator=RANGE_INCLUSIVE
  *        supplied_values=10,100
@@ -108,7 +108,6 @@ enum
   PROP_CV_OPTION, /**< Compared Value Option */
   PROP_OP, /**< Operator */
   PROP_SV, /**< Supplied Value, operand 2 (from the properties) */
-  PROP_SV_OPTION, /**< Supplied Value Option */
   PROP_THEN, /**< Action if it is TRUE */
   PROP_THEN_OPTION, /**< Option for TRUE Action */
   PROP_ELSE, /**< Action if it is FALSE */
@@ -164,7 +163,9 @@ gst_tensor_if_cv_get_type (void)
 
   if (mode_type == 0) {
     static GEnumValue mode_types[] = {
-      {TIFCV_A_VALUE, "A_VALUE", "a_value"},
+      {TIFCV_A_VALUE, "A_VALUE", "Decide based on a single scalar value"},
+      {TIFCV_TENSOR_AVERAGE_VALUE, "TENSOR_AVERAGE_VALUE",
+          "Decide based on a average value of a specific tensor"},
       {0, NULL, NULL},
     };
     mode_type = g_enum_register_static ("tensor_if_compared_value", mode_types);
@@ -532,8 +533,6 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
     case PROP_SV:
       gst_tensor_if_set_property_supplied_value (value, self->sv, ",");
       break;
-    case PROP_SV_OPTION:
-      break;
     case PROP_THEN:
       self->act_then = g_value_get_enum (value);
       break;
@@ -566,14 +565,15 @@ gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
   gchar *p;
   GPtrArray *arr = g_ptr_array_new ();
   gchar **strings;
+  guint len;
 
   for (list = prop_list; list != NULL; list = list->next) {
     g_ptr_array_add (arr, g_strdup_printf ("%i", GPOINTER_TO_INT (list->data)));
   }
   g_ptr_array_add (arr, NULL);
   strings = (gchar **) g_ptr_array_free (arr, FALSE);
-
-  if (prop_id == PROP_CV_OPTION) {
+  len = g_strv_length (strings);
+  if (prop_id == PROP_CV_OPTION && len % 5 == 0) {
     gchar *dim =
         g_strjoin (":", strings[0], strings[1], strings[2], strings[3], NULL);
     p = g_strjoin (",", dim, strings[4], NULL);
@@ -587,9 +587,34 @@ gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
 }
 
 /**
+ * @brief Convert GValue to supplied value according to delimiters
+ */
+static void
+gst_tensor_if_get_property_supplied_value (GValue * value, tensor_if_sv_s * sv)
+{
+  gint i;
+  gchar *p;
+  GPtrArray *arr = g_ptr_array_new ();
+  gchar **strings;
+
+  for (i = 0; i < sv->num; i++) {
+    if (sv->type == _NNS_FLOAT64) {
+      g_ptr_array_add (arr, g_strdup_printf ("%lf", sv->data[i]._double));
+    } else {
+      g_ptr_array_add (arr, g_strdup_printf ("%ld",
+              (long int) sv->data[i]._int64_t));
+    }
+  }
+  g_ptr_array_add (arr, NULL);
+  strings = (gchar **) g_ptr_array_free (arr, FALSE);
+  p = g_strjoinv (",", strings);
+  g_strfreev (strings);
+  g_value_take_string (value, p);
+}
+
+/**
  * @brief Getter for tensor_if properties.
  */
-/** @todo Get properties */
 static void
 gst_tensor_if_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
@@ -607,21 +632,22 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
       g_value_set_enum (value, self->op);
       break;
     case PROP_SV:
-      gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
-      break;
-    case PROP_SV_OPTION:
+      gst_tensor_if_get_property_supplied_value (value, self->sv);
       break;
     case PROP_THEN:
       g_value_set_enum (value, self->act_then);
       break;
     case PROP_THEN_OPTION:
+      gst_tensor_if_property_to_string (value, self->then_option, prop_id);
       break;
     case PROP_ELSE:
       g_value_set_enum (value, self->act_else);
       break;
     case PROP_ELSE_OPTION:
+      gst_tensor_if_property_to_string (value, self->else_option, prop_id);
       break;
     case PROP_SILENT:
+      g_value_set_boolean (value, self->silent);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -692,7 +718,6 @@ gst_tensor_if_parse_caps (GstTensorIf * tensor_if, GstCaps * caps)
   GstTensorsConfig *config;
 
   config = &tensor_if->in_config;
-
   structure = gst_caps_get_structure (caps, 0);
   gst_tensors_config_from_structure (config, structure);
 
@@ -713,7 +738,10 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      gst_tensor_if_parse_caps (tensor_if, caps);
+      if (!gst_tensor_if_parse_caps (tensor_if, caps)) {
+        GST_ERROR_OBJECT (tensor_if, "Failed to parse caps.\n");
+        return FALSE;
+      }
       break;
     }
     default:
@@ -821,7 +849,6 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
 
   return tensorpad;
 }
-
 
 /**
  * @brief Check the status among sources in if
@@ -942,6 +969,58 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
   return TRUE;
 }
 
+#define get_double_val(type, in, out) do { \
+    switch (type) { \
+      case _NNS_INT32: out = (double) (*(int32_t *) in); break; \
+      case _NNS_UINT32: out = (double) (*(uint32_t *) in); break; \
+      case _NNS_INT16: out = (double) (*(int16_t *) in);break; \
+      case _NNS_UINT16: out = (double) (*(uint16_t *) in); break; \
+      case _NNS_INT8: out = (double) (*(int8_t *) in); break; \
+      case _NNS_UINT8: out = (double) (*(uint8_t *) in); break; \
+      case _NNS_FLOAT64: out = (double) (*(double *) in); break; \
+      case _NNS_FLOAT32: out = (double) (*(float *) in); break; \
+      case _NNS_INT64: out = (double) (*(int64_t *) in); break; \
+      case _NNS_UINT64: out = (double) (*(uint64_t *) in); break; \
+      default: g_assert (0); break; \
+    } \
+  } while (0)
+
+/**
+ * @brief Calculate average value of the nth tensor
+ */
+static void
+gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
+    GstBuffer * buf, tensor_if_data_s * cv, gint nth)
+{
+  GstMemory *in_mem;
+  GstMapInfo in_info;
+  uint32_t i, size, dsize;
+  const uint32_t *in_dim;
+  double avg, val = 0.0, sum = 0.0;
+
+  tensor_type type = tensor_if->in_config.info.info[nth].type;
+  dsize = gst_tensor_get_element_size (type);
+
+  in_dim = tensor_if->in_config.info.info[nth].dimension;
+  size = in_dim[0] * in_dim[1] * in_dim[2] * in_dim[3];
+
+  in_mem = gst_buffer_peek_memory (buf, nth);
+  gst_memory_map (in_mem, &in_info, GST_MAP_READ);
+
+  for (i = 0; i < size; i++) {
+    get_double_val (type, &in_info.data[i * dsize], val);
+    sum += val;
+  }
+  avg = val / size;
+
+  gst_memory_unmap (in_mem, &in_info);
+
+  cv->type = _NNS_FLOAT64;
+  cv->data._double = avg;
+
+  gst_tensor_if_typecast_value (tensor_if, cv, type);
+}
+
 /**
  * @brief Calculate compared value
  */
@@ -950,24 +1029,33 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
     tensor_if_data_s * cv)
 {
   switch (tensor_if->cv) {
-    /** @todo The cases will be separated into functions later */
     case TIFCV_A_VALUE:
     {
       GstMemory *in_mem;
       GstMapInfo in_info;
       GList *list;
+      uint32_t idx = 0, nth, i, offset = 1;
       tensor_dim target;
       const uint32_t *in_dim;
-      uint32_t nth, idx, i, offset = 1;
 
-      idx = 0;
+      if (g_list_length (tensor_if->cv_option) != 5) {
+        GST_ERROR_OBJECT (tensor_if,
+            " Please specify a proper 'compared-value-option' property, e.g., 0:1:2:3,0");
+        return FALSE;
+      }
       for (list = tensor_if->cv_option; list->next != NULL; list = list->next) {
         target[idx++] = GPOINTER_TO_INT (list->data);
       }
+
       nth = GPOINTER_TO_INT (list->data);
+      if (gst_buffer_n_memory (buf) <= nth) {
+        GST_ERROR_OBJECT (tensor_if, " index should be lower than buffer size");
+        return FALSE;
+      }
       cv->type = tensor_if->in_config.info.info[nth].type;
 
-      in_dim = &(tensor_if->in_config.info.info[nth].dimension[0]);
+      in_dim = tensor_if->in_config.info.info[nth].dimension;
+
       in_mem = gst_buffer_peek_memory (buf, nth);
       gst_memory_map (in_mem, &in_info, GST_MAP_READ);
 
@@ -977,17 +1065,35 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         offset *= in_dim[i - 1];
         idx += (target[i]) * offset;
       }
+
       idx *= gst_tensor_get_element_size (cv->type);
+
       gst_tensor_if_set_data (cv, (gpointer) & in_info.data[idx]);
       gst_memory_unmap (in_mem, &in_info);
+
+      break;
+    }
+    case TIFCV_TENSOR_AVERAGE_VALUE:
+    {
+      uint32_t nth;
+      if (g_list_length (tensor_if->cv_option) != 1) {
+        GST_ERROR_OBJECT (tensor_if,
+            " Please specify a proper 'compared-value-option' property, For TENSOR_AVERAGE_VALUE, specify only one tensor. Tensors is not supported.");
+        return FALSE;
+      }
+      nth = GPOINTER_TO_INT (tensor_if->cv_option->data);
+      if (gst_buffer_n_memory (buf) <= nth) {
+        GST_ERROR_OBJECT (tensor_if, " index should be lower than buufer size");
+        return FALSE;
+      }
+      gst_tensor_if_get_tensor_average (tensor_if, buf, cv, nth);
       break;
     }
     default:
-      GST_DEBUG_OBJECT (tensor_if,
+      GST_ERROR_OBJECT (tensor_if,
           " Compared value is not supported yet or not defined");
       return FALSE;
   }
-
   return TRUE;
 }
 
