@@ -83,6 +83,16 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, env: testenv)
 
+  # Run unittest_if
+    unittest_if = executable('unittest_if',
+      join_paths('nnstreamer_if', 'unittest_if.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_if', unittest_if, env: testenv)
+
   # Run unittest_src_iio
     if build_platform != 'macos'
       unittest_src_iio = executable('unittest_src_iio',

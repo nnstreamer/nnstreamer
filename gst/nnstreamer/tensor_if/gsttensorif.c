@@ -1011,7 +1011,7 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
     get_double_val (type, &in_info.data[i * dsize], val);
     sum += val;
   }
-  avg = val / size;
+  avg = sum / size;
 
   gst_memory_unmap (in_mem, &in_info);
 
