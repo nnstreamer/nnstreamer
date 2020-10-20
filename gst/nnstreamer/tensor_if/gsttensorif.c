@@ -31,12 +31,15 @@
  * <refsect2>
  * <title>Example launch line with simple if condition</title>
  * gst-launch ... (some tensor stream) !
- *      tensor_if compared_value=A_VALUE compared_value_option=3:4:2:5,0
- *      operator=RANGE_INCLUSIVE
- *      supplied_values=10,100
- *      then=PASSTHROUGH
- *      else=FILL_WITH_FILE else_option=${path_to_file}
- *    ! (tensor stream) ...
+ *      tensor_if name-tif
+ *        compared_value=A_VALUE compared_value_option=3:4:2:5,0
+ *        operator=RANGE_INCLUSIVE
+ *        supplied_values=10,100
+ *        then=PASSTHROUGH
+ *        else=TENSORPICK
+ *        else_option=1
+ *      tif.src_0 ! queue ! (tensor(s) stream for TRUE action) ...
+ *      tif.src_1 ! queue ! (tensor(s) stream for FALSE action) ...
  * </refsect2>
  *
  * However, if the if-condition is complex and cannot be expressed with
@@ -69,6 +72,30 @@
 #include <string.h>
 
 #include "gsttensorif.h"
+
+/**
+ * @brief Macro for debug mode.
+ */
+#ifndef DBG
+#define DBG (!tensor_if->silent)
+#endif
+
+#define silent_debug_caps(caps,msg) do { \
+  if (DBG) { \
+    if (caps) { \
+      GstStructure *caps_s; \
+      gchar *caps_s_string; \
+      guint caps_size, caps_idx; \
+      caps_size = gst_caps_get_size (caps);\
+      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
+        caps_s = gst_caps_get_structure (caps, caps_idx); \
+        caps_s_string = gst_structure_to_string (caps_s); \
+        GST_DEBUG_OBJECT (tensor_if, msg " = %s\n", caps_s_string); \
+        g_free (caps_s_string); \
+      } \
+    } \
+  } \
+} while (0)
 
 /**
  * @brief tensor_if properties
@@ -247,7 +274,8 @@ gst_tensor_if_init (GstTensorIf * tensor_if)
 {
   tensor_if->silent = TRUE;
   gst_tensors_config_init (&tensor_if->in_config);
-  gst_tensors_config_init (&tensor_if->out_config);
+  gst_tensors_config_init (&tensor_if->out_config[0]);
+  gst_tensors_config_init (&tensor_if->out_config[1]);
 
   tensor_if->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), tensor_if->sinkpad);
@@ -695,53 +723,44 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
   return gst_pad_event_default (pad, parent, event);
 }
 
-
 /**
- * @brief Get tensor config info from configured tensors
- * @param tensor_if "this" pointer
- * @param config tensor config to be filled
- * @param index index of configured tensors
- * @return
+ * @brief Check whether caps is other/tensor or not
+ * @return TRUE if other/tensor, FALSE if not
  */
 static gboolean
-gst_tensor_if_get_tensor_config (GstTensorIf * tensor_if,
-    GstTensorConfig * config, guint index)
+gst_tensor_if_is_tensor_caps (GstCaps * caps)
 {
-  GstTensorsConfig *tensors_info;
+  GstStructure *caps_s;
+  guint i, caps_len;
 
-  g_return_val_if_fail (tensor_if != NULL, FALSE);
-  g_return_val_if_fail (config != NULL, FALSE);
+  caps_len = gst_caps_get_size (caps);
 
-  gst_tensor_config_init (config);
-
-  tensors_info = &tensor_if->in_config;
-  g_return_val_if_fail (index < tensors_info->info.num_tensors, FALSE);
-
-  config->info = tensors_info->info.info[index];
-  config->rate_n = tensors_info->rate_n;
-  config->rate_d = tensors_info->rate_d;
-
-  return TRUE;
+  for (i = 0; i < caps_len; i++) {
+    caps_s = gst_caps_get_structure (caps, i);
+    if (gst_structure_has_name (caps_s, "other/tensor")) {
+      return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 /**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param tesnor_if TensorIf Object
- * @param[out] created will be updated in this function
+ * @param config Tensors Config Data
  * @param nth source ordering
  * @return TensorPad if pad is already created, then return created pad.
  *         If not return new pad after creation.
  */
 static GstTensorPad *
 gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
-    gboolean * created, gint nth)
+    GstTensorsConfig * config, gboolean * created, gint nth)
 {
   GSList *walk;
   GstPad *pad;
   GstTensorPad *tensorpad;
   gchar *name;
-  GstCaps *caps;
-  GstTensorConfig config;
+  GstCaps *peer_caps, *caps = NULL;
 
   walk = tensor_if->srcpads;
   while (walk) {
@@ -760,7 +779,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   GST_DEBUG_OBJECT (tensor_if, "createing pad: %d(%dth)",
       tensor_if->num_srcpads, nth);
 
-  name = g_strdup_printf ("src_%u", tensor_if->num_srcpads);
+  name = g_strdup_printf ("src_%d", nth);
   pad = gst_pad_new_from_static_template (&src_factory, name);
   g_free (name);
 
@@ -770,19 +789,30 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
 
   tensor_if->srcpads = g_slist_append (tensor_if->srcpads, tensorpad);
-
-  /** @todo Support other/tensors for src pad*/
-  gst_tensor_if_get_tensor_config (tensor_if, &config, nth);
-
   tensor_if->num_srcpads++;
 
   gst_pad_use_fixed_caps (pad);
   gst_pad_set_active (pad, TRUE);
-
-  caps = gst_tensor_caps_from_config (&config);
-  gst_pad_set_caps (pad, caps);
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), pad);
 
+  peer_caps = gst_pad_peer_query_caps (pad, NULL);
+  silent_debug_caps (peer_caps, "peer_caps");
+
+  if (config->info.num_tensors == 1 && gst_tensor_if_is_tensor_caps (peer_caps)) {
+    GstTensorConfig tensor_config;
+    tensor_config.info = config->info.info[0];
+    tensor_config.rate_n = config->rate_n;
+    tensor_config.rate_d = config->rate_d;
+    caps = gst_tensor_caps_from_config (&tensor_config);
+  }
+
+  if (caps == NULL) {
+    caps = gst_tensors_caps_from_config (config);
+  }
+  silent_debug_caps (caps, "out caps");
+  gst_pad_set_caps (pad, caps);
+
+  gst_caps_unref (peer_caps);
   gst_caps_unref (caps);
 
   if (created) {
@@ -820,6 +850,9 @@ done:
   return ret;
 }
 
+/**
+ * @brief Macro for operator function.
+ */
 #define operator_func(cv,t,op,sv1,sv2,ret) do { \
   switch (op) { \
     case TIFOP_EQ: ret = (cv._##t == sv1._##t) ? TRUE : FALSE; break; \
@@ -845,7 +878,7 @@ done:
  */
 static gboolean
 gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
-    tensor_if_data_s * cv)
+    tensor_if_data_s * cv, gboolean * result)
 {
   gboolean ret = FALSE;
   tensor_if_data_s svtc_1, svtc_2;
@@ -905,7 +938,8 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
       GST_ERROR_OBJECT (tensor_if, "Unknown tensor type %d", cv->type);
       return FALSE;
   }
-  return ret;
+  *result = ret;
+  return TRUE;
 }
 
 /**
@@ -961,15 +995,19 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
  * @brief Determining whether a given condition is true or false
  * @param tensor_if TensorIf Object
  * @param buf gstbuffer from sink pad
- * @return return TRUE if given condition is true. else FALSE (default FALSE)
+ * @return return TRUE if no error
  */
 static gboolean
-gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf)
+gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
+    gboolean * result)
 {
   tensor_if_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
 
-  gst_tensor_if_calculate_cv (tensor_if, buf, &cv);
-  return gst_tensor_if_get_comparison_result (tensor_if, &cv);
+  if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
+    GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
+    return FALSE;
+  }
+  return gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
 }
 
 /**
@@ -980,86 +1018,103 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   gint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
-  GstTensorIf *tensor_if;
-  gboolean condition_result, created;
+  GstTensorIf *tensor_if = GST_TENSOR_IF (parent);
+  gboolean condition_result;
+  tensor_if_behavior curr_act = TIFB_PASSTHROUGH;
+  tensor_if_srcpads which_srcpad = TIFSP_THEN_PAD;
+  GList *curr_act_option = NULL;
+  GstTensorsConfig *config;
+  GstTensorPad *srcpad;
+  GstBuffer *outbuf = NULL;
+  GstMemory *mem = NULL;
+  gboolean created;
   GstClockTime ts;
-  tensor_if_behavior curr_act;
-  GList *curr_act_option;
-  tensor_if = GST_TENSOR_IF (parent);
 
   num_tensors = tensor_if->in_config.info.num_tensors;
   GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %d", num_tensors);
-
   /* supposed n memory blocks in buffer */
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
 
-  condition_result = gst_tensor_if_check_condition (tensor_if, buf);
+  if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
+    GST_ERROR_OBJECT (tensor_if, " Failed to check condition");
+    return GST_FLOW_ERROR;
+  }
   if (condition_result == TRUE) {
     curr_act = tensor_if->act_then;
     curr_act_option = tensor_if->then_option;
+    which_srcpad = TIFSP_THEN_PAD;
   } else {
     curr_act = tensor_if->act_else;
     curr_act_option = tensor_if->else_option;
+    which_srcpad = TIFSP_ELSE_PAD;
+  }
+
+  config = &tensor_if->out_config[which_srcpad];
+
+  if (config->info.num_tensors == 0) {
+    config->rate_n = tensor_if->in_config.rate_n;
+    config->rate_d = tensor_if->in_config.rate_d;
   }
 
   switch (curr_act) {
     case TIFB_PASSTHROUGH:
+      if (config->info.num_tensors == 0) {
+        gst_tensors_info_copy (&config->info, &tensor_if->in_config.info);
+      }
+      outbuf = gst_buffer_ref (buf);
+
+      break;
     case TIFB_TENSORPICK:
     {
-      for (i = 0; i < num_tensors; i++) {
-        GstTensorPad *srcpad;
-        GstBuffer *outbuf;
-        GstMemory *mem;
+      GList *list;
+      gint info_idx = 0;
 
-        if (curr_act == TIFB_TENSORPICK && curr_act_option != NULL) {
-          gboolean found = FALSE;
-          GList *list;
-          for (list = curr_act_option; list != NULL; list = list->next) {
-            if (i == GPOINTER_TO_INT (list->data)) {
-              found = TRUE;
-              break;
-            }
-          }
-          if (!found) {
-            continue;
-          }
+      outbuf = gst_buffer_new ();
+      for (list = curr_act_option; list != NULL; list = list->next) {
+        i = GPOINTER_TO_INT (list->data);
+        if (config->info.num_tensors == 0) {
+          gst_tensor_info_copy (&config->info.info[info_idx++],
+              &tensor_if->in_config.info.info[i]);
         }
-
-        srcpad = gst_tensor_if_get_tensor_pad (tensor_if, &created, i);
-
-        if (created) {
-          GstSegment segment;
-          gst_segment_init (&segment, GST_FORMAT_TIME);
-          gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
-        }
-
-        outbuf = gst_buffer_new ();
         mem = gst_buffer_get_memory (buf, i);
         gst_buffer_append_memory (outbuf, mem);
-
-        outbuf = gst_buffer_make_writable (outbuf);
-
-        /* metadata from incoming buffer */
-        gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-        ts = GST_BUFFER_TIMESTAMP (buf);
-        if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
-          srcpad->last_ts = ts;
-        } else {
-          GST_DEBUG_OBJECT (tensor_if, "invalid timestamp %" GST_TIME_FORMAT,
-              GST_TIME_ARGS (ts));
-        }
-
-        res = gst_pad_push (srcpad->pad, outbuf);
-        res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
       }
-    case TIFB_SKIP:
+      config->info.num_tensors = info_idx;
       break;
+    }
+    case TIFB_SKIP:
+      goto done;
     default:
       GST_DEBUG_OBJECT (tensor_if, " Not defined behavior");
       break;
-    }
   }
+
+  srcpad =
+      gst_tensor_if_get_tensor_pad (tensor_if, config, &created, which_srcpad);
+
+  if (created) {
+    GstSegment segment;
+    gst_segment_init (&segment, GST_FORMAT_TIME);
+    gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+  }
+
+  outbuf = gst_buffer_make_writable (outbuf);
+
+  /* metadata from incoming buffer */
+  gst_buffer_copy_into (outbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+  ts = GST_BUFFER_TIMESTAMP (buf);
+  if (srcpad->last_ts == GST_CLOCK_TIME_NONE || srcpad->last_ts != ts) {
+    srcpad->last_ts = ts;
+  } else {
+    GST_DEBUG_OBJECT (tensor_if, "invalid timestamp %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (ts));
+  }
+
+  res = gst_pad_push (srcpad->pad, outbuf);
+  res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
+
+done:
   gst_buffer_unref (buf);
   return res;
 }
