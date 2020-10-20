@@ -351,7 +351,7 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
       case _NNS_UINT8: orc_func_conv (intype, u8) ((gpointer) o, (gpointer) i, n); break; \
       case _NNS_FLOAT64: orc_func_conv (intype, f64) ((gpointer) o, (gpointer) i, n); break; \
       case _NNS_FLOAT32: orc_func_conv (intype, f32) ((gpointer) o, (gpointer) i, n); break; \
-      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", otype); g_assert (0); break; \
+      default: GST_ERROR_OBJECT (filter, "Unsupported output type %d", otype); g_assert (0); break; \
     } \
   } while (0)
 
@@ -365,7 +365,7 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
       case _NNS_UINT8: orc_typecast_to (i, o, n, u8, otype); break; \
       case _NNS_FLOAT64: orc_typecast_to (i, o, n, f64, otype); break; \
       case _NNS_FLOAT32: orc_typecast_to (i, o, n, f32, otype); break; \
-      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", itype); g_assert (0); break; \
+      default: GST_ERROR_OBJECT (filter, "Unsupported input type %d", itype); g_assert (0); break; \
     } \
   } while (0)
 
@@ -1819,10 +1819,12 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   /**
    * @todo support 64bit integer and remove the flag orc_supported
    */
-  if (in_config.info.type != _NNS_INT64 &&
-      in_config.info.type != _NNS_UINT64 &&
-      out_config.info.type != _NNS_INT64 &&
-      out_config.info.type != _NNS_UINT64) {
+  if (in_config.info.type == _NNS_INT64 ||
+      in_config.info.type == _NNS_UINT64 ||
+      out_config.info.type == _NNS_INT64 ||
+      out_config.info.type == _NNS_UINT64) {
+    filter->orc_supported = FALSE;
+  } else {
     filter->orc_supported = TRUE;
   }
 
