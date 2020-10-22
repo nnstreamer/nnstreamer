@@ -36,6 +36,15 @@
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnfw.h>
 
+/**
+ * @brief Internal structure for nnfw tensor info. The max size is NNS_TENSOR_SIZE_LIMIT.
+ */
+typedef struct
+{
+  guint num_tensors;
+  nnfw_tensorinfo info[NNS_TENSOR_SIZE_LIMIT];
+} nnfw_tinfo_s;
+
 /** backends supported by nnfw */
 #define NNFW_CPU_BACKEND  "cpu;bcq"
 #define NNFW_GPU_BACKEND  "acl_cl"
@@ -69,20 +78,17 @@ static GstTensorFilterFrameworkStatistics nnfw_internal_stats;
  */
 typedef struct
 {
-  GstTensorsInfo in_info;
-  GstTensorsInfo out_info;
+  nnfw_tinfo_s in_info; /**< cached input tensor info */
+  nnfw_tinfo_s out_info; /**< cached output tensor info */
   nnfw_session *session;
   gchar *model_file;
   gchar *accelerator;
-
-  NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];   /**< cached input tensor types */
-  NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];  /**< cached output tensor types */
 } nnfw_pdata;
 
 static void nnfw_close (const GstTensorFilterProperties * prop,
     void **private_data);
 static int nnfw_tensors_info_get (const nnfw_pdata * pdata,
-    const gboolean is_input, GstTensorsInfo * info, NNFW_TYPE * type);
+    const gboolean is_input, nnfw_tinfo_s * info);
 static int nnfw_invoke (const GstTensorFilterProperties * prop,
     void **private_data, const GstTensorMemory * input,
     GstTensorMemory * output);
@@ -228,13 +234,13 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
     goto error_exit;
   }
 
-  err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info, pdata->in_type);
+  err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info);
   if (err) {
     nns_loge ("Error retrieving input info from nnfw-runtime.\n");
     goto error_exit;
   }
 
-  err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info, pdata->out_type);
+  err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info);
   if (err) {
     nns_loge ("Error retrieving output info from nnfw-runtime.\n");
     goto error_exit;
@@ -317,39 +323,6 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
 }
 
 /**
- * @brief Copy nnfw format info of tensor to gst format info
- * @param[in] nnfw_info info give in gst format
- * @param[out] gst_info info container to receive tensor info in gst format
- * @return 0 on success, errno on failure
- */
-static int
-nnfw_tensor_info_copy (const nnfw_tensorinfo * nnfw_info,
-    GstTensorInfo * gst_info)
-{
-  gint idx;
-  int status;
-
-  g_return_val_if_fail (gst_info != NULL, -EINVAL);
-  g_return_val_if_fail (nnfw_info != NULL, -EINVAL);
-
-  if (nnfw_info->rank > NNS_TENSOR_RANK_LIMIT)
-    return -ERANGE;
-
-  gst_info->name = NULL;
-  if ((status =
-          nnfw_tensor_type_to_gst (nnfw_info->dtype, &gst_info->type)) < 0)
-    return status;
-
-  for (idx = nnfw_info->rank - 1; idx >= 0; idx--)
-    gst_info->dimension[idx] = nnfw_info->dims[nnfw_info->rank - idx - 1];
-
-  for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx >= nnfw_info->rank; idx--)
-    gst_info->dimension[idx] = 1;
-
-  return 0;
-}
-
-/**
  * @brief Convert from gst tensor type to NNFW type
  * @param[in] type type given in gst format
  * @param[out] nnfw_type container to receive type in nnfw tensor format
@@ -382,6 +355,62 @@ nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
 }
 
 /**
+ * @brief Convert nnfw format info of tensors to gst format info
+ * @param[in] nnfw_info info given in nnfw format
+ * @param[out] gst_info info container to receive tensor info in gst format
+ * @return 0 on success, errno on failure
+ */
+static int
+nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
+    GstTensorsInfo * gst_info)
+{
+  guint i;
+  int status;
+
+  gst_tensors_info_init (gst_info);
+
+  for (i = 0; i < nnfw_info->num_tensors; i++) {
+    const nnfw_tensorinfo *ninfo = &nnfw_info->info[i];
+    GstTensorInfo *ginfo = &gst_info->info[i];
+    gint idx;
+
+    if (ninfo->rank > NNS_TENSOR_RANK_LIMIT)
+      return -ERANGE;
+
+    if ((status = nnfw_tensor_type_to_gst (ninfo->dtype, &ginfo->type)) != 0)
+      return status;
+
+    for (idx = ninfo->rank - 1; idx >= 0; idx--)
+      ginfo->dimension[idx] = ninfo->dims[ninfo->rank - idx - 1];
+
+    for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx >= ninfo->rank; idx--)
+      ginfo->dimension[idx] = 1;
+  }
+
+  gst_info->num_tensors = nnfw_info->num_tensors;
+  return 0;
+}
+
+/**
+ * @brief Internal function to set input tensor info.
+ * @todo nnfw_apply_tensorinfo() will be deprecated. Use nnfw_set_input_tensorinfo() later (nnfw ver >= 1.6.0).
+ */
+static int
+nnfw_set_input_info (const nnfw_pdata * pdata, guint idx,
+    nnfw_tensorinfo * info)
+{
+  NNFW_STATUS status;
+
+#if defined (NNFW_USE_OLD_API)
+  status = nnfw_apply_tensorinfo (pdata->session, idx, *info);
+#else
+  status = nnfw_set_input_tensorinfo (pdata->session, idx, info);
+#endif
+
+  return (status != NNFW_STATUS_NO_ERROR) ? -EPERM : 0;
+}
+
+/**
  * @brief register/set input tensor info with nnfw
  * @param[in] pdata private data for nnfw opened instance
  * @param[in] tensors_info info of tensors to be registered
@@ -393,7 +422,6 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
     const GstTensorsInfo * tensors_info, guint tensor_idx)
 {
   struct nnfw_tensorinfo nnfw_info;
-  NNFW_STATUS status;
   gint err;
   gint idx;
   const GstTensorInfo *info = &tensors_info->info[tensor_idx];
@@ -402,7 +430,13 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   if (err)
     return err;
 
+  /**
+   * We should handle proper rank value.
+   * The rank returned from gst may be invalid, e.g. the case if batch is 1.
+   */
   nnfw_info.rank = gst_tensor_info_get_rank (info);
+  if (nnfw_info.rank < pdata->in_info.info[tensor_idx].rank)
+    nnfw_info.rank = pdata->in_info.info[tensor_idx].rank;
 
   /** reverse the order of dimension */
   for (idx = nnfw_info.rank - 1; idx >= 0; idx--)
@@ -412,35 +446,21 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   for (idx = NNFW_MAX_RANK - 1; idx >= nnfw_info.rank; idx--)
     nnfw_info.dims[idx] = 0;
 
-#if defined (NNFW_USE_OLD_API)
-  /**
-   * @todo nnfw_apply_tensorinfo() will be deprecated.
-   * Use nnfw_set_input_tensorinfo() later (nnfw ver >= 1.6.0).
-   */
-  status = nnfw_apply_tensorinfo (pdata->session, tensor_idx, nnfw_info);
-#else
-  status = nnfw_set_input_tensorinfo (pdata->session, tensor_idx, &nnfw_info);
-#endif
-  if (status != NNFW_STATUS_NO_ERROR)
-    return -EPERM;
-
-  return 0;
+  return nnfw_set_input_info (pdata, tensor_idx, &nnfw_info);
 }
 
 /**
  * @brief get nnfw tensor info in gst format info format from private data
  * @param[in] pdata private data for nnfw opened instance
  * @param[in] is_input to get info about input/output
- * @param[out] info info of tensors give in gst format
+ * @param[out] info info of tensors given in nnfw format
  * @return 0 on success, errno on failure
  */
 static int
 nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
-    GstTensorsInfo * info, NNFW_TYPE * type)
+    nnfw_tinfo_s * info)
 {
   NNFW_STATUS status;
-  struct nnfw_tensorinfo nnfw_info_t;
-  int err;
   guint idx;
 
   /** First get number of outputs */
@@ -457,17 +477,11 @@ nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
   /** Now fill each outputs */
   for (idx = 0; idx < info->num_tensors; idx++) {
     if (is_input)
-      status = nnfw_input_tensorinfo (pdata->session, idx, &nnfw_info_t);
+      status = nnfw_input_tensorinfo (pdata->session, idx, &info->info[idx]);
     else
-      status = nnfw_output_tensorinfo (pdata->session, idx, &nnfw_info_t);
+      status = nnfw_output_tensorinfo (pdata->session, idx, &info->info[idx]);
     if (status != NNFW_STATUS_NO_ERROR)
       return -EINVAL;
-
-    err = nnfw_tensor_info_copy (&nnfw_info_t, &info->info[idx]);
-    if (err < 0)
-      return err;
-
-    type[idx] = nnfw_info_t.dtype;
   }
 
   return 0;
@@ -488,8 +502,7 @@ nnfw_getInputDim (const GstTensorFilterProperties * prop,
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
 
-  gst_tensors_info_copy (info, &pdata->in_info);
-  return 0;
+  return nnfw_convert_to_gst_info (&pdata->in_info, info);
 }
 
 /**
@@ -507,9 +520,7 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
   g_return_val_if_fail (pdata != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
 
-  gst_tensors_info_copy (info, &pdata->out_info);
-
-  return 0;
+  return nnfw_convert_to_gst_info (&pdata->out_info, info);
 }
 
 /**
@@ -562,9 +573,8 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
 {
   nnfw_pdata *pdata;
   int err, idx;
-  GstTensorsInfo updated_info;
-  NNFW_TYPE in_type[NNS_TENSOR_SIZE_LIMIT];
-  NNFW_TYPE out_type[NNS_TENSOR_SIZE_LIMIT];
+  nnfw_tinfo_s nnfw_in_info, nnfw_out_info;
+  GstTensorsInfo gst_in_info, gst_out_info;
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
@@ -582,32 +592,43 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
       goto error;
   }
 
-  err = nnfw_tensors_info_get (pdata, TRUE, &updated_info, in_type);
-  if (err || !gst_tensors_info_is_equal (in_info, &updated_info))
-    goto error;
-
-  /* Invoke with dummy. NNFW updates output info after the invoke is done. */
-  nnfw_invoke_dummy (prop, private_data, &updated_info, &pdata->out_info);
-
-  err = nnfw_tensors_info_get (pdata, FALSE, out_info, out_type);
+  err = nnfw_tensors_info_get (pdata, TRUE, &nnfw_in_info);
   if (err)
     goto error;
 
-  gst_tensors_info_copy (&pdata->in_info, in_info);
-  gst_tensors_info_copy (&pdata->out_info, out_info);
-  memcpy (pdata->in_type, in_type, sizeof (NNFW_TYPE) * NNS_TENSOR_SIZE_LIMIT);
-  memcpy (pdata->out_type, out_type, sizeof (NNFW_TYPE) * NNS_TENSOR_SIZE_LIMIT);
+  err = nnfw_convert_to_gst_info (&nnfw_in_info, &gst_in_info);
+  if (err || !gst_tensors_info_is_equal (in_info, &gst_in_info))
+    goto error;
 
+  err = nnfw_convert_to_gst_info (&pdata->out_info, &gst_out_info);
+  if (err)
+    goto error;
+
+  /* Invoke with dummy. NNFW updates output info after the invoke is done. */
+  nnfw_invoke_dummy (prop, private_data, &gst_in_info, &gst_out_info);
+
+  err = nnfw_tensors_info_get (pdata, FALSE, &nnfw_out_info);
+  if (err)
+    goto error;
+
+  /* Fill output info and update it in pdata. */
+  err = nnfw_convert_to_gst_info (&nnfw_out_info, out_info);
+  if (err)
+    goto error;
+
+  memcpy (&pdata->in_info, &nnfw_in_info, sizeof (nnfw_tinfo_s));
+  memcpy (&pdata->out_info, &nnfw_out_info, sizeof (nnfw_tinfo_s));
   return 0;
 
 error:
   nns_loge ("Unable to set the provided input tensor info\n");
   /** Reset input dimensions */
-  for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
-    nnfw_tensor_info_set (pdata, &pdata->in_info, idx);
-  }
+  for (idx = 0; idx < pdata->in_info.num_tensors; idx++)
+    nnfw_set_input_info (pdata, idx, &pdata->in_info.info[idx]);
 
-  nnfw_invoke_dummy (prop, private_data, &pdata->in_info, &pdata->out_info);
+  nnfw_convert_to_gst_info (&pdata->in_info, &gst_in_info);
+  nnfw_convert_to_gst_info (&pdata->out_info, &gst_out_info);
+  nnfw_invoke_dummy (prop, private_data, &gst_in_info, &gst_out_info);
   return err;
 }
 
@@ -640,11 +661,11 @@ nnfw_tensor_memory_set (const GstTensorFilterProperties * prop,
 
   for (idx = 0; idx < num_tensors; idx++) {
     if (is_input) {
-      nnfw_status = nnfw_set_input (pdata->session, idx, pdata->in_type[idx],
-          mem[idx].data, mem[idx].size);
+      nnfw_status = nnfw_set_input (pdata->session, idx,
+          pdata->in_info.info[idx].dtype, mem[idx].data, mem[idx].size);
     } else {
-      nnfw_status = nnfw_set_output (pdata->session, idx, pdata->out_type[idx],
-          mem[idx].data, mem[idx].size);
+      nnfw_status = nnfw_set_output (pdata->session, idx,
+          pdata->out_info.info[idx].dtype, mem[idx].data, mem[idx].size);
     }
     if (nnfw_status != NNFW_STATUS_NO_ERROR)
       return -EINVAL;
