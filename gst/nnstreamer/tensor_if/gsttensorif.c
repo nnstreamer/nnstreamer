@@ -71,6 +71,7 @@
 #include <nnstreamer_log.h>
 #include <string.h>
 
+#include <nnstreamer_subplugin.h>
 #include "gsttensorif.h"
 
 /**
@@ -166,6 +167,7 @@ gst_tensor_if_cv_get_type (void)
       {TIFCV_A_VALUE, "A_VALUE", "Decide based on a single scalar value"},
       {TIFCV_TENSOR_AVERAGE_VALUE, "TENSOR_AVERAGE_VALUE",
           "Decide based on a average value of a specific tensor"},
+      {TIFCV_CUSTOM, "CUSTOM", "Decide based on a user defined callback"},
       {0, NULL, NULL},
     };
     mode_type = g_enum_register_static ("tensor_if_compared_value", mode_types);
@@ -287,6 +289,28 @@ gst_tensor_if_init (GstTensorIf * tensor_if)
 
   tensor_if->num_srcpads = 0;
   tensor_if->srcpads = NULL;
+  tensor_if->custom.func = NULL;
+  tensor_if->custom.data = NULL;
+  tensor_if->custom_configured = FALSE;
+
+  g_mutex_init (&tensor_if->lock);
+}
+
+/**
+ * @brief function to remove srcpad list
+ */
+static void
+gst_tensor_if_remove_src_pads (GstTensorIf * tensor_if)
+{
+  while (tensor_if->srcpads != NULL) {
+    GstTensorPad *tensor_pad = tensor_if->srcpads->data;
+    gst_element_remove_pad (GST_ELEMENT (tensor_if), tensor_pad->pad);
+    g_free (tensor_pad);
+    tensor_if->srcpads =
+        g_slist_delete_link (tensor_if->srcpads, tensor_if->srcpads);
+  }
+  tensor_if->srcpads = NULL;
+  tensor_if->num_srcpads = 0;
 }
 
 /**
@@ -295,6 +319,17 @@ gst_tensor_if_init (GstTensorIf * tensor_if)
 static void
 gst_tensor_if_dispose (GObject * object)
 {
+  GstTensorIf *tensor_if = GST_TENSOR_IF (object);
+  g_mutex_clear (&tensor_if->lock);
+
+  gst_tensor_if_remove_src_pads (tensor_if);
+  g_list_free (tensor_if->cv_option);
+  g_list_free (tensor_if->then_option);
+  g_list_free (tensor_if->else_option);
+  tensor_if->custom.func = NULL;
+  tensor_if->custom.data = NULL;
+  tensor_if->custom_configured = FALSE;
+
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -512,6 +547,27 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
 }
 
 /**
+ * @brief Set cusotm comapred value property
+ */
+static void
+gst_tensor_if_configure_custom_prop (GstTensorIf * self)
+{
+  if (!self->custom.name)
+    return;
+
+  if (self->cv == TIFCV_CUSTOM) {
+    const custom_cb_s *ptr = get_subplugin (NNS_IF_CUSTOM, self->custom.name);
+    if (!ptr) {
+      nns_logw ("Failed to find custom subplugin of the tensor_if");
+      return;
+    }
+    self->custom_configured = TRUE;
+    self->custom.func = (*ptr).func;
+    self->custom.data = (*ptr).data;
+  }
+}
+
+/**
  * @brief Setter for tensor_if properties.
  */
 static void
@@ -523,8 +579,12 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_CV:
       self->cv = g_value_get_enum (value);
+      gst_tensor_if_configure_custom_prop (self);
       break;
     case PROP_CV_OPTION:
+      g_free (self->custom.name);
+      self->custom.name = g_strdup (g_value_get_string (value));
+      gst_tensor_if_configure_custom_prop (self);
       gst_tensor_if_set_property_glist (value, &self->cv_option, ":,");
       break;
     case PROP_OP:
@@ -626,7 +686,11 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
       g_value_set_enum (value, self->cv);
       break;
     case PROP_CV_OPTION:
-      gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
+      if (self->cv == TIFCV_CUSTOM) {
+        g_value_take_string (value, self->custom.name);
+      } else {
+        gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
+      }
       break;
     case PROP_OP:
       g_value_set_enum (value, self->op);
@@ -1098,6 +1162,50 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
 }
 
 /**
+ * @brief Registers a callback for tensor_if custom condition
+ * @return 0 if success. -ERRNO if error.
+ */
+int
+nnstreamer_if_custom_register (const gchar * name, tensor_if_custom func,
+    void *data)
+{
+  custom_cb_s *ptr;
+
+  g_return_val_if_fail (name && strlen (name), -EINVAL);
+  g_return_val_if_fail (func, -EINVAL);
+
+  if (!(ptr = g_try_new0 (custom_cb_s, 1)))
+    return -ENOMEM;
+
+  ptr->func = func;
+  ptr->data = data;
+
+  if (register_subplugin (NNS_IF_CUSTOM, name, ptr) == TRUE)
+    return 0;
+
+  return -EINVAL;
+}
+
+/**
+ * @brief Unregisters a callback for tensor_if custom condition
+ * @return 0 if success. -ERRNO if error.
+ */
+int
+nnstreamer_if_custom_unregister (const gchar * name)
+{
+  custom_cb_s *ptr;
+
+  ptr = (custom_cb_s *) get_subplugin (NNS_IF_CUSTOM, name);
+  if (!unregister_subplugin (NNS_IF_CUSTOM, name)) {
+    ml_loge ("Failed to unregister custom callback %s.", name);
+    return -EINVAL;
+  }
+  g_free (ptr);
+
+  return 0;
+}
+
+/**
  * @brief Determining whether a given condition is true or false
  * @param tensor_if TensorIf Object
  * @param buf gstbuffer from sink pad
@@ -1107,13 +1215,41 @@ static gboolean
 gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     gboolean * result)
 {
-  tensor_if_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
+  if (tensor_if->cv == TIFCV_CUSTOM) {
+    GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+    GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+    GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+    guint i, j;
 
-  if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
-    GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
-    return FALSE;
+    if (FALSE == tensor_if->custom_configured) {
+      nns_loge ("custom condition of the tensor_if is not configured.");
+      return FALSE;
+    }
+
+    for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
+      in_mem[i] = gst_buffer_peek_memory (buf, i);
+      if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+        for (j = 0; j < i; j++)
+          gst_memory_unmap (in_mem[j], &in_info[j]);
+        GST_WARNING_OBJECT (tensor_if, "Cannot map input memory buffer(%d)\n",
+            i);
+        return FALSE;
+      }
+      in_tensors[i].data = in_info[i].data;
+      in_tensors[i].size = in_info[i].size;
+      gst_memory_unmap (in_mem[i], &in_info[i]);
+    }
+
+    return tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
+        tensor_if->custom.data, result);
+  } else {
+    tensor_if_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
+    if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
+      GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
+      return FALSE;
+    }
+    return gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
   }
-  return gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
 }
 
 /**
@@ -1145,6 +1281,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     GST_ERROR_OBJECT (tensor_if, " Failed to check condition");
     return GST_FLOW_ERROR;
   }
+
   if (condition_result == TRUE) {
     curr_act = tensor_if->act_then;
     curr_act_option = tensor_if->then_option;

@@ -20,8 +20,8 @@
 #define __GST_TENSOR_IF_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
+#include <tensor_if.h>
 
 G_BEGIN_DECLS
 
@@ -49,6 +49,7 @@ typedef enum {
 				     a specific tensor */
   TIFCV_ALL_TENSORS_AVERAGE_VALUE = 4,	/**< Decide based on a average value of
 					     tensors or a specific tensor */
+  TIFCV_CUSTOM = 5,    /**< Decide based on a user defined condition */
   TIFCV_END,
 } tensor_if_compared_value;
 
@@ -116,12 +117,19 @@ typedef struct
   tensor_element data[2];
 } tensor_if_sv_s;
 
+typedef struct
+{
+  gchar * name;
+  tensor_if_custom func;
+  void * data;
+} custom_cb_s;
+
 /**
  * @brief Tensor If data structure
  */
 struct _GstTensorIf
 {
-  GstBaseTransform element;     /**< This is the parent object */
+  GstElement element;     /**< This is the parent object */
   GstPad *sinkpad;
   GSList *srcpads;
   gboolean silent;
@@ -140,6 +148,11 @@ struct _GstTensorIf
   GList *cv_option;
   GList *then_option;
   GList *else_option;
+
+  gboolean custom_configured;
+  custom_cb_s custom;
+
+  GMutex lock; /**< Lock for custom callback */
 };
 
 /**
@@ -147,7 +160,7 @@ struct _GstTensorIf
  */
 struct _GstTensorIfClass
 {
-  GstBaseTransformClass parent_class;   /**< Inherits GstBaseTransformClass */
+  GstElementClass parent_class;   /**< Inherits GstElementClass */
 };
 
 /**
