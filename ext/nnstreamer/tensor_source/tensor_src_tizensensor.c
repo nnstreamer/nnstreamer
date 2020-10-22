@@ -1308,30 +1308,3 @@ exit:
   _UNLOCK (self);
   return retval;
 }
-
-/**
- * @brief Register the plugin for GStreamer. This is an independent plugin.
- */
-static gboolean
-gst_nnstreamer_tizen_sensor_init (GstPlugin * plugin)
-{
-  if (!gst_element_register (plugin, "tensor_src_tizensensor",
-          GST_RANK_NONE, GST_TYPE_TENSOR_SRC_TIZENSENSOR)) {
-    GST_ERROR
-        ("Failed to register nnstreamer's tensor_src_tizensensor plugin.");
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-#ifndef PACKAGE
-#define PACKAGE "nnstreamer_tizen_sensor"
-#endif
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    nnstreamer_tizen_sensor,
-    "nnstreamer Tizen sensor framework extension",
-    gst_nnstreamer_tizen_sensor_init, VERSION, "LGPL", "nnstreamer",
-    "https://github.com/nnstreamer/nnstreamer");
