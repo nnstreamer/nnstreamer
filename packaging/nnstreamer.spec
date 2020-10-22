@@ -605,7 +605,7 @@ ninja -C build %{?_smp_mflags}
 
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)/build
-export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst/nnstreamer
+export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst/nnstreamer:${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer
 export NNSTREAMER_CONF=${NNSTREAMER_BUILD_ROOT_PATH}/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
@@ -615,7 +615,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 %if %{with tizen}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
-    GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_source:${GST_PLUGIN_PATH} bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
+    bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
 %endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests

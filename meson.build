@@ -492,7 +492,7 @@ if get_option('enable-test')
   path_nns_plugin_converters = join_paths(path_nns_plugin_prefix, 'tensor_converter')
 
   testenv = environment()
-  testenv.set('GST_PLUGIN_PATH', path_gst_plugin)
+  testenv.set('GST_PLUGIN_PATH', path_gst_plugin + ':' + path_nns_plugin_prefix)
   testenv.set('NNSTREAMER_CONF', path_nns_conf)
   testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
   testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)

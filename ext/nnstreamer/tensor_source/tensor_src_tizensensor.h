@@ -28,6 +28,8 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
 
+#include <tensor_typedef.h> /* GstTensorInfo */
+
 #ifndef __TIZEN__
 #error This plugin requires TIZEN packages.
 #endif

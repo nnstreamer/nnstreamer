@@ -45,14 +45,6 @@ if get_option('enable-tizen-sensor')
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
-  tizen_sensor_testenv = environment()
-  tizen_sensor_testenv.set('GST_PLUGIN_PATH', \
-      join_paths(meson.build_root(), 'ext', 'nnstreamer', 'tensor_source'), \
-      path_gst_plugin)
-  tizen_sensor_testenv.set('NNSTREAMER_CONF', path_nns_conf)
-  tizen_sensor_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
-  tizen_sensor_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
-  tizen_sensor_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
-  tizen_sensor_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
-  test('unittest_tizen_sensor', unittest_tizen_sensor, env: tizen_sensor_testenv)
+
+  test('unittest_tizen_sensor', unittest_tizen_sensor, env: testenv)
 endif
