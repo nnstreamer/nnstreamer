@@ -599,3 +599,28 @@ if snpe_support_is_available
     include_directories: snpe_incdir
   )
 endif
+
+if tensorrt_support_is_available
+  filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
+
+  nnstreamer_filter_tensorrt_sources = []
+  foreach s : filter_sub_tensorrt_sources
+    nnstreamer_filter_tensorrt_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_tensorrt_deps = [glib_dep, gst_dep, nnstreamer_dep, tensorrt_deps]
+
+  shared_library('nnstreamer_filter_tensorrt',
+    nnstreamer_filter_tensorrt_sources,
+    dependencies: nnstreamer_filter_tensorrt_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_tensorrt',
+    nnstreamer_filter_tensorrt_sources,
+    dependencies: nnstreamer_filter_tensorrt_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
