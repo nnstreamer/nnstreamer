@@ -186,7 +186,7 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
 
       start = g_get_monotonic_time ();
       if (no_alloc)
-        status = ml_single_invoke_no_alloc (single, input, output);
+        status = ml_single_invoke_fast (single, input, output);
       else
         status = ml_single_invoke (single, input, &output);
       end = g_get_monotonic_time ();

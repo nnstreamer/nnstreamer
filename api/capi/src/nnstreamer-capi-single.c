@@ -238,7 +238,7 @@ __invoke (ml_single * single_h)
 
   /** invoke the thread */
   if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors,
-      single_h->free_output)) {
+          single_h->free_output)) {
     status = ML_ERROR_STREAMS_PIPE;
     if (single_h->free_output)
       ml_tensors_data_destroy (single_h->output);
@@ -797,6 +797,18 @@ ml_single_open (ml_single_h * single, const char *model,
     const ml_tensors_info_h input_info, const ml_tensors_info_h output_info,
     ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw)
 {
+  return ml_single_open_full (single, model, input_info, output_info, nnfw, hw,
+      NULL);
+}
+
+/**
+ * @brief Opens an ML model and returns the instance as a handle.
+ */
+int
+ml_single_open_full (ml_single_h * single, const char *model,
+    const ml_tensors_info_h input_info, const ml_tensors_info_h output_info,
+    ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, const char *custom_option)
+{
   ml_single_preset info = { 0, };
 
   info.input_info = input_info;
@@ -804,7 +816,7 @@ ml_single_open (ml_single_h * single, const char *model,
   info.nnfw = nnfw;
   info.hw = hw;
   info.models = (char *) model;
-  info.custom_option = NULL;
+  info.custom_option = (char *) custom_option;
 
   return ml_single_open_custom (single, &info);
 }
@@ -1068,11 +1080,10 @@ ml_single_invoke (ml_single_h single,
 }
 
 /**
- * @brief Invokes the model with the given input data.
- * This function does not allocate data handle and updates output data.
+ * @brief Invokes the model with the given input data and fills the output data handle.
  */
 int
-ml_single_invoke_no_alloc (ml_single_h single,
+ml_single_invoke_fast (ml_single_h single,
     const ml_tensors_data_h input, ml_tensors_data_h output)
 {
   return _ml_single_invoke_internal (single, input, &output, FALSE);

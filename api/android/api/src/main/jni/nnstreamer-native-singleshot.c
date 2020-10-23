@@ -240,7 +240,7 @@ nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
     goto done;
   }
 
-  if (ml_single_invoke_no_alloc (single, in_data, out_data) != ML_ERROR_NONE) {
+  if (ml_single_invoke_fast (single, in_data, out_data) != ML_ERROR_NONE) {
     nns_loge ("Failed to invoke the model.");
     failed = TRUE;
     goto done;
