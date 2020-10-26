@@ -37,6 +37,7 @@ endif
 
 override_dh_auto_clean:
 	rm -rf ${BUILDDIR}
+	rm -rf tools/development/confchk/${BUILDDIR}
 
 override_dh_auto_configure:
 	mkdir -p ${BUILDDIR}
@@ -44,7 +45,7 @@ override_dh_auto_configure:
 	-Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
 	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
 	-Denable-openvino=true ${BUILDDIR}
-	cd tools/development/confchk && meson --prefix=/usr ${BUILDDIR} && cd ../../..
+	cd tools/development/confchk && meson --prefix=/usr --bindir=bin ${BUILDDIR} && cd ../../..
 
 override_dh_auto_build:
 	ninja -C ${BUILDDIR}
