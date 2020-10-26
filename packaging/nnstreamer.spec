@@ -10,6 +10,7 @@
 %define		flatbuf_support 1
 %define		protobuf_support 1
 %define		nnfw_support 1
+%define		grpc_support 1
 %define		check_test 1
 %define		enable_tizen_privilege 1
 %define		enable_tizen_feature 1
@@ -19,6 +20,7 @@
 %if "%{?profile}" == "tv"
 %define		enable_extra_subplugins 0
 %define		enable_tizen_privilege 0
+%define		grpc_support 0
 %define		check_test 0
 %endif
 
@@ -59,9 +61,10 @@
 
 # DA requested to remove unnecessary module builds
 %if 0%{?_with_da_profile}
-%define	mvncsdk2_support 0
-%define	edgetpu_support 0
-%define	openvino_support 0
+%define		mvncsdk2_support 0
+%define		edgetpu_support 0
+%define		openvino_support 0
+%define		grpc_support 0
 %endif
 
 %if !0%{?enable_extra_subplugins}
@@ -69,10 +72,11 @@
 %define		python_support 0
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
+%define		grpc_support 0
 %endif
 
 %if !0%{?check_test}
-%define package_test 0
+%define		package_test 0
 %endif
 
 # If it is tizen, we can export Tizen API packages.
@@ -181,6 +185,10 @@ BuildRequires:  pkgconfig(opencv)
 BuildRequires:  pkgconfig(dann)
 BuildRequires:  pkgconfig(ovxlib)
 BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
+%endif
+
+%if 0%{?grpc_support}
+BuildRequires:  grpc-devel
 %endif
 
 %if %{with tizen}
@@ -421,6 +429,15 @@ Requires:	capi-system-sensor
 %description tizen-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
 %endif # tizen_sensor_support
+
+%if 0%{grpc_support}
+%package grpc
+Summary:	NNStreamer gRPC support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	grpc-devel
+%description  grpc
+NNStreamer's tensor_source/sink plugins for gRPC support.
+%endif # grpc_support
 
 %if 0%{?edgetpu_support}
 %package edgetpu
@@ -851,6 +868,15 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %{gstlibdir}/libnnstreamer-tizen-sensor.so
 %endif  # tizen_sensor_support
+
+%if 0%{?grpc_support}
+%files grpc
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%license LICENSE
+%{_libdir}/libnnstreamer_protobuf_grpc.so
+%{gstlibdir}/libnnstreamer-grpc.so
+%endif  # grpc_support
 
 %if 0%{?edgetpu_support}
 %files edgetpu
