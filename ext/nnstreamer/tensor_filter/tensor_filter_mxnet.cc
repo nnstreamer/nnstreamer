@@ -29,7 +29,7 @@
  *                   output=1 \
  *                   outputtype=float32 \
  *                   outputname=argmax_channel \
- *                   custom=input_rank=4 \
+ *                   custom=input_rank=4,enable_tensorrt=false \
  *                   accelerator=true:cpu,!npu,!gpu \
  *               ! appsink",
  *
@@ -62,13 +62,17 @@
  *            Each ranks are separeted by ':'.
  *            The number of ranks must be the same as the number of input
  *            tensors.
+ *       enable_tensorrt: (optional)
+ *            set true to enable NVIDIA TensorRT. GPU acceleration must be
+ *            enabled in order to use it.
  *
  *     Examples:
  *       tensor_filter framework=mxnet model=model/Inception-BN.json
  *                input=1:3:224:224
  *                inputname=data
+ *                accelerator=true:!cpu,!npu,gpu
  *                ...
- *                custom=input_rank=4
+ *                custom=input_rank=4,enable_tensorrt=true
  *
  *        tensor_filter framework=mxnet model=model/Inception-BN.json
  *                input=1:3:224:224,1
@@ -143,6 +147,11 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   Shape tensorInfoToShape (GstTensorInfo &tensorinfo, int rank);
   TypeFlag tensorTypeToMXNet (tensor_type type);
   void parseCustomProperties (const GstTensorFilterProperties *prop);
+  void splitParamMap (const std::map<std::string, NDArray> &paramMap,
+      std::map<std::string, NDArray> *argParamInTargetContext,
+      std::map<std::string, NDArray> *auxParamInTargetContext, Context targetContext);
+  void convertParamMapToTargetContext (const std::map<std::string, NDArray> &paramMap,
+      std::map<std::string, NDArray> *paramMapInTargetContext, Context targetContext);
 
   bool empty_model_; /**< Empty (not initialized) model flag */
   static const GstTensorFilterFrameworkInfo info_; /**< Framework info */
@@ -161,6 +170,7 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   std::map<std::string, NDArray> args_map_; /**< arguments information of model, used internally by MXNet */
   std::map<std::string, NDArray> aux_map_; /**< auxiliary information of model, used internally by MXNet */
   Context ctx_; /**< Device type (CPU or GPU) */
+  bool enable_tensorrt_; /**< Enable NVIDIA TensorRT flag */
 
   static TensorFilterMXNet *registeredRepresentation;
 };
@@ -180,7 +190,7 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
   .statistics = nullptr };
 
 TensorFilterMXNet::TensorFilterMXNet ()
-    : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ())
+    : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()), enable_tensorrt_ (false)
 {
   /** Nothing to do. Just let it have an empty instance */
 }
@@ -245,20 +255,23 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
 
   // Read a model
   net_ = Symbol::Load (model_symbol_path_);
+  if (enable_tensorrt_) {
+    net_ = net_.GetBackendSymbol ("TensorRT");
+  }
 
   // Load parameters into temporary array maps
-  // The following loop split loaded param map into arg parm
-  // and aux param with target context
   std::map<std::string, NDArray> parameters;
   NDArray::Load (model_params_path_, nullptr, &parameters);
-  for (const auto &pair : parameters) {
-    std::string type = pair.first.substr (0, 4);
-    std::string name = pair.first.substr (4);
-    if (type == "arg:") {
-      args_map_[name] = pair.second.Copy (ctx_);
-    } else if (type == "aux:") {
-      aux_map_[name] = pair.second.Copy (ctx_);
-    }
+  if (!enable_tensorrt_) {
+    splitParamMap (parameters, &args_map_, &aux_map_, ctx_);
+  } else {
+    std::map<std::string, NDArray> intermediate_args_map;
+    std::map<std::string, NDArray> intermediate_aux_map;
+    splitParamMap (parameters, &intermediate_args_map, &intermediate_aux_map,
+        Context::cpu ());
+    contrib::InitTensorRTParams (net_, &intermediate_args_map, &intermediate_aux_map);
+    convertParamMapToTargetContext (intermediate_args_map, &args_map_, ctx_);
+    convertParamMapToTargetContext (intermediate_aux_map, &aux_map_, ctx_);
   }
 
   // WaitAll is need when we copy data between GPU and the main memory
@@ -437,6 +450,14 @@ TensorFilterMXNet::parseCustomProperties (const GstTensorFilterProperties *prop)
             input_ranks_[i] = g_ascii_strtoull (ranks.get ()[i], nullptr, 10);
           }
           is_input_rank_parsed = true;
+        } else if (g_ascii_strcasecmp (option.get ()[0], "enable_tensorrt") == 0) {
+          if (g_ascii_strcasecmp (option.get ()[1], "true") == 0) {
+            if (ctx_.GetDeviceType () != Context::gpu ().GetDeviceType ()) {
+              throw std::invalid_argument (
+                  "enable_tensorrt cannot be used without GPU enabled. Consider set accelerator=true:gpu in the filter property.");
+            }
+            enable_tensorrt_ = true;
+          }
         } else {
           throw std::invalid_argument (
               "Unsupported custom property: " + std::string (option.get ()[0]) + ".");
@@ -449,6 +470,38 @@ TensorFilterMXNet::parseCustomProperties (const GstTensorFilterProperties *prop)
     throw std::invalid_argument ("\"input_rank\" must be set. e.g. custom=input_rank=4:1");
   }
   return;
+}
+
+/**
+ * @brief split loaded param map into arg param and aux param with target context
+ */
+void
+TensorFilterMXNet::splitParamMap (const std::map<std::string, NDArray> &paramMap,
+    std::map<std::string, NDArray> *argParamInTargetContext,
+    std::map<std::string, NDArray> *auxParamInTargetContext, Context targetContext)
+{
+  for (const auto &pair : paramMap) {
+    std::string type = pair.first.substr (0, 4);
+    std::string name = pair.first.substr (4);
+    if (type == "arg:") {
+      (*argParamInTargetContext)[name] = pair.second.Copy (targetContext);
+    } else if (type == "aux:") {
+      (*auxParamInTargetContext)[name] = pair.second.Copy (targetContext);
+    }
+  }
+}
+
+/**
+ * @brief Copy the param map into the target context
+ */
+void
+TensorFilterMXNet::convertParamMapToTargetContext (
+    const std::map<std::string, NDArray> &paramMap,
+    std::map<std::string, NDArray> *paramMapInTargetContext, Context targetContext)
+{
+  for (const auto &pair : paramMap) {
+    (*paramMapInTargetContext)[pair.first] = pair.second.Copy (targetContext);
+  }
 }
 
 TensorFilterMXNet *TensorFilterMXNet::registeredRepresentation = nullptr;
