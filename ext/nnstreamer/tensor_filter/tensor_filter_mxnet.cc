@@ -173,10 +173,10 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
   .allocate_in_invoke = FALSE,
   .run_without_model = FALSE,
   .verify_model_path = TRUE,
-  .hw_list = (const accl_hw[]){ ACCL_CPU },
-  .num_hw = 1,
-  .accl_auto = static_cast<accl_hw>(-1),
-  .accl_default = static_cast<accl_hw>(-1),
+  .hw_list = (const accl_hw[]){ ACCL_CPU, ACCL_GPU },
+  .num_hw = 2,
+  .accl_auto = ACCL_CPU,
+  .accl_default = ACCL_CPU,
   .statistics = nullptr };
 
 TensorFilterMXNet::TensorFilterMXNet ()
@@ -201,6 +201,11 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
 {
   if (prop->num_models != 1) {
     throw std::invalid_argument ("Multiple models is not supported.");
+  }
+
+  if (std::find (prop->hw_list, prop->hw_list + prop->num_hw, ACCL_GPU)
+      != (prop->hw_list + prop->num_hw)) {
+    ctx_ = Context::gpu ();
   }
 
   try {
