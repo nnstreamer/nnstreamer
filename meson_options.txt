@@ -17,6 +17,7 @@ option('snpe-support', type: 'feature', value: 'auto')
 option('protobuf-support', type: 'feature', value: 'auto')
 option('flatbuf-support', type: 'feature', value: 'auto')
 option('tensorrt-support', type: 'feature', value: 'auto')
+option('grpc-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)

@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+
 package nnstreamer.protobuf;
 
 message Tensor {
@@ -30,4 +32,12 @@ message Tensors {
   }
   frame_rate fr = 2;
   repeated Tensor tensor = 3;
+}
+
+// clients should initiate RPC calls first but can keep the streaming
+service TensorService {
+  // client-to-server streaming
+  rpc SendTensors (stream Tensors) returns (google.protobuf.Empty) {}
+  // server-to-client streaming
+  rpc RecvTensors (google.protobuf.Empty) returns (stream Tensors) {}
 }
