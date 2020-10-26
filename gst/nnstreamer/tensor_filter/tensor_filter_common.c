@@ -394,7 +394,7 @@ gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
   info->allow_in_place = 0;
   info->allocate_in_invoke = 0;
   info->run_without_model = 0;
-  info->allocate_in_invoke = 0;
+  info->verify_model_path = 0;
   info->hw_list = NULL;
   info->accl_auto = -1;
   info->accl_default = -1;
