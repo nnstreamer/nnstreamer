@@ -221,7 +221,7 @@ main (int argc, char *argv[])
           output=1 \
           outputtype=float32 \
           outputname=argmax_channel \
-          custom=input_rank=4 \
+          custom=input_rank=4,enable_tensorrt=false \
           accelerator=true:cpu,!npu,!gpu \
       ! appsink name=log_sink",
         NULL);
