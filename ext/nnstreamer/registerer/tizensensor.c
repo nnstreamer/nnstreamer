@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * nnstreamer registerer for tizen sensor plugin
  * Copyright (C) 2020 Dongju Chae <dongju.chae@samsung.com>
