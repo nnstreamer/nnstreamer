@@ -223,6 +223,13 @@ if not get_option('tensorrt-support').disabled()
   tensorrt_deps = [ nvinfer_dep, cuda_dep, cudart_dep ]
 endif
 
+# gRPC
+if not get_option('grpc-support').disabled()
+  grpc_dep = dependency('grpc', required: false)
+  gpr_dep = dependency('gpr', required: false)
+  grpcpp_dep = dependency('grpc++', required: false)
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -285,10 +292,13 @@ features = {
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {
-    'extra_deps': [ pb_comp ]
+    'extra_deps': [ pb_comp, protobuf_dep ]
   },
   'tensorrt-support': {
     'extra_deps': tensorrt_deps
+  },
+  'grpc-support': {
+    'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
   }
 }
 

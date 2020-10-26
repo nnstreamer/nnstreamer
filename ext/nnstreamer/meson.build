@@ -17,6 +17,29 @@ if protobuf_support_is_available
   pb_gen_src = pb_gen.process('./include/nnstreamer.proto')
 endif
 
+if grpc_support_is_available
+  if not protobuf_support_is_available
+    error('failed to resolve dependency: gRPC requires libprotobuf.')
+  endif
+
+  prog_which = find_program('which')
+  grpc_cpp_plugin_path = run_command(prog_which, 'grpc_cpp_plugin').stdout().strip()
+  if grpc_cpp_plugin_path == ''
+    error('cannot find the path of grpc_cpp_plugin.')
+  endif
+
+  grpc_pb_gen = generator(pb_comp,
+      output: ['@BASENAME@.grpc.pb.h', '@BASENAME@.grpc.pb.cc'],
+      arguments : [
+        '--proto_path=@CURRENT_SOURCE_DIR@/include',
+        '--plugin=protoc-gen-grpc=' + grpc_cpp_plugin_path,
+        '--grpc_out=@BUILD_DIR@',
+        '@INPUT@'
+      ]
+    )
+  grpc_pb_gen_src = grpc_pb_gen.process('./include/nnstreamer.proto')
+endif
+
 subdir('extra')
 subdir('tensor_decoder')
 subdir('tensor_filter')
