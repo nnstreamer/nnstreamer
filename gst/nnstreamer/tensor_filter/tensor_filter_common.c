@@ -712,7 +712,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "(true/false):(comma separated ACCELERATOR(s)). "
           "true/false determines if accelerator is to be used. "
           "list of accelerators determines the backend (ignored with false). "
-          "Example, if GPU, NPU can be used but not CPU - true:(GPU,NPU,!CPU). "
+          "Example, if GPU, NPU can be used but not CPU - true:npu,gpu,!cpu. "
+          "The full list of accelerators can be found in nnstreamer_plugin_api_filter.h. "
           "Note that only a few subplugins support this property.",
           "", G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_IS_UPDATABLE,
