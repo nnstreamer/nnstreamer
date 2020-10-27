@@ -65,7 +65,6 @@
 %endif
 
 %if !0%{?enable_extra_subplugins}
-%define		flatbuf_support 0
 %define		protobuf_support 0
 %define		python_support 0
 %define		mvncsdk2_support 0
