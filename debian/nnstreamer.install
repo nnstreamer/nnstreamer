@@ -5,5 +5,5 @@
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_direct_video.so
 /usr/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 /usr/lib/*/gstreamer-1.0/*.so
-/usr/lib/*/libcapi-*
+/usr/lib/*/libcapi-*.so.*
 /etc/nnstreamer.ini
