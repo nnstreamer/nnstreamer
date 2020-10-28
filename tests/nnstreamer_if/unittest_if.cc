@@ -16,6 +16,29 @@
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_if/gsttensorif.h"
 
+#define TEST_TIMEOUT_MS (1000)
+/**
+ * @brief Wait until the pipeline saving the file
+ * @return TRUE on success, FALSE when a time-out occurs
+ */
+#define _wait_pipeline_save_files(file,content,len,exp_len,timeout_ms) do { \
+  guint timer = 0; \
+  guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U; \
+  if (tick == 0) \
+    tick = 1; \
+  do  { \
+    g_usleep (TEST_DEFAULT_SLEEP_TIME); \
+    g_file_get_contents (file, &content, &len, NULL); \
+    timer += tick; \
+    if (timer > timeout_ms) { \
+      EXPECT_GE (timeout_ms, timer); \
+      break; \
+    } \
+    if (len != exp_len) \
+      g_free (content); \
+  } while (len != exp_len); \
+} while(0)
+
 static int data_received;
 
 /**
@@ -27,6 +50,8 @@ class tensor_if_run : public ::testing::Test {
    * @brief  Sets up the base fixture
    */
   void SetUp() override {
+    gchar *content = NULL;
+    gsize len;
     gchar *smpte_pipeline = g_strdup_printf
         ("videotestsrc name=vsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
          "video/x-raw,format=RGB,width=160,height=120 ! filesink location=smpte.golden");
@@ -35,20 +60,20 @@ class tensor_if_run : public ::testing::Test {
          "video/x-raw,format=RGB,width=160,height=120 ! filesink location=gamut.golden");
     GstElement *gstpipe = gst_parse_launch (smpte_pipeline, NULL);
     setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
-    g_usleep (100000);
+    _wait_pipeline_save_files ("./smpte.golden", content, len, 57600, TEST_TIMEOUT_MS);
+
 
     setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-    g_usleep (10000);
-
+    g_free (content);
     gst_object_unref (gstpipe);
 
     gstpipe = gst_parse_launch (gamut_pipeline, NULL);
     setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
-    g_usleep (100000);
+    _wait_pipeline_save_files ("./gamut.golden", content, len, 57600, TEST_TIMEOUT_MS);
+    g_free (content);
 
     setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
     g_usleep (10000);
-
     gst_object_unref (gstpipe);
     g_free (smpte_pipeline);
     g_free (gamut_pipeline);
@@ -311,15 +336,15 @@ TEST_F (tensor_if_run, action_0)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  g_usleep (100000);
+  EXPECT_TRUE (g_file_get_contents ("./smpte.golden", &content1, &len1, NULL));
+  _wait_pipeline_save_files (tmp, content2, len2, len1, TEST_TIMEOUT_MS);
+  EXPECT_EQ (len1, len2);
+  EXPECT_EQ (memcmp (content1, content2, len1), 0);
+  g_free (content1);
+  g_free (content2);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
-
-  EXPECT_TRUE (g_file_get_contents ("./smpte.golden", &content1, &len1, NULL));
-  EXPECT_TRUE (g_file_get_contents (tmp, &content2, &len2, NULL));
-  EXPECT_EQ (len1, len2);
-  EXPECT_EQ (memcmp (content1, content2, len1), 0);
 
   tif_handle = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
   EXPECT_NE (tif_handle, nullptr);
@@ -335,8 +360,6 @@ TEST_F (tensor_if_run, action_0)
   gst_object_unref (tif_handle);
   gst_object_unref (pipeline);
 
-  g_free (content1);
-  g_free (content2);
   g_free (str_pipeline);
 
   g_free (tmp);
@@ -373,57 +396,56 @@ TEST_F (tensor_if_run, action_1)
   EXPECT_NE (pipeline, nullptr);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
   g_usleep (100000);
+
+  /* True action result */
+  EXPECT_TRUE (g_file_get_contents ("./smpte.golden", &content1, &len1, NULL));
+  _wait_pipeline_save_files (tmp_true, content2, len2, len1, TEST_TIMEOUT_MS);
+  EXPECT_EQ (len1, len2);
+  EXPECT_EQ (memcmp (content1, content2, len1), 0);
+  g_free (content1);
+  g_free (content2);
+
+
+  /* False action result */
+  EXPECT_TRUE (g_file_get_contents ("./gamut.golden", &content1, &len1, NULL));
+  _wait_pipeline_save_files (tmp_false, content2, len2, len1, TEST_TIMEOUT_MS);
+  EXPECT_EQ (len1, len2);
+  EXPECT_EQ (memcmp (content1, content2, len1), 0);
+  g_free (content1);
+  g_free (content2);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
 
   gst_object_unref (pipeline);
 
-  /* True action result */
-  EXPECT_TRUE (g_file_get_contents ("./smpte.golden", &content1, &len1, NULL));
-  EXPECT_TRUE (g_file_get_contents (tmp_true, &content2, &len2, NULL));
-  EXPECT_EQ (len1, len2);
-  EXPECT_EQ (memcmp (content1, content2, len1), 0);
-
-  g_free (content1);
-  g_free (content2);
-
-  /* False action result */
-  EXPECT_TRUE (g_file_get_contents ("./gamut.golden", &content1, &len1, NULL));
-  EXPECT_TRUE (g_file_get_contents (tmp_false, &content2, &len2, NULL));
-  EXPECT_EQ (len1, len2);
-  EXPECT_EQ (memcmp (content1, content2, len1), 0);
-
-  g_free (content1);
-  g_free (content2);
   g_free (str_pipeline);
 
   g_free (tmp_true);
   g_free (tmp_false);
 }
 
-#define change_transform_type(type) do { \
+#define change_transform_type(type, size) do { \
   g_object_set (transform_handle, "option", type, NULL); \
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0); \
   g_usleep (100000); \
+  _wait_pipeline_save_files (tmp1, content1, len1, size, TEST_TIMEOUT_MS); \
+  _wait_pipeline_save_files (tmp2, content2, len2, size, TEST_TIMEOUT_MS); \
+  EXPECT_EQ (len1, len2); \
+  EXPECT_EQ (memcmp (content1, content2, len1), 0); \
+  g_free (content1); \
+  g_free (content2); \
+  \
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0); \
   g_usleep (100000); \
   \
-  EXPECT_TRUE (g_file_get_contents (tmp1, &content1, &len1, NULL)); \
-  EXPECT_TRUE (g_file_get_contents (tmp2, &content2, &len2, NULL)); \
-  EXPECT_EQ (len1, len2); \
-  EXPECT_EQ (memcmp (content1, content2, len1), 0); \
-  \
-  g_free (content1); \
-  g_free (content2); \
   } while(0);
 
 /**
  * @brief Test tensor_if compared value with all tensor data type
  */
-TEST_F (tensor_if_run, action_3)
+TEST_F (tensor_if_run, action_2)
 {
   gchar *content1 = NULL;
   gchar *content2 = NULL;
@@ -448,16 +470,16 @@ TEST_F (tensor_if_run, action_3)
   transform_handle = gst_bin_get_by_name (GST_BIN (pipeline), "trans");
   EXPECT_NE (transform_handle, nullptr);
 
-  change_transform_type ("uint8");
-  change_transform_type ("uint16");
-  change_transform_type ("uint32");
-  change_transform_type ("uint64");
-  change_transform_type ("int8");
-  change_transform_type ("int16");
-  change_transform_type ("int32");
-  change_transform_type ("int64");
-  change_transform_type ("float32");
-  change_transform_type ("float64");
+  change_transform_type ("uint8", 57600 * sizeof (uint8_t));
+  change_transform_type ("uint16", 57600 * sizeof (uint16_t));
+  change_transform_type ("uint32", 57600 * sizeof (uint32_t));
+  change_transform_type ("uint64", 57600 * sizeof (uint64_t));
+  change_transform_type ("int8", 57600 * sizeof (int8_t));
+  change_transform_type ("int16", 57600 * sizeof (int16_t));
+  change_transform_type ("int32", 57600 * sizeof (int32_t));
+  change_transform_type ("int64", 57600 * sizeof (int64_t));
+  change_transform_type ("float32", 57600 * sizeof (float));
+  change_transform_type ("float64", 57600 * sizeof (double));
 
   gst_object_unref (transform_handle);
   gst_object_unref (pipeline);
