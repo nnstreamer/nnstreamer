@@ -99,7 +99,7 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
     _RETURN_ERR_WITH_MSG (-1, e.what ());
   }
 
-  /* 3. Mark that this is not a representative (found by nnstreamer_filter_find)
+  /** 3. Mark that this is not a representative (found by nnstreamer_filter_find)
    * empty object */
   obj.fwdesc.v1.subplugin_data = nullptr;
 

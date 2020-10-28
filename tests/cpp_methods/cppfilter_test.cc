@@ -8,14 +8,17 @@
  */
 #include "cppfilter_test.hh"
 
+/** @brief API method */
 filter_basic::filter_basic (const char *str) : tensor_filter_cpp (str)
 {
 }
 
+/** @brief API method */
 filter_basic::~filter_basic ()
 {
 }
 
+/** @brief API method */
 int
 filter_basic::getInputDim (GstTensorsInfo *info)
 {
@@ -28,6 +31,7 @@ filter_basic::getInputDim (GstTensorsInfo *info)
   return 0;
 }
 
+/** @brief API method */
 int
 filter_basic::getOutputDim (GstTensorsInfo *info)
 {
@@ -40,18 +44,21 @@ filter_basic::getOutputDim (GstTensorsInfo *info)
   return 0;
 }
 
+/** @brief API method */
 int
 filter_basic::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
 {
   return -EINVAL;
 }
 
+/** @brief API method */
 bool
 filter_basic::isAllocatedBeforeInvoke ()
 {
   return true;
 }
 
+/** @brief API method */
 int
 filter_basic::invoke (const GstTensorMemory *in, GstTensorMemory *out)
 {
@@ -76,6 +83,7 @@ filter_basic::invoke (const GstTensorMemory *in, GstTensorMemory *out)
   return 0;
 }
 
+/** @brief test support */
 int
 filter_basic::resultCompare (const char *inputFile, const char *outputFile, unsigned int nDropAllowed)
 {
@@ -132,15 +140,17 @@ filter_basic::resultCompare (const char *inputFile, const char *outputFile, unsi
   return 0;
 }
 
-
+/** @brief API method */
 filter_basic2::filter_basic2 (const char *str) : tensor_filter_cpp (str)
 {
 }
 
+/** @brief API method */
 filter_basic2::~filter_basic2 ()
 {
 }
 
+/** @brief API method */
 int
 filter_basic2::getInputDim (GstTensorsInfo *info)
 {
@@ -153,6 +163,7 @@ filter_basic2::getInputDim (GstTensorsInfo *info)
   return 0;
 }
 
+/** @brief API method */
 int
 filter_basic2::getOutputDim (GstTensorsInfo *info)
 {
@@ -165,18 +176,21 @@ filter_basic2::getOutputDim (GstTensorsInfo *info)
   return 0;
 }
 
+/** @brief API method */
 int
 filter_basic2::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
 {
   return -EINVAL;
 }
 
+/** @brief API method */
 bool
 filter_basic2::isAllocatedBeforeInvoke ()
 {
   return true;
 }
 
+/** @brief API method */
 int
 filter_basic2::invoke (const GstTensorMemory *in, GstTensorMemory *out)
 {
@@ -201,6 +215,7 @@ filter_basic2::invoke (const GstTensorMemory *in, GstTensorMemory *out)
   return 0;
 }
 
+/** @brief test support */
 int
 filter_basic2::resultCompare (
     const char *inputFile, const char *outputFile, unsigned int nDropAllowed)
@@ -264,6 +279,7 @@ class tensor_filter_cpp *reg1, *reg2, *reg3;
 void init_shared_lib (void) __attribute__ ((constructor));
 void fini_shared_lib (void) __attribute__ ((destructor));
 
+/** @brief API method */
 void
 init_shared_lib (void)
 {
@@ -275,6 +291,7 @@ init_shared_lib (void)
   reg3->_register ();
 }
 
+/** @brief API method */
 void
 fini_shared_lib (void)
 {

@@ -247,7 +247,7 @@ Caffe2Core::loadModels ()
   CAFFE_ENFORCE (ReadProtoFromFile (init_model_path, &initNet));
   CAFFE_ENFORCE (ReadProtoFromFile (pred_model_path, &predictNet));
 
-  /* set device type as CPU. If it is required, GPU/CUDA will be added as an
+  /** set device type as CPU. If it is required, GPU/CUDA will be added as an
    * option */
   predictNet.mutable_device_option ()->set_device_type (PROTO_CPU);
   initNet.mutable_device_option ()->set_device_type (PROTO_CPU);
@@ -453,7 +453,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties *prop, void **private_data
     return -1;
   }
 
-  /* In caffe2, model_files[0] is a init model, and model_files[1] is a pred
+  /** In caffe2, model_files[0] is a init model, and model_files[1] is a pred
    * model */
   core = static_cast<Caffe2Core *> (*private_data);
   init_model = prop->model_files[0];

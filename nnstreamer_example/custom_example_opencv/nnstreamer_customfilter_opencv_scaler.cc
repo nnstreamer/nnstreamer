@@ -144,7 +144,7 @@ pt_allocate_invoke (void *private_data, const GstTensorFilterProperties *prop,
   cv::cvtColor (img_src, img_src, CV_BGR2RGB);
 #endif
 
-/* Scale from the shape of input tensor to that of output tensor
+/** Scale from the shape of input tensor to that of output tensor
  * which is given as custom property */
 #if CV_MAJOR_VERSION >= 3
   cv::resize (img_src, img_dst, cv::Size (pdata->out_width, pdata->out_height),

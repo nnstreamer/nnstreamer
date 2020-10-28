@@ -1021,9 +1021,9 @@ TEST (test_tensor_src_iio, start_stop)
  * @brief generate tests for tensor source IIO data with trigger
  */
 #define GENERATE_TESTS_TO_VERIFY_DATA_WO_TRIGGER(DATA_VALUE, DATA_BITS, SKIP)                    \
-  /**
- * @brief tests tensor source IIO data without trigger
- */                                 \
+  /**                                                                                            \
+   * @brief tests tensor source IIO data without trigger                                         \
+   */                                                                                            \
   TEST (test_tensor_src_iio, data_verify_no_trigger_bits##DATA_BITS##_alternate##SKIP)           \
   {                                                                                              \
     static const int MAX_NUM_TRY = 100;                                                          \
@@ -1520,17 +1520,20 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
   clean_iio_dev_structure (dev0);
 }
 
-/**
- * @brief test the unusual/exceptional cases.
- */
-/** @todo Ignore src iio unusual_cases on ubuntu. 
+/** @todo Ignore src iio unusual_cases on ubuntu.
  *  Src iio test fails occasionally when getting state of the pipeline.
  *  Related issue : Unit TC Potential Bug / Ubuntu / IIO (https://github.com/nnstreamer/nnstreamer/issues/2434)
  *  Ignore this test on Ubuntu until an accurate solution is found.
  */
 #ifdef __TIZEN__
+/**
+ * @brief test the unusual/exceptional cases.
+ */
 TEST (test_tensor_src_iio, unusual_cases)
 #else
+/**
+ * @brief test the unusual/exceptional cases.
+ */
 TEST (test_tensor_src_iio, DISABLED_unusual_cases)
 #endif
 {

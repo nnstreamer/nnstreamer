@@ -305,6 +305,9 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties *prop)
   return -EINVAL;
 }
 
+/**
+ * @brief ARMNN backend retrieval
+ */
 armnn::Compute
 ArmNNCore::getBackend (const accl_hw hw)
 {

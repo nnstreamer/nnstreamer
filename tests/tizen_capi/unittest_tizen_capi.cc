@@ -210,7 +210,7 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms is good for general systems, but not enough for
+  g_usleep (50000); /** 50ms is good for general systems, but not enough for
                        emulators to start gst pipeline. Let a few frames flow.
                        */
   status = ml_pipeline_get_state (handle, &state);
@@ -249,7 +249,7 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms is good for general systems, but not enough for
+  g_usleep (50000); /** 50ms is good for general systems, but not enough for
                        emulators to start gst pipeline. Let a few frames flow.
                        */
   status = ml_pipeline_get_state (handle, &state);
@@ -9264,7 +9264,7 @@ TEST (nnstreamer_capi_element, scenario_02_p)
 
   g_usleep (100000);
 
-  /* Since `emit-signals` property of appsink is set as FALSE, *count_sink
+  /** Since `emit-signals` property of appsink is set as FALSE, *count_sink
    * should be 0 */
   EXPECT_TRUE (*count_sink == 0U);
 

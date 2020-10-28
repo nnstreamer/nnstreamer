@@ -1,3 +1,10 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
+/**
+ * @file        unittest_openvino.cc
+ * @author      Wook Song <wook16.song@samsung.com>
+ * @bug         No known bugs
+ */
+
 #include <gtest/gtest.h>
 #include <glib/gstdio.h>
 #include <gst/check/gstcheck.h>
@@ -21,6 +28,7 @@ const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
   1001, 1, 1, 1,
 };
 
+/** @brief wooksong: please fill in */
 class TensorFilterOpenvinoTest : public TensorFilterOpenvino
 {
   public:
@@ -37,6 +45,7 @@ class TensorFilterOpenvinoTest : public TensorFilterOpenvino
   TensorFilterOpenvinoTest ();
 };
 
+/** @brief wooksong: please fill in */
 TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (
     std::string path_model_xml, std::string path_model_bin)
     : super (path_model_xml, path_model_bin)
@@ -45,18 +54,21 @@ TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (
   ;
 }
 
+/** @brief wooksong: please fill in */
 TensorFilterOpenvinoTest::~TensorFilterOpenvinoTest ()
 {
   /* Nothing to do */
   ;
 }
 
+/** @brief wooksong: please fill in */
 InferenceEngine::InputsDataMap &
 TensorFilterOpenvinoTest::getInputsDataMap ()
 {
   return this->_inputsDataMap;
 }
 
+/** @brief wooksong: please fill in */
 void
 TensorFilterOpenvinoTest::setInputsDataMap (InferenceEngine::InputsDataMap &map)
 {
@@ -64,12 +76,14 @@ TensorFilterOpenvinoTest::setInputsDataMap (InferenceEngine::InputsDataMap &map)
 }
 
 
+/** @brief wooksong: please fill in */
 InferenceEngine::OutputsDataMap &
 TensorFilterOpenvinoTest::getOutputsDataMap ()
 {
   return this->_outputsDataMap;
 }
 
+/** @brief wooksong: please fill in */
 void
 TensorFilterOpenvinoTest::setOutputsDataMap (InferenceEngine::OutputsDataMap &map)
 {
@@ -687,7 +701,7 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of tensors in input exceed is exceeded
+    /** A test case when the number of tensors in input exceed is exceeded
      * NNS_TENSOR_SIZE_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::InputsDataMap inDataMap;
@@ -765,7 +779,7 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of ranks of a tensor in the input exceed is
+    /** A test case when the number of ranks of a tensor in the input exceed is
      * exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::SizeVector dims;
@@ -841,7 +855,7 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of tensors in input exceed is exceeded
+    /** A test case when the number of tensors in input exceed is exceeded
      * NNS_TENSOR_SIZE_LIMIT */
     InferenceEngine::OutputsDataMap outDataMap;
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
@@ -916,7 +930,7 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of ranks of a tensor in the input exceed is
+    /** A test case when the number of ranks of a tensor in the input exceed is
      * exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_output = std::string ("output");
     InferenceEngine::SizeVector dims;
