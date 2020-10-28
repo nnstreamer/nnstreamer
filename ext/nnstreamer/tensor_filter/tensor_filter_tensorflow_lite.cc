@@ -318,9 +318,8 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     ml_loge ("Failed to mmap model\n");
     return -1;
   }
-  /* If got any trouble at model, active below code. It'll be help to analyze.
-   */
-  /* model->error_reporter (); */
+  /**If got any trouble at model, active below code. It'll be help to analyze.
+   * model->error_reporter (); */
 
   interpreter = nullptr;
 

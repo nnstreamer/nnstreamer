@@ -49,6 +49,9 @@ namespace tensorfilter_mediapipe
 void _init_filter_mediapipe (void) __attribute__ ((constructor));
 void _fini_filter_mediapipe (void) __attribute__ ((destructor));
 
+/**
+ * @brief tensor_filter_subplugin concrete class for mediapipe.
+ */
 class mediapipe_subplugin final : public tensor_filter_subplugin
 {
   private:
@@ -312,6 +315,9 @@ mediapipe_subplugin::getModelInfo (
   return 0;
 }
 
+/**
+ * @brief tensor-filter-subplugin eventHandler API.
+ */
 int
 mediapipe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
@@ -330,6 +336,9 @@ mediapipe_subplugin::init_filter_mediapipe (void)
       = tensor_filter_subplugin::register_subplugin<mediapipe_subplugin> ();
 }
 
+/**
+ * @brief Register mediapipe subplugin
+ */
 void
 _init_filter_mediapipe ()
 {

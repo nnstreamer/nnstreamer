@@ -4603,8 +4603,8 @@ TEST (test_tensor_filter, property_rank_01_p)
   EXPECT_STREQ (input_dim, "3:224:224");
   g_free (input_dim);
 
-  /* Rank should be 3 since dimension string of the input is explicitly
-   * '3:224:224'. */
+  /** Rank should be 3 since dimension string of the input is explicitly
+    * '3:224:224'. */
   gchar *input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
   EXPECT_STREQ (input_ranks, "3");
@@ -4615,8 +4615,8 @@ TEST (test_tensor_filter, property_rank_01_p)
   EXPECT_STREQ (output_dim, "1001:1:1:1");
   g_free (output_dim);
 
-  /* Rank should be 4 since dimension string of the output is explicitly
-   * '1000:1:1:1'. */
+  /** Rank should be 4 since dimension string of the output is explicitly
+    * '1000:1:1:1'. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
   EXPECT_STREQ (output_ranks, "4");
@@ -4714,22 +4714,22 @@ TEST (test_tensor_filter, property_rank_03_n)
   filter = gst_harness_find_element (hrnss, "tensor_filter");
   ASSERT_TRUE (filter != NULL);
 
-  /* The input dimension string should be '3:224:224' since it is given in the
-   * pipeline. */
+  /** The input dimension string should be '3:224:224' since it is given in the
+    * pipeline. */
   gchar *input_dim;
   g_object_get (filter, "input", &input_dim, NULL);
   EXPECT_STRNE (input_dim, "3:224:224:1");
   g_free (input_dim);
 
-  /* The input dimension string should be '1001:1' since it is given in the
-   * pipeline. */
+  /** The input dimension string should be '1001:1' since it is given in the
+    * pipeline. */
   gchar *output_dim;
   g_object_get (filter, "output", &output_dim, NULL);
   EXPECT_STRNE (output_dim, "1001:1:1:1");
   g_free (output_dim);
 
-  /* Rank should be 2 since dimension string of the output is explicitly
-   * '1000:1:1:1'. */
+  /** Rank should be 2 since dimension string of the output is explicitly
+    * '1000:1:1:1'. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
   EXPECT_STREQ (output_ranks, "2");

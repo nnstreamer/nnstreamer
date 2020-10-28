@@ -848,7 +848,7 @@ _setup_pipeline (TestOption &option)
         option.num_buffers);
     break;
   case TEST_TYPE_TRANSFORM_CAPS_NEGO_1:
-    /* test for caps negotiation in tensor_transform, push data to
+    /** test for caps negotiation in tensor_transform, push data to
      * tensor_transform directly. */
     str_pipeline = g_strdup_printf (
         "appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! "
@@ -856,7 +856,7 @@ _setup_pipeline (TestOption &option)
         gst_tensor_get_type_string (option.t_type));
     break;
   case TEST_TYPE_TRANSFORM_CAPS_NEGO_2:
-    /* test for caps negotiation in tensor_transform, push data to
+    /** test for caps negotiation in tensor_transform, push data to
      * tensor_transform directly. */
     str_pipeline = g_strdup_printf (
         "appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! "

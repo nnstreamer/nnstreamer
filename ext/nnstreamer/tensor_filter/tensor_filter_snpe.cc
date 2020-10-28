@@ -60,6 +60,7 @@ void init_filter_snpe (void) __attribute__ ((constructor));
 void fini_filter_snpe (void) __attribute__ ((destructor));
 }
 
+/** @brief tensor-filter-subplugin concrete class for SNPE */
 class snpe_subplugin final : public tensor_filter_subplugin
 {
   private:
@@ -109,6 +110,7 @@ class snpe_subplugin final : public tensor_filter_subplugin
 
 const char *snpe_subplugin::name = "snpe";
 
+/** @brief tensor-filter subplugin API function */
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
@@ -122,6 +124,7 @@ snpe_subplugin::snpe_subplugin ()
 #endif
 }
 
+/** @brief exit helper */
 void
 snpe_subplugin::cleanup ()
 {
@@ -151,6 +154,7 @@ snpe_subplugin::cleanup ()
   empty_model = true;
 }
 
+/** @brief tensor-filter subplugin API function */
 snpe_subplugin::~snpe_subplugin ()
 {
 #if (DBG)
@@ -163,12 +167,14 @@ snpe_subplugin::~snpe_subplugin ()
   cleanup ();
 }
 
+/** @brief tensor-filter subplugin API function */
 tensor_filter_subplugin &
 snpe_subplugin::getEmptyInstance ()
 {
   return *(new snpe_subplugin ());
 }
 
+/** @brief private method. ANYJ: please fill in. */
 const char *
 snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 {
@@ -269,6 +275,7 @@ snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
   return true;
 }
 
+/** @brief tensor-filter subplugin API function */
 void
 snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
@@ -337,6 +344,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   empty_model = false;
 }
 
+/** @brief tensor-filter subplugin API function */
 void
 snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
@@ -372,6 +380,7 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 #endif
 }
 
+/** @brief tensor-filter subplugin API function */
 void
 snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
@@ -382,6 +391,7 @@ snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.verify_model_path = 1;
 }
 
+/** @brief tensor-filter subplugin API function */
 int
 snpe_subplugin::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
@@ -395,12 +405,14 @@ snpe_subplugin::getModelInfo (
   return -ENOENT;
 }
 
+/** @brief tensor-filter subplugin API function */
 int
 snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
   return -ENOENT;
 }
 
+/** @brief tensor-filter subplugin API function */
 void
 snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map)
 {
@@ -543,6 +555,7 @@ done:
   return !(snpe_failed);
 }
 
+/** @brief tensor-filter subplugin API function */
 void
 init_filter_snpe (JNIEnv *env, jobject context)
 {
@@ -559,6 +572,7 @@ init_filter_snpe (JNIEnv *env, jobject context)
   snpe_subplugin::init_filter_snpe ();
 }
 #else
+/** @brief tensor-filter subplugin API function */
 void
 init_filter_snpe ()
 {
@@ -566,6 +580,7 @@ init_filter_snpe ()
 }
 #endif
 
+/** @brief tensor-filter subplugin API function */
 void
 fini_filter_snpe ()
 {

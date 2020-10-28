@@ -178,7 +178,8 @@ void
 Looper::exit (void)
 {
   running = FALSE;
-  post (0 /* MSG_0 */, NULL, TRUE);
+  post (0, NULL, TRUE);
+  /* 0 == MSG_0 */
 }
 
 /**

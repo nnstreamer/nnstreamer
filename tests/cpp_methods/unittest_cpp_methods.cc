@@ -145,6 +145,7 @@ TEST (cpp_filter_on_demand, unregistered_01_n)
   EXPECT_NE (basic._unregister (), 0);
 }
 
+/** @brief gtest method */
 TEST (cpp_filter_obj, base_01_n)
 {
   char *tmp1 = getTempFilename ();
@@ -187,6 +188,7 @@ TEST (cpp_filter_obj, base_01_n)
   g_free (tmp3);
 }
 
+/** @brief gtest method */
 TEST (cpp_filter_obj, base_02_n)
 {
   char *tmp1 = getTempFilename ();
@@ -229,6 +231,7 @@ TEST (cpp_filter_obj, base_02_n)
   g_free (tmp3);
 }
 
+/** @brief gtest method */
 TEST (cpp_filter_obj, base_03)
 {
   char *tmp1 = getTempFilename ();
