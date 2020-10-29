@@ -144,8 +144,6 @@ NNSTREAMER_DECODER_IS_SRCS := \
 # common features
 NO_AUDIO := false
 
-ENABLE_NNAPI :=false
-
 GST_HEADERS_COMMON := \
     $(GSTREAMER_ROOT)/include/gstreamer-1.0 \
     $(GSTREAMER_ROOT)/include/glib-2.0 \
@@ -179,11 +177,3 @@ GST_BUILDING_BLOCK_LIST := $(GST_LIBS_COMMON) $(GST_LIBS_GST)
 
 # gstreamer building block for decoder and filter
 NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite
-
-# libs for nnapi
-NNAPI_BUILDING_BLOCK := arm_compute_ex backend_acl_cl backend_acl_neon backend_cpu \
-                        neuralnetworks arm_compute_core arm_compute_graph arm_compute OpenCL
-
-ifeq ($(ENABLE_NNAPI), true)
-NNSTREAMER_BUILDING_BLOCK_LIST += $(NNAPI_BUILDING_BLOCK)
-endif
