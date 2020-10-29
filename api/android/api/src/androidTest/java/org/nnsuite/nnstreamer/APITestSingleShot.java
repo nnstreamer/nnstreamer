@@ -28,6 +28,37 @@ public class APITestSingleShot {
     }
 
     @Test
+    public void testOptionsInvalidFW_n () {
+        try {
+            new SingleShot.Options(null, APITestCommon.getTFLiteImgModel());
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testOptionsUnknownFW_n () {
+        try {
+            new SingleShot.Options(NNStreamer.NNFWType.UNKNOWN, APITestCommon.getTFLiteImgModel());
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testOptionsInvalidModelFile_n () {
+        try {
+            File f = null;
+            new SingleShot.Options(NNStreamer.NNFWType.TENSORFLOW_LITE, f);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testGetInputInfo() {
         if (!NNStreamer.isAvailable(NNStreamer.NNFWType.TENSORFLOW_LITE)) {
             /* cannot run the test */
@@ -299,8 +330,8 @@ public class APITestSingleShot {
             SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel());
             TensorsInfo info = single.getInputInfo();
 
-            /* timeout 5ms (not enough time to invoke the model */
-            single.setTimeout(5);
+            /* timeout 1ms (not enough time to invoke the model) */
+            single.setTimeout(1);
 
             /* dummy input */
             single.invoke(TensorsData.allocate(info));
@@ -313,7 +344,8 @@ public class APITestSingleShot {
     @Test
     public void testNullFile_n() {
         try {
-            new SingleShot(null);
+            File f = null;
+            new SingleShot(f);
             fail();
         } catch (Exception e) {
             /* expected */
