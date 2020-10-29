@@ -92,7 +92,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoc
 # Test the backend setting done with tensorflow-lite
 # This also performs tests for generic backend configuration parsing
 function run_pipeline() {
-    gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} accelerator=$1 custom=UseNNAPI:true ! filesink location=tensorfilter.out.log 2>info
+    gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow-lite model=${PATH_TO_MODEL} accelerator=$1 ! filesink location=tensorfilter.out.log 2>info
 }
 
 arch=$(uname -m)
@@ -104,95 +104,95 @@ else
   auto_accl="cpu"
 fi
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:cpu,npu,gpu
-cat info | grep "nnapi = 1, accl = cpu$"
-testResult $? 2-1 "NNAPI activation test" 0 1
+cat info | grep "accl = cpu$"
+testResult $? 2-1 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!cpu
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-2 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-2 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!npu,gpu
-cat info | grep "nnapi = 1, accl = gpu$"
-testResult $? 2-3 "NNAPI activation test" 0 1
+cat info | grep "accl = gpu$"
+testResult $? 2-3 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!npu,gpu,abcd
-cat info | grep "nnapi = 1, accl = gpu$"
-testResult $? 2-4 "NNAPI activation test" 0 1
+cat info | grep "accl = gpu$"
+testResult $? 2-4 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!npu,!abcd,gpu
-cat info | grep "nnapi = 1, accl = gpu$"
-testResult $? 2-5 "NNAPI activation test" 0 1
+cat info | grep "accl = gpu$"
+testResult $? 2-5 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:auto
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-6 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-6 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:default,gpu
-cat info | grep "nnapi = 1, accl = cpu$"
-testResult $? 2-7 "NNAPI activation test" 0 1
+cat info | grep "accl = cpu$"
+testResult $? 2-7 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!cpu,default
-cat info | grep "nnapi = 1, accl = cpu$"
-testResult $? 2-8 "NNAPI activation test" 0 1
+cat info | grep "accl = cpu$"
+testResult $? 2-8 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!default
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-9 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-9 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:npu.srcn
-cat info | grep "nnapi = 1, accl = npu$"
-testResult $? 2-10 "NNAPI activation test" 0 1
+cat info | grep "accl = npu$"
+testResult $? 2-10 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline false:abcd
-cat info | grep "nnapi = 0, accl = none$"
-testResult $? 2-11 "NNAPI activation test" 0 1
+cat info | grep " accl = none$"
+testResult $? 2-11 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline false
-cat info | grep "nnapi = 0, accl = none$"
-testResult $? 2-12 "NNAPI activation test" 0 1
+cat info | grep "accl = none$"
+testResult $? 2-12 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-13 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-13 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-14 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-14 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline auto
-cat info | grep "nnapi = 0, accl = none$"
-testResult $? 2-15 "NNAPI activation test" 0 1
+cat info | grep "accl = none$"
+testResult $? 2-15 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:!npu,abcd,gpu
-cat info | grep "nnapi = 1, accl = gpu$"
-testResult $? 2-16 "NNAPI activation test" 0 1
+cat info | grep "accl = gpu$"
+testResult $? 2-16 "accelerator set test" 0 1
 
-# Property reading test for nnapi
+# Property reading test for accelerator
 run_pipeline true:${auto_accl},cpu
-cat info | grep "nnapi = 1, accl = ${auto_accl}$"
-testResult $? 2-17 "NNAPI activation test" 0 1
+cat info | grep "accl = ${auto_accl}$"
+testResult $? 2-17 "accelerator set test" 0 1
 
-# Property reading test for nnapi before setting the framework (analogous test is 2-3)
-gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow-lite model=${PATH_TO_MODEL} custom=UseNNAPI:true ! filesink location=tensorfilter.out.log 2>info
-cat info | grep "nnapi = 1, accl = gpu$"
-testResult $? 2-18 "NNAPI activation test" 0 1
+# Property reading test for accelerator before setting the framework (analogous test is 2-3)
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log 2>info
+cat info | grep "accl = gpu$"
+testResult $? 2-18 "accelerator set test" 0 1
 
 # Cleanup
 rm info

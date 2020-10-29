@@ -24,6 +24,7 @@
 #define ACCL_CPU_SIMD_STR  "cpu.simd"
 #define ACCL_CPU_NEON_STR  "cpu.neon"
 #define ACCL_GPU_STR  "gpu"
+/** @todo Define ACCL_DSP_STR */
 #define ACCL_NPU_STR  "npu"
 #define ACCL_NPU_MOVIDIUS_STR  "npu.movidius"
 #define ACCL_NPU_EDGE_TPU_STR  "npu.edgetpu"
@@ -89,6 +90,7 @@ typedef enum
   ACCL_CPU_SIMD     = 0x1100,     /**< specify device as SIMD in cpu, if possible */
   ACCL_CPU_NEON     = 0x1100,     /**< specify device as NEON (alias for SIMD) in cpu, if possible */
   ACCL_GPU          = 0x2000,     /**< specify device as GPU, if possible */
+  /** @todo Define ACCL_DSP */
   ACCL_NPU          = 0x4000,     /**< specify device as any NPU, if possible */
   ACCL_NPU_MOVIDIUS = 0x4001,     /**< specify device as movidius, if possible */
   ACCL_NPU_EDGE_TPU = 0x4002,     /**< specify device as edge tpu, if possible */
