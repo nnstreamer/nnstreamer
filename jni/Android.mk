@@ -48,25 +48,6 @@ $(foreach item,$(GST_LIBS_COMMON),$(eval $(call shared_lib_common,$(item))))
 
 $(foreach item,$(GST_LIBS_GST),$(eval $(call shared_lib_gst,$(item))))
 
-ifeq ($(ENABLE_NNAPI), true)
-# Define shared libraries that are used as a gstreamer plug-in.
-define shared_lib_nnapi
-    include $(CLEAR_VARS)
-    LOCAL_MODULE := $(1)
-    LOCAL_SRC_FILES := $(NNSTREAMER_ROOT)/nnapi/lib$(1).so
-    include $(PREBUILT_SHARED_LIBRARY)
-endef
-
-$(foreach item,$(NNAPI_BUILDING_BLOCK),$(eval $(call shared_lib_nnapi,$(item))))
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := backend_acl_common
-LOCAL_SRC_FILES := $(NNSTREAMER_ROOT)/nnapi/libbackend_acl_common.a
-include $(PREBUILT_STATIC_LIBRARY)
-
-NNAPI_BUILDING_BLOCK_STATIC := backend_acl_common
-endif
-
 include $(CLEAR_VARS)
 
 # Please keep the pthread and openmp library for checking a compatibility
@@ -163,10 +144,6 @@ LOCAL_C_INCLUDES  := $(NNSTREAMER_INCLUDES) $(TFLITE_INCLUDES)
 
 LOCAL_SHARED_LIBRARIES := $(GST_BUILDING_BLOCK_LIST) nnstreamer
 LOCAL_STATIC_LIBRARIES := tensorflow-lite cpufeatures
-ifeq ($(ENABLE_NNAPI), true)
-LOCAL_SHARED_LIBRARIES += $(NNAPI_BUILDING_BLOCK)
-LOCAL_STATIC_LIBRARIES += $(NNAPI_BUILDING_BLOCK_STATIC)
-endif
 
 LOCAL_ARM_NEON      := true
 LOCAL_CFLAGS        += -DVERSION=\"$(NNSTREAMER_VERSION)\"
