@@ -34,14 +34,14 @@ import java.io.File;
 public final class SingleShot implements AutoCloseable {
     private long mHandle = 0;
 
-    private native long nativeOpen(String[] models, TensorsInfo in, TensorsInfo out, int fw, String option);
+    private native long nativeOpen(String[] models, TensorsInfo inputInfo, TensorsInfo outputInfo, int fw, String custom);
     private native void nativeClose(long handle);
-    private native TensorsData nativeInvoke(long handle, TensorsData in);
+    private native TensorsData nativeInvoke(long handle, TensorsData inputData);
     private native TensorsInfo nativeGetInputInfo(long handle);
     private native TensorsInfo nativeGetOutputInfo(long handle);
     private native boolean nativeSetProperty(long handle, String name, String value);
     private native String nativeGetProperty(long handle, String name);
-    private native boolean nativeSetInputInfo(long handle, TensorsInfo in);
+    private native boolean nativeSetInputInfo(long handle, TensorsInfo inputInfo);
     private native boolean nativeSetTimeout(long handle, int timeout);
 
     /**
@@ -79,15 +79,15 @@ public final class SingleShot implements AutoCloseable {
      *
      * @param model  The {@link File} object to the neural network model file
      * @param fw     The neural network framework
-     * @param option The custom option string to open the neural network
+     * @param custom The custom option string to open the neural network
      *
      * @throws IllegalArgumentException if given param is invalid
      * @throws IllegalStateException if this failed to construct the pipeline
      *
      * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
      */
-    public SingleShot(@NonNull File model, NNStreamer.NNFWType fw, @Nullable String option) {
-        this(new File[]{model}, null, null, fw, option);
+    public SingleShot(@NonNull File model, NNStreamer.NNFWType fw, @Nullable String custom) {
+        this(new File[]{model}, null, null, fw, custom);
     }
 
     /**
@@ -97,15 +97,15 @@ public final class SingleShot implements AutoCloseable {
      * However, once it's given, the dimension cannot be changed for the given model handle.
      * You may set null if it's not required.
      *
-     * @param model The {@link File} object to the neural network model file
-     * @param in    The input tensors information
-     * @param out   The output tensors information
+     * @param model         The {@link File} object to the neural network model file
+     * @param inputInfo     The input tensors information
+     * @param outputInfo    The output tensors information
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if this failed to construct the pipeline
+     * @throws IllegalStateException    if this failed to construct the pipeline
      */
-    public SingleShot(@NonNull File model, @Nullable TensorsInfo in, @Nullable TensorsInfo out) {
-        this(new File[]{model}, in, out, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
+    public SingleShot(@NonNull File model, @Nullable TensorsInfo inputInfo, @Nullable TensorsInfo outputInfo) {
+        this(new File[]{model}, inputInfo, outputInfo, NNStreamer.NNFWType.TENSORFLOW_LITE, null);
     }
 
     /**
@@ -114,41 +114,47 @@ public final class SingleShot implements AutoCloseable {
      * Unlike other constructors, this handles multiple files and custom option string
      * when the neural network requires various options and model files.
      *
-     * @param models The array of {@link File} objects to the neural network model files
-     * @param in     The input tensors information
-     * @param out    The output tensors information
-     * @param fw     The neural network framework
-     * @param option The custom option string to open the neural network
+     * @param models        The array of {@link File} objects to the neural network model files
+     * @param inputInfo     The input tensors information
+     * @param outputInfo    The output tensors information
+     * @param fw            The neural network framework
+     * @param custom        The custom option string to open the neural network
      *
      * @throws IllegalArgumentException if given param is invalid
-     * @throws IllegalStateException if this failed to construct the pipeline
+     * @throws IllegalStateException    if this failed to construct the pipeline
      *
      * @see NNStreamer#isAvailable(NNStreamer.NNFWType)
      */
-    public SingleShot(@NonNull File[] models, @Nullable TensorsInfo in, @Nullable TensorsInfo out,
-                      NNStreamer.NNFWType fw, @Nullable String option) {
-        if (models == null) {
-            throw new IllegalArgumentException("Given model is invalid");
-        }
+    public SingleShot(@NonNull File[] models, @Nullable TensorsInfo inputInfo, @Nullable TensorsInfo outputInfo,
+                      NNStreamer.NNFWType fw, @Nullable String custom) {
+        this(new Options(fw, models, inputInfo, outputInfo, custom));
+    }
 
-        if (!NNStreamer.isAvailable(fw)) {
-            throw new IllegalStateException("Given framework is not available");
-        }
+    /**
+     * Creates a new {@link SingleShot} instance with the given {@link Options}.
+     *
+     * @param options   The {@link Options} object configuring the instance
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException    if this failed to construct the pipeline
+     */
+    public SingleShot(@NonNull Options options) {
+        File[] models = options.getModels();
+        NNStreamer.NNFWType fw = options.getNNFWType();
+        TensorsInfo inputInfo = options.getInputInfo();
+        TensorsInfo outputInfo = options.getOutputInfo();
+        String custom = options.getCustom();
 
         String[] path = new String[models.length];
         int index = 0;
 
         for (File model : models) {
-            if (model == null || !model.exists()) {
-                throw new IllegalArgumentException("Given model is invalid");
-            }
-
             path[index++] = model.getAbsolutePath();
         }
 
-        mHandle = nativeOpen(path, in, out, fw.ordinal(), option);
+        mHandle = nativeOpen(path, inputInfo, outputInfo, fw.ordinal(), custom);
         if (mHandle == 0) {
-            throw new IllegalStateException("Failed to construct the single-shot instance");
+            throw new IllegalStateException("Failed to construct the SingleShot instance");
         }
     }
 
@@ -335,6 +341,118 @@ public final class SingleShot implements AutoCloseable {
         if (mHandle != 0) {
             nativeClose(mHandle);
             mHandle = 0;
+        }
+    }
+
+    /**
+     * Provides interfaces to configure SingleShot instance.
+     */
+    public static class Options {
+        private NNStreamer.NNFWType fw = NNStreamer.NNFWType.UNKNOWN;
+        private File[] models;
+        private TensorsInfo inputInfo;
+        private TensorsInfo outputInfo;
+        private String custom;
+
+        /**
+         * Creates a new {@link Options} instance with the given framework and file.
+         *
+         * @param type  The type of {@link NNStreamer.NNFWType}
+         * @param model The {@link File} object to the neural network model file
+         *
+         * @throws IllegalArgumentException if given model is invalid
+         * @throws IllegalStateException    if given framework is not available
+         */
+        public Options(NNStreamer.NNFWType type, File model) {
+            setNNFWType(type);
+            setModels(new File[]{model});
+        }
+
+        /**
+         * Creates a new {@link Options} instance with the given framework and file.
+         *
+         * @param type   The type of {@link NNStreamer.NNFWType}
+         * @param models The array of {@link File} objects to the neural network model files
+         *
+         * @throws IllegalArgumentException if given models is invalid
+         * @throws IllegalStateException    if given framework is not available
+         */
+        public Options(NNStreamer.NNFWType type, File[] models) {
+            setNNFWType(type);
+            setModels(models);
+        }
+
+        /**
+         * Creates a new {@link Options} instance with the given parameters.
+         *
+         * @param type              The type of {@link NNStreamer.NNFWType}
+         * @param models            The array of {@link File} objects to the neural network model files
+         * @param inputInfo         The input tensors information
+         * @param outputInfo        The output tensors information
+         * @param custom            The custom option string to open the neural network instance
+         *
+         * @throws IllegalArgumentException if given models is invalid
+         * @throws IllegalStateException    if given framework is not available
+         */
+        public Options(NNStreamer.NNFWType type, File[] models, TensorsInfo inputInfo, TensorsInfo outputInfo, String custom) {
+            setNNFWType(type);
+            setModels(models);
+            setInputInfo(inputInfo);
+            setOutputInfo(outputInfo);
+            setCustom(custom);
+        }
+
+        public NNStreamer.NNFWType getNNFWType() {
+            return fw;
+        }
+
+        public void setNNFWType(NNStreamer.NNFWType fw) {
+            if (!NNStreamer.isAvailable(fw)) {
+                throw new IllegalStateException("Given framework " + fw.name() + " is not available");
+            }
+            this.fw = fw;
+        }
+
+        public File[] getModels() {
+            return models;
+        }
+
+        public void setModels(File[] models) {
+            if (models == null) {
+                throw new IllegalArgumentException("Given model is invalid");
+            }
+
+            for (File model : models) {
+                if (model == null || !model.exists()) {
+                    throw new IllegalArgumentException("Given model is invalid");
+                }
+            }
+
+            this.models = models;
+        }
+
+        public TensorsInfo getInputInfo() {
+            return inputInfo;
+        }
+
+        public void setInputInfo(TensorsInfo inputInfo) {
+            this.inputInfo = inputInfo;
+        }
+
+        public TensorsInfo getOutputInfo() {
+            return outputInfo;
+        }
+
+        public void setOutputInfo(TensorsInfo outputInfo) {
+            this.outputInfo = outputInfo;
+        }
+
+        public String getCustom() {
+            return custom;
+        }
+
+        public void setCustom(String custom) {
+            this.custom = custom;
         }
     }
 }
