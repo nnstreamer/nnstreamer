@@ -18,10 +18,6 @@ decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
 [converter]
 converters=@SUBPLUGIN_INSTALL_PREFIX@/converters/
 
-# Set 1 or True if you want to use NNAPI with tensorflow-lite, which enables to use NNAPI backend, which may use GPU or NPU/TPU.
-[tensorflowlite]
-enable_nnapi=False
-
 # Set 1 or True if you want to use GPU with pytorch for computation.
 [pytorch]
 enable_use_gpu=@TORCH_USE_GPU@
