@@ -30,7 +30,7 @@ import java.util.Locale;
  * and neural network developers to manage stream pipelines and their filters easily and efficiently.<br>
  * <br>
  * Note that, to open a machine learning model in the storage,
- * the permission <code>Manifest.permission.READ_EXTERNAL_STORAGE</code> is required before constructing the pipeline.
+ * the permission {@code Manifest.permission.READ_EXTERNAL_STORAGE} is required before constructing the pipeline.
  * <br>
  * See <a href="https://github.com/nnstreamer/nnstreamer">NNStreamer repository</a> for the details.
  */
