@@ -79,8 +79,7 @@ typedef enum
   NNS_ELEMENT_TYPE_SRC = 0,
   NNS_ELEMENT_TYPE_SINK,
   NNS_ELEMENT_TYPE_VALVE,
-  NNS_ELEMENT_TYPE_SWITCH_IN,
-  NNS_ELEMENT_TYPE_SWITCH_OUT,
+  NNS_ELEMENT_TYPE_SWITCH,
 
   NNS_ELEMENT_TYPE_UNKNOWN
 } nns_element_type_e;
@@ -181,10 +180,10 @@ extern void
 nns_set_priv_data (pipeline_info_s * pipe_info, gpointer data, nns_priv_destroy destroy_func);
 
 /**
- * @brief Get element handle of given name.
+ * @brief Get element handle of given name and type.
  */
 extern gpointer
-nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name);
+nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name, const nns_element_type_e type);
 
 /**
  * @brief Remove element handle of given name.
