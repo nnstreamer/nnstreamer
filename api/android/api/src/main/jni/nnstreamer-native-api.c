@@ -130,8 +130,7 @@ nns_free_element_data (gpointer data)
       case NNS_ELEMENT_TYPE_VALVE:
         ml_pipeline_valve_release_handle ((ml_pipeline_valve_h) item->handle);
         break;
-      case NNS_ELEMENT_TYPE_SWITCH_IN:
-      case NNS_ELEMENT_TYPE_SWITCH_OUT:
+      case NNS_ELEMENT_TYPE_SWITCH:
         ml_pipeline_switch_release_handle ((ml_pipeline_switch_h) item->handle);
         break;
 #endif
@@ -327,7 +326,8 @@ nns_set_priv_data (pipeline_info_s * pipe_info, gpointer data,
  * @brief Get element handle of given name.
  */
 gpointer
-nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name)
+nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name,
+    const nns_element_type_e type)
 {
   element_data_s *item;
 
@@ -338,7 +338,8 @@ nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name)
   item = g_hash_table_lookup (pipe_info->element_handles, name);
   g_mutex_unlock (&pipe_info->lock);
 
-  return (item) ? item->handle : NULL;
+  /* check element type */
+  return (item && item->type == type) ? item->handle : NULL;
 }
 
 /**

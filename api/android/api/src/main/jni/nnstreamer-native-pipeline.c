@@ -189,6 +189,7 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
 static void *
 nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 {
+  const nns_element_type_e etype = NNS_ELEMENT_TYPE_SINK;
   ml_pipeline_sink_h handle;
   ml_pipeline_h pipe;
   int status;
@@ -196,8 +197,8 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle =
-      (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
+  handle = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info,
+      element_name, etype);
   if (handle == NULL) {
     /* get sink handle and register to table */
     element_data_s *item = g_new0 (element_data_s, 1);
@@ -215,7 +216,7 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = NNS_ELEMENT_TYPE_SINK;
+    item->type = etype;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -235,6 +236,7 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 static void *
 nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 {
+  const nns_element_type_e etype = NNS_ELEMENT_TYPE_SRC;
   ml_pipeline_src_h handle;
   ml_pipeline_h pipe;
   int status;
@@ -242,7 +244,8 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle = (ml_pipeline_src_h) nns_get_element_handle (pipe_info, element_name);
+  handle = (ml_pipeline_src_h) nns_get_element_handle (pipe_info,
+      element_name, etype);
   if (handle == NULL) {
     /* get src handle and register to table */
     status = ml_pipeline_src_get_handle (pipe, element_name, &handle);
@@ -259,7 +262,7 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = NNS_ELEMENT_TYPE_SRC;
+    item->type = etype;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -279,6 +282,7 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 static void *
 nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 {
+  const nns_element_type_e etype = NNS_ELEMENT_TYPE_SWITCH;
   ml_pipeline_switch_h handle;
   ml_pipeline_switch_e switch_type;
   ml_pipeline_h pipe;
@@ -287,8 +291,8 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle =
-      (ml_pipeline_switch_h) nns_get_element_handle (pipe_info, element_name);
+  handle = (ml_pipeline_switch_h) nns_get_element_handle (pipe_info,
+      element_name, etype);
   if (handle == NULL) {
     /* get switch handle and register to table */
     status = ml_pipeline_switch_get_handle (pipe, element_name, &switch_type,
@@ -306,10 +310,7 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    if (switch_type == ML_PIPELINE_SWITCH_INPUT_SELECTOR)
-      item->type = NNS_ELEMENT_TYPE_SWITCH_IN;
-    else
-      item->type = NNS_ELEMENT_TYPE_SWITCH_OUT;
+    item->type = etype;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -329,6 +330,7 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 static void *
 nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 {
+  const nns_element_type_e etype = NNS_ELEMENT_TYPE_VALVE;
   ml_pipeline_valve_h handle;
   ml_pipeline_h pipe;
   int status;
@@ -336,8 +338,8 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   g_assert (pipe_info);
   pipe = pipe_info->pipeline_handle;
 
-  handle =
-      (ml_pipeline_valve_h) nns_get_element_handle (pipe_info, element_name);
+  handle = (ml_pipeline_valve_h) nns_get_element_handle (pipe_info,
+      element_name, etype);
   if (handle == NULL) {
     /* get valve handle and register to table */
     status = ml_pipeline_valve_get_handle (pipe, element_name, &handle);
@@ -354,7 +356,7 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     }
 
     item->name = g_strdup (element_name);
-    item->type = NNS_ELEMENT_TYPE_VALVE;
+    item->type = etype;
     item->handle = handle;
     item->pipe_info = pipe_info;
 
@@ -703,7 +705,8 @@ nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
 
   /* get handle from table */
-  sink = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name);
+  sink = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name,
+      NNS_ELEMENT_TYPE_SINK);
   if (sink) {
     nns_remove_element_handle (pipe_info, element_name);
     res = JNI_TRUE;
