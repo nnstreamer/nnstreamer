@@ -121,6 +121,9 @@ public:
   /** @brief cache input and output tensor ptr before invoke */
   int cacheInOutTensorPtr ();
 
+  /** @brief set delegate for the tflite interpreter */
+  void setDelegate (TfLiteDelegate* delegate) { delegate_ = delegate; }
+
 private:
   GMutex mutex;
   char *model_path;
@@ -138,6 +141,12 @@ private:
   int getTensorDim (int tensor_idx, tensor_dim dim);
   int setTensorProp (const std::vector<int> &tensor_idx_list,
       GstTensorsInfo * tensorMeta);
+
+  TfLiteDelegate* delegate_ = nullptr; /**< The delegate for tflite interpreter */
+
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 14)
+  std::unique_ptr<tflite::StatefulNnApiDelegate> stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
+#endif
 };
 
 /**
@@ -288,9 +297,6 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     return -2;
   }
 
-  if (accelerator == ACCL_AUTO || accelerator == ACCL_GPU ||
-          accelerator == ACCL_NPU)
-    interpreter->UseNNAPI (TRUE);
   if (num_threads > 0) {
     int n = static_cast<int> (std::thread::hardware_concurrency ());
 
@@ -299,10 +305,29 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     interpreter->SetNumThreads (n);
   }
 
-  if (interpreter->AllocateTensors () != kTfLiteOk) {
-    ml_loge ("Failed to allocate tensors\n");
-    return -2;
+  /** set nnapi delegate when accelerator set to auto (cpu.neon in Android), GPU or NPU */
+  if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_GPU ||
+          accelerator == ACCL_NPU) {
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 14)
+    stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
+    setDelegate (stateful_nnapi_delegate.get ());
+#else
+    ml_logw ("NNAPI delegate is available only in Android with tflite v1.14.0 or higher");
+#endif
   }
+
+  if (delegate_ != nullptr) {
+    if (interpreter->ModifyGraphWithDelegate (delegate_) != kTfLiteOk) {
+      ml_loge ("Failed to allocate tensors with NNAPI delegate\n");
+      return -2;
+    }
+  } else {
+    if (interpreter->AllocateTensors () != kTfLiteOk) {
+      ml_loge ("Failed to allocate tensors\n");
+      return -2;
+    }
+  }
+
 #if (DBG)
   gint64 stop_time = g_get_monotonic_time ();
   g_message ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
