@@ -53,6 +53,7 @@ enum
 
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_INDEX 0
+#define INVALID_INDEX G_MAXUINT
 
 static void gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -97,7 +98,7 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SLOT_ID,
       g_param_spec_uint ("slot-index", "Slot Index", "repository slot index",
-          0, UINT_MAX, DEFAULT_INDEX,
+          0, INVALID_INDEX - 1, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   basesrc_class->get_caps = gst_tensor_reposrc_getcaps;
@@ -130,6 +131,7 @@ gst_tensor_reposrc_init (GstTensorRepoSrc * self)
   gst_tensors_config_init (&self->config);
   self->caps = NULL;
   self->set_startid = FALSE;
+  self->myid = INVALID_INDEX;
 }
 
 /**
@@ -140,7 +142,8 @@ gst_tensor_reposrc_dispose (GObject * object)
 {
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (object);
 
-  if (!gst_tensor_repo_remove_repodata (self->myid))
+  if (self->myid != INVALID_INDEX
+      && !gst_tensor_repo_remove_repodata (self->myid))
     GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
         ("Cannot remove [key: %d] in repo", self->myid), NULL);
 
