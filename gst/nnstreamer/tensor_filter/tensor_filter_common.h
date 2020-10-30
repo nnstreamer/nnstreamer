@@ -87,6 +87,19 @@ typedef struct _GstTensorFilterStatistics
 } GstTensorFilterStatistics;
 
 /**
+ * @brief Structure definition for tensor-filter in/out combination
+ */
+typedef struct _GstTensorFilterCombination
+{
+  GList *in_combi; /**< Select the input tensor(s) to invoke the models */
+  GList *out_combi_i; /**< Select the output tensor(s) from the input tensor(s) */
+  GList *out_combi_o; /**< Select the output tensor(s) from the model output */
+  gboolean in_combi_defined; /**< True if input combination is defined */
+  gboolean out_combi_i_defined;/**< True if output combination from input is defined */
+  gboolean out_combi_o_defined;/**< True if output combination from model output is defined */
+} GstTensorFilterCombination;
+
+/**
  * @brief Structure definition for common tensor-filter properties.
  */
 typedef struct _GstTensorFilterPrivate
@@ -106,6 +119,8 @@ typedef struct _GstTensorFilterPrivate
 
   gint latency_mode;     /**< latency profiling mode (0: off, 1: on, ...) */
   gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
+
+  GstTensorFilterCombination combi;
 } GstTensorFilterPrivate;
 
 /**
