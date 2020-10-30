@@ -116,6 +116,8 @@ enum
   PROP_IS_UPDATABLE,
   PROP_LATENCY,
   PROP_THROUGHPUT,
+  PROP_INPUTCOMBINATION,
+  PROP_OUTPUTCOMBINATION,
 };
 
 /**
@@ -735,6 +737,14 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "Currently, this accepts either 0 (OFF) or 1 (ON).",
           0 /** min */ , 1 /** max */ , 0 /** default: off */ ,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INPUTCOMBINATION,
+      g_param_spec_string ("inputCombination", "input tensor(s) to invoke",
+          "Select the input tensor(s) to invoke the models", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_OUTPUTCOMBINATION,
+      g_param_spec_string ("outputCombination", "output tensor(s) combination",
+          "Select the output tensor(s) from the input tensor(s) and/or model output",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -753,6 +763,12 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   priv->privateData = NULL;
   priv->silent = TRUE;
   priv->configured = FALSE;
+  priv->combi.in_combi = NULL;
+  priv->combi.out_combi_i = NULL;
+  priv->combi.out_combi_o = NULL;
+  priv->combi.in_combi_defined = FALSE;
+  priv->combi.out_combi_i_defined = FALSE;
+  priv->combi.out_combi_o_defined = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1549,6 +1565,78 @@ _gtfc_setprop_THROUGHPUT (GstTensorFilterPrivate * priv,
   return 0;
 }
 
+/** @brief Handle "PROP_INPUTCOMBINATION" for set-property */
+static gint
+_gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
+    GList ** prop_list, const GValue * value)
+{
+  gint64 val;
+  const gchar *param = g_value_get_string (value);
+  gchar **strv = g_strsplit_set (param, ",", -1);
+  gint i, ret = 0, num = g_strv_length (strv);
+  *prop_list = NULL;
+
+  for (i = 0; i < num; i++) {
+    val = g_ascii_strtoll (strv[i], NULL, 10);
+    if (errno == ERANGE) {
+      ml_loge ("Overflow occured during converting %s to a gint64 value",
+          strv[i]);
+      ret = ERANGE;
+      break;
+    }
+    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
+  }
+  g_strfreev (strv);
+
+  if (ret == 0 && num > 0)
+    priv->combi.in_combi_defined = TRUE;
+
+  return ret;
+}
+
+/** @brief Handle "PROP_OUTPUTCOMBINATION" for set-property */
+static gint
+_gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
+    GList ** prop_list1, GList ** prop_list2, const GValue * value)
+{
+  gint64 val;
+  const gchar *param = g_value_get_string (value);
+  gchar **strv = g_strsplit_set (param, ",", -1);
+  gint i, ret = 0, num = g_strv_length (strv);
+  priv->combi.out_combi_i = NULL;
+  priv->combi.out_combi_o = NULL;
+  *prop_list1 = NULL;
+  *prop_list2 = NULL;
+
+  for (i = 0; i < num; i++) {
+    if (strv[i][0] == 'i') {
+      val = g_ascii_strtoll (&strv[i][1], NULL, 10);
+      *prop_list1 = g_list_append (*prop_list1, GINT_TO_POINTER (val));
+      priv->combi.out_combi_i_defined = TRUE;
+    } else if (strv[i][0] == 'o') {
+      val = g_ascii_strtoll (&strv[i][1], NULL, 10);
+      *prop_list2 = g_list_append (*prop_list2, GINT_TO_POINTER (val));
+      priv->combi.out_combi_o_defined = TRUE;
+    } else {
+      ml_loge ("Wrong format for output combination properties. "
+          "Please specify for input tensor(s): p#num, for output tensor(s): o#num "
+          "e.g., outputCombination=p0,p2,o0,o1");
+      ret = EINVAL;
+      break;
+    }
+
+    if (errno == ERANGE) {
+      ml_loge ("Overflow occured during converting %s to a gint64 value",
+          strv[i]);
+      ret = ERANGE;
+      break;
+    }
+  }
+  g_strfreev (strv);
+
+  return ret;
+}
+
 /**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -1617,6 +1705,14 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_THROUGHPUT:
       status = _gtfc_setprop_THROUGHPUT (priv, prop, value);
       break;
+    case PROP_INPUTCOMBINATION:
+      status =
+          _gtfc_setprop_INPUTCOMBINATION (priv, &priv->combi.in_combi, value);
+      break;
+    case PROP_OUTPUTCOMBINATION:
+      status = _gtfc_setprop_OUTPUTCOMBINATION (priv, &priv->combi.out_combi_i,
+          &priv->combi.out_combi_o, value);
+      break;
     default:
       return FALSE;
   }
@@ -1626,6 +1722,40 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     return FALSE;
 
   return TRUE;
+}
+
+/**
+ * @brief Convert GList to GValue
+ */
+static void
+gst_tensor_filter_property_to_string (GValue * value,
+    GstTensorFilterPrivate * priv, guint prop_id)
+{
+  GList *list;
+  gchar *p;
+  GPtrArray *arr = g_ptr_array_new ();
+  gchar **strings;
+
+  if (prop_id == PROP_INPUTCOMBINATION) {
+    for (list = priv->combi.in_combi; list != NULL; list = list->next)
+      g_ptr_array_add (arr, g_strdup_printf ("%i",
+              GPOINTER_TO_INT (list->data)));
+  } else if (prop_id == PROP_OUTPUTCOMBINATION) {
+    for (list = priv->combi.out_combi_i; list != NULL; list = list->next)
+      g_ptr_array_add (arr, g_strdup_printf ("%c%i", 'p',
+              GPOINTER_TO_INT (list->data)));
+    for (list = priv->combi.out_combi_o; list != NULL; list = list->next)
+      g_ptr_array_add (arr, g_strdup_printf ("%c%i", 'o',
+              GPOINTER_TO_INT (list->data)));
+  }
+
+  g_ptr_array_add (arr, NULL);
+  strings = (gchar **) g_ptr_array_free (arr, FALSE);
+  g_strv_length (strings);
+  p = g_strjoinv (",", strings);
+
+  g_strfreev (strings);
+  g_value_take_string (value, p);
 }
 
 /**
@@ -1829,6 +1959,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         /* invalid */
         g_value_set_int (value, -1);
       }
+      break;
+    case PROP_INPUTCOMBINATION:
+      gst_tensor_filter_property_to_string (value, priv, prop_id);
+      break;
+    case PROP_OUTPUTCOMBINATION:
+      gst_tensor_filter_property_to_string (value, priv, prop_id);
       break;
     default:
       /* unknown property */
