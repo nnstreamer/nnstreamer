@@ -91,4 +91,25 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux
 callCompareTest testcase_stream.golden demux13_0.log 13_0 "Golden Test 13-0" 1 0
 callCompareTest testcase_stream.golden demux13_1.log 13_1 "Golden Test 13-1" 1 0
 
+# generate golden test result
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! video/x-raw,width=200,height=200,format=RGB ! tensor_converter! filesink location=TestResult_14_0.golden
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 pattern=14 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter! filesink location=TestResult_14_1.golden
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 pattern=15 ! videoconvert ! videoscale ! video/x-raw,width=400,height=400,format=RGB ! tensor_converter! filesink location=TestResult_14_2.golden
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 pattern=16 ! videoconvert ! videoscale ! video/x-raw,width=500,height=500,format=RGB ! tensor_converter! filesink location=TestResult_14_3.golden
+
+# other/tensors output test. input: tensor 0,1,2 output: tensor 0, tensor 1,2 and tensor 2,0
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! tensor_demux name=demux tensorpick=0,1:2,2:0 \
+videotestsrc num-buffers=1 pattern = 13 ! videoconvert ! videoscale ! video/x-raw,width=200,height=200,format=RGB ! tensor_converter ! mux.sink_0 \
+videotestsrc num-buffers=1 pattern = 14 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! mux.sink_1 \
+videotestsrc num-buffers=1 pattern = 15 ! videoconvert ! videoscale ! video/x-raw,width=400,height=400,format=RGB ! tensor_converter ! mux.sink_2 \
+videotestsrc num-buffers=1 pattern = 16 ! videoconvert ! videoscale ! video/x-raw,width=500,height=500,format=RGB ! tensor_converter ! mux.sink_3 \
+demux.src_0 ! queue ! filesink location=demux14_0.log \
+demux.src_1 ! queue ! tensor_demux name=demux_1 demux_1.src_0 ! queue ! filesink location=demux14_1_1.log demux_1.src_1 ! queue ! filesink location=demux14_1_2.log \
+demux.src_2 ! queue ! tensor_demux name=demux_2 demux_2.src_0 ! queue ! filesink location=demux14_2_2.log demux_2.src_1 ! queue ! filesink location=demux14_2_0.log" 14 0 0 $PERFORMANCE
+callCompareTest TestResult_14_0.golden demux14_0.log 14_0 "Golden Test 14-0" 1 0
+callCompareTest TestResult_14_1.golden demux14_1_1.log 14_1_1 "Golden Test 14-1" 1 0
+callCompareTest TestResult_14_2.golden demux14_1_2.log 14_1_2 "Golden Test 14-2" 1 0
+callCompareTest TestResult_14_2.golden demux14_2_2.log 14_2_2 "Golden Test 14-3" 1 0
+callCompareTest TestResult_14_0.golden demux14_2_0.log 14_2_0 "Golden Test 14-4" 1 0
+
 report
