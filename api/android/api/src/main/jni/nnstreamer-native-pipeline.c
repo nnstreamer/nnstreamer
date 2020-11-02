@@ -220,7 +220,7 @@ nns_get_sink_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     item->handle = handle;
     item->pipe_info = pipe_info;
 
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
+    if (!nns_add_element_data (pipe_info, element_name, item)) {
       nns_loge ("Failed to add sink node %s.", element_name);
       nns_free_element_data (item);
       return NULL;
@@ -266,7 +266,7 @@ nns_get_src_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     item->handle = handle;
     item->pipe_info = pipe_info;
 
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
+    if (!nns_add_element_data (pipe_info, element_name, item)) {
       nns_loge ("Failed to add src node %s.", element_name);
       nns_free_element_data (item);
       return NULL;
@@ -314,7 +314,7 @@ nns_get_switch_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     item->handle = handle;
     item->pipe_info = pipe_info;
 
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
+    if (!nns_add_element_data (pipe_info, element_name, item)) {
       nns_loge ("Failed to add switch %s.", element_name);
       nns_free_element_data (item);
       return NULL;
@@ -360,7 +360,7 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
     item->handle = handle;
     item->pipe_info = pipe_info;
 
-    if (!nns_add_element_handle (pipe_info, element_name, item)) {
+    if (!nns_add_element_data (pipe_info, element_name, item)) {
       nns_loge ("Failed to add valve %s.", element_name);
       nns_free_element_data (item);
       return NULL;
@@ -373,7 +373,7 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
 /**
  * @brief Native method for pipeline API.
  */
-jlong
+static jlong
 nns_native_pipe_construct (JNIEnv * env, jobject thiz, jstring description,
     jboolean add_state_cb)
 {
@@ -420,7 +420,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-void
+static void
 nns_native_pipe_destroy (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -433,7 +433,7 @@ nns_native_pipe_destroy (JNIEnv * env, jobject thiz, jlong handle)
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_start (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -455,7 +455,7 @@ nns_native_pipe_start (JNIEnv * env, jobject thiz, jlong handle)
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_stop (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -477,7 +477,7 @@ nns_native_pipe_stop (JNIEnv * env, jobject thiz, jlong handle)
 /**
  * @brief Native method for pipeline API.
  */
-jint
+static jint
 nns_native_pipe_get_state (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
@@ -500,7 +500,7 @@ nns_native_pipe_get_state (JNIEnv * env, jobject thiz, jlong handle)
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_input_data (JNIEnv * env, jobject thiz, jlong handle,
     jstring name, jobject in)
 {
@@ -542,7 +542,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-jobjectArray
+static jobjectArray
 nns_native_pipe_get_switch_pads (JNIEnv * env, jobject thiz, jlong handle,
     jstring name)
 {
@@ -599,7 +599,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_select_switch_pad (JNIEnv * env, jobject thiz, jlong handle,
     jstring name, jstring pad)
 {
@@ -634,7 +634,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_control_valve (JNIEnv * env, jobject thiz, jlong handle,
     jstring name, jboolean open)
 {
@@ -667,7 +667,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_add_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
     jstring name)
 {
@@ -693,7 +693,7 @@ done:
 /**
  * @brief Native method for pipeline API.
  */
-jboolean
+static jboolean
 nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
     jstring name)
 {
@@ -708,10 +708,53 @@ nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
   sink = (ml_pipeline_sink_h) nns_get_element_handle (pipe_info, element_name,
       NNS_ELEMENT_TYPE_SINK);
   if (sink) {
-    nns_remove_element_handle (pipe_info, element_name);
+    nns_remove_element_data (pipe_info, element_name);
     res = JNI_TRUE;
   }
 
   (*env)->ReleaseStringUTFChars (env, name, element_name);
   return res;
+}
+
+/**
+ * @brief List of implemented native methods for Pipeline class.
+ */
+static JNINativeMethod native_methods_pipeline[] = {
+  {"nativeConstruct", "(Ljava/lang/String;Z)J",
+      (void *) nns_native_pipe_construct},
+  {"nativeDestroy", "(J)V", (void *) nns_native_pipe_destroy},
+  {"nativeStart", "(J)Z", (void *) nns_native_pipe_start},
+  {"nativeStop", "(J)Z", (void *) nns_native_pipe_stop},
+  {"nativeGetState", "(J)I", (void *) nns_native_pipe_get_state},
+  {"nativeInputData", "(JLjava/lang/String;L" NNS_CLS_TDATA ";)Z",
+      (void *) nns_native_pipe_input_data},
+  {"nativeGetSwitchPads", "(JLjava/lang/String;)[Ljava/lang/String;",
+      (void *) nns_native_pipe_get_switch_pads},
+  {"nativeSelectSwitchPad", "(JLjava/lang/String;Ljava/lang/String;)Z",
+      (void *) nns_native_pipe_select_switch_pad},
+  {"nativeControlValve", "(JLjava/lang/String;Z)Z",
+      (void *) nns_native_pipe_control_valve},
+  {"nativeAddSinkCallback", "(JLjava/lang/String;)Z",
+      (void *) nns_native_pipe_add_sink_cb},
+  {"nativeRemoveSinkCallback", "(JLjava/lang/String;)Z",
+      (void *) nns_native_pipe_remove_sink_cb}
+};
+
+/**
+ * @brief Register native methods for Pipeline class.
+ */
+gboolean
+nns_native_pipe_register_natives (JNIEnv * env)
+{
+  jclass klass = (*env)->FindClass (env, NNS_CLS_PIPELINE);
+
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_pipeline,
+            G_N_ELEMENTS (native_methods_pipeline))) {
+      nns_loge ("Failed to register native methods for Pipeline class.");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
