@@ -338,6 +338,16 @@ public class APITestCommon {
     }
 
     @Test
+    public void testInitWithInvalidCtx_n() {
+        try {
+            NNStreamer.initialize(null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void enumTensorType() {
         assertEquals(NNStreamer.TensorType.INT32, NNStreamer.TensorType.valueOf("INT32"));
         assertEquals(NNStreamer.TensorType.UINT32, NNStreamer.TensorType.valueOf("UINT32"));
