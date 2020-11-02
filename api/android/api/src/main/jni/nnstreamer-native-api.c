@@ -323,11 +323,10 @@ nns_set_priv_data (pipeline_info_s * pipe_info, gpointer data,
 }
 
 /**
- * @brief Get element handle of given name.
+ * @brief Get element data of given name.
  */
-gpointer
-nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name,
-    const nns_element_type_e type)
+element_data_s *
+nns_get_element_data (pipeline_info_s * pipe_info, const gchar * name)
 {
   element_data_s *item;
 
@@ -338,15 +337,27 @@ nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name,
   item = g_hash_table_lookup (pipe_info->element_handles, name);
   g_mutex_unlock (&pipe_info->lock);
 
+  return item;
+}
+
+/**
+ * @brief Get element handle of given name and type.
+ */
+gpointer
+nns_get_element_handle (pipeline_info_s * pipe_info, const gchar * name,
+    const nns_element_type_e type)
+{
+  element_data_s *item = nns_get_element_data (pipe_info, name);
+
   /* check element type */
   return (item && item->type == type) ? item->handle : NULL;
 }
 
 /**
- * @brief Remove element handle of given name.
+ * @brief Remove element data of given name.
  */
 gboolean
-nns_remove_element_handle (pipeline_info_s * pipe_info, const gchar * name)
+nns_remove_element_data (pipeline_info_s * pipe_info, const gchar * name)
 {
   gboolean ret;
 
@@ -361,10 +372,10 @@ nns_remove_element_handle (pipeline_info_s * pipe_info, const gchar * name)
 }
 
 /**
- * @brief Add new element handle of given name and type.
+ * @brief Add new element data of given name.
  */
 gboolean
-nns_add_element_handle (pipeline_info_s * pipe_info, const gchar * name,
+nns_add_element_data (pipeline_info_s * pipe_info, const gchar * name,
     element_data_s * item)
 {
   gboolean ret;
@@ -837,64 +848,6 @@ static JNINativeMethod native_methods_nnstreamer[] = {
 };
 
 /**
- * @brief List of implemented native methods for SingleShot class.
- */
-static JNINativeMethod native_methods_singleshot[] = {
-  {"nativeOpen",
-      "([Ljava/lang/String;L" NNS_CLS_TINFO ";L" NNS_CLS_TINFO
-        ";ILjava/lang/String;)J", (void *) nns_native_single_open},
-  {"nativeClose", "(J)V", (void *) nns_native_single_close},
-  {"nativeInvoke", "(JL" NNS_CLS_TDATA ";)L" NNS_CLS_TDATA ";",
-      (void *) nns_native_single_invoke},
-  {"nativeGetInputInfo", "(J)L" NNS_CLS_TINFO ";",
-      (void *) nns_native_single_get_input_info},
-  {"nativeGetOutputInfo", "(J)L" NNS_CLS_TINFO ";",
-      (void *) nns_native_single_get_output_info},
-  {"nativeSetProperty", "(JLjava/lang/String;Ljava/lang/String;)Z",
-      (void *) nns_native_single_set_prop},
-  {"nativeGetProperty", "(JLjava/lang/String;)Ljava/lang/String;",
-      (void *) nns_native_single_get_prop},
-  {"nativeSetTimeout", "(JI)Z", (void *) nns_native_single_set_timeout},
-  {"nativeSetInputInfo", "(JL" NNS_CLS_TINFO ";)Z",
-      (void *) nns_native_single_set_input_info}
-};
-
-#if !defined (NNS_SINGLE_ONLY)
-/**
- * @brief List of implemented native methods for Pipeline class.
- */
-static JNINativeMethod native_methods_pipeline[] = {
-  {"nativeConstruct", "(Ljava/lang/String;Z)J",
-      (void *) nns_native_pipe_construct},
-  {"nativeDestroy", "(J)V", (void *) nns_native_pipe_destroy},
-  {"nativeStart", "(J)Z", (void *) nns_native_pipe_start},
-  {"nativeStop", "(J)Z", (void *) nns_native_pipe_stop},
-  {"nativeGetState", "(J)I", (void *) nns_native_pipe_get_state},
-  {"nativeInputData", "(JLjava/lang/String;L" NNS_CLS_TDATA ";)Z",
-      (void *) nns_native_pipe_input_data},
-  {"nativeGetSwitchPads", "(JLjava/lang/String;)[Ljava/lang/String;",
-      (void *) nns_native_pipe_get_switch_pads},
-  {"nativeSelectSwitchPad", "(JLjava/lang/String;Ljava/lang/String;)Z",
-      (void *) nns_native_pipe_select_switch_pad},
-  {"nativeControlValve", "(JLjava/lang/String;Z)Z",
-      (void *) nns_native_pipe_control_valve},
-  {"nativeAddSinkCallback", "(JLjava/lang/String;)Z",
-      (void *) nns_native_pipe_add_sink_cb},
-  {"nativeRemoveSinkCallback", "(JLjava/lang/String;)Z",
-      (void *) nns_native_pipe_remove_sink_cb}
-};
-
-/**
- * @brief List of implemented native methods for CustomFilter class.
- */
-static JNINativeMethod native_methods_customfilter[] = {
-  {"nativeInitialize", "(Ljava/lang/String;L" NNS_CLS_TINFO ";L" NNS_CLS_TINFO ";)J",
-      (void *) nns_native_custom_initialize},
-  {"nativeDestroy", "(J)V", (void *) nns_native_custom_destroy}
-};
-#endif
-
-/**
  * @brief Initialize native library.
  */
 jint
@@ -917,31 +870,14 @@ JNI_OnLoad (JavaVM * vm, void *reserved)
     }
   }
 
-  klass = (*env)->FindClass (env, NNS_CLS_SINGLE);
-  if (klass) {
-    if ((*env)->RegisterNatives (env, klass, native_methods_singleshot,
-            G_N_ELEMENTS (native_methods_singleshot))) {
-      nns_loge ("Failed to register native methods for SingleShot class.");
-      return 0;
-    }
-  }
-#if !defined (NNS_SINGLE_ONLY)
-  klass = (*env)->FindClass (env, NNS_CLS_PIPELINE);
-  if (klass) {
-    if ((*env)->RegisterNatives (env, klass, native_methods_pipeline,
-            G_N_ELEMENTS (native_methods_pipeline))) {
-      nns_loge ("Failed to register native methods for Pipeline class.");
-      return 0;
-    }
+  if (!nns_native_single_register_natives (env)) {
+    return 0;
   }
 
-  klass = (*env)->FindClass (env, NNS_CLS_CUSTOM_FILTER);
-  if (klass) {
-    if ((*env)->RegisterNatives (env, klass, native_methods_customfilter,
-            G_N_ELEMENTS (native_methods_customfilter))) {
-      nns_loge ("Failed to register native methods for CustomFilter class.");
-      return 0;
-    }
+#if !defined (NNS_SINGLE_ONLY)
+  if (!nns_native_pipe_register_natives (env) ||
+      !nns_native_custom_register_natives (env)) {
+    return 0;
   }
 #endif
 
