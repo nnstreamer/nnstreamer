@@ -147,7 +147,7 @@ done:
 /**
  * @brief Native method for custom filter.
  */
-jlong
+static jlong
 nns_native_custom_initialize (JNIEnv * env, jobject thiz, jstring name,
     jobject in, jobject out)
 {
@@ -216,11 +216,39 @@ done:
 /**
  * @brief Native method for custom filter.
  */
-void
+static void
 nns_native_custom_destroy (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info = NULL;
 
   pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
   nns_destroy_pipe_info (pipe_info, env);
+}
+
+/**
+ * @brief List of implemented native methods for CustomFilter class.
+ */
+static JNINativeMethod native_methods_customfilter[] = {
+  {"nativeInitialize", "(Ljava/lang/String;L" NNS_CLS_TINFO ";L" NNS_CLS_TINFO ";)J",
+      (void *) nns_native_custom_initialize},
+  {"nativeDestroy", "(J)V", (void *) nns_native_custom_destroy}
+};
+
+/**
+ * @brief Register native methods for CustomFilter class.
+ */
+gboolean
+nns_native_custom_register_natives (JNIEnv * env)
+{
+  jclass klass = (*env)->FindClass (env, NNS_CLS_CUSTOM_FILTER);
+
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_customfilter,
+            G_N_ELEMENTS (native_methods_customfilter))) {
+      nns_loge ("Failed to register native methods for CustomFilter class.");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
