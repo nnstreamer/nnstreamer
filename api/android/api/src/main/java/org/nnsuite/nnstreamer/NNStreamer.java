@@ -47,6 +47,8 @@ public final class NNStreamer {
 
     /**
      * The enumeration for supported frameworks in NNStreamer.
+     *
+     * @see #isAvailable(NNFWType)
      */
     public enum NNFWType {
         /**
@@ -116,8 +118,14 @@ public final class NNStreamer {
      * @param context The application context
      *
      * @return true if successfully initialized
+     *
+     * @throws IllegalArgumentException if given param is invalid
      */
     public static boolean initialize(Context context) {
+        if (context == null) {
+            throw new IllegalArgumentException("Given context is invalid");
+        }
+
         try {
             System.loadLibrary("gstreamer_android");
             System.loadLibrary("nnstreamer-native");
