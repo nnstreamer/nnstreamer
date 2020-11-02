@@ -88,7 +88,7 @@ nns_singleshot_priv_set_info (pipeline_info_s * pipe_info, JNIEnv * env)
 /**
  * @brief Native method for single-shot API.
  */
-jlong
+static jlong
 nns_native_single_open (JNIEnv * env, jobject thiz,
     jobjectArray models, jobject in, jobject out, jint fw_type, jstring option)
 {
@@ -198,7 +198,7 @@ done:
 /**
  * @brief Native method for single-shot API.
  */
-void
+static void
 nns_native_single_close (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
@@ -211,7 +211,7 @@ nns_native_single_close (JNIEnv * env, jobject thiz, jlong handle)
 /**
  * @brief Native method for single-shot API.
  */
-jobject
+static jobject
 nns_native_single_invoke (JNIEnv * env, jobject thiz, jlong handle, jobject in)
 {
   pipeline_info_s *pipe_info;
@@ -263,7 +263,7 @@ done:
 /**
  * @brief Native method for single-shot API.
  */
-jobject
+static jobject
 nns_native_single_get_input_info (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
@@ -292,7 +292,7 @@ done:
 /**
  * @brief Native method for single-shot API.
  */
-jobject
+static jobject
 nns_native_single_get_output_info (JNIEnv * env, jobject thiz, jlong handle)
 {
   pipeline_info_s *pipe_info;
@@ -321,7 +321,7 @@ done:
 /**
  * @brief Native method for single-shot API.
  */
-jboolean
+static jboolean
 nns_native_single_set_prop (JNIEnv * env, jobject thiz, jlong handle,
     jstring name, jstring value)
 {
@@ -351,7 +351,7 @@ nns_native_single_set_prop (JNIEnv * env, jobject thiz, jlong handle,
 /**
  * @brief Native method for single-shot API.
  */
-jstring
+static jstring
 nns_native_single_get_prop (JNIEnv * env, jobject thiz, jlong handle,
     jstring name)
 {
@@ -384,7 +384,7 @@ nns_native_single_get_prop (JNIEnv * env, jobject thiz, jlong handle,
 /**
  * @brief Native method for single-shot API.
  */
-jboolean
+static jboolean
 nns_native_single_set_timeout (JNIEnv * env, jobject thiz, jlong handle,
     jint timeout)
 {
@@ -406,7 +406,7 @@ nns_native_single_set_timeout (JNIEnv * env, jobject thiz, jlong handle,
 /**
  * @brief Native method for single-shot API.
  */
-jboolean
+static jboolean
 nns_native_single_set_input_info (JNIEnv * env, jobject thiz, jlong handle,
     jobject in)
 {
@@ -433,4 +433,46 @@ nns_native_single_set_input_info (JNIEnv * env, jobject thiz, jlong handle,
 done:
   ml_tensors_info_destroy (in_info);
   return ret;
+}
+
+/**
+ * @brief List of implemented native methods for SingleShot class.
+ */
+static JNINativeMethod native_methods_singleshot[] = {
+  {"nativeOpen", "([Ljava/lang/String;L" NNS_CLS_TINFO ";"
+        "L" NNS_CLS_TINFO ";ILjava/lang/String;)J",
+      (void *) nns_native_single_open},
+  {"nativeClose", "(J)V", (void *) nns_native_single_close},
+  {"nativeInvoke", "(JL" NNS_CLS_TDATA ";)L" NNS_CLS_TDATA ";",
+      (void *) nns_native_single_invoke},
+  {"nativeGetInputInfo", "(J)L" NNS_CLS_TINFO ";",
+      (void *) nns_native_single_get_input_info},
+  {"nativeGetOutputInfo", "(J)L" NNS_CLS_TINFO ";",
+      (void *) nns_native_single_get_output_info},
+  {"nativeSetProperty", "(JLjava/lang/String;Ljava/lang/String;)Z",
+      (void *) nns_native_single_set_prop},
+  {"nativeGetProperty", "(JLjava/lang/String;)Ljava/lang/String;",
+      (void *) nns_native_single_get_prop},
+  {"nativeSetTimeout", "(JI)Z", (void *) nns_native_single_set_timeout},
+  {"nativeSetInputInfo", "(JL" NNS_CLS_TINFO ";)Z",
+      (void *) nns_native_single_set_input_info}
+};
+
+/**
+ * @brief Register native methods for SingleShot class.
+ */
+gboolean
+nns_native_single_register_natives (JNIEnv * env)
+{
+  jclass klass = (*env)->FindClass (env, NNS_CLS_SINGLE);
+
+  if (klass) {
+    if ((*env)->RegisterNatives (env, klass, native_methods_singleshot,
+            G_N_ELEMENTS (native_methods_singleshot))) {
+      nns_loge ("Failed to register native methods for SingleShot class.");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
