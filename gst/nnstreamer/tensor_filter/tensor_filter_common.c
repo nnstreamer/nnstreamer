@@ -959,11 +959,12 @@ gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
 
   /* Detect framework based on file extension */
   if (num_models == 1) {
-    if (g_ascii_strcasecmp (file_extension, ".tflite") == 0)
+    if (g_ascii_strcasecmp (file_extension, ".tflite") == 0) {
+      detected_fw = g_strdup ("tensorflow-lite");
       fw_priority_str =
           nnsconf_get_custom_value_string ("filter",
           "framework_priority_tflite");
-    else if (g_ascii_strcasecmp (file_extension, ".pb") == 0)
+    } else if (g_ascii_strcasecmp (file_extension, ".pb") == 0)
       detected_fw = g_strdup ("tensorflow");
     else if (g_ascii_strcasecmp (file_extension, ".pt") == 0)
       detected_fw = g_strdup ("pytorch");
@@ -1003,6 +1004,8 @@ gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
       fw = nnstreamer_filter_find (fw_priority_str_arr[i]);
 
       if (fw) {
+        if (detected_fw)
+          g_free (detected_fw);
         detected_fw = g_strdup (fw_priority_str_arr[i]);
         break;
       } else {
