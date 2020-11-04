@@ -293,13 +293,10 @@ error:
   goto out;
 }
 
-static void gst_parse_element_set (gchar *value, GstElement *element, graph_t *graph)
+static void nnstparser_element_set (gchar *value, _Element *element, graph_t *graph)
 {
-  GParamSpec *pspec = NULL;
   gchar *pos = value;
-  GValue v = { 0, };
-  GObject *target = NULL;
-  GType value_type;
+  _Property *prop;
 
   /* do nothing if assignment is for missing element */
   if (element == NULL)
@@ -324,62 +321,15 @@ static void gst_parse_element_set (gchar *value, GstElement *element, graph_t *g
   }
   gst_parse_unescape (pos);
 
-  if (GST_IS_CHILD_PROXY (element)) {
-    if (!gst_child_proxy_lookup (GST_CHILD_PROXY (element), value, &target, &pspec)) {
-      /* do a delayed set */
-      gst_parse_add_delayed_set (element, value, pos);
-    }
-  } else {
-    pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (element), value);
-    if (pspec != NULL) {
-      target = G_OBJECT (g_object_ref (element));
-      GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, target, "found %s property", value);
-    } else {
-      SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_PROPERTY, \
-          _("no property \"%s\" in element \"%s\""), value, \
-          GST_ELEMENT_NAME (element));
-    }
-  }
-
-  if (pspec != NULL && target != NULL) {
-    gboolean got_value = FALSE;
-
-    value_type = pspec->value_type;
-
-    GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, element, "parsing property %s as a %s",
-        pspec->name, g_type_name (value_type));
-
-    g_value_init (&v, value_type);
-    if (gst_value_deserialize (&v, pos))
-      got_value = TRUE;
-    else if (g_type_is_a (value_type, GST_TYPE_ELEMENT)) {
-       GstElement *bin;
-
-       bin = gst_parse_bin_from_description_full (pos, TRUE, NULL,
-           GST_PARSE_FLAG_NO_SINGLE_ELEMENT_BINS | GST_PARSE_FLAG_PLACE_IN_BIN, NULL);
-       if (bin) {
-         g_value_set_object (&v, bin);
-         got_value = TRUE;
-       }
-    }
-    if (!got_value)
-      goto error;
-    g_object_set_property (target, pspec->name, &v);
-  }
+  /* Assign a "name=value" pair to element */
+  prop = g_malloc (sizeof(_Property));
+  prop->name = g_strdup (value);
+  prop->value = g_strdup (pos);
+  element->properties = g_slist_prepend (element->properties, prop);
 
 out:
-  gst_parse_strfree (value);
-  if (G_IS_VALUE (&v))
-    g_value_unset (&v);
-  if (target)
-    g_object_unref (target);
+  g_free (value);
   return;
-
-error:
-  SET_ERROR (graph->error, GST_PARSE_ERROR_COULD_NOT_SET_PROPERTY,
-         _("could not set property \"%s\" in element \"%s\" to \"%s\""),
-	 value, GST_ELEMENT_NAME (element), pos);
-  goto out;
 }
 
 static void gst_parse_free_reference (reference_t *rr)
@@ -736,14 +686,14 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 *	identity silence=false name=frodo
 *   (cont'd)
 **************************************************************/
-element:	IDENTIFIER     		      { $$ = gst_element_factory_make ($1, NULL);
+element:	IDENTIFIER     		      { $$ = nnstparser_element_make ($1, NULL);
 						if ($$ == NULL) {
 						  add_missing_element(graph, $1);
 						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT, _("no element \"%s\""), $1);
 						}
-						gst_parse_strfree ($1);
+						g_free ($1);
                                               }
-	|	element ASSIGNMENT	      { gst_parse_element_set ($2, $1, graph);
+	|	element ASSIGNMENT	      { nnstparser_element_set ($2, $1, graph);
 						$$ = $1;
 	                                      }
 	;
@@ -758,10 +708,10 @@ element:	IDENTIFIER     		      { $$ = gst_element_factory_make ($1, NULL);
 *
 **************************************************************/
 elementary:
-	element				      { $$ = gst_parse_chain_new ();
+	element				      { $$ = g_slice_new0 (chain_t);
 						/* g_print ("@%p: CHAINing elementary\n", $$); */
-						$$->first.element = $1? gst_object_ref($1) : NULL;
-						$$->last.element = $1? gst_object_ref($1) : NULL;
+						$$->first.element = $1? ($1) : NULL;
+						$$->last.element = $1? ($1) : NULL;
 						$$->first.name = $$->last.name = NULL;
 						$$->first.pads = $$->last.pads = NULL;
 						$$->elements = $1 ? g_slist_prepend (NULL, $1) : NULL;
@@ -1118,7 +1068,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
 
   /* ensure chain is not NULL */
   if (!g.chain){
-    g.chain=gst_parse_chain_new ();
+    g.chain=g_slice_new0 (chain_t);
     g.chain->elements=NULL;
     g.chain->first.element=NULL;
     g.chain->first.name=NULL;
