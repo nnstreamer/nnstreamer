@@ -45,6 +45,7 @@ subdir('tensor_decoder')
 subdir('tensor_filter')
 subdir('tensor_source')
 subdir('tensor_converter')
+subdir('tensor_sink')
 
 if get_option('enable-tizen-sensor')
   tizensensor_registerer_source_files = ['registerer/tizensensor.c']
@@ -79,7 +80,7 @@ if grpc_support_is_available
 
   grpc_lib = shared_library('nnstreamer-grpc',
     grpc_registerer_sources,
-    dependencies: [tensor_src_grpc_dep],
+    dependencies: [tensor_src_grpc_dep, tensor_sink_grpc_dep],
     install: true,
     install_dir: plugins_install_dir
   )

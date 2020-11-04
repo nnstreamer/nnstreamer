@@ -20,6 +20,7 @@
 #include <gst/gst.h>
 
 #include <tensor_source/tensor_src_grpc.h>
+#include <tensor_sink/tensor_sink_grpc.h>
 
 #define NNSTREAMER_GRPC_INIT(plugin,name,type) \
   do { \
@@ -36,6 +37,7 @@ static gboolean
 gst_nnstreamer_grpc_init (GstPlugin * plugin)
 {
   NNSTREAMER_GRPC_INIT (plugin, src_grpc, SRC_GRPC);
+  NNSTREAMER_GRPC_INIT (plugin, sink_grpc, SINK_GRPC);
   return TRUE;
 }
 
