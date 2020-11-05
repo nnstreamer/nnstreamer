@@ -65,6 +65,14 @@ LOCAL_MODULE := tensorflow-lite-subplugin
 LOCAL_SRC_FILES := $(NNSTREAMER_FILTER_TFLITE_SRCS)
 LOCAL_CXXFLAGS := -std=c++11 -O3 -fPIC -frtti -fexceptions $(NNS_API_FLAGS) $(TFLITE_FLAGS)
 LOCAL_C_INCLUDES := $(TF_LITE_INCLUDES) $(NNSTREAMER_INCLUDES) $(GST_HEADERS_COMMON)
+
+# Link gles for tflite v2.3.0 or higher for gpu delegate support
+ifeq ($(TFLITE_VERSION_MAJOR),2)
+ifeq ($(shell test $(TFLITE_VERSION_MINOR) -ge 3; echo $$?),0)
+LOCAL_EXPORT_LDLIBS := -lEGL -lGLESv2
+endif
+endif
+
 LOCAL_STATIC_LIBRARIES := tensorflow-lite-lib cpufeatures
 
 include $(BUILD_STATIC_LIBRARY)
