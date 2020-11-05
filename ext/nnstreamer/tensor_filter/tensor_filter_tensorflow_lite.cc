@@ -46,6 +46,14 @@
 #include <tensorflow/contrib/lite/kernels/register.h>
 #endif
 
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 14)
+#include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
+#endif
+
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 && TFLITE_VERSION_MINOR >= 3)
+#include <tensorflow/lite/delegates/gpu/delegate.h>
+#endif
+
 /**
  * @brief Macro for debug mode.
  */
@@ -146,6 +154,10 @@ private:
 
 #if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 14)
   std::unique_ptr<tflite::StatefulNnApiDelegate> stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
+#endif
+
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 && TFLITE_VERSION_MINOR >= 3)
+  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate */
 #endif
 };
 
@@ -305,14 +317,26 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     interpreter->SetNumThreads (n);
   }
 
-  /** set nnapi delegate when accelerator set to auto (cpu.neon in Android), GPU or NPU */
-  if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_GPU ||
-          accelerator == ACCL_NPU) {
+  /** set delegate after the accelerator prop */
+  if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_NPU) {
 #if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 14)
+    /** set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
     stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
     setDelegate (stateful_nnapi_delegate.get ());
 #else
-    ml_logw ("NNAPI delegate is available only in Android with tflite v1.14.0 or higher");
+    ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
+#endif
+  } else if (accelerator == ACCL_GPU) {
+#if defined(__ANDROID__) && (TFLITE_VERSION_MAJOR >= 2 && TFLITE_VERSION_MINOR >= 3)
+    /** set gpu delegate when accelerator set to GPU */
+    TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default();
+    options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
+    options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
+
+    gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
+    setDelegate (gpu_delegate.get ());
+#else
+    ml_logw ("GPU delegate support is available only in Android with tflite v2.3.0 or higher");
 #endif
   }
 
