@@ -7,7 +7,7 @@ We assume that you already have experienced Android application developments wit
  * Host PC:
    * OS: Ubuntu 16.04 / 18.04 x86_64 LTS
    * Android Studio: Ubuntu version
-   * Android SDK: Min version 24 (Nougat)
+   * Android SDK: Min version 28 (Pie)
    * Android NDK: Use default ndk-bundle in Android Studio
    * GStreamer: gstreamer-1.0-android-universal-1.16.2
 
