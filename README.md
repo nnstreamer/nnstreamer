@@ -30,7 +30,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: | :--: |
-|     | 5.5M2 and later | 16.04/18.04 | 7.0/N | 7.0/N | TBD |   |
+|     | 5.5M2 and later | 16.04/18.04 | 9/P | 9/P | TBD |   |
 | arm | [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
 | arm64 |  [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/) | Planned | N/A |
 | x64 | [![x64 badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/x86_64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)  | [![ubuntu badge](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/badge/ubuntu_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/taos/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
