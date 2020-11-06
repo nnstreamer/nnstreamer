@@ -16,7 +16,7 @@
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_if/gsttensorif.h"
 
-#define TEST_TIMEOUT_MS (1000)
+#define TEST_TIMEOUT_MS (1000U)
 /**
  * @brief Wait until the pipeline saving the file
  * @return TRUE on success, FALSE when a time-out occurs
