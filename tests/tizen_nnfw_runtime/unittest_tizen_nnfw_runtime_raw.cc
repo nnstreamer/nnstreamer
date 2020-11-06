@@ -120,9 +120,8 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
 
 /**
  * @brief Set input dimensions with nnfw subplugin
- * @todo enable when nnfw_set_dimension API is interally implemented
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
+TEST (nnstreamer_nnfw_runtime_raw_functions, set_dimension)
 {
   int ret;
   void *data = NULL;
@@ -156,7 +155,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
   tensor_size = 5;
 
   res.num_tensors = 1;
-  res.info[0].type = _NNS_INT32;
+  res.info[0].type = _NNS_FLOAT32;
   res.info[0].dimension[0] = tensor_size;
   res.info[0].dimension[1] = 1;
   res.info[0].dimension[2] = 1;
@@ -167,13 +166,13 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
   EXPECT_EQ (ret, 0);
 
   EXPECT_EQ (res.num_tensors, in_info.num_tensors);
-  EXPECT_NE (res.info[0].type, in_info.info[0].type);
+  EXPECT_EQ (res.info[0].type, in_info.info[0].type);
   EXPECT_NE (res.info[0].dimension[0], in_info.info[0].dimension[0]);
   EXPECT_EQ (res.info[0].dimension[1], in_info.info[0].dimension[1]);
   EXPECT_EQ (res.info[0].dimension[2], in_info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], in_info.info[0].dimension[3]);
 
-  ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
+  ret = sp->setInputDimension (&prop, &data, &res, &out_info);
   EXPECT_EQ (ret, 0);
 
   /** get input/output dimension successfully */
@@ -205,13 +204,13 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_set_dimension)
 
   /* generate dummy data */
   for (int idx = 0; idx < tensor_size; idx++)
-    ((gint32 *) input.data)[idx] = idx;
+    ((float *) input.data)[idx] = (float) idx;
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   for (int idx = 0; idx < tensor_size; idx++)
-    EXPECT_EQ (((gint32 *) output.data)[idx], idx + 2);
+    EXPECT_FLOAT_EQ (((float *) output.data)[idx], (float) (idx + 2));
 
   g_free (input.data);
   g_free (output.data);
@@ -257,12 +256,12 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
   *((float *)input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_EQ (*((float *) output.data), 12.0);
+  EXPECT_FLOAT_EQ (*((float *) output.data), 12.0);
 
   *((float *) input.data) = 1.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_EQ (*((float *) output.data), 3.0);
+  EXPECT_FLOAT_EQ (*((float *) output.data), 3.0);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -289,7 +288,7 @@ get_argmax (guint8 * array, size_t size)
 /**
  * @brief Test nnfw subplugin with successful invoke for tflite advanced model
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
+TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
 {
   int ret;
   void *data = NULL;
@@ -336,10 +335,6 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, DISABLED_invoke_advanced)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *) NULL);
-
-  /** Wrong file in the manifest, open should fail */
-  ret = sp->open (&prop, &data);
-  EXPECT_NE (ret, 0);
 
   replace_command =
       g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
@@ -527,7 +522,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
       ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
-  EXPECT_EQ (*data, 12.0);
+  EXPECT_FLOAT_EQ (*data, 12.0);
 
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
@@ -724,7 +719,7 @@ new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
       ml_tensors_data_get_tensor_data (data, 0, (void **) &data_ptr,
       &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (*data_ptr, 12.0);
+  EXPECT_FLOAT_EQ (*data_ptr, 12.0);
 
   *checks = *checks + 1;
 }
