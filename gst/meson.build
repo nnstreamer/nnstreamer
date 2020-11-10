@@ -1,1 +1,2 @@
 subdir('nnstreamer')
+subdir('join')
