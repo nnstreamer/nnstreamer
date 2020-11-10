@@ -64,7 +64,6 @@
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
 %define		openvino_support 0
-%define		grpc_support 0
 %endif
 
 %if !0%{?enable_extra_subplugins}
@@ -72,7 +71,6 @@
 %define		python_support 0
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
-%define		grpc_support 0
 %endif
 
 %if !0%{?check_test}
