@@ -9,6 +9,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
 ![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4401/badge)](https://bestpractices.coreinfrastructure.org/projects/4401)
 
 Neural Network Support as Gstreamer Plugins.
 
