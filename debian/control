@@ -129,3 +129,10 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer utility
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is a configuration checker utility for nnstreamer.
+
+Package: nnstreamer-misc
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer extra package
+ Provides additional gstreamer plugins for nnstreamer pipelines
