@@ -141,6 +141,10 @@ NNSTREAMER_DECODER_IS_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-imagesegment.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
 
+# gstreamer join element
+NNSTREAMER_JOIN_SRCS := \
+    $(NNSTREAMER_ROOT)/gst/join/gstjoin.c
+
 # common features
 NO_AUDIO := false
 

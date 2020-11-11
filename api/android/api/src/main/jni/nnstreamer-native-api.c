@@ -27,6 +27,7 @@
 #if !defined (NNS_SINGLE_ONLY)
 GST_PLUGIN_STATIC_DECLARE (nnstreamer);
 GST_PLUGIN_STATIC_DECLARE (amcsrc);
+GST_PLUGIN_STATIC_DECLARE (join);
 extern void init_dv (void);
 extern void init_bb (void);
 extern void init_il (void);
@@ -753,6 +754,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
 
     /* Android MediaCodec */
     GST_PLUGIN_STATIC_REGISTER (amcsrc);
+
+    /* GStreamer join element */
+    GST_PLUGIN_STATIC_REGISTER (join);
 
     /* tensor-decoder sub-plugins */
     init_dv ();

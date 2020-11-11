@@ -355,6 +355,7 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 Summary:	Tizen Native API for NNStreamer
 Group:		Multimedia/Framework
 Requires:	%{name} = %{version}-%{release}
+Requires:	%{name}-misc = %{version}-%{release}
 %if 0%{tizen_sensor_support}
 Requires:	%{name}-tizen-sensor = %{version}-%{release}
 %endif
@@ -459,6 +460,11 @@ Summary:	NNStreamer developer utilities
 %description util
 NNStreamer developer utilities include nnstreamer configuration checker.
 
+%package misc
+Summary:	NNStreamer extra packages
+%description misc
+Provides additional gstreamer plugins for nnstreamer pipelines
+
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
@@ -510,7 +516,7 @@ NNStreamer developer utilities include nnstreamer configuration checker.
 
 %endif
 # Element restriction in Tizen
-%define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay'
+%define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join'
 %define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
 %endif #if tizen
 
@@ -619,7 +625,7 @@ ninja -C build %{?_smp_mflags}
 
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)/build
-export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst/nnstreamer:${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer
+export GST_PLUGIN_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/gst:${NNSTREAMER_BUILD_ROOT_PATH}/ext
 export NNSTREAMER_CONF=${NNSTREAMER_BUILD_ROOT_PATH}/nnstreamer-test.ini
 export NNSTREAMER_FILTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_filter
 export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
@@ -900,6 +906,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files util
 %{_bindir}/nnstreamer-check
+
+%files misc
+%{gstlibdir}/libgstjoin.so
 
 %changelog
 * Wed Sep 09 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
