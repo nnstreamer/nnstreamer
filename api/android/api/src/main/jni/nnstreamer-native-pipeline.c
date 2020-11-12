@@ -42,6 +42,14 @@ typedef struct
 } pipeline_sink_priv_data_s;
 
 /**
+ * @brief Private data for video sink.
+ */
+typedef struct
+{
+  ANativeWindow *window;
+} pipeline_video_sink_priv_data_s;
+
+/**
  * @brief Release private data in pipeline info.
  */
 static void
@@ -50,6 +58,23 @@ nns_pipeline_priv_free (gpointer data, JNIEnv * env)
   pipeline_priv_data_s *priv = (pipeline_priv_data_s *) data;
 
   /* nothing to free */
+  g_free (priv);
+}
+
+/**
+ * @brief Release private data in video sink.
+ */
+static void
+nns_pipeline_video_sink_priv_free (gpointer data, JNIEnv * env)
+{
+  pipeline_video_sink_priv_data_s *priv;
+
+  priv = (pipeline_video_sink_priv_data_s *) data;
+  if (priv && priv->window) {
+    ANativeWindow_release (priv->window);
+    priv->window = NULL;
+  }
+
   g_free (priv);
 }
 
@@ -368,6 +393,58 @@ nns_get_valve_handle (pipeline_info_s * pipe_info, const gchar * element_name)
   }
 
   return handle;
+}
+
+/**
+ * @brief Get video sink element data in the pipeline.
+ */
+static element_data_s *
+nns_get_video_sink_data (pipeline_info_s * pipe_info,
+    const gchar * element_name)
+{
+  const nns_element_type_e etype = NNS_ELEMENT_TYPE_VIDEO_SINK;
+  ml_pipeline_h pipe;
+  element_data_s *item;
+  int status;
+
+  g_assert (pipe_info);
+  pipe = pipe_info->pipeline_handle;
+
+  item = nns_get_element_data (pipe_info, element_name);
+  if (item == NULL) {
+    ml_pipeline_element_h handle;
+    GstElement *vsink;
+
+    /* get video sink handle and register to table */
+    status = ml_pipeline_element_get_handle (pipe, element_name, &handle);
+    if (status != ML_ERROR_NONE) {
+      nns_loge ("Failed to get the handle of %s.", element_name);
+      return NULL;
+    }
+
+    vsink = ((ml_pipeline_common_elem *) handle)->element->element;
+
+    if (!GST_IS_VIDEO_OVERLAY (vsink)) {
+      nns_loge ("Given element %s cannot set the window on video sink.",
+          element_name);
+      ml_pipeline_element_release_handle (handle);
+      return NULL;
+    }
+
+    item = g_new0 (element_data_s, 1);
+    item->name = g_strdup (element_name);
+    item->type = etype;
+    item->handle = handle;
+    item->pipe_info = pipe_info;
+
+    if (!nns_add_element_data (pipe_info, element_name, item)) {
+      nns_loge ("Failed to add video sink %s.", element_name);
+      nns_free_element_data (item);
+      return NULL;
+    }
+  }
+
+  return item;
 }
 
 /**
@@ -717,6 +794,92 @@ nns_native_pipe_remove_sink_cb (JNIEnv * env, jobject thiz, jlong handle,
 }
 
 /**
+ * @brief Native method for pipeline API.
+ */
+static jboolean
+nns_native_pipe_initialize_surface (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name, jobject surface)
+{
+  pipeline_info_s *pipe_info;
+  element_data_s *edata;
+  jboolean res = JNI_FALSE;
+  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
+
+  edata = nns_get_video_sink_data (pipe_info, element_name);
+  if (edata) {
+    ANativeWindow *native_win;
+    GstElement *vsink;
+    pipeline_video_sink_priv_data_s *priv;
+
+    native_win = ANativeWindow_fromSurface (env, surface);
+    vsink = ((ml_pipeline_common_elem *) edata->handle)->element->element;
+    priv = (pipeline_video_sink_priv_data_s *) edata->priv_data;
+
+    if (priv == NULL) {
+      edata->priv_data = priv = g_new0 (pipeline_video_sink_priv_data_s, 1);
+      edata->priv_destroy_func = nns_pipeline_video_sink_priv_free;
+    }
+
+    if (priv->window) {
+      if (priv->window == native_win) {
+        gst_video_overlay_expose (GST_VIDEO_OVERLAY (vsink));
+      }
+
+      /* release old native window */
+      ANativeWindow_release (priv->window);
+    }
+
+    /* set new native window */
+    priv->window = native_win;
+    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (vsink),
+        (guintptr) native_win);
+
+    res = JNI_TRUE;
+  }
+
+  (*env)->ReleaseStringUTFChars (env, name, element_name);
+  return res;
+}
+
+/**
+ * @brief Native method for pipeline API.
+ */
+static jboolean
+nns_native_pipe_finalize_surface (JNIEnv * env, jobject thiz, jlong handle,
+    jstring name)
+{
+  pipeline_info_s *pipe_info;
+  element_data_s *edata;
+  jboolean res = JNI_FALSE;
+  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
+
+  pipe_info = CAST_TO_TYPE (handle, pipeline_info_s *);
+
+  edata = nns_get_video_sink_data (pipe_info, element_name);
+  if (edata) {
+    GstElement *vsink;
+    pipeline_video_sink_priv_data_s *priv;
+
+    vsink = ((ml_pipeline_common_elem *) edata->handle)->element->element;
+    priv = (pipeline_video_sink_priv_data_s *) edata->priv_data;
+
+    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (vsink),
+        (guintptr) NULL);
+    if (priv && priv->window) {
+      ANativeWindow_release (priv->window);
+      priv->window = NULL;
+    }
+
+    res = JNI_TRUE;
+  }
+
+  (*env)->ReleaseStringUTFChars (env, name, element_name);
+  return res;
+}
+
+/**
  * @brief List of implemented native methods for Pipeline class.
  */
 static JNINativeMethod native_methods_pipeline[] = {
@@ -737,7 +900,11 @@ static JNINativeMethod native_methods_pipeline[] = {
   {"nativeAddSinkCallback", "(JLjava/lang/String;)Z",
       (void *) nns_native_pipe_add_sink_cb},
   {"nativeRemoveSinkCallback", "(JLjava/lang/String;)Z",
-      (void *) nns_native_pipe_remove_sink_cb}
+      (void *) nns_native_pipe_remove_sink_cb},
+  {"nativeInitializeSurface", "(JLjava/lang/String;Ljava/lang/Object;)Z",
+      (void *) nns_native_pipe_initialize_surface},
+  {"nativeFinalizeSurface", "(JLjava/lang/String;)Z",
+      (void *) nns_native_pipe_finalize_surface}
 };
 
 /**
