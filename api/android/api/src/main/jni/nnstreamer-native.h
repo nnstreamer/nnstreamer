@@ -25,8 +25,11 @@
 #define __NNSTREAMER_ANDROID_NATIVE_H__
 
 #include <jni.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 
 #include <gst/gst.h>
+#include <gst/video/video.h>
 
 #include "nnstreamer.h"
 #include "nnstreamer-single.h"
@@ -80,6 +83,7 @@ typedef enum
   NNS_ELEMENT_TYPE_SINK,
   NNS_ELEMENT_TYPE_VALVE,
   NNS_ELEMENT_TYPE_SWITCH,
+  NNS_ELEMENT_TYPE_VIDEO_SINK,
 
   NNS_ELEMENT_TYPE_UNKNOWN
 } nns_element_type_e;

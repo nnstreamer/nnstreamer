@@ -17,6 +17,8 @@ package org.nnsuite.nnstreamer;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.view.Surface;
+import android.view.SurfaceHolder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +49,8 @@ public final class Pipeline implements AutoCloseable {
     private native boolean nativeControlValve(long handle, String name, boolean open);
     private native boolean nativeAddSinkCallback(long handle, String name);
     private native boolean nativeRemoveSinkCallback(long handle, String name);
+    private native boolean nativeInitializeSurface(long handle, String name, Object surface);
+    private native boolean nativeFinalizeSurface(long handle, String name);
 
     /**
      * Interface definition for a callback to be invoked when a sink node receives new data.
@@ -372,6 +376,36 @@ public final class Pipeline implements AutoCloseable {
                 /* remove callback */
                 mSinkCallbacks.remove(name);
                 nativeRemoveSinkCallback(mHandle, name);
+            }
+        }
+    }
+
+    /**
+     * Sets a surface to video sink element.
+     * If {@code holder} is null, this will stop using the old surface.
+     *
+     * @param name   The name of video sink element
+     * @param holder The surface holder instance
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     * @throws IllegalStateException if failed to set the surface to video sink
+     */
+    public void setSurface(@NonNull String name, @Nullable SurfaceHolder holder) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Given name is invalid");
+        }
+
+        if (holder == null) {
+            nativeFinalizeSurface(mHandle, name);
+        } else {
+            Surface surface = holder.getSurface();
+
+            if (surface == null || !surface.isValid()) {
+                throw new IllegalArgumentException("The surface is not available");
+            }
+
+            if (!nativeInitializeSurface(mHandle, name, surface)) {
+                throw new IllegalStateException("Failed to set the surface to " + name);
             }
         }
     }

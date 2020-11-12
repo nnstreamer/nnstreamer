@@ -133,6 +133,9 @@ nns_free_element_data (gpointer data)
       case NNS_ELEMENT_TYPE_SWITCH:
         ml_pipeline_switch_release_handle ((ml_pipeline_switch_h) item->handle);
         break;
+      case NNS_ELEMENT_TYPE_VIDEO_SINK:
+        ml_pipeline_element_release_handle ((ml_pipeline_element_h) item->handle);
+        break;
 #endif
       default:
         nns_logw ("Given element type %d is unknown.", item->type);
