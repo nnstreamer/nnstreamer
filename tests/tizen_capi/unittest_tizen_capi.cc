@@ -2028,6 +2028,55 @@ TEST (nnstreamer_capi_util, availability_fail_06_n)
 #endif /** ENABLE_ARMNN */
 
 /**
+ * @brief Test NNStreamer Utility for checking an element availability
+ */
+TEST (nnstreamer_capi_util, element_available_01_p)
+{
+  bool available;
+  int status;
+
+  status = ml_check_element_availability ("tensor_converter", &available);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (available, true);
+
+  status = ml_check_element_availability ("tensor_filter", &available);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (available, true);
+
+  status = ml_check_element_availability ("appsrc", &available);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (available, true);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking an element availability (null param)
+ */
+TEST (nnstreamer_capi_util, element_available_02_n)
+{
+  bool available;
+  int status;
+
+  status = ml_check_element_availability (nullptr, &available);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_check_element_availability ("tensor_filter", nullptr);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test NNStreamer Utility for checking an element availability (invalid element name)
+ */
+TEST (nnstreamer_capi_util, element_available_03_n)
+{
+  bool available;
+  int status;
+
+  status = ml_check_element_availability ("invalid-elem", &available);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (available, false);
+}
+
+/**
  * @brief Test NNStreamer Utility for checking tensors info handle
  */
 TEST (nnstreamer_capi_util, tensors_info)

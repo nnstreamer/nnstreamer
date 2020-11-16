@@ -1124,6 +1124,19 @@ int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
 int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
 
 /**
+ * @brief Checks the element is registered and available on the pipeline.
+ * @details If the function returns an error, @a available may not be changed.
+ * @since_tizen 6.5
+ * @param[in] element_name The name of element.
+ * @param[out] available @c true if it's available, @c false if it's not available.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful and the environments are available.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
+ */
+int ml_check_element_availability (const char *element_name, bool *available);
+
+/**
  * @brief Registers a custom filter.
  * @details NNStreamer provides an interface for processing the tensors with 'custom-easy' framework which can execute without independent shared object.
  *          Using this function, the application can easily register and execute the processing code.

@@ -1279,6 +1279,43 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
 }
 
 /**
+ * @brief Checks the element is registered and available on the pipeline.
+ */
+int
+ml_check_element_availability (const char *element_name, bool * available)
+{
+  GstElementFactory *factory;
+  int status;
+
+  check_feature_state ();
+
+  if (!element_name || !available)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  status = ml_initialize_gstreamer ();
+  if (status != ML_ERROR_NONE)
+    return status;
+
+  /* init false */
+  *available = false;
+
+  factory = gst_element_factory_find (element_name);
+  if (factory) {
+    GstPluginFeature *feature = GST_PLUGIN_FEATURE (factory);
+    const gchar *plugin_name = gst_plugin_feature_get_plugin_name (feature);
+
+    /* check restricted element */
+    status = ml_check_plugin_availability (plugin_name, element_name);
+    if (status == ML_ERROR_NONE)
+      *available = true;
+
+    gst_object_unref (factory);
+  }
+
+  return ML_ERROR_NONE;
+}
+
+/**
  * @brief Checks the availability of the plugin.
  */
 int
