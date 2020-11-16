@@ -267,6 +267,11 @@ int ml_single_open_custom (ml_single_h *single, ml_single_preset *info);
 #define ml_nnfw_is_available(f,h) ({bool a; (ml_check_nnfw_availability ((f), (h), &a) == ML_ERROR_NONE && a);})
 
 /**
+ * @brief Macro to check the availability of given element.
+ */
+#define ml_element_is_available(e) ({bool a; (ml_check_element_availability ((e), &a) == ML_ERROR_NONE && a);})
+
+/**
  * @brief Macro to check the tensors info is valid.
  */
 #define ml_tensors_info_is_valid(i) ({bool v; (ml_tensors_info_validate ((i), &v) == ML_ERROR_NONE && v);})
