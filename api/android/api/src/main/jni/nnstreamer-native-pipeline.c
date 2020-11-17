@@ -129,7 +129,7 @@ nns_pipeline_state_cb (ml_pipeline_state_e state, void *user_data)
       new_state);
 
   if ((*env)->ExceptionCheck (env)) {
-    nns_loge ("Failed to call the callback method.");
+    nns_loge ("Failed to call the state-change callback method.");
     (*env)->ExceptionClear (env);
   }
 }
@@ -172,7 +172,7 @@ nns_sink_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
         sink_name, obj_data);
 
     if ((*env)->ExceptionCheck (env)) {
-      nns_loge ("Failed to call the callback method.");
+      nns_loge ("Failed to call the new-data callback method.");
       (*env)->ExceptionClear (env);
     }
 

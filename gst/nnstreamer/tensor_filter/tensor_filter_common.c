@@ -234,32 +234,30 @@ gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
 {
   gchar *rank_str = NULL;
   guint i;
-  guint num_tenosrs;
+  const guint *_ranks;
+  const GstTensorsInfo *_meta;
 
   g_return_val_if_fail (prop != NULL, NULL);
 
-  num_tenosrs =
-      isInput ? prop->input_meta.num_tensors : prop->output_meta.num_tensors;
+  if (isInput) {
+    _ranks = prop->input_ranks;
+    _meta = &prop->input_meta;
+  } else {
+    _ranks = prop->output_ranks;
+    _meta = &prop->output_meta;
+  }
 
-  if (num_tenosrs > 0) {
+  if (_meta->num_tensors > 0) {
     GString *rank = g_string_new (NULL);
 
-    for (i = 0; i < num_tenosrs; ++i) {
-      if (isInput) {
-        if (prop->input_ranks[i] != 0)
-          g_string_append_printf (rank, "%u", prop->input_ranks[i]);
-        else
-          g_string_append_printf (rank, "%d",
-              gst_tensor_info_get_rank (&prop->input_meta.info[i]));
-      } else {
-        if (prop->output_ranks[i] != 0)
-          g_string_append_printf (rank, "%u", prop->output_ranks[i]);
-        else
-          g_string_append_printf (rank, "%d",
-              gst_tensor_info_get_rank (&prop->output_meta.info[i]));
-      }
+    for (i = 0; i < _meta->num_tensors; ++i) {
+      if (_ranks[i] != 0)
+        g_string_append_printf (rank, "%u", _ranks[i]);
+      else
+        g_string_append_printf (rank, "%d",
+            gst_tensor_info_get_rank (&_meta->info[i]));
 
-      if (i < num_tenosrs - 1)
+      if (i < _meta->num_tensors - 1)
         g_string_append_printf (rank, ",");
     }
     rank_str = g_string_free (rank, FALSE);
