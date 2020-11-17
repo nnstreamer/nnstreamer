@@ -1,6 +1,12 @@
-join_sources = [
+join_files = [
   'gstjoin.c',
 ]
+
+join_sources = []
+
+foreach s : join_files
+  join_sources += join_paths(meson.current_source_dir(), s)
+endforeach
 
 gstjoin_shared = shared_library('gstjoin',
   join_sources,
