@@ -112,7 +112,7 @@ static GstFlowReturn gst_tensor_sink_grpc_render (GstBaseSink * sink,
 static gboolean gst_tensor_sink_grpc_start (GstBaseSink * sink);
 static gboolean gst_tensor_sink_grpc_stop (GstBaseSink * sink);
 
-static gboolean gst_tensor_sink_grpc_unlock (GstBaseSink * bsink);
+static gboolean gst_tensor_sink_grpc_unlock (GstBaseSink * sink);
 
 /** internal functions */
 #define gst_tensor_sink_grpc_parent_class parent_class
@@ -262,6 +262,18 @@ gst_tensor_sink_grpc_render (GstBaseSink * sink, GstBuffer * buf)
 }
 
 /**
+ * @brief check the validity of hostname string
+ */
+static gboolean
+_check_hostname (gchar * str)
+{
+  if (g_strcmp0 (str, "localhost") == 0 ||
+      g_hostname_is_ip_address (str))
+    return TRUE;
+
+  return FALSE;
+}
+/**
  * @brief set properties of tensor_sink_grpc element.
  */
 static void
@@ -283,14 +295,22 @@ gst_tensor_sink_grpc_set_property (GObject * object, guint prop_id,
       silent_debug ("Set server = %d", self->server);
       break;
     case PROP_HOST:
-      if (!g_value_get_string (value)) {
-        ml_logw ("host property cannot be NULL");
+    {
+      gchar * host;
+
+      if (!g_value_get_string (value))
         break;
+
+      host = g_value_dup_string (value);
+      if (_check_hostname (host)) {
+        g_free (self->host);
+        self->host = host;
+        silent_debug ("Set host = %s", self->host);
+      } else {
+        g_free (host);
       }
-      g_free (self->host);
-      self->host = g_value_dup_string (value);
-      silent_debug ("Set host = %s", self->host);
       break;
+    }
     case PROP_PORT:
       self->port = g_value_get_int (value);
       silent_debug ("Set port = %d", self->port);
@@ -354,7 +374,7 @@ gst_tensor_sink_grpc_start (GstBaseSink * sink)
   if (!self->priv)
     return FALSE;
 
-  ret = grpc_start (self);
+  ret = grpc_start (self, GRPC_DIRECTION_TO_PROTOBUF);
   if (ret)
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SINK_GRPC_STARTED);
 
@@ -384,7 +404,8 @@ gst_tensor_sink_grpc_stop (GstBaseSink * sink)
 /**
  * @brief unlock any blocking operations
  */
-static gboolean gst_tensor_sink_grpc_unlock (GstBaseSink * sink)
+static gboolean
+gst_tensor_sink_grpc_unlock (GstBaseSink * sink)
 {
   GstTensorSinkGRPC *self = GST_TENSOR_SINK_GRPC (sink);
 

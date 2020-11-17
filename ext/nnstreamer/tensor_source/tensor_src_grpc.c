@@ -379,7 +379,7 @@ gst_tensor_src_grpc_start (GstBaseSrc * src)
 
   grpc_set_callback (self, _grpc_callback);
 
-  ret = grpc_start (self);
+  ret = grpc_start (self, GRPC_DIRECTION_FROM_PROTOBUF);
   if (ret)
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_STARTED);
 
@@ -410,6 +410,9 @@ static gboolean
 gst_tensor_src_grpc_unlock (GstBaseSrc * src)
 {
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
+
+  /* notify to gRPC */
+  grpc_stop (self);
 
   silent_debug ("Unlocking create");
   gst_data_queue_set_flushing (self->queue, TRUE);
@@ -475,6 +478,19 @@ gst_tensor_src_grpc_create (GstPushSrc * src, GstBuffer ** buf)
 }
 
 /**
+ * @brief check the validity of hostname string
+ */
+static gboolean
+_check_hostname (gchar * str)
+{
+  if (g_strcmp0 (str, "localhost") == 0 ||
+      g_hostname_is_ip_address (str))
+    return TRUE;
+
+  return FALSE;
+}
+
+/**
  * @brief set tensor_src_grpc properties
  */
 static void
@@ -493,14 +509,22 @@ gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
       silent_debug ("Set server = %d", self->server);
       break;
     case PROP_HOST:
-      if (!g_value_get_string (value)) {
-        ml_logw ("host property cannot be NULL");
+    {
+      gchar * host;
+
+      if (!g_value_get_string (value))
         break;
+
+      host = g_value_dup_string (value);
+      if (_check_hostname (host)) {
+        g_free (self->host);
+        self->host = host;
+        silent_debug ("Set host = %s", self->host);
+      } else {
+        g_free (host);
       }
-      g_free (self->host);
-      self->host = g_value_dup_string (value);
-      silent_debug ("Set host = %s", self->host);
       break;
+    }
     case PROP_PORT:
       self->port = g_value_get_int (value);
       silent_debug ("Set port = %d", self->port);

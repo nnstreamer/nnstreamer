@@ -27,13 +27,22 @@ extern "C" {
 #endif
 
 /**
+ * @brief enum for gRPC service's message direction
+ */
+typedef enum {
+  GRPC_DIRECTION_NONE = 0,
+  GRPC_DIRECTION_TO_PROTOBUF,   /* from tensors to protobuf */
+  GRPC_DIRECTION_FROM_PROTOBUF  /* from protobuf to tensors */
+} grpc_direction;
+
+/**
  * @brief wrapper for gRPC C++ codes
  */
 #define grpc_new(self)                _grpc_new(self->server, self->host, self->port)
 #define grpc_destroy(self)            _grpc_destroy(self->priv)
 #define grpc_set_callback(self, cb)   _grpc_set_callback(self->priv, cb, self)
 #define grpc_set_config(self, config) _grpc_set_config(self->priv, config)
-#define grpc_start(self)              _grpc_start(self->priv)
+#define grpc_start(self, direction)   _grpc_start(self->priv, direction)
 #define grpc_stop(self)               _grpc_stop(self->priv)
 #define grpc_send(self, buffer)       _grpc_send(self->priv, buffer)
 
@@ -41,7 +50,7 @@ void * _grpc_new (gboolean server, const gchar *host, const gint port);
 void _grpc_destroy (void *priv);
 void _grpc_set_callback (void *priv, grpc_cb cb, void *data);
 void _grpc_set_config (void *priv, GstTensorsConfig *config);
-gboolean _grpc_start (void *priv);
+gboolean _grpc_start (void *priv, grpc_direction direction);
 void _grpc_stop (void *priv);
 gboolean _grpc_send (void *priv, GstBuffer *buffer);
 
