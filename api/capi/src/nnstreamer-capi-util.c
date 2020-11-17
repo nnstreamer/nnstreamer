@@ -632,7 +632,7 @@ ml_tensors_data_clone_no_alloc (const ml_tensors_data_s * data_src,
 
   _data->handle = NULL;
   _data->num_tensors = data_src->num_tensors;
-  memcpy(_data->tensors, data_src->tensors,
+  memcpy (_data->tensors, data_src->tensors,
       sizeof (ml_tensor_data_s) * data_src->num_tensors);
 
   *data = _data;
@@ -1120,15 +1120,16 @@ ml_validate_model_file (char **model, unsigned int num_models,
       status = ML_ERROR_NOT_SUPPORTED;
       break;
     case ML_NNFW_TYPE_SNAP:
-#if !defined(__ANDROID__)
+#if !defined (__ANDROID__)
       ml_loge ("SNAP only can be included in Android (arm64-v8a only).");
       status = ML_ERROR_NOT_SUPPORTED;
 #endif
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
     case ML_NNFW_TYPE_SNPE:
-#if !defined(__ANDROID__)
-      ml_loge ("Given framework, SNPE is not supported yet for non Android (arm64-v8a).");
+#if !defined (__ANDROID__)
+      ml_loge
+          ("Given framework, SNPE is not supported yet for non Android (arm64-v8a).");
       status = ML_ERROR_NOT_SUPPORTED;
 #else
       if (g_ascii_strcasecmp (file_ext[0], ".dlc") != 0) {
@@ -1170,7 +1171,7 @@ ml_nnfw_to_accl_hw (const ml_nnfw_hw_e hw)
       return ACCL_AUTO;
     case ML_NNFW_HW_CPU:
       return ACCL_CPU;
-#if defined(__aarch64__) || defined(__arm__)
+#if defined (__aarch64__) || defined (__arm__)
     case ML_NNFW_HW_CPU_NEON:
       return ACCL_CPU_NEON;
 #else
@@ -1264,7 +1265,7 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   if (fw_name) {
     if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
       *available = gst_tensor_filter_check_hw_availability
-        (fw, ml_nnfw_to_accl_hw (hw));
+          (fw, ml_nnfw_to_accl_hw (hw));
       if (*available == false) {
         ml_logw ("%s is supported but not with the specified hardware.",
             fw_name);

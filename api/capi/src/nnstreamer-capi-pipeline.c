@@ -242,7 +242,8 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
       continue;
 
     callback = sink->callback_info->cb;
-    callback (data, &elem->tensors_info, sink->callback_info->pdata);
+    if (callback)
+      callback (data, &elem->tensors_info, sink->callback_info->pdata);
 
     /** @todo Measure time. Warn if it takes long. Kill if it takes too long. */
   }
@@ -1617,7 +1618,7 @@ ml_pipeline_valve_set_open (ml_pipeline_valve_h h, bool open)
  */
 int
 ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
-    ml_pipeline_element_h *elem_h)
+    ml_pipeline_element_h * elem_h)
 {
   int ret = ML_ERROR_NONE;
   ml_pipeline_element *elem;
@@ -1647,15 +1648,19 @@ ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
   elem = g_hash_table_lookup (p->namednodes, element_name);
   if (elem == NULL) {
     /* 2. Search element in pipeline itself */
-    GstElement *gst_elem = gst_bin_get_by_name (GST_BIN (p->element), element_name);
+    GstElement *gst_elem;
+
+    gst_elem = gst_bin_get_by_name (GST_BIN (p->element), element_name);
     if (gst_elem == NULL) {
-      ml_loge ("The element named [%s] is not found in the pipeline", element_name);
+      ml_loge ("The element named [%s] is not found in the pipeline",
+          element_name);
       ret = ML_ERROR_INVALID_PARAMETER;
       goto unlock_return;
     }
 
     /* Caching for next search */
-    elem = construct_element (gst_elem, pipe, element_name, ML_PIPELINE_ELEMENT_COMMON);
+    elem = construct_element (gst_elem, pipe, element_name,
+        ML_PIPELINE_ELEMENT_COMMON);
     if (elem == NULL) {
       ml_loge ("Failed to allocate the internal memory");
       ret = ML_ERROR_OUT_OF_MEMORY;
@@ -1666,12 +1671,14 @@ ml_pipeline_element_get_handle (ml_pipeline_h pipe, const char *element_name,
 
   /* Type checking */
   if (elem->type == ML_PIPELINE_ELEMENT_UNKNOWN) {
-    ml_loge ("There is an element named [%s] in the pipeline, but it is unknown type.", element_name);
+    ml_loge
+        ("There is an element named [%s] in the pipeline, but it is unknown type.",
+        element_name);
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
-  common_elem = *elem_h = g_new0(ml_pipeline_common_elem, 1);
+  common_elem = *elem_h = g_new0 (ml_pipeline_common_elem, 1);
   if (common_elem == NULL) {
     ml_loge ("Failed to allocate the internal handler for %s.", element_name);
     ret = ML_ERROR_OUT_OF_MEMORY;
@@ -1710,7 +1717,8 @@ ml_pipeline_element_release_handle (ml_pipeline_element_h elem_h)
  * @brief Check property existence and its type.
  */
 static bool
-ml_pipeline_element_check_property (GObjectClass *class, const char *property_name, const GType type)
+ml_pipeline_element_check_property (GObjectClass * class,
+    const char *property_name, const GType type)
 {
   GParamSpec *pspec = NULL;
 
@@ -1723,13 +1731,14 @@ ml_pipeline_element_check_property (GObjectClass *class, const char *property_na
 
   /* Compare property's type with given type */
   if (!((pspec->value_type == type) ||
-    (type == G_TYPE_ENUM && G_TYPE_IS_ENUM (pspec->value_type)) ||
-    (type == G_TYPE_INT64 && pspec->value_type == G_TYPE_LONG) ||
-    (type == G_TYPE_UINT64 && pspec->value_type == G_TYPE_ULONG) ||
-    (type == G_TYPE_INT && G_TYPE_IS_ENUM (pspec->value_type)) ||
-    (type == G_TYPE_UINT && G_TYPE_IS_ENUM (pspec->value_type)) ||
-    (type == G_TYPE_DOUBLE && pspec->value_type == G_TYPE_FLOAT))) {
-    ml_loge ("The type of property name [%s] is '%s'", property_name, g_type_name(pspec->value_type));
+          (type == G_TYPE_ENUM && G_TYPE_IS_ENUM (pspec->value_type)) ||
+          (type == G_TYPE_INT64 && pspec->value_type == G_TYPE_LONG) ||
+          (type == G_TYPE_UINT64 && pspec->value_type == G_TYPE_ULONG) ||
+          (type == G_TYPE_INT && G_TYPE_IS_ENUM (pspec->value_type)) ||
+          (type == G_TYPE_UINT && G_TYPE_IS_ENUM (pspec->value_type)) ||
+          (type == G_TYPE_DOUBLE && pspec->value_type == G_TYPE_FLOAT))) {
+    ml_loge ("The type of property name [%s] is '%s'", property_name,
+        g_type_name (pspec->value_type));
     return FALSE;
   }
   return TRUE;
@@ -1740,7 +1749,7 @@ ml_pipeline_element_check_property (GObjectClass *class, const char *property_na
  */
 static int
 ml_pipeline_element_set_property (ml_pipeline_element_h elem_h,
-  const char *property_name, gpointer value, GType type)
+    const char *property_name, gpointer value, GType type)
 {
   handle_init (common_elem, elem_h);
 
@@ -1752,18 +1761,22 @@ ml_pipeline_element_set_property (ml_pipeline_element_h elem_h,
   }
 
   /* Check property existence & its type */
-  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element), property_name, type)) {
+  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element),
+          property_name, type)) {
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
 
   /* Set property */
   if (type == G_TYPE_DOUBLE || type == G_TYPE_FLOAT) {
-    g_object_set (G_OBJECT (elem->element), property_name, *(double *)value, NULL);
+    g_object_set (G_OBJECT (elem->element), property_name,
+        *(double *) value, NULL);
   } else if (type == G_TYPE_INT64) {
-    g_object_set (G_OBJECT (elem->element), property_name, *(int64_t *)value, NULL);
+    g_object_set (G_OBJECT (elem->element), property_name,
+        *(int64_t *) value, NULL);
   } else if (type == G_TYPE_UINT64) {
-    g_object_set (G_OBJECT (elem->element), property_name, *(uint64_t *)value, NULL);
+    g_object_set (G_OBJECT (elem->element), property_name,
+        *(uint64_t *) value, NULL);
   } else {
     g_object_set (G_OBJECT (elem->element), property_name, value, NULL);
   }
@@ -1776,7 +1789,7 @@ ml_pipeline_element_set_property (ml_pipeline_element_h elem_h,
  */
 static int
 ml_pipeline_element_get_property (ml_pipeline_element_h elem_h,
-	const char *property_name, GType type, gpointer pvalue)
+    const char *property_name, GType type, gpointer pvalue)
 {
   handle_init (common_elem, elem_h);
 
@@ -1794,7 +1807,8 @@ ml_pipeline_element_get_property (ml_pipeline_element_h elem_h,
   }
 
   /* Check property existence & its type */
-  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element), property_name, type)) {
+  if (!ml_pipeline_element_check_property (G_OBJECT_GET_CLASS (elem->element),
+          property_name, type)) {
     ret = ML_ERROR_INVALID_PARAMETER;
     goto unlock_return;
   }
@@ -1810,9 +1824,10 @@ ml_pipeline_element_get_property (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_bool (ml_pipeline_element_h elem_h,
-  const char *property_name, const int32_t value)
+    const char *property_name, const int32_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, GINT_TO_POINTER(value), G_TYPE_BOOLEAN);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      GINT_TO_POINTER (value), G_TYPE_BOOLEAN);
 }
 
 /**
@@ -1820,9 +1835,10 @@ ml_pipeline_element_set_property_bool (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_string (ml_pipeline_element_h elem_h,
-  const char *property_name, const char *value)
+    const char *property_name, const char *value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)value, G_TYPE_STRING);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      (gpointer) value, G_TYPE_STRING);
 }
 
 /**
@@ -1830,9 +1846,10 @@ ml_pipeline_element_set_property_string (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_int32 (ml_pipeline_element_h elem_h,
-  const char *property_name, const int32_t value)
+    const char *property_name, const int32_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, GINT_TO_POINTER(value), G_TYPE_INT);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      GINT_TO_POINTER (value), G_TYPE_INT);
 }
 
 /**
@@ -1840,9 +1857,10 @@ ml_pipeline_element_set_property_int32 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_int64 (ml_pipeline_element_h elem_h,
-  const char *property_name, const int64_t value)
+    const char *property_name, const int64_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_INT64);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      (gpointer) (&value), G_TYPE_INT64);
 }
 
 /**
@@ -1850,9 +1868,10 @@ ml_pipeline_element_set_property_int64 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_uint32 (ml_pipeline_element_h elem_h,
-  const char *property_name, const uint32_t value)
+    const char *property_name, const uint32_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, GUINT_TO_POINTER(value), G_TYPE_UINT);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      GUINT_TO_POINTER (value), G_TYPE_UINT);
 }
 
 /**
@@ -1860,9 +1879,10 @@ ml_pipeline_element_set_property_uint32 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_uint64 (ml_pipeline_element_h elem_h,
-  const char *property_name, const uint64_t value)
+    const char *property_name, const uint64_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_UINT64);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      (gpointer) (&value), G_TYPE_UINT64);
 }
 
 /**
@@ -1870,9 +1890,10 @@ ml_pipeline_element_set_property_uint64 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_double (ml_pipeline_element_h elem_h,
-  const char *property_name, const double value)
+    const char *property_name, const double value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, (gpointer)&value, G_TYPE_DOUBLE);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      (gpointer) (&value), G_TYPE_DOUBLE);
 }
 
 /**
@@ -1880,9 +1901,10 @@ ml_pipeline_element_set_property_double (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_set_property_enum (ml_pipeline_element_h elem_h,
-  const char *property_name, const uint32_t value)
+    const char *property_name, const uint32_t value)
 {
-  return ml_pipeline_element_set_property (elem_h, property_name, GUINT_TO_POINTER(value), G_TYPE_ENUM);
+  return ml_pipeline_element_set_property (elem_h, property_name,
+      GUINT_TO_POINTER (value), G_TYPE_ENUM);
 }
 
 /**
@@ -1890,9 +1912,10 @@ ml_pipeline_element_set_property_enum (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_bool (ml_pipeline_element_h elem_h,
-  const char *property_name, int32_t *value)
+    const char *property_name, int32_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_BOOLEAN, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_BOOLEAN, (gpointer) value);
 }
 
 /**
@@ -1900,9 +1923,10 @@ ml_pipeline_element_get_property_bool (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_string (ml_pipeline_element_h elem_h,
-  const char *property_name, char **value)
+    const char *property_name, char **value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_STRING, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_STRING, (gpointer) value);
 }
 
 /**
@@ -1910,9 +1934,10 @@ ml_pipeline_element_get_property_string (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h,
-  const char *property_name, int32_t *value)
+    const char *property_name, int32_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_INT, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_INT, (gpointer) value);
 }
 
 /**
@@ -1920,9 +1945,10 @@ ml_pipeline_element_get_property_int32 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_int64 (ml_pipeline_element_h elem_h,
-  const char *property_name, int64_t *value)
+    const char *property_name, int64_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_INT64, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_INT64, (gpointer) value);
 }
 
 /**
@@ -1930,9 +1956,10 @@ ml_pipeline_element_get_property_int64 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_uint32 (ml_pipeline_element_h elem_h,
-  const char *property_name, uint32_t *value)
+    const char *property_name, uint32_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_UINT, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_UINT, (gpointer) value);
 }
 
 /**
@@ -1940,9 +1967,10 @@ ml_pipeline_element_get_property_uint32 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_uint64 (ml_pipeline_element_h elem_h,
-  const char *property_name, uint64_t *value)
+    const char *property_name, uint64_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_UINT64, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_UINT64, (gpointer) value);
 }
 
 /**
@@ -1950,9 +1978,10 @@ ml_pipeline_element_get_property_uint64 (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_double (ml_pipeline_element_h elem_h,
-  const char *property_name, double *value)
+    const char *property_name, double *value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_DOUBLE, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_DOUBLE, (gpointer) value);
 }
 
 /**
@@ -1960,9 +1989,10 @@ ml_pipeline_element_get_property_double (ml_pipeline_element_h elem_h,
  */
 int
 ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h,
-  const char *property_name, uint32_t *value)
+    const char *property_name, uint32_t * value)
 {
-  return ml_pipeline_element_get_property (elem_h, property_name, G_TYPE_ENUM, (gpointer)value);
+  return ml_pipeline_element_get_property (elem_h, property_name,
+      G_TYPE_ENUM, (gpointer) value);
 }
 
 /**
