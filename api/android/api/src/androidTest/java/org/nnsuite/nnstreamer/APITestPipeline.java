@@ -3,6 +3,7 @@ package org.nnsuite.nnstreamer;
 import android.os.Environment;
 import android.support.test.rule.GrantPermissionRule;
 import android.support.test.runner.AndroidJUnit4;
+import android.view.SurfaceView;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -69,6 +70,49 @@ public class APITestPipeline {
         assertEquals(Pipeline.State.READY, Pipeline.State.valueOf("READY"));
         assertEquals(Pipeline.State.PAUSED, Pipeline.State.valueOf("PAUSED"));
         assertEquals(Pipeline.State.PLAYING, Pipeline.State.valueOf("PLAYING"));
+    }
+
+    @Test
+    public void testAvailableElement() {
+        try {
+            assertTrue(Pipeline.isElementAvailable("tensor_converter"));
+            assertTrue(Pipeline.isElementAvailable("tensor_filter"));
+            assertTrue(Pipeline.isElementAvailable("tensor_transform"));
+            assertTrue(Pipeline.isElementAvailable("tensor_sink"));
+            assertTrue(Pipeline.isElementAvailable("join"));
+            assertTrue(Pipeline.isElementAvailable("amcsrc"));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testAvailableElementNullName_n() {
+        try {
+            Pipeline.isElementAvailable(null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testAvailableElementEmptyName_n() {
+        try {
+            Pipeline.isElementAvailable("");
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testAvailableElementInvalidName_n() {
+        try {
+            assertFalse(Pipeline.isElementAvailable("invalid-element"));
+        } catch (Exception e) {
+            fail();
+        }
     }
 
     @Test
@@ -1256,6 +1300,88 @@ public class APITestPipeline {
     }
 
     @Test
+    public void testSetNullSurface() {
+        if (!Pipeline.isElementAvailable("glimagesink")) {
+            /* cannot run the test */
+            return;
+        }
+
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "glimagesink name=vsink";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* Setting null surface will release old window */
+            pipe.setSurface("vsink", null);
+            pipe.start();
+
+            Thread.sleep(1000);
+            pipe.stop();
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testSetSurfaceNullName_n() {
+        if (!Pipeline.isElementAvailable("glimagesink")) {
+            /* cannot run the test */
+            return;
+        }
+
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "glimagesink name=vsink";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.setSurface(null, null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSetSurfaceEmptyName_n() {
+        if (!Pipeline.isElementAvailable("glimagesink")) {
+            /* cannot run the test */
+            return;
+        }
+
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "glimagesink name=vsink";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.setSurface("", null);
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
+    public void testSetInvalidSurface_n() {
+        if (!Pipeline.isElementAvailable("glimagesink")) {
+            /* cannot run the test */
+            return;
+        }
+
+        /* invalid surface */
+        SurfaceView surfaceView = new SurfaceView(APITestCommon.getContext());
+        if (surfaceView.getHolder().getSurface().isValid()) {
+            fail();
+        }
+
+        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
+                "glimagesink name=vsink";
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.setSurface("vsink", surfaceView.getHolder());
+            fail();
+        } catch (Exception e) {
+            /* expected */
+        }
+    }
+
+    @Test
     public void testAMCsrc() {
         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
         String media = root + "/nnstreamer/test/test_video.mp4";
@@ -1751,5 +1877,4 @@ public class APITestPipeline {
 
         runSNPEInception("NPU");
     }
-
 }

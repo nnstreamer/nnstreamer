@@ -44,6 +44,13 @@ public class APITestCommon {
     }
 
     /**
+     * Gets the context for the test application.
+     */
+    public static Context getContext() {
+        return InstrumentationRegistry.getTargetContext();
+    }
+
+    /**
      * Grants required runtime permissions.
      */
     public static GrantPermissionRule grantPermissions() {
