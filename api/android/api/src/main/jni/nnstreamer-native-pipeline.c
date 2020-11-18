@@ -903,9 +903,24 @@ nns_native_pipe_finalize_surface (JNIEnv * env, jobject thiz, jlong handle,
 }
 
 /**
+ * @brief Native method to check the element registration.
+ */
+static jboolean
+nns_native_check_element_availability (JNIEnv * env, jclass clazz, jstring name)
+{
+  const char *element_name = (*env)->GetStringUTFChars (env, name, NULL);
+  jboolean res = ml_element_is_available (element_name) ? JNI_TRUE : JNI_FALSE;
+
+  (*env)->ReleaseStringUTFChars (env, name, element_name);
+  return res;
+}
+
+/**
  * @brief List of implemented native methods for Pipeline class.
  */
 static JNINativeMethod native_methods_pipeline[] = {
+  {"nativeCheckElementAvailability", "(Ljava/lang/String;)Z",
+      (void *) nns_native_check_element_availability},
   {"nativeConstruct", "(Ljava/lang/String;Z)J",
       (void *) nns_native_pipe_construct},
   {"nativeDestroy", "(J)V", (void *) nns_native_pipe_destroy},

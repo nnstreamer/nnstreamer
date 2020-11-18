@@ -109,7 +109,7 @@ public final class NNStreamer {
     }
 
     private static native boolean nativeInitialize(Context context);
-    private static native boolean nativeCheckAvailability(int fw);
+    private static native boolean nativeCheckNNFWAvailability(int fw);
     private static native String nativeGetVersion();
 
     /**
@@ -147,7 +147,7 @@ public final class NNStreamer {
      * @return true if the neural network framework is available
      */
     public static boolean isAvailable(NNFWType fw) {
-        boolean available = nativeCheckAvailability(fw.ordinal());
+        boolean available = nativeCheckNNFWAvailability(fw.ordinal());
 
         /* sub-plugin for given framework is available */
         if (available) {
