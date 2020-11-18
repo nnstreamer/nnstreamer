@@ -38,6 +38,7 @@ public final class Pipeline implements AutoCloseable {
     private HashMap<String, ArrayList<NewDataCallback>> mSinkCallbacks = new HashMap<>();
     private StateChangeCallback mStateCallback = null;
 
+    private static native boolean nativeCheckElementAvailability(String element);
     private native long nativeConstruct(String description, boolean addStateCb);
     private native void nativeDestroy(long handle);
     private native boolean nativeStart(long handle);
@@ -155,6 +156,23 @@ public final class Pipeline implements AutoCloseable {
         }
 
         mStateCallback = callback;
+    }
+
+    /**
+     * Checks the element is registered and available on the pipeline.
+     *
+     * @param element The name of GStreamer element
+     *
+     * @return true if the element is available
+     *
+     * @throws IllegalArgumentException if given param is invalid
+     */
+    public static boolean isElementAvailable(@NonNull String element) {
+        if (element == null || element.isEmpty()) {
+            throw new IllegalArgumentException("Given element is invalid");
+        }
+
+        return nativeCheckElementAvailability(element);
     }
 
     /**

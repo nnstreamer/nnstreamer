@@ -820,7 +820,7 @@ nns_native_initialize (JNIEnv * env, jclass clazz, jobject context)
  * @brief Native method to check the availability of NNFW.
  */
 static jboolean
-nns_native_check_availability (JNIEnv * env, jclass clazz, jint fw_type)
+nns_native_check_nnfw_availability (JNIEnv * env, jclass clazz, jint fw_type)
 {
   ml_nnfw_type_e nnfw;
 
@@ -850,7 +850,8 @@ nns_native_get_version (JNIEnv * env, jclass clazz)
 static JNINativeMethod native_methods_nnstreamer[] = {
   {"nativeInitialize", "(Landroid/content/Context;)Z",
       (void *) nns_native_initialize},
-  {"nativeCheckAvailability", "(I)Z", (void *) nns_native_check_availability},
+  {"nativeCheckNNFWAvailability", "(I)Z",
+      (void *) nns_native_check_nnfw_availability},
   {"nativeGetVersion", "()Ljava/lang/String;", (void *) nns_native_get_version}
 };
 
