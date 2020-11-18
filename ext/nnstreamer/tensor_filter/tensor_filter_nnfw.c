@@ -539,7 +539,7 @@ nnfw_invoke_dummy (const GstTensorFilterProperties * prop, void **private_data,
 {
   GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  guint i;
+  guint i, retry;
 
   for (i = 0; i < in_info->num_tensors; ++i) {
     input[i].size = gst_tensor_info_get_size (&in_info->info[i]);
@@ -552,8 +552,11 @@ nnfw_invoke_dummy (const GstTensorFilterProperties * prop, void **private_data,
     output[i].data = g_malloc (output[i].size);
   }
 
-  while (nnfw_invoke (prop, private_data,  input, output) != 0) {
-    nns_logw ("Invoke failed, reallocate output tensors and retry.");
+  /** @todo workaround. to be updated when ONE provides get-size API or proper error codes. */
+  retry = 0;
+  while (nnfw_invoke (prop, private_data, input, output) != 0) {
+    nns_logw ("Invoke failed, reallocate output tensors and retry (%u).", ++retry);
+
     for (i = 0; i < out_info->num_tensors; ++i) {
       output[i].size *= 2;
       output[i].data = g_realloc (output[i].data, output[i].size);
