@@ -1757,36 +1757,9 @@ static gboolean
 gst_tensor_converter_update_caps (GstTensorConverter * self,
     GstPad * pad, GstTensorsConfig * config)
 {
-  GstStructure *st;
   GstCaps *curr_caps, *out_caps = NULL;
 
-  if (config->info.num_tensors == 1) {
-    GstCaps *peer_caps = gst_pad_peer_query_caps (pad, NULL);
-
-    if (peer_caps == NULL) {
-      GST_WARNING_OBJECT (self, "Failed to get peer caps \n");
-      return FALSE;
-    }
-
-    if (gst_caps_get_size (peer_caps) > 0) {
-      st = gst_caps_get_structure (peer_caps, 0);
-
-      if (g_strcmp0 (gst_structure_get_name (st), "other/tensor") == 0) {
-        GstTensorConfig tensor_config;
-
-        tensor_config.info = config->info.info[0];
-        tensor_config.rate_n = config->rate_n;
-        tensor_config.rate_d = config->rate_d;
-        out_caps = gst_tensor_caps_from_config (&tensor_config);
-      }
-    }
-    gst_caps_unref (peer_caps);
-  }
-
-  /* caps for tensors */
-  if (out_caps == NULL)
-    out_caps = gst_tensors_caps_from_config (config);
-  silent_debug_caps (out_caps, "out-caps");
+  out_caps = gst_tensors_get_caps (pad, config);
 
   /* Update pad caps. If it is different */
   curr_caps = gst_pad_get_current_caps (pad);

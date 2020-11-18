@@ -858,6 +858,60 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 }
 
 /**
+ * @brief Get tensors caps from tensors config and caps of the src pad
+ * @param pad GstPad to check if it supports other/tensor
+ * @param config tensors config structure
+ * @return caps for given config and pad
+ */
+GstCaps *
+gst_tensors_get_caps (GstPad * pad, const GstTensorsConfig * config)
+{
+  GstCaps *caps = NULL;
+
+  if (config->info.num_tensors == 1 && gst_pad_has_tensor_caps (pad)) {
+    GstTensorConfig tensor_config;
+    tensor_config.info = config->info.info[0];
+    tensor_config.rate_n = config->rate_n;
+    tensor_config.rate_d = config->rate_d;
+    caps = gst_tensor_caps_from_config (&tensor_config);
+  } else {
+    caps = gst_tensors_caps_from_config (config);
+  }
+  return caps;
+}
+
+/**
+ * @brief Check whether pad's caps support other/tensor or not
+ * @param pad GstPad to check if it supports other/tensor
+ * @return TRUE if other/tensor, FALSE if not
+ */
+gboolean
+gst_pad_has_tensor_caps (GstPad * pad)
+{
+  GstCaps *peer_caps;
+  gboolean ret = TRUE;
+
+  peer_caps = gst_pad_peer_query_caps (pad, NULL);
+  /**
+   * supposed other/tensor If peer caps is NULL or the lengh of the peer caps is zero.
+   */
+  if (peer_caps) {
+    GstCaps *caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+    GstCaps *intersection =
+        gst_caps_intersect_full (caps, peer_caps, GST_CAPS_INTERSECT_FIRST);
+
+    if (gst_caps_is_empty (intersection))
+      ret = FALSE;
+
+    gst_caps_unref (caps);
+    gst_caps_unref (intersection);
+  }
+  gst_caps_unref (peer_caps);
+
+  return ret;
+}
+
+/**
  * @brief Get caps from tensors config (for other/tensors)
  * @param config tensors config info
  * @return caps for given config

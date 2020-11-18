@@ -832,26 +832,12 @@ static GstCaps *
 gst_tensor_filter_caps_from_config (GstTensorFilter * self,
     GstTensorsConfig * config)
 {
-  GstCaps *caps;
+  GstPad *src_pad;
 
   g_return_val_if_fail (config != NULL, NULL);
+  src_pad = GST_BASE_TRANSFORM_SRC_PAD (&self->element);
 
-  if (config->info.num_tensors < 2) {
-    GstTensorConfig c;
-
-    /**
-     * supposed other/tensor if the number of tensor is less than 2.
-     */
-    c.info = config->info.info[0];
-    c.rate_n = config->rate_n;
-    c.rate_d = config->rate_d;
-
-    caps = gst_tensor_caps_from_config (&c);
-  } else {
-    caps = gst_tensors_caps_from_config (config);
-  }
-
-  return caps;
+  return gst_tensors_get_caps (src_pad, config);
 }
 
 /**

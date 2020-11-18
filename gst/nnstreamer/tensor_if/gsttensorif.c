@@ -816,27 +816,6 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 /**
- * @brief Check whether caps is other/tensor or not
- * @return TRUE if other/tensor, FALSE if not
- */
-static gboolean
-gst_tensor_if_is_tensor_caps (GstCaps * caps)
-{
-  GstStructure *caps_s;
-  guint i, caps_len;
-
-  caps_len = gst_caps_get_size (caps);
-
-  for (i = 0; i < caps_len; i++) {
-    caps_s = gst_caps_get_structure (caps, i);
-    if (gst_structure_has_name (caps_s, "other/tensor")) {
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-/**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param tesnor_if TensorIf Object
  * @param config Tensors Config Data
@@ -852,7 +831,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   GstPad *pad;
   GstTensorPad *tensorpad;
   gchar *name;
-  GstCaps *peer_caps, *caps = NULL;
+  GstCaps *caps = NULL;
 
   walk = tensor_if->srcpads;
   while (walk) {
@@ -887,24 +866,11 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   gst_pad_set_active (pad, TRUE);
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), pad);
 
-  peer_caps = gst_pad_peer_query_caps (pad, NULL);
-  silent_debug_caps (peer_caps, "peer_caps");
+  caps = gst_tensors_get_caps (pad, config);
 
-  if (config->info.num_tensors == 1 && gst_tensor_if_is_tensor_caps (peer_caps)) {
-    GstTensorConfig tensor_config;
-    tensor_config.info = config->info.info[0];
-    tensor_config.rate_n = config->rate_n;
-    tensor_config.rate_d = config->rate_d;
-    caps = gst_tensor_caps_from_config (&tensor_config);
-  }
-
-  if (caps == NULL) {
-    caps = gst_tensors_caps_from_config (config);
-  }
   silent_debug_caps (caps, "out caps");
   gst_pad_set_caps (pad, caps);
 
-  gst_caps_unref (peer_caps);
   gst_caps_unref (caps);
 
   if (created) {
