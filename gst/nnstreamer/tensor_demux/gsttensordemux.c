@@ -295,27 +295,6 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
 }
 
 /**
- * @brief Check whether caps is other/tensor or not
- * @return TRUE if other/tensor, FALSE if not
- */
-static gboolean
-gst_tensor_demux_is_tensor_caps (GstCaps * caps)
-{
-  GstStructure *caps_s;
-  guint i, caps_len;
-
-  caps_len = gst_caps_get_size (caps);
-
-  for (i = 0; i < caps_len; i++) {
-    caps_s = gst_caps_get_structure (caps, i);
-    if (gst_structure_has_name (caps_s, "other/tensor")) {
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-/**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param tesnor_demux TensorDemux Object
  * @param[out] created will be updated in this function
@@ -398,16 +377,14 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     gchar *seleted_tensor;
     gchar **strv;
     guint num;
-    GstCaps *peer_caps;
 
     g_assert (g_list_length (tensor_demux->tensorpick) >= nth);
 
     seleted_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
     strv = g_strsplit_set (seleted_tensor, ":+", -1);
     num = g_strv_length (strv);
-    peer_caps = gst_pad_peer_query_caps (pad, NULL);
 
-    if (num == 1 && gst_tensor_demux_is_tensor_caps (peer_caps)) {
+    if (num == 1 && gst_pad_has_tensor_caps (pad)) {
       GstTensorConfig config;
       gint64 idx = g_ascii_strtoll (strv[0], NULL, 10);
       gst_tensor_demux_get_tensor_config (tensor_demux, &config, idx);
@@ -426,7 +403,6 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
       caps = gst_tensors_caps_from_config (&config);
     }
     g_strfreev (strv);
-    gst_caps_unref (peer_caps);
   } else {
     GstTensorConfig config;
     gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth);
