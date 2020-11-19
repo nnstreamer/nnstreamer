@@ -751,13 +751,13 @@ chain:	openchain			      { $$=$1;
 						if($$->last.name){
 							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
 							_("unexpected reference \"%s\" - ignoring"), $$->last.name);
-							gst_parse_strfree($$->last.name);
+							g_free ($$->last.name);
 							$$->last.name=NULL;
 						}
 						if($$->last.pads){
 							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
 							_("unexpected pad-reference \"%s\" - ignoring"), (gchar*)$$->last.pads->data);
-							g_slist_foreach ($$->last.pads, (GFunc) gst_parse_strfree, NULL);
+							g_slist_foreach ($$->last.pads, (GFunc) g_free, NULL);
 							g_slist_free ($$->last.pads);
 							$$->last.pads=NULL;
 						}
@@ -777,28 +777,24 @@ openchain:
 						TRY_SETUP_LINK($2);
 						$4->first = $1->first;
 						$4->elements = g_slist_concat ($1->elements, $4->elements);
-						gst_parse_chain_free($1);
+						g_slice_free ($1);
 						$$ = $4;
 						$$->last.pads = g_slist_concat ($$->last.pads, $5);
 					      }
 	;
 
-link:	LINK				      { $$ = gst_parse_link_new ();
+link:	LINK				      { $$ = g_slice_new0 (link_t);
 						$$->all_pads = FALSE;
 						if ($1) {
-						  $$->caps = gst_caps_from_string ($1);
-						  if ($$->caps == NULL)
-						    SET_ERROR (graph->error, GST_PARSE_ERROR_LINK, _("could not parse caps \"%s\""), $1);
-						  gst_parse_strfree ($1);
+						  $$->caps = g_strdup ($1);
+						  g_free ($1);
 						}
 					      }
-	| LINK_ALL		              { $$ = gst_parse_link_new ();
+	| LINK_ALL		              { $$ = g_slice_new0 (link_t);
 						$$->all_pads = TRUE;
 						if ($1) {
-						  $$->caps = gst_caps_from_string ($1);
-						  if ($$->caps == NULL)
-						    SET_ERROR (graph->error, GST_PARSE_ERROR_LINK, _("could not parse caps \"%s\""), $1);
-						  gst_parse_strfree ($1);
+						  $$->caps = g_strdup ($1);
+						  g_free ($1);
 						}
 					      }
 	;
