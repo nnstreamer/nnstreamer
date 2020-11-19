@@ -41,7 +41,7 @@ typedef struct {
 typedef struct {
   reference_t src;
   reference_t sink;
-  void *caps; /**< In this app, caps is generally unidentifiable */
+  gchar *caps; /**< In this app, caps is generally unidentifiable. simply copy the caps string! */
   gboolean all_pads;
 } link_t;
 
