@@ -24,6 +24,16 @@
 #include "nnstreamer-native.h"
 
 /**
+ * @brief Macro to release native window.
+ */
+#define release_native_window(w) do { \
+  if (w) { \
+    ANativeWindow_release (w); \
+    w = NULL; \
+  } \
+} while (0)
+
+/**
  * @brief Private data for Pipeline class.
  */
 typedef struct
@@ -47,6 +57,7 @@ typedef struct
 typedef struct
 {
   ANativeWindow *window;
+  ANativeWindow *old_window;
 } pipeline_video_sink_priv_data_s;
 
 /**
@@ -70,12 +81,12 @@ nns_pipeline_video_sink_priv_free (gpointer data, JNIEnv * env)
   pipeline_video_sink_priv_data_s *priv;
 
   priv = (pipeline_video_sink_priv_data_s *) data;
-  if (priv && priv->window) {
-    ANativeWindow_release (priv->window);
-    priv->window = NULL;
-  }
+  if (priv) {
+    release_native_window (priv->old_window);
+    release_native_window (priv->window);
 
-  g_free (priv);
+    g_free (priv);
+  }
 }
 
 /**
@@ -812,6 +823,7 @@ nns_native_pipe_initialize_surface (JNIEnv * env, jobject thiz, jlong handle,
     ANativeWindow *native_win;
     GstElement *vsink;
     pipeline_video_sink_priv_data_s *priv;
+    gboolean set_window = TRUE;
 
     native_win = ANativeWindow_fromSurface (env, surface);
     vsink = ((ml_pipeline_common_elem *) edata->handle)->element->element;
@@ -824,17 +836,27 @@ nns_native_pipe_initialize_surface (JNIEnv * env, jobject thiz, jlong handle,
 
     if (priv->window) {
       if (priv->window == native_win) {
-        gst_video_overlay_expose (GST_VIDEO_OVERLAY (vsink));
-      }
+        set_window = FALSE;
 
-      /* release old native window */
-      ANativeWindow_release (priv->window);
+        gst_video_overlay_expose (GST_VIDEO_OVERLAY (vsink));
+        release_native_window (native_win);
+      } else {
+        /**
+         * Video sink may not change new window directly when calling set-window function.
+         * Keep old window handle to prevent invalid handle case in video sink.
+         */
+        release_native_window (priv->old_window);
+        priv->old_window = priv->window;
+        priv->window = NULL;
+      }
     }
 
     /* set new native window */
-    priv->window = native_win;
-    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (vsink),
-        (guintptr) native_win);
+    if (set_window) {
+      priv->window = native_win;
+      gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (vsink),
+          (guintptr) native_win);
+    }
 
     res = JNI_TRUE;
   }
@@ -867,8 +889,9 @@ nns_native_pipe_finalize_surface (JNIEnv * env, jobject thiz, jlong handle,
 
     gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (vsink),
         (guintptr) NULL);
-    if (priv && priv->window) {
-      ANativeWindow_release (priv->window);
+    if (priv) {
+      release_native_window (priv->old_window);
+      priv->old_window = priv->window;
       priv->window = NULL;
     }
 
