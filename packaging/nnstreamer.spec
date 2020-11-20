@@ -1,7 +1,24 @@
-# Execute gbs with --define "testcoverage 1" in case that you must get unittest coverage statistics
+###########################################################################
+#
+#              Options for gbs/rpmbuild users
+#
+# gbs build --define "unit_test 1"
+#       Execute all unit test cases
+#
+# gbs build --define "testcoverage 1"
+# 	Generate unittest coverage statistics
+#       Use with "unit_test 1" to do it with as many cases as possible:
+#       $ gbs build --define "unit_test 1" --define "testcoverage 1"
+#
+
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
 %define		nnstexampledir	/usr/lib/nnstreamer/bin
+
+###########################################################################
+# Default features for Tizen releases
+# If you want to build RPM for other Linux distro, you may need to
+# touch these values for your needs.
 %define		tensorflow_support 0
 %define		tensorflow_lite_support	1
 %define		tensorflow2_lite_support 1
@@ -11,52 +28,62 @@
 %define		protobuf_support 1
 %define		nnfw_support 1
 %define		grpc_support 1
+%define		pytorch_support 0
+%define		caffe2_support 0
+
 %define		check_test 1
 %define		enable_tizen_privilege 1
 %define		enable_tizen_feature 1
-%define		enable_extra_subplugins 1
-%define		package_test 1
+%define		release_test 1
 
-%if "%{?profile}" == "tv"
-%define		enable_extra_subplugins 0
-%define		enable_tizen_privilege 0
-%define		grpc_support 0
-%define		check_test 0
-%endif
+###########################################################################
+# Conditional features for Tizen releases
 
+# Enable python if it's Tizen 5.0+
 %if 0%{tizen_version_major} >= 5
 %define		python_support 1
 %else
 %define		python_support 0
 %endif
 
+# Enable Tizen-Sensor, OpenVINO, MVNCSDK2 if it's Tizen 6.0+
 %if 0%{tizen_version_major} >= 6
 %define		tizen_sensor_support 1
 %define		mvncsdk2_support 1
 %define		openvino_support 1
-
-%ifarch aarch64 x86_64
-# This supports 64bit systems only
 %define		edgetpu_support 1
-%else
-%define		edgetpu_support 0
-%endif
-
 %else
 %define		tizen_sensor_support 0
 %define		mvncsdk2_support 0
+%define		openvino_support 0
 %define		edgetpu_support 0
 %endif
 
-%define		pytorch_support 0
-%define		caffe2_support 0
-
-%ifnarch %arm aarch64
-%define 	armnn_support 0
+# Disable e-TPU if it's not 64bit system
+%ifnarch aarch64 x86_64
+%define		edgetpu_support 0
 %endif
 
+# Disable ARMNN/Vivante/NNFW if it's not ARM.
 %ifnarch %arm aarch64
+%define 	armnn_support 0
 %define		vivante_support 0
+%endif
+
+# Disable NNFW if it's not ARM/x64 (Since Tizen6, it supports x64)
+%ifnarch %arm aarch64 x86_64
+%define		nnfw_support 0
+%endif
+
+# Disable a few features for TV releases
+%if "%{?profile}" == "tv"
+%define		enable_tizen_privilege 0
+%define		grpc_support 0
+%define		check_test 0
+%define		edgetpu_support 0
+%define		protobuf_support 0
+%define		python_support 0
+%define		mvncsdk2_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -64,22 +91,19 @@
 %define		mvncsdk2_support 0
 %define		edgetpu_support 0
 %define		openvino_support 0
-%endif
-
-%if !0%{?enable_extra_subplugins}
-%define		protobuf_support 0
-%define		python_support 0
-%define		mvncsdk2_support 0
 %define		edgetpu_support 0
 %endif
 
+# Release unit test suite as a subpackage only if check_test is enabled.
 %if !0%{?check_test}
-%define		package_test 0
+%define		release_test 0
 %endif
 
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
 
+###########################################################################
+# Package / sub-package definitions
 Name:		nnstreamer
 Summary:	gstreamer plugins for neural networks
 # Synchronize the version information among Ubuntu, Tizen, Android, and Meson.
@@ -103,6 +127,7 @@ Source1002:	capi-nnstreamer.manifest
 Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
+BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	glib2-devel
 BuildRequires:	meson >= 0.50.0
 
@@ -203,23 +228,21 @@ BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
-BuildRequires:	gst-plugins-bad-devel
-BuildRequires:	gst-plugins-base-devel
 # For tizen sensor support
 BuildRequires:	pkgconfig(sensor)
 BuildRequires:	capi-system-sensor-devel
+%endif  # tizen
 
-%ifarch %arm aarch64
 %if 0%{?nnfw_support}
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
+%ifarch %arm aarch64
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
+%endif
 BuildRequires:  json-glib-devel
 %endif
-%endif
-%endif  # tizen
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
@@ -349,8 +372,6 @@ Summary:	NNStreamer UnitTest Coverage Analysis Result
 HTML pages of lcov results of NNStreamer generated during rpmbuild
 %endif
 
-%%%% THIS IS FOR TIZEN ONLY! %%%%
-%if %{with tizen}
 %package -n capi-nnstreamer
 Summary:	Tizen Native API for NNStreamer
 Group:		Multimedia/Framework
@@ -359,8 +380,10 @@ Requires:	%{name}-misc = %{version}-%{release}
 # Workaround: Since the rootstrap of Tizen v6.5 is not ready,
 # some application built on v6.0 needs libcapi-nnstreamer.so file.
 # This code will be removed when the rootstrap of Tizen v6.5 is ready.
+%if %{with tizen}
 Requires:	capi-nnstreamer-devel = %{version}-%{release}
-%if 0%{tizen_sensor_support}
+%endif
+%if 0%{?tizen_sensor_support}
 Requires:	%{name}-tizen-sensor = %{version}-%{release}
 %endif
 %description -n capi-nnstreamer
@@ -370,11 +393,13 @@ You can construct a data stream pipeline with neural networks easily.
 %post -n capi-nnstreamer -p /sbin/ldconfig
 %postun -n capi-nnstreamer -p /sbin/ldconfig
 
+%if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
 Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
+%endif
 
 %package -n capi-nnstreamer-devel
 Summary:	Tizen Native API Devel Kit for NNStreamer
@@ -403,9 +428,8 @@ Group:		Multimedia/Framework
 Requires:	capi-nnstreamer-devel = %{version}-%{release}
 %description -n nnstreamer-tizen-internal-capi-devel
 Tizen internal API to construct the pipeline without the permissions.
-%endif # tizen
 
-%if 0%{mvncsdk2_support}
+%if 0%{?mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
 Group:		Multimedia/Framework
@@ -451,7 +475,7 @@ Requires:	nnstreamer = %{version}-%{release}
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
 %endif
 
-%if 0%{?package_test}
+%if 0%{?release_test}
 %package unittests
 Summary:	NNStreamer unittests for core, API and plugins
 Requires:	nnstreamer = %{version}-%{release}
@@ -490,6 +514,10 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_openvino -Denable-openvino=true
 %endif
 
+%if 0%{?nnfw_support}
+%define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
+%endif  # nnfw_support
+
 %if 0%{tizen_sensor_support}
 %define enable_tizen_sensor -Denable-tizen-sensor=true
 %endif
@@ -498,7 +526,7 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_test -Denable-test=false
 %endif
 
-%if 0%{?package_test}
+%if 0%{?release_test}
 %define install_test -Dinstall-test=true
 %endif
 
@@ -513,12 +541,6 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
-%ifarch %arm aarch64
-%if 0%{?nnfw_support}
-%define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
-%endif  # nnfw_support
-
-%endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join'
 %define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
@@ -819,7 +841,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_datadir}/nnstreamer/unittest/*
 %endif
 
-%if %{with tizen}
 %files -n capi-nnstreamer
 %manifest capi-nnstreamer.manifest
 %license LICENSE
@@ -840,13 +861,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 
-%ifarch %arm aarch64
 %if 0%{?nnfw_support}
 %files nnfw
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
-%endif
 %endif
 
 %if 0%{?armnn_support}
@@ -855,7 +874,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_armnn.so
 %endif
-%endif  # tizen
 
 %if 0%{mvncsdk2_support}
 %files -n nnstreamer-ncsdk2
@@ -893,7 +911,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_edgetpu.so
 %endif
 
-%if 0%{?package_test}
+%if 0%{?release_test}
 %files unittests
 %manifest nnstreamer.manifest
 %{_libdir}/libnnstreamer_unittest_util.so
