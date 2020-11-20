@@ -17,12 +17,19 @@ BreakBeforeTernaryOperators: false
 BreakConstructorInitializersBeforeComma: false
 BreakStringLiterals: false
 ColumnLimit: 80
-CommentPragmas: ''
+CommentPragmas: '\* @'
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: false
 DerivePointerBinding: false
+IncludeCategories:
+  - Regex:	'.*gtest.*'
+    Priority:	-10
+  - Regex:	'".*"'
+    Priority:	10
+  - Regex:	'<.*>'
+    Priority:	0
 IndentCaseLabels: false
 IndentFunctionDeclarationAfterType: true
 IndentWidth: 2
