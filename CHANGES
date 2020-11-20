@@ -1,3 +1,33 @@
+1.7.0 -> 1.7.1
+	- Major features
+		- Tensor-IF, a new element. It allows to create conditional branches based on tensor values.
+		- Join, a new element. It merges output sinks from src pads of different elements with the same GST-Cap.
+		- Tensor-rate, a new element. It allows throttling by generating QoS messages.
+		- TensorRT support
+		- TF1-lite and TF2-lite coexistance
+		- TFx-lite NNAPI, GPU Delegation
+
+	- Minor features
+		- hw-accel options for tensor-filters are refactored
+		- python3-embed enabled if python3 >= 3.8
+		- Subplugin initialization optimization.
+		- Docker scripts for Ubuntu developers.
+
+	- Fixes
+		- flatbuf dependency related with tensorflow-lite.
+		- tensor-decoder configures framerate.
+		- Dynamic dimension related API issues fixed.
+		- MacOS, Yocto compatibility issues fixed. (A few Yocto known issues are still remaining.)
+		- License mismatches resolved.
+		- A few Test cases fixed.
+		- Packaging issues fixed and style cleaned-up.
+
+	- Extra
+		- A lot of interesting sample applications are added.
+
+1.6.0 -> 1.7.0
+	- 1.7.0 is a devel version for 1.8.0 release, which is planned to be released synchronously with Tizen 6.5 releases.
+
 1.5.3 -> 1.6.0
 	- This is an official release for Tizen (6.0-M2) and Android developers. 1.6.y will be an LTS released with hotfixes in the future. We will move on to 1.7.0 after this release.
 
