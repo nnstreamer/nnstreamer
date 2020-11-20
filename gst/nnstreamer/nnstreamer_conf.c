@@ -665,17 +665,18 @@ nnsconf_subplugin_dump (gchar * str, gulong size)
     ret = nnsconf_get_subplugin_info (dump_list_type[i], &info);
     for (j = 0; j < ret; j++) {
       GData *data;
+      subpluginType stype = (subpluginType) dump_list_type[i];
+      gchar *sname = info.names[j];
 
-      if (!get_subplugin (dump_list_type[i], info.names[j]))
+      if (!get_subplugin (stype, sname))
         break;
 
       buf.pos += g_snprintf (buf.base + buf.pos, buf.size - buf.pos,
-          "  %s\n", info.names[j]);
+          "  %s\n", sname);
       if (buf.size <= buf.pos)
         goto truncated;
 
-      data =
-          subplugin_get_custom_property_desc (dump_list_type[i], info.names[j]);
+      data = subplugin_get_custom_property_desc (stype, sname);
       if (data) {
         g_datalist_foreach (&data, _foreach_custom_property, &buf);
       } else {
