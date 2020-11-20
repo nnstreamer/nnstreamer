@@ -356,6 +356,10 @@ Summary:	Tizen Native API for NNStreamer
 Group:		Multimedia/Framework
 Requires:	%{name} = %{version}-%{release}
 Requires:	%{name}-misc = %{version}-%{release}
+# Workaround: Since the rootstrap of Tizen v6.5 is not ready,
+# some application built on v6.0 needs libcapi-nnstreamer.so file.
+# This code will be removed when the rootstrap of Tizen v6.5 is ready.
+Requires:	capi-nnstreamer-devel = %{version}-%{release}
 %if 0%{tizen_sensor_support}
 Requires:	%{name}-tizen-sensor = %{version}-%{release}
 %endif
