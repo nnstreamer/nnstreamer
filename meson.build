@@ -477,6 +477,9 @@ subdir('ext')
 # Build API
 subdir('api')
 
+# Build Utility
+subdir('tools/development')
+
 # Build unittests
 if get_option('enable-test')
   # Build nnstreamer examples

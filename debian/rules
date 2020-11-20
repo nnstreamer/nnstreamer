@@ -37,7 +37,6 @@ endif
 
 override_dh_auto_clean:
 	rm -rf ${BUILDDIR}
-	rm -rf tools/development/confchk/${BUILDDIR}
 
 override_dh_auto_configure:
 	mkdir -p ${BUILDDIR}
@@ -45,11 +44,9 @@ override_dh_auto_configure:
 	-Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
 	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
 	-Denable-openvino=true ${BUILDDIR}
-	cd tools/development/confchk && meson --prefix=/usr --bindir=bin ${BUILDDIR} && cd ../../..
 
 override_dh_auto_build:
 	ninja -C ${BUILDDIR}
-	cd tools/development/confchk && ninja -C ${BUILDDIR} && cd ../../..
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
@@ -57,12 +54,8 @@ override_dh_auto_test:
 	# cd build && ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. && cd ..
 	cd tests && ssat -n && cd ..
 
-override_dh_link:
-	dh_link /usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so  /usr/lib/$(DEB_HOST_MULTIARCH)/libnnstreamer.so
-
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install
-	cd tools/development/confchk && DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install && cd ../../..
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
