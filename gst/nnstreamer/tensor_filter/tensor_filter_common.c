@@ -890,6 +890,11 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   priv->combi.out_combi_o_defined = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
+
+  /* init qos properties */
+  priv->prev_ts = GST_CLOCK_TIME_NONE;
+  priv->throttling_delay = 0;
+  priv->throttling_accum = 0;
 }
 
 /**

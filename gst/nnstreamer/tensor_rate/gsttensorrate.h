@@ -42,6 +42,8 @@ struct _GstTensorRate
   GstSegment segment;           /**< current segment */
   guint64 out_frame_count;      /**< number of frames output */
 
+  gboolean sent_qos_on_passthrough; /**< qos event on passthrough */
+
   /** Caps negotiation */
   gint from_rate_numerator;     /**< framerate numerator (From) */
   gint from_rate_denominator;   /**< framerate denominator (From) */

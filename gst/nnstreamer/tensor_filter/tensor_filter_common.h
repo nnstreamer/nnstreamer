@@ -120,6 +120,10 @@ typedef struct _GstTensorFilterPrivate
   gint latency_mode;     /**< latency profiling mode (0: off, 1: on, ...) */
   gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
 
+  GstClockTime prev_ts;  /**< previous timestamp */
+  GstClockTimeDiff throttling_delay;  /**< throttling delay from tensor rate */
+  GstClockTimeDiff throttling_accum;  /**< accumulated frame durations for throttling */
+
   GstTensorFilterCombination combi;
 } GstTensorFilterPrivate;
 
