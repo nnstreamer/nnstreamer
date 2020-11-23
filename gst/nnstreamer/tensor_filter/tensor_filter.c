@@ -48,6 +48,19 @@
  *
  * If input is other/tensor C array input[1][224][224][3] and
  * output is other/tensor C array output[1][1][1][1000]
+ *
+ * The current QoS policy: In a nnstreamer pipeline, the QoS is currently satisfied
+ * by adjusting a input or output framerate, initiated by 'tensor_rate' element.
+ * When 'tensor_filter' receives a throttling QoS event from the 'tensor_rate' element,
+ * it compares the average processing latency and throttling delay, and takes the
+ * maximum value as the threshold to drop incoming frames by checking a buffer timestamp.
+ * In this way, 'tensor filter' can avoid unncessary calculation and adjust a framerate,
+ * effectively reducing resource utilizations.
+ * Even in the case of receiving QoS events from multiple downstream pipelines (e.g., tee),
+ * 'tensor_filter' takes the minimum value as the throttling delay for downstream pipeline
+ * with more tight QoS requirement. Lastly, 'tensor_filter' also sends QoS events to
+ * upstream elements (e.g., tensor_converter, tensor_src) to possibly reduce incoming
+ * framerates, which is a better solution than dropping framerates.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -150,6 +163,8 @@ static gboolean gst_tensor_filter_start (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_stop (GstBaseTransform * trans);
 static gboolean gst_tensor_filter_sink_event (GstBaseTransform * trans,
     GstEvent * event);
+static gboolean gst_tensor_filter_src_event (GstBaseTransform * trans,
+    GstEvent * event);
 
 /**
  * @brief initialize the tensor_filter's class
@@ -201,8 +216,9 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensor_filter_transform_size);
 
-  /* setup sink event */
+  /* setup events */
   trans_class->sink_event = GST_DEBUG_FUNCPTR (gst_tensor_filter_sink_event);
+  trans_class->src_event = GST_DEBUG_FUNCPTR (gst_tensor_filter_src_event);
 
   /* start/stop to call open/close */
   trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_filter_start);
@@ -414,6 +430,20 @@ record_statistics (GstTensorFilterPrivate * priv)
 }
 
 /**
+ * @brief send qos overflow event to upstream elements
+ */
+static void
+gst_tensor_filter_send_qos_overflow (GstTensorFilter * self,
+    GstClockTime timestamp, GstClockTimeDiff diff, gdouble avg_rate)
+{
+  GstPad *sinkpad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
+  GstEvent *event = gst_event_new_qos (GST_QOS_TYPE_OVERFLOW,
+      avg_rate, -diff, timestamp);
+
+  gst_pad_push_event (sinkpad, event);
+}
+
+/**
  * @brief non-ip transform. required vmethod of GstBaseTransform.
  */
 static GstFlowReturn
@@ -456,6 +486,44 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
   allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
+
+  /* skip input data when throttling delay is set */
+  GST_OBJECT_LOCK (trans);
+
+  if (priv->throttling_delay != 0) {
+    GstClockTime curr_ts = GST_BUFFER_PTS (inbuf);
+    GstClockTime prev_ts = priv->prev_ts;
+
+    priv->prev_ts = curr_ts;
+
+    if (GST_CLOCK_TIME_IS_VALID (prev_ts)) {
+      GstClockTimeDiff diff = curr_ts - prev_ts;
+      GstClockTimeDiff delay;
+
+      priv->throttling_accum += diff;
+
+      /* check whether the average latency is longer than throttling delay */
+      delay = MAX (priv->prop.latency * 1000, priv->throttling_delay);
+
+      if (priv->throttling_accum < delay) {
+        GstClockTimeDiff duration = GST_BUFFER_DURATION (inbuf);        /* original */
+        gdouble avg_rate = gst_guint64_to_gdouble (duration) /
+            gst_guint64_to_gdouble (delay);
+
+        /* Upstream elements (e.g., tensor_src, tensor_converter) may handle this */
+        gst_tensor_filter_send_qos_overflow (self, curr_ts,
+            delay - priv->throttling_accum, avg_rate);
+
+        GST_OBJECT_UNLOCK (trans);
+
+        return GST_BASE_TRANSFORM_FLOW_DROPPED;
+      }
+
+      priv->throttling_accum = 0;
+    }
+  }
+
+  GST_OBJECT_UNLOCK (trans);
 
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
@@ -1087,6 +1155,56 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
 
   /** other events are handled in the default event handler */
   return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
+}
+
+/**
+ * @brief Event handler for src pad of tensor filter.
+ * @param trans "this" pointer
+ * @param event a passed event object
+ * @return TRUE if there is no error.
+ */
+static gboolean
+gst_tensor_filter_src_event (GstBaseTransform * trans, GstEvent * event)
+{
+  GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
+
+  self = GST_TENSOR_FILTER_CAST (trans);
+  priv = &self->priv;
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_QOS:
+    {
+      GstQOSType type;
+      GstClockTimeDiff diff;
+
+      gst_event_parse_qos (event, &type, NULL, &diff, NULL);
+
+      if (type == GST_QOS_TYPE_THROTTLE && diff > 0) {
+        GST_OBJECT_LOCK (trans);
+
+        if (priv->throttling_delay != 0)
+          /* set to more tight framerate */
+          priv->throttling_delay = MIN (priv->throttling_delay, diff);
+        else
+          priv->throttling_delay = diff;
+
+        GST_OBJECT_UNLOCK (trans);
+
+        gst_event_unref (event);
+
+        /* enable the average latency profiling */
+        g_object_set (self, "latency", 1, NULL);
+        return TRUE;
+      }
+    }
+      /* fall-through */
+    default:
+      break;
+  }
+
+  /** other events are handled in the default event handler */
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->src_event (trans, event);
 }
 
 /**

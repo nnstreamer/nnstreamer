@@ -326,6 +326,8 @@ gst_tensor_rate_reset (GstTensorRate * self)
   self->next_ts = GST_CLOCK_TIME_NONE;
   self->last_ts = GST_CLOCK_TIME_NONE;
 
+  self->sent_qos_on_passthrough = FALSE;
+
   gst_tensor_rate_swap_prev (self, NULL, 0);
 }
 
@@ -524,7 +526,10 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
 
   /* let's send a QoS event even if pass-through is used on the same caps */
   if (gst_base_transform_is_passthrough (trans)) {
-    gst_tensor_rate_send_qos_throttle (self, intime);
+    if (!self->sent_qos_on_passthrough) {
+      self->sent_qos_on_passthrough = TRUE;
+      gst_tensor_rate_send_qos_throttle (self, intime);
+    }
     return GST_FLOW_OK;
   }
 
