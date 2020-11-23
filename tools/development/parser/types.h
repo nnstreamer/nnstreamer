@@ -14,10 +14,17 @@
 
 #include <glib-object.h>
 
+typedef enum {
+  eST_normal = 0,
+  eST_URI_SINK,
+  eST_URI_SRC,
+} elementSpecialType;
+
 /** @brief Simplified GST-Element */
 typedef struct {
   gchar *element;
   gchar *name;
+  elementSpecialType specialType;
   GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
 } _Element;
 
@@ -69,6 +76,23 @@ typedef enum
   __PARSE_FLAG_NO_SINGLE_ELEMENT_BINS = (1 << 1),
   __PARSE_FLAG_PLACE_IN_BIN = (1 << 2)
 } _ParseFlags;
+
+/**
+ * @brief A copy of GstURIType from gstreamer/gsturi
+ */
+typedef enum {
+  GST_URI_UNKNOWN,
+  GST_URI_SINK,
+  GST_URI_SRC
+} _URIType;
+
+/**
+ * @brief A dummy copy of gst_element_make_from_uri from gstreamer/gsturi
+ */
+extern _Element *
+nnstparser_element_from_uri (const _URIType type, const gchar *uri,
+    const gchar * elementname, void **error);
+
 
 typedef struct _graph_t graph_t;
 /** @brief The pipeline graph */
