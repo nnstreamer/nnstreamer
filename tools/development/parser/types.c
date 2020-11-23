@@ -35,8 +35,27 @@ _Element *
 nnstparser_element_make (const gchar * element, const gchar * name)
 {
   _Element ret = g_new0 (_Element, 1);
+  ret->specialType = eST_normal;
   ret->element = g_strdup (element);
   ret->name = g_strdup (name);
+
+  return ret;
+}
+
+/**
+ * @brief Create URL dummy element instead of gst_element_make_from_uri
+ */
+_Element *
+nnstparser_element_from_uri (_URIType type, const gchar * uri,
+    const gchar * elementname, void **error)
+{
+  _Element ret = g_malloc (sizeof (_Element));
+
+  g_assert (type == GST_URI_SINK || type == GST_URI_SRC);
+
+  ret->specialType = (type == GST_URI_SINK) ? eST_URI_SINK : eST_URI_SRC;
+  ret->element = g_strdup (url);
+  ret->name = g_strdup (elementname);
 
   return ret;
 }

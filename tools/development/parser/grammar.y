@@ -816,15 +816,10 @@ morepads:	/* NOP */		      { $$ = NULL; }
 *       http://somesource.org ! fakesink
 **************************************************************/
 
-chain:	openchain link PARSE_URL	      { GstElement *element =
-							  gst_element_make_from_uri (GST_URI_SINK, $3, NULL, NULL);
-						/* FIXME: get and parse error properly */
-						if (!element) {
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
-							  _("no sink element for URI \"%s\""), $3);
-						}
+chain:	openchain link PARSE_URL	      { _Element *element =
+							  nnstparser_element_from_uri (GST_URI_SINK, $3, NULL, NULL);
 						$$ = $1;
-						$2->sink.element = element?gst_object_ref(element):NULL;
+						$2->sink.element = element;
 						$2->src = $1->last;
 						TRY_SETUP_LINK($2);
 						$$->last.element = NULL;
@@ -836,21 +831,15 @@ chain:	openchain link PARSE_URL	      { GstElement *element =
 	;
 openchain:
 	PARSE_URL			      { GstElement *element =
-							  gst_element_make_from_uri (GST_URI_SRC, $1, NULL, NULL);
-						/* FIXME: get and parse error properly */
-						if (!element) {
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
-						    _("no source element for URI \"%s\""), $1);
-						}
-						$$ = gst_parse_chain_new ();
-						/* g_print ("@%p: CHAINing srcURL\n", $$); */
+							  nnstparser_element_from_uri (GST_URI_SRC, $1, NULL, NULL);
+						$$ = g_slice_new0 (chain_t);
 						$$->first.element = NULL;
 						$$->first.name = NULL;
 						$$->first.pads = NULL;
 						$$->last.element = element ? gst_object_ref(element):NULL;
 						$$->last.name = NULL;
 						$$->last.pads = NULL;
-						$$->elements = element ? g_slist_prepend (NULL, element)  : NULL;
+						$$->elements = g_slist_prepend (NULL, element);
 						g_free($1);
 					      }
 	;
