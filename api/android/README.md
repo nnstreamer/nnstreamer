@@ -235,3 +235,58 @@ You can find the result in ```$NNSTREAMER_ROOT/android_lib```.
 $ cd $NNSTREAMER_ROOT
 $ bash ./api/android/build-android-lib.sh --run_test=yes
 ```
+
+### Using TensorFlow Lite NNAPI Delegate
+
+Since Android 10, all applications are in scoped storage and the `getExternalStorageDirectory()` is deprecated.
+There are some workarounds to use files with external path (e.g. set `requestLegacyExternalStorage` true in app's manifest file). With TensorFlow Lite model files in external storage, however, all workarounds do not work when an application attempts to access the NNAPI, and TensorFlow Lite fails to use available backend like GPU, DSP, or NPU.
+
+If you want to use NNAPI delegate, you should provide the model file from internal storage. You may copy the model files into app-specific directory or cache directory. Or let your application access model files reside in the asset directory.
+
+Here are sample java methods:
+
+```java
+/**
+ * Copy a model file in external storage into app-specific internal storage and return it
+ *
+ * @param context  The application context
+ * @param model    The File object of a model file in external storage
+ *
+ * @return The copied File object
+ */
+File modelFromFilesDir(Context context, File model) {
+  File appSpecificFile = new File(context.getFilesDir(), model.getName());
+  appSpecificFile.mkdirs();
+  // Copy the model file in external storage to app specific internal storage
+  try {
+    Files.copy(model.toPath(), appSpecificFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+  } catch (Exception e) {
+    e.printStackTrace();
+    return null;
+  }
+
+  return appSpecificFile;
+}
+
+/**
+ * Copy a model file in external storage into app-specific cache directory and return it
+ *
+ * @param context  The application context
+ * @param model    The File object of a model file in external storage
+ *
+ * @return         The copied File object
+ */
+File modelFromCacheDir(Context context, File model) {
+  File cacheFile = new File(context.getCacheDir(), model.getName());
+  cacheFile.getParentFile().mkdirs();
+  // Copy the model file in external storage to app-specific cache directory
+  try {
+    Files.copy(model.toPath(), cacheFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+  } catch (Exception e) {
+    e.printStackTrace();
+    return null;
+  }
+
+  return cacheFile;
+}
+```
