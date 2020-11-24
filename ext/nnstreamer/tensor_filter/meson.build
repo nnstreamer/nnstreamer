@@ -187,6 +187,13 @@ if tflite2_support_is_available
   tflite2_compile_args += '-DTFLITE_FLOAT16=1'
   tflite2_compile_args += '-DTFLITE_COMPLEX64=1'
 
+  if get_option('tflite2-gpu-delegate-support')
+    # GLES dependency for tflite GPU delegate
+    gles_dep = dependency('gles20', required: true)
+    nnstreamer_filter_tflite2_deps += gles_dep
+    tflite2_compile_args += '-DTFLITE_GPU_DELEGATE_SUPPORTED'
+  endif
+
   tflite2_extra_dep = declare_dependency(
     compile_args : tflite2_compile_args
   )
