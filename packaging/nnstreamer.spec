@@ -327,6 +327,13 @@ Requires:	flatbuffers
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif
 
+%package edge
+Summary:	NNStreamer Edge-AI Support
+Requires:	nnstreamer = %{version}-%{release}
+%description edge
+NNStreamer's Edge-AI support providing distributed pipeline elements.
+This contains tensor_server_accept, tensor_server_reply, and tensor_client_query.
+
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
 Requires:	nnstreamer = %{version}-%{release}
@@ -907,6 +914,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %license LICENSE
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_openvino.so
 %endif
+
+%files edge
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%license LICENSE
+%{gstlibdir}/libnnstreamer-edge.so
 
 %files util
 %{_bindir}/nnstreamer-check

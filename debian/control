@@ -113,6 +113,13 @@ Depends: nnstreamer, libgrpc7, libgrpc++1, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer gRPC tensor source/sink support
  This package allows nnstreamer to support gRPC tensor source/sink as a extra plugin
 
+Package: nnstreamer-edge
+Architecture: any
+MUlti-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer Edge-AI support
+ This package allows to efficiently perform Edge-AI computing in lightweight devices
+
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same

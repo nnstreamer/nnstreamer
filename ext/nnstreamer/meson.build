@@ -46,6 +46,7 @@ subdir('tensor_filter')
 subdir('tensor_source')
 subdir('tensor_converter')
 subdir('tensor_sink')
+subdir('tensor_query')
 
 if get_option('enable-tizen-sensor')
   tizensensor_registerer_source_files = ['registerer/tizensensor.c']
@@ -81,6 +82,27 @@ if grpc_support_is_available
   grpc_lib = shared_library('nnstreamer-grpc',
     grpc_registerer_sources,
     dependencies: [tensor_src_grpc_dep, tensor_sink_grpc_dep],
+    install: true,
+    install_dir: plugins_install_dir
+  )
+endif
+
+if edge_support_is_available
+  edge_registerer_source_files = ['registerer/edge.c']
+  edge_registerer_sources = []
+
+  foreach s : edge_registerer_source_files
+    edge_registerer_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  edge_deps = [
+    tensor_query_accept_dep,
+    tensor_query_reply_dep,
+    tensor_query_client_dep,
+  ]
+  edge_lib = shared_library('nnstreamer-edge',
+    edge_registerer_sources,
+    dependencies: edge_deps,
     install: true,
     install_dir: plugins_install_dir
   )

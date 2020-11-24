@@ -302,6 +302,9 @@ features = {
   },
   'grpc-support': {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
+  },
+  'edge-support': {
+    'extra_deps': [ flatbuf_dep ]
   }
 }
 
