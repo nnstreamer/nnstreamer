@@ -355,6 +355,14 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
     options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
 
+    /** NNStreamer filter for TFLite2 GPU delegate only supports OpenCL backend
+     * since GLES v3.1 backend has a constraint that
+     * Invoke() must be called from the same EGLContext. */
+    options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_CL_ONLY;
+    options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+    options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
+    options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
+
     gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
     setDelegate (gpu_delegate.get ());
 #else
