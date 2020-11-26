@@ -94,21 +94,21 @@ Description: NNStreamer OpenVino support
 
 Package: nnstreamer-protobuf
 Architecture: any
-MUlti-Arch: same
+Multi-Arch: same
 Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Protobuf converter/decoder support
  This package allows to pack/unpack tensor streams to/from protobuf.
 
 Package: nnstreamer-flatbuf
 Architecture: any
-MUlti-Arch: same
+Multi-Arch: same
 Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Flatbuf converter/decoder support
  This package allows to pack/unpack tensor streams to/from flatbuf.
 
 Package: nnstreamer-grpc
 Architecture: amd64
-MUlti-Arch: same
+Multi-Arch: same
 Depends: nnstreamer, libgrpc7, libgrpc++1, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer gRPC tensor source/sink support
  This package allows nnstreamer to support gRPC tensor source/sink as a extra plugin
