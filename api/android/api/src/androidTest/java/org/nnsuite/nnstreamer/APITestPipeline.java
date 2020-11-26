@@ -1306,8 +1306,7 @@ public class APITestPipeline {
             return;
         }
 
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "glimagesink name=vsink";
+        String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             /* Setting null surface will release old window */
@@ -1328,8 +1327,7 @@ public class APITestPipeline {
             return;
         }
 
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "glimagesink name=vsink";
+        String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.setSurface(null, null);
@@ -1346,8 +1344,7 @@ public class APITestPipeline {
             return;
         }
 
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "glimagesink name=vsink";
+        String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.setSurface("", null);
@@ -1370,8 +1367,7 @@ public class APITestPipeline {
             fail();
         }
 
-        String desc = "videotestsrc ! videoconvert ! video/x-raw,format=RGB ! " +
-                "glimagesink name=vsink";
+        String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
             pipe.setSurface("vsink", surfaceView.getHolder());
