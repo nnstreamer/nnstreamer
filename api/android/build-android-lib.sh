@@ -205,6 +205,11 @@ fi
 echo "Android SDK: $android_sdk_dir"
 echo "Android NDK: $android_ndk_dir"
 
+echo "Patching NDK source"
+# See: https://github.com/nnstreamer/nnstreamer/issues/2899
+
+sed -z -i "s|struct AMediaCodecOnAsyncNotifyCallback {\n      AMediaCodecOnAsyncInputAvailable  onAsyncInputAvailable;\n      AMediaCodecOnAsyncOutputAvailable onAsyncOutputAvailable;\n      AMediaCodecOnAsyncFormatChanged   onAsyncFormatChanged;\n      AMediaCodecOnAsyncError           onAsyncError;\n};|typedef struct AMediaCodecOnAsyncNotifyCallback {\n      AMediaCodecOnAsyncInputAvailable  onAsyncInputAvailable;\n      AMediaCodecOnAsyncOutputAvailable onAsyncOutputAvailable;\n      AMediaCodecOnAsyncFormatChanged   onAsyncFormatChanged;\n      AMediaCodecOnAsyncError           onAsyncError;\n} AMediaCodecOnAsyncNotifyCallback;|" $android_ndk_dir/toolchains/llvm/prebuilt/*/sysroot/usr/include/media/NdkMediaCodec.h
+
 # GStreamer prebuilt libraries for Android
 # Download from https://gstreamer.freedesktop.org/data/pkg/android/
 if [[ -z "$gstreamer_dir" ]]; then
