@@ -89,6 +89,23 @@ To install NDK in Android Studio, navigate to configure -> Appearance & Behavior
 If you need to set a specific version, download and decompress it to compile normally a GStreamer-based plugin (e.g., NNStreamer).
 You can download older version from [here](https://developer.android.com/ndk/downloads/older_releases.html).
 
+### Modify `NdkMediaCodec.h` file for NDK build
+
+Modify `{ndk_dir}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/media/NdkMediaCodec.h` for C compile (The [`AMediaCodecOnAysncNotifyCallback`](https://android.googlesource.com/platform/frameworks/av/+/master/media/ndk/include/media/NdkMediaCodec.h#117) introduced in API level 28 make build error) :
+
+```diff
+@@ -117,6 +117,6 @@
+
+- struct AMediaCodecOnAsyncNotifyCallback {
++ typedef struct AMediaCodecOnAsyncNotifyCallback {
+      AMediaCodecOnAsyncInputAvailable  onAsyncInputAvailable;
+      AMediaCodecOnAsyncOutputAvailable onAsyncOutputAvailable;
+      AMediaCodecOnAsyncFormatChanged   onAsyncFormatChanged;
+      AMediaCodecOnAsyncError           onAsyncError;
+- }
++ } AMediaCodecOnAsyncNotifyCallback;
+```
+
 ### Download GStreamer binaries
 
 You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freedesktop.org/data/pkg/android/).
