@@ -388,6 +388,11 @@ char* ml_nnfw_to_str_prop (ml_nnfw_hw_e hw);
 const char* ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw);
 
 /**
+ * @brief Internal function to get the nnfw type.
+ */
+ml_nnfw_type_e ml_get_nnfw_type_by_subplugin_name (const char *name);
+
+/**
  * @brief Gets the element of pipeline itself (GstElement).
  * @details With the returned reference, you can use GStreamer functions to handle the element in pipeline.
  *          Note that caller should release the returned reference using gst_object_unref().

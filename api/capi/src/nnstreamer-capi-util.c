@@ -30,6 +30,25 @@
 #include <tensor_filter/tensor_filter_common.h>
 
 /**
+ * @brief The name of sub-plugin for defined neural net frameworks.
+ * @note The sub-plugin for Android is not declared (e.g., snap)
+ */
+static const char *ml_nnfw_subplugin_name[] = {
+  [ML_NNFW_TYPE_ANY] = "any", /* DO NOT use this name ('any') to get the sub-plugin */
+  [ML_NNFW_TYPE_CUSTOM_FILTER] = "custom",
+  [ML_NNFW_TYPE_TENSORFLOW_LITE] = "tensorflow-lite",
+  [ML_NNFW_TYPE_TENSORFLOW] = "tensorflow",
+  [ML_NNFW_TYPE_NNFW] = "nnfw",
+  [ML_NNFW_TYPE_MVNC] = "movidius-ncsdk2",
+  [ML_NNFW_TYPE_OPENVINO] = "openvino",
+  [ML_NNFW_TYPE_VIVANTE] = "vivante",
+  [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
+  [ML_NNFW_TYPE_ARMNN] = "armnn",
+  [ML_NNFW_TYPE_SNPE] = "snpe",
+  NULL
+};
+
+/**
  * @brief Allocates a tensors information handle with default value.
  */
 int
@@ -982,27 +1001,13 @@ _ml_detect_framework (char **model, unsigned int num_models,
   detected =
       gst_tensor_filter_framework_auto_detection ((const gchar **) model,
       num_models);
-  if (detected == NULL) {
-    ml_loge ("The given model has unknown or not supported extension.");
-    return ML_ERROR_INVALID_PARAMETER;
-  }
 
-  if (g_ascii_strcasecmp (detected, "nnfw") == 0) {
-    *nnfw = ML_NNFW_TYPE_NNFW;
-  } else if (g_ascii_strcasecmp (detected, "tensorflow-lite") == 0) {
-    *nnfw = ML_NNFW_TYPE_TENSORFLOW_LITE;
-  } else if (g_ascii_strcasecmp (detected, "vivante") == 0) {
-    *nnfw = ML_NNFW_TYPE_VIVANTE;
-  } else if (g_ascii_strcasecmp (detected, "tensorflow") == 0) {
-    *nnfw = ML_NNFW_TYPE_TENSORFLOW;
-  } else if (g_ascii_strcasecmp (detected, "custom") == 0) {
-    *nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
+  *nnfw = ml_get_nnfw_type_by_subplugin_name (detected);
+
+  if (*nnfw == ML_NNFW_TYPE_ANY) {
+    ml_loge ("The given model has unknown or not supported extension.");
+    status = ML_ERROR_INVALID_PARAMETER;
   } else {
-    ml_loge ("The given model has unknown or not supported extension.");
-    status = ML_ERROR_NOT_SUPPORTED;
-  }
-
-  if (status == ML_ERROR_NONE) {
     ml_logi ("The given model is supposed a %s model.", detected);
 
     if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY)) {
@@ -1220,23 +1225,36 @@ ml_nnfw_to_str_prop (const ml_nnfw_hw_e hw)
 const char *
 ml_get_nnfw_subplugin_name (ml_nnfw_type_e nnfw)
 {
-  static const char *nnfw_subplugin_name[] = {
-    [ML_NNFW_TYPE_ANY] = "any", /* DO NOT use this name ('any') to get the sub-plugin */
-    [ML_NNFW_TYPE_CUSTOM_FILTER] = "custom",
-    [ML_NNFW_TYPE_TENSORFLOW_LITE] = "tensorflow-lite",
-    [ML_NNFW_TYPE_TENSORFLOW] = "tensorflow",
-    [ML_NNFW_TYPE_NNFW] = "nnfw",
-    [ML_NNFW_TYPE_MVNC] = "movidius-ncsdk2",
-    [ML_NNFW_TYPE_OPENVINO] = "openvino",
-    [ML_NNFW_TYPE_VIVANTE] = "vivante",
-    [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
-    [ML_NNFW_TYPE_ARMNN] = "armnn",
-    [ML_NNFW_TYPE_SNPE] = "snpe",
-    [ML_NNFW_TYPE_SNAP] = "snap", /* Android only */
-    NULL
-  };
+  /* check sub-plugin for android */
+  if (nnfw == ML_NNFW_TYPE_SNAP)
+    return "snap";
 
-  return nnfw_subplugin_name[nnfw];
+  return ml_nnfw_subplugin_name[nnfw];
+}
+
+/**
+ * @brief Internal function to get the nnfw type.
+ */
+ml_nnfw_type_e
+ml_get_nnfw_type_by_subplugin_name (const char *name)
+{
+  ml_nnfw_type_e nnfw_type = ML_NNFW_TYPE_ANY;
+  int idx = -1;
+
+  g_return_val_if_fail (name != NULL, ML_NNFW_TYPE_ANY);
+
+  idx = find_key_strv (ml_nnfw_subplugin_name, name);
+  if (idx < 0) {
+    /* check sub-plugin for android */
+    if (g_ascii_strcasecmp (name, "snap") == 0)
+      nnfw_type = ML_NNFW_TYPE_SNAP;
+    else
+      ml_logw ("Cannot find nnfw, %s is invalid name.", GST_STR_NULL (name));
+  } else {
+    nnfw_type = (ml_nnfw_type_e) idx;
+  }
+
+  return nnfw_type;
 }
 
 /**

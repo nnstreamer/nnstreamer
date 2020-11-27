@@ -3155,6 +3155,34 @@ TEST (nnstreamer_capi_util, data_set_tdata_05_n)
 }
 
 /**
+ * @brief Test utility functions (private)
+ * @details check sub-plugin type and name
+ */
+TEST (nnstreamer_capi_util, nnfw_name_01_p)
+{
+  EXPECT_STREQ (ml_get_nnfw_subplugin_name (ML_NNFW_TYPE_TENSORFLOW_LITE), "tensorflow-lite");
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("tensorflow-lite"), ML_NNFW_TYPE_TENSORFLOW_LITE);
+  EXPECT_STREQ (ml_get_nnfw_subplugin_name (ML_NNFW_TYPE_TENSORFLOW), "tensorflow");
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("tensorflow"), ML_NNFW_TYPE_TENSORFLOW);
+  EXPECT_STREQ (ml_get_nnfw_subplugin_name (ML_NNFW_TYPE_NNFW), "nnfw");
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("nnfw"), ML_NNFW_TYPE_NNFW);
+  EXPECT_STREQ (ml_get_nnfw_subplugin_name (ML_NNFW_TYPE_VIVANTE), "vivante");
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("vivante"), ML_NNFW_TYPE_VIVANTE);
+  EXPECT_STREQ (ml_get_nnfw_subplugin_name (ML_NNFW_TYPE_SNAP), "snap");
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("snap"), ML_NNFW_TYPE_SNAP);
+}
+
+/**
+ * @brief Test utility functions (private)
+ * @details check sub-plugin type and name
+ */
+TEST (nnstreamer_capi_util, nnfw_name_02_n)
+{
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name ("invalid-fw"), ML_NNFW_TYPE_ANY);
+  EXPECT_EQ (ml_get_nnfw_type_by_subplugin_name (NULL), ML_NNFW_TYPE_ANY);
+}
+
+/**
  * @brief Test NNStreamer single shot (tensorflow-lite)
  */
 TEST (nnstreamer_capi_singleshot, invoke_invalid_param_01_n)
