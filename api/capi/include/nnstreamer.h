@@ -131,7 +131,7 @@ typedef void *ml_custom_easy_filter_h;
  * @since_tizen 5.5
  */
 typedef enum {
-  ML_NNFW_TYPE_ANY = 0,               /**< NNHW is not specified (Try to determine the NNFW with file extension). */
+  ML_NNFW_TYPE_ANY = 0,               /**< NNFW is not specified (Try to determine the NNFW with file extension). */
   ML_NNFW_TYPE_CUSTOM_FILTER = 1,     /**< Custom filter (Independent shared object). */
   ML_NNFW_TYPE_TENSORFLOW_LITE = 2,   /**< Tensorflow-lite (.tflite). */
   ML_NNFW_TYPE_TENSORFLOW = 3,        /**< Tensorflow (.pb). */
