@@ -128,6 +128,18 @@ if gtest_dep.found()
     test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
   endif
 
+  # gRPC unittest
+  if grpc_support_is_available
+    unittest_grpc = executable('unittest_grpc',
+      join_paths('nnstreamer_grpc', 'unittest_grpc.cc'),
+      dependencies: nnstreamer_unittest_deps,
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_grpc', unittest_grpc, env: testenv)
+  endif
+
   # Tizen C-API
   if get_option('enable-capi')
     subdir('tizen_capi')
