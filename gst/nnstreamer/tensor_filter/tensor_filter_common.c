@@ -1120,6 +1120,7 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
   if (g_ascii_strcasecmp (fw_name, "auto") == 0) {
     if (prop->model_files == NULL) {
       /* If model file is not loaded, get framework after loading the model */
+      g_free_const (prop->fwname);
       prop->fwname = g_strdup (fw_name);
       return;
     }

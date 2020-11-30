@@ -167,9 +167,10 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
  * @brief Get available framework from given file when user selects auto option
  * @param[in] model_files the prediction model paths
  * @param[in] num_models the number of model files
- * @return Detected framework name (NULL if it fails to detect automatically)
+ * @return Detected framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
  */
-gchar *gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
+extern gchar *
+gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
     unsigned int num_models);
 
 /**
@@ -177,7 +178,7 @@ gchar *gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
  * @param[in] priv Struct containing the properties of the object
  * @param[in] fw_name Framework name
  */
-void
+extern void
 gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
     const char *fw_name);
 
