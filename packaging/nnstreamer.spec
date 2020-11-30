@@ -785,7 +785,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files tensorflow-lite
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow-lite.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow1-lite.so
 %endif
 
 # for tensorflow2-lite

@@ -141,14 +141,14 @@ if tflite_support_is_available
   nnstreamer_filter_tflite_deps += tflite_extra_dep
   nnstreamer_filter_tflite_deps += tflite_ver_dep
 
-  shared_library('nnstreamer_filter_tensorflow-lite',
+  shared_library('nnstreamer_filter_tensorflow1-lite',
     nnstreamer_filter_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
-  static_library('nnstreamer_filter_tensorflow-lite',
+  static_library('nnstreamer_filter_tensorflow1-lite',
     nnstreamer_filter_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
