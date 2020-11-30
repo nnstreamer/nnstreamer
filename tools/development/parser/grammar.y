@@ -334,9 +334,11 @@ out:
 
 static void gst_parse_free_reference (reference_t *rr)
 {
-  if(rr->element) gst_object_unref(rr->element);
-  gst_parse_strfree (rr->name);
-  g_slist_foreach (rr->pads, (GFunc) gst_parse_strfree, NULL);
+  /** Rephrased for nnst parser */
+  if (rr->element)
+    rr->element = nnstparser_element_unref (rr->element);
+  g_free (rr->name);
+  g_slist_foreach (rr->pads, (GFunc) g_free, NULL);
   g_slist_free (rr->pads);
 }
 
@@ -344,8 +346,8 @@ static void gst_parse_free_link (link_t *link)
 {
   gst_parse_free_reference (&(link->src));
   gst_parse_free_reference (&(link->sink));
-  if (link->caps) gst_caps_unref (link->caps);
-  gst_parse_link_free (link);
+  g_free (link->caps);
+  g_slice_free (link_t, link);
 }
 
 static void gst_parse_free_chain (chain_t *ch)
@@ -356,14 +358,14 @@ static void gst_parse_free_chain (chain_t *ch)
   for(walk=ch->elements;walk;walk=walk->next)
     gst_object_unref (walk->data);
   g_slist_free (ch->elements);
-  gst_parse_chain_free (ch);
+  g_slice_free (chain_t, ch);
 }
 
 static void gst_parse_free_delayed_link (DelayedLink *link)
 {
   g_free (link->src_pad);
   g_free (link->sink_pad);
-  if (link->caps) gst_caps_unref (link->caps);
+  g_free (link->caps);
   g_slice_free (DelayedLink, link);
 }
 
@@ -868,7 +870,7 @@ chain:	openchain link reference	      { $$ = $1;
 
 
 openchain:
-	reference 			      { $$ = gst_parse_chain_new ();
+	reference 			      { $$ = g_slice_new0 (chain_t);
 						$$->last=$1;
 						$$->first.element = NULL;
 						$$->first.name = NULL;
@@ -884,7 +886,7 @@ reference:	REF morepads		      {
 						  *padname = '\0';
 						  padname++;
 						  if (*padname != '\0')
-						    pads = g_slist_prepend (pads, gst_parse_strdup (padname));
+						    pads = g_slist_prepend (pads, g_strdup (padname));
 						}
 						$$.element=NULL;
 						$$.name=$1;
@@ -913,7 +915,7 @@ chainlist: /* NOP */			      { $$ = NULL; }
 						  gst_parse_free_reference(&($2->first));
 						  $2->first = $1->first;
 						  $2->elements = g_slist_concat ($1->elements, $2->elements);
-						  gst_parse_chain_free ($1);
+						  g_slice_free (chain_t, $1);
 						}
 						$$ = $2;
 					      }
@@ -933,7 +935,7 @@ assignments:	/* NOP */		      { $$ = NULL; }
 	|	ASSIGNMENT assignments 	      { $$ = g_slist_prepend ($2, $1); }
 	;
 
-binopener:	'('			      { $$ = gst_parse_strdup("bin"); }
+binopener:	'('			      { $$ = g_strdup("bin"); }
 	|	BINREF			      { $$ = $1; }
 	;
 bin:	binopener assignments chainlist ')'   {
