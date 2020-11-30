@@ -23,42 +23,43 @@
  * @bug		  No known bugs except for NYI items
  */
 
-#include "gstamcsrc.h"
 #include "gstamcsrc_looper.h"
+#include "gstamcsrc.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <jni.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <limits.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <android/log.h>
 #define TAG "AMCSRC-looper"
-#define LOG(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOG(...) __android_log_print (ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
 /**
  * @brief Looper constructor
  */
-Looper::Looper()
+Looper::Looper ()
 {
   head = NULL;
   running = FALSE;
   num_msg = 0;
   handle = NULL;
 
-  pthread_mutex_init(&mutex, NULL);
-  pthread_cond_init(&cond, NULL);
+  pthread_mutex_init (&mutex, NULL);
+  pthread_cond_init (&cond, NULL);
 }
 
 /**
  * @brief Creates a looper thread
  */
-void Looper::start(void)
+void
+Looper::start (void)
 {
   pthread_attr_t attr;
 
@@ -76,9 +77,10 @@ void Looper::start(void)
  * @param[in] data argument
  * @param[in] flush whether flushing the pending messages
  */
-void Looper::post(gint cmd, void *data, bool flush)
+void
+Looper::post (gint cmd, void *data, bool flush)
 {
-  looper_message *msg = new looper_message();
+  looper_message *msg = new looper_message ();
 
   msg->cmd = cmd;
   msg->data = data;
@@ -92,7 +94,8 @@ void Looper::post(gint cmd, void *data, bool flush)
  * @param[in] new_msg new message to append
  * @param[in] flush whether flushing the pending messages
  */
-void Looper::add_msg(looper_message *new_msg, bool flush)
+void
+Looper::add_msg (looper_message *new_msg, bool flush)
 {
   looper_message *msg;
 
@@ -129,16 +132,18 @@ void Looper::add_msg(looper_message *new_msg, bool flush)
 /**
  * @brief looper's entry function
  */
-void* Looper::entry(void *data)
+void *
+Looper::entry (void *data)
 {
-  ((Looper*)data)->loop();
+  ((Looper *)data)->loop ();
   return NULL;
 }
 
 /**
  * @brief looper's loop function
  */
-void Looper::loop(void)
+void
+Looper::loop (void)
 {
   LOG ("AMC looper started!");
   running = TRUE;
@@ -169,7 +174,8 @@ void Looper::loop(void)
 /**
  * @brief looper's exit function
  */
-void Looper::exit(void)
+void
+Looper::exit (void)
 {
   running = FALSE;
   post (0 /* MSG_0 */, NULL, TRUE);
@@ -181,9 +187,9 @@ void Looper::exit(void)
 void *
 Looper_new (void)
 {
-  Looper *looper = new Looper();
+  Looper *looper = new Looper ();
 
-  looper->start();
+  looper->start ();
   return looper;
 }
 
@@ -193,16 +199,16 @@ Looper_new (void)
 void
 Looper_post (void *looper, gint cmd, void *data, gboolean flush)
 {
-  ((Looper*) looper)->post (cmd, data, flush);
+  ((Looper *)looper)->post (cmd, data, flush);
 }
 
 /**
  * @brief C-wrapper for setting handle function of looper
  */
 void
-Looper_set_handle (void *looper, void (*handle)(gint, void*))
+Looper_set_handle (void *looper, void (*handle) (gint, void *))
 {
-  ((Looper*) looper)->handle = handle;
+  ((Looper *)looper)->handle = handle;
 }
 
 /**
@@ -211,5 +217,5 @@ Looper_set_handle (void *looper, void (*handle)(gint, void*))
 void
 Looper_exit (void *looper)
 {
-  ((Looper*) looper)->exit ();
+  ((Looper *)looper)->exit ();
 }

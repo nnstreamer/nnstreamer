@@ -7,19 +7,19 @@
  * @bug         No known bugs
  */
 
-#include <nnstreamer.h>
-#include <nnstreamer-single.h>
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
 #include <nnstreamer-capi-private.h>
+#include <nnstreamer-single.h>
+#include <nnstreamer.h>
 #include <nnstreamer_conf.h> /* NNSTREAMER_SO_FILE_EXTENSION */
 #include <nnstreamer_plugin_api.h>
 #include <unittest_util.h>
 
 static const unsigned int SINGLE_DEF_TIMEOUT_MSEC = 10000U;
 
-#if defined (ENABLE_TENSORFLOW_LITE)
+#if defined(ENABLE_TENSORFLOW_LITE)
 constexpr bool is_enabled_tensorflow_lite = true;
 #else
 constexpr bool is_enabled_tensorflow_lite = false;
@@ -28,13 +28,12 @@ constexpr bool is_enabled_tensorflow_lite = false;
 /**
  * @brief Struct to check the pipeline state changes.
  */
-typedef struct
-{
+typedef struct {
   gboolean paused;
   gboolean playing;
 } TestPipeState;
 
-#if defined (__TIZEN__)
+#if defined(__TIZEN__)
 /**
  * @brief Test NNStreamer pipeline construct with Tizen cam
  * @details Failure case to check permission (camera privilege)
@@ -82,7 +81,8 @@ TEST (nnstreamer_capi_construct_destruct, tizen_internal_01_p)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240 ! tensor_converter ! tensor_sink");
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240 ! tensor_converter ! tensor_sink");
 
   status = ml_pipeline_construct_internal (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -102,7 +102,8 @@ TEST (nnstreamer_capi_construct_destruct, tizen_internal_02_p)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup_printf ("audiotestsrc ! audioconvert ! audio/x-raw,format=S16LE,rate=16000 ! tensor_converter ! tensor_sink");
+  pipeline = g_strdup_printf (
+      "audiotestsrc ! audioconvert ! audio/x-raw,format=S16LE,rate=16000 ! tensor_converter ! tensor_sink");
 
   status = ml_pipeline_construct_internal (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -178,17 +179,17 @@ TEST (nnstreamer_capi_construct_destruct, failure_02_n)
   EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
 }
 
-#define wait_for_start(handle, state, status) \
-do {\
-  int counter = 0;\
-  while ((state == ML_PIPELINE_STATE_PAUSED || \
-          state == ML_PIPELINE_STATE_READY) && counter < 20) {\
-    g_usleep (50000);\
-    counter ++;\
-    status = ml_pipeline_get_state (handle, &state);\
-    EXPECT_EQ (status, ML_ERROR_NONE);\
-  }\
-} while (0)\
+#define wait_for_start(handle, state, status)                                      \
+  do {                                                                             \
+    int counter = 0;                                                               \
+    while ((state == ML_PIPELINE_STATE_PAUSED || state == ML_PIPELINE_STATE_READY) \
+           && counter < 20) {                                                      \
+      g_usleep (50000);                                                            \
+      counter++;                                                                   \
+      status = ml_pipeline_get_state (handle, &state);                             \
+      EXPECT_EQ (status, ML_ERROR_NONE);                                           \
+    }                                                                              \
+  } while (0)
 
 /**
  * @brief Test NNStreamer pipeline construct & destruct
@@ -204,11 +205,14 @@ TEST (nnstreamer_capi_playstop, dummy_01)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
+  g_usleep (50000); /* 50ms is good for general systems, but not enough for
+                       emulators to start gst pipeline. Let a few frames flow.
+                       */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   wait_for_start (handle, state, status);
@@ -240,11 +244,14 @@ TEST (nnstreamer_capi_playstop, dummy_02)
   status = ml_pipeline_start (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
-  g_usleep (50000); /* 50ms is good for general systems, but not enough for emulators to start gst pipeline. Let a few frames flow. */
+  g_usleep (50000); /* 50ms is good for general systems, but not enough for
+                       emulators to start gst pipeline. Let a few frames flow.
+                       */
   status = ml_pipeline_get_state (handle, &state);
   EXPECT_EQ (status, ML_ERROR_NONE);
   wait_for_start (handle, state, status);
@@ -284,11 +291,10 @@ TEST (nnstreamer_capi_valve, test01)
   const gchar *_tmpdir = g_get_tmp_dir ();
   const gchar *_dirname = "nns-tizen-XXXXXX";
   gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
-  gchar *dir = g_mkdtemp ((gchar *) fullpath);
+  gchar *dir = g_mkdtemp ((gchar *)fullpath);
   gchar *file1 = g_build_path ("/", dir, "valve1", NULL);
-  gchar *pipeline =
-      g_strdup_printf
-      ("videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=10/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
+  gchar *pipeline = g_strdup_printf (
+      "videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=16,height=16,framerate=10/1 ! tensor_converter ! queue ! valve name=valve1 ! filesink location=\"%s\"",
       file1);
   GStatBuf buf;
 
@@ -312,7 +318,8 @@ TEST (nnstreamer_capi_valve, test01)
 
   g_usleep (50000); /* 50ms. Wait for the pipeline stgart. */
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
@@ -468,15 +475,15 @@ TEST (nnstreamer_capi_valve, failure_05_n)
   g_free (pipeline);
 }
 
-G_LOCK_DEFINE_STATIC(callback_lock);
+G_LOCK_DEFINE_STATIC (callback_lock);
 /**
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-test_sink_callback_dm01 (const ml_tensors_data_h data,
-    const ml_tensors_info_h info, void *user_data)
+test_sink_callback_dm01 (
+    const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
 {
-  gchar *filepath = (gchar *) user_data;
+  gchar *filepath = (gchar *)user_data;
   unsigned int i, num = 0;
   void *data_ptr;
   size_t data_size;
@@ -486,7 +493,7 @@ test_sink_callback_dm01 (const ml_tensors_data_h data,
   if (fp == NULL)
     return;
 
-  G_LOCK(callback_lock);
+  G_LOCK (callback_lock);
   ml_tensors_info_get_count (info, &num);
 
   for (i = 0; i < num; i++) {
@@ -494,7 +501,7 @@ test_sink_callback_dm01 (const ml_tensors_data_h data,
     if (status == ML_ERROR_NONE)
       fwrite (data_ptr, data_size, 1, fp);
   }
-  G_UNLOCK(callback_lock);
+  G_UNLOCK (callback_lock);
 
   fclose (fp);
 }
@@ -503,14 +510,14 @@ test_sink_callback_dm01 (const ml_tensors_data_h data,
  * @brief A tensor-sink callback for sink handle in a pipeline
  */
 static void
-test_sink_callback_count (const ml_tensors_data_h data,
-    const ml_tensors_info_h info, void *user_data)
+test_sink_callback_count (
+    const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
 {
-  guint *count = (guint *) user_data;
+  guint *count = (guint *)user_data;
 
-  G_LOCK(callback_lock);
+  G_LOCK (callback_lock);
   *count = *count + 1;
-  G_UNLOCK(callback_lock);
+  G_UNLOCK (callback_lock);
 }
 
 /**
@@ -521,27 +528,27 @@ test_pipe_state_callback (ml_pipeline_state_e state, void *user_data)
 {
   TestPipeState *pipe_state;
 
-  G_LOCK(callback_lock);
-  pipe_state = (TestPipeState *) user_data;
+  G_LOCK (callback_lock);
+  pipe_state = (TestPipeState *)user_data;
 
   switch (state) {
-    case ML_PIPELINE_STATE_PAUSED:
-      pipe_state->paused = TRUE;
-      break;
-    case ML_PIPELINE_STATE_PLAYING:
-      pipe_state->playing = TRUE;
-      break;
-    default:
-      break;
+  case ML_PIPELINE_STATE_PAUSED:
+    pipe_state->paused = TRUE;
+    break;
+  case ML_PIPELINE_STATE_PLAYING:
+    pipe_state->playing = TRUE;
+    break;
+  default:
+    break;
   }
-  G_UNLOCK(callback_lock);
+  G_UNLOCK (callback_lock);
 }
 
 /**
  * @brief compare the two files.
  */
 static int
-file_cmp (const gchar * f1, const gchar * f2)
+file_cmp (const gchar *f1, const gchar *f2)
 {
   gboolean r;
   gchar *content1 = NULL;
@@ -576,8 +583,7 @@ file_cmp (const gchar * f1, const gchar * f2)
  * @return ML_ERROR_NONE success, ML_ERROR_UNKNOWN if failed, ML_ERROR_TIMED_OUT if timeout happens.
  */
 static int
-waitPipelineStateChange (ml_pipeline_h handle, ml_pipeline_state_e state,
-    guint timeout_ms)
+waitPipelineStateChange (ml_pipeline_h handle, ml_pipeline_state_e state, guint timeout_ms)
 {
   int status = ML_ERROR_UNKNOWN;
   guint counter = 0;
@@ -604,22 +610,22 @@ TEST (nnstreamer_capi_sink, dummy_01)
   const gchar *_tmpdir = g_get_tmp_dir ();
   const gchar *_dirname = "nns-tizen-XXXXXX";
   gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
-  gchar *dir = g_mkdtemp ((gchar *) fullpath);
+  gchar *dir = g_mkdtemp ((gchar *)fullpath);
 
-  ASSERT_NE (dir, (gchar *) NULL);
+  ASSERT_NE (dir, (gchar *)NULL);
 
   gchar *file1 = g_build_path ("/", dir, "original", NULL);
   gchar *file2 = g_build_path ("/", dir, "sink", NULL);
-  gchar *pipeline =
-      g_strdup_printf
-      ("videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=BGRx,width=64,height=48,famerate=30/1 ! tee name=t t. ! queue ! filesink location=\"%s\" buffer-mode=unbuffered t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
+  gchar *pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=BGRx,width=64,height=48,famerate=30/1 ! tee name=t t. ! queue ! filesink location=\"%s\" buffer-mode=unbuffered t. ! queue ! tensor_converter ! tensor_sink name=sinkx",
       file1);
   ml_pipeline_h handle;
   ml_pipeline_sink_h sinkhandle;
   int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_dm01, file2, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_dm01, file2, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle != NULL);
 
@@ -668,17 +674,18 @@ TEST (nnstreamer_capi_sink, dummy_02)
   /* pipeline with appsink */
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
-  pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  pipe_state = (TestPipeState *)g_new0 (TestPipeState, 1);
   ASSERT_TRUE (pipe_state != NULL);
 
   status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle != NULL);
 
@@ -727,25 +734,27 @@ TEST (nnstreamer_capi_sink, register_duplicated)
 
   /* pipeline with appsink */
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
-  count_sink0 = (guint *) g_malloc (sizeof (guint));
+  count_sink0 = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink0 != NULL);
   *count_sink0 = 0;
 
-  count_sink1 = (guint *) g_malloc (sizeof (guint));
+  count_sink1 = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink1 != NULL);
   *count_sink1 = 0;
 
-  pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  pipe_state = (TestPipeState *)g_new0 (TestPipeState, 1);
   ASSERT_TRUE (pipe_state != NULL);
 
   status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink0, &sinkhandle0);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink0, &sinkhandle0);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle0 != NULL);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink1, &sinkhandle1);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink1, &sinkhandle1);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle1 != NULL);
 
@@ -784,12 +793,13 @@ TEST (nnstreamer_capi_sink, failure_01_n)
   int status;
   guint *count_sink;
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
   /* invalid param : pipe */
-  status = ml_pipeline_sink_register (NULL, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      NULL, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (count_sink);
@@ -809,7 +819,7 @@ TEST (nnstreamer_capi_sink, failure_02_n)
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -817,7 +827,8 @@ TEST (nnstreamer_capi_sink, failure_02_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : name */
-  status = ml_pipeline_sink_register (handle, NULL, test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, NULL, test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (pipeline);
@@ -838,7 +849,7 @@ TEST (nnstreamer_capi_sink, failure_03_n)
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -846,7 +857,8 @@ TEST (nnstreamer_capi_sink, failure_03_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : wrong name */
-  status = ml_pipeline_sink_register (handle, "wrongname", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "wrongname", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (pipeline);
@@ -867,7 +879,7 @@ TEST (nnstreamer_capi_sink, failure_04_n)
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -875,7 +887,8 @@ TEST (nnstreamer_capi_sink, failure_04_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : invalid type */
-  status = ml_pipeline_sink_register (handle, "valvex", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "valvex", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (pipeline);
@@ -896,7 +909,7 @@ TEST (nnstreamer_capi_sink, failure_05_n)
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -924,7 +937,7 @@ TEST (nnstreamer_capi_sink, failure_06_n)
 
   pipeline = g_strdup ("videotestsrc num-buffers=3 ! videoconvert ! valve name=valvex ! tensor_converter ! tensor_sink name=sinkx");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -932,7 +945,8 @@ TEST (nnstreamer_capi_sink, failure_06_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* invalid param : handle */
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, NULL);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink, NULL);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   g_free (pipeline);
@@ -947,11 +961,10 @@ TEST (nnstreamer_capi_src, dummy_01)
   const gchar *_tmpdir = g_get_tmp_dir ();
   const gchar *_dirname = "nns-tizen-XXXXXX";
   gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
-  gchar *dir = g_mkdtemp ((gchar *) fullpath);
+  gchar *dir = g_mkdtemp ((gchar *)fullpath);
   gchar *file1 = g_build_path ("/", dir, "output", NULL);
-  gchar *pipeline =
-      g_strdup_printf
-      ("appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! filesink location=\"%s\" buffer-mode=unbuffered",
+  gchar *pipeline = g_strdup_printf (
+      "appsrc name=srcx ! other/tensor,dimension=(string)4:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! filesink location=\"%s\" buffer-mode=unbuffered",
       file1);
   ml_pipeline_h handle;
   ml_pipeline_state_e state;
@@ -961,7 +974,9 @@ TEST (nnstreamer_capi_src, dummy_01)
   ml_tensors_data_h data1, data2;
   unsigned int count = 0;
   ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
-  ml_tensor_dimension dim = { 0, };
+  ml_tensor_dimension dim = {
+    0,
+  };
 
   int i;
   uint8_t *uintarray1[10];
@@ -973,14 +988,14 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (dir != NULL);
   for (i = 0; i < 10; i++) {
-    uintarray1[i] = (uint8_t *) g_malloc (4);
+    uintarray1[i] = (uint8_t *)g_malloc (4);
     ASSERT_TRUE (uintarray1[i] != NULL);
     uintarray1[i][0] = i + 4;
     uintarray1[i][1] = i + 1;
     uintarray1[i][2] = i + 3;
     uintarray1[i][3] = i + 2;
 
-    uintarray2[i] = (uint8_t *) g_malloc (4);
+    uintarray2[i] = (uint8_t *)g_malloc (4);
     ASSERT_TRUE (uintarray2[i] != NULL);
     uintarray2[i][0] = i + 3;
     uintarray2[i][1] = i + 2;
@@ -994,7 +1009,8 @@ TEST (nnstreamer_capi_src, dummy_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   g_usleep (10000); /* 10ms. Wait a bit. */
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
@@ -1082,7 +1098,7 @@ TEST (nnstreamer_capi_src, dummy_01)
 
   g_free (pipeline);
 
-  EXPECT_TRUE (g_file_get_contents (file1, (gchar **) &content, &len, NULL));
+  EXPECT_TRUE (g_file_get_contents (file1, (gchar **)&content, &len, NULL));
   EXPECT_EQ (len, 8U * 11);
   EXPECT_TRUE (content != nullptr);
 
@@ -1253,7 +1269,6 @@ TEST (nnstreamer_capi_src, failure_06_n)
 
   status = ml_tensors_info_destroy (info);
   EXPECT_EQ (status, ML_ERROR_NONE);
-
 }
 
 /**
@@ -1272,15 +1287,16 @@ TEST (nnstreamer_capi_switch, dummy_01)
   TestPipeState *pipe_state;
   gchar **node_list = NULL;
 
-  pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
+  pipeline = g_strdup (
+      "input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
       "videotestsrc num-buffers=3 is-live=true ! videoconvert ! ins.sink_1");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
-  pipe_state = (TestPipeState *) g_new0 (TestPipeState, 1);
+  pipe_state = (TestPipeState *)g_new0 (TestPipeState, 1);
   ASSERT_TRUE (pipe_state != NULL);
 
   status = ml_pipeline_construct (pipeline, test_pipe_state_callback, pipe_state, &handle);
@@ -1307,7 +1323,8 @@ TEST (nnstreamer_capi_switch, dummy_01)
     g_free (node_list);
   }
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle != NULL);
 
@@ -1365,18 +1382,20 @@ TEST (nnstreamer_capi_switch, dummy_02)
 
   /**
    * Prerolling problem
-   * For running the test, set async=false in the sink element when using an output selector.
-   * The pipeline state can be changed to paused after all sink element receive buffer.
+   * For running the test, set async=false in the sink element when using an
+   * output selector.
+   * The pipeline state can be changed to paused after all sink element receive
+   * buffer.
    */
   pipeline = g_strdup ("videotestsrc is-live=true ! videoconvert ! tensor_converter ! output-selector name=outs "
-      "outs.src_0 ! tensor_sink name=sink0 async=false "
-      "outs.src_1 ! tensor_sink name=sink1 async=false");
+                       "outs.src_0 ! tensor_sink name=sink0 async=false "
+                       "outs.src_1 ! tensor_sink name=sink1 async=false");
 
-  count_sink0 = (guint *) g_malloc (sizeof (guint));
+  count_sink0 = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink0 != NULL);
   *count_sink0 = 0;
 
-  count_sink1 = (guint *) g_malloc (sizeof (guint));
+  count_sink1 = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink1 != NULL);
   *count_sink1 = 0;
 
@@ -1404,11 +1423,13 @@ TEST (nnstreamer_capi_switch, dummy_02)
     g_free (node_list);
   }
 
-  status = ml_pipeline_sink_register (handle, "sink0", test_sink_callback_count, count_sink0, &sinkhandle0);
+  status = ml_pipeline_sink_register (
+      handle, "sink0", test_sink_callback_count, count_sink0, &sinkhandle0);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle0 != NULL);
 
-  status = ml_pipeline_sink_register (handle, "sink1", test_sink_callback_count, count_sink1, &sinkhandle1);
+  status = ml_pipeline_sink_register (
+      handle, "sink1", test_sink_callback_count, count_sink1, &sinkhandle1);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle1 != NULL);
 
@@ -1471,8 +1492,8 @@ TEST (nnstreamer_capi_switch, failure_02_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1500,8 +1521,8 @@ TEST (nnstreamer_capi_switch, failure_03_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1529,8 +1550,8 @@ TEST (nnstreamer_capi_switch, failure_04_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1557,8 +1578,8 @@ TEST (nnstreamer_capi_switch, failure_05_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1585,8 +1606,8 @@ TEST (nnstreamer_capi_switch, failure_06_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1620,8 +1641,8 @@ TEST (nnstreamer_capi_switch, failure_07_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1655,8 +1676,8 @@ TEST (nnstreamer_capi_switch, failure_08_n)
   int status;
 
   pipeline = g_strdup ("input-selector name=ins ! tensor_converter ! tensor_sink name=sinkx "
-      "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
-      "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
+                       "videotestsrc is-live=true ! videoconvert ! ins.sink_0 "
+                       "videotestsrc num-buffers=3 ! videoconvert ! ins.sink_1");
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -1734,25 +1755,25 @@ TEST (nnstreamer_capi_util, availability_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
 #ifdef ENABLE_NNFW_RUNTIME
   EXPECT_EQ (result, true);
-#else   /* ENABLE_NNFW_RUNTIME */
+#else /* ENABLE_NNFW_RUNTIME */
   EXPECT_EQ (result, false);
-#endif  /* ENABLE_NNFW_RUNTIME */
+#endif /* ENABLE_NNFW_RUNTIME */
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_AUTO, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
 #ifdef ENABLE_NNFW_RUNTIME
   EXPECT_EQ (result, true);
-#else   /* ENABLE_NNFW_RUNTIME */
+#else /* ENABLE_NNFW_RUNTIME */
   EXPECT_EQ (result, false);
-#endif  /* ENABLE_NNFW_RUNTIME */
+#endif /* ENABLE_NNFW_RUNTIME */
 
   status = ml_check_nnfw_availability (ML_NNFW_TYPE_NNFW, ML_NNFW_HW_NPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
 #ifdef ENABLE_NNFW_RUNTIME
   EXPECT_EQ (result, true);
-#else   /* ENABLE_NNFW_RUNTIME */
+#else /* ENABLE_NNFW_RUNTIME */
   EXPECT_EQ (result, false);
-#endif  /* ENABLE_NNFW_RUNTIME */
+#endif /* ENABLE_NNFW_RUNTIME */
 }
 
 /**
@@ -1767,7 +1788,8 @@ TEST (nnstreamer_capi_util, availability_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_AUTO, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
@@ -1775,11 +1797,13 @@ TEST (nnstreamer_capi_util, availability_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_NEON, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_NEON, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_SIMD, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_CPU_SIMD, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, is_enabled_tensorflow_lite);
 
@@ -1800,19 +1824,23 @@ TEST (nnstreamer_capi_util, availability_fail_01_n)
   bool result;
   int status;
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_MOVIDIUS, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_MOVIDIUS, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_EDGE_TPU, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_EDGE_TPU, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_VIVANTE, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_VIVANTE, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 
-  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SR, &result);
+  status = ml_check_nnfw_availability (
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_NPU_SR, &result);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (result, false);
 }
@@ -2403,9 +2431,9 @@ TEST (nnstreamer_capi_util, info_comp_0)
   status = ml_tensors_info_create (&info2);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
-  is = (ml_tensors_info_s *) info1;
+  is = (ml_tensors_info_s *)info1;
   is->num_tensors = 1;
-  is = (ml_tensors_info_s *) info2;
+  is = (ml_tensors_info_s *)info2;
   is->num_tensors = 2;
 
   status = ml_tensors_info_compare (info1, info2, &equal);
@@ -2606,7 +2634,6 @@ TEST (nnstreamer_capi_util, info_get_ttype_01_n)
 
   status = ml_tensors_info_get_tensor_type (nullptr, 0, &type);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
-
 }
 
 /**
@@ -3452,15 +3479,14 @@ skip_test:
  * @brief Measure the loading time and total time for the run
  */
 static void
-benchmark_single (const gboolean no_alloc, const gboolean no_timeout,
-    const int count)
+benchmark_single (const gboolean no_alloc, const gboolean no_timeout, const int count)
 {
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
   ml_tensor_dimension in_dim, out_dim;
   int status;
-  unsigned long open_duration=0, invoke_duration=0, close_duration=0;
+  unsigned long open_duration = 0, invoke_duration = 0, close_duration = 0;
   gint64 start, end;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
@@ -3551,9 +3577,9 @@ benchmark_single (const gboolean no_alloc, const gboolean no_timeout,
     ml_tensors_data_destroy (output);
   }
 
-  g_warning ("Time to open single = %f us", (open_duration * 1.0)/count);
-  g_warning ("Time to invoke single = %f us", (invoke_duration * 1.0)/count);
-  g_warning ("Time to close single = %f us", (close_duration * 1.0)/count);
+  g_warning ("Time to open single = %f us", (open_duration * 1.0) / count);
+  g_warning ("Time to invoke single = %f us", (invoke_duration * 1.0) / count);
+  g_warning ("Time to close single = %f us", (close_duration * 1.0) / count);
 
 skip_test:
   g_free (test_model);
@@ -3580,8 +3606,7 @@ TEST (nnstreamer_capi_singleshot, benchmark_time)
  */
 TEST (nnstreamer_capi_singleshot, invoke_03)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
@@ -3632,15 +3657,15 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
-    float f32 = (float) (i + .1);
+    float f32 = (float)(i + .1);
 
     status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
-    ((int16_t *) data_ptr)[i] = i16;
+    ((int16_t *)data_ptr)[i] = i16;
 
     status = ml_tensors_data_get_tensor_data (input, 1, &data_ptr, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
-    ((float *) data_ptr)[i] = f32;
+    ((float *)data_ptr)[i] = f32;
   }
 
   status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
@@ -3652,15 +3677,15 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   for (i = 0; i < 10; i++) {
     int16_t i16 = (int16_t) (i + 1);
-    float f32 = (float) (i + .1);
+    float f32 = (float)(i + .1);
 
     status = ml_tensors_data_get_tensor_data (output, 0, &data_ptr, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
-    EXPECT_EQ (((int16_t *) data_ptr)[i], i16);
+    EXPECT_EQ (((int16_t *)data_ptr)[i], i16);
 
     status = ml_tensors_data_get_tensor_data (output, 1, &data_ptr, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
-    EXPECT_FLOAT_EQ (((float *) data_ptr)[i], f32);
+    EXPECT_FLOAT_EQ (((float *)data_ptr)[i], f32);
   }
 
   ml_tensors_data_destroy (output);
@@ -3707,8 +3732,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
       "conv_actions_frozen.pb", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  test_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "yes.wav", NULL);
+  test_file = g_build_filename (root_path, "tests", "test_models", "data", "yes.wav", NULL);
   ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -3814,7 +3838,7 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
   max_score = .0;
   max_score_index = 0;
   for (gint i = 0; i < 12; i++) {
-    score = ((float *) data_ptr)[i];
+    score = ((float *)data_ptr)[i];
     if (score > max_score) {
       max_score = score;
       max_score_index = i;
@@ -3917,8 +3941,8 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* null file path */
-  status = ml_single_open (&single, NULL, NULL, NULL,
-      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, NULL, NULL, NULL, ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
@@ -3927,8 +3951,8 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid file extension */
-  status = ml_single_open (&single, test_model, NULL, NULL,
-      ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, test_model, NULL, NULL, ML_NNFW_TYPE_TENSORFLOW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* invalid handle */
@@ -3936,8 +3960,7 @@ TEST (nnstreamer_capi_singleshot, open_fail_01_n)
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   /* Successfully opened unknown fw type (tf-lite) */
-  status = ml_single_open (&single, test_model, NULL, NULL,
-      ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
+  status = ml_single_open (&single, test_model, NULL, NULL, ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
   if (is_enabled_tensorflow_lite) {
     ASSERT_EQ (status, ML_ERROR_NONE);
   } else {
@@ -4052,8 +4075,8 @@ TEST (nnstreamer_capi_singleshot, open_fail_02_n)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_UINT8);
 
   /* Successfully opened unknown fw type (tf-lite) */
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, test_model, in_info, out_info, ML_NNFW_TYPE_ANY, ML_NNFW_HW_ANY);
   if (is_enabled_tensorflow_lite) {
     ASSERT_EQ (status, ML_ERROR_NONE);
   } else {
@@ -4091,8 +4114,8 @@ TEST (nnstreamer_capi_singleshot, open_dynamic)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4163,7 +4186,7 @@ single_shot_loop_test (void *arg)
   guint i;
   int status = ML_ERROR_NONE;
   ml_single_h single;
-  single_shot_thread_data *ss_data = (single_shot_thread_data *) arg;
+  single_shot_thread_data *ss_data = (single_shot_thread_data *)arg;
   int timeout_cond, no_error_cond;
 
   status = ml_single_open (&single, ss_data->test_model, NULL, NULL,
@@ -4208,14 +4231,14 @@ single_shot_loop_test (void *arg)
     EXPECT_TRUE (input != NULL);
   }
 
-  for (i=0; i<ss_data->num_runs; i++) {
+  for (i = 0; i < ss_data->num_runs; i++) {
     status = ml_single_invoke (single, input, &output);
     if (ss_data->expect) {
       no_error_cond = status == ML_ERROR_NONE && output != NULL;
       if (ss_data->timeout < ss_data->min_time_to_run) {
         /** Default timeout can return timed out with many parallel runs */
-        timeout_cond = output == NULL &&
-          (status == ML_ERROR_TIMED_OUT || status == ML_ERROR_TRY_AGAIN);
+        timeout_cond = output == NULL && (status == ML_ERROR_TIMED_OUT
+                                             || status == ML_ERROR_TRY_AGAIN);
         EXPECT_TRUE (timeout_cond || no_error_cond);
       } else {
         EXPECT_TRUE (no_error_cond);
@@ -4303,7 +4326,7 @@ TEST (nnstreamer_capi_singleshot, invoke_timeout)
     /* set timeout 10 s */
     status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
     /* clear out previous buffers */
-    g_usleep (SINGLE_DEF_TIMEOUT_MSEC * 1000);    /** 10 sec */
+    g_usleep (SINGLE_DEF_TIMEOUT_MSEC * 1000); /** 10 sec */
 
     status = ml_single_invoke (single, input, &output);
     EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4348,10 +4371,10 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  for (i=0; i<num_cases; i++) {
+  for (i = 0; i < num_cases; i++) {
     ss_data[i].test_model = test_model;
     ss_data[i].num_runs = 3;
-    ss_data[i].min_time_to_run = 10;    /** 10 msec */
+    ss_data[i].min_time_to_run = 10; /** 10 msec */
     ss_data[i].expect = TRUE;
   }
 
@@ -4366,15 +4389,15 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
    * make thread running things in background, each with different timeout,
    * some fails, some runs, all opens pipelines by themselves in parallel
    */
-  for (j=0; j<num_cases; j++) {
-    for (i=0; i<num_threads; i++) {
-      pthread_create (&thread[i+j * num_threads], NULL, single_shot_loop_test,
-          (void *) &ss_data[j]);
+  for (j = 0; j < num_cases; j++) {
+    for (i = 0; i < num_threads; i++) {
+      pthread_create (&thread[i + j * num_threads], NULL, single_shot_loop_test,
+          (void *)&ss_data[j]);
     }
   }
 
-  for (i=0; i<num_threads * num_cases; i++) {
-    pthread_join(thread[i], NULL);
+  for (i = 0; i < num_threads * num_cases; i++) {
+    pthread_join (thread[i], NULL);
   }
 
   g_free (test_model);
@@ -4406,18 +4429,19 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
 
   ss_data.test_model = test_model;
   ss_data.num_runs = 10;
-  ss_data.min_time_to_run = 10;    /** 10 msec */
+  ss_data.min_time_to_run = 10; /** 10 msec */
   ss_data.expect = FALSE;
   ss_data.timeout = SINGLE_DEF_TIMEOUT_MSEC;
   ss_data.single = NULL;
 
-  pthread_create (&thread, NULL, single_shot_loop_test, (void *) &ss_data);
+  pthread_create (&thread, NULL, single_shot_loop_test, (void *)&ss_data);
 
   /** Start the thread and let the code start */
-  g_usleep (100000);    /** 100 msec */
+  g_usleep (100000); /** 100 msec */
 
   /**
-   * Call single API functions while its running. One run takes 100ms on average.
+   * Call single API functions while its running. One run takes 100ms on
+   * average.
    * So, these calls would in the middle of running and should not crash
    * However, their status can be of failure, if the thread is closed earlier
    */
@@ -4426,7 +4450,7 @@ TEST (nnstreamer_capi_singleshot, close_while_running)
     ml_single_close (*ss_data.single);
   }
 
-  pthread_join(thread, NULL);
+  pthread_join (thread, NULL);
 
   g_free (test_model);
 }
@@ -4476,8 +4500,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_01_n)
 
   /** mobilenet model does not support setting different input dimension */
   status = ml_single_set_input_info (single, in_info);
-  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
-      status == ML_ERROR_INVALID_PARAMETER);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_INVALID_PARAMETER);
 
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -4509,8 +4532,8 @@ TEST (nnstreamer_capi_singleshot, set_input_info_fail_02_n)
     root_path = "..";
 
   /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -4601,8 +4624,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success)
 
   /** set the same original input dimension */
   status = ml_single_set_input_info (single, in_info);
-  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
-      status == ML_ERROR_NONE);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
 
   /* generate dummy data */
   input = output = NULL;
@@ -4652,8 +4674,8 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
     root_path = "..";
 
   /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -4704,8 +4726,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
 
   /** set the same original input dimension */
   status = ml_single_set_input_info (single, in_info);
-  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
-      status == ML_ERROR_NONE);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
   if (status == ML_ERROR_NONE) {
     /* input tensor in filter */
     ml_tensors_info_destroy (in_res);
@@ -4751,7 +4772,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_TRUE (input != NULL);
 
-    status = ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+    status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_EQ (data_size, tensor_size * sizeof (int));
     for (int idx = 0; idx < tensor_size; idx++)
@@ -4761,17 +4782,17 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_01)
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_TRUE (output != NULL);
 
-    status = ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+    status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_EQ (data_size, tensor_size * sizeof (int));
     for (int idx = 0; idx < tensor_size; idx++)
       EXPECT_EQ (data[idx], idx);
 
-    status = ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
+    status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
     EXPECT_EQ (status, ML_ERROR_NONE);
     EXPECT_EQ (data_size, tensor_size * sizeof (int));
     for (int idx = 0; idx < tensor_size; idx++)
-      EXPECT_EQ (data[idx], idx+2);
+      EXPECT_EQ (data[idx], idx + 2);
 
     ml_tensors_data_destroy (output);
     ml_tensors_data_destroy (input);
@@ -4855,7 +4876,7 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  status = ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001U);
 
@@ -5044,7 +5065,7 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  status = ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001U);
 
@@ -5083,8 +5104,8 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
     root_path = "..";
 
   /** add.tflite adds value 2 to all the values in the input */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -5132,7 +5153,7 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status = ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 5 * sizeof (float));
   for (int idx = 0; idx < 5; idx++)
@@ -5142,7 +5163,7 @@ TEST (nnstreamer_capi_singleshot, property_04_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  status = ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 5 * sizeof (float));
   for (int idx = 0; idx < 5; idx++)
@@ -5183,8 +5204,8 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5206,8 +5227,8 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, test_model, in_info, out_info, ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
@@ -5299,8 +5320,7 @@ TEST (nnstreamer_capi_singleshot, open_dir)
   test_model = g_build_filename (root_path, "tests", "test_models", "models", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  status = ml_single_open (&single, test_model, NULL, NULL,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  status = ml_single_open (&single, test_model, NULL, NULL, ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_single_close (single);
@@ -5309,7 +5329,7 @@ TEST (nnstreamer_capi_singleshot, open_dir)
   g_free (test_model);
 }
 
-#endif  /* ENABLE_NNFW_RUNTIME */
+#endif /* ENABLE_NNFW_RUNTIME */
 
 #ifdef ENABLE_ARMNN
 /**
@@ -5345,8 +5365,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
       "lenet_iter_9000.caffemodel", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  test_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "9.raw", NULL);
+  test_file = g_build_filename (root_path, "tests", "test_models", "data", "9.raw", NULL);
   ASSERT_TRUE (g_file_test (test_file, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5370,16 +5389,15 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  ASSERT_TRUE (g_file_get_contents (test_file, (gchar **) &contents_uint8, &len,
-        NULL));
+  ASSERT_TRUE (g_file_get_contents (test_file, (gchar **)&contents_uint8, &len, NULL));
   status = ml_tensors_info_get_tensor_size (in_info, 0, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   ASSERT_TRUE (len == data_size / sizeof (float));
 
   /** Convert uint8 data with range [0, 255] to float with range [-1, 1] */
-  contents_float = (gfloat *) g_malloc (data_size);
-  for (unsigned int idx=0; idx < len; idx ++) {
+  contents_float = (gfloat *)g_malloc (data_size);
+  for (unsigned int idx = 0; idx < len; idx++) {
     contents_float[idx] = static_cast<float> (contents_uint8[idx]);
     contents_float[idx] -= 127.5;
     contents_float[idx] /= 127.5;
@@ -5461,7 +5479,7 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
   max_score = .0;
   max_score_index = 0;
   for (gint i = 0; i < 10; i++) {
-    score = ((float *) data_ptr)[i];
+    score = ((float *)data_ptr)[i];
     if (score > max_score) {
       max_score = score;
       max_score_index = i;
@@ -5511,8 +5529,8 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5534,8 +5552,7 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  status = ml_single_open (&single, test_model, NULL, NULL,
-      ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
+  status = ml_single_open (&single, test_model, NULL, NULL, ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_ANY);
   ASSERT_EQ (status, ML_ERROR_NONE);
 
   /* input tensor in filter */
@@ -5591,7 +5608,7 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
 
   status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ((float *) data_ptr)[0] = 10.0;
+  ((float *)data_ptr)[0] = 10.0;
 
   status = ml_single_set_timeout (single, SINGLE_DEF_TIMEOUT_MSEC);
   EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
@@ -5602,7 +5619,7 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
 
   status = ml_tensors_data_get_tensor_data (output, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (((float *) data_ptr)[0], 12.0);
+  EXPECT_EQ (((float *)data_ptr)[0], 12.0);
 
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
@@ -5749,7 +5766,7 @@ TEST (nnstreamer_capi_singleshot, invoke_08_n)
 
   status = ml_tensors_info_get_tensor_size (in_info, 0, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  contents_float = (gfloat *) g_malloc (data_size);
+  contents_float = (gfloat *)g_malloc (data_size);
   status = ml_tensors_data_set_tensor_data (input, 0, contents_float, data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -5833,7 +5850,7 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
 
   status = ml_tensors_info_get_tensor_size (out_info, 0, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  contents_float = (gfloat *) g_malloc (data_size);
+  contents_float = (gfloat *)g_malloc (data_size);
   status = ml_tensors_data_set_tensor_data (input, 0, contents_float, data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -5856,7 +5873,7 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
   ml_tensors_info_destroy (in_res);
   ml_tensors_info_destroy (out_res);
 }
-#endif  /* ENABLE_ARMNN */
+#endif /* ENABLE_ARMNN */
 
 /**
  * @brief Test NNStreamer single shot (custom filter)
@@ -5864,8 +5881,7 @@ TEST (nnstreamer_capi_singleshot, invoke_09_n)
  */
 TEST (nnstreamer_capi_singleshot, invoke_10_p)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
@@ -5882,8 +5898,7 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5915,7 +5930,7 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   for (i = 0; i < 10; i++) {
-    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+    ((int16_t *)data_ptr)[i] = (int16_t) (i + 1);
   }
 
   status = ml_single_invoke (single, input, &output);
@@ -5923,7 +5938,8 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   EXPECT_TRUE (output != NULL);
 
   /**
-   * since the output data was allocated by the tensor filter element in the single API,
+   * since the output data was allocated by the tensor filter element in the
+   * single API,
    * closing this single handle will also delete the data
    */
   status = ml_single_close (single);
@@ -5946,8 +5962,7 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
  */
 TEST (nnstreamer_capi_singleshot, invoke_11_p)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output;
@@ -5964,8 +5979,7 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -5997,7 +6011,7 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
   status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   for (i = 0; i < 10; i++) {
-    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+    ((int16_t *)data_ptr)[i] = (int16_t) (i + 1);
   }
 
   status = ml_single_invoke (single, input, &output);
@@ -6030,8 +6044,7 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
  */
 TEST (nnstreamer_capi_singleshot, invoke_12_p)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_scaler_allocator" NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_data_h input, output1, output2;
@@ -6048,8 +6061,7 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -6081,7 +6093,7 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   status = ml_tensors_data_get_tensor_data (input, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   for (i = 0; i < 10; i++) {
-    ((int16_t *) data_ptr)[i] = (int16_t) (i + 1);
+    ((int16_t *)data_ptr)[i] = (int16_t) (i + 1);
   }
 
   status = ml_single_invoke (single, input, &output1);
@@ -6117,8 +6129,7 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
  */
 TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" NNSTREAMER_SO_FILE_EXTENSION;
   ml_single_h single;
   ml_tensors_info_h in_info, out_info;
   ml_tensors_info_h in_res = nullptr, out_res = nullptr;
@@ -6136,8 +6147,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
     root_path = "..";
 
   /* custom-passthrough */
-  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -6203,8 +6213,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 
   /** set the same original input dimension */
   status = ml_single_set_input_info (single, in_info);
-  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED ||
-      status == ML_ERROR_NONE);
+  EXPECT_TRUE (status == ML_ERROR_NOT_SUPPORTED || status == ML_ERROR_NONE);
   if (status == ML_ERROR_NONE) {
     /* input tensor in filter */
     ml_tensors_info_destroy (in_res);
@@ -6292,8 +6301,8 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -6313,8 +6322,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   {
     float tmp_input[] = { 1.0 };
     float *output_buf;
-    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
-        1 * sizeof (float));
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input, 1 * sizeof (float));
 
     ml_tensors_info_get_count (in_info, &tmp_count);
     ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
@@ -6327,12 +6335,10 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
     EXPECT_EQ (tmp_dim[2], 1U);
     EXPECT_EQ (tmp_dim[3], 1U);
 
-    status =
-        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    status = ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
-    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
-        &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **)&output_buf, &data_size);
 
     EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
     EXPECT_EQ (data_size, sizeof (float));
@@ -6366,8 +6372,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
   {
     float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
     float *output_buf2;
-    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
-        5 * sizeof (float));
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2, 5 * sizeof (float));
 
     ml_tensors_info_get_count (in_info, &tmp_count);
     ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
@@ -6380,12 +6385,10 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_01_p)
     EXPECT_EQ (tmp_dim[2], 1U);
     EXPECT_EQ (tmp_dim[3], 1U);
 
-    status =
-        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    status = ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
-    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
-        &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **)&output_buf2, &data_size);
 
     EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
     EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
@@ -6441,8 +6444,8 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -6464,8 +6467,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
     float tmp_input[] = { 1.0 };
     float *output_buf;
 
-    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input,
-        1 * sizeof (float));
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input, 1 * sizeof (float));
 
     ml_tensors_info_get_count (in_info, &tmp_count);
     ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
@@ -6478,12 +6480,10 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
     EXPECT_EQ (tmp_dim[2], 1U);
     EXPECT_EQ (tmp_dim[3], 1U);
 
-    status =
-        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    status = ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
-    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf,
-        &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **)&output_buf, &data_size);
     EXPECT_FLOAT_EQ (output_buf[0], 3.0f);
     EXPECT_EQ (data_size, sizeof (float));
 
@@ -6521,8 +6521,7 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
   {
     float tmp_input2[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
     float *output_buf2;
-    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2,
-        5 * sizeof (float));
+    status = ml_tensors_data_set_tensor_data (input, 0, tmp_input2, 5 * sizeof (float));
 
     ml_tensors_info_get_count (in_info, &tmp_count);
     ml_tensors_info_get_tensor_type (in_info, 0, &tmp_type);
@@ -6535,12 +6534,10 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_success_02_p)
     EXPECT_EQ (tmp_dim[2], 1U);
     EXPECT_EQ (tmp_dim[3], 1U);
 
-    status =
-        ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
+    status = ml_single_invoke_dynamic (single, input, in_info, &output, &out_info);
     EXPECT_EQ (status, ML_ERROR_NONE);
 
-    ml_tensors_data_get_tensor_data (output, 0, (void **) &output_buf2,
-        &data_size);
+    ml_tensors_data_get_tensor_data (output, 0, (void **)&output_buf2, &data_size);
 
     EXPECT_FLOAT_EQ (output_buf2[0], 3.0f);
     EXPECT_FLOAT_EQ (output_buf2[1], 4.0f);
@@ -6592,8 +6589,8 @@ TEST (nnstreamer_capi_singleshot, invoke_dynamic_fail_n)
     root_path = "..";
 
   /* dynamic dimension supported */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_single_open (&single, test_model, NULL, NULL,
@@ -6643,13 +6640,14 @@ skip_test:
 TEST (nnstreamer_capi_element, get_handle_00_p)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h vsrc_h  = nullptr;
+  ml_pipeline_element_h vsrc_h = nullptr;
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6664,7 +6662,7 @@ TEST (nnstreamer_capi_element, get_handle_00_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6678,9 +6676,10 @@ TEST (nnstreamer_capi_element, get_handle_01_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6695,7 +6694,7 @@ TEST (nnstreamer_capi_element, get_handle_01_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6710,9 +6709,10 @@ TEST (nnstreamer_capi_element, release_handle_02_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6733,7 +6733,7 @@ TEST (nnstreamer_capi_element, release_handle_02_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6747,9 +6747,10 @@ TEST (nnstreamer_capi_element, release_handle_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6761,7 +6762,7 @@ TEST (nnstreamer_capi_element, release_handle_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6775,9 +6776,10 @@ TEST (nnstreamer_capi_element, set_property_bool_01_p)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6786,10 +6788,10 @@ TEST (nnstreamer_capi_element, set_property_bool_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", TRUE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", TRUE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (selector_h);
@@ -6798,7 +6800,7 @@ TEST (nnstreamer_capi_element, set_property_bool_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6810,7 +6812,7 @@ TEST (nnstreamer_capi_element, set_property_bool_02_n)
   int status;
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_bool(nullptr, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (nullptr, "sync-streams", FALSE);
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
@@ -6825,9 +6827,10 @@ TEST (nnstreamer_capi_element, set_property_bool_03_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6836,7 +6839,7 @@ TEST (nnstreamer_capi_element, set_property_bool_03_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_bool(selector_h, "WRONG_PROPERTY", TRUE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "WRONG_PROPERTY", TRUE);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (selector_h);
@@ -6845,7 +6848,7 @@ TEST (nnstreamer_capi_element, set_property_bool_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6859,9 +6862,10 @@ TEST (nnstreamer_capi_element, set_property_bool_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6879,7 +6883,7 @@ TEST (nnstreamer_capi_element, set_property_bool_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6894,9 +6898,10 @@ TEST (nnstreamer_capi_element, get_property_bool_01_p)
   int ret_sync_streams;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6904,7 +6909,7 @@ TEST (nnstreamer_capi_element, get_property_bool_01_p)
   status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
@@ -6912,7 +6917,7 @@ TEST (nnstreamer_capi_element, get_property_bool_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (ret_sync_streams, FALSE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", TRUE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", TRUE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_get_property_bool (selector_h, "sync-streams", &ret_sync_streams);
@@ -6925,7 +6930,7 @@ TEST (nnstreamer_capi_element, get_property_bool_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6954,9 +6959,10 @@ TEST (nnstreamer_capi_element, get_property_bool_03_n)
   int ret_sync_streams;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -6964,7 +6970,7 @@ TEST (nnstreamer_capi_element, get_property_bool_03_n)
   status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
@@ -6977,7 +6983,7 @@ TEST (nnstreamer_capi_element, get_property_bool_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -6991,9 +6997,10 @@ TEST (nnstreamer_capi_element, get_property_bool_04_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7001,7 +7008,7 @@ TEST (nnstreamer_capi_element, get_property_bool_04_n)
   status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
@@ -7014,7 +7021,7 @@ TEST (nnstreamer_capi_element, get_property_bool_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7029,7 +7036,7 @@ TEST (nnstreamer_capi_element, get_property_bool_05_n)
   int wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7050,7 +7057,7 @@ TEST (nnstreamer_capi_element, get_property_bool_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7064,8 +7071,9 @@ TEST (nnstreamer_capi_element, set_property_string_01_p)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7083,7 +7091,7 @@ TEST (nnstreamer_capi_element, set_property_string_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7110,8 +7118,9 @@ TEST (nnstreamer_capi_element, set_property_string_03_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7129,7 +7138,7 @@ TEST (nnstreamer_capi_element, set_property_string_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7143,9 +7152,10 @@ TEST (nnstreamer_capi_element, set_property_string_04_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7154,7 +7164,7 @@ TEST (nnstreamer_capi_element, set_property_string_04_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_string(selector_h, "sync-streams", "TRUE");
+  status = ml_pipeline_element_set_property_string (selector_h, "sync-streams", "TRUE");
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_element_release_handle (selector_h);
@@ -7163,7 +7173,7 @@ TEST (nnstreamer_capi_element, set_property_string_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7178,8 +7188,9 @@ TEST (nnstreamer_capi_element, get_property_string_01_p)
   gchar *ret_tensorpick;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7210,7 +7221,7 @@ TEST (nnstreamer_capi_element, get_property_string_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7239,8 +7250,9 @@ TEST (nnstreamer_capi_element, get_property_string_03_n)
   gchar *ret_tensorpick;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7261,7 +7273,7 @@ TEST (nnstreamer_capi_element, get_property_string_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7275,8 +7287,9 @@ TEST (nnstreamer_capi_element, get_property_string_04_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7297,7 +7310,7 @@ TEST (nnstreamer_capi_element, get_property_string_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7312,9 +7325,10 @@ TEST (nnstreamer_capi_element, get_property_string_05_n)
   gchar *ret_wrong_type;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7322,7 +7336,7 @@ TEST (nnstreamer_capi_element, get_property_string_05_n)
   status = ml_pipeline_element_get_handle (handle, "is01", &selector_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_set_property_bool(selector_h, "sync-streams", FALSE);
+  status = ml_pipeline_element_set_property_bool (selector_h, "sync-streams", FALSE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
@@ -7335,7 +7349,7 @@ TEST (nnstreamer_capi_element, get_property_string_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7349,9 +7363,10 @@ TEST (nnstreamer_capi_element, set_property_int32_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7372,7 +7387,7 @@ TEST (nnstreamer_capi_element, set_property_int32_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7399,9 +7414,10 @@ TEST (nnstreamer_capi_element, set_property_int32_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7419,7 +7435,7 @@ TEST (nnstreamer_capi_element, set_property_int32_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7433,8 +7449,9 @@ TEST (nnstreamer_capi_element, set_property_int32_04_n)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7452,7 +7469,7 @@ TEST (nnstreamer_capi_element, set_property_int32_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7467,9 +7484,10 @@ TEST (nnstreamer_capi_element, get_property_int32_01_p)
   int32_t ret_kx;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7498,7 +7516,7 @@ TEST (nnstreamer_capi_element, get_property_int32_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7527,9 +7545,10 @@ TEST (nnstreamer_capi_element, get_property_int32_03_n)
   int32_t ret_kx;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7550,7 +7569,7 @@ TEST (nnstreamer_capi_element, get_property_int32_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7564,9 +7583,10 @@ TEST (nnstreamer_capi_element, get_property_int32_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7587,7 +7607,7 @@ TEST (nnstreamer_capi_element, get_property_int32_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7602,9 +7622,10 @@ TEST (nnstreamer_capi_element, get_property_int32_05_n)
   int wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7625,7 +7646,7 @@ TEST (nnstreamer_capi_element, get_property_int32_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7639,9 +7660,10 @@ TEST (nnstreamer_capi_element, set_property_int64_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7662,7 +7684,7 @@ TEST (nnstreamer_capi_element, set_property_int64_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7689,9 +7711,10 @@ TEST (nnstreamer_capi_element, set_property_int64_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7709,7 +7732,7 @@ TEST (nnstreamer_capi_element, set_property_int64_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7723,9 +7746,10 @@ TEST (nnstreamer_capi_element, set_property_int64_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7743,7 +7767,7 @@ TEST (nnstreamer_capi_element, set_property_int64_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7758,9 +7782,10 @@ TEST (nnstreamer_capi_element, get_property_int64_01_p)
   int64_t ret_timestame_offset;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7772,14 +7797,16 @@ TEST (nnstreamer_capi_element, get_property_int64_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_int64 (vsrc_h, "timestamp-offset", &ret_timestame_offset);
+  status = ml_pipeline_element_get_property_int64 (
+      vsrc_h, "timestamp-offset", &ret_timestame_offset);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (ret_timestame_offset == 1234567891234LL);
 
   status = ml_pipeline_element_set_property_int64 (vsrc_h, "timestamp-offset", 10LL);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_property_int64 (vsrc_h, "timestamp-offset", &ret_timestame_offset);
+  status = ml_pipeline_element_get_property_int64 (
+      vsrc_h, "timestamp-offset", &ret_timestame_offset);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (ret_timestame_offset == 10LL);
 
@@ -7789,7 +7816,7 @@ TEST (nnstreamer_capi_element, get_property_int64_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7802,7 +7829,8 @@ TEST (nnstreamer_capi_element, get_property_int64_02_n)
   int64_t ret_timestame_offset;
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_int64 (nullptr, "timestamp-offset", &ret_timestame_offset);
+  status = ml_pipeline_element_get_property_int64 (
+      nullptr, "timestamp-offset", &ret_timestame_offset);
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
@@ -7818,9 +7846,10 @@ TEST (nnstreamer_capi_element, get_property_int64_03_n)
   int64_t ret_timestame_offset;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7841,7 +7870,7 @@ TEST (nnstreamer_capi_element, get_property_int64_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7856,9 +7885,10 @@ TEST (nnstreamer_capi_element, get_property_int64_04_n)
   int64_t wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7879,7 +7909,7 @@ TEST (nnstreamer_capi_element, get_property_int64_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7893,9 +7923,10 @@ TEST (nnstreamer_capi_element, get_property_int64_05_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7916,7 +7947,7 @@ TEST (nnstreamer_capi_element, get_property_int64_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7930,9 +7961,10 @@ TEST (nnstreamer_capi_element, set_property_uint32_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -7953,7 +7985,7 @@ TEST (nnstreamer_capi_element, set_property_uint32_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -7980,9 +8012,10 @@ TEST (nnstreamer_capi_element, set_property_uint32_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8000,7 +8033,7 @@ TEST (nnstreamer_capi_element, set_property_uint32_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8014,9 +8047,10 @@ TEST (nnstreamer_capi_element, set_property_uint32_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8034,7 +8068,7 @@ TEST (nnstreamer_capi_element, set_property_uint32_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8049,9 +8083,10 @@ TEST (nnstreamer_capi_element, get_property_uint32_01_p)
   uint32_t ret_foreground_color;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8063,14 +8098,16 @@ TEST (nnstreamer_capi_element, get_property_uint32_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "foreground-color", &ret_foreground_color);
+  status = ml_pipeline_element_get_property_uint32 (
+      vsrc_h, "foreground-color", &ret_foreground_color);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (ret_foreground_color == 123456U);
 
   status = ml_pipeline_element_set_property_uint32 (vsrc_h, "foreground-color", 4294967295U);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_property_uint32 (vsrc_h, "foreground-color", &ret_foreground_color);
+  status = ml_pipeline_element_get_property_uint32 (
+      vsrc_h, "foreground-color", &ret_foreground_color);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (ret_foreground_color == 4294967295U);
 
@@ -8080,7 +8117,7 @@ TEST (nnstreamer_capi_element, get_property_uint32_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8093,7 +8130,8 @@ TEST (nnstreamer_capi_element, get_property_uint32_02_n)
   uint32_t ret_foreground_color;
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_uint32 (nullptr, "foreground-color", &ret_foreground_color);
+  status = ml_pipeline_element_get_property_uint32 (
+      nullptr, "foreground-color", &ret_foreground_color);
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
@@ -8109,9 +8147,10 @@ TEST (nnstreamer_capi_element, get_property_uint32_03_n)
   uint32_t ret_foreground_color;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8132,7 +8171,7 @@ TEST (nnstreamer_capi_element, get_property_uint32_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8147,9 +8186,10 @@ TEST (nnstreamer_capi_element, get_property_uint32_04_n)
   uint32_t ret_wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8170,7 +8210,7 @@ TEST (nnstreamer_capi_element, get_property_uint32_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8184,9 +8224,10 @@ TEST (nnstreamer_capi_element, get_property_uint32_05_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8207,7 +8248,7 @@ TEST (nnstreamer_capi_element, get_property_uint32_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8221,7 +8262,7 @@ TEST (nnstreamer_capi_element, set_property_uint64_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8242,7 +8283,7 @@ TEST (nnstreamer_capi_element, set_property_uint64_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8269,7 +8310,7 @@ TEST (nnstreamer_capi_element, set_property_uint64_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8287,7 +8328,7 @@ TEST (nnstreamer_capi_element, set_property_uint64_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8301,9 +8342,10 @@ TEST (nnstreamer_capi_element, set_property_uint64_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8321,7 +8363,7 @@ TEST (nnstreamer_capi_element, set_property_uint64_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8336,7 +8378,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_01_p)
   uint64_t ret_timeout;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8365,7 +8407,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8394,7 +8436,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_03_n)
   uint64_t ret_timeout;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8415,7 +8457,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8430,9 +8472,10 @@ TEST (nnstreamer_capi_element, get_property_uint64_04_n)
   uint64_t wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8453,7 +8496,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8467,7 +8510,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_05_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8488,7 +8531,7 @@ TEST (nnstreamer_capi_element, get_property_uint64_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8502,9 +8545,10 @@ TEST (nnstreamer_capi_element, set_property_double_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8525,7 +8569,7 @@ TEST (nnstreamer_capi_element, set_property_double_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8552,9 +8596,10 @@ TEST (nnstreamer_capi_element, set_property_double_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8572,7 +8617,7 @@ TEST (nnstreamer_capi_element, set_property_double_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8586,9 +8631,10 @@ TEST (nnstreamer_capi_element, set_property_double_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8606,7 +8652,7 @@ TEST (nnstreamer_capi_element, set_property_double_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8621,9 +8667,10 @@ TEST (nnstreamer_capi_element, get_property_double_01_p)
   double ret_sharpness;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8652,7 +8699,7 @@ TEST (nnstreamer_capi_element, get_property_double_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8681,9 +8728,10 @@ TEST (nnstreamer_capi_element, get_property_double_03_n)
   double ret_sharpness;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8704,7 +8752,7 @@ TEST (nnstreamer_capi_element, get_property_double_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8719,9 +8767,10 @@ TEST (nnstreamer_capi_element, get_property_double_04_n)
   double wrong_type;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8742,7 +8791,7 @@ TEST (nnstreamer_capi_element, get_property_double_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8756,9 +8805,10 @@ TEST (nnstreamer_capi_element, get_property_double_05_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8779,7 +8829,7 @@ TEST (nnstreamer_capi_element, get_property_double_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8793,9 +8843,10 @@ TEST (nnstreamer_capi_element, set_property_enum_01_p)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8822,7 +8873,7 @@ TEST (nnstreamer_capi_element, set_property_enum_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8849,9 +8900,10 @@ TEST (nnstreamer_capi_element, set_property_enum_03_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8869,7 +8921,7 @@ TEST (nnstreamer_capi_element, set_property_enum_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8883,7 +8935,7 @@ TEST (nnstreamer_capi_element, set_property_enum_04_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
+  pipeline = g_strdup ("udpsrc name=usrc port=5555 caps=application/x-rtp ! queue ! fakesink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8901,7 +8953,7 @@ TEST (nnstreamer_capi_element, set_property_enum_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8917,9 +8969,10 @@ TEST (nnstreamer_capi_element, get_property_enum_01_p)
   int32_t ret_signed_method;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -8962,7 +9015,7 @@ TEST (nnstreamer_capi_element, get_property_enum_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -8992,9 +9045,10 @@ TEST (nnstreamer_capi_element, get_property_enum_03_n)
   uint32_t ret_method;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -9015,7 +9069,7 @@ TEST (nnstreamer_capi_element, get_property_enum_03_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -9030,8 +9084,9 @@ TEST (nnstreamer_capi_element, get_property_enum_04_n)
   uint32_t ret_wrong_type;
   int status;
 
-  pipeline = g_strdup("videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! " \
-    "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  pipeline = g_strdup (
+      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
+      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -9052,7 +9107,7 @@ TEST (nnstreamer_capi_element, get_property_enum_04_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -9066,9 +9121,10 @@ TEST (nnstreamer_capi_element, get_property_enum_05_n)
   int status;
   gchar *pipeline;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! " \
-    "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! " \
-    "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
+  pipeline = g_strdup (
+      "videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale name=vscale ! "
+      "video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! tensor_converter ! "
+      "valve name=valvex ! input-selector name=is01 ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -9089,7 +9145,7 @@ TEST (nnstreamer_capi_element, get_property_enum_05_n)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -9104,8 +9160,8 @@ TEST (nnstreamer_capi_element, scenario_01_p)
   gchar *pipeline;
   int status;
 
-  pipeline = g_strdup("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! " \
-    "tensor_converter ! tensor_sink name=sinkx");
+  pipeline = g_strdup ("videotestsrc name=vsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGBx,width=224,height=224,framerate=60/1 ! "
+                       "tensor_converter ! tensor_sink name=sinkx");
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -9155,7 +9211,7 @@ TEST (nnstreamer_capi_element, scenario_01_p)
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  g_free(pipeline);
+  g_free (pipeline);
 }
 
 /**
@@ -9173,7 +9229,7 @@ TEST (nnstreamer_capi_element, scenario_02_p)
 
   pipeline = g_strdup ("videotestsrc is-live=true ! videoconvert ! tensor_converter ! appsink name=sinkx sync=false");
 
-  count_sink = (guint *) g_malloc (sizeof (guint));
+  count_sink = (guint *)g_malloc (sizeof (guint));
   ASSERT_TRUE (count_sink != NULL);
   *count_sink = 0;
 
@@ -9183,7 +9239,8 @@ TEST (nnstreamer_capi_element, scenario_02_p)
   status = ml_pipeline_element_get_handle (handle, "sinkx", &asink_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
+  status = ml_pipeline_sink_register (
+      handle, "sinkx", test_sink_callback_count, count_sink, &sinkhandle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (sinkhandle != NULL);
 
@@ -9207,7 +9264,8 @@ TEST (nnstreamer_capi_element, scenario_02_p)
 
   g_usleep (100000);
 
-  /* Since `emit-signals` property of appsink is set as FALSE, *count_sink should be 0 */
+  /* Since `emit-signals` property of appsink is set as FALSE, *count_sink
+   * should be 0 */
   EXPECT_TRUE (*count_sink == 0U);
 
   status = ml_pipeline_stop (handle);
@@ -9250,7 +9308,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
   status = ml_tensors_info_create (&ml_info);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_count (ml_info, &count);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (count, 2U);
@@ -9263,7 +9321,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].type = _NNS_INT32;
   gst_info.info[1].type = _NNS_UINT32;
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_type (ml_info, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_TENSOR_TYPE_INT32);
@@ -9273,7 +9331,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].type = _NNS_INT16;
   gst_info.info[1].type = _NNS_UINT16;
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_type (ml_info, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_TENSOR_TYPE_INT16);
@@ -9283,7 +9341,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].type = _NNS_INT8;
   gst_info.info[1].type = _NNS_UINT8;
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_type (ml_info, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_TENSOR_TYPE_INT8);
@@ -9293,7 +9351,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].type = _NNS_INT64;
   gst_info.info[1].type = _NNS_UINT64;
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_type (ml_info, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_TENSOR_TYPE_INT64);
@@ -9303,7 +9361,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].type = _NNS_FLOAT64;
   gst_info.info[1].type = _NNS_FLOAT32;
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_type (ml_info, 0, &type);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT64);
@@ -9313,7 +9371,7 @@ TEST (nnstreamer_capi_internal, copy_from_gst)
 
   gst_info.info[0].name = g_strdup ("tn1");
   gst_info.info[1].name = g_strdup ("tn2");
-  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *) ml_info, &gst_info);
+  ml_tensors_info_copy_from_gst ((ml_tensors_info_s *)ml_info, &gst_info);
   status = ml_tensors_info_get_tensor_name (ml_info, 0, &name);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_STREQ (name, "tn1");
@@ -9350,7 +9408,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   status = ml_tensors_info_set_tensor_dimension (ml_info, 1, dim);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.num_tensors, 2U);
   EXPECT_EQ (gst_info.info[0].dimension[0], 1U);
   EXPECT_EQ (gst_info.info[0].dimension[1], 2U);
@@ -9361,7 +9419,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_type (ml_info, 1, ML_TENSOR_TYPE_UINT32);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.info[0].type, _NNS_INT32);
   EXPECT_EQ (gst_info.info[1].type, _NNS_UINT32);
 
@@ -9369,7 +9427,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_type (ml_info, 1, ML_TENSOR_TYPE_UINT16);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.info[0].type, _NNS_INT16);
   EXPECT_EQ (gst_info.info[1].type, _NNS_UINT16);
 
@@ -9377,7 +9435,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_type (ml_info, 1, ML_TENSOR_TYPE_UINT8);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.info[0].type, _NNS_INT8);
   EXPECT_EQ (gst_info.info[1].type, _NNS_UINT8);
 
@@ -9385,7 +9443,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_type (ml_info, 1, ML_TENSOR_TYPE_UINT64);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.info[0].type, _NNS_INT64);
   EXPECT_EQ (gst_info.info[1].type, _NNS_UINT64);
 
@@ -9393,7 +9451,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_type (ml_info, 1, ML_TENSOR_TYPE_FLOAT32);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_EQ (gst_info.info[0].type, _NNS_FLOAT64);
   EXPECT_EQ (gst_info.info[1].type, _NNS_FLOAT32);
 
@@ -9401,7 +9459,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
   EXPECT_EQ (status, ML_ERROR_NONE);
   status = ml_tensors_info_set_tensor_name (ml_info, 1, "tn2");
   EXPECT_EQ (status, ML_ERROR_NONE);
-  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *) ml_info);
+  ml_tensors_info_copy_from_ml (&gst_info, (ml_tensors_info_s *)ml_info);
   EXPECT_STREQ (gst_info.info[0].name, "tn1");
   EXPECT_STREQ (gst_info.info[1].name, "tn2");
 
@@ -9417,8 +9475,7 @@ TEST (nnstreamer_capi_internal, copy_from_ml)
  */
 TEST (nnstreamer_capi_internal, validate_model_file_01_n)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw = ML_NNFW_TYPE_CUSTOM_FILTER;
   const gchar *root_path = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
@@ -9428,8 +9485,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   status = ml_validate_model_file (NULL, 1, &nnfw);
@@ -9450,8 +9506,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
  */
 TEST (nnstreamer_capi_internal, validate_model_file_02_n)
 {
-  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" \
-      NNSTREAMER_SO_FILE_EXTENSION;
+  const gchar cf_name[] = "libnnstreamer_customfilter_passthrough_variable" NNSTREAMER_SO_FILE_EXTENSION;
   int status;
   ml_nnfw_type_e nnfw;
   const gchar *sroot_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
@@ -9465,8 +9520,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_02_n)
   if (broot_path == NULL)
     broot_path = ".";
 
-  test_model1 = g_build_filename (broot_path, "nnstreamer_example", cf_name,
-      NULL);
+  test_model1 = g_build_filename (broot_path, "nnstreamer_example", cf_name, NULL);
   test_model2 = g_build_filename (sroot_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model1, G_FILE_TEST_EXISTS));
@@ -9563,13 +9617,12 @@ TEST (nnstreamer_capi_internal, validate_model_file_03_n)
  * @brief Invoke callback for custom-easy filter.
  */
 static int
-test_custom_easy_cb (const ml_tensors_data_h in, ml_tensors_data_h out,
-    void *user_data)
+test_custom_easy_cb (const ml_tensors_data_h in, ml_tensors_data_h out, void *user_data)
 {
   /* test code, set data size. */
   if (user_data) {
     void *raw_data = NULL;
-    size_t *data_size = (size_t *) user_data;
+    size_t *data_size = (size_t *)user_data;
 
     ml_tensors_data_get_tensor_data (out, 0, &raw_data, data_size);
   }
@@ -9591,12 +9644,11 @@ TEST (nnstreamer_capi_custom, register_filter_01_p)
   ml_tensors_data_h in_data;
   ml_tensor_dimension dim = { 2, 1, 1, 1 };
   int status;
-  gchar *pipeline =
-      g_strdup_printf
-      ("appsrc name=srcx ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_filter framework=custom-easy model=%s ! tensor_sink name=sinkx",
+  gchar *pipeline = g_strdup_printf (
+      "appsrc name=srcx ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_filter framework=custom-easy model=%s ! tensor_sink name=sinkx",
       test_custom_filter);
-  guint *count_sink = (guint *) g_malloc0 (sizeof (guint));
-  size_t *filter_data_size = (size_t *) g_malloc0 (sizeof (size_t));
+  guint *count_sink = (guint *)g_malloc0 (sizeof (guint));
+  size_t *filter_data_size = (size_t *)g_malloc0 (sizeof (size_t));
   size_t data_size;
   guint i;
 
@@ -9609,18 +9661,18 @@ TEST (nnstreamer_capi_custom, register_filter_01_p)
   ml_tensors_info_set_count (out_info, 1);
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
-  ml_tensors_info_get_tensor_size(out_info, 0, &data_size);
+  ml_tensors_info_get_tensor_size (out_info, 0, &data_size);
 
   /* test code for custom filter */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, filter_data_size, &custom);
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter, in_info,
+      out_info, test_custom_easy_cb, filter_data_size, &custom);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_sink_register (pipe, "sinkx", test_sink_callback_count,
-      count_sink, &sink);
+  status = ml_pipeline_sink_register (
+      pipe, "sinkx", test_sink_callback_count, count_sink, &sink);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_src_get_handle (pipe, "srcx", &src);
@@ -9689,8 +9741,8 @@ TEST (nnstreamer_capi_custom, register_filter_02_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
   /* test code with null param */
-  status = ml_pipeline_custom_easy_filter_register (NULL,
-      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      NULL, in_info, out_info, test_custom_easy_cb, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9716,8 +9768,8 @@ TEST (nnstreamer_capi_custom, register_filter_03_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
   /* test code with null param */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      NULL, out_info, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, NULL, out_info, test_custom_easy_cb, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (out_info);
@@ -9742,8 +9794,8 @@ TEST (nnstreamer_capi_custom, register_filter_04_n)
   ml_tensors_info_set_tensor_dimension (in_info, 0, dim);
 
   /* test code with null param */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, NULL, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, NULL, test_custom_easy_cb, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9773,8 +9825,8 @@ TEST (nnstreamer_capi_custom, register_filter_05_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
   /* test code with null param */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, NULL, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, out_info, NULL, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9804,8 +9856,8 @@ TEST (nnstreamer_capi_custom, register_filter_06_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
   /* test code with null param */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, NULL, NULL);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, out_info, test_custom_easy_cb, NULL, NULL);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9845,8 +9897,8 @@ TEST (nnstreamer_capi_custom, register_filter_08_n)
   ml_tensors_info_set_tensor_type (in_info, 0, ML_TENSOR_TYPE_INT8);
   ml_tensors_info_set_tensor_dimension (in_info, 0, dim);
 
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, out_info, test_custom_easy_cb, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9873,8 +9925,8 @@ TEST (nnstreamer_capi_custom, register_filter_09_n)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, out_info, test_custom_easy_cb, NULL, &custom);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   ml_tensors_info_destroy (in_info);
@@ -9905,12 +9957,12 @@ TEST (nnstreamer_capi_custom, register_filter_10_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, dim);
 
   /* test code for duplicated name */
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, NULL, &custom);
+  status = ml_pipeline_custom_easy_filter_register (
+      test_custom_filter, in_info, out_info, test_custom_easy_cb, NULL, &custom);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_custom_easy_filter_register (test_custom_filter,
-      in_info, out_info, test_custom_easy_cb, NULL, &custom2);
+  status = ml_pipeline_custom_easy_filter_register (test_custom_filter, in_info,
+      out_info, test_custom_easy_cb, NULL, &custom2);
   EXPECT_NE (status, ML_ERROR_NONE);
 
   status = ml_pipeline_custom_easy_filter_unregister (custom);

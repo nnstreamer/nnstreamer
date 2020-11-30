@@ -42,17 +42,12 @@
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
 
-static const gchar *openvino_accl_support[] = {
-  ACCL_NPU_MOVIDIUS_STR,    /** ACCL for default and auto config */
-  ACCL_NPU_STR,
-  ACCL_CPU_STR,
-  NULL
-};
+static const gchar *openvino_accl_support[]
+    = { ACCL_NPU_MOVIDIUS_STR, /** ACCL for default and auto config */
+        ACCL_NPU_STR, ACCL_CPU_STR, NULL };
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
-    {ACCL_CPU, "CPU"},
-    {ACCL_NPU, "MYRIAD"},
-    {ACCL_NPU_MOVIDIUS, "MYRIAD"},
+  { ACCL_CPU, "CPU" }, { ACCL_NPU, "MYRIAD" }, { ACCL_NPU_MOVIDIUS, "MYRIAD" },
 };
 
 const std::string TensorFilterOpenvino::extBin = ".bin";
@@ -95,55 +90,30 @@ TensorFilterOpenvino::convertFromIETypeStr (std::string type)
  * @return a pointer to the Blob which is a container of a tensor in IE if OK, otherwise nullptr
  */
 InferenceEngine::Blob::Ptr
-TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (
-    const InferenceEngine::TensorDesc tensorDesc,
-    const GstTensorMemory * gstTensor, const tensor_type gstType)
+TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (const InferenceEngine::TensorDesc tensorDesc,
+    const GstTensorMemory *gstTensor, const tensor_type gstType)
 {
   switch (gstType) {
-    case _NNS_UINT8:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<uint8_t>(
-              tensorDesc,
-              (uint8_t *) gstTensor->data, gstTensor->size
-              )
-          );
-    case _NNS_UINT16:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<uint16_t>(
-              tensorDesc,
-              (uint16_t *) gstTensor->data, gstTensor->size
-              )
-          );
-    case _NNS_INT8:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<int8_t>(
-              tensorDesc,
-              (int8_t *) gstTensor->data, gstTensor->size
-              )
-          );
-    case _NNS_INT16:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<int16_t>(
-              tensorDesc,
-              (int16_t *) gstTensor->data, gstTensor->size
-              )
-          );
-    case _NNS_INT32:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<int32_t>(
-              tensorDesc,
-              (int32_t *) gstTensor->data, gstTensor->size
-              )
-          );
-    case _NNS_FLOAT32:
-      return InferenceEngine::Blob::Ptr (
-          new InferenceEngine::TBlob<float>(
-              tensorDesc,
-              (float *) gstTensor->data, gstTensor->size
-              )
-          );
-    default:
-      return nullptr;
+  case _NNS_UINT8:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint8_t> (
+        tensorDesc, (uint8_t *)gstTensor->data, gstTensor->size));
+  case _NNS_UINT16:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint16_t> (
+        tensorDesc, (uint16_t *)gstTensor->data, gstTensor->size));
+  case _NNS_INT8:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int8_t> (
+        tensorDesc, (int8_t *)gstTensor->data, gstTensor->size));
+  case _NNS_INT16:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int16_t> (
+        tensorDesc, (int16_t *)gstTensor->data, gstTensor->size));
+  case _NNS_INT32:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int32_t> (
+        tensorDesc, (int32_t *)gstTensor->data, gstTensor->size));
+  case _NNS_FLOAT32:
+    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<float> (
+        tensorDesc, (float *)gstTensor->data, gstTensor->size));
+  default:
+    return nullptr;
   }
 }
 
@@ -154,16 +124,14 @@ TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (
  * @return TRUE if supported
  */
 inline bool
-TensorFilterOpenvino::isAcclDevSupported (std::vector<std::string> &devsVector,
-    accl_hw hw)
+TensorFilterOpenvino::isAcclDevSupported (std::vector<std::string> &devsVector, accl_hw hw)
 {
   std::vector<std::string>::iterator it;
 
-  it = std::find (devsVector.begin (), devsVector.end (),
-      _nnsAcclHwToOVDevMap[hw]);
+  it = std::find (devsVector.begin (), devsVector.end (), _nnsAcclHwToOVDevMap[hw]);
 
   if (it == devsVector.end ()) {
-      return FALSE;
+    return FALSE;
   }
 
   return TRUE;
@@ -195,8 +163,7 @@ TensorFilterOpenvino::getPathModelBin ()
  * @param pathModelBin the path of the given model in a Bin format
  * @return  Nothing
  */
-TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml,
-    std::string pathModelBin)
+TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml, std::string pathModelBin)
 {
   this->_pathModelXml = pathModelXml;
   this->_pathModelBin = pathModelBin;
@@ -239,26 +206,26 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   strVector = this->_ieCore.GetAvailableDevices ();
   if (strVector.size () == 0) {
     ml_loge ("No devices found for the OpenVino toolkit; "
-        "check your plugin is installed, and the device is also connected.");
+             "check your plugin is installed, and the device is also connected.");
     return RetENoDev;
   }
 
   if (!TensorFilterOpenvino::isAcclDevSupported (strVector, hw)) {
     ml_loge ("Failed to find the device (%s) or its plugin (%s)",
-        get_accl_hw_str (hw), _nnsAcclHwToOVDevMap[hw].c_str());
+        get_accl_hw_str (hw), _nnsAcclHwToOVDevMap[hw].c_str ());
     return RetEInval;
   }
 
 #ifdef __OPENVINO_CPU_EXT__
   if (hw == ACCL_CPU) {
-    this->_ieCore.AddExtension(
-        std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>(),
+    this->_ieCore.AddExtension (
+        std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions> (),
         _nnsAcclHwToOVDevMap[hw]);
   }
 #endif
   /** @todo Catch the IE exception */
-  this->_executableNet = this->_ieCore.LoadNetwork (this->_networkCNN,
-      _nnsAcclHwToOVDevMap[hw]);
+  this->_executableNet
+      = this->_ieCore.LoadNetwork (this->_networkCNN, _nnsAcclHwToOVDevMap[hw]);
   this->_hw = hw;
   this->_isLoaded = true;
   this->_inferRequest = this->_executableNet.CreateInferRequest ();
@@ -272,7 +239,7 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
-TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
+TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
 {
   InferenceEngine::InputsDataMap *inputsDataMap = &(this->_inputsDataMap);
   InferenceEngine::InputsDataMap::iterator inputDataMapIter;
@@ -280,17 +247,17 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
 
   gst_tensors_info_init (info);
 
-  info->num_tensors = (uint32_t) inputsDataMap->size ();
+  info->num_tensors = (uint32_t)inputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of input tenosrs in the model "
-        "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
+             "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
         NNS_TENSOR_SIZE_LIMIT_STR);
     ret = RetEOverFlow;
     goto failed;
   }
 
   for (inputDataMapIter = inputsDataMap->begin (), i = 0;
-      inputDataMapIter != inputsDataMap->end (); ++inputDataMapIter, ++i) {
+       inputDataMapIter != inputsDataMap->end (); ++inputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
     InferenceEngine::TensorDesc eachInputTensorDesc;
     InferenceEngine::InputInfo::Ptr eachInputInfo;
@@ -303,13 +270,14 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
     dimsSizeVec = eachInputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
       ml_loge ("The ranks of dimensions of InputTensor[%d] in the model "
-          "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
+               "exceeds NNS_TENSOR_RANK_LIMIT, %u",
+          i, NNS_TENSOR_RANK_LIMIT);
       ret = RetEOverFlow;
       goto failed;
     }
 
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
-        sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
+         sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
       info->info[i].dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
     for (int k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
@@ -320,7 +288,8 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo * info)
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
     if (nnsTensorType == _NNS_END) {
       ml_loge ("The type of tensor elements, %s, "
-          "in the model is not supported", ieTensorTypeStr.c_str ());
+               "in the model is not supported",
+          ieTensorTypeStr.c_str ());
       ret = RetEInval;
       goto failed;
     }
@@ -344,7 +313,7 @@ failed:
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
-TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
+TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
 {
   InferenceEngine::OutputsDataMap *outputsDataMap = &(this->_outputsDataMap);
   InferenceEngine::OutputsDataMap::iterator outputDataMapIter;
@@ -352,17 +321,17 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
 
   gst_tensors_info_init (info);
 
-  info->num_tensors = (uint32_t) outputsDataMap->size ();
+  info->num_tensors = (uint32_t)outputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of output tenosrs in the model "
-        "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
+             "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
         NNS_TENSOR_SIZE_LIMIT_STR);
     ret = RetEOverFlow;
     goto failed;
   }
 
   for (outputDataMapIter = outputsDataMap->begin (), i = 0;
-      outputDataMapIter != outputsDataMap->end (); ++outputDataMapIter, ++i) {
+       outputDataMapIter != outputsDataMap->end (); ++outputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
     InferenceEngine::TensorDesc eachOutputTensorDesc;
     InferenceEngine::SizeVector dimsSizeVec;
@@ -375,13 +344,14 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
     dimsSizeVec = eachOutputTensorDesc.getDims ();
     if (dimsSizeVec.size () > NNS_TENSOR_RANK_LIMIT) {
       ml_loge ("The ranks of dimensions of OutputTensor[%d] in the model "
-          "exceeds NNS_TENSOR_RANK_LIMIT, %u", i, NNS_TENSOR_RANK_LIMIT);
+               "exceeds NNS_TENSOR_RANK_LIMIT, %u",
+          i, NNS_TENSOR_RANK_LIMIT);
       ret = RetEOverFlow;
       goto failed;
     }
 
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
-        sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
+         sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
       info->info[i].dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
     for (int k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
@@ -392,7 +362,8 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo * info)
     nnsTensorType = TensorFilterOpenvino::convertFromIETypeStr (ieTensorTypeStr);
     if (nnsTensorType == _NNS_END) {
       ml_loge ("The type of tensor elements, %s, "
-          "in the model is not supported", ieTensorTypeStr.c_str ());
+               "in the model is not supported",
+          ieTensorTypeStr.c_str ());
       ret = RetEInval;
       goto failed;
     }
@@ -418,8 +389,8 @@ failed:
  * @return RetSuccess if OK. non-zero if error
  */
 int
-TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
-    const GstTensorMemory * input, GstTensorMemory * output)
+TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
   InferenceEngine::BlobMap inBlobMap;
   InferenceEngine::BlobMap outBlobMap;
@@ -435,7 +406,7 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
       ml_loge ("Failed to create a blob for the input tensor: %u", i);
       return RetEInval;
     }
-    inBlobMap.insert (make_pair (std::string(info->name), blob));
+    inBlobMap.insert (make_pair (std::string (info->name), blob));
   }
   this->_inferRequest.SetInput (inBlobMap);
 
@@ -443,9 +414,8 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
   for (i = 0; i < num_tensors; ++i) {
     const GstTensorInfo *info = &((prop->output_meta).info[i]);
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
-        this->_outputTensorDescs[i], &(output[i]),
-        prop->output_meta.info[i].type);
-    outBlobMap.insert (make_pair (std::string(info->name), blob));
+        this->_outputTensorDescs[i], &(output[i]), prop->output_meta.info[i].type);
+    outBlobMap.insert (make_pair (std::string (info->name), blob));
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the output tensor: %u", i);
       return RetEInval;
@@ -453,7 +423,7 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
   }
   this->_inferRequest.SetOutput (outBlobMap);
 
-  this->_inferRequest.Infer();
+  this->_inferRequest.Infer ();
 
   return RetSuccess;
 }
@@ -467,11 +437,10 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties * prop,
  * @return 0 if OK. non-zero if error
  */
 static int
-ov_invoke (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+ov_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  TensorFilterOpenvino *tfOv =
-      static_cast < TensorFilterOpenvino * >(*private_data);
+  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   return tfOv->invoke (prop, input, output);
 }
@@ -484,11 +453,9 @@ ov_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 static int
-ov_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+ov_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
-  TensorFilterOpenvino *tfOv =
-      static_cast < TensorFilterOpenvino * >(*private_data);
+  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
 
@@ -503,11 +470,10 @@ ov_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 static int
-ov_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+ov_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TensorFilterOpenvino *tfOv =
-      static_cast < TensorFilterOpenvino * >(*private_data);
+  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
 
@@ -518,10 +484,9 @@ ov_getOutputDim (const GstTensorFilterProperties * prop,
  * @brief Standard tensor_filter callback to close sub-plugin
  */
 static void
-ov_close (const GstTensorFilterProperties * prop, void **private_data)
+ov_close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  TensorFilterOpenvino *tfOv =
-      static_cast < TensorFilterOpenvino * >(*private_data);
+  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   delete tfOv;
   *private_data = NULL;
@@ -532,7 +497,7 @@ ov_close (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 static int
-ov_open (const GstTensorFilterProperties * prop, void **private_data)
+ov_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   std::string path_model_prefix;
   std::string model_path_xml;
@@ -551,22 +516,19 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
 #endif
   if (accelerator == ACCL_NONE) {
     if (prop->accl_str != NULL) {
-      ml_loge("'%s' is not valid value for the 'accelerator' property",
-          prop->accl_str);
+      ml_loge ("'%s' is not valid value for the 'accelerator' property", prop->accl_str);
     } else {
-      ml_loge("Invalid value for the 'accelerator' property");
+      ml_loge ("Invalid value for the 'accelerator' property");
     }
     ml_loge ("An acceptable format is as follows: 'true:[cpu|npu.movidius]'."
-        "Note that 'cpu' is only for the x86_64 architecture.");
+             "Note that 'cpu' is only for the x86_64 architecture.");
 
     return TensorFilterOpenvino::RetEInval;
   }
 
   if (prop->num_models == 1) {
-    if (g_str_has_suffix (prop->model_files[0],
-        TensorFilterOpenvino::extBin.c_str ())
-        || g_str_has_suffix (prop->model_files[0],
-        TensorFilterOpenvino::extXml.c_str ())) {
+    if (g_str_has_suffix (prop->model_files[0], TensorFilterOpenvino::extBin.c_str ())
+        || g_str_has_suffix (prop->model_files[0], TensorFilterOpenvino::extXml.c_str ())) {
       std::string model_path = std::string (prop->model_files[0]);
 
       path_model_prefix = model_path.substr (0, model_path.length () - 4);
@@ -576,14 +538,13 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
 
     model_path_xml = path_model_prefix + TensorFilterOpenvino::extXml;
     model_path_bin = path_model_prefix + TensorFilterOpenvino::extBin;
-  } else{
+  } else {
     for (gint i = 0; i < prop->num_models; ++i) {
-      if (g_str_has_suffix (prop->model_files[i],
-          TensorFilterOpenvino::extXml.c_str ())) {
+      if (g_str_has_suffix (prop->model_files[i], TensorFilterOpenvino::extXml.c_str ())) {
         num_models_xml++;
         model_path_xml = std::string (prop->model_files[i]);
       } else if (g_str_has_suffix (prop->model_files[i],
-          TensorFilterOpenvino::extBin.c_str ())) {
+                     TensorFilterOpenvino::extBin.c_str ())) {
         num_models_bin++;
         model_path_bin = std::string (prop->model_files[i]);
       }
@@ -599,22 +560,20 @@ ov_open (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   if (!g_file_test (model_path_xml.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("Failed to open the XML model file, %s",
-        model_path_xml.c_str ());
+    ml_loge ("Failed to open the XML model file, %s", model_path_xml.c_str ());
     return TensorFilterOpenvino::RetEInval;
   }
   if (!g_file_test (model_path_bin.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("Failed to open the BIN model file, %s",
-        model_path_bin.c_str ());
+    ml_loge ("Failed to open the BIN model file, %s", model_path_bin.c_str ());
     return TensorFilterOpenvino::RetEInval;
   }
 
-  tfOv = static_cast<TensorFilterOpenvino *>(*private_data);
+  tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
   if (tfOv != nullptr) {
     if (tfOv->isModelLoaded ()) {
-      if ((tfOv->getPathModelBin () == model_path_bin) &&
-        (tfOv->getPathModelXml () == model_path_xml)) {
-      return TensorFilterOpenvino::RetSuccess;
+      if ((tfOv->getPathModelBin () == model_path_bin)
+          && (tfOv->getPathModelXml () == model_path_xml)) {
+        return TensorFilterOpenvino::RetSuccess;
       }
     }
 
@@ -644,29 +603,25 @@ ov_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_openvino[] = "openvino";
 
-static GstTensorFilterFramework NNS_support_openvino = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_openvino = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_openvino,
-      .allow_in_place = FALSE,
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = nullptr,
-      .invoke_NN = ov_invoke,
-      .getInputDimension = ov_getInputDim,
-      .getOutputDimension = ov_getOutputDim,
-      .setInputDimension = nullptr,
-      .destroyNotify = nullptr,
-      .reloadModel = nullptr,
-      .checkAvailability = ov_checkAvailability,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_openvino,
+       .allow_in_place = FALSE,
+       .allocate_in_invoke = FALSE,
+       .run_without_model = FALSE,
+       .verify_model_path = FALSE,
+       .statistics = nullptr,
+       .invoke_NN = ov_invoke,
+       .getInputDimension = ov_getInputDim,
+       .getOutputDimension = ov_getOutputDim,
+       .setInputDimension = nullptr,
+       .destroyNotify = nullptr,
+       .reloadModel = nullptr,
+       .checkAvailability = ov_checkAvailability,
+       .allocateInInvoke = nullptr,
+   } } };
 
 /**
  * @brief Initialize this object for tensor_filter sub-plugin runtime register

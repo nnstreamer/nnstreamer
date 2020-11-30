@@ -19,9 +19,9 @@
  */
 
 #include <glib.h>
+#include <nnstreamer_plugin_api.h>
 #include <string.h>
 #include <tensor_filter_custom.h>
-#include <nnstreamer_plugin_api.h>
 
 #include <iostream>
 #include <memory>
@@ -36,33 +36,31 @@ using Severity = nvinfer1::ILogger::Severity;
 /** @brief a global object of ILogger */
 class Logger : public nvinfer1::ILogger
 {
-  void log(Severity severity, const char* msg) override
+  void log (Severity severity, const char *msg) override
   {
     switch (severity) {
-      case Severity::kWARNING:
-        g_warning ("%s", msg);
-        break;
-      case Severity::kINFO:
-        g_message ("%s", msg);
-        break;
-      case Severity::kVERBOSE:
-        g_debug ("%s", msg);
-        break;
-      default:
-        g_critical ("%s", msg);
-        break;
+    case Severity::kWARNING:
+      g_warning ("%s", msg);
+      break;
+    case Severity::kINFO:
+      g_message ("%s", msg);
+      break;
+    case Severity::kVERBOSE:
+      g_debug ("%s", msg);
+      break;
+    default:
+      g_critical ("%s", msg);
+      break;
     }
   }
 } gLogger;
 
 /** @brief unique ptr deleter */
-struct InferDeleter
-{
-  template <typename T>
-  void operator()(T* obj) const
+struct InferDeleter {
+  template <typename T> void operator() (T *obj) const
   {
     if (obj)
-      obj->destroy();
+      obj->destroy ();
   }
 };
 
@@ -71,47 +69,51 @@ struct InferDeleter
  */
 class CustomTensorRT
 {
-  template <typename T>
-  using UniquePtr = std::unique_ptr<T, InferDeleter>;
+  template <typename T> using UniquePtr = std::unique_ptr<T, InferDeleter>;
 
   public:
-    CustomTensorRT ();
-    ~CustomTensorRT ();
+  CustomTensorRT ();
+  ~CustomTensorRT ();
 
-    gboolean buildEngine ();
-    gboolean checkUnifiedMemory ();
+  gboolean buildEngine ();
+  gboolean checkUnifiedMemory ();
 
-    gboolean setInputMeta (const GstTensorsInfo *info);
-    gboolean setOutputMeta (const GstTensorsInfo *info);
+  gboolean setInputMeta (const GstTensorsInfo *info);
+  gboolean setOutputMeta (const GstTensorsInfo *info);
 
-    /** @brief get input tensors info */
-    const GstTensorsInfo * getInputMeta() { return &mInputMeta; }
-    /** @brief get output tensors info */
-    const GstTensorsInfo * getOutputMeta() { return &mOutputMeta; }
+  /** @brief get input tensors info */
+  const GstTensorsInfo *getInputMeta ()
+  {
+    return &mInputMeta;
+  }
+  /** @brief get output tensors info */
+  const GstTensorsInfo *getOutputMeta ()
+  {
+    return &mOutputMeta;
+  }
 
-    gboolean infer (const GstTensorMemory * input, GstTensorMemory * output);
+  gboolean infer (const GstTensorMemory *input, GstTensorMemory *output);
 
   private:
-    GstTensorsInfo mInputMeta;
-    GstTensorsInfo mOutputMeta;
+  GstTensorsInfo mInputMeta;
+  GstTensorsInfo mOutputMeta;
 
-    nvinfer1::Dims mInputDims;
-    nvinfer1::Dims mOutputDims;
+  nvinfer1::Dims mInputDims;
+  nvinfer1::Dims mOutputDims;
 
-    void * mInput;
+  void *mInput;
 
-    UniquePtr<nvinfer1::ICudaEngine> mEngine{nullptr};
-    UniquePtr<nvinfer1::IExecutionContext> mContext{nullptr};
+  UniquePtr<nvinfer1::ICudaEngine> mEngine{ nullptr };
+  UniquePtr<nvinfer1::IExecutionContext> mContext{ nullptr };
 
-    gboolean allocBuffer (void **buffer, gsize size);
-    gboolean resizeInput (const GstTensorsInfo *info);
+  gboolean allocBuffer (void **buffer, gsize size);
+  gboolean resizeInput (const GstTensorsInfo *info);
 
-    /** @brief wrapper to make unique ptr */
-    template <typename T>
-    UniquePtr<T> makeUnique(T* t)
-    {
-      return UniquePtr<T>{t};
-    }
+  /** @brief wrapper to make unique ptr */
+  template <typename T> UniquePtr<T> makeUnique (T *t)
+  {
+    return UniquePtr<T>{ t };
+  }
 };
 
 /**
@@ -160,7 +162,7 @@ gboolean
 CustomTensorRT::resizeInput (const GstTensorsInfo *info)
 {
   gsize input_size = gst_tensor_info_get_size (&info->info[0]);
-  void * buffer;
+  void *buffer;
 
   if (!allocBuffer (&buffer, input_size))
     return false;
@@ -186,12 +188,9 @@ CustomTensorRT::setInputMeta (const GstTensorsInfo *info)
     return false;
 
   /* TensorRT uses the NCHW data format */
-  mInputDims = nvinfer1::Dims4 {
-    (int) info->info[0].dimension[3],
-    (int) info->info[0].dimension[2],
-    (int) info->info[0].dimension[1],
-    (int) info->info[0].dimension[0]
-  };
+  mInputDims = nvinfer1::Dims4{ (int)info->info[0].dimension[3],
+    (int)info->info[0].dimension[2], (int)info->info[0].dimension[1],
+    (int)info->info[0].dimension[0] };
 
   gst_tensors_info_copy (&mInputMeta, info);
 
@@ -205,12 +204,9 @@ gboolean
 CustomTensorRT::setOutputMeta (const GstTensorsInfo *info)
 {
   /* TensorRT uses the NCHW data format */
-  mOutputDims = nvinfer1::Dims4 {
-    (int) info->info[0].dimension[3],
-    (int) info->info[0].dimension[2],
-    (int) info->info[0].dimension[1],
-    (int) info->info[0].dimension[0]
-  };
+  mOutputDims = nvinfer1::Dims4{ (int)info->info[0].dimension[3],
+    (int)info->info[0].dimension[2], (int)info->info[0].dimension[1],
+    (int)info->info[0].dimension[0] };
 
   gst_tensors_info_copy (&mOutputMeta, info);
 
@@ -221,57 +217,55 @@ CustomTensorRT::setOutputMeta (const GstTensorsInfo *info)
  * @brief build TensorRT engine
  */
 gboolean
-CustomTensorRT::buildEngine()
+CustomTensorRT::buildEngine ()
 {
-  auto builder = makeUnique(nvinfer1::createInferBuilder(gLogger));
+  auto builder = makeUnique (nvinfer1::createInferBuilder (gLogger));
   if (!builder) {
     g_critical ("Failed to create builder");
     return false;
   }
 
-  auto network = makeUnique(
-      builder->createNetworkV2(
-        1U << static_cast<uint32_t>(
-          nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+  auto network = makeUnique (builder->createNetworkV2 (
+      1U << static_cast<uint32_t> (nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
   if (!network) {
     g_critical ("Failed to create model");
     return false;
   }
 
   /* dynamic input shape */
-  auto input = network->addInput("input", nvinfer1::DataType::kFLOAT,
-      nvinfer1::Dims4{1, -1, -1, -1});
-  auto resize = network->addResize(*input);
+  auto input = network->addInput (
+      "input", nvinfer1::DataType::kFLOAT, nvinfer1::Dims4{ 1, -1, -1, -1 });
+  auto resize = network->addResize (*input);
 
-  resize->setOutputDimensions(mOutputDims);
-  network->markOutput(*resize->getOutput(0));
+  resize->setOutputDimensions (mOutputDims);
+  network->markOutput (*resize->getOutput (0));
 
-  auto config = makeUnique(builder->createBuilderConfig());
+  auto config = makeUnique (builder->createBuilderConfig ());
   if (!config) {
     g_critical ("Failed to create builder config");
     return false;
   }
 
   /* specifies a range of input dimensions */
-  auto profile = builder->createOptimizationProfile();
-  profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMIN,
-      nvinfer1::Dims4{1,1,1,1});
-  profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kOPT,
-      nvinfer1::Dims4{1,3,480,640});
-  profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMAX,
-      nvinfer1::Dims4{1,16,960,1280});
-  config->addOptimizationProfile(profile);
+  auto profile = builder->createOptimizationProfile ();
+  profile->setDimensions (input->getName (), nvinfer1::OptProfileSelector::kMIN,
+      nvinfer1::Dims4{ 1, 1, 1, 1 });
+  profile->setDimensions (input->getName (), nvinfer1::OptProfileSelector::kOPT,
+      nvinfer1::Dims4{ 1, 3, 480, 640 });
+  profile->setDimensions (input->getName (), nvinfer1::OptProfileSelector::kMAX,
+      nvinfer1::Dims4{ 1, 16, 960, 1280 });
+  config->addOptimizationProfile (profile);
 
-  config->setMaxWorkspaceSize(16 * (1 << 20));
-  builder->setMaxBatchSize(1);
+  config->setMaxWorkspaceSize (16 * (1 << 20));
+  builder->setMaxBatchSize (1);
 
-  mEngine = makeUnique(builder->buildEngineWithConfig(*network, *config));
+  mEngine = makeUnique (builder->buildEngineWithConfig (*network, *config));
   if (!mEngine) {
     g_critical ("Failed to create builder config");
     return false;
   }
 
-  mContext = makeUnique(mEngine->createExecutionContext());
+  mContext = makeUnique (mEngine->createExecutionContext ());
   if (!mContext) {
     g_critical ("Failed to create execution context");
     return false;
@@ -284,7 +278,7 @@ CustomTensorRT::buildEngine()
  * @brief run inference with the given input data
  */
 gboolean
-CustomTensorRT::infer(const GstTensorMemory * input, GstTensorMemory * output)
+CustomTensorRT::infer (const GstTensorMemory *input, GstTensorMemory *output)
 {
   /**
    * still need to explicitly perform memcpy() for input tensors
@@ -299,26 +293,26 @@ CustomTensorRT::infer(const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   /* set the input dimensions */
-  if (!mContext->setBindingDimensions(0, mInputDims)) {
+  if (!mContext->setBindingDimensions (0, mInputDims)) {
     g_critical ("Failed to set binding dimensions");
     return false;
   }
 
   /* all dynamic input dimensions are specified */
-  if (!mContext->allInputDimensionsSpecified()) {
+  if (!mContext->allInputDimensionsSpecified ()) {
     g_critical ("Not all input dimensions are specified");
     return false;
   }
 
   /* bind the input/output and execute the network */
-  std::vector<void*> bindings = {mInput, output->data};
-  if (!mContext->executeV2(bindings.data())) {
+  std::vector<void *> bindings = { mInput, output->data };
+  if (!mContext->executeV2 (bindings.data ())) {
     g_critical ("Failed to execute the network");
     return false;
   }
 
   /* wait for GPU to finish the inference */
-  cudaDeviceSynchronize();
+  cudaDeviceSynchronize ();
 
   return true;
 }
@@ -327,7 +321,7 @@ CustomTensorRT::infer(const GstTensorMemory * input, GstTensorMemory * output)
  * @brief check and set unified memory capability
  */
 gboolean
-CustomTensorRT::checkUnifiedMemory()
+CustomTensorRT::checkUnifiedMemory ()
 {
   int version;
 
@@ -345,9 +339,9 @@ CustomTensorRT::checkUnifiedMemory()
  * @brief init callback of tensor_filter custom
  */
 static void *
-pt_init (const GstTensorFilterProperties * prop)
+pt_init (const GstTensorFilterProperties *prop)
 {
-  CustomTensorRT * trt = new CustomTensorRT;
+  CustomTensorRT *trt = new CustomTensorRT;
   GstTensorsInfo info;
 
   gst_tensors_info_init (&info);
@@ -364,7 +358,7 @@ pt_init (const GstTensorFilterProperties * prop)
     info.num_tensors = 1;
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - 1; i++) {
       info.info[0].type = _NNS_FLOAT32;
-      info.info[0].dimension[i] = (int) g_ascii_strtoll (strv[i], NULL, 10);
+      info.info[0].dimension[i] = (int)g_ascii_strtoll (strv[i], NULL, 10);
     }
     info.info[0].dimension[NNS_TENSOR_RANK_LIMIT - 1] = 1;
 
@@ -400,7 +394,7 @@ err:
  * @brief exit callback of tensor_filter custom
  */
 static void
-pt_exit (void *private_data, const GstTensorFilterProperties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties *prop)
 {
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
   g_assert (trt);
@@ -412,8 +406,8 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
  * @brief setInputDimension callback of tensor_filter custom
  */
 static int
-set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+set_inputDim (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
   g_assert (trt);
@@ -430,8 +424,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
  * @brief invoke callback of tensor_filter custom
  */
 static int
-pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
-    const GstTensorMemory * input, GstTensorMemory * output)
+pt_invoke (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
 
@@ -445,7 +439,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
  * @brief destroy notify callback of tensor_filter custom
  */
 static void
-pt_destroy_notify (void * data)
+pt_destroy_notify (void *data)
 {
   g_assert (data);
   cudaFree (data);

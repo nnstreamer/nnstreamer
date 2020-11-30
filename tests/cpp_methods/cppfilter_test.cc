@@ -8,11 +8,17 @@
  */
 #include "cppfilter_test.hh"
 
-filter_basic::filter_basic(const char *str): tensor_filter_cpp(str) {}
+filter_basic::filter_basic (const char *str) : tensor_filter_cpp (str)
+{
+}
 
-filter_basic::~filter_basic() {}
+filter_basic::~filter_basic ()
+{
+}
 
-int filter_basic::getInputDim(GstTensorsInfo *info) {
+int
+filter_basic::getInputDim (GstTensorsInfo *info)
+{
   info->num_tensors = 1;
   info->info[0].type = _NNS_UINT8;
   info->info[0].dimension[0] = 3;
@@ -22,7 +28,9 @@ int filter_basic::getInputDim(GstTensorsInfo *info) {
   return 0;
 }
 
-int filter_basic::getOutputDim(GstTensorsInfo *info) {
+int
+filter_basic::getOutputDim (GstTensorsInfo *info)
+{
   info->num_tensors = 1;
   info->info[0].type = _NNS_UINT8;
   info->info[0].dimension[0] = 3;
@@ -32,15 +40,21 @@ int filter_basic::getOutputDim(GstTensorsInfo *info) {
   return 0;
 }
 
-int filter_basic::setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out) {
+int
+filter_basic::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
+{
   return -EINVAL;
 }
 
-bool filter_basic::isAllocatedBeforeInvoke() {
+bool
+filter_basic::isAllocatedBeforeInvoke ()
+{
   return true;
 }
 
-int filter_basic::invoke(const GstTensorMemory *in, GstTensorMemory *out) {
+int
+filter_basic::invoke (const GstTensorMemory *in, GstTensorMemory *out)
+{
   g_assert (in);
   g_assert (out);
 
@@ -56,40 +70,42 @@ int filter_basic::invoke(const GstTensorMemory *in, GstTensorMemory *out) {
   g_assert (prop->output_meta.info[0].type == _NNS_UINT8);
 
   for (int i = 0; i < 4 * 4 * 3; i++) {
-    *((uint8_t *) out[0].data + i) = *((uint8_t *) in[0].data + i) * 2;
-    *((uint8_t *) out[0].data + i + 4 * 4 * 3) = *((uint8_t *) in[0].data + i) + 1;
+    *((uint8_t *)out[0].data + i) = *((uint8_t *)in[0].data + i) * 2;
+    *((uint8_t *)out[0].data + i + 4 * 4 * 3) = *((uint8_t *)in[0].data + i) + 1;
   }
   return 0;
 }
 
-int filter_basic::resultCompare(const char *inputFile, const char *outputFile, unsigned int nDropAllowed) {
-  std::ifstream is(inputFile);
-  if (is.fail()) {
-    g_printerr("File not found: (%s : %d)\n", inputFile, is.fail());
+int
+filter_basic::resultCompare (const char *inputFile, const char *outputFile, unsigned int nDropAllowed)
+{
+  std::ifstream is (inputFile);
+  if (is.fail ()) {
+    g_printerr ("File not found: (%s : %d)\n", inputFile, is.fail ());
     return -255;
   }
-  std::istream_iterator<uint8_t> istart(is), iend;
-  std::vector<uint8_t> input(istart, iend);
+  std::istream_iterator<uint8_t> istart (is), iend;
+  std::vector<uint8_t> input (istart, iend);
   is >> std::noskipws;
-  std::ifstream os(outputFile);
+  std::ifstream os (outputFile);
 
-  if (os.fail()) {
-    g_printerr("File not found: (%s : %d)\n", outputFile, os.fail());
+  if (os.fail ()) {
+    g_printerr ("File not found: (%s : %d)\n", outputFile, os.fail ());
     return -254;
   }
-  std::istream_iterator<uint8_t> ostart(os), oend;
-  std::vector<uint8_t> output(ostart, oend);
+  std::istream_iterator<uint8_t> ostart (os), oend;
+  std::vector<uint8_t> output (ostart, oend);
   os >> std::noskipws;
 
-  unsigned int iframes = (input.size() / (3 * 4 * 4));
-  unsigned int oframes = (output.size() / (3 * 4 * 4 * 2));
+  unsigned int iframes = (input.size () / (3 * 4 * 4));
+  unsigned int oframes = (output.size () / (3 * 4 * 4 * 2));
 
-  if (input.size() % (3 * 4 * 4) != 0) {
-    g_printerr("%zu, %zu\n", input.size(), output.size());
+  if (input.size () % (3 * 4 * 4) != 0) {
+    g_printerr ("%zu, %zu\n", input.size (), output.size ());
     return -1;
   }
-  if (output.size() % (3 * 4 * 4 * 2) != 0) {
-    g_printerr("%zu, %zu\n", input.size(), output.size());
+  if (output.size () % (3 * 4 * 4 * 2) != 0) {
+    g_printerr ("%zu, %zu\n", input.size (), output.size ());
     return -2;
   }
   if (oframes > iframes)
@@ -117,11 +133,17 @@ int filter_basic::resultCompare(const char *inputFile, const char *outputFile, u
 }
 
 
-filter_basic2::filter_basic2(const char *str): tensor_filter_cpp(str) {}
+filter_basic2::filter_basic2 (const char *str) : tensor_filter_cpp (str)
+{
+}
 
-filter_basic2::~filter_basic2() {}
+filter_basic2::~filter_basic2 ()
+{
+}
 
-int filter_basic2::getInputDim(GstTensorsInfo *info) {
+int
+filter_basic2::getInputDim (GstTensorsInfo *info)
+{
   info->num_tensors = 1;
   info->info[0].type = _NNS_UINT8;
   info->info[0].dimension[0] = 3;
@@ -131,7 +153,9 @@ int filter_basic2::getInputDim(GstTensorsInfo *info) {
   return 0;
 }
 
-int filter_basic2::getOutputDim(GstTensorsInfo *info) {
+int
+filter_basic2::getOutputDim (GstTensorsInfo *info)
+{
   info->num_tensors = 1;
   info->info[0].type = _NNS_UINT8;
   info->info[0].dimension[0] = 3;
@@ -141,15 +165,21 @@ int filter_basic2::getOutputDim(GstTensorsInfo *info) {
   return 0;
 }
 
-int filter_basic2::setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out) {
+int
+filter_basic2::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
+{
   return -EINVAL;
 }
 
-bool filter_basic2::isAllocatedBeforeInvoke() {
+bool
+filter_basic2::isAllocatedBeforeInvoke ()
+{
   return true;
 }
 
-int filter_basic2::invoke(const GstTensorMemory *in, GstTensorMemory *out) {
+int
+filter_basic2::invoke (const GstTensorMemory *in, GstTensorMemory *out)
+{
   g_assert (in);
   g_assert (out);
 
@@ -165,40 +195,43 @@ int filter_basic2::invoke(const GstTensorMemory *in, GstTensorMemory *out) {
   g_assert (prop->output_meta.info[0].type == _NNS_UINT8);
 
   for (int i = 0; i < 16 * 16 * 3; i++) {
-    *((uint8_t *) out[0].data + i) = *((uint8_t *) in[0].data + i) * 3;
-    *((uint8_t *) out[0].data + i + 16 * 16 * 3) = *((uint8_t *) in[0].data + i) + 2;
+    *((uint8_t *)out[0].data + i) = *((uint8_t *)in[0].data + i) * 3;
+    *((uint8_t *)out[0].data + i + 16 * 16 * 3) = *((uint8_t *)in[0].data + i) + 2;
   }
   return 0;
 }
 
-int filter_basic2::resultCompare(const char *inputFile, const char *outputFile, unsigned int nDropAllowed) {
-  std::ifstream is(inputFile);
-  if (is.fail()) {
-    g_printerr("File not found: (%s : %d)\n", inputFile, is.fail());
+int
+filter_basic2::resultCompare (
+    const char *inputFile, const char *outputFile, unsigned int nDropAllowed)
+{
+  std::ifstream is (inputFile);
+  if (is.fail ()) {
+    g_printerr ("File not found: (%s : %d)\n", inputFile, is.fail ());
     return -255;
   }
   is >> std::noskipws;
-  std::istream_iterator<uint8_t> istart(is), iend;
-  std::vector<uint8_t> input(istart, iend);
+  std::istream_iterator<uint8_t> istart (is), iend;
+  std::vector<uint8_t> input (istart, iend);
 
-  std::ifstream os(outputFile);
-  if (os.fail()) {
-    g_printerr("File not found: (%s : %d)\n", outputFile, os.fail());
+  std::ifstream os (outputFile);
+  if (os.fail ()) {
+    g_printerr ("File not found: (%s : %d)\n", outputFile, os.fail ());
     return -254;
   }
   os >> std::noskipws;
-  std::istream_iterator<uint8_t> ostart(os), oend;
-  std::vector<uint8_t> output(ostart, oend);
+  std::istream_iterator<uint8_t> ostart (os), oend;
+  std::vector<uint8_t> output (ostart, oend);
 
-  unsigned int iframes = (input.size() / (3 * 16 * 16));
-  unsigned int oframes = (output.size() / (3 * 16 * 16 * 2));
+  unsigned int iframes = (input.size () / (3 * 16 * 16));
+  unsigned int oframes = (output.size () / (3 * 16 * 16 * 2));
 
-  if (input.size() % (3 * 16 * 16) != 0) {
-    g_printerr("%zu, %zu\n", input.size(), output.size());
+  if (input.size () % (3 * 16 * 16) != 0) {
+    g_printerr ("%zu, %zu\n", input.size (), output.size ());
     return -1;
   }
-  if (output.size() % (3 * 16 * 16 * 2) != 0) {
-    g_printerr("%zu, %zu\n", input.size(), output.size());
+  if (output.size () % (3 * 16 * 16 * 2) != 0) {
+    g_printerr ("%zu, %zu\n", input.size (), output.size ());
     return -2;
   }
   if (oframes > iframes)
@@ -231,21 +264,23 @@ class tensor_filter_cpp *reg1, *reg2, *reg3;
 void init_shared_lib (void) __attribute__ ((constructor));
 void fini_shared_lib (void) __attribute__ ((destructor));
 
-void init_shared_lib (void)
+void
+init_shared_lib (void)
 {
-  reg1 = new filter_basic("basic_so_01");
-  reg2 = new filter_basic("basic_so_02");
-  reg3 = new filter_basic2("basic_so2");
-  reg1->_register();
-  filter_basic::__register(reg2);
-  reg3->_register();
+  reg1 = new filter_basic ("basic_so_01");
+  reg2 = new filter_basic ("basic_so_02");
+  reg3 = new filter_basic2 ("basic_so2");
+  reg1->_register ();
+  filter_basic::__register (reg2);
+  reg3->_register ();
 }
 
-void fini_shared_lib (void)
+void
+fini_shared_lib (void)
 {
-  filter_basic::__unregister("basic_so_01");
-  reg2->_unregister();
-  reg3->_unregister();
+  filter_basic::__unregister ("basic_so_01");
+  reg2->_unregister ();
+  reg3->_unregister ();
 
   delete reg1;
   delete reg2;

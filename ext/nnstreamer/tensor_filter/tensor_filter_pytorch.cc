@@ -46,47 +46,42 @@
 #define INPUT_TENSOR_META_CHAR "InputTensorMeta"
 #define OUTPUT_TENSOR_META_CHAR "OutputTensorMeta"
 
-static const gchar *torch_accl_support[] = {
-  ACCL_CPU_STR,
-  ACCL_GPU_STR,
-  NULL
-};
+static const gchar *torch_accl_support[] = { ACCL_CPU_STR, ACCL_GPU_STR, NULL };
 
 /**
  * @brief	ring cache structure
  */
 class TorchCore
 {
-public:
+  public:
   TorchCore (const char *_model_path);
   ~TorchCore ();
 
-  int init (const GstTensorFilterProperties * prop);
+  int init (const GstTensorFilterProperties *prop);
   int loadModel ();
   const char *getModelPath ();
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
 
-private:
-
+  private:
   char *model_path;
   bool use_gpu;
   accl_hw accelerator;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
   bool configured;
-  bool first_run;           /**< must be reset after setting input info */
+  bool first_run; /**< must be reset after setting input info */
 
   std::shared_ptr<torch::jit::script::Module> model;
 
   void setAccelerator (const char *accelerators);
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
-  bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype * torchType);
+  bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
   int validateOutputTensor (at::Tensor output);
   int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
-  int processIValue (torch::jit::IValue value, GstTensorMemory * output);
+  int processIValue (torch::jit::IValue value, GstTensorMemory *output);
 };
 
 void init_filter_torch (void) __attribute__ ((constructor));
@@ -137,8 +132,7 @@ TorchCore::setAccelerator (const char *accelerators)
   return;
 
 use_gpu_ini:
-  use_gpu = nnsconf_get_custom_value_bool ("pytorch", "enable_use_gpu",
-      FALSE);
+  use_gpu = nnsconf_get_custom_value_bool ("pytorch", "enable_use_gpu", FALSE);
   if (use_gpu == FALSE) {
     accelerator = ACCL_NONE;
   } else {
@@ -152,10 +146,10 @@ use_gpu_ini:
  *        -1 if the model is not loaded.
  */
 int
-TorchCore::init (const GstTensorFilterProperties * prop)
+TorchCore::init (const GstTensorFilterProperties *prop)
 {
   setAccelerator (prop->accl_str);
-  g_message ("gpu = %d, accl = %s", use_gpu, get_accl_hw_str(accelerator));
+  g_message ("gpu = %d, accl = %s", use_gpu, get_accl_hw_str (accelerator));
 
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
@@ -193,7 +187,7 @@ TorchCore::loadModel ()
 #endif
 
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
-  model = std::make_shared<torch::jit::script::Module>(torch::jit::load (model_path));
+  model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
 #else
   model = torch::jit::load (model_path);
 #endif
@@ -226,23 +220,23 @@ tensor_type
 TorchCore::getTensorTypeFromTorch (torch::Dtype torchType)
 {
   switch (torchType) {
-    case torch::kU8:
-      return _NNS_UINT8;
-    case torch::kI8:
-      return _NNS_INT8;
-    case torch::kI16:
-      return _NNS_INT16;
-    case torch::kI32:
-      return _NNS_INT32;
-    case torch::kI64:
-      return _NNS_INT64;
-    case torch::kF32:
-      return _NNS_FLOAT32;
-    case torch::kF64:
-      return _NNS_FLOAT64;
-    case torch::kF16:
-    default:
-      break;
+  case torch::kU8:
+    return _NNS_UINT8;
+  case torch::kI8:
+    return _NNS_INT8;
+  case torch::kI16:
+    return _NNS_INT16;
+  case torch::kI32:
+    return _NNS_INT32;
+  case torch::kI64:
+    return _NNS_INT64;
+  case torch::kF32:
+    return _NNS_FLOAT32;
+  case torch::kF64:
+    return _NNS_FLOAT64;
+  case torch::kF16:
+  default:
+    break;
   }
 
   return _NNS_END;
@@ -254,33 +248,32 @@ TorchCore::getTensorTypeFromTorch (torch::Dtype torchType)
  * @return the enum of defined _NNS_TYPE
  */
 bool
-TorchCore::getTensorTypeToTorch (tensor_type tensorType,
-    torch::Dtype * torchType)
+TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType)
 {
   switch (tensorType) {
-    case _NNS_UINT8:
-      *torchType = torch::kU8;
-      break;
-    case _NNS_INT8:
-      *torchType = torch::kI8;
-      break;
-    case _NNS_INT16:
-      *torchType = torch::kI16;
-      break;
-    case _NNS_INT32:
-      *torchType = torch::kI32;
-      break;
-    case _NNS_INT64:
-      *torchType = torch::kI64;
-      break;
-    case _NNS_FLOAT32:
-      *torchType = torch::kF32;
-      break;
-    case _NNS_FLOAT64:
-      *torchType = torch::kF64;
-      break;
-    default:
-      return false;
+  case _NNS_UINT8:
+    *torchType = torch::kU8;
+    break;
+  case _NNS_INT8:
+    *torchType = torch::kI8;
+    break;
+  case _NNS_INT16:
+    *torchType = torch::kI16;
+    break;
+  case _NNS_INT32:
+    *torchType = torch::kI32;
+    break;
+  case _NNS_INT64:
+    *torchType = torch::kI64;
+    break;
+  case _NNS_FLOAT32:
+    *torchType = torch::kF32;
+    break;
+  case _NNS_FLOAT64:
+    *torchType = torch::kF64;
+    break;
+  default:
+    return false;
   }
 
   return true;
@@ -319,8 +312,7 @@ TorchCore::validateOutputTensor (const at::Tensor output)
     c10::IntArrayRef sliced_output_sizes;
 
     otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
-    num_gst_tensor =
-        gst_tensor_get_element_count (outputTensorMeta.info[i].dimension);
+    num_gst_tensor = gst_tensor_get_element_count (outputTensorMeta.info[i].dimension);
 
     num_torch_tensor = 1;
     sliced_output_sizes = sliced_output.sizes ();
@@ -350,7 +342,7 @@ done:
  * @return 0 if OK. non-zero if error.
  */
 int
-TorchCore::getInputTensorDim (GstTensorsInfo * info)
+TorchCore::getInputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
@@ -362,7 +354,7 @@ TorchCore::getInputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-TorchCore::getOutputTensorDim (GstTensorsInfo * info)
+TorchCore::getOutputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
@@ -376,7 +368,7 @@ TorchCore::getOutputTensorDim (GstTensorsInfo * info)
  *         -1 if output tensor validation fails.
  */
 int
-TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory * output)
+TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output)
 {
   g_assert (value.isTensor ());
   at::Tensor output_tensor = value.toTensor ();
@@ -395,8 +387,7 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory * output)
   }
 
   /** @todo avoid this memcpy */
-  std::memcpy (output->data, output_tensor.data_ptr (),
-      output_tensor.nbytes ());
+  std::memcpy (output->data, output_tensor.data_ptr (), output_tensor.nbytes ());
   return 0;
 }
 
@@ -411,19 +402,19 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory * output)
  *         -4 if running the model failed.
  */
 int
-TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
+TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
 
-  std::vector < torch::jit::IValue > input_feeds;
+  std::vector<torch::jit::IValue> input_feeds;
   torch::jit::IValue output_value;
   torch::Dtype type;
   at::Tensor tensor;
 
   for (uint i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    std::vector < int64_t > input_shape;
+    std::vector<int64_t> input_shape;
     input_shape.assign (&inputTensorMeta.info[i].dimension[0],
         &inputTensorMeta.info[i].dimension[0] + NNS_TENSOR_RANK_LIMIT);
 
@@ -451,17 +442,13 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     try {
       output_value = model->forward (input_feeds);
       first_run = false;
-    }
-    catch (const std::runtime_error & re)
-    {
+    } catch (const std::runtime_error &re) {
       ml_loge ("Runtime error while running the model: %s", re.what ());
       return -4;
-    }
-    catch (const std::exception & ex) {
+    } catch (const std::exception &ex) {
       ml_loge ("Exception while running the model : %s", ex.what ());
       return -4;
-    }
-    catch (...) {
+    } catch (...) {
       ml_loge ("Unknown exception while running the model");
       return -4;
     }
@@ -477,18 +464,16 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
     }
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
   } else if (output_value.isList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_ref_list =
-      output_value.toListRef ();
+    c10::ArrayRef<torch::jit::IValue> output_ref_list = output_value.toListRef ();
     std::vector<torch::jit::IValue> output_list (
         output_ref_list.begin (), output_ref_list.end ());
 #else
   } else if (output_value.isGenericList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_list =
-      output_value.toGenericListRef ();
+    c10::ArrayRef<torch::jit::IValue> output_list = output_value.toGenericListRef ();
 #endif
     g_assert (outputTensorMeta.num_tensors == output_list.size ());
     int idx = 0;
-    for (auto & ivalue_element:output_list) {
+    for (auto &ivalue_element : output_list) {
       if (processIValue (ivalue_element, &output[idx++])) {
         ml_loge ("Output Tensor Information is not valid");
         return -2;
@@ -501,8 +486,7 @@ TorchCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
-  g_message ("Invoke() is finished: %" G_GINT64_FORMAT,
-      (stop_time - start_time));
+  g_message ("Invoke() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
 
   return 0;
@@ -520,8 +504,7 @@ TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
   int num_dim = tensor_meta.ndimension ();
   g_assert (num_dim <= NNS_TENSOR_RANK_LIMIT);
   /** the order of dimension is reversed at CAPS negotiation */
-  std::reverse_copy (tensor_meta.sizes ().begin (),
-      tensor_meta.sizes ().end (), dim);
+  std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
 
   /** fill the remnants with 1 */
   for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
@@ -535,9 +518,9 @@ TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
  * @brief Free privateData and move on.
  */
 static void
-torch_close (const GstTensorFilterProperties * prop, void **private_data)
+torch_close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  TorchCore *core = static_cast < TorchCore * >(*private_data);
+  TorchCore *core = static_cast<TorchCore *> (*private_data);
 
   if (!core)
     return;
@@ -556,8 +539,7 @@ torch_close (const GstTensorFilterProperties * prop, void **private_data)
  *        -2 if the object initialization if failed
  */
 static gint
-torch_loadModelFile (const GstTensorFilterProperties * prop,
-    void **private_data)
+torch_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
   TorchCore *core;
   const gchar *model_path;
@@ -565,12 +547,12 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
   if (prop->num_models != 1)
     return -1;
 
-  core = static_cast < TorchCore * >(*private_data);
+  core = static_cast<TorchCore *> (*private_data);
   model_path = prop->model_files[0];
 
   if (core != NULL) {
     if (g_strcmp0 (model_path, core->getModelPath ()) == 0)
-      return 1;                 /* skipped */
+      return 1; /* skipped */
 
     torch_close (prop, private_data);
   }
@@ -600,7 +582,7 @@ torch_loadModelFile (const GstTensorFilterProperties * prop,
  * @param private_data : pytorch plugin's private data
  */
 static gint
-torch_open (const GstTensorFilterProperties * prop, void **private_data)
+torch_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   gint status = torch_loadModelFile (prop, private_data);
 
@@ -616,10 +598,10 @@ torch_open (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 if OK. non-zero if error.
  */
 static gint
-torch_invoke (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  TorchCore *core = static_cast < TorchCore * >(*private_data);
+  TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->invoke (input, output);
@@ -632,10 +614,10 @@ torch_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of input tensors
  */
 static gint
-torch_getInputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+torch_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TorchCore *core = static_cast < TorchCore * >(*private_data);
+  TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
@@ -648,10 +630,10 @@ torch_getInputDim (const GstTensorFilterProperties * prop,
  * @param[out] info The dimesions and types of output tensors
  */
 static gint
-torch_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+torch_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TorchCore *core = static_cast < TorchCore * >(*private_data);
+  TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
@@ -673,29 +655,25 @@ torch_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_pytorch[] = "pytorch";
 
-static GstTensorFilterFramework NNS_support_pytorch = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_pytorch = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = torch_open,
   .close = torch_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_pytorch,
-      .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = TRUE, /* check that the given .pt files are valid */
-      .statistics = nullptr,
-      .invoke_NN = torch_invoke,
-      .getInputDimension = torch_getInputDim,
-      .getOutputDimension = torch_getOutputDim,
-      .setInputDimension = nullptr,
-      .destroyNotify = nullptr,
-      .reloadModel = nullptr,
-      .checkAvailability = torch_checkAvailability,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_pytorch,
+       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+       .allocate_in_invoke = FALSE,
+       .run_without_model = FALSE,
+       .verify_model_path = TRUE, /* check that the given .pt files are valid */
+       .statistics = nullptr,
+       .invoke_NN = torch_invoke,
+       .getInputDimension = torch_getInputDim,
+       .getOutputDimension = torch_getOutputDim,
+       .setInputDimension = nullptr,
+       .destroyNotify = nullptr,
+       .reloadModel = nullptr,
+       .checkAvailability = torch_checkAvailability,
+       .allocateInInvoke = nullptr,
+   } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

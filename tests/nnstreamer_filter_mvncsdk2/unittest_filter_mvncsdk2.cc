@@ -7,15 +7,15 @@
  * @bug     No known bugs.
  */
 
-#include <string.h>
 #include <gtest/gtest.h>
-#include <gst/gst.h>
-#include <gst/check/gstcheck.h>
-#include <gst/check/gsttestclock.h>
-#include <gst/check/gstharness.h>
 #include <glib/gstdio.h>
-#include <tensor_common.h>
+#include <gst/check/gstcheck.h>
+#include <gst/check/gstharness.h>
+#include <gst/check/gsttestclock.h>
+#include <gst/gst.h>
 #include <nnstreamer_plugin_api_filter.h>
+#include <string.h>
+#include <tensor_common.h>
 
 #include "NCSDKTensorFilterTestHelper.hh"
 
@@ -37,7 +37,8 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "google_lenet_ncsdk_caffe_1.graph", NULL);
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=BGR,width=224,height=224 "
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=BGR,width=224,height=224 "
       "! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-104.0069877 "
       "! tensor_filter name=tfilter framework=movidius-ncsdk2 model=\"%s\" ! fakesink",
       test_model);
@@ -109,82 +110,80 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
   NCSDKTensorFilterTestHelper::getInstance ().release ();
 }
 
-#define TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(idx, fail_stage) \
-    TEST (pipeline_mvncsdk2_filter, launch_normal_ ##idx##_n) { \
-      const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH"); \
-      gchar *pipeline; \
-      gchar *test_model; \
-      GstElement *gstpipe; \
-      GError *err = NULL; \
-      int status = 0; \
-      \
-      NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET); \
-      NCSDKTensorFilterTestHelper::getInstance () \
-          .setFailStage (fail_stage); \
-      \
-      if (root_path == NULL) { \
-        root_path = ".."; \
-      } \
-      test_model = g_build_filename (root_path, "tests", "test_models", \
-          "models", "google_lenet_ncsdk_caffe_1.graph", NULL); \
-      \
-      pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=BGR,width=224,height=224 " \
-          "! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-104.0069877 " \
-          "! tensor_filter framework=movidius-ncsdk2 model=\"%s\" ! fakesink", \
-          test_model); \
-      gstpipe = gst_parse_launch (pipeline, &err); \
-      if (gstpipe) { \
-        GstStateChangeReturn ret; \
-        bool test = false; \
-        \
-        ret = gst_element_set_state (gstpipe, GST_STATE_PLAYING); \
-        \
-        g_usleep (1 * G_USEC_PER_SEC); \
-        if ((ret == GST_STATE_CHANGE_ASYNC) || \
-            (ret == GST_STATE_CHANGE_SUCCESS)) { \
-          test = true;\
-        } \
-        EXPECT_NE (test, true); \
-        EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE); \
-        \
-        gst_object_unref (gstpipe); \
-      } else { \
-        status = -1; \
-        g_printerr ("Failed to launch the pipeline, %s : %s\n", pipeline, \
-            (err) ? err->message : "unknown reason"); \
-        g_clear_error (&err); \
-      } \
-      EXPECT_EQ (status, 0); \
-      g_free (test_model); \
-      g_free (pipeline); \
-      \
-      NCSDKTensorFilterTestHelper::getInstance ().release (); \
-    };\
+#define TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(idx, fail_stage)                                                  \
+  TEST (pipeline_mvncsdk2_filter, launch_normal_##idx##_n)                                                    \
+  {                                                                                                           \
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");                                        \
+    gchar *pipeline;                                                                                          \
+    gchar *test_model;                                                                                        \
+    GstElement *gstpipe;                                                                                      \
+    GError *err = NULL;                                                                                       \
+    int status = 0;                                                                                           \
+                                                                                                              \
+    NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);                                          \
+    NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage);                                    \
+                                                                                                              \
+    if (root_path == NULL) {                                                                                  \
+      root_path = "..";                                                                                       \
+    }                                                                                                         \
+    test_model = g_build_filename (root_path, "tests", "test_models",                                         \
+        "models", "google_lenet_ncsdk_caffe_1.graph", NULL);                                                  \
+                                                                                                              \
+    pipeline = g_strdup_printf (                                                                              \
+        "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=BGR,width=224,height=224 " \
+        "! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-104.0069877 "     \
+        "! tensor_filter framework=movidius-ncsdk2 model=\"%s\" ! fakesink",                                  \
+        test_model);                                                                                          \
+    gstpipe = gst_parse_launch (pipeline, &err);                                                              \
+    if (gstpipe) {                                                                                            \
+      GstStateChangeReturn ret;                                                                               \
+      bool test = false;                                                                                      \
+                                                                                                              \
+      ret = gst_element_set_state (gstpipe, GST_STATE_PLAYING);                                               \
+                                                                                                              \
+      g_usleep (1 * G_USEC_PER_SEC);                                                                          \
+      if ((ret == GST_STATE_CHANGE_ASYNC) || (ret == GST_STATE_CHANGE_SUCCESS)) {                             \
+        test = true;                                                                                          \
+      }                                                                                                       \
+      EXPECT_NE (test, true);                                                                                 \
+      EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);                                                              \
+                                                                                                              \
+      gst_object_unref (gstpipe);                                                                             \
+    } else {                                                                                                  \
+      status = -1;                                                                                            \
+      g_printerr ("Failed to launch the pipeline, %s : %s\n", pipeline,                                       \
+          (err) ? err->message : "unknown reason");                                                           \
+      g_clear_error (&err);                                                                                   \
+    }                                                                                                         \
+    EXPECT_EQ (status, 0);                                                                                    \
+    g_free (test_model);                                                                                      \
+    g_free (pipeline);                                                                                        \
+                                                                                                              \
+    NCSDKTensorFilterTestHelper::getInstance ().release ();                                                   \
+  };
 
 
 /** @brief Testing failure cases (in the case of wrong SDK version) */
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(0, fail_stage_t::WRONG_SDK_VER);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (0, fail_stage_t::WRONG_SDK_VER);
 
 /** @brief Testing failure cases (in the case of fialure in getting version information) */
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(1, fail_stage_t::FAIL_GLBL_GET_OPT);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (1, fail_stage_t::FAIL_GLBL_GET_OPT);
 
 /** @brief Testing failure cases (in the case of fialure in handling device handles) */
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(2, fail_stage_t::FAIL_DEV_CREATE);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(3, fail_stage_t::FAIL_DEV_OPEN);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (2, fail_stage_t::FAIL_DEV_CREATE);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (3, fail_stage_t::FAIL_DEV_OPEN);
 
 /** @brief Testing failure cases (in the case of fialure in handling graph handles) */
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(4, fail_stage_t::FAIL_GRAPH_CREATE);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(5, fail_stage_t::FAIL_GRAPH_ALLOC);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(6,
-    fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(7,
-    fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (4, fail_stage_t::FAIL_GRAPH_CREATE);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (5, fail_stage_t::FAIL_GRAPH_ALLOC);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (6, fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (7, fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC);
 
 /** @brief Testing failure cases (in the case of fialure in handling FIFO handles) */
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(8, fail_stage_t::FAIL_FIFO_CREATE_INPUT);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(9, fail_stage_t::FAIL_FIFO_CREATE_OUTPUT);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(10, fail_stage_t::FAIL_FIFO_ALLOC_INPUT);
-TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(11, fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (8, fail_stage_t::FAIL_FIFO_CREATE_INPUT);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (9, fail_stage_t::FAIL_FIFO_CREATE_OUTPUT);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (10, fail_stage_t::FAIL_FIFO_ALLOC_INPUT);
+TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (11, fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
 
 /** @todo: Failure in invoke () incurs assertion so that the whole tests would be stopped. */
 

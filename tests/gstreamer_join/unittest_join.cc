@@ -10,8 +10,8 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
-#include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
 #include <unittest_util.h>
 
 static int data_received;
@@ -19,38 +19,33 @@ static int data_received;
 /**
  * @brief Test data for join (2 frames with dimension 3:4:2:2)
  */
-const gint test_frames[2][48] = {
-  {
-    1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
-    1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124,
-    1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212,
-    1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224
-  },
-  {
-    2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110, 2111, 2112,
-    2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123, 2124,
-    2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
-    2213, 2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224
-  }
-};
+const gint test_frames[2][48]
+    = { { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
+            1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124,
+            1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212,
+            1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 },
+        { 2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110, 2111, 2112, 2113,
+            2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123, 2124, 2201,
+            2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212, 2213,
+            2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224 } };
 
 /**
  * @brief Callback for tensor sink signal.
  */
 static void
-new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   GstMemory *mem_res;
   GstMapInfo info_res;
   gint *output, i;
-  gint index = *(gint *) user_data;
+  gint index = *(gint *)user_data;
 
   data_received++;
   /* Index 100 means a callback that is not allowed. */
   EXPECT_NE (100, index);
   mem_res = gst_buffer_get_memory (buffer, 0);
   g_assert (gst_memory_map (mem_res, &info_res, GST_MAP_READ));
-  output = (gint *) info_res.data;
+  output = (gint *)info_res.data;
 
   for (i = 0; i < 48; i++) {
     EXPECT_EQ (test_frames[index][i], output[i]);
@@ -69,14 +64,14 @@ TEST (join, normal_0)
   GstMemory *mem;
   GstMapInfo info;
   GstElement *appsrc_handle_0, *appsrc_handle_1, *sink_handle, *join_handle;
-  GstPad * active_pad;
-  gchar * active_name;
+  GstPad *active_pad;
+  gchar *active_name;
 
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
-       "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
-       "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
-       "tensor_sink name=sinkx async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -94,7 +89,7 @@ TEST (join, normal_0)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
 
   buf_0 = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
@@ -166,13 +161,13 @@ TEST (join, normal_0)
 TEST (join, prop_0_n)
 {
   GstElement *join_handle;
-  gchar * str_val = NULL;
+  gchar *str_val = NULL;
 
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
-       "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
-       "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
-       "tensor_sink name=sinkx async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -194,13 +189,13 @@ TEST (join, prop_0_n)
 TEST (join, prop_1_n)
 {
   GstElement *join_handle;
-  gchar * str_val = NULL;
+  gchar *str_val = NULL;
 
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
-       "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
-       "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
-       "tensor_sink name=sinkx async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -219,7 +214,8 @@ TEST (join, prop_1_n)
 /**
  * @brief Main GTest
  */
-int main (int argc, char **argv)
+int
+main (int argc, char **argv)
 {
   int result = -1;
 

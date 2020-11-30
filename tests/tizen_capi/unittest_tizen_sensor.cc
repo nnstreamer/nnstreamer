@@ -12,26 +12,27 @@
 #error This unit test works only in Tizen. This needs Tizen Sensor Framework.
 #endif
 
-#include <glib.h>
-#include "dummy_sensor.h" /* Dummy Tizen Sensor Framework */
 #include <gtest/gtest.h>
+#include <glib.h>
 #include <gst/gst.h>
-#include <nnstreamer.h>
 #include <nnstreamer-capi-private.h>
+#include <nnstreamer.h>
 #include <unittest_util.h>
+#include "dummy_sensor.h" /* Dummy Tizen Sensor Framework */
 
-static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS = 10000U; /* timeout occur after 10 seconds */
+static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS
+    = 10000U; /* timeout occur after 10 seconds */
 
-#define wait_for_start(handle, state, status) \
-do {\
-  int counter = 0;\
-  while (state != ML_PIPELINE_STATE_PLAYING && counter < 100) {\
-    g_usleep (100000);\
-    counter ++;\
-    status = ml_pipeline_get_state (handle, &state);\
-    EXPECT_EQ (status, ML_ERROR_NONE);\
-  }\
-} while (0)
+#define wait_for_start(handle, state, status)                     \
+  do {                                                            \
+    int counter = 0;                                              \
+    while (state != ML_PIPELINE_STATE_PLAYING && counter < 100) { \
+      g_usleep (100000);                                          \
+      counter++;                                                  \
+      status = ml_pipeline_get_state (handle, &state);            \
+      EXPECT_EQ (status, ML_ERROR_NONE);                          \
+    }                                                             \
+  } while (0)
 
 /**
  * @brief Test pipeline creation of it
@@ -54,15 +55,16 @@ TEST (tizensensor_as_source, virtual_sensor_create_01)
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=0 num-buffers=3 ! fakesink");
+  pipeline = g_strdup_printf (
+      "tensor_src_tizensensor type=SENSOR_LIGHT sequence=0 num-buffers=3 ! fakesink");
   gstpipe = gst_parse_launch (pipeline, &err);
   if (gstpipe) {
     status = 0;
     gst_object_unref (gstpipe);
   } else {
     status = -1;
-    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n",
-      pipeline, (err) ? err->message : "unknown reason");
+    g_printerr ("GST PARSE LAUNCH FAILED: [%s], %s\n", pipeline,
+        (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -94,7 +96,8 @@ TEST (tizensensor_as_source, virtual_sensor_create_02)
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_ACCELEROMETER sequence=-1 num-buffers=3 ! fakesink");
+  pipeline = g_strdup_printf (
+      "tensor_src_tizensensor type=SENSOR_ACCELEROMETER sequence=-1 num-buffers=3 ! fakesink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   if (gstpipe) {
     status = 0;
@@ -104,7 +107,6 @@ TEST (tizensensor_as_source, virtual_sensor_create_02)
   }
   EXPECT_EQ (status, ML_ERROR_NONE);
   g_free (pipeline);
-
 }
 
 #define MAX_VERIFY_DATA (256)
@@ -123,10 +125,10 @@ static verify_data data; /* Too big for stack. Use this global var */
 /**
  * @brief Test if the sensor-reading matches the golden values.
  */
-static void callback_nns (const ml_tensors_data_h data,
-    const ml_tensors_info_h info, void *user_data)
+static void
+callback_nns (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
 {
-  verify_data *vdata = (verify_data *) user_data;
+  verify_data *vdata = (verify_data *)user_data;
   int status;
   unsigned int count;
   ml_tensor_type_e type;
@@ -150,14 +152,14 @@ static void callback_nns (const ml_tensors_data_h data,
 
   status = ml_tensors_data_get_tensor_data (data, 0, &raw_data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  dataptr = (float *) raw_data;
+  dataptr = (float *)raw_data;
 
   if (vdata->negative) {
-    EXPECT_FALSE (dataptr[0] == vdata->golden[vdata->cursor][0] ||
-        dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
+    EXPECT_FALSE (dataptr[0] == vdata->golden[vdata->cursor][0]
+                  || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
   } else {
-    EXPECT_TRUE (dataptr[0] == vdata->golden[vdata->cursor][0] ||
-        dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
+    EXPECT_TRUE (dataptr[0] == vdata->golden[vdata->cursor][0]
+                 || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
   }
 
   if (dataptr[0] == vdata->golden[vdata->cursor + 1][0])
@@ -199,7 +201,8 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   data.negative = 0;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=-1 num-buffers=30 framerate=60/1 ! tensor_sink name=getv");
+  pipeline = g_strdup_printf (
+      "tensor_src_tizensensor type=SENSOR_LIGHT sequence=-1 num-buffers=30 framerate=60/1 ! tensor_sink name=getv");
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -219,7 +222,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  g_usleep(10000); /* Let a frame or more flow */
+  g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
@@ -279,7 +282,8 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
   data.negative = 0;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=2 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
+  pipeline = g_strdup_printf (
+      "tensor_src_tizensensor type=SENSOR_LIGHT sequence=2 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -300,7 +304,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
   wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  g_usleep(10000); /* Let a frame or more flow */
+  g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
@@ -368,7 +372,8 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
   data.negative = 1;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=1 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
+  pipeline = g_strdup_printf (
+      "tensor_src_tizensensor type=SENSOR_LIGHT sequence=1 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
   status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -388,7 +393,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
   wait_for_start (handle, state, status);
   EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
 
-  g_usleep(10000); /* Let a frame or more flow */
+  g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
   EXPECT_EQ (dummy_publish (sensor, value), 0);
 
@@ -498,8 +503,8 @@ TEST (tizensensor_as_source, get_property_1)
     gst_object_unref (gstpipe);
   } else {
     status = -1;
-    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n",
-      pipeline, (err) ? err->message : "unknown reason");
+    g_printerr ("GST PARSE LAUNCH FAILED: [%s], %s\n", pipeline,
+        (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -535,8 +540,8 @@ TEST (tizensensor_as_source, get_property_2_n)
     gst_object_unref (gstpipe);
   } else {
     status = -1;
-    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n",
-      pipeline, (err) ? err->message : "unknown reason");
+    g_printerr ("GST PARSE LAUNCH FAILED: [%s], %s\n", pipeline,
+        (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -599,8 +604,8 @@ TEST (tizensensor_as_source, get_property_3_n)
     gst_object_unref (gstpipe);
   } else {
     status = -1;
-    g_printerr("GST PARSE LAUNCH FAILED: [%s], %s\n",
-      pipeline, (err) ? err->message : "unknown reason");
+    g_printerr ("GST PARSE LAUNCH FAILED: [%s], %s\n", pipeline,
+        (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -610,7 +615,8 @@ TEST (tizensensor_as_source, get_property_3_n)
 /**
  * @brief Main GTest
  */
-int main (int argc, char **argv)
+int
+main (int argc, char **argv)
 {
   int result = -1;
 

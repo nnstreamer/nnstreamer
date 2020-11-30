@@ -1,39 +1,31 @@
 #include <gtest/gtest.h>
-#include <gst/gst.h>
-#include <gst/check/gstcheck.h>
-#include <gst/check/gsttestclock.h>
-#include <gst/check/gstharness.h>
 #include <glib/gstdio.h>
+#include <gst/check/gstcheck.h>
+#include <gst/check/gstharness.h>
+#include <gst/check/gsttestclock.h>
+#include <gst/gst.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <string.h>
 #include <tensor_common.h>
 
 #include <tensor_filter_openvino.hh>
 
-const static gchar MODEL_BASE_NAME_MOBINET_V2[] =
-    "openvino_mobilenetv2-int8-tf-0001";
+const static gchar MODEL_BASE_NAME_MOBINET_V2[] = "openvino_mobilenetv2-int8-tf-0001";
 
 const static uint32_t MOBINET_V2_IN_NUM_TENSOR = 1;
 const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
-    224,
-    224,
-    3,
-    1,
+  224, 224, 3, 1,
 };
 const static uint32_t MOBINET_V2_OUT_NUM_TENSOR = 1;
 const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
-    1001,
-    1,
-    1,
-    1,
+  1001, 1, 1, 1,
 };
 
 class TensorFilterOpenvinoTest : public TensorFilterOpenvino
 {
-public:
+  public:
   typedef TensorFilterOpenvino super;
-  TensorFilterOpenvinoTest (std::string path_model_xml,
-      std::string path_model_bin);
+  TensorFilterOpenvinoTest (std::string path_model_xml, std::string path_model_bin);
   ~TensorFilterOpenvinoTest ();
 
   InferenceEngine::InputsDataMap &getInputsDataMap ();
@@ -41,12 +33,13 @@ public:
   InferenceEngine::OutputsDataMap &getOutputsDataMap ();
   void setOutputsDataMap (InferenceEngine::OutputsDataMap &map);
 
-private:
+  private:
   TensorFilterOpenvinoTest ();
 };
 
-TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (std::string path_model_xml,
-    std::string path_model_bin) : super (path_model_xml, path_model_bin)
+TensorFilterOpenvinoTest::TensorFilterOpenvinoTest (
+    std::string path_model_xml, std::string path_model_bin)
+    : super (path_model_xml, path_model_bin)
 {
   /* Nothing to do */
   ;
@@ -78,8 +71,7 @@ TensorFilterOpenvinoTest::getOutputsDataMap ()
 }
 
 void
-TensorFilterOpenvinoTest::setOutputsDataMap (
-    InferenceEngine::OutputsDataMap &map)
+TensorFilterOpenvinoTest::setOutputsDataMap (InferenceEngine::OutputsDataMap &map)
 {
   this->_outputsDataMap = map;
 }
@@ -133,13 +125,15 @@ TEST (tensor_filter_openvino, open_and_close_0)
   g_free (test_model);
 
   {
-    gchar *test_model_xml = g_build_filename (root_path, "tests", "test_models",
-        "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-        .append (TensorFilterOpenvino::extXml).c_str (),
+    gchar *test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extXml)
+            .c_str (),
         NULL);
-    gchar *test_model_bin = g_build_filename (root_path, "tests", "test_models",
-        "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-        .append (TensorFilterOpenvino::extBin).c_str (),
+    gchar *test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extBin)
+            .c_str (),
         NULL);
     const gchar *model_files[] = {
       test_model_xml, test_model_bin,
@@ -163,7 +157,8 @@ TEST (tensor_filter_openvino, open_and_close_0)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
   {
     const gchar *model_files[] = {
@@ -188,7 +183,8 @@ TEST (tensor_filter_openvino, open_and_close_0)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
   {
     const gchar *model_files[] = {
@@ -237,13 +233,15 @@ TEST (tensor_filter_openvino, open_and_close_1)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   tfOv = new TensorFilterOpenvino (str_test_model.assign (test_model_xml),
@@ -255,7 +253,7 @@ TEST (tensor_filter_openvino, open_and_close_1)
   EXPECT_NE (ret, 0);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
-  private_data = (gpointer) tfOv;
+  private_data = (gpointer)tfOv;
 
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
@@ -309,18 +307,20 @@ TEST (tensor_filter_openvino, open_and_close_2)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   tfOv = new TensorFilterOpenvino (str_test_model.assign (test_model_xml),
       str_test_model.assign (test_model_bin));
-  private_data = (gpointer) tfOv;
+  private_data = (gpointer)tfOv;
 
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
@@ -371,8 +371,8 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "NOT_EXIST", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "NOT_EXIST", NULL);
   const gchar *model_files[] = {
     test_model, NULL,
   };
@@ -395,15 +395,15 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
 
   {
     std::string str_test_model;
-    gchar *test_model_xml1 = g_build_filename (root_path, "tests",
-        "test_models", "models", str_test_model
-        .assign (MODEL_BASE_NAME_MOBINET_V2)
-        .append (TensorFilterOpenvino::extXml).c_str (),
+    gchar *test_model_xml1 = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extXml)
+            .c_str (),
         NULL);
-    gchar *test_model_xml2 = g_build_filename (root_path, "tests",
-        "test_models", "models", str_test_model
-        .assign (MODEL_BASE_NAME_MOBINET_V2)
-        .append (TensorFilterOpenvino::extXml).c_str (),
+    gchar *test_model_xml2 = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extXml)
+            .c_str (),
         NULL);
     const gchar *model_files[] = {
       test_model_xml1, test_model_xml2,
@@ -423,16 +423,16 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
 
   {
     std::string str_test_model;
-    gchar *test_model_bin1 = g_build_filename (root_path, "tests",
-        "test_models", "models", str_test_model
-        .assign (MODEL_BASE_NAME_MOBINET_V2)
-        .append (TensorFilterOpenvino::extBin).c_str (),
+    gchar *test_model_bin1 = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extBin)
+            .c_str (),
         NULL);
-    gchar *test_model_bin2 = g_build_filename (root_path, "tests",
-      "test_models", "models", str_test_model
-      .assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
-      NULL);
+    gchar *test_model_bin2 = g_build_filename (root_path, "tests", "test_models", "models",
+        str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+            .append (TensorFilterOpenvino::extBin)
+            .c_str (),
+        NULL);
     const gchar *model_files[] = {
       test_model_bin1, test_model_bin2,
     };
@@ -631,8 +631,7 @@ TEST (tensor_filter_openvino, getTensorDim_0)
   EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
     for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      EXPECT_EQ (nns_tensors_info.info[i].dimension[j],
-          MOBINET_V2_IN_DIMS[j]);
+      EXPECT_EQ (nns_tensors_info.info[i].dimension[j], MOBINET_V2_IN_DIMS[j]);
     }
   }
 
@@ -643,8 +642,7 @@ TEST (tensor_filter_openvino, getTensorDim_0)
   EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
     for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      EXPECT_EQ (nns_tensors_info.info[i].dimension[j],
-          MOBINET_V2_OUT_DIMS[j]);
+      EXPECT_EQ (nns_tensors_info.info[i].dimension[j], MOBINET_V2_OUT_DIMS[j]);
     }
   }
 
@@ -675,37 +673,40 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT */
+    /* A test case when the number of tensors in input exceed is exceeded
+     * NNS_TENSOR_SIZE_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::InputsDataMap inDataMap;
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
-    InferenceEngine::Data *data = new InferenceEngine::Data (name_input, dims,
-        InferenceEngine::Precision::FP32);
+    InferenceEngine::Data *data = new InferenceEngine::Data (
+        name_input, dims, InferenceEngine::Precision::FP32);
     InferenceEngine::InputInfo *info = new InferenceEngine::InputInfo ();
     info->setInputData (InferenceEngine::DataPtr (data));
     inDataMap[name_input] = InferenceEngine::InputInfo::Ptr (info);
 
     for (int i = 1; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
       InferenceEngine::InputInfo *info = new InferenceEngine::InputInfo ();
-      std::string name_input_n = std::string((char*) &i);
+      std::string name_input_n = std::string ((char *)&i);
       inDataMap[name_input_n] = InferenceEngine::InputInfo::Ptr (info);
     }
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
+    private_data = (gpointer)&tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -750,19 +751,22 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT */
+    /* A test case when the number of ranks of a tensor in the input exceed is
+     * exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_input = std::string ("input");
     InferenceEngine::SizeVector dims;
     InferenceEngine::InputsDataMap inDataMap;
@@ -778,7 +782,7 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
+    private_data = (gpointer)&tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -823,26 +827,29 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of tensors in input exceed is exceeded NNS_TENSOR_SIZE_LIMIT */
+    /* A test case when the number of tensors in input exceed is exceeded
+     * NNS_TENSOR_SIZE_LIMIT */
     InferenceEngine::OutputsDataMap outDataMap;
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
 
     for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
-      std::string name_output_n = std::string((char*) &i);
-      InferenceEngine::Data *data = new InferenceEngine::Data (name_output_n,
-          dims, InferenceEngine::Precision::FP32);
+      std::string name_output_n = std::string ((char *)&i);
+      InferenceEngine::Data *data = new InferenceEngine::Data (
+          name_output_n, dims, InferenceEngine::Precision::FP32);
       InferenceEngine::DataPtr outputDataPtr (data);
 
       outDataMap[name_output_n] = outputDataPtr;
@@ -850,7 +857,7 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
+    private_data = (gpointer)&tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -895,19 +902,22 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    /* A test case when the number of ranks of a tensor in the input exceed is exceeded NNS_TENSOR_RANK_LIMIT */
+    /* A test case when the number of ranks of a tensor in the input exceed is
+     * exceeded NNS_TENSOR_RANK_LIMIT */
     std::string name_output = std::string ("output");
     InferenceEngine::SizeVector dims;
     InferenceEngine::OutputsDataMap outDataMap;
@@ -920,7 +930,7 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
+    private_data = (gpointer)&tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -952,20 +962,10 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_suport_type_strs = {
-    "I8",
-    "I16",
-    "I32",
-    "U8",
-    "U16",
-    "FP32",
+    "I8", "I16", "I32", "U8", "U16", "FP32",
   };
   const std::vector<tensor_type> nns_support_types = {
-    _NNS_INT8,
-    _NNS_INT16,
-    _NNS_INT32,
-    _NNS_UINT8,
-    _NNS_UINT16,
-    _NNS_FLOAT32,
+    _NNS_INT8, _NNS_INT16, _NNS_INT32, _NNS_UINT8, _NNS_UINT16, _NNS_FLOAT32,
   };
   std::string str_test_model;
   gchar *test_model_xml;
@@ -975,13 +975,15 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
@@ -990,7 +992,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0)
     for (size_t i = 0; i < ie_suport_type_strs.size (); ++i) {
       tensor_type ret_type;
 
-      ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_strs [i]);
+      ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_strs[i]);
       EXPECT_EQ (ret_type, nns_support_types[i]);
     }
   }
@@ -1019,13 +1021,15 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
@@ -1033,7 +1037,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
         str_test_model.assign (test_model_bin));
     for (size_t i = 0; i < ie_not_suport_type_strs.size (); ++i) {
       tensor_type ret_type;
-      ret_type = tfOvTest.convertFromIETypeStr (ie_not_suport_type_strs [i]);
+      ret_type = tfOvTest.convertFromIETypeStr (ie_not_suport_type_strs[i]);
       EXPECT_NE (ret_type, nns_support_types[i]);
     }
   }
@@ -1057,13 +1061,15 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
 
   {
@@ -1079,29 +1085,29 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
   g_free (test_model_bin);
 }
 
-#define TEST_BLOB(prec, nns_type) \
-    do { \
-      const InferenceEngine::Precision _prc (prec); \
-      InferenceEngine::TensorDesc tensorTestDesc (_prc, InferenceEngine::ANY); \
-      InferenceEngine::SizeVector dims (NNS_TENSOR_RANK_LIMIT); \
-      TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml), \
-          str_test_model.assign (test_model_bin)); \
-      InferenceEngine::Blob::Ptr ret; \
-      GstTensorMemory mem; \
-      \
-      mem.size = gst_tensor_get_element_size (nns_type); \
-      for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) { \
-        dims[i] = MOBINET_V2_IN_DIMS[i]; \
-        mem.size *= MOBINET_V2_IN_DIMS[i]; \
-      } \
-      tensorTestDesc.setDims (dims); \
-      mem.data = (void *) g_malloc0 (mem.size); \
-      \
-      ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem, nns_type); \
-      EXPECT_EQ (mem.size, ret->byteSize ()); \
-      EXPECT_EQ (gst_tensor_get_element_size (nns_type), ret->element_size ()); \
-      g_free (mem.data); \
-    } while (0);
+#define TEST_BLOB(prec, nns_type)                                                    \
+  do {                                                                               \
+    const InferenceEngine::Precision _prc (prec);                                    \
+    InferenceEngine::TensorDesc tensorTestDesc (_prc, InferenceEngine::ANY);         \
+    InferenceEngine::SizeVector dims (NNS_TENSOR_RANK_LIMIT);                        \
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),       \
+        str_test_model.assign (test_model_bin));                                     \
+    InferenceEngine::Blob::Ptr ret;                                                  \
+    GstTensorMemory mem;                                                             \
+                                                                                     \
+    mem.size = gst_tensor_get_element_size (nns_type);                               \
+    for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {                                \
+      dims[i] = MOBINET_V2_IN_DIMS[i];                                               \
+      mem.size *= MOBINET_V2_IN_DIMS[i];                                             \
+    }                                                                                \
+    tensorTestDesc.setDims (dims);                                                   \
+    mem.data = (void *)g_malloc0 (mem.size);                                         \
+                                                                                     \
+    ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem, nns_type); \
+    EXPECT_EQ (mem.size, ret->byteSize ());                                          \
+    EXPECT_EQ (gst_tensor_get_element_size (nns_type), ret->element_size ());        \
+    g_free (mem.data);                                                               \
+  } while (0);
 
 /**
  * @brief A test case for the helper function, convertFromIETypeStr ()
@@ -1117,15 +1123,17 @@ TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extXml).c_str (),
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
       NULL);
   EXPECT_EQ (g_file_test (test_model_xml, G_FILE_TEST_IS_REGULAR), TRUE);
 
-  test_model_bin = g_build_filename (root_path, "tests", "test_models",
-      "models", str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-      .append (TensorFilterOpenvino::extBin).c_str (),
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
       NULL);
   EXPECT_EQ (g_file_test (test_model_bin, G_FILE_TEST_IS_REGULAR), TRUE);
 

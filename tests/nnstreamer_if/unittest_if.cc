@@ -10,9 +10,9 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
-#include <tensor_common.h>
-#include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
+#include <tensor_common.h>
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_if/gsttensorif.h"
 
@@ -21,43 +21,46 @@
  * @brief Wait until the pipeline saving the file
  * @return TRUE on success, FALSE when a time-out occurs
  */
-#define _wait_pipeline_save_files(file,content,len,exp_len,timeout_ms) do { \
-  guint timer = 0; \
-  guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U; \
-  if (tick == 0) \
-    tick = 1; \
-  do  { \
-    g_usleep (TEST_DEFAULT_SLEEP_TIME); \
-    g_file_get_contents (file, &content, &len, NULL); \
-    timer += tick; \
-    if (timer > timeout_ms) { \
-      EXPECT_GE (timeout_ms, timer); \
-      break; \
-    } \
-    if (len != exp_len) \
-      g_free (content); \
-  } while (len != exp_len); \
-} while(0)
+#define _wait_pipeline_save_files(file, content, len, exp_len, timeout_ms) \
+  do {                                                                     \
+    guint timer = 0;                                                       \
+    guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;                          \
+    if (tick == 0)                                                         \
+      tick = 1;                                                            \
+    do {                                                                   \
+      g_usleep (TEST_DEFAULT_SLEEP_TIME);                                  \
+      g_file_get_contents (file, &content, &len, NULL);                    \
+      timer += tick;                                                       \
+      if (timer > timeout_ms) {                                            \
+        EXPECT_GE (timeout_ms, timer);                                     \
+        break;                                                             \
+      }                                                                    \
+      if (len != exp_len)                                                  \
+        g_free (content);                                                  \
+    } while (len != exp_len);                                              \
+  } while (0)
 
 static int data_received;
 
 /**
  * @brief nnstreamer tensor_if testing base class
  */
-class tensor_if_run : public ::testing::Test {
- protected:
-   /**
+class tensor_if_run : public ::testing::Test
+{
+  protected:
+  /**
    * @brief  Sets up the base fixture
    */
-  void SetUp() override {
+  void SetUp () override
+  {
     gchar *content = NULL;
     gsize len;
-    gchar *smpte_pipeline = g_strdup_printf
-        ("videotestsrc name=vsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-         "video/x-raw,format=RGB,width=160,height=120 ! filesink location=smpte.golden");
-    gchar *gamut_pipeline = g_strdup_printf
-        ("videotestsrc name=vsrc num-buffers=1 pattern=15 ! videoconvert ! videoscale ! "
-         "video/x-raw,format=RGB,width=160,height=120 ! filesink location=gamut.golden");
+    gchar *smpte_pipeline = g_strdup_printf (
+        "videotestsrc name=vsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+        "video/x-raw,format=RGB,width=160,height=120 ! filesink location=smpte.golden");
+    gchar *gamut_pipeline = g_strdup_printf (
+        "videotestsrc name=vsrc num-buffers=1 pattern=15 ! videoconvert ! videoscale ! "
+        "video/x-raw,format=RGB,width=160,height=120 ! filesink location=gamut.golden");
     GstElement *gstpipe = gst_parse_launch (smpte_pipeline, NULL);
     setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
     _wait_pipeline_save_files ("./smpte.golden", content, len, 57600, TEST_TIMEOUT_MS);
@@ -97,10 +100,11 @@ TEST (tensor_if_prop, properties_0)
   GstElement *gstpipe;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-                              "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-                              "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:2:1:1,0 "
-                                "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
+  pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:2:1:1,0 "
+      "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
@@ -196,15 +200,16 @@ TEST (tensor_if_prop, properties_1_n)
   GstElement *gstpipe;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-                              "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-                              "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:2:1:1,0 "
-                                "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
+  pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:2:1:1,0 "
+      "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
   GstElement *tif_handle;
-  gchar * str_val = NULL;
+  gchar *str_val = NULL;
 
   tif_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "tif");
   EXPECT_NE (tif_handle, nullptr);
@@ -224,11 +229,11 @@ TEST (tensor_if_prop, properties_1_n)
  */
 TEST (tensor_if_prop, properties_2_n)
 {
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-       "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-          "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,1 supplied-value=100 "
-                         "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,1 supplied-value=100 "
+      "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -246,11 +251,11 @@ TEST (tensor_if_prop, properties_2_n)
  */
 TEST (tensor_if_prop, properties_3_n)
 {
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-       "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-          "tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=1 supplied-value=100 "
-                         "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=1 supplied-value=100 "
+      "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -268,11 +273,11 @@ TEST (tensor_if_prop, properties_3_n)
  */
 TEST (tensor_if_prop, properties_4_n)
 {
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-       "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-          "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0 supplied-value=100 "
-                         "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0 supplied-value=100 "
+      "operator=GT then=PASSTHROUGH else=SKIP ! fakesink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -290,15 +295,15 @@ TEST (tensor_if_prop, properties_4_n)
  */
 TEST (tensor_if_prop, properties_5_n)
 {
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=2 pattern=13 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 "
-        "videotestsrc num-buffers=2 pattern=15 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 "
-        "tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0,1 supplied-value=100 "
-          "operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 "
-            "tif.src_0 ! queue ! fakesink "
-            "tif.src_1 ! queue ! fakesink");
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=2 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 "
+      "videotestsrc num-buffers=2 pattern=15 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 "
+      "tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0,1 supplied-value=100 "
+      "operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 "
+      "tif.src_0 ! queue ! fakesink "
+      "tif.src_1 ! queue ! fakesink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -324,12 +329,13 @@ TEST_F (tensor_if_run, action_0)
 
   EXPECT_NE (tmp, nullptr);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
-       "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-          "tensor_if name=tif silent=false compared-value=A_VALUE compared-value-option=0:0:0:0,0 supplied-value=100 "
-                         "operator=GT then=PASSTHROUGH else=SKIP ! "
-                "filesink location=%s buffer-mode=unbuffered", tmp);
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif silent=false compared-value=A_VALUE compared-value-option=0:0:0:0,0 supplied-value=100 "
+      "operator=GT then=PASSTHROUGH else=SKIP ! "
+      "filesink location=%s buffer-mode=unbuffered",
+      tmp);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -380,17 +386,18 @@ TEST_F (tensor_if_run, action_1)
   EXPECT_NE (tmp_false, nullptr);
 
   /* videotestsrc pattern 12 alternate between black and white.*/
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=2 pattern=12 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 "
-        "videotestsrc num-buffers=2 pattern=13 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 "
-        "videotestsrc num-buffers=2 pattern=15 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_2 "
-        "tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 "
-          "operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 "
-            "tif.src_0 ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
-            "tif.src_1 ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false", tmp_true, tmp_false);
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=2 pattern=12 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 "
+      "videotestsrc num-buffers=2 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 "
+      "videotestsrc num-buffers=2 pattern=15 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_2 "
+      "tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 "
+      "operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 "
+      "tif.src_0 ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "tif.src_1 ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false",
+      tmp_true, tmp_false);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -426,21 +433,23 @@ TEST_F (tensor_if_run, action_1)
   g_free (tmp_false);
 }
 
-#define change_transform_type(type, size) do { \
-  g_object_set (transform_handle, "option", type, NULL); \
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0); \
-  g_usleep (100000); \
-  _wait_pipeline_save_files (tmp1, content1, len1, size, TEST_TIMEOUT_MS); \
-  _wait_pipeline_save_files (tmp2, content2, len2, size, TEST_TIMEOUT_MS); \
-  EXPECT_EQ (len1, len2); \
-  EXPECT_EQ (memcmp (content1, content2, len1), 0); \
-  g_free (content1); \
-  g_free (content2); \
-  \
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0); \
-  g_usleep (100000); \
-  \
-  } while(0);
+#define change_transform_type(type, size)                                                         \
+  do {                                                                                            \
+    g_object_set (transform_handle, "option", type, NULL);                                        \
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),  \
+        0);                                                                                       \
+    g_usleep (100000);                                                                            \
+    _wait_pipeline_save_files (tmp1, content1, len1, size, TEST_TIMEOUT_MS);                      \
+    _wait_pipeline_save_files (tmp2, content2, len2, size, TEST_TIMEOUT_MS);                      \
+    EXPECT_EQ (len1, len2);                                                                       \
+    EXPECT_EQ (memcmp (content1, content2, len1), 0);                                             \
+    g_free (content1);                                                                            \
+    g_free (content2);                                                                            \
+                                                                                                  \
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0); \
+    g_usleep (100000);                                                                            \
+                                                                                                  \
+  } while (0);
 
 /**
  * @brief Test tensor_if compared value with all tensor data type
@@ -457,12 +466,13 @@ TEST_F (tensor_if_run, action_2)
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! "
-       "tensor_converter ! tensor_transform mode=clamp option=0:127 ! tensor_transform name=trans mode=typecast option=uint8 ! "
-       "tee name=t ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
-       "t. ! queue ! tensor_if compared-value=A_VALUE compared-value-option=0:0:0:0,0 supplied-value=0,127 "
-          "operator=RANGE_INCLUSIVE then=PASSTHROUGH else=SKIP ! filesink location=%s buffer-mode=unbuffered sync=false async=false", tmp1, tmp2);
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! "
+      "tensor_converter ! tensor_transform mode=clamp option=0:127 ! tensor_transform name=trans mode=typecast option=uint8 ! "
+      "tee name=t ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue ! tensor_if compared-value=A_VALUE compared-value-option=0:0:0:0,0 supplied-value=0,127 "
+      "operator=RANGE_INCLUSIVE then=PASSTHROUGH else=SKIP ! filesink location=%s buffer-mode=unbuffered sync=false async=false",
+      tmp1, tmp2);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -492,38 +502,33 @@ TEST_F (tensor_if_run, action_2)
 /**
  * @brief Test data for tensor_if (2 frames with dimension 3:4:2:2)
  */
-const gint test_frames[2][48] = {
-  {
-    1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
-    1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124,
-    1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212,
-    1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224
-  },
-  {
-    2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110, 2111, 2112,
-    2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123, 2124,
-    2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
-    2213, 2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224
-  }
-};
+const gint test_frames[2][48]
+    = { { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
+            1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124,
+            1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212,
+            1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 },
+        { 2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110, 2111, 2112, 2113,
+            2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123, 2124, 2201,
+            2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212, 2213,
+            2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224 } };
 
 /**
  * @brief Callback for tensor sink signal.
  */
 static void
-new_data_cb (GstElement * element, GstBuffer * buffer, gpointer user_data)
+new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   GstMemory *mem_res;
   GstMapInfo info_res;
   gint *output, i;
-  gint index = *(gint *) user_data;
+  gint index = *(gint *)user_data;
 
   data_received++;
   /* Index 100 means a callback that is not allowed. */
   EXPECT_NE (100, index);
   mem_res = gst_buffer_get_memory (buffer, 0);
   g_assert (gst_memory_map (mem_res, &info_res, GST_MAP_READ));
-  output = (gint *) info_res.data;
+  output = (gint *)info_res.data;
 
   for (i = 0; i < 48; i++) {
     EXPECT_EQ (test_frames[index][i], output[i]);
@@ -546,12 +551,12 @@ TEST (tensor_if_appsrc, action_0)
   gchar *caps_name;
   GstStructure *structure;
   GstPad *pad;
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
-       "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:1:1:1,0 supplied-value=1217 "
-          "operator=EQ then=PASSTHROUGH else=SKIP ! "
-          "other/tensors,num_tensors=1,dimensions=(string)3:4:2:2, types=(string)int32, framerate=(fraction)0/1 ! "
-          "tensor_sink name=sinkx async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:1:1:1,0 supplied-value=1217 "
+      "operator=EQ then=PASSTHROUGH else=SKIP ! "
+      "other/tensors,num_tensors=1,dimensions=(string)3:4:2:2, types=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -566,7 +571,7 @@ TEST (tensor_if_appsrc, action_0)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
 
   buf_0 = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
@@ -628,12 +633,12 @@ TEST (tensor_if_appsrc, action_1)
   GstElement *appsrc_handle, *sink_handle, *tif_handle;
   gint i, idx;
 
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
-       "tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=1162.5 "
-          "operator=EQ then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
-            "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
-            "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=1162.5 "
+      "operator=EQ then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
+      "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
+      "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -647,13 +652,13 @@ TEST (tensor_if_appsrc, action_1)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_true");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
   gst_object_unref (sink_handle);
 
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_false");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
   gst_object_unref (sink_handle);
 
   buf_0 = gst_buffer_new ();
@@ -694,15 +699,17 @@ TEST (tensor_if_appsrc, action_1)
 /**
  * @brief custom callback function
  */
-gboolean tensor_if_custom_cb (const GstTensorsInfo *info,
-    const GstTensorMemory * input, void * user_data, gboolean * result) {
+gboolean
+tensor_if_custom_cb (const GstTensorsInfo *info, const GstTensorMemory *input,
+    void *user_data, gboolean *result)
+{
   gint *output, i, idx;
 
   if (!info || !input || !result)
     return FALSE;
 
-  idx = *(gint *) user_data;
-  output = (gint *) input[idx].data;
+  idx = *(gint *)user_data;
+  output = (gint *)input[idx].data;
   *result = TRUE;
 
   for (i = 0; i < 48; i++) {
@@ -727,13 +734,14 @@ TEST (tensor_if_custom, normal_0)
   gint i, idx;
   gchar *str_val;
 
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
-       "tensor_if name=tif compared-value=CUSTOM compared-value-option=tifx then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
-            "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
-            "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value=CUSTOM compared-value-option=tifx then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
+      "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
+      "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
-  EXPECT_EQ (0, nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, (gpointer) &idx));
+  EXPECT_EQ (0,
+      nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, (gpointer)&idx));
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -747,13 +755,13 @@ TEST (tensor_if_custom, normal_0)
   tif_handle = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
   EXPECT_NE (tif_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
   gst_object_unref (sink_handle);
 
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_false");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
   gst_object_unref (sink_handle);
 
   g_object_get (tif_handle, "compared-value-option", &str_val, NULL);
@@ -801,11 +809,11 @@ TEST (tensor_if_custom, normal_1)
   GstElement *tif_handle;
   gchar *str_val;
   gint int_val;
-  gchar *str_pipeline = g_strdup
-      ("appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
-       "tensor_if name=tif compared-value-option=tifx compared-value=CUSTOM  then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
-            "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
-            "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensors,num_tensors=2,dimensions=(string)3:4:2:2.3:4:2:2, types=(string)int32.int32,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value-option=tifx compared-value=CUSTOM  then=TENSORPICK then-option=0 else=TENSORPICK else-option=1 "
+      "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
+      "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -866,7 +874,8 @@ TEST (tensor_if_custom, invalid_param_3_n)
 /**
  * @brief Main GTest
  */
-int main (int argc, char **argv)
+int
+main (int argc, char **argv)
 {
   int result = -1;
 

@@ -26,10 +26,10 @@
  * (e.g., TF-Lite and TF2-Lite) from this source code.
  */
 
-#include <unistd.h>
-#include <limits.h>
 #include <algorithm>
+#include <limits.h>
 #include <thread>
+#include <unistd.h>
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
@@ -38,20 +38,22 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 
-#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 1 && TFLITE_VERSION_MINOR >= 14) || TFLITE_VERSION_MAJOR >=  2)
+#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 1 && TFLITE_VERSION_MINOR >= 14) \
+                                || TFLITE_VERSION_MAJOR >= 2)
 #define TFLITE_NNAPI_DELEGATE_SUPPORTED
 #endif
 
-#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 2 && TFLITE_VERSION_MINOR >= 3) || TFLITE_VERSION_MAJOR > 2)
+#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 2 && TFLITE_VERSION_MINOR >= 3) \
+                                || TFLITE_VERSION_MAJOR > 2)
 #define TFLITE_GPU_DELEGATE_SUPPORTED
 #endif
 
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
-#include <tensorflow/lite/model.h>
 #include <tensorflow/lite/kernels/register.h>
+#include <tensorflow/lite/model.h>
 #else
-#include <tensorflow/contrib/lite/model.h>
 #include <tensorflow/contrib/lite/kernels/register.h>
+#include <tensorflow/contrib/lite/model.h>
 #endif
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
@@ -72,8 +74,7 @@
 /**
  * @brief Option to open tf-lite model.
  */
-typedef struct
-{
+typedef struct {
   const gchar *model_file; /**< path to tensorflow-lite model file */
   const gchar *accelerators; /**< accelerators set for this subplugin */
   gint num_threads; /**< the number of threads */
@@ -82,14 +83,8 @@ typedef struct
 /**
  * @brief Possible accelerators.
  */
-static const gchar *tflite_accl_support[] = {
-  ACCL_CPU_NEON_STR,
-  ACCL_CPU_SIMD_STR,
-  ACCL_CPU_STR,
-  ACCL_GPU_STR,
-  ACCL_NPU_STR,
-  NULL
-};
+static const gchar *tflite_accl_support[] = { ACCL_CPU_NEON_STR,
+  ACCL_CPU_SIMD_STR, ACCL_CPU_STR, ACCL_GPU_STR, ACCL_NPU_STR, NULL };
 
 #if defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)
 static const gchar *tflite_accl_auto = ACCL_CPU_SIMD_STR;
@@ -109,63 +104,83 @@ static GstTensorFilterFrameworkStatistics tflite_internal_stats = {
  */
 class TFLiteInterpreter
 {
-public:
+  public:
   TFLiteInterpreter ();
   ~TFLiteInterpreter ();
 
-  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
   int loadModel (int num_threads, accl_hw accelerator);
-  void moveInternals (TFLiteInterpreter& interp);
+  void moveInternals (TFLiteInterpreter &interp);
 
   int setInputTensorProp ();
   int setOutputTensorProp ();
-  int setInputTensorsInfo (const GstTensorsInfo * info);
+  int setInputTensorsInfo (const GstTensorsInfo *info);
 
   void setModelPath (const char *model_path);
   /** @brief get current model path */
-  const char *getModelPath () { return model_path; }
+  const char *getModelPath ()
+  {
+    return model_path;
+  }
 
   /** @brief return input tensor meta */
-  const GstTensorsInfo* getInputTensorsInfo () { return &inputTensorMeta; }
+  const GstTensorsInfo *getInputTensorsInfo ()
+  {
+    return &inputTensorMeta;
+  }
   /** @brief return output tensor meta */
-  const GstTensorsInfo* getOutputTensorsInfo () { return &outputTensorMeta; }
+  const GstTensorsInfo *getOutputTensorsInfo ()
+  {
+    return &outputTensorMeta;
+  }
 
   /** @brief lock this interpreter */
-  void lock () { g_mutex_lock (&mutex); }
+  void lock ()
+  {
+    g_mutex_lock (&mutex);
+  }
   /** @brief unlock this interpreter */
-  void unlock () { g_mutex_unlock (&mutex); }
+  void unlock ()
+  {
+    g_mutex_unlock (&mutex);
+  }
   /** @brief cache input and output tensor ptr before invoke */
   int cacheInOutTensorPtr ();
 
   /** @brief set delegate for the tflite interpreter */
-  void setDelegate (TfLiteDelegate* delegate) { delegate_ = delegate; }
+  void setDelegate (TfLiteDelegate *delegate)
+  {
+    delegate_ = delegate;
+  }
 
-private:
+  private:
   GMutex mutex;
   char *model_path;
-  bool is_cached_after_first_invoke;  /**< To cache again after first invoke */
+  bool is_cached_after_first_invoke; /**< To cache again after first invoke */
 
-  std::unique_ptr <tflite::Interpreter> interpreter;
-  std::unique_ptr <tflite::FlatBufferModel> model;
+  std::unique_ptr<tflite::Interpreter> interpreter;
+  std::unique_ptr<tflite::FlatBufferModel> model;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
   std::vector<TfLiteTensor *> inputTensorPtr;
   std::vector<TfLiteTensor *> outputTensorPtr;
 
   tensor_type getTensorType (TfLiteType tfType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
-  int setTensorProp (const std::vector<int> &tensor_idx_list,
-      GstTensorsInfo * tensorMeta);
+  int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
-  TfLiteDelegate* delegate_ = nullptr; /**< The delegate for tflite interpreter */
+  TfLiteDelegate *delegate_
+      = nullptr; /**< The delegate for tflite interpreter */
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-  std::unique_ptr<tflite::StatefulNnApiDelegate> stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
+  std::unique_ptr<tflite::StatefulNnApiDelegate>
+      stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
 #endif
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate */
+  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate
+                                                   */
 #endif
 };
 
@@ -174,33 +189,33 @@ private:
  */
 class TFLiteCore
 {
-public:
-  int init (tflite_option_s * option);
+  public:
+  int init (tflite_option_s *option);
   int loadModel ();
   gboolean compareModelPath (const char *model_path);
   int setInputTensorProp ();
   int setOutputTensorProp ();
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int setInputTensorDim (const GstTensorsInfo * info);
-  int reloadModel (const char * model_path);
-  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int setInputTensorDim (const GstTensorsInfo *info);
+  int reloadModel (const char *model_path);
+  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
   /** @brief cache input and output tensor ptr before invoke */
   int cacheInOutTensorPtr ();
 
-private:
+  private:
   int num_threads;
   accl_hw accelerator;
 
   TFLiteInterpreter interpreter;
   TFLiteInterpreter interpreter_sub;
 
-  void setAccelerator (const char * accelerators);
+  void setAccelerator (const char *accelerators);
 };
 
 extern "C" { /* accessed by android api */
-  void init_filter_tflite (void) __attribute__ ((constructor));
-  void fini_filter_tflite (void) __attribute__ ((destructor));
+void init_filter_tflite (void) __attribute__ ((constructor));
+void fini_filter_tflite (void) __attribute__ ((destructor));
 }
 
 /**
@@ -236,8 +251,7 @@ TFLiteInterpreter::~TFLiteInterpreter ()
  * @brief Internal implementation of TFLiteCore's invoke()
  */
 int
-TFLiteInterpreter::invoke (const GstTensorMemory * input,
-    GstTensorMemory * output)
+TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   int64_t start_time, stop_time;
   TfLiteTensor *tensor_ptr;
@@ -246,12 +260,12 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   start_time = g_get_monotonic_time ();
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
     tensor_ptr = outputTensorPtr[i];
-    tensor_ptr->data.raw = (char *) output[i].data;
+    tensor_ptr->data.raw = (char *)output[i].data;
   }
 
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     tensor_ptr = inputTensorPtr[i];
-    tensor_ptr->data.raw = (char *) input[i].data;
+    tensor_ptr->data.raw = (char *)input[i].data;
   }
   stop_time = g_get_monotonic_time ();
 
@@ -265,8 +279,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory * input,
   tflite_internal_stats.total_invoke_num += 1;
 
 #if (DBG)
-  g_critical ("Invoke() is finished: %" G_GINT64_FORMAT,
-      (stop_time - start_time));
+  g_critical ("Invoke() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
   g_critical ("%ld invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
       tflite_internal_stats.total_invoke_num,
       (tflite_internal_stats.total_invoke_latency / tflite_internal_stats.total_invoke_num),
@@ -305,7 +318,8 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     ml_loge ("Failed to mmap model\n");
     return -1;
   }
-  /* If got any trouble at model, active below code. It'll be help to analyze. */
+  /* If got any trouble at model, active below code. It'll be help to analyze.
+   */
   /* model->error_reporter (); */
 
   interpreter = nullptr;
@@ -328,7 +342,8 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
   /** set delegate after the accelerator prop */
   if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_NPU) {
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-    /** set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
+    /** set nnapi delegate when accelerator set to auto (cpu.neon in Android) or
+     * NPU */
     stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
     setDelegate (stateful_nnapi_delegate.get ());
 #else
@@ -337,7 +352,7 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
   } else if (accelerator == ACCL_GPU) {
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
     /** set gpu delegate when accelerator set to GPU */
-    TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default();
+    TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
     options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
     options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
 
@@ -376,34 +391,34 @@ tensor_type
 TFLiteInterpreter::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
-    case kTfLiteFloat32:
-      return _NNS_FLOAT32;
-    case kTfLiteUInt8:
-      return _NNS_UINT8;
-    case kTfLiteInt32:
-      return _NNS_INT32;
-    case kTfLiteBool:
+  case kTfLiteFloat32:
+    return _NNS_FLOAT32;
+  case kTfLiteUInt8:
+    return _NNS_UINT8;
+  case kTfLiteInt32:
+    return _NNS_INT32;
+  case kTfLiteBool:
 #ifdef TFLITE_INT8
-    case kTfLiteInt8:
+  case kTfLiteInt8:
 #endif
-      return _NNS_INT8;
+    return _NNS_INT8;
 #ifdef TFLITE_INT16
-    case kTfLiteInt16:
-      return _NNS_INT16;
+  case kTfLiteInt16:
+    return _NNS_INT16;
 #endif
-    case kTfLiteInt64:
-      return _NNS_INT64;
-    case kTfLiteString:
+  case kTfLiteInt64:
+    return _NNS_INT64;
+  case kTfLiteString:
 #ifdef TFLITE_COMPLEX64
-    case kTfLiteComplex64:
+  case kTfLiteComplex64:
 #endif
 #ifdef TFLITE_FLOAT16
-    case kTfLiteFloat16:
+  case kTfLiteFloat16:
 #endif
-    default:
-      ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);
-      /** @todo Support other types */
-      break;
+  default:
+    ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);
+    /** @todo Support other types */
+    break;
   }
 
   return _NNS_END;
@@ -442,8 +457,8 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
-    GstTensorsInfo * tensorMeta)
+TFLiteInterpreter::setTensorProp (
+    const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta)
 {
   tensorMeta->num_tensors = tensor_idx_list.size ();
 
@@ -452,14 +467,12 @@ TFLiteInterpreter::setTensorProp (const std::vector<int> &tensor_idx_list,
       ml_loge ("failed to get the dimension of input tensors");
       return -1;
     }
-    tensorMeta->info[i].type =
-        getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
+    tensorMeta->info[i].type
+        = getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
 
 #if (DBG)
-    gchar *dim_str =
-        gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
-    g_message ("tensorMeta[%d] >> type:%d, dim[%s]",
-        i, tensorMeta->info[i].type, dim_str);
+    gchar *dim_str = gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
+    g_message ("tensorMeta[%d] >> type:%d, dim[%s]", i, tensorMeta->info[i].type, dim_str);
     g_free (dim_str);
 #endif
   }
@@ -493,7 +506,7 @@ TFLiteInterpreter::setOutputTensorProp ()
  * @note rank can be changed dependent on the model
  */
 int
-TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
+TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
 {
   TfLiteStatus status = kTfLiteOk;
   const std::vector<int> &input_idx_list = interpreter->inputs ();
@@ -510,8 +523,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo * info)
     tensor_info = &info->info[tensor_idx];
 
     /** cannot change the type of input */
-    tf_type = getTensorType (
-        interpreter->tensor (input_idx_list[tensor_idx])->type);
+    tf_type = getTensorType (interpreter->tensor (input_idx_list[tensor_idx])->type);
     if (tf_type != tensor_info->type)
       return -EINVAL;
 
@@ -566,7 +578,7 @@ TFLiteInterpreter::setModelPath (const char *_model_path)
  * @brief Move the ownership of interpreter internal members
  */
 void
-TFLiteInterpreter::moveInternals (TFLiteInterpreter& interp)
+TFLiteInterpreter::moveInternals (TFLiteInterpreter &interp)
 {
   interpreter = std::move (interp.interpreter);
   model = std::move (interp.model);
@@ -621,10 +633,10 @@ fail_exit:
  * @brief	Set the accelerator for the tf engine
  */
 void
-TFLiteCore::setAccelerator (const char * accelerators)
+TFLiteCore::setAccelerator (const char *accelerators)
 {
-  accelerator = parse_accl_hw (accelerators, tflite_accl_support,
-      tflite_accl_auto, tflite_accl_default);
+  accelerator = parse_accl_hw (
+      accelerators, tflite_accl_support, tflite_accl_auto, tflite_accl_default);
 
   return;
 }
@@ -639,7 +651,7 @@ TFLiteCore::setAccelerator (const char * accelerators)
  *        -4 if the caching of input and output tensors failed.
  */
 int
-TFLiteCore::init (tflite_option_s * option)
+TFLiteCore::init (tflite_option_s *option)
 {
   interpreter.setModelPath (option->model_file);
   num_threads = option->num_threads;
@@ -738,7 +750,7 @@ TFLiteCore::setOutputTensorProp ()
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getInputTensorDim (GstTensorsInfo * info)
+TFLiteCore::getInputTensorDim (GstTensorsInfo *info)
 {
   interpreter.lock ();
   gst_tensors_info_copy (info, interpreter.getInputTensorsInfo ());
@@ -754,7 +766,7 @@ TFLiteCore::getInputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
+TFLiteCore::getOutputTensorDim (GstTensorsInfo *info)
 {
   interpreter.lock ();
   gst_tensors_info_copy (info, interpreter.getOutputTensorsInfo ());
@@ -770,7 +782,7 @@ TFLiteCore::getOutputTensorDim (GstTensorsInfo * info)
  * @note rank can be changed dependent on the model
  */
 int
-TFLiteCore::setInputTensorDim (const GstTensorsInfo * info)
+TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 {
   int err;
 
@@ -790,13 +802,12 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo * info)
  *       extra memory size enough to temporarily hold both models during this function.
  */
 int
-TFLiteCore::reloadModel (const char * _model_path)
+TFLiteCore::reloadModel (const char *_model_path)
 {
   int err;
 
   if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("The path of model file(s), %s, to reload is invalid.",
-        _model_path);
+    ml_loge ("The path of model file(s), %s, to reload is invalid.", _model_path);
     return -EINVAL;
   }
 
@@ -829,12 +840,10 @@ TFLiteCore::reloadModel (const char * _model_path)
   }
 
   /* Also, we need to check input/output tensors have the same info */
-  if (!gst_tensors_info_is_equal (
-        interpreter.getInputTensorsInfo (),
-        interpreter_sub.getInputTensorsInfo ()) ||
-      !gst_tensors_info_is_equal (
-        interpreter.getOutputTensorsInfo (),
-        interpreter_sub.getOutputTensorsInfo ())) {
+  if (!gst_tensors_info_is_equal (interpreter.getInputTensorsInfo (),
+          interpreter_sub.getInputTensorsInfo ())
+      || !gst_tensors_info_is_equal (interpreter.getOutputTensorsInfo (),
+             interpreter_sub.getOutputTensorsInfo ())) {
     ml_loge ("The model has unmatched tensors info\n");
     err = -EINVAL;
     goto out_unlock;
@@ -862,7 +871,7 @@ out_unlock:
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
+TFLiteCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   int err;
 
@@ -892,8 +901,7 @@ TFLiteCore::cacheInOutTensorPtr ()
  * @brief Internal function to get the option for tf-lite model.
  */
 static int
-tflite_parseCustomOption (const GstTensorFilterProperties * prop,
-    tflite_option_s * option)
+tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s *option)
 {
   if (prop->num_models != 1 || prop->model_files[0] == NULL)
     return -1;
@@ -917,7 +925,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties * prop,
         g_strstrip (pair[1]);
 
         if (g_ascii_strcasecmp (pair[0], "NumThreads") == 0) {
-          option->num_threads = (int) g_ascii_strtoll (pair[1], NULL, 10);
+          option->num_threads = (int)g_ascii_strtoll (pair[1], NULL, 10);
         } else {
           g_warning ("Unknown option (%s).", strv[i]);
         }
@@ -936,9 +944,9 @@ tflite_parseCustomOption (const GstTensorFilterProperties * prop,
  * @brief Free privateData and move on.
  */
 static void
-tflite_close (const GstTensorFilterProperties * prop, void **private_data)
+tflite_close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
 
   if (!core)
     return;
@@ -956,18 +964,19 @@ tflite_close (const GstTensorFilterProperties * prop, void **private_data)
  *        -2 if the object initialization if failed
  */
 static int
-tflite_loadModelFile (const GstTensorFilterProperties * prop,
-    void **private_data)
+tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
   TFLiteCore *core;
-  tflite_option_s option = { 0, };
+  tflite_option_s option = {
+    0,
+  };
 
   if (tflite_parseCustomOption (prop, &option) != 0) {
     g_printerr ("Failed to parse options to initialize tensorflow-lite model.");
     return -1;
   }
 
-  core = static_cast<TFLiteCore *>(*private_data);
+  core = static_cast<TFLiteCore *> (*private_data);
 
   if (core != NULL) {
     if (core->compareModelPath (option.model_file))
@@ -1001,7 +1010,7 @@ tflite_loadModelFile (const GstTensorFilterProperties * prop,
  * @param private_data : tensorflow lite plugin's private data
  */
 static int
-tflite_open (const GstTensorFilterProperties * prop, void **private_data)
+tflite_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   int status = tflite_loadModelFile (prop, private_data);
 
@@ -1017,10 +1026,10 @@ tflite_open (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 if OK. non-zero if error.
  */
 static int
-tflite_invoke (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+tflite_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->invoke (input, output);
@@ -1033,10 +1042,10 @@ tflite_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of input tensors
  */
 static int
-tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+tflite_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
@@ -1049,50 +1058,46 @@ tflite_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of output tensors
  */
 static int
-tflite_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+tflite_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
 }
 
 #define tryRecovery(failedAt, status, location, exp) \
-  do { \
-    status = (exp); \
-    if (status != 0) { \
-      failedAt = location; \
-      goto recovery_fail; \
-    } \
+  do {                                               \
+    status = (exp);                                  \
+    if (status != 0) {                               \
+      failedAt = location;                           \
+      goto recovery_fail;                            \
+    }                                                \
   } while (0)
 
 /**
  * @brief A fallback function to recover input tensor dimensions
  */
 static void
-tflite_setInputDim_recovery (TFLiteCore *core, GstTensorsInfo *cur_in_info,
-    const char * reason, int mode)
+tflite_setInputDim_recovery (
+    TFLiteCore *core, GstTensorsInfo *cur_in_info, const char *reason, int mode)
 {
   int failedAt, status;
 
-  tryRecovery (failedAt, status, __LINE__,
-      core->setInputTensorDim (cur_in_info));
+  tryRecovery (failedAt, status, __LINE__, core->setInputTensorDim (cur_in_info));
   if (mode >= 1)
-    tryRecovery (failedAt, status, __LINE__,
-        core->setInputTensorProp ());
+    tryRecovery (failedAt, status, __LINE__, core->setInputTensorProp ());
   if (mode >= 2)
-    tryRecovery (failedAt, status, __LINE__,
-        core->setOutputTensorProp ());
-  tryRecovery (failedAt, status, __LINE__,
-      core->cacheInOutTensorPtr ());
+    tryRecovery (failedAt, status, __LINE__, core->setOutputTensorProp ());
+  tryRecovery (failedAt, status, __LINE__, core->cacheInOutTensorPtr ());
 
   return;
 
 recovery_fail:
-  ml_logf
-      ("Tensorflow-lite's setInputDim failed (%s) and its recovery failed (at %d line with error %d), too. "
-       "The behavior will be unstable.\n", reason, failedAt, status);
+  ml_logf ("Tensorflow-lite's setInputDim failed (%s) and its recovery failed (at %d line with error %d), too. "
+           "The behavior will be unstable.\n",
+      reason, failedAt, status);
 }
 
 /**
@@ -1104,10 +1109,10 @@ recovery_fail:
  * @detail Output Tensor info is recalculated based on the set Input Tensor Info
  */
 static int
-tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   GstTensorsInfo cur_in_info;
   int status;
 
@@ -1123,38 +1128,35 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /** set new input tensor info */
   status = core->setInputTensorDim (in_info);
   if (status != 0) {
-    tflite_setInputDim_recovery (core, &cur_in_info,
-        "while setting input tensor info", 0);
+    tflite_setInputDim_recovery (core, &cur_in_info, "while setting input tensor info", 0);
     return status;
   }
 
   /** update input tensor info */
   if ((status = core->setInputTensorProp ()) != 0) {
-    tflite_setInputDim_recovery (core, &cur_in_info,
-        "while updating input tensor info", 1);
+    tflite_setInputDim_recovery (core, &cur_in_info, "while updating input tensor info", 1);
     return status;
   }
 
   /** update output tensor info */
   if ((status = core->setOutputTensorProp ()) != 0) {
-    tflite_setInputDim_recovery (core, &cur_in_info,
-        "while updating output tensor info", 2);
+    tflite_setInputDim_recovery (core, &cur_in_info, "while updating output tensor info", 2);
     return status;
   }
 
   /** update the input and output tensor cache */
   status = core->cacheInOutTensorPtr ();
   if (status != 0) {
-    tflite_setInputDim_recovery (core, &cur_in_info,
-        "while updating input and output tensor cache", 2);
+    tflite_setInputDim_recovery (
+        core, &cur_in_info, "while updating input and output tensor cache", 2);
     return status;
   }
 
   /** get output tensor info to be returned */
   status = core->getOutputTensorDim (out_info);
   if (status != 0) {
-    tflite_setInputDim_recovery (core, &cur_in_info,
-        "while retreiving update output tensor info", 2);
+    tflite_setInputDim_recovery (
+        core, &cur_in_info, "while retreiving update output tensor info", 2);
     return status;
   }
 
@@ -1168,9 +1170,9 @@ tflite_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @return 0 if OK. non-zero if error.
  */
 static int
-tflite_reloadModel (const GstTensorFilterProperties * prop, void **private_data)
+tflite_reloadModel (const GstTensorFilterProperties *prop, void **private_data)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *>(*private_data);
+  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core, -EINVAL);
 
   if (prop->num_models != 1)
@@ -1199,29 +1201,26 @@ static gchar filter_subplugin_tensorflow_lite[] = "tensorflow2-lite";
 static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
 #endif
 
-static GstTensorFilterFramework NNS_support_tensorflow_lite = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .open = tflite_open,
-  .close = tflite_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_tensorflow_lite,
-      .allow_in_place = FALSE,  /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = TRUE,
-      .statistics = &tflite_internal_stats,
-      .invoke_NN = tflite_invoke,
-      .getInputDimension = tflite_getInputDim,
-      .getOutputDimension = tflite_getOutputDim,
-      .setInputDimension = tflite_setInputDim,
-      .destroyNotify = nullptr,
-      .reloadModel = tflite_reloadModel,
-      .checkAvailability = tflite_checkAvailability,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+static GstTensorFilterFramework NNS_support_tensorflow_lite
+    = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+        .open = tflite_open,
+        .close = tflite_close,
+        {.v0 = {
+             .name = filter_subplugin_tensorflow_lite,
+             .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+             .allocate_in_invoke = FALSE,
+             .run_without_model = FALSE,
+             .verify_model_path = TRUE,
+             .statistics = &tflite_internal_stats,
+             .invoke_NN = tflite_invoke,
+             .getInputDimension = tflite_getInputDim,
+             .getOutputDimension = tflite_getOutputDim,
+             .setInputDimension = tflite_setInputDim,
+             .destroyNotify = nullptr,
+             .reloadModel = tflite_reloadModel,
+             .checkAvailability = tflite_checkAvailability,
+             .allocateInInvoke = nullptr,
+         } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

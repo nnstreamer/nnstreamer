@@ -8,13 +8,13 @@
  */
 
 #include <gtest/gtest.h>
-#include <glib.h>
-#include <glib/gstdio.h>        /* GStatBuf */
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <glib.h>
+#include <glib/gstdio.h> /* GStatBuf */
+#include <sys/stat.h>
 
-#include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
 
 /**
  * @brief Test armnn subplugin existence.
@@ -22,7 +22,7 @@
 TEST (nnstreamer_filter_armnn, check_existence)
 {
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 }
 
 /**
@@ -31,17 +31,16 @@ TEST (nnstreamer_filter_armnn, check_existence)
 TEST (nnstreamer_filter_armnn, open_close_00_n)
 {
   int ret;
-  const gchar *model_files[] = { "temp.armnn", NULL, };
+  const gchar *model_files[] = {
+    "temp.armnn", NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
   void *data = NULL;
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   ret = sp->open (&prop, &data);
   EXPECT_NE (ret, 0);
@@ -59,20 +58,19 @@ TEST (nnstreamer_filter_armnn, open_close_01_n)
 
   ASSERT_NE (root_path, nullptr);
 
-  model_file = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   /** close without open, should not crash */
   sp->close (&prop, &data);
@@ -100,20 +98,19 @@ TEST (nnstreamer_filter_armnn, get_dimension)
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
-  model_file = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   /** get input/output dimension without open */
   ret = sp->getInputDimension (&prop, &data, &res);
@@ -173,25 +170,24 @@ TEST (nnstreamer_filter_armnn, invoke_00)
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
-  model_file = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
-  output.size = input.size = sizeof(float) * 1;
+  output.size = input.size = sizeof (float) * 1;
 
-  input.data = g_malloc(input.size);
-  output.data = g_malloc(output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   /** invoke without open */
   ret = sp->invoke_NN (&prop, &data, &input, &output);
@@ -227,11 +223,12 @@ TEST (nnstreamer_filter_armnn, invoke_00)
  * @brief get argmax from the array
  */
 template <typename T>
-size_t get_argmax (T *array, size_t size)
+size_t
+get_argmax (T *array, size_t size)
 {
   size_t idx, max_idx = 0;
   T max_value = 0;
-  for (idx = 0; idx < size; idx ++) {
+  for (idx = 0; idx < size; idx++) {
     if (max_value < array[idx]) {
       max_idx = idx;
       max_value = array[idx];
@@ -268,16 +265,15 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
     ASSERT_EQ (status, TRUE);
   }
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   info.num_tensors = 1;
   info.info[0].type = _NNS_UINT8;
@@ -321,25 +317,26 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
 
   output.size = gst_tensor_info_get_size (&res.info[0]);
 
-  input.data = g_malloc(input.size);
-  output.data = g_malloc(output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
-  data_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "orange.raw", NULL);
-  fd = open(data_file, O_RDONLY);
+  data_file = g_build_filename (
+      root_path, "tests", "test_models", "data", "orange.raw", NULL);
+  fd = open (data_file, O_RDONLY);
 
   EXPECT_TRUE (fd >= 0);
   /** Invoke output will not match with fd < 0 - input will be random data */
   if (fd >= 0) {
-    data_read = read(fd, input.data, input.size);
+    data_read = read (fd, input.data, input.size);
     EXPECT_EQ (data_read, input.size);
-    close(fd);
+    close (fd);
   }
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
-  /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt */
+  /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt
+   */
   max_idx = get_argmax<guint8> ((guint8 *)output.data, output.size);
   EXPECT_EQ (max_idx, 951);
 
@@ -372,16 +369,14 @@ TEST (nnstreamer_filter_armnn, invoke_01)
       "lenet_iter_9000.caffemodel", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  data_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "9.raw", NULL);
+  data_file = g_build_filename (root_path, "tests", "test_models", "data", "9.raw", NULL);
   ASSERT_TRUE (g_file_test (data_file, G_FILE_TEST_EXISTS));
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "armnn",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   /** Manually configure the input for test */
@@ -393,24 +388,22 @@ TEST (nnstreamer_filter_armnn, invoke_01)
   prop.input_meta.num_tensors = 1;
   prop.input_meta.info[0].name = g_strdup ("data");
 
-  EXPECT_TRUE (g_file_get_contents (data_file, &input_uint8_data,
-        &input_uint8_size, NULL));
+  EXPECT_TRUE (g_file_get_contents (data_file, &input_uint8_data, &input_uint8_size, NULL));
 
   /** Convert the data from uint8 to float */
   input.size = input_uint8_size * gst_tensor_get_element_size (_NNS_FLOAT32);
   input.data = g_malloc (input.size);
-  for (gsize idx=0; idx < input_uint8_size; idx ++) {
-    ((float *) input.data)[idx] =
-      static_cast<float> (((guint8 *) input_uint8_data)[idx]);
-    ((float *) input.data)[idx] -= 127.5;
-    ((float *) input.data)[idx] /= 127.5;
+  for (gsize idx = 0; idx < input_uint8_size; idx++) {
+    ((float *)input.data)[idx] = static_cast<float> (((guint8 *)input_uint8_data)[idx]);
+    ((float *)input.data)[idx] -= 127.5;
+    ((float *)input.data)[idx] /= 127.5;
   }
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   output.size = gst_tensor_get_element_size (_NNS_FLOAT32) * num_labels;
-  output.data = g_malloc(output.size);
+  output.data = g_malloc (output.size);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);

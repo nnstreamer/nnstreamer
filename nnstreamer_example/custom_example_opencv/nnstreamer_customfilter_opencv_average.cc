@@ -19,16 +19,15 @@
 #include <opencv2/opencv.hpp>
 
 #include <glib.h>
-#include <tensor_filter_custom.h>
 #include <nnstreamer_plugin_api.h>
+#include <tensor_filter_custom.h>
 
 /**
  * @brief _pt_data Internal data structure
  */
-typedef struct _pt_data
-{
-  uint32_t in_height;  /***< height of input tensor */
-  uint32_t in_width;   /***< width of input tensor */
+typedef struct _pt_data {
+  uint32_t in_height; /***< height of input tensor */
+  uint32_t in_width; /***< width of input tensor */
   uint32_t in_channel; /***< channel of input tensor */
 } pt_data;
 
@@ -36,7 +35,7 @@ typedef struct _pt_data
  * @brief pt_init
  */
 static void *
-pt_init (const GstTensorFilterProperties * prop)
+pt_init (const GstTensorFilterProperties *prop)
 {
   pt_data *pdata = g_new0 (pt_data, 1);
   g_assert (pdata != NULL);
@@ -48,7 +47,7 @@ pt_init (const GstTensorFilterProperties * prop)
  * @brief pt_exit
  */
 static void
-pt_exit (void *private_data, const GstTensorFilterProperties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties *prop)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
   g_assert (pdata);
@@ -59,8 +58,8 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
  * @brief set_inputDim
  */
 static int
-set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+set_inputDim (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
   int i;
   pt_data *pdata = static_cast<pt_data *> (private_data);
@@ -91,8 +90,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
  * @brief pt_invoke
  */
 static int
-pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
-    const GstTensorMemory * input, GstTensorMemory * output)
+pt_invoke (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
   size_t in_size;
@@ -115,18 +114,18 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   img_src = cv::Mat (pdata->in_height, pdata->in_width, CV_8UC3, buffer);
 
   /* Get the channel info from Mat object */
-  cv::split(img_src, channels);
+  cv::split (img_src, channels);
 
   /* Calculate an average of each channel */
   optr = static_cast<uint8_t *> (output[0].data);
   for (uint32_t i = 0; i < pdata->in_channel; ++i) {
-    mean_result = cv::mean(channels[i]);
+    mean_result = cv::mean (channels[i]);
     *optr = static_cast<uint8_t> (mean_result[0]);
     optr++;
   }
 
   g_assert (input[0].data != output[0].data);
-  g_free(buffer);
+  g_free (buffer);
 
   return 0;
 }

@@ -22,18 +22,18 @@
 #include <iostream>
 #include <string>
 
-#include <nnstreamer_log.h>
-#include <nnstreamer_cppplugin_api_filter.hh>
-#include <tensor_common.h>
 #include <glib.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
+#include <tensor_common.h>
 
-#include <SNPE/SNPE.hpp>
-#include <SNPE/SNPEFactory.hpp>
-#include <SNPE/SNPEBuilder.hpp>
 #include <DlContainer/IDlContainer.hpp>
-#include <DlSystem/RuntimeList.hpp>
 #include <DlSystem/ITensorFactory.hpp>
+#include <DlSystem/RuntimeList.hpp>
 #include <DlSystem/TensorMap.hpp>
+#include <SNPE/SNPE.hpp>
+#include <SNPE/SNPEBuilder.hpp>
+#include <SNPE/SNPEFactory.hpp>
 
 #if defined(__ANDROID__)
 #include <jni.h>
@@ -46,20 +46,23 @@
 #define DBG FALSE
 #endif
 
-namespace nnstreamer {
-namespace tensor_filter_snpe {
+namespace nnstreamer
+{
+namespace tensor_filter_snpe
+{
 
 extern "C" {
 #if defined(__ANDROID__)
-  void init_filter_snpe (JNIEnv * env, jobject context);
+void init_filter_snpe (JNIEnv *env, jobject context);
 #else
-  void init_filter_snpe (void) __attribute__ ((constructor));
+void init_filter_snpe (void) __attribute__ ((constructor));
 #endif
-  void fini_filter_snpe (void) __attribute__ ((destructor));
+void fini_filter_snpe (void) __attribute__ ((destructor));
 }
 
-class snpe_subplugin final : public tensor_filter_subplugin {
-private:
+class snpe_subplugin final : public tensor_filter_subplugin
+{
+  private:
   bool empty_model;
   char *model_path; /**< The model *.dlc file */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
@@ -78,7 +81,7 @@ private:
 
   zdl::DlSystem::TensorMap input_tensor_map;
   zdl::DlSystem::TensorMap output_tensor_map;
-  std::vector<std::unique_ptr <zdl::DlSystem::ITensor>> input_tensors;
+  std::vector<std::unique_ptr<zdl::DlSystem::ITensor>> input_tensors;
 
   static const char *name;
   static snpe_subplugin *registeredRepresentation;
@@ -86,36 +89,30 @@ private:
   void cleanup ();
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
-  static void setTensorProp (GstTensorsInfo & tensor_meta,
-      zdl::DlSystem::TensorMap & tensor_map);
-  static const char * runtimeToString (zdl::DlSystem::Runtime_t runtime);
+  static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map);
+  static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
-public:
+  public:
   static void init_filter_snpe ();
   static void fini_filter_snpe ();
 
   snpe_subplugin ();
   ~snpe_subplugin ();
 
-  tensor_filter_subplugin & getEmptyInstance();
+  tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
-  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info,
-      GstTensorsInfo &out_info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
 };
 
 const char *snpe_subplugin::name = "snpe";
 
-snpe_subplugin::snpe_subplugin () :
-    tensor_filter_subplugin (),
-    empty_model (true),
-    model_path (nullptr),
-    runtime_list (zdl::DlSystem::Runtime_t::CPU),
-    use_cpu_fallback (false),
-    container (nullptr),
-    snpe (nullptr)
+snpe_subplugin::snpe_subplugin ()
+    : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
+      runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
+      container (nullptr), snpe (nullptr)
 {
   inputInfo.num_tensors = 0;
   outputInfo.num_tensors = 0;
@@ -125,7 +122,8 @@ snpe_subplugin::snpe_subplugin () :
 #endif
 }
 
-void snpe_subplugin::cleanup ()
+void
+snpe_subplugin::cleanup ()
 {
   if (empty_model)
     return;
@@ -156,38 +154,43 @@ void snpe_subplugin::cleanup ()
 snpe_subplugin::~snpe_subplugin ()
 {
 #if (DBG)
-  nns_logd ("Average Invoke latency: %" G_GINT64_FORMAT "us, for total: %" G_GINT64_FORMAT " frames, used model: %s, used runtime: %s",
-      (invoke_time_total/total_frames), total_frames, model_path, runtimeToString (runtime_list[0]));
+  nns_logd ("Average Invoke latency: %" G_GINT64_FORMAT "us, for total: %" G_GINT64_FORMAT
+            " frames, used model: %s, used runtime: %s",
+      (invoke_time_total / total_frames), total_frames, model_path,
+      runtimeToString (runtime_list[0]));
 #endif
 
   cleanup ();
 }
 
-tensor_filter_subplugin & snpe_subplugin::getEmptyInstance ()
+tensor_filter_subplugin &
+snpe_subplugin::getEmptyInstance ()
 {
-  return *(new snpe_subplugin());
+  return *(new snpe_subplugin ());
 }
 
-const char * snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
+const char *
+snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 {
   switch (runtime) {
-    case zdl::DlSystem::Runtime_t::CPU:
-      return "CPU";
-    case zdl::DlSystem::Runtime_t::GPU:
-      return "GPU";
-    case zdl::DlSystem::Runtime_t::DSP:
-      return "DSP";
-    case zdl::DlSystem::Runtime_t::AIP_FIXED8_TF:
-      return "AIP_FIXED8_TF";
-    default:
-      return "invalid_runtime...";
+  case zdl::DlSystem::Runtime_t::CPU:
+    return "CPU";
+  case zdl::DlSystem::Runtime_t::GPU:
+    return "GPU";
+  case zdl::DlSystem::Runtime_t::DSP:
+    return "DSP";
+  case zdl::DlSystem::Runtime_t::AIP_FIXED8_TF:
+    return "AIP_FIXED8_TF";
+  default:
+    return "invalid_runtime...";
   }
 }
 
 /**
  * @brief Internal method to parse custom options.
  */
-bool snpe_subplugin::parse_custom_prop (const char *custom_prop)
+bool
+snpe_subplugin::parse_custom_prop (const char *custom_prop)
 {
   gchar **options;
   bool invalid_option = false;
@@ -217,8 +220,7 @@ bool snpe_subplugin::parse_custom_prop (const char *custom_prop)
         } else if (g_ascii_strcasecmp (option[1], "NPU") == 0) {
           runtime = zdl::DlSystem::Runtime_t::AIP_FIXED8_TF;
         } else {
-          nns_logw ("Unknown runtime (%s), set CPU as default.",
-              options[op]);
+          nns_logw ("Unknown runtime (%s), set CPU as default.", options[op]);
           invalid_option = true;
         }
         if (zdl::SNPE::SNPEFactory::isRuntimeAvailable (runtime)) {
@@ -256,7 +258,8 @@ bool snpe_subplugin::parse_custom_prop (const char *custom_prop)
 /**
  * @brief Internal method to set the options for SNPE instance.
  */
-bool snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
+bool
+snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
 {
   if (!parse_custom_prop (prop->custom_properties)) {
     nns_loge ("Cannot get the proper custom properties.");
@@ -266,10 +269,11 @@ bool snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
   return true;
 }
 
-void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+void
+snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   nns_logi ("SNPE Version: %s",
-    zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+      zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
 
   if (!configure_option (prop)) {
     throw std::invalid_argument ("Failed to configure SNPE option.");
@@ -293,7 +297,7 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
 
-  zdl::SNPE::SNPEBuilder snpe_builder (container.get());
+  zdl::SNPE::SNPEBuilder snpe_builder (container.get ());
   snpe_builder.setOutputLayers ({});
   snpe_builder.setUseUserSuppliedBuffers (false);
   snpe_builder.setInitCacheMode (false);
@@ -305,19 +309,20 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     nns_loge ("fail to build snpe");
   }
 
-  const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt =
-      snpe->getInputTensorNames ();
+  const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt
+      = snpe->getInputTensorNames ();
 
   assert (strList_opt);
 
   const zdl::DlSystem::StringList &strList = *strList_opt;
 
   for (size_t i = 0; i < strList.size (); ++i) {
-    const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt =
-      snpe->getInputDimensions (strList.at (i));
+    const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt
+        = snpe->getInputDimensions (strList.at (i));
     const zdl::DlSystem::TensorShape &input_shape = *inputDims_opt;
 
-    input_tensors.emplace_back (zdl::SNPE::SNPEFactory::getTensorFactory ().createTensor (input_shape));
+    input_tensors.emplace_back (
+        zdl::SNPE::SNPEFactory::getTensorFactory ().createTensor (input_shape));
     input_tensor_map.add (strList.at (i), input_tensors[i].get ());
   }
 
@@ -332,7 +337,8 @@ void snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   empty_model = false;
 }
 
-void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+void
+snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   assert (!empty_model);
   assert (snpe);
@@ -343,8 +349,8 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
 
   /* Configure inputs */
   for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
-    float *finput = (float *) input[i].data;
-    size_t fsize =  input_tensors[i].get ()->getSize ();
+    float *finput = (float *)input[i].data;
+    size_t fsize = input_tensors[i].get ()->getSize ();
     std::copy (finput, finput + fsize, input_tensors[i].get ()->begin ());
   }
 
@@ -352,9 +358,9 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   snpe->execute (input_tensor_map, output_tensor_map);
 
   for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-    zdl::DlSystem::ITensor *output_tensor =
-        output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
-    float *foutput = (float *) output[i].data;
+    zdl::DlSystem::ITensor *output_tensor
+        = output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
+    float *foutput = (float *)output[i].data;
     std::copy (output_tensor->cbegin (), output_tensor->cend (), foutput);
   }
 
@@ -364,10 +370,10 @@ void snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   invoke_time_total += (stop_time - start_time);
   total_frames++;
 #endif
-
 }
 
-void snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+void
+snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
   info.name = name;
   info.allow_in_place = 0;
@@ -376,39 +382,38 @@ void snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.verify_model_path = 1;
 }
 
-int snpe_subplugin::getModelInfo (model_info_ops ops,
-    GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+int
+snpe_subplugin::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   if (ops == GET_IN_OUT_INFO) {
-    gst_tensors_info_copy (std::addressof (in_info),
-        std::addressof (inputInfo));
-    gst_tensors_info_copy (std::addressof (out_info),
-        std::addressof (outputInfo));
+    gst_tensors_info_copy (std::addressof (in_info), std::addressof (inputInfo));
+    gst_tensors_info_copy (std::addressof (out_info), std::addressof (outputInfo));
     return 0;
   }
 
   return -ENOENT;
 }
 
-int snpe_subplugin::eventHandler (event_ops ops,
-    GstTensorFilterFrameworkEventData &data)
+int
+snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
   return -ENOENT;
 }
 
-void snpe_subplugin::setTensorProp (GstTensorsInfo & tensor_meta,
-    zdl::DlSystem::TensorMap & tensor_map)
+void
+snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map)
 {
   tensor_meta.num_tensors = tensor_map.size ();
   for (unsigned int i = 0; i < tensor_map.size (); ++i) {
     tensor_meta.info[i].name = g_strdup (tensor_map.getTensorNames ().at (i));
     tensor_meta.info[i].type = _NNS_FLOAT32;
 
-    unsigned int rank =
-      tensor_map.getTensor (tensor_meta.info[i].name)->getShape ().rank ();
+    unsigned int rank
+        = tensor_map.getTensor (tensor_meta.info[i].name)->getShape ().rank ();
     for (unsigned int j = 0; j < rank; ++j) {
-      tensor_meta.info[i].dimension[j] =
-        tensor_map.getTensor (tensor_meta.info[i].name)->getShape () [rank - j - 1];
+      tensor_meta.info[i].dimension[j]
+          = tensor_map.getTensor (tensor_meta.info[i].name)->getShape ()[rank - j - 1];
     }
     for (unsigned int j = rank; j < NNS_TENSOR_RANK_LIMIT; ++j) {
       tensor_meta.info[i].dimension[j] = 1;
@@ -419,14 +424,16 @@ void snpe_subplugin::setTensorProp (GstTensorsInfo & tensor_meta,
 snpe_subplugin *snpe_subplugin::registeredRepresentation = nullptr;
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-void snpe_subplugin::init_filter_snpe (void)
+void
+snpe_subplugin::init_filter_snpe (void)
 {
-  registeredRepresentation =
-      tensor_filter_subplugin::register_subplugin<snpe_subplugin> ();
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<snpe_subplugin> ();
 }
 
 /** @brief Destruct the subplugin */
-void snpe_subplugin::fini_filter_snpe (void)
+void
+snpe_subplugin::fini_filter_snpe (void)
 {
   assert (registeredRepresentation != nullptr);
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
@@ -436,7 +443,8 @@ void snpe_subplugin::fini_filter_snpe (void)
 /**
  * @brief Set additional environment (ADSP_LIBRARY_PATH) for snpe
  */
-static gboolean _snpe_set_env (JNIEnv * env, jobject context)
+static gboolean
+_snpe_set_env (JNIEnv *env, jobject context)
 {
   gboolean snpe_failed = TRUE;
   jclass context_class = NULL;
@@ -465,8 +473,7 @@ static gboolean _snpe_set_env (JNIEnv * env, jobject context)
     goto done;
   }
 
-  application_info_object = env->CallObjectMethod (context,
-      get_application_info_method_id);
+  application_info_object = env->CallObjectMethod (context, get_application_info_method_id);
   if (env->ExceptionCheck ()) {
     env->ExceptionDescribe ();
     env->ExceptionClear ();
@@ -480,22 +487,21 @@ static gboolean _snpe_set_env (JNIEnv * env, jobject context)
     goto done;
   }
 
-  native_library_dir_field_id = env->GetFieldID (application_info_object_class,
-      "nativeLibraryDir", "Ljava/lang/String;");
+  native_library_dir_field_id = env->GetFieldID (
+      application_info_object_class, "nativeLibraryDir", "Ljava/lang/String;");
   if (!native_library_dir_field_id) {
     nns_loge ("Failed to get field ID for `nativeLibraryDir`.");
     goto done;
   }
 
-  native_library_dir_path = static_cast<jstring>(env->GetObjectField(
-      application_info_object, native_library_dir_field_id));
+  native_library_dir_path = static_cast<jstring> (
+      env->GetObjectField (application_info_object, native_library_dir_field_id));
   if (!native_library_dir_path) {
     nns_loge ("Failed to get field `nativeLibraryDir`.");
     goto done;
   }
 
-  native_library_dir_path_str = env->GetStringUTFChars (native_library_dir_path,
-      NULL);
+  native_library_dir_path_str = env->GetStringUTFChars (native_library_dir_path, NULL);
   if (env->ExceptionCheck ()) {
     env->ExceptionDescribe ();
     env->ExceptionClear ();
@@ -506,14 +512,13 @@ static gboolean _snpe_set_env (JNIEnv * env, jobject context)
   new_path = g_strconcat (native_library_dir_path_str,
       ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
 
-  /* See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details */
-  nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s",
-      new_path);
+  /* See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
+   */
+  nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s", new_path);
   g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);
 
   g_free (new_path);
-  env->ReleaseStringUTFChars (native_library_dir_path,
-      native_library_dir_path_str);
+  env->ReleaseStringUTFChars (native_library_dir_path, native_library_dir_path_str);
 
   snpe_failed = FALSE;
 
@@ -538,7 +543,8 @@ done:
   return !(snpe_failed);
 }
 
-void init_filter_snpe (JNIEnv * env, jobject context)
+void
+init_filter_snpe (JNIEnv *env, jobject context)
 {
   if (nnstreamer_filter_find ("snap")) {
     nns_loge ("Cannot use SNPE and SNAP both. Won't register this SNPE subplugin.");
@@ -553,13 +559,15 @@ void init_filter_snpe (JNIEnv * env, jobject context)
   snpe_subplugin::init_filter_snpe ();
 }
 #else
-void init_filter_snpe ()
+void
+init_filter_snpe ()
 {
   snpe_subplugin::init_filter_snpe ();
 }
 #endif
 
-void fini_filter_snpe ()
+void
+fini_filter_snpe ()
 {
   snpe_subplugin::fini_filter_snpe ();
 }
