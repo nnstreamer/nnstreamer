@@ -622,7 +622,32 @@ nnstreamer_filter_set_custom_property_desc (const char *name, const char *prop,
 const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name)
 {
-  return get_subplugin (NNS_SUBPLUGIN_FILTER, name);
+  const GstTensorFilterFramework *fw;
+  guint i;
+
+  g_return_val_if_fail (name != NULL, NULL);
+
+  fw = get_subplugin (NNS_SUBPLUGIN_FILTER, name);
+
+  if (fw == NULL) {
+    if (g_ascii_strcasecmp (name, "tensorflow-lite") == 0) {
+      /* find sug-plugin name for tf-lite version 2.x or 1.x */
+      /** @todo consider to add subplugin priority in .ini file */
+      const char *tflite_subplugins[] = {
+        "tensorflow2-lite", "tensorflow1-lite"
+      };
+
+      for (i = 0; i < 2; i++) {
+        fw = get_subplugin (NNS_SUBPLUGIN_FILTER, tflite_subplugins[i]);
+        if (fw) {
+          nns_logi ("Found %s for %s.", tflite_subplugins[i], name);
+          break;
+        }
+      }
+    }
+  }
+
+  return fw;
 }
 
 /**

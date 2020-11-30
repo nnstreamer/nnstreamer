@@ -120,7 +120,7 @@ if tflite_support_is_available
     tflite_h_prefix='#include <tensorflow/contrib/lite/model.h>'
   endif
 
-  tflite_compile_args = []
+  tflite_compile_args = ['-DTFLITE_SUBPLUGIN_NAME="tensorflow1-lite"']
   if cxx.has_type('kTfLiteInt8', prefix : tflite_h_prefix)
     tflite_compile_args += '-DTFLITE_INT8=1'
   endif
@@ -181,7 +181,7 @@ if tflite2_support_is_available
 
   nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
 
-  tflite2_compile_args = []
+  tflite2_compile_args = ['-DTFLITE_SUBPLUGIN_NAME="tensorflow2-lite"']
   tflite2_compile_args += '-DTFLITE_INT8=1'
   tflite2_compile_args += '-DTFLITE_INT16=1'
   tflite2_compile_args += '-DTFLITE_FLOAT16=1'

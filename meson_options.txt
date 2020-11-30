@@ -40,8 +40,7 @@ option('enable-openvino', type: 'boolean', value: false)
 option('enable-vivante', type: 'boolean', value: false)
 option('enable-tizen-feature-check', type: 'boolean', value: true)
 option('enable-tizen-privilege-check', type: 'boolean', value: true)
-option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,tensorflow2-lite,nnfw,armnn,edgetpu', description: 'A comma separated prioritized list of neural network frameworks to open a .tflite file')
-
+option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw,armnn,edgetpu', description: 'A comma separated prioritized list of neural network frameworks to open a .tflite file')
 
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)
