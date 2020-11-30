@@ -14,12 +14,12 @@
  */
 
 #include <gtest/gtest.h>
-#include <unistd.h>
-#include <tensor_common.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
+#include <tensor_common.h>
+#include <unistd.h>
 
 /**
  * @brief Test for int32 type string.
@@ -235,14 +235,7 @@ TEST (common_get_tensor_type, uint64_n)
  */
 TEST (common_find_key_strv, key_index)
 {
-  const gchar *teststrv[] = {
-    "abcde",
-    "ABCDEF",
-    "1234",
-    "abcabc",
-    "tester",
-    NULL
-  };
+  const gchar *teststrv[] = { "abcde", "ABCDEF", "1234", "abcabc", "tester", NULL };
 
   EXPECT_EQ (find_key_strv (teststrv, "abcde"), 0);
   EXPECT_EQ (find_key_strv (teststrv, "ABCDE"), 0);
@@ -407,7 +400,7 @@ TEST (common_tensor_info, copy_tensors)
  * @brief Internal function to update tensors info.
  */
 static void
-fill_tensors_info_for_test (GstTensorsInfo * info1, GstTensorsInfo * info2)
+fill_tensors_info_for_test (GstTensorsInfo *info1, GstTensorsInfo *info2)
 {
   g_assert (info1 != NULL && info2 != NULL);
 
@@ -434,7 +427,7 @@ fill_tensors_info_for_test (GstTensorsInfo * info1, GstTensorsInfo * info2)
  * @brief Internal function to update tensors info.
  */
 static void
-fill_tensors_config_for_test (GstTensorsConfig * conf1, GstTensorsConfig * conf2)
+fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
 {
   g_assert (conf1 != NULL && conf2 != NULL);
 
@@ -485,7 +478,7 @@ TEST (common_tensor_info, size_02_n)
   fill_tensors_info_for_test (&info1, &info2);
 
   /* get size with null param */
-  index = (gint) info1.num_tensors - 1;
+  index = (gint)info1.num_tensors - 1;
   size1 = gst_tensors_info_get_size (NULL, index);
 
   EXPECT_TRUE (size1 == 0);
@@ -503,7 +496,7 @@ TEST (common_tensor_info, size_03_n)
   fill_tensors_info_for_test (&info1, &info2);
 
   /* get size with invalid index */
-  index = (gint) info1.num_tensors;
+  index = (gint)info1.num_tensors;
   size1 = gst_tensors_info_get_size (&info1, index);
 
   EXPECT_TRUE (size1 == 0);
@@ -694,7 +687,7 @@ TEST (common_tensors_info_string, dimensions)
   /* max */
   num_dims = gst_tensors_info_parse_dimensions_string (&info,
       "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20");
-  EXPECT_EQ (num_dims, (guint) NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_dims, (guint)NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**
@@ -719,8 +712,7 @@ TEST (common_tensors_info_string, types)
   g_free (str_types);
 
   /* 4 tensors info */
-  num_types = gst_tensors_info_parse_types_string (&info,
-      "int8, int16, int32, int64");
+  num_types = gst_tensors_info_parse_types_string (&info, "int8, int16, int32, int64");
   EXPECT_EQ (num_types, 4U);
 
   info.num_tensors = num_types;
@@ -733,7 +725,7 @@ TEST (common_tensors_info_string, types)
   num_types = gst_tensors_info_parse_types_string (&info,
       "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, "
       "int8, int8, int8, int8, int8, int8, int8, int8, int8, int8, int8");
-  EXPECT_EQ (num_types, (guint) NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_types, (guint)NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**
@@ -758,8 +750,7 @@ TEST (common_tensors_info_string, names)
   g_free (str_names);
 
   /* 4 tensors info */
-  num_names = gst_tensors_info_parse_names_string (&info,
-      "tensor1, tensor2, tensor3, tensor4");
+  num_names = gst_tensors_info_parse_names_string (&info, "tensor1, tensor2, tensor3, tensor4");
   EXPECT_EQ (num_names, 4U);
 
   info.num_tensors = num_names;
@@ -785,7 +776,7 @@ TEST (common_tensors_info_string, names)
   num_names = gst_tensors_info_parse_names_string (&info,
       "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
       "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
-  EXPECT_EQ (num_names, (guint) NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (num_names, (guint)NNS_TENSOR_SIZE_LIMIT);
 }
 
 /**
@@ -849,7 +840,8 @@ TEST (common_string_util, replace_str_02)
 /**
  * @brief Create null files
  */
-static gchar *create_null_file (const gchar *dir, const gchar *file)
+static gchar *
+create_null_file (const gchar *dir, const gchar *file)
 {
   gchar *fullpath = g_build_path ("/", dir, file, NULL);
   FILE *fp = g_fopen (fullpath, "w");
@@ -866,7 +858,8 @@ static gchar *create_null_file (const gchar *dir, const gchar *file)
 /**
  * @brief Check string custom conf
  */
-static gboolean check_custom_conf (const gchar *group, const gchar *key, const gchar *expected)
+static gboolean
+check_custom_conf (const gchar *group, const gchar *key, const gchar *expected)
 {
   gchar *str = nnsconf_get_custom_value_string (group, key);
   gboolean ret = (0 == g_strcmp0 (str, expected));
@@ -880,7 +873,7 @@ static gboolean check_custom_conf (const gchar *group, const gchar *key, const g
  */
 TEST (conf_custom, env_str_01)
 {
-  gchar *fullpath = g_build_path ("/", g_get_tmp_dir(), "nns-tizen-XXXXXX", NULL);
+  gchar *fullpath = g_build_path ("/", g_get_tmp_dir (), "nns-tizen-XXXXXX", NULL);
   gchar *dir = g_mkdtemp (fullpath);
   gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
   gchar *dirf = g_build_path ("/", dir, "filters", NULL);
@@ -926,18 +919,15 @@ TEST (conf_custom, env_str_01)
 
   fclose (fp);
 
-  gchar *f1 = create_null_file (dirf, "libnnstreamer_filter_fantastic"
-      NNSTREAMER_SO_FILE_EXTENSION);
-  gchar *f2 = create_null_file (dirf, "libnnstreamer_filter_neuralnetwork"
-      NNSTREAMER_SO_FILE_EXTENSION);
-  gchar *f3 = create_null_file (dird, "libnnstreamer_decoder_omg"
-      NNSTREAMER_SO_FILE_EXTENSION);
-  gchar *f4 = create_null_file (dird, "libnnstreamer_decoder_wthisgoingon"
-      NNSTREAMER_SO_FILE_EXTENSION);
-  gchar *f5 = create_null_file (dircf, "custom_mechanism"
-      NNSTREAMER_SO_FILE_EXTENSION);
-  gchar *f6 = create_null_file (dircf, "fastfaster"
-      NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f1 = create_null_file (
+      dirf, "libnnstreamer_filter_fantastic" NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f2 = create_null_file (
+      dirf, "libnnstreamer_filter_neuralnetwork" NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f3 = create_null_file (dird, "libnnstreamer_decoder_omg" NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f4 = create_null_file (
+      dird, "libnnstreamer_decoder_wthisgoingon" NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f5 = create_null_file (dircf, "custom_mechanism" NNSTREAMER_SO_FILE_EXTENSION);
+  gchar *f6 = create_null_file (dircf, "fastfaster" NNSTREAMER_SO_FILE_EXTENSION);
 
   EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_CONF", filename, TRUE));
   EXPECT_TRUE (nnsconf_loadconf (TRUE) == TRUE);
@@ -1016,11 +1006,11 @@ TEST (conf_custom, env_str_01)
 /**
  * @brief Test version control (positive)
  */
-TEST (version_control , get_ver_01)
+TEST (version_control, get_ver_01)
 {
-  gchar * verstr = nnstreamer_version_string();
+  gchar *verstr = nnstreamer_version_string ();
   guint major, minor, micro;
-  gchar * verstr2, * verstr3;
+  gchar *verstr2, *verstr3;
   nnstreamer_version_fetch (&major, &minor, &micro);
 
   verstr2 = g_strdup_printf ("NNStreamer %u.%u.%u", major, minor, micro);
@@ -1030,9 +1020,9 @@ TEST (version_control , get_ver_01)
 
   EXPECT_STRCASEEQ (VERSION, verstr3);
 
-  EXPECT_EQ ((int) major, NNSTREAMER_VERSION_MAJOR);
-  EXPECT_EQ ((int) minor, NNSTREAMER_VERSION_MINOR);
-  EXPECT_EQ ((int) micro, NNSTREAMER_VERSION_MICRO);
+  EXPECT_EQ ((int)major, NNSTREAMER_VERSION_MAJOR);
+  EXPECT_EQ ((int)minor, NNSTREAMER_VERSION_MINOR);
+  EXPECT_EQ ((int)micro, NNSTREAMER_VERSION_MICRO);
 
   g_free (verstr);
   g_free (verstr2);

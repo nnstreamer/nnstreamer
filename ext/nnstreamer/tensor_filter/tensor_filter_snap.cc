@@ -26,23 +26,22 @@
 
 #include <android/log.h>
 
-#include <snap_sdk_interface.h>
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api.h>
+#include <snap_sdk_interface.h>
 
 #define TAG "NNStreamer-SNAP"
-#define snap_logi(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define snap_logw(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
-#define snap_loge(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-#define snap_logd(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
+#define snap_logi(...) __android_log_print (ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define snap_logw(...) __android_log_print (ANDROID_LOG_WARN, TAG, __VA_ARGS__)
+#define snap_loge(...) __android_log_print (ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+#define snap_logd(...) __android_log_print (ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
 
 using nnstreamer::tensor_filter_subplugin;
 
 /**
  * @brief Options to open SNAP session.
  */
-typedef struct
-{
+typedef struct {
   snap_sdk::ModelFWType fw_type;
   snap_sdk::ExecutionDataType exec_data_type;
   snap_sdk::ComputingUnit computing_unit;
@@ -56,8 +55,7 @@ typedef struct
 /**
  * @brief Data information to execute the model.
  */
-typedef struct
-{
+typedef struct {
   snap_sdk::DataType type;
   snap_sdk::DataFormat format;
   std::vector<int> shape;
@@ -68,11 +66,11 @@ typedef struct
  */
 class tensor_filter_snap final : public tensor_filter_subplugin
 {
-public:
+  public:
   tensor_filter_snap ();
   ~tensor_filter_snap ();
 
-  tensor_filter_subplugin& getEmptyInstance ();
+  tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
@@ -82,11 +80,12 @@ public:
   static void register_snap ();
   static void unregister_snap ();
 
-private:
+  private:
   bool open (const GstTensorFilterProperties *prop, snap_option_s &snap_option);
   void close ();
   bool validate (const GstTensorFilterProperties *prop, snap_option_s &snap_option);
-  bool invoke_internal (const GstTensorFilterProperties *prop, const GstTensorMemory *input, GstTensorMemory *output, bool configure);
+  bool invoke_internal (const GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output, bool configure);
   bool parse_custom_prop (const char *custom_prop, snap_option_s &snap_option);
   bool configure_option (const GstTensorFilterProperties *prop, snap_option_s &snap_option);
   bool configure_input_meta (const GstTensorFilterProperties *prop, snap_option_s &snap_option);
@@ -94,14 +93,17 @@ private:
   bool convert_nns_type (tensor_type nns_type, snap_sdk::DataType &snap_type);
   bool get_nns_layout (snap_sdk::DataFormat snap_format, tensor_layout &nns_layout);
   bool get_snap_data_format (tensor_layout nns_layout, snap_sdk::DataFormat &snap_format);
-  bool convert_nns_layouts (const tensors_layout nns_layout, unsigned int len, std::vector<snap_sdk::DataFormat> &format);
-  bool parse_format_string (const gchar *format_str, bool is_input, std::vector<snap_sdk::DataFormat> &format);
+  bool convert_nns_layouts (const tensors_layout nns_layout, unsigned int len,
+      std::vector<snap_sdk::DataFormat> &format);
+  bool parse_format_string (const gchar *format_str, bool is_input,
+      std::vector<snap_sdk::DataFormat> &format);
   bool parse_dimension (const std::vector<int> &shape, tensor_dim dim);
   bool convert_names (const GstTensorsInfo *info, std::vector<std::string> &names);
-  bool compare_meta (const GstTensorFilterProperties *prop, std::vector<snap_sdk::SnapData> &data, bool is_input);
-  const char* error_string (snap_sdk::ErrCode status);
+  bool compare_meta (const GstTensorFilterProperties *prop,
+      std::vector<snap_sdk::SnapData> &data, bool is_input);
+  const char *error_string (snap_sdk::ErrCode status);
 
-private:
+  private:
   static tensor_filter_snap *instance_;
   snap_sdk::SnapSessionInterface *session_;
   std::vector<snap_data_info_s> in_info_;
@@ -118,7 +120,7 @@ tensor_filter_snap *tensor_filter_snap::instance_ = nullptr;
 /**
  * @brief Constructor for SNAP subplugin.
  */
-tensor_filter_snap::tensor_filter_snap () : session_(nullptr)
+tensor_filter_snap::tensor_filter_snap () : session_ (nullptr)
 {
   in_info_.clear ();
   out_info_.clear ();
@@ -141,7 +143,7 @@ tensor_filter_snap::~tensor_filter_snap ()
 /**
  * @brief Mandatory method to get empty object.
  */
-tensor_filter_subplugin&
+tensor_filter_subplugin &
 tensor_filter_snap::getEmptyInstance ()
 {
   return *(new tensor_filter_snap ());
@@ -175,18 +177,15 @@ tensor_filter_snap::configure_instance (const GstTensorFilterProperties *prop)
     return;
   }
 
-  gst_tensors_info_copy (std::addressof (input_meta_),
-      std::addressof (prop->input_meta));
-  gst_tensors_info_copy (std::addressof (output_meta_),
-      std::addressof (prop->output_meta));
+  gst_tensors_info_copy (std::addressof (input_meta_), std::addressof (prop->input_meta));
+  gst_tensors_info_copy (std::addressof (output_meta_), std::addressof (prop->output_meta));
 }
 
 /**
  * @brief Mandatory method to execute the model.
  */
 void
-tensor_filter_snap::invoke (const GstTensorMemory *input,
-    GstTensorMemory *output)
+tensor_filter_snap::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   invoke_internal (nullptr, input, output, false);
 }
@@ -213,14 +212,12 @@ tensor_filter_snap::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
  * Internally SNAP subplugin uses user-defined tensor information.
  */
 int
-tensor_filter_snap::getModelInfo (model_info_ops ops,
-    GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+tensor_filter_snap::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   if (ops == GET_IN_OUT_INFO) {
-    gst_tensors_info_copy (std::addressof (in_info),
-        std::addressof (input_meta_));
-    gst_tensors_info_copy (std::addressof (out_info),
-        std::addressof (output_meta_));
+    gst_tensors_info_copy (std::addressof (in_info), std::addressof (input_meta_));
+    gst_tensors_info_copy (std::addressof (out_info), std::addressof (output_meta_));
     return 0;
   }
 
@@ -231,8 +228,7 @@ tensor_filter_snap::getModelInfo (model_info_ops ops,
  * @brief Optional method to handle the event.
  */
 int
-tensor_filter_snap::eventHandler (event_ops ops,
-    GstTensorFilterFrameworkEventData &data)
+tensor_filter_snap::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
   return -ENOENT;
 }
@@ -244,8 +240,7 @@ void
 tensor_filter_snap::register_snap ()
 {
   if (instance_ == nullptr) {
-    instance_ =
-        tensor_filter_subplugin::register_subplugin<tensor_filter_snap> ();
+    instance_ = tensor_filter_subplugin::register_subplugin<tensor_filter_snap> ();
   }
 }
 
@@ -264,31 +259,30 @@ tensor_filter_snap::unregister_snap ()
 /**
  * @brief Internal method to get the error string.
  */
-const char*
+const char *
 tensor_filter_snap::error_string (snap_sdk::ErrCode status)
 {
   static const char *err_string[] = {
-    [static_cast<int>(snap_sdk::ErrCode::OK)] = "OK",
-    [static_cast<int>(snap_sdk::ErrCode::ERR)] = "ERR",
-    [static_cast<int>(snap_sdk::ErrCode::UNSUPPORTED_DEVICE)] = "UNSUPPORTED_DEVICE",
-    [static_cast<int>(snap_sdk::ErrCode::UNSUPPORTED_MODELTYPE)] = "UNSUPPORTED_MODELTYPE",
-    [static_cast<int>(snap_sdk::ErrCode::SNAPMODEL_NOTCREATED)] = "SNAPMODEL_NOTCREATED",
-    [static_cast<int>(snap_sdk::ErrCode::MODELTYPE_NOTVALID)] = "MODELTYPE_NOTVALID",
-    [static_cast<int>(snap_sdk::ErrCode::INPUTBUFFER_EMPTY)] = "INPUTBUFFER_EMPTY",
-    [static_cast<int>(snap_sdk::ErrCode::UNSUPPORTED_EXEC_TYPE)] = "UNSUPPORTED_EXEC_TYPE",
-    [static_cast<int>(snap_sdk::ErrCode::UNDEFINED_GPU_CACHEPATH)] = "UNDEFINED_GPU_CACHEPATH",
-    [static_cast<int>(snap_sdk::ErrCode::INVALID_INPUT_PARAM)] = "INVALID_INPUT_PARAM",
+        [static_cast<int> (snap_sdk::ErrCode::OK)] = "OK",
+    [static_cast<int> (snap_sdk::ErrCode::ERR)] = "ERR",
+    [static_cast<int> (snap_sdk::ErrCode::UNSUPPORTED_DEVICE)] = "UNSUPPORTED_DEVICE",
+    [static_cast<int> (snap_sdk::ErrCode::UNSUPPORTED_MODELTYPE)] = "UNSUPPORTED_MODELTYPE",
+    [static_cast<int> (snap_sdk::ErrCode::SNAPMODEL_NOTCREATED)] = "SNAPMODEL_NOTCREATED",
+    [static_cast<int> (snap_sdk::ErrCode::MODELTYPE_NOTVALID)] = "MODELTYPE_NOTVALID",
+    [static_cast<int> (snap_sdk::ErrCode::INPUTBUFFER_EMPTY)] = "INPUTBUFFER_EMPTY",
+    [static_cast<int> (snap_sdk::ErrCode::UNSUPPORTED_EXEC_TYPE)] = "UNSUPPORTED_EXEC_TYPE",
+    [static_cast<int> (snap_sdk::ErrCode::UNDEFINED_GPU_CACHEPATH)] = "UNDEFINED_GPU_CACHEPATH",
+    [static_cast<int> (snap_sdk::ErrCode::INVALID_INPUT_PARAM)] = "INVALID_INPUT_PARAM",
   };
 
-  return err_string[static_cast<int>(status)];
+  return err_string[static_cast<int> (status)];
 }
 
 /**
  * @brief Internal method to open SNAP session.
  */
 bool
-tensor_filter_snap::open (const GstTensorFilterProperties *prop,
-    snap_option_s &snap_option)
+tensor_filter_snap::open (const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
   snap_sdk::SnapModel model;
   snap_sdk::ExecutionOptions exec_options;
@@ -315,18 +309,18 @@ tensor_filter_snap::open (const GstTensorFilterProperties *prop,
   else
     weight_file = std::string (prop->model_files[0]);
 
-  snap_logd ("model file (%s) weight file (%s)",
-      model_file.c_str (), weight_file.c_str ());
+  snap_logd ("model file (%s) weight file (%s)", model_file.c_str (),
+      weight_file.c_str ());
 
   /* set tensor name */
-  if (!convert_names (&prop->input_meta, input_names) ||
-      !convert_names (&prop->output_meta, output_names)) {
+  if (!convert_names (&prop->input_meta, input_names)
+      || !convert_names (&prop->output_meta, output_names)) {
     return false;
   }
 
   /* create model */
-  status = snap_sdk::SnapModel::Create (snap_option.fw_type,
-      input_names, output_names, weight_file, model_file, model);
+  status = snap_sdk::SnapModel::Create (snap_option.fw_type, input_names,
+      output_names, weight_file, model_file, model);
   if (status != snap_sdk::ErrCode::OK) {
     snap_loge ("Failed to create snap model (%s).", error_string (status));
     goto done;
@@ -345,8 +339,7 @@ tensor_filter_snap::open (const GstTensorFilterProperties *prop,
   status = snap_sdk::ExecutionOptions::Create (snap_option.computing_unit,
       snap_option.exec_data_type, model, exec_options);
   if (status != snap_sdk::ErrCode::OK) {
-    snap_loge ("Failed to create execution option (%s).",
-        error_string (status));
+    snap_loge ("Failed to create execution option (%s).", error_string (status));
     goto done;
   }
 
@@ -354,8 +347,7 @@ tensor_filter_snap::open (const GstTensorFilterProperties *prop,
     if (snap_option.cpu_thread_count > 0) {
       status = exec_options.SetCpuThreadCount (snap_option.cpu_thread_count);
       if (status != snap_sdk::ErrCode::OK) {
-        snap_loge ("Failed to set CPU thread count (%s).",
-            error_string (status));
+        snap_loge ("Failed to set CPU thread count (%s).", error_string (status));
         goto done;
       }
     }
@@ -423,10 +415,11 @@ tensor_filter_snap::close ()
  * @brief Internal method to validate user-defined tensors information.
  */
 bool
-tensor_filter_snap::validate (const GstTensorFilterProperties *prop,
-    snap_option_s &snap_option)
+tensor_filter_snap::validate (const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT] = {
+    0,
+  };
   bool validated = false;
   guint i;
 
@@ -473,8 +466,8 @@ tensor_filter_snap::invoke_internal (const GstTensorFilterProperties *prop,
   for (i = 0; i < in_info_.size (); ++i) {
     snap_sdk::SnapData input_data;
 
-    input_data.SetData (input[i].data, in_info_[i].shape, in_info_[i].type,
-        in_info_[i].format);
+    input_data.SetData (
+        input[i].data, in_info_[i].shape, in_info_[i].type, in_info_[i].format);
     inputs.push_back (input_data);
   }
 
@@ -498,11 +491,9 @@ tensor_filter_snap::invoke_internal (const GstTensorFilterProperties *prop,
     }
 
     for (i = 0; i < outputs.size (); i++) {
-      snap_data_info_s snap_info = {
-        .type = outputs[i].GetType (),
+      snap_data_info_s snap_info = {.type = outputs[i].GetType (),
         .format = outputs[i].GetFormat (),
-        .shape = outputs[i].GetShapes ()
-      };
+        .shape = outputs[i].GetShapes () };
 
       out_info_.push_back (snap_info);
     }
@@ -524,8 +515,7 @@ tensor_filter_snap::invoke_internal (const GstTensorFilterProperties *prop,
  * Developer should define proper option to open SNAP session.
  */
 bool
-tensor_filter_snap::parse_custom_prop (const char *custom_prop,
-    snap_option_s &snap_option)
+tensor_filter_snap::parse_custom_prop (const char *custom_prop, snap_option_s &snap_option)
 {
   gchar **options;
   guint op;
@@ -569,8 +559,7 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop,
         } else if (g_ascii_strcasecmp (option[1], "QASYMM8") == 0) {
           snap_option.exec_data_type = snap_sdk::ExecutionDataType::QASYMM8;
         } else {
-          snap_logw ("Unknown execution type (%s), set float32 as default.",
-              options[op]);
+          snap_logw ("Unknown execution type (%s), set float32 as default.", options[op]);
           snap_option.exec_data_type = snap_sdk::ExecutionDataType::FLOAT32;
         }
       } else if (g_ascii_strcasecmp (option[0], "InputFormat") == 0) {
@@ -594,13 +583,11 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop,
         } else if (g_ascii_strcasecmp (option[1], "DSP") == 0) {
           snap_option.computing_unit = snap_sdk::ComputingUnit::DSP;
         } else {
-          snap_logw ("Unknown computing unit (%s), set CPU as default.",
-              options[op]);
+          snap_logw ("Unknown computing unit (%s), set CPU as default.", options[op]);
           snap_option.computing_unit = snap_sdk::ComputingUnit::CPU;
         }
       } else if (g_ascii_strcasecmp (option[0], "CpuThreadCount") == 0) {
-        snap_option.cpu_thread_count =
-            (int) g_ascii_strtoll (option[1], NULL, 10);
+        snap_option.cpu_thread_count = (int)g_ascii_strtoll (option[1], NULL, 10);
       } else if (g_ascii_strcasecmp (option[0], "GpuCacheSource") == 0) {
         gchar *path = option[1];
 
@@ -632,8 +619,8 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop,
  * @brief Internal method to set the options to open SNAP session.
  */
 bool
-tensor_filter_snap::configure_option (const GstTensorFilterProperties *prop,
-    snap_option_s &snap_option)
+tensor_filter_snap::configure_option (
+    const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
   /* init options */
   snap_option.fw_type = snap_sdk::ModelFWType::MAX_ENUM;
@@ -656,9 +643,9 @@ tensor_filter_snap::configure_option (const GstTensorFilterProperties *prop,
   }
 
   /* configure in/out data format */
-  if (snap_option.input_format.size () == 0 &&
-      !convert_nns_layouts (prop->input_layout, prop->input_meta.num_tensors,
-          snap_option.input_format)) {
+  if (snap_option.input_format.size () == 0
+      && !convert_nns_layouts (prop->input_layout, prop->input_meta.num_tensors,
+             snap_option.input_format)) {
     snap_loge ("Failed to configure input data format.");
     return false;
   }
@@ -668,9 +655,9 @@ tensor_filter_snap::configure_option (const GstTensorFilterProperties *prop,
     return false;
   }
 
-  if (snap_option.output_format.size () == 0 &&
-      !convert_nns_layouts (prop->output_layout, prop->output_meta.num_tensors,
-          snap_option.output_format)) {
+  if (snap_option.output_format.size () == 0
+      && !convert_nns_layouts (prop->output_layout,
+             prop->output_meta.num_tensors, snap_option.output_format)) {
     snap_loge ("Failed to configure output data format.");
     return false;
   }
@@ -681,8 +668,8 @@ tensor_filter_snap::configure_option (const GstTensorFilterProperties *prop,
   }
 
   /* check computing unit */
-  if (snap_option.computing_unit == snap_sdk::ComputingUnit::GPU &&
-      snap_option.gpu_cache_src.empty ()) {
+  if (snap_option.computing_unit == snap_sdk::ComputingUnit::GPU
+      && snap_option.gpu_cache_src.empty ()) {
     snap_loge ("GPU cache path is not defined.");
     return false;
   }
@@ -694,8 +681,8 @@ tensor_filter_snap::configure_option (const GstTensorFilterProperties *prop,
  * @brief Internal method to configure input info from the properties and options.
  */
 bool
-tensor_filter_snap::configure_input_meta (const GstTensorFilterProperties *prop,
-    snap_option_s &snap_option)
+tensor_filter_snap::configure_input_meta (
+    const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
   snap_sdk::ErrCode status;
   guint i, j;
@@ -734,7 +721,7 @@ tensor_filter_snap::configure_input_meta (const GstTensorFilterProperties *prop,
        */
       rank = NNS_TENSOR_RANK_LIMIT;
       for (j = 0; j < rank; j++) {
-        int s = (int) prop->input_meta.info[i].dimension[rank - j - 1];
+        int s = (int)prop->input_meta.info[i].dimension[rank - j - 1];
         snap_info.shape.push_back (s);
       }
     } else {
@@ -742,8 +729,7 @@ tensor_filter_snap::configure_input_meta (const GstTensorFilterProperties *prop,
       if (rank > NNS_TENSOR_RANK_LIMIT) {
         for (j = NNS_TENSOR_RANK_LIMIT; j < rank; j++) {
           if (snap_info.shape[j] != 0) {
-            snap_logd ("The model input shape at %d is %d.", j,
-                snap_info.shape[j]);
+            snap_logd ("The model input shape at %d is %d.", j, snap_info.shape[j]);
             snap_loge ("The rank of model input shape is not supported.");
             return false;
           }
@@ -774,8 +760,7 @@ tensor_filter_snap::configure_input_meta (const GstTensorFilterProperties *prop,
  * @brief Internal method to get the tensor type from SNAP data type.
  */
 bool
-tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type,
-    tensor_type &nns_type)
+tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type, tensor_type &nns_type)
 {
   /** @todo snap v2.0 only supports float32 type */
   if (snap_type == snap_sdk::DataType::FLOAT32) {
@@ -783,7 +768,7 @@ tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type,
     return true;
   }
 
-  snap_logw ("The data type %d is not supported.", static_cast<int>(snap_type));
+  snap_logw ("The data type %d is not supported.", static_cast<int> (snap_type));
   return false;
 }
 
@@ -791,8 +776,7 @@ tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type,
  * @brief Internal method to convert the tensor type to SNAP data type.
  */
 bool
-tensor_filter_snap::convert_nns_type (tensor_type nns_type,
-    snap_sdk::DataType &snap_type)
+tensor_filter_snap::convert_nns_type (tensor_type nns_type, snap_sdk::DataType &snap_type)
 {
   /** @todo snap v2.0 only supports float32 type */
   if (nns_type == _NNS_FLOAT32) {
@@ -808,16 +792,14 @@ tensor_filter_snap::convert_nns_type (tensor_type nns_type,
  * @brief Internal method to get the tensor layout from SNAP data format.
  */
 bool
-tensor_filter_snap::get_nns_layout (snap_sdk::DataFormat snap_format,
-    tensor_layout &nns_layout)
+tensor_filter_snap::get_nns_layout (snap_sdk::DataFormat snap_format, tensor_layout &nns_layout)
 {
   if (snap_format == snap_sdk::DataFormat::NCHW) {
     nns_layout = _NNS_LAYOUT_NCHW;
   } else if (snap_format == snap_sdk::DataFormat::NHWC) {
     nns_layout = _NNS_LAYOUT_NHWC;
   } else {
-    snap_logw ("The data format %d is not supported.",
-        static_cast<int>(snap_format));
+    snap_logw ("The data format %d is not supported.", static_cast<int> (snap_format));
     nns_layout = _NNS_LAYOUT_NONE;
   }
 
@@ -828,20 +810,20 @@ tensor_filter_snap::get_nns_layout (snap_sdk::DataFormat snap_format,
  * @brief Internal method to convert the tensor layout to SNAP data format.
  */
 bool
-tensor_filter_snap::get_snap_data_format (tensor_layout nns_layout,
-    snap_sdk::DataFormat &snap_format)
+tensor_filter_snap::get_snap_data_format (
+    tensor_layout nns_layout, snap_sdk::DataFormat &snap_format)
 {
   switch (nns_layout) {
-    case _NNS_LAYOUT_NHWC:
-      snap_format = snap_sdk::DataFormat::NHWC;
-      break;
-    case _NNS_LAYOUT_NCHW:
-      snap_format = snap_sdk::DataFormat::NCHW;
-      break;
-    default:
-      snap_logw ("The tensor layout %d is not supported.", nns_layout);
-      snap_format = snap_sdk::DataFormat::MAX_ENUM;
-      break;
+  case _NNS_LAYOUT_NHWC:
+    snap_format = snap_sdk::DataFormat::NHWC;
+    break;
+  case _NNS_LAYOUT_NCHW:
+    snap_format = snap_sdk::DataFormat::NCHW;
+    break;
+  default:
+    snap_logw ("The tensor layout %d is not supported.", nns_layout);
+    snap_format = snap_sdk::DataFormat::MAX_ENUM;
+    break;
   }
 
   return (snap_format != snap_sdk::DataFormat::MAX_ENUM);
@@ -911,8 +893,7 @@ done:
  * @brief Internal method to get the tensor dimension from SNAP data shape.
  */
 bool
-tensor_filter_snap::parse_dimension (const std::vector<int> &shape,
-    tensor_dim dim)
+tensor_filter_snap::parse_dimension (const std::vector<int> &shape, tensor_dim dim)
 {
   unsigned long i, rank;
 
@@ -925,7 +906,7 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape,
 
   for (i = 0; i < rank; i++) {
     snap_logd ("snap data shape[%lu] : %d", i, shape[i]);
-    dim[rank - i - 1] = (unsigned int) shape[i];
+    dim[rank - i - 1] = (unsigned int)shape[i];
   }
 
   /* fill the remnants with 1 */
@@ -940,8 +921,7 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape,
  * @brief Internal method to get the tensor names from tensors information.
  */
 bool
-tensor_filter_snap::convert_names (const GstTensorsInfo *info,
-    std::vector<std::string> &names)
+tensor_filter_snap::convert_names (const GstTensorsInfo *info, std::vector<std::string> &names)
 {
   guint i;
 
@@ -990,9 +970,9 @@ tensor_filter_snap::compare_meta (const GstTensorFilterProperties *prop,
     snap_logi ("The data format at index %d is %s.", i,
         (data[i].GetFormat () == snap_sdk::DataFormat::NCHW) ? "NCHW" : "NHWC");
 
-    if (!get_nns_type (data[i].GetType (), snap_info.type) ||
-        !get_nns_layout (data[i].GetFormat (), snap_layout) ||
-        !parse_dimension (data[i].GetShapes (), snap_info.dimension)) {
+    if (!get_nns_type (data[i].GetType (), snap_info.type)
+        || !get_nns_layout (data[i].GetFormat (), snap_layout)
+        || !parse_dimension (data[i].GetShapes (), snap_info.dimension)) {
       snap_loge ("Failed to parse the tensor meta.");
       return false;
     }

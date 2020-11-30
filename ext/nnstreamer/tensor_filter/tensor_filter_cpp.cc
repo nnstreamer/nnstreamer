@@ -25,14 +25,14 @@
  *       If you want to write an OpenCV custom filter for nnstreamer, this is a good choice.
  *
  */
+#include <assert.h>
 #include <iostream>
 #include <string>
-#include <assert.h>
 
 #include <errno.h>
-#include <string.h>
 #include <glib.h>
 #include <gmodule.h>
+#include <string.h>
 
 #include <nnstreamer_log.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
@@ -41,36 +41,32 @@
 
 #include "tensor_filter_cpp.hh"
 
-std::unordered_map<std::string, tensor_filter_cpp*> tensor_filter_cpp::filters;
+std::unordered_map<std::string, tensor_filter_cpp *> tensor_filter_cpp::filters;
 std::vector<void *> tensor_filter_cpp::handles;
 G_LOCK_DEFINE_STATIC (lock_handles);
 
 static gchar filter_subplugin_cpp[] = "cpp";
 bool tensor_filter_cpp::close_all_called = false;
 
-static GstTensorFilterFramework NNS_support_cpp = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_cpp = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tensor_filter_cpp::open,
   .close = tensor_filter_cpp::close,
-  {
-    .v0 = {
-      .name = filter_subplugin_cpp,
-      .allow_in_place = FALSE,      /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = nullptr,
-      .invoke_NN = tensor_filter_cpp::invoke,
-      .getInputDimension = tensor_filter_cpp::getInputDim,
-      .getOutputDimension = tensor_filter_cpp::getOutputDim,
-      .setInputDimension = tensor_filter_cpp::setInputDim,
-      .destroyNotify = nullptr,
-      .reloadModel = nullptr,
-      .checkAvailability = nullptr,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_cpp,
+       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+       .allocate_in_invoke = FALSE,
+       .run_without_model = FALSE,
+       .verify_model_path = FALSE,
+       .statistics = nullptr,
+       .invoke_NN = tensor_filter_cpp::invoke,
+       .getInputDimension = tensor_filter_cpp::getInputDim,
+       .getOutputDimension = tensor_filter_cpp::getOutputDim,
+       .setInputDimension = tensor_filter_cpp::setInputDim,
+       .destroyNotify = nullptr,
+       .reloadModel = nullptr,
+       .checkAvailability = nullptr,
+       .allocateInInvoke = nullptr,
+   } } };
 
 G_BEGIN_DECLS
 void init_filter_cpp (void) __attribute__ ((constructor));
@@ -92,31 +88,33 @@ fini_filter_cpp (void)
 }
 G_END_DECLS
 
-#define loadClass(name, ptr) \
-  class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
-  assert (false == close_all_called); \
-  assert (*(ptr)); \
-  assert (name->isValid());
+#define loadClass(name, ptr)                                   \
+  class tensor_filter_cpp *name = (tensor_filter_cpp *)*(ptr); \
+  assert (false == close_all_called);                          \
+  assert (*(ptr));                                             \
+  assert (name->isValid ());
 
 /**
  * @brief Class constructor
  */
-tensor_filter_cpp::tensor_filter_cpp(const char *name): validity(0xdeafdead), name(g_strdup(name)), ref_count(0), prop(NULL)
+tensor_filter_cpp::tensor_filter_cpp (const char *name)
+    : validity (0xdeafdead), name (g_strdup (name)), ref_count (0), prop (NULL)
 {
 }
 
 /**
  * @brief Class destructor
  */
-tensor_filter_cpp::~tensor_filter_cpp()
+tensor_filter_cpp::~tensor_filter_cpp ()
 {
-  g_free((gpointer) name);
+  g_free ((gpointer)name);
 }
 
 /**
  * @brief Check if the given object (this) is valid.
  */
-bool tensor_filter_cpp::isValid()
+bool
+tensor_filter_cpp::isValid ()
 {
   return this->validity == 0xdeafdead;
 }
@@ -124,10 +122,10 @@ bool tensor_filter_cpp::isValid()
 /**
  * @brief Register the c++ filter
  */
-int tensor_filter_cpp::__register (
-    class tensor_filter_cpp *filter, unsigned int ref_count)
+int
+tensor_filter_cpp::__register (class tensor_filter_cpp *filter, unsigned int ref_count)
 {
-  if (filters.find (filter->name) != filters.end())
+  if (filters.find (filter->name) != filters.end ())
     return -EINVAL; /** Already registered */
   if (ref_count)
     filter->ref_count = ref_count;
@@ -139,13 +137,15 @@ int tensor_filter_cpp::__register (
 /**
  * @brief Unregister the c++ filter from unordered map
  */
-int tensor_filter_cpp::__unregister (const char *name)
+int
+tensor_filter_cpp::__unregister (const char *name)
 {
-  if (filters.find (name) == filters.end())
+  if (filters.find (name) == filters.end ())
     return -EINVAL; /** Not found */
   if (filters[name]->ref_count > 0) {
     unsigned int cnt = filters[name]->ref_count;
-    ml_loge ("The reference counter of c++ filter, %s, is %u. Anyway, we are closing this because this is being closed by destructor of .so file.", name, cnt);
+    ml_loge ("The reference counter of c++ filter, %s, is %u. Anyway, we are closing this because this is being closed by destructor of .so file.",
+        name, cnt);
   }
   size_t num = filters.erase (name);
   if (num != 1)
@@ -157,66 +157,74 @@ int tensor_filter_cpp::__unregister (const char *name)
 /**
  * @brief Standard tensor_filter callback
  */
-int tensor_filter_cpp::getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+int
+tensor_filter_cpp::getInputDim (const GstTensorFilterProperties *prop,
+    void **private_data, GstTensorsInfo *info)
 {
-  loadClass(cpp, private_data);
+  loadClass (cpp, private_data);
   return cpp->getInputDim (info);
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-int tensor_filter_cpp::getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+int
+tensor_filter_cpp::getOutputDim (const GstTensorFilterProperties *prop,
+    void **private_data, GstTensorsInfo *info)
 {
-  loadClass(cpp, private_data);
+  loadClass (cpp, private_data);
   return cpp->getOutputDim (info);
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-int tensor_filter_cpp::setInputDim (const GstTensorFilterProperties *prop, void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
+int
+tensor_filter_cpp::setInputDim (const GstTensorFilterProperties *prop,
+    void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
 {
-  loadClass(cpp, private_data);
+  loadClass (cpp, private_data);
   return cpp->setInputDim (in, out);
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-int tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
+int
+tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
+    void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
-  loadClass(cpp, private_data);
-  return cpp->invoke(input, output);
+  loadClass (cpp, private_data);
+  return cpp->invoke (input, output);
 }
 
 /**
  * @brief Printout only once for a given error
  */
-__attribute__((format(printf, 3, 4)))
-static void g_printerr_once (const char *file, int line, const char *fmt,
-    ...)
+__attribute__ ((format (printf, 3, 4))) static void
+g_printerr_once (const char *file, int line, const char *fmt, ...)
 {
   static guint file_hash = 0;
   static int _line = 0;
 
-  if (file_hash != g_str_hash(file) || _line != line) {
+  if (file_hash != g_str_hash (file) || _line != line) {
     char buffer[256];
-    file_hash = g_str_hash(file);
+    file_hash = g_str_hash (file);
     _line = line;
 
     va_list args;
-    va_start(args, fmt);
-    vsnprintf(buffer, 256, fmt, args);
-    g_printerr("%s", buffer);
-    va_end(args);
+    va_start (args, fmt);
+    vsnprintf (buffer, 256, fmt, args);
+    g_printerr ("%s", buffer);
+    va_end (args);
   }
 }
 
 /**
  * @brief Standard tensor_filter callback
  */
-int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_data)
+int
+tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_data)
 {
   class tensor_filter_cpp *cpp;
 
@@ -226,18 +234,20 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
     *private_data = NULL;
   }
 
-  if (filters.find(prop->model_files[0]) == filters.end()) {
+  if (filters.find (prop->model_files[0]) == filters.end ()) {
     /* model_files may be really path to .so file. try to open it */
     if (prop->num_models < 2)
       return -EINVAL;
 
-    GModule *module = g_module_open (prop->model_files[1], (GModuleFlags) 0);
+    GModule *module = g_module_open (prop->model_files[1], (GModuleFlags)0);
     if (!module) {
-      g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s cannot be found: opening %s failed\n", prop->model_files[0], prop->model_files[1]);
+      g_printerr_once (__FILE__, __LINE__,
+          "C++ custom filter %s cannot be found: opening %s failed\n",
+          prop->model_files[0], prop->model_files[1]);
       return -EINVAL; /** Model file / name not found */
     }
 
-    if (filters.find(prop->model_files[0]) == filters.end()) {
+    if (filters.find (prop->model_files[0]) == filters.end ()) {
       /** It's still not found. it's not there. */
       g_module_close (module);
       g_printerr_once (__FILE__, __LINE__, "C++ custom filter %s is not found in %s.\n",
@@ -249,16 +259,15 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
       * invoke functions from it at anytime while the pipeline is not
       * closed */
     G_LOCK (lock_handles);
-    handles.push_back ((void *) module);
+    handles.push_back ((void *)module);
     G_UNLOCK (lock_handles);
-
   }
 
   *private_data = cpp = filters[prop->model_files[0]];
   cpp->ref_count++;
   cpp->prop = prop;
 
-  NNS_support_cpp.v0.allocate_in_invoke = ! cpp->isAllocatedBeforeInvoke();
+  NNS_support_cpp.v0.allocate_in_invoke = !cpp->isAllocatedBeforeInvoke ();
 
   return 0;
 }
@@ -266,9 +275,10 @@ int tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **priva
 /**
  * @brief Standard tensor_filter callback
  */
-void tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **private_data)
+void
+tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  loadClass(cpp, private_data);
+  loadClass (cpp, private_data);
 
   g_assert (cpp->ref_count > 0);
   /** The class is deallocated from unordered_map if ref_count hits 0 */
@@ -278,7 +288,8 @@ void tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **pri
 /**
  * @brief Call dlclose for all handle
  */
-void tensor_filter_cpp::close_all_handles ()
+void
+tensor_filter_cpp::close_all_handles ()
 {
   assert (false == close_all_called);
 /**
@@ -291,11 +302,11 @@ void tensor_filter_cpp::close_all_handles ()
  * _dl_close: Assertion `map->l_init_called' failed!
  */
 #if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 23)
-  /* Do not call dlclose */
+/* Do not call dlclose */
 #else
   G_LOCK (lock_handles);
   for (void *handle : handles) {
-    g_module_close ((GModule *) handle);
+    g_module_close ((GModule *)handle);
   }
   G_UNLOCK (lock_handles);
 #endif

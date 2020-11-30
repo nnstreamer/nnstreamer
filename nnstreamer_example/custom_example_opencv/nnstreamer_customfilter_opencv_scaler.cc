@@ -20,18 +20,17 @@
  *
  */
 
-#include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include "opencv2/opencv.hpp"
 
 #include <glib.h>
-#include <tensor_filter_custom.h>
 #include <nnstreamer_plugin_api.h>
+#include <tensor_filter_custom.h>
 
 /**
  * @brief Private data structure
  */
-typedef struct _pt_data
-{
+typedef struct _pt_data {
   uint32_t in_height;
   uint32_t in_width;
   uint32_t out_height;
@@ -42,7 +41,7 @@ typedef struct _pt_data
  * @brief init callback of tensor_filter custom
  */
 static void *
-pt_init (const GstTensorFilterProperties * prop)
+pt_init (const GstTensorFilterProperties *prop)
 {
   pt_data *data = g_new0 (pt_data, 1);
   g_assert (data != NULL);
@@ -55,12 +54,12 @@ pt_init (const GstTensorFilterProperties * prop)
     const char s[7] = "xX:_/ ";
     gchar **strv = g_strsplit_set (prop->custom_properties, s, 3);
     if (strv[0] != NULL) {
-      data->out_width = (uint32_t) g_ascii_strtoll (strv[0], NULL, 10);
+      data->out_width = (uint32_t)g_ascii_strtoll (strv[0], NULL, 10);
     } else {
       data->out_width = 0;
     }
     if (strv[1] != NULL) {
-      data->out_height = (uint32_t) g_ascii_strtoll (strv[1], NULL, 10);
+      data->out_height = (uint32_t)g_ascii_strtoll (strv[1], NULL, 10);
     } else {
       data->out_height = 0;
     }
@@ -74,7 +73,7 @@ pt_init (const GstTensorFilterProperties * prop)
  * @brief exit callback of tensor_filter custom
  */
 static void
-pt_exit (void *private_data, const GstTensorFilterProperties * prop)
+pt_exit (void *private_data, const GstTensorFilterProperties *prop)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
   g_assert (pdata);
@@ -85,8 +84,8 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
  * @brief setInputDimension callback of tensor_filter custom
  */
 static int
-set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+set_inputDim (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
 
@@ -117,13 +116,12 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
  * @brief invoke-alloc callback of tensor_filter custom
  */
 static int
-pt_allocate_invoke (void *private_data,
-    const GstTensorFilterProperties * prop, const GstTensorMemory * input,
-    GstTensorMemory * output)
+pt_allocate_invoke (void *private_data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
   size_t in_size, out_size;
-  void* buffer;
+  void *buffer;
   cv::Mat img_src, img_dst;
 
   g_assert (pdata);
@@ -146,17 +144,17 @@ pt_allocate_invoke (void *private_data,
   cv::cvtColor (img_src, img_src, CV_BGR2RGB);
 #endif
 
-  /* Scale from the shape of input tensor to that of output tensor
-   * which is given as custom property */
+/* Scale from the shape of input tensor to that of output tensor
+ * which is given as custom property */
 #if CV_MAJOR_VERSION >= 3
-  cv::resize (img_src, img_dst, cv::Size(pdata->out_width, pdata->out_height),
-            0, 0, cv::INTER_NEAREST);
+  cv::resize (img_src, img_dst, cv::Size (pdata->out_width, pdata->out_height),
+      0, 0, cv::INTER_NEAREST);
 #else
-  cv::resize (img_src, img_dst, cv::Size(pdata->out_width, pdata->out_height),
-            0, 0, CV_INTER_NN);
+  cv::resize (img_src, img_dst, cv::Size (pdata->out_width, pdata->out_height),
+      0, 0, CV_INTER_NN);
 #endif
 
-  /* Convert Mat object to output tensor */
+/* Convert Mat object to output tensor */
 #if CV_MAJOR_VERSION >= 3
   cv::cvtColor (img_dst, img_dst, cv::COLOR_RGB2BGR);
 #else
@@ -164,7 +162,7 @@ pt_allocate_invoke (void *private_data,
 #endif
   memcpy (output[0].data, img_dst.data, out_size);
 
-  g_free(buffer);
+  g_free (buffer);
 
   return 0;
 }
@@ -173,7 +171,7 @@ pt_allocate_invoke (void *private_data,
  * @brief destroy notify callback of tensor_filter custom
  */
 static void
-pt_destroy_notify (void * data)
+pt_destroy_notify (void *data)
 {
   g_assert (data);
   g_free (data);

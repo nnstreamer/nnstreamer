@@ -9,13 +9,13 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
-#include <glib/gstdio.h>        /* GStatBuf */
-#include <stdlib.h>
-#include <nnstreamer.h>
-#include <nnstreamer_plugin_api_filter.h>
-#include <nnstreamer_plugin_api.h>
+#include <glib/gstdio.h> /* GStatBuf */
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer-single.h>
+#include <nnstreamer.h>
+#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
+#include <stdlib.h>
 #include <unittest_util.h>
 
 /**
@@ -36,8 +36,7 @@ get_model_file ()
     root_path = "..";
 
   /** nnfw needs a directory with model file and metadata in that directory */
-  model_path = g_build_filename (root_path, "tests", "test_models", "models",
-      NULL);
+  model_path = g_build_filename (root_path, "tests", "test_models", "models", NULL);
 
   meta_file = g_build_filename (model_path, "metadata", "MANIFEST", NULL);
   if (!g_file_test (meta_file, G_FILE_TEST_EXISTS)) {
@@ -74,14 +73,11 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
     model_file, NULL,
   };
   GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -136,14 +132,11 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, set_dimension)
     model_file, NULL,
   };
   GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   /** set input dimension without open */
   ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
@@ -204,13 +197,13 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, set_dimension)
 
   /* generate dummy data */
   for (int idx = 0; idx < tensor_size; idx++)
-    ((float *) input.data)[idx] = (float) idx;
+    ((float *)input.data)[idx] = (float)idx;
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   for (int idx = 0; idx < tensor_size; idx++)
-    EXPECT_FLOAT_EQ (((float *) output.data)[idx], (float) (idx + 2));
+    EXPECT_FLOAT_EQ (((float *)output.data)[idx], (float)(idx + 2));
 
   g_free (input.data);
   g_free (output.data);
@@ -235,14 +228,11 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
     model_file, NULL,
   };
   GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
   output.size = input.size = sizeof (float) * 1;
 
@@ -256,12 +246,12 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
   *((float *)input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_FLOAT_EQ (*((float *) output.data), 12.0);
+  EXPECT_FLOAT_EQ (*((float *)output.data), 12.0);
 
-  *((float *) input.data) = 1.0;
+  *((float *)input.data) = 1.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_FLOAT_EQ (*((float *) output.data), 3.0);
+  EXPECT_FLOAT_EQ (*((float *)output.data), 3.0);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -271,7 +261,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
  * @brief get argmax from the array
  */
 size_t
-get_argmax (guint8 * array, size_t size)
+get_argmax (guint8 *array, size_t size)
 {
   size_t idx, max_idx = 0;
   guint8 max_value = 0;
@@ -316,8 +306,8 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
     ASSERT_EQ (status, TRUE);
   }
 
-  manifest_file = g_build_filename (root_path, "tests", "test_models", "models",
-      "metadata", "MANIFEST", NULL);
+  manifest_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "metadata", "MANIFEST", NULL);
   status = g_file_test (manifest_file, G_FILE_TEST_EXISTS);
   if (status == FALSE) {
     g_free (model_file);
@@ -325,19 +315,17 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
     ASSERT_EQ (status, TRUE);
   }
 
-  const gchar *model_files[] = { model_file, NULL, };
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
   GstTensorFilterProperties prop = {
-    .fwname = "nnfw",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
+    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *) NULL);
+  EXPECT_NE (sp, (void *)NULL);
 
-  replace_command =
-      g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
+  replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
       orig_model, new_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
@@ -393,17 +381,17 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
   input.data = NULL;
   output.data = g_malloc (output.size);
 
-  data_file = g_build_filename (root_path, "tests", "test_models", "data",
-      "orange.raw", NULL);
-  status = g_file_get_contents (data_file, (gchar **) &input.data, &data_read,
-      NULL);
+  data_file = g_build_filename (
+      root_path, "tests", "test_models", "data", "orange.raw", NULL);
+  status = g_file_get_contents (data_file, (gchar **)&input.data, &data_read, NULL);
   EXPECT_EQ (data_read, input.size);
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
-  /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt */
-  max_idx = get_argmax ((guint8 *) output.data, output.size);
+  /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt
+   */
+  max_idx = get_argmax ((guint8 *)output.data, output.size);
   EXPECT_EQ (max_idx, 951U);
 
   g_free (data_file);
@@ -412,9 +400,8 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
   g_free (model_file);
   sp->close (&prop, &data);
 
-  replace_command =
-      g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s", new_model,
-      orig_model, manifest_file);
+  replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
+      new_model, orig_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
   g_free (manifest_file);
@@ -457,8 +444,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_CPU);
+  status = ml_single_open (
+      &single, test_model, in_info, out_info, ML_NNFW_TYPE_NNFW, ML_NNFW_HW_CPU);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* let's ignore timeout (30 sec) */
@@ -508,8 +495,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
   *data = 10.0;
@@ -518,8 +504,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (output, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
   EXPECT_FLOAT_EQ (*data, 12.0);
@@ -557,8 +542,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_01_n)
     root_path = "..";
 
   /* Model does not exist. */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "invalid_model.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "invalid_model.tflite", NULL);
   EXPECT_FALSE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   ml_tensors_info_create (&in_info);
@@ -574,8 +559,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_01_n)
   ml_tensors_info_set_tensor_type (out_info, 0, ML_TENSOR_TYPE_FLOAT32);
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, test_model, in_info, out_info, ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   input = output = NULL;
@@ -636,8 +621,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   ml_tensors_info_set_tensor_dimension (out_info, 0, out_dim);
 
   /* Open model with proper dimension */
-  status = ml_single_open (&single, test_model, in_info, out_info,
-      ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
+  status = ml_single_open (
+      &single, test_model, in_info, out_info, ML_NNFW_TYPE_NNFW, ML_NNFW_HW_ANY);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* let's ignore timeout (30 sec) */
@@ -672,8 +657,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float) * 16);
   data[0] = 10.0;
@@ -693,31 +677,28 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   ml_tensors_info_destroy (in_res);
 }
 
-#define wait_for_sink(expected_cnt) \
-  do { \
-    guint waiting_time = 0; \
-    while (*sink_called_cnt < expected_cnt) { \
-      g_usleep (TEST_DEFAULT_SLEEP_TIME); \
-      waiting_time += TEST_DEFAULT_SLEEP_TIME; \
-      ASSERT_GT(TEST_TIMEOUT_LIMIT, waiting_time); \
-    } \
+#define wait_for_sink(expected_cnt)                 \
+  do {                                              \
+    guint waiting_time = 0;                         \
+    while (*sink_called_cnt < expected_cnt) {       \
+      g_usleep (TEST_DEFAULT_SLEEP_TIME);           \
+      waiting_time += TEST_DEFAULT_SLEEP_TIME;      \
+      ASSERT_GT (TEST_TIMEOUT_LIMIT, waiting_time); \
+    }                                               \
   } while (0);
 
 /**
  * @brief Callback for tensor sink signal.
  */
 static void
-new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info,
-    void *user_data)
+new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
 {
   int status;
   float *data_ptr;
   size_t data_size;
-  int *checks = (int *) user_data;
+  int *checks = (int *)user_data;
 
-  status =
-      ml_tensors_data_get_tensor_data (data, 0, (void **) &data_ptr,
-      &data_size);
+  status = ml_tensors_data_get_tensor_data (data, 0, (void **)&data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_FLOAT_EQ (*data_ptr, 12.0);
 
@@ -744,11 +725,11 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
 
-  pipeline =
-      g_strdup_printf ("appsrc name=appsrc ! "
-      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
-      "tensor_filter framework=nnfw model=%s ! "
-      "tensor_sink name=tensor_sink", test_model);
+  pipeline = g_strdup_printf ("appsrc name=appsrc ! "
+                              "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+                              "tensor_filter framework=nnfw model=%s ! "
+                              "tensor_sink name=tensor_sink",
+      test_model);
 
   int status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
@@ -757,11 +738,10 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   status = ml_pipeline_src_get_handle (handle, "appsrc", &src_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
   /* register call back function when new data is arrived on sink pad */
-  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  sink_called_cnt = (guint *)g_malloc0 (sizeof (guint));
 
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb, sink_called_cnt,
-      &sink_handle);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink", new_data_cb, sink_called_cnt, &sink_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   in_dim[0] = in_dim[1] = in_dim[2] = in_dim[3] = 1;
@@ -774,7 +754,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);    /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
@@ -784,8 +765,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
   *data = 10.0;
@@ -794,14 +774,12 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_00)
 
   /* Push data to the source pad */
   for (int i = 0; i < 5; i++) {
-    status =
-        ml_pipeline_src_input_data (src_handle, input,
-        ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+    status = ml_pipeline_src_input_data (src_handle, input, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
     EXPECT_EQ (status, ML_ERROR_NONE);
     g_usleep (100000);
   }
 
-  wait_for_sink(5);
+  wait_for_sink (5);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
@@ -834,12 +812,12 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_01_n)
     root_path = "..";
 
   /* Model does not exist. */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "NULL.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "NULL.tflite", NULL);
   EXPECT_FALSE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  pipeline =
-      g_strdup_printf ("appsrc name=appsrc ! "
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
       "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
       "tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink",
       test_model);
@@ -879,12 +857,12 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
     root_path = "..";
 
   /* start pipeline test with valid model file */
-  test_model = g_build_filename (root_path, "tests", "test_models", "models",
-      "add.tflite", NULL);
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
   EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
-  pipeline =
-      g_strdup_printf ("appsrc name=appsrc ! "
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
       "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
       "tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink",
       test_model);
@@ -906,7 +884,8 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);    /* At this moment, it can be READY, PAUSED, or PLAYING */
+  EXPECT_EQ (status,
+      ML_ERROR_NONE); /* At this moment, it can be READY, PAUSED, or PLAYING */
   EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
   EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
 
@@ -916,9 +895,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
   EXPECT_TRUE (input != NULL);
 
   /* Push data to the source pad */
-  status =
-      ml_pipeline_src_input_data (src_handle, input,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle, input, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   ml_tensors_data_destroy (input);
@@ -934,9 +911,7 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
   EXPECT_TRUE (input != NULL);
 
   /* Push data to the source pad */
-  status =
-      ml_pipeline_src_input_data (src_handle, input,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle, input, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
 
   ml_tensors_info_destroy (info);
@@ -950,21 +925,19 @@ TEST (nnstreamer_nnfw_mlapi, invoke_pipeline_02_n)
 
   g_free (pipeline);
   g_free (test_model);
-
 }
 
 /**
  * @brief Callback for tensor sink signal.
  */
 static void
-new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
-    void *user_data)
+new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
 {
   unsigned int cnt = 0;
   int status;
   float *data_ptr;
   size_t data_size;
-  int *checks = (int *) user_data;
+  int *checks = (int *)user_data;
   ml_tensor_dimension out_dim;
 
   ml_tensors_info_get_count (info, &cnt);
@@ -976,9 +949,7 @@ new_data_cb_2 (const ml_tensors_data_h data, const ml_tensors_info_h info,
   EXPECT_EQ (out_dim[2], 1U);
   EXPECT_EQ (out_dim[3], 1U);
 
-  status =
-      ml_tensors_data_get_tensor_data (data, 0, (void **) &data_ptr,
-      &data_size);
+  status = ml_tensors_data_get_tensor_data (data, 0, (void **)&data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001U);
 
@@ -1018,12 +989,11 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   EXPECT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  manifest_file = g_build_filename (root_path, "tests", "test_models", "models",
-      "metadata", "MANIFEST", NULL);
+  manifest_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "metadata", "MANIFEST", NULL);
   EXPECT_TRUE (g_file_test (manifest_file, G_FILE_TEST_EXISTS));
 
-  replace_command =
-      g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
+  replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
       orig_model, new_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
@@ -1034,9 +1004,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
     ASSERT_EQ (ret, 0U);
   }
 
-  pipeline =
-      g_strdup_printf
-      ("appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:112:224:1,type=(string)uint8,framerate=(fraction)0/1 ! mux.sink_0 "
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:112:224:1,type=(string)uint8,framerate=(fraction)0/1 ! mux.sink_0 "
       "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:112:224:1,type=(string)uint8,framerate=(fraction)0/1 ! mux.sink_1 "
       "tensor_merge mode=linear option=1 sync_mode=nosync name=mux ! "
       "tensor_filter framework=nnfw input=3:224:224:1 inputtype=uint8 model=%s ! tensor_sink name=tensor_sink",
@@ -1052,11 +1021,10 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* register call back function when new data is arrived on sink pad */
-  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  sink_called_cnt = (guint *)g_malloc0 (sizeof (guint));
 
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink", new_data_cb_2, sink_called_cnt,
-      &sink_handle);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink", new_data_cb_2, sink_called_cnt, &sink_handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   in_dim[0] = 3;
@@ -1081,30 +1049,23 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input_0 != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input_0, 0, (void **) &data0,
-      &data_size0);
+  status = ml_tensors_data_get_tensor_data (input_0, 0, (void **)&data0, &data_size0);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size0, 3U * 112U * 224U);
 
   status = ml_tensors_data_create (info, &input_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input_0 != NULL);
-  status =
-      ml_tensors_data_get_tensor_data (input_1, 0, (void **) &data1,
-      &data_size1);
+  status = ml_tensors_data_get_tensor_data (input_1, 0, (void **)&data1, &data_size1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Push data to the source pad */
-  status =
-      ml_pipeline_src_input_data (src_handle_0, input_0,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle_0, input_0, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  status = ml_pipeline_src_input_data (src_handle_1, input_1,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle_1, input_1, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  wait_for_sink(1);
+  wait_for_sink (1);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input_0);
@@ -1118,9 +1079,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodal_01_p)
 
   g_free (pipeline);
   g_free (model_file);
-  replace_command =
-      g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s", new_model,
-      orig_model, manifest_file);
+  replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
+      new_model, orig_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
   g_free (manifest_file);
@@ -1148,8 +1108,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
 
-  pipeline =
-      g_strdup_printf ("appsrc name=appsrc ! "
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
       "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! tee name=t "
       "t. ! queue ! tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink_0 "
       "t. ! queue ! tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink_1",
@@ -1163,15 +1123,13 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* register call back function when new data is arrived on sink pad */
-  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  sink_called_cnt = (guint *)g_malloc0 (sizeof (guint));
 
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
-      &sink_handle_0);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink_0", new_data_cb, sink_called_cnt, &sink_handle_0);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, sink_called_cnt,
-      &sink_handle_1);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink_1", new_data_cb, sink_called_cnt, &sink_handle_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   in_dim[0] = in_dim[1] = in_dim[2] = in_dim[3] = 1;
@@ -1193,8 +1151,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
   *data = 10.0;
@@ -1203,12 +1160,10 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Push data to the source pad */
-  status =
-      ml_pipeline_src_input_data (src_handle, input,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle, input, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  wait_for_sink(2);
+  wait_for_sink (2);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);
@@ -1246,8 +1201,8 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   test_model = get_model_file ();
   ASSERT_TRUE (test_model != nullptr);
 
-  pipeline =
-      g_strdup_printf ("appsrc name=appsrc ! "
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
       "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! tee name=t "
       "t. ! queue ! tensor_filter framework=nnfw model=%s ! tensor_sink name=tensor_sink_0 "
       "t. ! queue ! tensor_filter framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink_1",
@@ -1261,15 +1216,13 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* register call back function when new data is arrived on sink pad */
-  sink_called_cnt = (guint *) g_malloc0 (sizeof (guint));
+  sink_called_cnt = (guint *)g_malloc0 (sizeof (guint));
 
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink_0", new_data_cb, sink_called_cnt,
-      &sink_handle_0);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink_0", new_data_cb, sink_called_cnt, &sink_handle_0);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  status =
-      ml_pipeline_sink_register (handle, "tensor_sink_1", new_data_cb, sink_called_cnt,
-      &sink_handle_1);
+  status = ml_pipeline_sink_register (
+      handle, "tensor_sink_1", new_data_cb, sink_called_cnt, &sink_handle_1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   in_dim[0] = in_dim[1] = in_dim[2] = in_dim[3] = 1;
@@ -1291,8 +1244,7 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (input != NULL);
 
-  status =
-      ml_tensors_data_get_tensor_data (input, 0, (void **) &data, &data_size);
+  status = ml_tensors_data_get_tensor_data (input, 0, (void **)&data, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, sizeof (float));
   *data = 10.0;
@@ -1301,12 +1253,10 @@ TEST (nnstreamer_nnfw_mlapi, multimodel_02_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Push data to the source pad */
-  status =
-      ml_pipeline_src_input_data (src_handle, input,
-      ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+  status = ml_pipeline_src_input_data (src_handle, input, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  wait_for_sink(2);
+  wait_for_sink (2);
 
   ml_tensors_info_destroy (info);
   ml_tensors_data_destroy (input);

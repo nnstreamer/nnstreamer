@@ -13,15 +13,16 @@
 #include "NCSDKTensorFilterTestHelper.hh"
 
 /* Static member variables for instance management */
-std::unique_ptr<NCSDKTensorFilterTestHelper>
-    NCSDKTensorFilterTestHelper::mInstance;
+std::unique_ptr<NCSDKTensorFilterTestHelper> NCSDKTensorFilterTestHelper::mInstance;
 std::once_flag NCSDKTensorFilterTestHelper::mOnceFlag;
 static const char NNS_MVNCSDK2_NAME_INPUT_FIFO[] = "INPUT_FIFO";
 static const char NNS_MVNCSDK2_NAME_OUTPUT_FIFO[] = "OUTPUT_FIFO";
 
 /** @brief Compare two ncTensorDescriptor_t data */
-static bool compareTensorDesc (const struct ncTensorDescriptor_t &tensor1,
-    const struct ncTensorDescriptor_t &tensor2) {
+static bool
+compareTensorDesc (const struct ncTensorDescriptor_t &tensor1,
+    const struct ncTensorDescriptor_t &tensor2)
+{
   if (tensor1.c != tensor2.c)
     return false;
   else if (tensor1.n != tensor2.n)
@@ -70,41 +71,41 @@ NCSDKTensorFilterTestHelper::init (model_t model)
 
   try {
     this->mDevHandle = new ncDeviceHandle_t;
-  } catch (const std::bad_alloc & e) {
+  } catch (const std::bad_alloc &e) {
     this->mDevHandle = nullptr;
   }
 
   try {
     this->mGraphHandle = new ncGraphHandle_t;
-  } catch (const std::bad_alloc & e) {
+  } catch (const std::bad_alloc &e) {
     this->mGraphHandle = nullptr;
   }
   this->mModelPath = nullptr;
   this->mFailStage = fail_stage_t::NONE;
 
   switch (model) {
-    default:
-    case GOOGLE_LENET:
-      this->mModel = model;
-      try {
-        this->mTensorDescInput = new struct ncTensorDescriptor_t ();
-        this->mTensorDescInput->c = GOOGLE_LENET_IN_DIM_C;
-        this->mTensorDescInput->n = GOOGLE_LENET_IN_DIM_N;
-        this->mTensorDescInput->w = GOOGLE_LENET_IN_DIM_W;
-        this->mTensorDescInput->h = GOOGLE_LENET_IN_DIM_H;
-        this->mTensorDescInput->dataType = NC_FIFO_FP32;
+  default:
+  case GOOGLE_LENET:
+    this->mModel = model;
+    try {
+      this->mTensorDescInput = new struct ncTensorDescriptor_t ();
+      this->mTensorDescInput->c = GOOGLE_LENET_IN_DIM_C;
+      this->mTensorDescInput->n = GOOGLE_LENET_IN_DIM_N;
+      this->mTensorDescInput->w = GOOGLE_LENET_IN_DIM_W;
+      this->mTensorDescInput->h = GOOGLE_LENET_IN_DIM_H;
+      this->mTensorDescInput->dataType = NC_FIFO_FP32;
 
-        this->mTensorDescOutput = new struct ncTensorDescriptor_t ();
-        this->mTensorDescOutput->c = GOOGLE_LENET_OUT_DIM_C;
-        this->mTensorDescOutput->n = GOOGLE_LENET_OUT_DIM_N;
-        this->mTensorDescOutput->w = GOOGLE_LENET_OUT_DIM_W;
-        this->mTensorDescOutput->h = GOOGLE_LENET_OUT_DIM_H;
-        this->mTensorDescOutput->dataType = NC_FIFO_FP32;
-      } catch  (const std::bad_alloc & e) {
-        this->mTensorDescInput = nullptr;
-        this->mTensorDescOutput = nullptr;
-      }
-      break;
+      this->mTensorDescOutput = new struct ncTensorDescriptor_t ();
+      this->mTensorDescOutput->c = GOOGLE_LENET_OUT_DIM_C;
+      this->mTensorDescOutput->n = GOOGLE_LENET_OUT_DIM_N;
+      this->mTensorDescOutput->w = GOOGLE_LENET_OUT_DIM_W;
+      this->mTensorDescOutput->h = GOOGLE_LENET_OUT_DIM_H;
+      this->mTensorDescOutput->dataType = NC_FIFO_FP32;
+    } catch (const std::bad_alloc &e) {
+      this->mTensorDescInput = nullptr;
+      this->mTensorDescOutput = nullptr;
+    }
+    break;
   }
 }
 
@@ -151,8 +152,7 @@ NCSDKTensorFilterTestHelper::getFailStage ()
  * @brief A method mocking ncGlobalGetOption()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
-      unsigned int *dataLength)
+NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data, unsigned int *dataLength)
 {
   if (this->mFailStage == fail_stage_t::WRONG_SDK_VER) {
     ncsdk_ver_t ver;
@@ -162,8 +162,8 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
     ver[MINOR] = 4;
     ver[HOTFIX] = 5;
     ver[RC] = 6;
-    if (sizeof(ncsdk_ver_t) != (*dataLength))
-        return NC_ERROR;
+    if (sizeof (ncsdk_ver_t) != (*dataLength))
+      return NC_ERROR;
 
     memcpy (data, ver, *dataLength);
 
@@ -173,13 +173,13 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
   }
 
   switch (option) {
-    case NC_RO_API_VERSION:
-      if (sizeof(ncsdk_ver_t) != (*dataLength))
-        return NC_ERROR;
-      memcpy (data, this->mVer, *dataLength);
-      break;
-    default:
+  case NC_RO_API_VERSION:
+    if (sizeof (ncsdk_ver_t) != (*dataLength))
       return NC_ERROR;
+    memcpy (data, this->mVer, *dataLength);
+    break;
+  default:
+    return NC_ERROR;
   }
   return NC_OK;
 }
@@ -188,8 +188,7 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data,
  * @brief A method mocking ncDeviceCreate()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncDeviceCreate (int index,
-    struct ncDeviceHandle_t **deviceHandle)
+NCSDKTensorFilterTestHelper::ncDeviceCreate (int index, struct ncDeviceHandle_t **deviceHandle)
 {
   if (this->mFailStage == fail_stage_t::FAIL_DEV_CREATE) {
     return NC_ERROR;
@@ -210,7 +209,7 @@ NCSDKTensorFilterTestHelper::ncDeviceCreate (int index,
  * @brief A method mocking ncDeviceOpen()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle)
+NCSDKTensorFilterTestHelper::ncDeviceOpen (struct ncDeviceHandle_t *deviceHandle)
 {
   if (this->mFailStage == fail_stage_t::FAIL_DEV_OPEN) {
     return NC_ERROR;
@@ -226,8 +225,7 @@ NCSDKTensorFilterTestHelper::ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle)
  * @brief A method mocking ncDeviceClose()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncDeviceClose(
-    struct ncDeviceHandle_t *deviceHandle)
+NCSDKTensorFilterTestHelper::ncDeviceClose (struct ncDeviceHandle_t *deviceHandle)
 {
   if (this->mFailStage == fail_stage_t::FAIL_DEV_CLOSE) {
     return NC_ERROR;
@@ -243,8 +241,7 @@ NCSDKTensorFilterTestHelper::ncDeviceClose(
  * @brief A method mocking ncDeviceDestroy()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncDeviceDestroy(
-    struct ncDeviceHandle_t **deviceHandle)
+NCSDKTensorFilterTestHelper::ncDeviceDestroy (struct ncDeviceHandle_t **deviceHandle)
 {
   if ((this->mDevHandle != nullptr) && (*deviceHandle != nullptr)
       && (*deviceHandle == this->mDevHandle)) {
@@ -262,8 +259,7 @@ NCSDKTensorFilterTestHelper::ncDeviceDestroy(
  * @brief A method mocking ncGraphCreate()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGraphCreate(const char* name,
-    struct ncGraphHandle_t **graphHandle)
+NCSDKTensorFilterTestHelper::ncGraphCreate (const char *name, struct ncGraphHandle_t **graphHandle)
 {
   if (this->mFailStage == fail_stage_t::FAIL_GRAPH_CREATE) {
     return NC_ERROR;
@@ -287,9 +283,8 @@ NCSDKTensorFilterTestHelper::ncGraphCreate(const char* name,
  * @brief A method mocking ncGraphAllocate()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGraphAllocate(
-    struct ncDeviceHandle_t *deviceHandle, struct ncGraphHandle_t *graphHandle,
-    const void *graphBuffer, unsigned int graphBufferLength)
+NCSDKTensorFilterTestHelper::ncGraphAllocate (struct ncDeviceHandle_t *deviceHandle,
+    struct ncGraphHandle_t *graphHandle, const void *graphBuffer, unsigned int graphBufferLength)
 {
   if (this->mFailStage == fail_stage_t::FAIL_GRAPH_ALLOC) {
     return NC_ERROR;
@@ -309,33 +304,32 @@ NCSDKTensorFilterTestHelper::ncGraphAllocate(
  * A description of input or output tensor will be filled in data.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGraphGetOption(
-    struct ncGraphHandle_t *graphHandle, int option, void *data,
-    unsigned int *dataLength)
+NCSDKTensorFilterTestHelper::ncGraphGetOption (struct ncGraphHandle_t *graphHandle,
+    int option, void *data, unsigned int *dataLength)
 {
   switch (option) {
-    case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
-      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
-        return NC_ERROR;
-      }
-      if (this->mTensorDescInput == nullptr) {
-        return NC_OUT_OF_MEMORY;
-      }
-      if (sizeof(*this->mTensorDescInput) != (*dataLength))
-        return NC_INVALID_PARAMETERS;
-      memcpy (data, (void *) this->mTensorDescInput, *dataLength);
-      break;
-    case NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS:
-      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC) {
-        return NC_ERROR;
-      }
-      if (this->mTensorDescOutput == nullptr) {
-        return NC_OUT_OF_MEMORY;
-      }
-      if (sizeof(*this->mTensorDescOutput) != (*dataLength))
-        return NC_INVALID_PARAMETERS;
-      memcpy (data, (void *) this->mTensorDescOutput, *dataLength);
-      break;
+  case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
+    if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
+      return NC_ERROR;
+    }
+    if (this->mTensorDescInput == nullptr) {
+      return NC_OUT_OF_MEMORY;
+    }
+    if (sizeof (*this->mTensorDescInput) != (*dataLength))
+      return NC_INVALID_PARAMETERS;
+    memcpy (data, (void *)this->mTensorDescInput, *dataLength);
+    break;
+  case NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS:
+    if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC) {
+      return NC_ERROR;
+    }
+    if (this->mTensorDescOutput == nullptr) {
+      return NC_OUT_OF_MEMORY;
+    }
+    if (sizeof (*this->mTensorDescOutput) != (*dataLength))
+      return NC_INVALID_PARAMETERS;
+    memcpy (data, (void *)this->mTensorDescOutput, *dataLength);
+    break;
   }
 
   return NC_OK;
@@ -345,10 +339,9 @@ NCSDKTensorFilterTestHelper::ncGraphGetOption(
  * @brief A method mocking ncGraphQueueInference(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGraphQueueInference(
-    struct ncGraphHandle_t *graphHandle, struct ncFifoHandle_t** fifoIn,
-    unsigned int inFifoCount, struct ncFifoHandle_t** fifoOut,
-    unsigned int outFifoCount)
+NCSDKTensorFilterTestHelper::ncGraphQueueInference (struct ncGraphHandle_t *graphHandle,
+    struct ncFifoHandle_t **fifoIn, unsigned int inFifoCount,
+    struct ncFifoHandle_t **fifoOut, unsigned int outFifoCount)
 {
   if (this->mFailStage == fail_stage_t::FAIL_GRAPH_Q_INFER) {
     return NC_ERROR;
@@ -362,8 +355,7 @@ NCSDKTensorFilterTestHelper::ncGraphQueueInference(
  * this deallocates the resources allocated by ncGraphCreate()
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncGraphDestroy(
-  struct ncGraphHandle_t **graphHandle)
+NCSDKTensorFilterTestHelper::ncGraphDestroy (struct ncGraphHandle_t **graphHandle)
 {
   if ((*graphHandle == nullptr) || (*graphHandle != this->mGraphHandle)) {
     return NC_INVALID_PARAMETERS;
@@ -386,14 +378,14 @@ NCSDKTensorFilterTestHelper::ncGraphDestroy(
  * @brief A method mocking ncFifoCreate(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoCreate(const char* name, ncFifoType_t type,
-    struct ncFifoHandle_t** fifoHandle)
+NCSDKTensorFilterTestHelper::ncFifoCreate (
+    const char *name, ncFifoType_t type, struct ncFifoHandle_t **fifoHandle)
 {
   if ((this->mFailStage == fail_stage_t::FAIL_FIFO_CREATE_INPUT)
       && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_INPUT_FIFO)) {
     return NC_ERROR;
   } else if ((this->mFailStage == fail_stage_t::FAIL_FIFO_CREATE_OUTPUT)
-      && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_OUTPUT_FIFO)) {
+             && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_OUTPUT_FIFO)) {
     return NC_ERROR;
   }
 
@@ -404,15 +396,15 @@ NCSDKTensorFilterTestHelper::ncFifoCreate(const char* name, ncFifoType_t type,
  * @brief A method mocking ncFifoAllocate(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
-    struct ncDeviceHandle_t* device, struct ncTensorDescriptor_t* tensorDesc,
+NCSDKTensorFilterTestHelper::ncFifoAllocate (struct ncFifoHandle_t *fifoHandle,
+    struct ncDeviceHandle_t *device, struct ncTensorDescriptor_t *tensorDesc,
     unsigned int numElem)
 {
   if ((this->mFailStage == fail_stage_t::FAIL_FIFO_ALLOC_INPUT)
       && (compareTensorDesc (*tensorDesc, *(this->mTensorDescInput)))) {
     return NC_ERROR;
   } else if ((this->mFailStage == fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT)
-      && (compareTensorDesc (*tensorDesc, *(this->mTensorDescOutput)))) {
+             && (compareTensorDesc (*tensorDesc, *(this->mTensorDescOutput)))) {
     return NC_ERROR;
   }
 
@@ -423,7 +415,7 @@ NCSDKTensorFilterTestHelper::ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
  * @brief A method mocking ncFifoSetOption(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoSetOption(struct ncFifoHandle_t* fifoHandle,
+NCSDKTensorFilterTestHelper::ncFifoSetOption (struct ncFifoHandle_t *fifoHandle,
     int option, const void *data, unsigned int dataLength)
 {
   return NC_OK;
@@ -433,7 +425,7 @@ NCSDKTensorFilterTestHelper::ncFifoSetOption(struct ncFifoHandle_t* fifoHandle,
  * @brief A method mocking ncFifoGetOption(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoGetOption(struct ncFifoHandle_t* fifoHandle,
+NCSDKTensorFilterTestHelper::ncFifoGetOption (struct ncFifoHandle_t *fifoHandle,
     int option, void *data, unsigned int *dataLength)
 {
   return NC_OK;
@@ -443,7 +435,7 @@ NCSDKTensorFilterTestHelper::ncFifoGetOption(struct ncFifoHandle_t* fifoHandle,
  * @brief A method mocking ncFifoDestroy(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoDestroy(struct ncFifoHandle_t** fifoHandle)
+NCSDKTensorFilterTestHelper::ncFifoDestroy (struct ncFifoHandle_t **fifoHandle)
 {
   return NC_OK;
 }
@@ -452,10 +444,10 @@ NCSDKTensorFilterTestHelper::ncFifoDestroy(struct ncFifoHandle_t** fifoHandle)
  * @brief A method mocking ncFifoWriteElem(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoWriteElem(struct ncFifoHandle_t* fifoHandle,
-    const void *inputTensor, unsigned int * inputTensorLength, void *userParam)
+NCSDKTensorFilterTestHelper::ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
+    const void *inputTensor, unsigned int *inputTensorLength, void *userParam)
 {
- if (this->mFailStage == fail_stage_t::FAIL_FIFO_WRT_ELEM) {
+  if (this->mFailStage == fail_stage_t::FAIL_FIFO_WRT_ELEM) {
     return NC_ERROR;
   }
 
@@ -466,8 +458,8 @@ NCSDKTensorFilterTestHelper::ncFifoWriteElem(struct ncFifoHandle_t* fifoHandle,
  * @brief A method mocking ncFifoReadElem(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoReadElem(struct ncFifoHandle_t* fifoHandle,
-    void *outputData, unsigned int* outputDataLen, void **userParam)
+NCSDKTensorFilterTestHelper::ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
+    void *outputData, unsigned int *outputDataLen, void **userParam)
 {
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_RD_ELEM) {
     return NC_ERROR;
@@ -480,7 +472,7 @@ NCSDKTensorFilterTestHelper::ncFifoReadElem(struct ncFifoHandle_t* fifoHandle,
  * @brief A method mocking ncFifoRemoveElem(). Do nothing.
  */
 ncStatus_t
-NCSDKTensorFilterTestHelper::ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle)
+NCSDKTensorFilterTestHelper::ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle)
 {
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_RM_ELEM) {
     return NC_ERROR;
@@ -495,8 +487,8 @@ NCSDKTensorFilterTestHelper::ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle)
 ncStatus_t
 ncGlobalGetOption (int option, void *data, unsigned int *dataLength)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncGlobalGetOption (option,
-      data, dataLength);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGlobalGetOption (
+      option, data, dataLength);
 }
 
 /**
@@ -505,58 +497,53 @@ ncGlobalGetOption (int option, void *data, unsigned int *dataLength)
 ncStatus_t
 ncDeviceCreate (int index, struct ncDeviceHandle_t **deviceHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncDeviceCreate (index,
-      deviceHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncDeviceCreate (index, deviceHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncDeviceOpen() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle)
+ncDeviceOpen (struct ncDeviceHandle_t *deviceHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncDeviceOpen (deviceHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncDeviceOpen (deviceHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncDeviceClose() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncDeviceClose(struct ncDeviceHandle_t *deviceHandle)
+ncDeviceClose (struct ncDeviceHandle_t *deviceHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance()
-      .ncDeviceClose (deviceHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncDeviceClose (deviceHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncDeviceDestroy() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncDeviceDestroy(struct ncDeviceHandle_t **deviceHandle)
+ncDeviceDestroy (struct ncDeviceHandle_t **deviceHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance()
-      .ncDeviceDestroy (deviceHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncDeviceDestroy (deviceHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncGraphCreate() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncGraphCreate (const char* name, struct ncGraphHandle_t **graphHandle)
+ncGraphCreate (const char *name, struct ncGraphHandle_t **graphHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncGraphCreate (name,
-      graphHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGraphCreate (name, graphHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncGraphAllocate() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncGraphAllocate(struct ncDeviceHandle_t *deviceHandle,
-      struct ncGraphHandle_t *graphHandle, const void *graphBuffer,
-      unsigned int graphBufferLength)
+ncGraphAllocate (struct ncDeviceHandle_t *deviceHandle, struct ncGraphHandle_t *graphHandle,
+    const void *graphBuffer, unsigned int graphBufferLength)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncGraphAllocate (
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGraphAllocate (
       deviceHandle, graphHandle, graphBuffer, graphBufferLength);
 }
 
@@ -564,10 +551,10 @@ ncGraphAllocate(struct ncDeviceHandle_t *deviceHandle,
  * @brief A function definition providing the dummy body of ncGraphGetOption() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncGraphGetOption(struct ncGraphHandle_t *graphHandle, int option, void *data,
+ncGraphGetOption (struct ncGraphHandle_t *graphHandle, int option, void *data,
     unsigned int *dataLength)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncGraphGetOption (
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGraphGetOption (
       graphHandle, option, data, dataLength);
 }
 
@@ -575,11 +562,11 @@ ncGraphGetOption(struct ncGraphHandle_t *graphHandle, int option, void *data,
  * @brief A function definition providing the dummy body of ncGraphQueueInference() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncGraphQueueInference(struct ncGraphHandle_t *graphHandle,
-    struct ncFifoHandle_t** fifoIn, unsigned int inFifoCount,
-    struct ncFifoHandle_t** fifoOut, unsigned int outFifoCount)
+ncGraphQueueInference (struct ncGraphHandle_t *graphHandle,
+    struct ncFifoHandle_t **fifoIn, unsigned int inFifoCount,
+    struct ncFifoHandle_t **fifoOut, unsigned int outFifoCount)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncGraphQueueInference (
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGraphQueueInference (
       graphHandle, fifoIn, inFifoCount, fifoOut, outFifoCount);
 }
 
@@ -587,94 +574,89 @@ ncGraphQueueInference(struct ncGraphHandle_t *graphHandle,
  * @brief A function definition providing the dummy body of ncGraphDestroy() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncGraphDestroy(struct ncGraphHandle_t **graphHandle)
+ncGraphDestroy (struct ncGraphHandle_t **graphHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance()
-      .ncGraphDestroy (graphHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncGraphDestroy (graphHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoCreate() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoCreate(const char* name, ncFifoType_t type,
-    struct ncFifoHandle_t** fifoHandle)
+ncFifoCreate (const char *name, ncFifoType_t type, struct ncFifoHandle_t **fifoHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoCreate (name, type,
-      fifoHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoCreate (name, type, fifoHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoAllocate() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
-    struct ncDeviceHandle_t* device, struct ncTensorDescriptor_t* tensorDesc,
-    unsigned int numElem)
+ncFifoAllocate (struct ncFifoHandle_t *fifoHandle, struct ncDeviceHandle_t *device,
+    struct ncTensorDescriptor_t *tensorDesc, unsigned int numElem)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoAllocate (fifoHandle,
-      device, tensorDesc, numElem);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoAllocate (
+      fifoHandle, device, tensorDesc, numElem);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoSetOption() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoSetOption(struct ncFifoHandle_t* fifoHandle, int option,
+ncFifoSetOption (struct ncFifoHandle_t *fifoHandle, int option,
     const void *data, unsigned int dataLength)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoSetOption (fifoHandle,
-      option, data, dataLength);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoSetOption (
+      fifoHandle, option, data, dataLength);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoGetOption() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoGetOption(struct ncFifoHandle_t* fifoHandle, int option, void *data,
+ncFifoGetOption (struct ncFifoHandle_t *fifoHandle, int option, void *data,
     unsigned int *dataLength)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoGetOption (fifoHandle,
-      option, data, dataLength);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoGetOption (
+      fifoHandle, option, data, dataLength);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoDestroy() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoDestroy(struct ncFifoHandle_t** fifoHandle)
+ncFifoDestroy (struct ncFifoHandle_t **fifoHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoDestroy (fifoHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoDestroy (fifoHandle);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoWriteElem() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoWriteElem(struct ncFifoHandle_t* fifoHandle, const void *inputTensor,
-    unsigned int * inputTensorLength, void *userParam)
+ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle, const void *inputTensor,
+    unsigned int *inputTensorLength, void *userParam)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoWriteElem (fifoHandle,
-      inputTensor, inputTensorLength, userParam);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoWriteElem (
+      fifoHandle, inputTensor, inputTensorLength, userParam);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoReadElem() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoReadElem(struct ncFifoHandle_t* fifoHandle, void *outputData,
-    unsigned int* outputDataLen, void **userParam)
+ncFifoReadElem (struct ncFifoHandle_t *fifoHandle, void *outputData,
+    unsigned int *outputDataLen, void **userParam)
 {
-  return NCSDKTensorFilterTestHelper::getInstance().ncFifoWriteElem (fifoHandle,
-      outputData, outputDataLen, userParam);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoWriteElem (
+      fifoHandle, outputData, outputDataLen, userParam);
 }
 
 /**
  * @brief A function definition providing the dummy body of ncFifoRemoveElem() to the NCSDK2 tensor filter
  */
 ncStatus_t
-ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle)
+ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle)
 {
-  return NCSDKTensorFilterTestHelper::getInstance()
-      .ncFifoRemoveElem (fifoHandle);
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoRemoveElem (fifoHandle);
 }

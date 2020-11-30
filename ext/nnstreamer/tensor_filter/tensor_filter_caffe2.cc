@@ -25,9 +25,9 @@
  * This is the per-NN-framework plugin (caffe2) for tensor_filter.
  */
 
+#include <algorithm>
 #include <iostream>
 #include <unistd.h>
-#include <algorithm>
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
@@ -35,8 +35,8 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 
-#include <caffe2/core/workspace.h>
 #include <caffe2/core/init.h>
+#include <caffe2/core/workspace.h>
 
 /**
  * @brief Macro for debug mode.
@@ -54,30 +54,29 @@ using namespace caffe2;
  */
 class Caffe2Core
 {
-public:
-  Caffe2Core (const char * _model_path, const char * _model_path_sub);
+  public:
+  Caffe2Core (const char *_model_path, const char *_model_path_sub);
   ~Caffe2Core ();
 
-  int init (const GstTensorFilterProperties * prop);
+  int init (const GstTensorFilterProperties *prop);
   int loadModels ();
-  const char* getPredModelPath ();
-  const char* getInitModelPath ();
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int run (const GstTensorMemory * input, GstTensorMemory * output);
+  const char *getPredModelPath ();
+  const char *getInitModelPath ();
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int run (const GstTensorMemory *input, GstTensorMemory *output);
 
-private:
-
+  private:
   char *init_model_path;
   char *pred_model_path;
   bool first_run;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
 
   Workspace workSpace;
   NetDef initNet, predictNet;
-  std::map <char*, Tensor*> inputTensorMap;
+  std::map<char *, Tensor *> inputTensorMap;
 
   int initInputTensor ();
 };
@@ -91,7 +90,7 @@ void fini_filter_caffe2 (void) __attribute__ ((destructor));
  * @note	the model of _model_path will be loaded simultaneously
  * @return	Nothing
  */
-Caffe2Core::Caffe2Core (const char * _model_path, const char *_model_path_sub)
+Caffe2Core::Caffe2Core (const char *_model_path, const char *_model_path_sub)
 {
   init_model_path = g_strdup (_model_path);
   pred_model_path = g_strdup (_model_path_sub);
@@ -125,7 +124,7 @@ Caffe2Core::~Caffe2Core ()
  *        -3 if the initialization of output tensor is failed.
  */
 int
-Caffe2Core::init (const GstTensorFilterProperties * prop)
+Caffe2Core::init (const GstTensorFilterProperties *prop)
 {
   if (loadModels ()) {
     ml_loge ("Failed to load model\n");
@@ -144,19 +143,13 @@ Caffe2Core::init (const GstTensorFilterProperties * prop)
   return 0;
 }
 
-#define initializeTensor(type)\
-do {\
-  ReinitializeTensor (\
-      inputTensor,\
-      {\
-        inputTensorMeta.info[i].dimension[3],\
-        inputTensorMeta.info[i].dimension[2],\
-        inputTensorMeta.info[i].dimension[1],\
-        inputTensorMeta.info[i].dimension[0]\
-      },\
-      at::dtype<type> ().device (CPU)\
-  );\
-} while (0);
+#define initializeTensor(type)                                                            \
+  do {                                                                                    \
+    ReinitializeTensor (inputTensor,                                                      \
+        { inputTensorMeta.info[i].dimension[3], inputTensorMeta.info[i].dimension[2],     \
+            inputTensorMeta.info[i].dimension[1], inputTensorMeta.info[i].dimension[0] }, \
+        at::dtype<type> ().device (CPU));                                                 \
+  } while (0);
 
 /**
  * @brief initialize the input tensor
@@ -168,48 +161,46 @@ Caffe2Core::initInputTensor ()
 
   inputTensorMap.clear ();
   for (i = 0; i < inputTensorMeta.num_tensors; i++) {
-    Tensor *inputTensor = workSpace.CreateBlob (inputTensorMeta.info[i].name)
-      ->GetMutable<Tensor> ();
+    Tensor *inputTensor
+        = workSpace.CreateBlob (inputTensorMeta.info[i].name)->GetMutable<Tensor> ();
 
     switch (inputTensorMeta.info[i].type) {
-      case _NNS_INT32:
-        initializeTensor (int32_t);
-        break;
-      case _NNS_UINT32:
-        ml_loge ("invalid data type is used");
-        return -1;
-      case _NNS_INT16:
-        initializeTensor (int16_t);
-        break;
-      case _NNS_UINT16:
-        initializeTensor (uint16_t);
-        break;
-      case _NNS_INT8:
-        initializeTensor (int8_t);
-        break;
-      case _NNS_UINT8:
-        initializeTensor (uint8_t);
-        break;
-      case _NNS_FLOAT64:
-        initializeTensor (double);
-        break;
-      case _NNS_FLOAT32:
-        initializeTensor (float);
-        break;
-      case _NNS_INT64:
-        initializeTensor (int64_t);
-        break;
-      case _NNS_UINT64:
-        ml_loge ("invalid data type is used");
-        return -1;
-      default:
-        ml_loge ("invalid data type is used");
-        return -1;
+    case _NNS_INT32:
+      initializeTensor (int32_t);
+      break;
+    case _NNS_UINT32:
+      ml_loge ("invalid data type is used");
+      return -1;
+    case _NNS_INT16:
+      initializeTensor (int16_t);
+      break;
+    case _NNS_UINT16:
+      initializeTensor (uint16_t);
+      break;
+    case _NNS_INT8:
+      initializeTensor (int8_t);
+      break;
+    case _NNS_UINT8:
+      initializeTensor (uint8_t);
+      break;
+    case _NNS_FLOAT64:
+      initializeTensor (double);
+      break;
+    case _NNS_FLOAT32:
+      initializeTensor (float);
+      break;
+    case _NNS_INT64:
+      initializeTensor (int64_t);
+      break;
+    case _NNS_UINT64:
+      ml_loge ("invalid data type is used");
+      return -1;
+    default:
+      ml_loge ("invalid data type is used");
+      return -1;
     }
 
-    inputTensorMap.insert (
-      std::make_pair (inputTensorMeta.info[i].name, inputTensor)
-    );
+    inputTensorMap.insert (std::make_pair (inputTensorMeta.info[i].name, inputTensor));
   }
   return 0;
 }
@@ -256,15 +247,16 @@ Caffe2Core::loadModels ()
   CAFFE_ENFORCE (ReadProtoFromFile (init_model_path, &initNet));
   CAFFE_ENFORCE (ReadProtoFromFile (pred_model_path, &predictNet));
 
-  /* set device type as CPU. If it is required, GPU/CUDA will be added as an option */
-  predictNet.mutable_device_option()->set_device_type(PROTO_CPU);
-  initNet.mutable_device_option()->set_device_type(PROTO_CPU);
+  /* set device type as CPU. If it is required, GPU/CUDA will be added as an
+   * option */
+  predictNet.mutable_device_option ()->set_device_type (PROTO_CPU);
+  initNet.mutable_device_option ()->set_device_type (PROTO_CPU);
 
-  for (int i = 0; i < predictNet.op_size(); ++i) {
-    predictNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  for (int i = 0; i < predictNet.op_size (); ++i) {
+    predictNet.mutable_op (i)->mutable_device_option ()->set_device_type (PROTO_CPU);
   }
-  for (int i = 0; i < initNet.op_size(); ++i) {
-    initNet.mutable_op(i)->mutable_device_option()->set_device_type(PROTO_CPU);
+  for (int i = 0; i < initNet.op_size (); ++i) {
+    initNet.mutable_op (i)->mutable_device_option ()->set_device_type (PROTO_CPU);
   }
 
   CAFFE_ENFORCE (workSpace.RunNetOnce (initNet));
@@ -283,7 +275,7 @@ Caffe2Core::loadModels ()
  * @return 0 if OK. non-zero if error.
  */
 int
-Caffe2Core::getInputTensorDim (GstTensorsInfo * info)
+Caffe2Core::getInputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
@@ -296,7 +288,7 @@ Caffe2Core::getInputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-Caffe2Core::getOutputTensorDim (GstTensorsInfo * info)
+Caffe2Core::getOutputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
@@ -309,7 +301,7 @@ Caffe2Core::getOutputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
+Caffe2Core::run (const GstTensorMemory *input, GstTensorMemory *output)
 {
   unsigned int i;
 #if (DBG)
@@ -317,43 +309,42 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
 #endif
 
   for (i = 0; i < inputTensorMeta.num_tensors; i++) {
-    Tensor *inputTensor = inputTensorMap.
-                            find(inputTensorMeta.info[i].name)->second;
+    Tensor *inputTensor = inputTensorMap.find (inputTensorMeta.info[i].name)->second;
 
     switch (inputTensorMeta.info[i].type) {
-      case _NNS_INT32:
-        inputTensor->ShareExternalPointer ((int32_t*) input[i].data);
-        break;
-      case _NNS_UINT32:
-        ml_loge ("invalid data type is used");
-        return -1;
-      case _NNS_INT16:
-        inputTensor->ShareExternalPointer ((int16_t*) input[i].data);
-        break;
-      case _NNS_UINT16:
-        inputTensor->ShareExternalPointer ((uint16_t*) input[i].data);
-        break;
-      case _NNS_INT8:
-        inputTensor->ShareExternalPointer ((int8_t*) input[i].data);
-        break;
-      case _NNS_UINT8:
-        inputTensor->ShareExternalPointer ((uint8_t*) input[i].data);
-        break;
-      case _NNS_FLOAT64:
-        inputTensor->ShareExternalPointer ((double*) input[i].data);
-        break;
-      case _NNS_FLOAT32:
-        inputTensor->ShareExternalPointer ((float*) input[i].data);
-        break;
-      case _NNS_INT64:
-        inputTensor->ShareExternalPointer ((int64_t*) input[i].data);
-        break;
-      case _NNS_UINT64:
-        ml_loge ("invalid data type is used");
-        return -1;
-      default:
-        ml_loge ("invalid data type is used");
-        return -1;
+    case _NNS_INT32:
+      inputTensor->ShareExternalPointer ((int32_t *)input[i].data);
+      break;
+    case _NNS_UINT32:
+      ml_loge ("invalid data type is used");
+      return -1;
+    case _NNS_INT16:
+      inputTensor->ShareExternalPointer ((int16_t *)input[i].data);
+      break;
+    case _NNS_UINT16:
+      inputTensor->ShareExternalPointer ((uint16_t *)input[i].data);
+      break;
+    case _NNS_INT8:
+      inputTensor->ShareExternalPointer ((int8_t *)input[i].data);
+      break;
+    case _NNS_UINT8:
+      inputTensor->ShareExternalPointer ((uint8_t *)input[i].data);
+      break;
+    case _NNS_FLOAT64:
+      inputTensor->ShareExternalPointer ((double *)input[i].data);
+      break;
+    case _NNS_FLOAT32:
+      inputTensor->ShareExternalPointer ((float *)input[i].data);
+      break;
+    case _NNS_INT64:
+      inputTensor->ShareExternalPointer ((int64_t *)input[i].data);
+      break;
+    case _NNS_UINT64:
+      ml_loge ("invalid data type is used");
+      return -1;
+    default:
+      ml_loge ("invalid data type is used");
+      return -1;
     }
   }
 
@@ -365,11 +356,11 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
     try {
       workSpace.RunNet (predictNet.name ());
       first_run = false;
-    } catch(const std::runtime_error& re) {
-      ml_loge ("Runtime error while running the model: %s", re.what());
+    } catch (const std::runtime_error &re) {
+      ml_loge ("Runtime error while running the model: %s", re.what ());
       return -4;
-    } catch(const std::exception& ex)	{
-      ml_loge ("Exception while running the model : %s", ex.what());
+    } catch (const std::exception &ex) {
+      ml_loge ("Exception while running the model : %s", ex.what ());
       return -4;
     } catch (...) {
       ml_loge ("Unknown exception while running the model");
@@ -380,50 +371,48 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
   for (i = 0; i < outputTensorMeta.num_tensors; i++) {
-    const auto& out = workSpace.GetBlob (outputTensorMeta.info[i].name)
-      ->Get<Tensor> ();
+    const auto &out = workSpace.GetBlob (outputTensorMeta.info[i].name)->Get<Tensor> ();
 
     switch (outputTensorMeta.info[i].type) {
-      case _NNS_INT32:
-        output[i].data = out.data<int32_t>();
-        break;
-      case _NNS_UINT32:
-        ml_loge ("invalid data type (uint32) is used");
-        return -1;
-      case _NNS_INT16:
-        output[i].data = out.data<int16_t>();
-        break;
-      case _NNS_UINT16:
-        output[i].data = out.data<uint16_t>();
-        break;
-      case _NNS_INT8:
-        output[i].data = out.data<int8_t>();
-        break;
-      case _NNS_UINT8:
-        output[i].data = out.data<uint8_t>();
-        break;
-      case _NNS_FLOAT64:
-        output[i].data = out.data<double>();
-        break;
-      case _NNS_FLOAT32:
-        output[i].data = out.data<float>();
-        break;
-      case _NNS_INT64:
-        output[i].data = out.data<int64_t>();
-        break;
-      case _NNS_UINT64:
-        ml_loge ("invalid data type (uint64) is used");
-        return -1;
-      default:
-        ml_loge ("invalid data type is used");
-        return -1;
+    case _NNS_INT32:
+      output[i].data = out.data<int32_t> ();
+      break;
+    case _NNS_UINT32:
+      ml_loge ("invalid data type (uint32) is used");
+      return -1;
+    case _NNS_INT16:
+      output[i].data = out.data<int16_t> ();
+      break;
+    case _NNS_UINT16:
+      output[i].data = out.data<uint16_t> ();
+      break;
+    case _NNS_INT8:
+      output[i].data = out.data<int8_t> ();
+      break;
+    case _NNS_UINT8:
+      output[i].data = out.data<uint8_t> ();
+      break;
+    case _NNS_FLOAT64:
+      output[i].data = out.data<double> ();
+      break;
+    case _NNS_FLOAT32:
+      output[i].data = out.data<float> ();
+      break;
+    case _NNS_INT64:
+      output[i].data = out.data<int64_t> ();
+      break;
+    case _NNS_UINT64:
+      ml_loge ("invalid data type (uint64) is used");
+      return -1;
+    default:
+      ml_loge ("invalid data type is used");
+      return -1;
     }
   }
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
-  g_message ("Run() is finished: %" G_GINT64_FORMAT,
-      (stop_time - start_time));
+  g_message ("Run() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
 
   return 0;
@@ -433,9 +422,9 @@ Caffe2Core::run (const GstTensorMemory * input, GstTensorMemory * output)
  * @brief Free privateData and move on.
  */
 static void
-caffe2_close (const GstTensorFilterProperties * prop, void **private_data)
+caffe2_close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+  Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
 
   if (!core)
     return;
@@ -453,8 +442,7 @@ caffe2_close (const GstTensorFilterProperties * prop, void **private_data)
  *        -2 if the object initialization if failed
  */
 static int
-caffe2_loadModelFile (const GstTensorFilterProperties * prop,
-    void **private_data)
+caffe2_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
   Caffe2Core *core;
   const gchar *init_model;
@@ -465,15 +453,16 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
     return -1;
   }
 
-  /* In caffe2, model_files[0] is a init model, and model_files[1] is a pred model */
-  core = static_cast<Caffe2Core *>(*private_data);
+  /* In caffe2, model_files[0] is a init model, and model_files[1] is a pred
+   * model */
+  core = static_cast<Caffe2Core *> (*private_data);
   init_model = prop->model_files[0];
   pred_model = prop->model_files[1];
   g_return_val_if_fail (init_model && pred_model, -1);
 
   if (core != NULL) {
-    if (g_strcmp0 (init_model, core->getInitModelPath ()) == 0 &&
-        g_strcmp0 (pred_model, core->getPredModelPath ()) == 0)
+    if (g_strcmp0 (init_model, core->getInitModelPath ()) == 0
+        && g_strcmp0 (pred_model, core->getPredModelPath ()) == 0)
       return 1; /* skipped */
 
     caffe2_close (prop, private_data);
@@ -511,7 +500,7 @@ caffe2_loadModelFile (const GstTensorFilterProperties * prop,
  * @param private_data : caffe2 plugin's private data
  */
 static int
-caffe2_open (const GstTensorFilterProperties * prop, void **private_data)
+caffe2_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   int status = caffe2_loadModelFile (prop, private_data);
 
@@ -527,10 +516,10 @@ caffe2_open (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 if OK. non-zero if error.
  */
 static int
-caffe2_run (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+caffe2_run (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+  Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->run (input, output);
@@ -543,10 +532,10 @@ caffe2_run (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of input tensors
  */
 static int
-caffe2_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+caffe2_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+  Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
@@ -559,10 +548,10 @@ caffe2_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of output tensors
  */
 static int
-caffe2_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+caffe2_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  Caffe2Core *core = static_cast<Caffe2Core *>(*private_data);
+  Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
@@ -595,29 +584,25 @@ caffe2_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_caffe2[] = "caffe2";
 
-static GstTensorFilterFramework NNS_support_caffe2 = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_caffe2 = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = caffe2_open,
   .close = caffe2_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_caffe2,
-      .allow_in_place = FALSE,  /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = TRUE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = nullptr,
-      .invoke_NN = caffe2_run,
-      .getInputDimension = caffe2_getInputDim,
-      .getOutputDimension = caffe2_getOutputDim,
-      .setInputDimension = nullptr,
-      .destroyNotify = caffe2_destroyNotify,
-      .reloadModel = nullptr,
-      .checkAvailability = caffe2_checkAvailability,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_caffe2,
+       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+       .allocate_in_invoke = TRUE,
+       .run_without_model = FALSE,
+       .verify_model_path = FALSE,
+       .statistics = nullptr,
+       .invoke_NN = caffe2_run,
+       .getInputDimension = caffe2_getInputDim,
+       .getOutputDimension = caffe2_getOutputDim,
+       .setInputDimension = nullptr,
+       .destroyNotify = caffe2_destroyNotify,
+       .reloadModel = nullptr,
+       .checkAvailability = caffe2_checkAvailability,
+       .allocateInInvoke = nullptr,
+   } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

@@ -33,11 +33,11 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 
-#include <iostream>
-#include <fstream>
 #include <algorithm>
-#include <vector>
+#include <fstream>
+#include <iostream>
 #include <map>
+#include <vector>
 
 #include <tensorflow/c/c_api.h>
 
@@ -53,11 +53,10 @@ static const gchar *tf_accl_support[] = { NULL };
 /**
  * @brief	Internal data structure for tensorflow
  */
-typedef struct
-{
+typedef struct {
   TF_DataType type;
   int rank;
-  std::vector < std::int64_t > dims;
+  std::vector<std::int64_t> dims;
 } tf_tensor_info_s;
 
 /**
@@ -65,39 +64,40 @@ typedef struct
  */
 class TFCore
 {
-public:
+  public:
   /**
    * member functions.
    */
-  TFCore (const char * _model_path);
-   ~TFCore ();
+  TFCore (const char *_model_path);
+  ~TFCore ();
 
-  int init (const GstTensorFilterProperties * prop);
+  int init (const GstTensorFilterProperties *prop);
   int loadModel ();
   const char *getModelPath ();
 
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int run (const GstTensorMemory * input, GstTensorMemory * output);
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int run (const GstTensorMemory *input, GstTensorMemory *output);
   void freeOutputTensor (void *data);
 
-private:
-
+  private:
   char *model_path;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors from user input */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors from user input */
+  GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors from
+                                     user input */
+  GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors from
+                                      user input */
 
-  std::vector < tf_tensor_info_s > input_tensor_info; /* hold information for TF */
-  std::map < void *, TF_Tensor * > outputTensorMap;
+  std::vector<tf_tensor_info_s> input_tensor_info; /* hold information for TF */
+  std::map<void *, TF_Tensor *> outputTensorMap;
 
   TF_Graph *graph;
   TF_Session *session;
 
   tensor_type getTensorTypeFromTF (TF_DataType tfType);
   TF_DataType getTensorTypeToTF (tensor_type tType);
-  int validateTensor (const GstTensorsInfo * tensorInfo, int is_input);
-  static void releaseBuffer (void* data, size_t t);
+  int validateTensor (const GstTensorsInfo *tensorInfo, int is_input);
+  static void releaseBuffer (void *data, size_t t);
 };
 
 void init_filter_tf (void) __attribute__ ((constructor));
@@ -130,18 +130,18 @@ TFCore::~TFCore ()
     TF_DeleteGraph (graph);
 
   if (session != nullptr) {
-    TF_Status* status = TF_NewStatus ();
+    TF_Status *status = TF_NewStatus ();
 
     TF_CloseSession (session, status);
     if (TF_GetCode (status) != TF_OK) {
       ml_loge ("Error during session close!! - [Code: %d] %s",
-        TF_GetCode (status), TF_Message (status));
+          TF_GetCode (status), TF_Message (status));
     }
 
     TF_DeleteSession (session, status);
     if (TF_GetCode (status) != TF_OK) {
       ml_loge ("Error during session delete!! - [Code: %d] %s",
-        TF_GetCode (status), TF_Message (status));
+          TF_GetCode (status), TF_Message (status));
     }
     TF_DeleteStatus (status);
   }
@@ -159,7 +159,7 @@ TFCore::~TFCore ()
  *        -3 if the initialization of output tensor is failed.
  */
 int
-TFCore::init (const GstTensorFilterProperties * prop)
+TFCore::init (const GstTensorFilterProperties *prop)
 {
   if (loadModel ()) {
     ml_loge ("Failed to load model");
@@ -196,7 +196,8 @@ TFCore::getModelPath ()
  * @brief	the definition of a deallocator method
  */
 void
-TFCore::releaseBuffer (void* data, size_t t) {
+TFCore::releaseBuffer (void *data, size_t t)
+{
   std::free (data);
 }
 
@@ -225,7 +226,7 @@ TFCore::loadModel ()
     return -2;
   }
 
-  TF_Buffer* buffer = TF_NewBuffer ();
+  TF_Buffer *buffer = TF_NewBuffer ();
   buffer->data = content;
   buffer->length = file_size;
   buffer->data_deallocator = releaseBuffer;
@@ -233,28 +234,28 @@ TFCore::loadModel ()
   graph = TF_NewGraph ();
   g_assert (graph != nullptr);
 
-  TF_Status* status = TF_NewStatus ();
-  TF_ImportGraphDefOptions* opts = TF_NewImportGraphDefOptions ();
+  TF_Status *status = TF_NewStatus ();
+  TF_ImportGraphDefOptions *opts = TF_NewImportGraphDefOptions ();
 
   TF_GraphImportGraphDef (graph, buffer, opts, status);
   TF_DeleteImportGraphDefOptions (opts);
   TF_DeleteBuffer (buffer);
 
   if (TF_GetCode (status) != TF_OK) {
-    ml_loge ("Error deleting graph!! - [Code: %d] %s",
-      TF_GetCode (status), TF_Message (status));
+    ml_loge ("Error deleting graph!! - [Code: %d] %s", TF_GetCode (status),
+        TF_Message (status));
     TF_DeleteStatus (status);
     TF_DeleteGraph (graph);
     return -3;
   }
 
-  TF_SessionOptions* options = TF_NewSessionOptions ();
+  TF_SessionOptions *options = TF_NewSessionOptions ();
   session = TF_NewSession (graph, options, status);
   TF_DeleteSessionOptions (options);
 
   if (TF_GetCode (status) != TF_OK) {
-    ml_loge ("Error creating Session!! - [Code: %d] %s",
-      TF_GetCode (status), TF_Message (status));
+    ml_loge ("Error creating Session!! - [Code: %d] %s", TF_GetCode (status),
+        TF_Message (status));
     TF_DeleteStatus (status);
     TF_DeleteGraph (graph);
     return -4;
@@ -277,29 +278,29 @@ tensor_type
 TFCore::getTensorTypeFromTF (TF_DataType tfType)
 {
   switch (tfType) {
-    case TF_INT32:
-      return _NNS_INT32;
-    case TF_UINT32:
-      return _NNS_UINT32;
-    case TF_INT16:
-      return _NNS_INT16;
-    case TF_UINT16:
-      return _NNS_UINT16;
-    case TF_INT8:
-      return _NNS_INT8;
-    case TF_UINT8:
-      return _NNS_UINT8;
-    case TF_INT64:
-      return _NNS_INT64;
-    case TF_UINT64:
-      return _NNS_UINT64;
-    case TF_FLOAT:
-      return _NNS_FLOAT32;
-    case TF_DOUBLE:
-      return _NNS_FLOAT64;
-    default:
-      /** @todo Support other types */
-      break;
+  case TF_INT32:
+    return _NNS_INT32;
+  case TF_UINT32:
+    return _NNS_UINT32;
+  case TF_INT16:
+    return _NNS_INT16;
+  case TF_UINT16:
+    return _NNS_UINT16;
+  case TF_INT8:
+    return _NNS_INT8;
+  case TF_UINT8:
+    return _NNS_UINT8;
+  case TF_INT64:
+    return _NNS_INT64;
+  case TF_UINT64:
+    return _NNS_UINT64;
+  case TF_FLOAT:
+    return _NNS_FLOAT32;
+  case TF_DOUBLE:
+    return _NNS_FLOAT64;
+  default:
+    /** @todo Support other types */
+    break;
   }
 
   return _NNS_END;
@@ -314,29 +315,29 @@ TF_DataType
 TFCore::getTensorTypeToTF (tensor_type tType)
 {
   switch (tType) {
-    case _NNS_INT32:
-      return TF_INT32;
-    case _NNS_UINT32:
-      return TF_UINT32;
-    case _NNS_INT16:
-      return TF_INT16;
-    case _NNS_UINT16:
-      return TF_UINT16;
-    case _NNS_INT8:
-      return TF_INT8;
-    case _NNS_UINT8:
-      return TF_UINT8;
-    case _NNS_INT64:
-      return TF_INT64;
-    case _NNS_UINT64:
-      return TF_UINT64;
-    case _NNS_FLOAT32:
-      return TF_FLOAT;
-    case _NNS_FLOAT64:
-      return TF_DOUBLE;
-    default:
-      /** @todo Support other types */
-      break;
+  case _NNS_INT32:
+    return TF_INT32;
+  case _NNS_UINT32:
+    return TF_UINT32;
+  case _NNS_INT16:
+    return TF_INT16;
+  case _NNS_UINT16:
+    return TF_UINT16;
+  case _NNS_INT8:
+    return TF_INT8;
+  case _NNS_UINT8:
+    return TF_UINT8;
+  case _NNS_INT64:
+    return TF_INT64;
+  case _NNS_UINT64:
+    return TF_UINT64;
+  case _NNS_FLOAT32:
+    return TF_FLOAT;
+  case _NNS_FLOAT64:
+    return TF_DOUBLE;
+  default:
+    /** @todo Support other types */
+    break;
   }
 
   /* there is no flag for INVALID */
@@ -353,7 +354,7 @@ TFCore::getTensorTypeToTF (tensor_type tType)
  *        -2 if getting shape of tensor is failed from the graph.
  */
 int
-TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
+TFCore::validateTensor (const GstTensorsInfo *tensorInfo, int is_input)
 {
   for (unsigned int i = 0; i < tensorInfo->num_tensors; i++) {
     /* set the name of tensor */
@@ -362,17 +363,18 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
     g_assert (op != nullptr);
 
     const int num_outputs = TF_OperationNumOutputs (op);
-    g_assert (num_outputs == 1); /* an in/output tensor has only one output for now */
+    g_assert (
+        num_outputs == 1); /* an in/output tensor has only one output for now */
 
     TF_Status *status = TF_NewStatus ();
-    const TF_Output output = {op, 0};
+    const TF_Output output = { op, 0 };
     const TF_DataType type = TF_OperationOutputType (output);
     const int num_dims = TF_GraphGetTensorNumDims (graph, output, status);
     tf_tensor_info_s info_s;
 
     if (TF_GetCode (status) != TF_OK) {
-      ml_loge ("Error Tensor validation!! - [Code: %d] %s",
-        TF_GetCode (status), TF_Message (status));
+      ml_loge ("Error Tensor validation!! - [Code: %d] %s", TF_GetCode (status),
+          TF_Message (status));
       TF_DeleteStatus (status);
       return -1;
     }
@@ -393,7 +395,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
       TF_GraphGetTensorShape (graph, output, dims.data (), num_dims, status);
       if (TF_GetCode (status) != TF_OK) {
         ml_loge ("Error Tensor validation!! - [Code: %d] %s",
-          TF_GetCode (status), TF_Message (status));
+            TF_GetCode (status), TF_Message (status));
         TF_DeleteStatus (status);
         return -2;
       }
@@ -401,8 +403,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
       /* check the validity of dimension */
       for (int d = 0; d < num_dims; ++d) {
         info_s.dims.push_back (
-          static_cast<int64_t> (tensorInfo->info[i].dimension[num_dims - d - 1])
-        );
+            static_cast<int64_t> (tensorInfo->info[i].dimension[num_dims - d - 1]));
         if (dims[d] < 0) {
           continue;
         }
@@ -425,7 +426,7 @@ TFCore::validateTensor (const GstTensorsInfo * tensorInfo, int is_input)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getInputTensorDim (GstTensorsInfo * info)
+TFCore::getInputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
@@ -438,7 +439,7 @@ TFCore::getInputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-TFCore::getOutputTensorDim (GstTensorsInfo * info)
+TFCore::getOutputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
@@ -450,7 +451,7 @@ TFCore::getOutputTensorDim (GstTensorsInfo * info)
 static void
 DeallocateInputTensor (void *data, size_t len, void *arg)
 {
-  tf_tensor_info_s *info_s = (tf_tensor_info_s *) arg;
+  tf_tensor_info_s *info_s = (tf_tensor_info_s *)arg;
 
   if (info_s && info_s->type == TF_STRING) {
     /* free encoded string */
@@ -469,98 +470,74 @@ DeallocateInputTensor (void *data, size_t len, void *arg)
  *        -2 if running session is failed.
  */
 int
-TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
+TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
   std::vector<TF_Output> input_ops;
-  std::vector<TF_Tensor*> input_tensors;
+  std::vector<TF_Tensor *> input_tensors;
   std::vector<TF_Output> output_ops;
-  std::vector<TF_Tensor*> output_tensors;
-  TF_Status* status = TF_NewStatus ();
+  std::vector<TF_Tensor *> output_tensors;
+  TF_Status *status = TF_NewStatus ();
   int ret = 0;
 
   /* create input tensor for the graph from `input` */
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
-    TF_Tensor* in_tensor = nullptr;
-    TF_Output input_op = {
-      TF_GraphOperationByName (graph, inputTensorMeta.info[i].name), 0
-      };
+    TF_Tensor *in_tensor = nullptr;
+    TF_Output input_op
+        = { TF_GraphOperationByName (graph, inputTensorMeta.info[i].name), 0 };
     g_assert (input_op.oper != nullptr);
     input_ops.push_back (input_op);
 
-    if (input_tensor_info[i].type == TF_STRING){
+    if (input_tensor_info[i].type == TF_STRING) {
       size_t encoded_size = TF_StringEncodedSize (input[i].size);
       size_t total_size = 8 + encoded_size;
 
-      char *input_encoded = (char*) g_malloc0 (total_size);
+      char *input_encoded = (char *)g_malloc0 (total_size);
       if (input_encoded == NULL) {
         ml_loge ("Failed to allocate memory for input tensor.");
         ret = -1;
         goto failed;
       }
 
-      TF_StringEncode (
-        (char *)input[i].data,
-        input[i].size,
-        input_encoded+8,
-        encoded_size,
-        status); /* fills the rest of tensor data */
+      TF_StringEncode ((char *)input[i].data, input[i].size, input_encoded + 8,
+          encoded_size, status); /* fills the rest of tensor data */
       if (TF_GetCode (status) != TF_OK) {
-        ml_loge ("Error String Encoding!! - [Code: %d] %s",
-          TF_GetCode (status), TF_Message (status));
+        ml_loge ("Error String Encoding!! - [Code: %d] %s", TF_GetCode (status),
+            TF_Message (status));
         g_free (input_encoded);
         ret = -1;
         goto failed;
       }
-      in_tensor = TF_NewTensor (
-        input_tensor_info[i].type,
-        NULL,
-        0,
-        input_encoded,
-        total_size,
-        DeallocateInputTensor,
-        &input_tensor_info[i]);
+      in_tensor = TF_NewTensor (input_tensor_info[i].type, NULL, 0, input_encoded,
+          total_size, DeallocateInputTensor, &input_tensor_info[i]);
     } else {
-      in_tensor = TF_NewTensor (
-          input_tensor_info[i].type,
-          input_tensor_info[i].dims.data (),
-          input_tensor_info[i].rank,
-          input[i].data,
-          input[i].size,
-          DeallocateInputTensor,
-          &input_tensor_info[i]);
+      in_tensor = TF_NewTensor (input_tensor_info[i].type,
+          input_tensor_info[i].dims.data (), input_tensor_info[i].rank, input[i].data,
+          input[i].size, DeallocateInputTensor, &input_tensor_info[i]);
     }
     input_tensors.push_back (in_tensor);
   }
 
   /* create output tensor for the graph from `output` */
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
-    TF_Output output_op = {
-      TF_GraphOperationByName (graph, outputTensorMeta.info[i].name), 0
-      };
+    TF_Output output_op
+        = { TF_GraphOperationByName (graph, outputTensorMeta.info[i].name), 0 };
     g_assert (output_op.oper != nullptr);
     output_ops.push_back (output_op);
 
-    TF_Tensor* out_tensor = nullptr;
+    TF_Tensor *out_tensor = nullptr;
     output_tensors.push_back (out_tensor);
   }
 
-  TF_SessionRun (session,
-                nullptr,
-                input_ops.data (), input_tensors.data (),
-                inputTensorMeta.num_tensors,
-                output_ops.data (), output_tensors.data (),
-                outputTensorMeta.num_tensors,
-                nullptr, 0,
-                nullptr,
-                status
-                );
+  TF_SessionRun (session, nullptr, input_ops.data (), input_tensors.data (),
+      inputTensorMeta.num_tensors, output_ops.data (), output_tensors.data (),
+      outputTensorMeta.num_tensors, nullptr, 0, nullptr, status);
 
   if (TF_GetCode (status) != TF_OK) {
-    ml_loge ("Error Running Session!! - [Code: %d] %s",
-      TF_GetCode (status), TF_Message (status));
+    ml_loge ("Error Running Session!! - [Code: %d] %s", TF_GetCode (status),
+        TF_Message (status));
     ret = -2;
     goto failed;
   }
@@ -571,7 +548,7 @@ TFCore::run (const GstTensorMemory * input, GstTensorMemory * output)
   }
 
 failed:
-  for (unsigned int i = 0; i < input_tensors.size(); i++) {
+  for (unsigned int i = 0; i < input_tensors.size (); i++) {
     TF_DeleteTensor (input_tensors[i]);
   }
 
@@ -579,8 +556,7 @@ failed:
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
-  g_message ("Run() is finished: %" G_GINT64_FORMAT,
-      (stop_time - start_time));
+  g_message ("Run() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
 
   return ret;
@@ -595,7 +571,7 @@ TFCore::freeOutputTensor (void *data)
 {
   if (data != nullptr) {
     std::map<void *, TF_Tensor *>::iterator it = outputTensorMap.find (data);
-    if (it != outputTensorMap.end()) {
+    if (it != outputTensorMap.end ()) {
       TF_DeleteTensor (it->second);
       outputTensorMap.erase (data);
     }
@@ -606,9 +582,9 @@ TFCore::freeOutputTensor (void *data)
  * @brief Free privateData and move on.
  */
 static void
-tf_close (const GstTensorFilterProperties * prop, void **private_data)
+tf_close (const GstTensorFilterProperties *prop, void **private_data)
 {
-  TFCore *core = static_cast<TFCore *>(*private_data);
+  TFCore *core = static_cast<TFCore *> (*private_data);
 
   if (!core)
     return;
@@ -626,7 +602,7 @@ tf_close (const GstTensorFilterProperties * prop, void **private_data)
  *        -2 if the object initialization if failed
  */
 static int
-tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
+tf_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
   TFCore *core;
   const gchar *model_file;
@@ -634,7 +610,7 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
   if (prop->num_models != 1)
     return -1;
 
-  core = static_cast<TFCore *>(*private_data);
+  core = static_cast<TFCore *> (*private_data);
   model_file = prop->model_files[0];
 
   if (core != NULL) {
@@ -669,7 +645,7 @@ tf_loadModelFile (const GstTensorFilterProperties * prop, void **private_data)
  * @param private_data : tensorflow plugin's private data
  */
 static int
-tf_open (const GstTensorFilterProperties * prop, void **private_data)
+tf_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   int status = tf_loadModelFile (prop, private_data);
 
@@ -684,10 +660,10 @@ tf_open (const GstTensorFilterProperties * prop, void **private_data)
  * @param[out] output The array of output tensors
  */
 static int
-tf_run (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+tf_run (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
-  TFCore *core = static_cast<TFCore *>(*private_data);
+  TFCore *core = static_cast<TFCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->run (input, output);
@@ -700,10 +676,9 @@ tf_run (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of input tensors
  */
 static int
-tf_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+tf_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
-  TFCore *core = static_cast<TFCore *>(*private_data);
+  TFCore *core = static_cast<TFCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
@@ -716,10 +691,10 @@ tf_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of output tensors
  */
 static int
-tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+tf_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
-  TFCore *core = static_cast<TFCore *>(*private_data);
+  TFCore *core = static_cast<TFCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);
@@ -733,7 +708,7 @@ tf_getOutputDim (const GstTensorFilterProperties * prop, void **private_data,
 static void
 tf_destroyNotify (void **private_data, void *data)
 {
-  TFCore *core = static_cast<TFCore *>(*private_data);
+  TFCore *core = static_cast<TFCore *> (*private_data);
 
   if (core) {
     core->freeOutputTensor (data);
@@ -755,29 +730,25 @@ tf_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_tensorflow[] = "tensorflow";
 
-static GstTensorFilterFramework NNS_support_tensorflow = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_tensorflow = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tf_open,
   .close = tf_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_tensorflow,
-      .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = TRUE,
-      .run_without_model = FALSE,
-      .verify_model_path = TRUE, /* check that the given .pb files are valid */
-      .statistics = nullptr,
-      .invoke_NN = tf_run,
-      .getInputDimension = tf_getInputDim,
-      .getOutputDimension = tf_getOutputDim,
-      .setInputDimension = nullptr,
-      .destroyNotify = tf_destroyNotify,
-      .reloadModel = nullptr,
-      .checkAvailability = tf_checkAvailability,
-      .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_tensorflow,
+       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+       .allocate_in_invoke = TRUE,
+       .run_without_model = FALSE,
+       .verify_model_path = TRUE, /* check that the given .pb files are valid */
+       .statistics = nullptr,
+       .invoke_NN = tf_run,
+       .getInputDimension = tf_getInputDim,
+       .getOutputDimension = tf_getOutputDim,
+       .setInputDimension = nullptr,
+       .destroyNotify = tf_destroyNotify,
+       .reloadModel = nullptr,
+       .checkAvailability = tf_checkAvailability,
+       .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
+   } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

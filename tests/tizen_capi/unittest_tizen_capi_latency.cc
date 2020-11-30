@@ -9,8 +9,8 @@
 
 #define RUN_COUNT 100
 
-#include <fcntl.h>
 #include <gtest/gtest.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -100,13 +100,12 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     /** Extract the statictics from the framework */
     EXPECT_TRUE (sp->statistics != NULL);
     if (sp->statistics) {
-      direct_invoke_duration_f = (sp->statistics->total_invoke_latency * 1.0f) /
-        sp->statistics->total_invoke_num;
+      direct_invoke_duration_f = (sp->statistics->total_invoke_latency * 1.0f)
+                                 / sp->statistics->total_invoke_num;
 
-      float internalOverheadTime = (sp->statistics->total_overhead_latency * 1.0f) /
-        sp->statistics->total_invoke_num;
-      g_warning ("Latency introduced by tensor filter extension = %f us.",
-          internalOverheadTime);
+      float internalOverheadTime = (sp->statistics->total_overhead_latency * 1.0f)
+                                   / sp->statistics->total_invoke_num;
+      g_warning ("Latency introduced by tensor filter extension = %f us.", internalOverheadTime);
     }
   }
 
@@ -173,7 +172,7 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     if (fd >= 0) {
       resetDataFile ();
       data_read = read (fd, data, data_size);
-      EXPECT_EQ ((size_t) data_read, data_size);
+      EXPECT_EQ ((size_t)data_read, data_size);
     }
 
     /** Benchmark the invoke duration */
@@ -196,8 +195,7 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
 
       /** Match output with the first run */
       if (idx == 0) {
-        status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data,
-            &data_size);
+        status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);
         EXPECT_EQ (status, ML_ERROR_NONE);
         matchOutput (data, data_size);
       }
@@ -220,7 +218,7 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
   /**
    * @brief Benchmark the latency by the single API invoke
    */
-  void benchmarkSingleInvokeLatency (ml_nnfw_type_e nnfw, const char * fw, const bool no_alloc)
+  void benchmarkSingleInvokeLatency (ml_nnfw_type_e nnfw, const char *fw, const bool no_alloc)
   {
     /** sleep 30 sec for cooldown from any previous runs */
     sleep (30);
@@ -229,7 +227,8 @@ class nnstreamer_capi_singleshot_latency : public ::testing::Test
     extractInternalInvokeTime (fw);
 
     g_warning ("Total Latency added by single API over framework %s for invoke"
-        "= %f us", fw, single_invoke_duration_f - direct_invoke_duration_f);
+               "= %f us",
+        fw, single_invoke_duration_f - direct_invoke_duration_f);
   }
 
   void *data = NULL;

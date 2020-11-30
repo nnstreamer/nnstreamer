@@ -23,73 +23,69 @@
  * This is the per-NN-framework plugin (armnn) for tensor_filter.
  */
 
-#include <glib.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <limits.h>
 #include <algorithm>
+#include <errno.h>
+#include <glib.h>
+#include <limits.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <armnn/ArmNN.hpp>
-#include <armnnTfLiteParser/ITfLiteParser.hpp>
 #include <armnnCaffeParser/ICaffeParser.hpp>
+#include <armnnTfLiteParser/ITfLiteParser.hpp>
 
 #include <nnstreamer_log.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_conf.h>
+#include <nnstreamer_plugin_api.h>
 
-static const gchar *armnn_accl_support[] = {
-  ACCL_CPU_NEON_STR,      /** ACCL for default and auto config */
-  ACCL_CPU_STR,
-  ACCL_GPU_STR,
-  NULL
-};
+static const gchar *armnn_accl_support[]
+    = { ACCL_CPU_NEON_STR, /** ACCL for default and auto config */
+        ACCL_CPU_STR, ACCL_GPU_STR, NULL };
 
 /**
  * @brief	ring cache structure
  */
 class ArmNNCore
 {
-public:
+  public:
   ArmNNCore (const char *_model_path, accl_hw hw);
   ~ArmNNCore ();
 
-  int init (const GstTensorFilterProperties * prop);
-  int loadModel (const GstTensorFilterProperties * prop);
+  int init (const GstTensorFilterProperties *prop);
+  int loadModel (const GstTensorFilterProperties *prop);
   const char *getModelPath ();
   int setInputTensorProp ();
   int setOutputTensorProp ();
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int invoke (const GstTensorMemory * input, GstTensorMemory * output);
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
 
-private:
-
+  private:
   char *model_path;
   accl_hw accel;
 
-  GstTensorsInfo inputTensorMeta;  /**< The tensor info of input tensors */
-  GstTensorsInfo outputTensorMeta;  /**< The tensor info of output tensors */
+  GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
+  GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
 
   armnn::IRuntimePtr runtime;
   armnn::INetworkPtr network;
   armnn::NetworkId networkIdentifier;
   armnn::IRuntime::CreationOptions options;
-  std::vector < armnn::BindingPointInfo > inputBindingInfo;
-  std::vector < armnn::BindingPointInfo > outputBindingInfo;
+  std::vector<armnn::BindingPointInfo> inputBindingInfo;
+  std::vector<armnn::BindingPointInfo> outputBindingInfo;
 
-  int makeCaffeNetwork (std::map < std::string, armnn::TensorShape > &input_map,
-      std::vector < std::string > &output_vec);
+  int makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_map,
+      std::vector<std::string> &output_vec);
   int makeTfLiteNetwork ();
-  int makeTfNetwork (std::map < std::string, armnn::TensorShape > &input_map,
-      std::vector < std::string > &output_vec);
-  int makeNetwork (const GstTensorFilterProperties * prop);
+  int makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
+      std::vector<std::string> &output_vec);
+  int makeNetwork (const GstTensorFilterProperties *prop);
 
-  int setTensorProp (const std::vector < armnn::BindingPointInfo > &bindings,
-      GstTensorsInfo * tensorMeta);
+  int setTensorProp (const std::vector<armnn::BindingPointInfo> &bindings,
+      GstTensorsInfo *tensorMeta);
   tensor_type getGstTensorType (armnn::DataType armType);
   int getTensorDim (int tensor_idx, tensor_dim dim);
   armnn::Compute getBackend (const accl_hw hw);
@@ -110,9 +106,9 @@ void fini_filter_armnn (void) __attribute__ ((destructor));
  * @param	_model_path	: the logical path to model file
  * @param	hw	: hardware accelerator to be used at backend
  */
-ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw):
-  accel (hw), runtime (nullptr, &armnn::IRuntime::Destroy),
-  network (armnn::INetworkPtr (nullptr, nullptr))
+ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw)
+    : accel (hw), runtime (nullptr, &armnn::IRuntime::Destroy),
+      network (armnn::INetworkPtr (nullptr, nullptr))
 {
   model_path = g_strdup (_model_path);
 
@@ -137,7 +133,7 @@ ArmNNCore::~ArmNNCore ()
  *        -3 if the initializat<= NNS_TENSOR_SIZE_LIMIT of output tensor is failed.
  */
 int
-ArmNNCore::init (const GstTensorFilterProperties * prop)
+ArmNNCore::init (const GstTensorFilterProperties *prop)
 {
   if (loadModel (prop)) {
     ml_loge ("Failed to load model\n");
@@ -173,37 +169,32 @@ ArmNNCore::getModelPath ()
  * @return 0 on success, -errno on error
  */
 int
-ArmNNCore::makeCaffeNetwork (std::map < std::string,
-    armnn::TensorShape > &input_map, std::vector < std::string > &output_vec)
+ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_map,
+    std::vector<std::string> &output_vec)
 {
   bool unknown_input_dim = false;
 
-  armnnCaffeParser::ICaffeParserPtr parser =
-      armnnCaffeParser::ICaffeParser::Create ();
+  armnnCaffeParser::ICaffeParserPtr parser = armnnCaffeParser::ICaffeParser::Create ();
 
-  for (auto const &inputs:input_map) {
+  for (auto const &inputs : input_map) {
     if (inputs.second.GetNumDimensions () == 0) {
       unknown_input_dim = true;
     }
   }
 
   if (unknown_input_dim) {
-    network = parser->CreateNetworkFromBinaryFile
-      (model_path, {}, output_vec);
+    network = parser->CreateNetworkFromBinaryFile (model_path, {}, output_vec);
   } else {
-    network = parser->CreateNetworkFromBinaryFile
-      (model_path, input_map, output_vec);
+    network = parser->CreateNetworkFromBinaryFile (model_path, input_map, output_vec);
   }
 
   /** set input/output bindings */
-  for (auto const &output_name:output_vec) {
-    outputBindingInfo.push_back (
-        parser->GetNetworkOutputBindingInfo (output_name));
+  for (auto const &output_name : output_vec) {
+    outputBindingInfo.push_back (parser->GetNetworkOutputBindingInfo (output_name));
   }
 
-  for (auto const &inputs:input_map) {
-    inputBindingInfo.push_back (
-        parser->GetNetworkInputBindingInfo (inputs.first));
+  for (auto const &inputs : input_map) {
+    inputBindingInfo.push_back (parser->GetNetworkInputBindingInfo (inputs.first));
   }
 
   return 0;
@@ -216,8 +207,8 @@ ArmNNCore::makeCaffeNetwork (std::map < std::string,
  * @return 0 on success, -errno on error
  */
 int
-ArmNNCore::makeTfNetwork (std::map < std::string,
-    armnn::TensorShape > &input_map, std::vector < std::string > &output_vec)
+ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
+    std::vector<std::string> &output_vec)
 {
   /** @todo fill this */
   return -EPERM;
@@ -233,8 +224,8 @@ int
 ArmNNCore::makeTfLiteNetwork ()
 {
   /** Tensorflow-lite parser */
-  armnnTfLiteParser::ITfLiteParserPtr parser =
-      armnnTfLiteParser::ITfLiteParser::Create ();
+  armnnTfLiteParser::ITfLiteParserPtr parser
+      = armnnTfLiteParser::ITfLiteParser::Create ();
   if (!parser)
     return -EINVAL;
 
@@ -244,15 +235,13 @@ ArmNNCore::makeTfLiteNetwork ()
 
   /** @todo: support multiple subgraphs */
   /** set input/output bindings */
-  std::vector < std::string > in_names =
-      parser->GetSubgraphInputTensorNames (0);
-  for (auto const &name:in_names) {
+  std::vector<std::string> in_names = parser->GetSubgraphInputTensorNames (0);
+  for (auto const &name : in_names) {
     inputBindingInfo.push_back (parser->GetNetworkInputBindingInfo (0, name));
   }
 
-  std::vector < std::string > out_names =
-      parser->GetSubgraphOutputTensorNames (0);
-  for (auto const &name:out_names) {
+  std::vector<std::string> out_names = parser->GetSubgraphOutputTensorNames (0);
+  for (auto const &name : out_names) {
     outputBindingInfo.push_back (parser->GetNetworkOutputBindingInfo (0, name));
   }
   return 0;
@@ -264,10 +253,10 @@ ArmNNCore::makeTfLiteNetwork ()
  * @return 0 on success, -errno on error
  */
 int
-ArmNNCore::makeNetwork (const GstTensorFilterProperties * prop)
+ArmNNCore::makeNetwork (const GstTensorFilterProperties *prop)
 {
-  std::vector < std::string > output_vec;
-  std::map < std::string, armnn::TensorShape > input_map;
+  std::vector<std::string> output_vec;
+  std::map<std::string, armnn::TensorShape> input_map;
 
   if (g_str_has_suffix (model_path, ".tflite")) {
     return makeTfLiteNetwork ();
@@ -300,15 +289,14 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties * prop)
       unsigned int rev_dim[NNS_TENSOR_RANK_LIMIT];
       std::reverse_copy (prop->input_meta.info[i].dimension,
           prop->input_meta.info[i].dimension + NNS_TENSOR_RANK_LIMIT, rev_dim);
-      input_map[prop->input_meta.info[i].name] =
-          armnn::TensorShape (NNS_TENSOR_RANK_LIMIT, rev_dim);
+      input_map[prop->input_meta.info[i].name]
+          = armnn::TensorShape (NNS_TENSOR_RANK_LIMIT, rev_dim);
     } else {
       input_map[prop->input_meta.info[i].name] = armnn::TensorShape ();
     }
   }
 
-  if (g_str_has_suffix (model_path, ".prototxt")
-      || g_str_has_suffix (model_path, ".pb")) {
+  if (g_str_has_suffix (model_path, ".prototxt") || g_str_has_suffix (model_path, ".pb")) {
     return makeTfNetwork (input_map, output_vec);
   } else if (g_str_has_suffix (model_path, ".caffemodel")) {
     return makeCaffeNetwork (input_map, output_vec);
@@ -317,19 +305,20 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties * prop)
   return -EINVAL;
 }
 
-armnn::Compute ArmNNCore::getBackend (const accl_hw hw)
+armnn::Compute
+ArmNNCore::getBackend (const accl_hw hw)
 {
   switch (hw) {
-    case ACCL_GPU:
-      return armnn::Compute::GpuAcc;
-    case ACCL_NONE:
-      /** intended */
-    case ACCL_CPU:
-      return armnn::Compute::CpuRef;
-    case ACCL_CPU_NEON:
-      /** intended */
-    default:
-      return armnn::Compute::CpuAcc;
+  case ACCL_GPU:
+    return armnn::Compute::GpuAcc;
+  case ACCL_NONE:
+  /** intended */
+  case ACCL_CPU:
+    return armnn::Compute::CpuRef;
+  case ACCL_CPU_NEON:
+  /** intended */
+  default:
+    return armnn::Compute::CpuAcc;
   }
 }
 
@@ -339,19 +328,18 @@ armnn::Compute ArmNNCore::getBackend (const accl_hw hw)
  * @return 0 if OK. non-zero if error.
  */
 int
-ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
+ArmNNCore::loadModel (const GstTensorFilterProperties *prop)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-  std::vector < std::string > output_vec;
-  std::map < std::string, armnn::TensorShape > input_map;
+  std::vector<std::string> output_vec;
+  std::map<std::string, armnn::TensorShape> input_map;
   int err;
   armnn::Status status;
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("the file of model_path (%s) is not valid (not regular)\n",
-        model_path);
+    ml_loge ("the file of model_path (%s) is not valid (not regular)\n", model_path);
     return -EINVAL;
   }
 
@@ -361,7 +349,7 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
       throw std::runtime_error ("Error in building the network.");
 
     /* Optimize the network for the given runtime */
-    std::vector < armnn::BackendId > backends = {getBackend (accel)};
+    std::vector<armnn::BackendId> backends = { getBackend (accel) };
     /**
      * @todo add option to enable FP32 to FP16 with OptimizerOptions
      * @todo add GPU based optimizations
@@ -371,8 +359,8 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
     if (!runtime)
       throw std::runtime_error ("Error creating runtime");
 
-    armnn::IOptimizedNetworkPtr optNet =
-        armnn::Optimize (*network, backends, runtime->GetDeviceSpec ());
+    armnn::IOptimizedNetworkPtr optNet
+        = armnn::Optimize (*network, backends, runtime->GetDeviceSpec ());
     if (!optNet)
       throw std::runtime_error ("Error optimizing the network.");
 
@@ -380,22 +368,18 @@ ArmNNCore::loadModel (const GstTensorFilterProperties * prop)
     status = runtime->LoadNetwork (networkIdentifier, std::move (optNet));
     if (status == armnn::Status::Failure)
       throw std::runtime_error ("Error loading the network.");
-  }
-  catch ( ...) {
+  } catch (...) {
     try {
       runtime = nullptr;
       network = nullptr;
       throw;
-    }
-    catch (const std::runtime_error & re) {
+    } catch (const std::runtime_error &re) {
       ml_loge ("Runtime error while loading the network: %s", re.what ());
       return -EINVAL;
-    }
-    catch (const std::exception & ex) {
+    } catch (const std::exception &ex) {
       ml_loge ("Exception while loading the network : %s", ex.what ());
       return -EINVAL;
-    }
-    catch ( ...) {
+    } catch (...) {
       ml_loge ("Unknown exception while loading the network");
       return -EINVAL;
     }
@@ -417,28 +401,28 @@ tensor_type
 ArmNNCore::getGstTensorType (armnn::DataType armType)
 {
   switch (armType) {
-    case armnn::DataType::Signed32:
-      /** Supported with tf and tflite */
-      return _NNS_INT32;
-    case armnn::DataType::Float32:
-      /** Supported with tf, tflite and caffe */
-      return _NNS_FLOAT32;
-    case armnn::DataType::Float16:
-      ml_logw ("Unsupported armnn datatype Float16.");
-      break;
-    case armnn::DataType::QuantisedAsymm8:
-      /** Supported with tflite */
-      return _NNS_UINT8;
-    case armnn::DataType::Boolean:
-      ml_logw ("Unsupported armnn datatype Boolean.");
-      break;
-    case armnn::DataType::QuantisedSymm16:
-      ml_logw ("Unsupported armnn datatype QuantisedSym16.");
-      break;
-    default:
-      ml_logw ("Unsupported armnn datatype unknown.");
-      /** @todo Support other types */
-      break;
+  case armnn::DataType::Signed32:
+    /** Supported with tf and tflite */
+    return _NNS_INT32;
+  case armnn::DataType::Float32:
+    /** Supported with tf, tflite and caffe */
+    return _NNS_FLOAT32;
+  case armnn::DataType::Float16:
+    ml_logw ("Unsupported armnn datatype Float16.");
+    break;
+  case armnn::DataType::QuantisedAsymm8:
+    /** Supported with tflite */
+    return _NNS_UINT8;
+  case armnn::DataType::Boolean:
+    ml_logw ("Unsupported armnn datatype Boolean.");
+    break;
+  case armnn::DataType::QuantisedSymm16:
+    ml_logw ("Unsupported armnn datatype QuantisedSym16.");
+    break;
+  default:
+    ml_logw ("Unsupported armnn datatype unknown.");
+    /** @todo Support other types */
+    break;
   }
 
   return _NNS_END;
@@ -451,8 +435,8 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
  * @return 0 if OK. non-zero if error.
  */
 int
-ArmNNCore::setTensorProp (const std::vector < armnn::BindingPointInfo >
-    &bindings, GstTensorsInfo * tensorMeta)
+ArmNNCore::setTensorProp (const std::vector<armnn::BindingPointInfo> &bindings,
+    GstTensorsInfo *tensorMeta)
 {
   if (tensorMeta->num_tensors == 0)
     tensorMeta->num_tensors = bindings.size ();
@@ -534,7 +518,7 @@ ArmNNCore::setOutputTensorProp ()
  * @return 0 if OK. non-zero if error.
  */
 int
-ArmNNCore::getInputTensorDim (GstTensorsInfo * info)
+ArmNNCore::getInputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &inputTensorMeta);
   return 0;
@@ -547,7 +531,7 @@ ArmNNCore::getInputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-ArmNNCore::getOutputTensorDim (GstTensorsInfo * info)
+ArmNNCore::getOutputTensorDim (GstTensorsInfo *info)
 {
   gst_tensors_info_copy (info, &outputTensorMeta);
   return 0;
@@ -560,7 +544,7 @@ ArmNNCore::getOutputTensorDim (GstTensorsInfo * info)
  * @return 0 if OK. non-zero if error.
  */
 int
-ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
+ArmNNCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   armnn::InputTensors input_tensors;
   armnn::OutputTensors output_tensors;
@@ -572,9 +556,7 @@ ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
       return -EINVAL;
     }
     armnn::ConstTensor input_tensor (inputBindingInfo[i].second, input[i].data);
-    input_tensors.push_back ( {
-        inputBindingInfo[i].first, input_tensor}
-    );
+    input_tensors.push_back ({ inputBindingInfo[i].first, input_tensor });
   }
 
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
@@ -584,14 +566,11 @@ ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
       return -EINVAL;
     }
     armnn::Tensor output_tensor (outputBindingInfo[i].second, output[i].data);
-    output_tensors.push_back ( {
-        outputBindingInfo[i].first, output_tensor}
-    );
+    output_tensors.push_back ({ outputBindingInfo[i].first, output_tensor });
   }
 
   /** Run the inference */
-  ret = runtime->EnqueueWorkload (networkIdentifier, input_tensors,
-      output_tensors);
+  ret = runtime->EnqueueWorkload (networkIdentifier, input_tensors, output_tensors);
 
   /** Clear the Input and Output tensors */
   input_tensors.clear ();
@@ -607,11 +586,11 @@ ArmNNCore::invoke (const GstTensorMemory * input, GstTensorMemory * output)
  * @brief Free privateData and move on.
  */
 static void
-armnn_close (const GstTensorFilterProperties * prop, void **private_data)
+armnn_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   ArmNNCore *core;
 
-  core = static_cast < ArmNNCore * >(*private_data);
+  core = static_cast<ArmNNCore *> (*private_data);
   if (core == NULL)
     return;
 
@@ -625,12 +604,12 @@ armnn_close (const GstTensorFilterProperties * prop, void **private_data)
  * @param private_data : armnn plugin's private data
  */
 static int
-armnn_open (const GstTensorFilterProperties * prop, void **private_data)
+armnn_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   ArmNNCore *core;
   accl_hw hw;
 
-  core = static_cast < ArmNNCore * >(*private_data);
+  core = static_cast<ArmNNCore *> (*private_data);
 
   if (core != NULL) {
     if (g_strcmp0 (prop->model_files[0], core->getModelPath ()) != 0) {
@@ -646,8 +625,7 @@ armnn_open (const GstTensorFilterProperties * prop, void **private_data)
   hw = parse_accl_hw (prop->accl_str, armnn_accl_support);
   try {
     core = new ArmNNCore (prop->model_files[0], hw);
-  }
-  catch (const std::bad_alloc & ex) {
+  } catch (const std::bad_alloc &ex) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
     return -1;
   }
@@ -670,8 +648,8 @@ armnn_open (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 if OK. non-zero if error.
  */
 static int
-armnn_invoke (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorMemory * input, GstTensorMemory * output)
+armnn_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
   ArmNNCore *core;
 
@@ -679,7 +657,7 @@ armnn_invoke (const GstTensorFilterProperties * prop, void **private_data,
   g_return_val_if_fail (input != NULL, -EINVAL);
   g_return_val_if_fail (output != NULL, -EINVAL);
 
-  core = static_cast < ArmNNCore * >(*private_data);
+  core = static_cast<ArmNNCore *> (*private_data);
 
   return core->invoke (input, output);
 }
@@ -691,15 +669,15 @@ armnn_invoke (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of input tensors
  */
 static int
-armnn_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+armnn_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
   ArmNNCore *core;
 
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
 
-  core = static_cast < ArmNNCore * >(*private_data);
+  core = static_cast<ArmNNCore *> (*private_data);
 
   return core->getInputTensorDim (info);
 }
@@ -711,15 +689,15 @@ armnn_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
  * @param[out] info The dimesions and types of output tensors
  */
 static int
-armnn_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+armnn_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
+    GstTensorsInfo *info)
 {
   ArmNNCore *core;
 
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
 
-  core = static_cast < ArmNNCore * >(*private_data);
+  core = static_cast<ArmNNCore *> (*private_data);
 
   return core->getOutputTensorDim (info);
 }
@@ -739,29 +717,25 @@ armnn_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_armnn[] = "armnn";
 
-static GstTensorFilterFramework NNS_support_armnn = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_armnn = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = armnn_open,
   .close = armnn_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_armnn,
-      .allow_in_place = FALSE,  /** @todo: support this to optimize performance later. */
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = nullptr,
-      .invoke_NN = armnn_invoke,
-      .getInputDimension = armnn_getInputDim,
-      .getOutputDimension = armnn_getOutputDim,
-      .setInputDimension = nullptr,
-      .destroyNotify = nullptr,
-      .reloadModel = nullptr,
-      .checkAvailability = armnn_checkAvailability,
-      .allocateInInvoke = nullptr,
-    }
-  }
-};
+  {.v0 = {
+       .name = filter_subplugin_armnn,
+       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+       .allocate_in_invoke = FALSE,
+       .run_without_model = FALSE,
+       .verify_model_path = FALSE,
+       .statistics = nullptr,
+       .invoke_NN = armnn_invoke,
+       .getInputDimension = armnn_getInputDim,
+       .getOutputDimension = armnn_getOutputDim,
+       .setInputDimension = nullptr,
+       .destroyNotify = nullptr,
+       .reloadModel = nullptr,
+       .checkAvailability = armnn_checkAvailability,
+       .allocateInInvoke = nullptr,
+   } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

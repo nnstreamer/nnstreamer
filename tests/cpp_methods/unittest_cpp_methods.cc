@@ -18,63 +18,63 @@ static char *path_to_lib = NULL;
 /** @brief Positive case for the simpliest execution path */
 TEST (cpp_filter_on_demand, basic_01)
 {
-  filter_basic basic("basic_01");
-  EXPECT_EQ (basic._register(), 0);
-  EXPECT_EQ (basic._unregister(), 0);
+  filter_basic basic ("basic_01");
+  EXPECT_EQ (basic._register (), 0);
+  EXPECT_EQ (basic._unregister (), 0);
 }
 
 /** @brief Negative case for the simpliest execution path */
 TEST (cpp_filter_on_demand, basic_02_n)
 {
-  filter_basic basic("basic_02");
-  EXPECT_NE (basic._unregister(), 0);
-  EXPECT_EQ (basic._register(), 0);
-  EXPECT_NE (basic._register(), 0);
-  EXPECT_EQ (basic._unregister(), 0);
-  EXPECT_NE (basic._unregister(), 0);
+  filter_basic basic ("basic_02");
+  EXPECT_NE (basic._unregister (), 0);
+  EXPECT_EQ (basic._register (), 0);
+  EXPECT_NE (basic._register (), 0);
+  EXPECT_EQ (basic._unregister (), 0);
+  EXPECT_NE (basic._unregister (), 0);
 }
 
 /** @brief Negative case for the simpliest execution path w/ static calls */
 TEST (cpp_filter_on_demand, basic_03_n)
 {
-  filter_basic basic("basic_03");
-  EXPECT_NE (filter_basic::__unregister("basic_03"), 0);
-  EXPECT_EQ (filter_basic::__register(&basic), 0);
-  EXPECT_NE (filter_basic::__register(&basic), 0);
-  EXPECT_EQ (filter_basic::__unregister("basic_03"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_03"), 0);
+  filter_basic basic ("basic_03");
+  EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
+  EXPECT_EQ (filter_basic::__register (&basic), 0);
+  EXPECT_NE (filter_basic::__register (&basic), 0);
+  EXPECT_EQ (filter_basic::__unregister ("basic_03"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
 }
 
 /** @brief Negative case for the simpliest execution path w/ static calls */
 TEST (cpp_filter_on_demand, basic_04_n)
 {
-  filter_basic basic("basic_04");
-  EXPECT_NE (filter_basic::__unregister("basic_xx"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_03"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_04"), 0);
-  EXPECT_EQ (filter_basic::__register(&basic), 0);
-  EXPECT_NE (filter_basic::__register(&basic), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_xx"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_03"), 0);
-  EXPECT_EQ (filter_basic::__unregister("basic_04"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_03"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_04"), 0);
-  EXPECT_NE (filter_basic::__unregister("basic_xx"), 0);
+  filter_basic basic ("basic_04");
+  EXPECT_NE (filter_basic::__unregister ("basic_xx"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_04"), 0);
+  EXPECT_EQ (filter_basic::__register (&basic), 0);
+  EXPECT_NE (filter_basic::__register (&basic), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_xx"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
+  EXPECT_EQ (filter_basic::__unregister ("basic_04"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_04"), 0);
+  EXPECT_NE (filter_basic::__unregister ("basic_xx"), 0);
 }
 
 /** @brief Actual GST Pipeline with cpp on demand */
 TEST (cpp_filter_on_demand, pipeline_01)
 {
-  filter_basic basic("pl01");
+  filter_basic basic ("pl01");
   char *tmp1 = getTempFilename ();
   char *tmp2 = getTempFilename ();
 
   EXPECT_NE (tmp1, nullptr);
   EXPECT_NE (tmp2, nullptr);
-  EXPECT_EQ (basic._register(), 0);
+  EXPECT_EQ (basic._register (), 0);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
       "t. ! queue name=q1 ! tensor_filter framework=cpp model=pl01 ! filesink location=%s "
       "t. ! queue name=q2 ! filesink location=%s ",
@@ -92,7 +92,8 @@ TEST (cpp_filter_on_demand, pipeline_01)
   }
 
   if (pipeline) {
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
 
     g_usleep (100000);
 
@@ -107,15 +108,15 @@ TEST (cpp_filter_on_demand, pipeline_01)
 
   g_free (tmp1);
   g_free (tmp2);
-  EXPECT_EQ (basic._unregister(), 0);
+  EXPECT_EQ (basic._unregister (), 0);
 }
 
 /** @brief Negative case for the simpliest execution path */
 TEST (cpp_filter_on_demand, unregistered_01_n)
 {
-  filter_basic basic("basic_01");
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
+  filter_basic basic ("basic_01");
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! "
       "tensor_filter framework=cpp model=XXbasic_01 ! fakesink");
 
@@ -130,18 +131,18 @@ TEST (cpp_filter_on_demand, unregistered_01_n)
     g_clear_error (&err);
   }
 
-  EXPECT_EQ (basic._register(), 0);
+  EXPECT_EQ (basic._register (), 0);
   gst_object_unref (pipeline);
 
   pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
   if (pipeline)
     gst_object_unref (pipeline);
-  EXPECT_EQ (basic._unregister(), 0);
+  EXPECT_EQ (basic._unregister (), 0);
 
-  basic._unregister();
+  basic._unregister ();
   g_free (str_pipeline);
-  EXPECT_NE (basic._unregister(), 0);
+  EXPECT_NE (basic._unregister (), 0);
 }
 
 TEST (cpp_filter_obj, base_01_n)
@@ -154,8 +155,8 @@ TEST (cpp_filter_obj, base_01_n)
   EXPECT_NE (tmp2, nullptr);
   EXPECT_NE (tmp3, nullptr);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
       "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s "
       "t. ! queue name=q2 ! filesink location=%s "
@@ -174,10 +175,10 @@ TEST (cpp_filter_obj, base_01_n)
   }
 
   if (pipeline) {
-    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
 
     gst_object_unref (pipeline);
-
   }
   g_free (str_pipeline);
 
@@ -196,8 +197,8 @@ TEST (cpp_filter_obj, base_02_n)
   EXPECT_NE (tmp2, nullptr);
   EXPECT_NE (tmp3, nullptr);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
       "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s "
       "t. ! queue name=q2 ! filesink location=%s "
@@ -216,7 +217,8 @@ TEST (cpp_filter_obj, base_02_n)
   }
 
   if (pipeline) {
-    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
 
     gst_object_unref (pipeline);
   }
@@ -241,8 +243,8 @@ TEST (cpp_filter_obj, base_03)
   EXPECT_NE (tmp4, nullptr);
   EXPECT_NE (tmp5, nullptr);
 
-  gchar *str_pipeline = g_strdup_printf
-      ("videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
       "t. ! queue ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s sync=true "
       "t. ! queue ! filesink location=%s sync=true "
@@ -265,10 +267,11 @@ TEST (cpp_filter_obj, base_03)
   }
 
   if (pipeline) {
-    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
 
     g_usleep (300000);
-    
+
     EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);

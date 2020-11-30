@@ -19,12 +19,12 @@
 
 #include <thread>
 
-#include <grpcpp/grpcpp.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/create_channel.h>
-#include <grpcpp/security/credentials.h>
+#include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
+#include <grpcpp/security/credentials.h>
 
 #include <gst/base/gstdataqueue.h>
 
@@ -34,315 +34,327 @@ using nnstreamer::protobuf::Tensor;
 
 using google::protobuf::Empty;
 
-namespace grpc {
+namespace grpc
+{
 
 /**
  * @brief NNStreamer gRPC service impl.
  */
-class NNStreamerRPC final : public TensorService::Service {
+class NNStreamerRPC final : public TensorService::Service
+{
   public:
-    /** @brief constructor */
-    NNStreamerRPC (gboolean is_server, const gchar *host, const gint port):
-      is_server_ (is_server), host_ (host), port_ (port),
-      server_ (nullptr), stub_ (nullptr),
-      cb_ (nullptr), cb_data_ (nullptr), queue_ (nullptr)
-    {
-      gst_tensors_config_init (&config_);
-      queue_ = gst_data_queue_new (_data_queue_check_full_cb,
-          NULL, NULL, NULL);
-      direction_ = GRPC_DIRECTION_NONE;
+  /** @brief constructor */
+  NNStreamerRPC (gboolean is_server, const gchar *host, const gint port)
+      : is_server_ (is_server), host_ (host), port_ (port), server_ (nullptr),
+        stub_ (nullptr), cb_ (nullptr), cb_data_ (nullptr), queue_ (nullptr)
+  {
+    gst_tensors_config_init (&config_);
+    queue_ = gst_data_queue_new (_data_queue_check_full_cb, NULL, NULL, NULL);
+    direction_ = GRPC_DIRECTION_NONE;
+  }
+
+  /** @brief destructor */
+  ~NNStreamerRPC ()
+  {
+    if (server_.get ())
+      server_->Shutdown ();
+
+    g_clear_pointer (&queue_, gst_object_unref);
+  }
+
+  /** @brief client-to-server streaming: a client sends tensors */
+  Status SendTensors (ServerContext *context, ServerReader<Tensors> *reader, Empty *reply) override
+  {
+    Tensors tensors;
+
+    while (reader->Read (&tensors)) {
+      GstTensorMemory **memory = g_new0 (GstTensorMemory *, NNS_TENSOR_SIZE_LIMIT);
+      guint num_tensor = tensors.num_tensor ();
+
+      for (guint i = 0; i < num_tensor; i++) {
+        const Tensor *tensor = &tensors.tensor (i);
+        const void *data = tensor->data ().c_str ();
+        gsize size = tensor->data ().length ();
+
+        memory[i] = g_new (GstTensorMemory, num_tensor);
+        memory[i]->size = size;
+        memory[i]->data = g_memdup (data, size);
+      }
+
+      if (cb_)
+        cb_ (cb_data_, memory);
     }
 
-    /** @brief destructor */
-    ~NNStreamerRPC () {
-      if (server_.get ())
-        server_->Shutdown ();
+    return Status::OK;
+  }
 
-      g_clear_pointer (&queue_, gst_object_unref);
-    }
+  /** @brief server-to-client streaming: a client receives tensors */
+  Status RecvTensors (ServerContext *context, const Empty *request,
+      ServerWriter<Tensors> *writer) override
+  {
+    GstDataQueueItem *item;
 
-    /** @brief client-to-server streaming: a client sends tensors */
-    Status SendTensors (ServerContext *context, ServerReader<Tensors> *reader,
-        Empty *reply) override {
+    /* until flushing */
+    while (gst_data_queue_pop (queue_, &item)) {
       Tensors tensors;
 
-      while (reader->Read (&tensors)) {
-        GstTensorMemory **memory = g_new0 (GstTensorMemory *, NNS_TENSOR_SIZE_LIMIT);
-        guint num_tensor = tensors.num_tensor ();
+      GstBuffer *buffer = GST_BUFFER (item->object);
+      _get_tensors_from_buffer (buffer, tensors);
 
-        for (guint i = 0; i < num_tensor; i++) {
-          const Tensor * tensor = &tensors.tensor (i);
-          const void * data = tensor->data ().c_str ();
-          gsize size = tensor->data ().length ();
+      writer->Write (tensors);
 
-          memory[i] = g_new (GstTensorMemory, num_tensor);
-          memory[i]->size = size;
-          memory[i]->data = g_memdup (data, size);
-        }
-
-        if (cb_)
-          cb_ (cb_data_, memory);
-      }
-
-      return Status::OK;
-    }
-
-    /** @brief server-to-client streaming: a client receives tensors */
-    Status RecvTensors (ServerContext *context, const Empty *request,
-        ServerWriter<Tensors> *writer) override {
-      GstDataQueueItem *item;
-
-      /* until flushing */
-      while (gst_data_queue_pop (queue_, &item)) {
-        Tensors tensors;
-
-        GstBuffer * buffer = GST_BUFFER (item->object);
-        _get_tensors_from_buffer (buffer, tensors);
-
-        writer->Write (tensors);
-
-        g_free (item);
-      }
-
-      return Status::OK;
-    }
-
-    /** @brief start gRPC server */
-    gboolean start () {
-      if (direction_ == GRPC_DIRECTION_NONE)
-        return FALSE;
-
-      if (is_server_)
-        return _start_server ();
-      else
-        return _start_client ();
-    }
-
-    /** @brief stop the thread */
-    void stop () {
-      if (queue_) {
-        /* wait until the queue's flushed */
-        while (!gst_data_queue_is_empty (queue_))
-          g_usleep (G_USEC_PER_SEC / 100);
-
-        gst_data_queue_set_flushing (queue_, TRUE);
-      }
-
-      if (worker_.joinable ())
-        worker_.join ();
-    }
-
-    /** @brief send buffer holding tensors */
-    gboolean send (GstBuffer *buffer) {
-      GstDataQueueItem *item;
-
-      buffer = gst_buffer_ref (buffer);
-
-      item = g_new0 (GstDataQueueItem, 1);
-      item->object = GST_MINI_OBJECT (buffer);
-      item->size = gst_buffer_get_size (buffer);
-      item->visible = TRUE;
-      item->destroy = (GDestroyNotify) _data_queue_item_free;
-
-      if (!gst_data_queue_push (queue_, item)) {
-        item->destroy (item);
-        return FALSE;
-      }
-
-      return TRUE;
-    }
-
-    /** @brief set callback */
-    void setCallback (grpc_cb cb, void *cb_data) {
-      cb_ = cb;
-      cb_data_ = cb_data;
-    }
-
-    /** @brief set tensor config */
-    void setConfig (GstTensorsConfig *config) {
-      memcpy (&config_, config, sizeof (*config));
-    }
-
-    /** @brief set grpc direction */
-    void setDirection (grpc_direction direction) {
-      direction_ = direction;
-    }
-
-  private:
-    /** @brief start server service */
-    gboolean _start_server () {
-      std::string address (host_);
-
-      address += ":" + std::to_string (port_);
-
-      grpc::EnableDefaultHealthCheckService(true);
-
-      /* listen on the given address without any authentication mechanism */
-      ServerBuilder builder;
-      builder.AddListeningPort (address, grpc::InsecureServerCredentials());
-      builder.RegisterService (this);
-
-      /* start the server */
-      server_ = builder.BuildAndStart ();
-      if (server_.get () == nullptr)
-        return FALSE;
-
-      return TRUE;
-    }
-
-    /** @brief start client service */
-    gboolean _start_client () {
-      std::string address (host_);
-
-      address += ":" + std::to_string (port_);
-
-      /* create a gRPC channel */
-      std::shared_ptr<Channel> channel = grpc::CreateChannel(
-          address, grpc::InsecureChannelCredentials());
-
-      /* connect the server */
-      stub_ = TensorService::NewStub (channel);
-      if (stub_.get () == nullptr)
-        return FALSE;
-
-      if (direction_ == GRPC_DIRECTION_TO_PROTOBUF)
-        worker_ = std::thread ([this] { this->_writer_thread (); });
-      else if (direction_ == GRPC_DIRECTION_FROM_PROTOBUF)
-        worker_ = std::thread ([this] { this->_reader_thread (); });
-      else
-        g_assert (0); /* internal logic error */
-
-      return TRUE;
-    }
-
-    /** @brief convert buffer to tensors */
-    void _get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors) {
-      Tensors::frame_rate *fr;
-      GstMapInfo map;
-      gsize data_ptr = 0;
-
-      tensors.set_num_tensor (config_.info.num_tensors);
-
-      fr = tensors.mutable_fr ();
-      fr->set_rate_n (config_.rate_n);
-      fr->set_rate_d (config_.rate_d);
-
-      gst_buffer_map (buffer, &map, GST_MAP_READ);
-
-      for (guint i = 0; i < config_.info.num_tensors; i++) {
-        nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
-        const GstTensorInfo * info = &config_.info.info[i];
-        gsize tsize = gst_tensor_info_get_size (info);
-
-        /* set tensor info */
-        tensor->set_name ("Anonymous");
-        tensor->set_type ((Tensor::Tensor_type) info->type);
-
-        for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-          tensor->add_dimension (info->dimension[j]);
-
-        if (data_ptr + tsize > map.size) {
-          ml_logw ("Setting invalid tensor data");
-          break;
-        }
-
-        tensor->set_data (map.data + data_ptr, tsize);
-        data_ptr += tsize;
-      }
-
-      gst_buffer_unmap (buffer, &map);
-    }
-
-    /** @brief gRPC writer thread in client */
-    void _writer_thread () {
-      ClientContext context;
-      Empty reply;
-
-      /* initiate the RPC call */
-      std::unique_ptr< ClientWriter<Tensors> > writer(
-          stub_->SendTensors (&context, &reply));
-
-      GstDataQueueItem *item;
-      GstBuffer *buffer;
-
-      /* until flushing */
-      while (gst_data_queue_pop (queue_, &item)) {
-        Tensors tensors;
-
-        buffer = GST_BUFFER (item->object);
-        _get_tensors_from_buffer (buffer, tensors);
-
-        writer->Write (tensors);
-
-        g_free (item);
-      }
-
-      writer->WritesDone ();
-      writer->Finish ();
-    }
-
-    /** @brief gRPC reader thread in client */
-    void _reader_thread () {
-      ClientContext context;
-      Empty empty;
-      Tensors tensors;
-
-      /* initiate the RPC call */
-      std::unique_ptr< ClientReader<Tensors> > reader(
-          stub_->RecvTensors (&context, empty));
-
-      while (reader->Read (&tensors)) {
-        GstTensorMemory **memory = g_new0 (GstTensorMemory *, NNS_TENSOR_SIZE_LIMIT);
-        guint num_tensor = tensors.num_tensor ();
-
-        for (guint i = 0; i < num_tensor; i++) {
-          const Tensor * tensor = &tensors.tensor (i);
-          const void * data = tensor->data ().c_str ();
-          gsize size = tensor->data ().length ();
-
-          memory[i] = g_new (GstTensorMemory, num_tensor);
-          memory[i]->size = size;
-          memory[i]->data = g_memdup (data, size);
-        }
-
-        if (cb_)
-          cb_ (cb_data_, memory);
-      }
-
-      reader->Finish ();
-    }
-
-    /** @brief private method to check full  */
-    static gboolean _data_queue_check_full_cb (GstDataQueue * queue,
-        guint visible, guint bytes, guint64 time, gpointer checkdata)
-    {
-      /* no full */
-      return FALSE;
-    }
-
-    /** @brief private method to free a data item */
-    static void _data_queue_item_free (GstDataQueueItem * item) {
-      if (item->object)
-        gst_mini_object_unref (item->object);
       g_free (item);
     }
 
-    gboolean is_server_;
-    const gchar *host_;
-    const gint port_;
+    return Status::OK;
+  }
 
-    std::unique_ptr<Server> server_;
-    std::unique_ptr<TensorService::Stub> stub_;
+  /** @brief start gRPC server */
+  gboolean start ()
+  {
+    if (direction_ == GRPC_DIRECTION_NONE)
+      return FALSE;
 
-    std::thread worker_;
+    if (is_server_)
+      return _start_server ();
+    else
+      return _start_client ();
+  }
 
-    grpc_cb cb_;
-    void * cb_data_;
+  /** @brief stop the thread */
+  void stop ()
+  {
+    if (queue_) {
+      /* wait until the queue's flushed */
+      while (!gst_data_queue_is_empty (queue_))
+        g_usleep (G_USEC_PER_SEC / 100);
 
-    GstDataQueue *queue_;
-    GstTensorsConfig config_;
+      gst_data_queue_set_flushing (queue_, TRUE);
+    }
 
-    grpc_direction direction_;
+    if (worker_.joinable ())
+      worker_.join ();
+  }
+
+  /** @brief send buffer holding tensors */
+  gboolean send (GstBuffer *buffer)
+  {
+    GstDataQueueItem *item;
+
+    buffer = gst_buffer_ref (buffer);
+
+    item = g_new0 (GstDataQueueItem, 1);
+    item->object = GST_MINI_OBJECT (buffer);
+    item->size = gst_buffer_get_size (buffer);
+    item->visible = TRUE;
+    item->destroy = (GDestroyNotify)_data_queue_item_free;
+
+    if (!gst_data_queue_push (queue_, item)) {
+      item->destroy (item);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+  /** @brief set callback */
+  void setCallback (grpc_cb cb, void *cb_data)
+  {
+    cb_ = cb;
+    cb_data_ = cb_data;
+  }
+
+  /** @brief set tensor config */
+  void setConfig (GstTensorsConfig *config)
+  {
+    memcpy (&config_, config, sizeof (*config));
+  }
+
+  /** @brief set grpc direction */
+  void setDirection (grpc_direction direction)
+  {
+    direction_ = direction;
+  }
+
+  private:
+  /** @brief start server service */
+  gboolean _start_server ()
+  {
+    std::string address (host_);
+
+    address += ":" + std::to_string (port_);
+
+    grpc::EnableDefaultHealthCheckService (true);
+
+    /* listen on the given address without any authentication mechanism */
+    ServerBuilder builder;
+    builder.AddListeningPort (address, grpc::InsecureServerCredentials ());
+    builder.RegisterService (this);
+
+    /* start the server */
+    server_ = builder.BuildAndStart ();
+    if (server_.get () == nullptr)
+      return FALSE;
+
+    return TRUE;
+  }
+
+  /** @brief start client service */
+  gboolean _start_client ()
+  {
+    std::string address (host_);
+
+    address += ":" + std::to_string (port_);
+
+    /* create a gRPC channel */
+    std::shared_ptr<Channel> channel
+        = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
+
+    /* connect the server */
+    stub_ = TensorService::NewStub (channel);
+    if (stub_.get () == nullptr)
+      return FALSE;
+
+    if (direction_ == GRPC_DIRECTION_TO_PROTOBUF)
+      worker_ = std::thread ([this] { this->_writer_thread (); });
+    else if (direction_ == GRPC_DIRECTION_FROM_PROTOBUF)
+      worker_ = std::thread ([this] { this->_reader_thread (); });
+    else
+      g_assert (0); /* internal logic error */
+
+    return TRUE;
+  }
+
+  /** @brief convert buffer to tensors */
+  void _get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors)
+  {
+    Tensors::frame_rate *fr;
+    GstMapInfo map;
+    gsize data_ptr = 0;
+
+    tensors.set_num_tensor (config_.info.num_tensors);
+
+    fr = tensors.mutable_fr ();
+    fr->set_rate_n (config_.rate_n);
+    fr->set_rate_d (config_.rate_d);
+
+    gst_buffer_map (buffer, &map, GST_MAP_READ);
+
+    for (guint i = 0; i < config_.info.num_tensors; i++) {
+      nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
+      const GstTensorInfo *info = &config_.info.info[i];
+      gsize tsize = gst_tensor_info_get_size (info);
+
+      /* set tensor info */
+      tensor->set_name ("Anonymous");
+      tensor->set_type ((Tensor::Tensor_type)info->type);
+
+      for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+        tensor->add_dimension (info->dimension[j]);
+
+      if (data_ptr + tsize > map.size) {
+        ml_logw ("Setting invalid tensor data");
+        break;
+      }
+
+      tensor->set_data (map.data + data_ptr, tsize);
+      data_ptr += tsize;
+    }
+
+    gst_buffer_unmap (buffer, &map);
+  }
+
+  /** @brief gRPC writer thread in client */
+  void _writer_thread ()
+  {
+    ClientContext context;
+    Empty reply;
+
+    /* initiate the RPC call */
+    std::unique_ptr<ClientWriter<Tensors>> writer (stub_->SendTensors (&context, &reply));
+
+    GstDataQueueItem *item;
+    GstBuffer *buffer;
+
+    /* until flushing */
+    while (gst_data_queue_pop (queue_, &item)) {
+      Tensors tensors;
+
+      buffer = GST_BUFFER (item->object);
+      _get_tensors_from_buffer (buffer, tensors);
+
+      writer->Write (tensors);
+
+      g_free (item);
+    }
+
+    writer->WritesDone ();
+    writer->Finish ();
+  }
+
+  /** @brief gRPC reader thread in client */
+  void _reader_thread ()
+  {
+    ClientContext context;
+    Empty empty;
+    Tensors tensors;
+
+    /* initiate the RPC call */
+    std::unique_ptr<ClientReader<Tensors>> reader (stub_->RecvTensors (&context, empty));
+
+    while (reader->Read (&tensors)) {
+      GstTensorMemory **memory = g_new0 (GstTensorMemory *, NNS_TENSOR_SIZE_LIMIT);
+      guint num_tensor = tensors.num_tensor ();
+
+      for (guint i = 0; i < num_tensor; i++) {
+        const Tensor *tensor = &tensors.tensor (i);
+        const void *data = tensor->data ().c_str ();
+        gsize size = tensor->data ().length ();
+
+        memory[i] = g_new (GstTensorMemory, num_tensor);
+        memory[i]->size = size;
+        memory[i]->data = g_memdup (data, size);
+      }
+
+      if (cb_)
+        cb_ (cb_data_, memory);
+    }
+
+    reader->Finish ();
+  }
+
+  /** @brief private method to check full  */
+  static gboolean _data_queue_check_full_cb (GstDataQueue *queue, guint visible,
+      guint bytes, guint64 time, gpointer checkdata)
+  {
+    /* no full */
+    return FALSE;
+  }
+
+  /** @brief private method to free a data item */
+  static void _data_queue_item_free (GstDataQueueItem *item)
+  {
+    if (item->object)
+      gst_mini_object_unref (item->object);
+    g_free (item);
+  }
+
+  gboolean is_server_;
+  const gchar *host_;
+  const gint port_;
+
+  std::unique_ptr<Server> server_;
+  std::unique_ptr<TensorService::Stub> stub_;
+
+  std::thread worker_;
+
+  grpc_cb cb_;
+  void *cb_data_;
+
+  GstDataQueue *queue_;
+  GstTensorsConfig config_;
+
+  grpc_direction direction_;
 };
 
 }; // namespace grpc
@@ -356,9 +368,9 @@ _grpc_new (gboolean server, const gchar *host, const gint port)
 {
   g_return_val_if_fail (host != NULL, NULL);
 
-  grpc::NNStreamerRPC * self = new grpc::NNStreamerRPC (server, host, port);
+  grpc::NNStreamerRPC *self = new grpc::NNStreamerRPC (server, host, port);
 
-  return static_cast <void *> (self);
+  return static_cast<void *> (self);
 }
 
 /**
@@ -369,7 +381,7 @@ _grpc_destroy (void *priv)
 {
   g_return_if_fail (priv != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   delete self;
 }
@@ -382,7 +394,7 @@ _grpc_set_callback (void *priv, grpc_cb cb, void *cb_data)
 {
   g_return_if_fail (priv != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   self->setCallback (cb, cb_data);
 }
@@ -395,7 +407,7 @@ _grpc_set_config (void *priv, GstTensorsConfig *config)
 {
   g_return_if_fail (priv != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   self->setConfig (config);
 }
@@ -408,7 +420,7 @@ _grpc_start (void *priv, grpc_direction direction)
 {
   g_return_val_if_fail (priv != NULL, FALSE);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   self->setDirection (direction);
 
@@ -423,7 +435,7 @@ _grpc_stop (void *priv)
 {
   g_return_if_fail (priv != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   self->stop ();
 }
@@ -436,7 +448,7 @@ _grpc_send (void *priv, GstBuffer *buffer)
 {
   g_return_val_if_fail (priv != NULL, FALSE);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (priv);
 
   return self->send (buffer);
 }
