@@ -3836,14 +3836,18 @@ TEST (tensor_stream_test, subplugin_v0_preserved_name_n)
 
   ASSERT_TRUE (fw != NULL);
   fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
-  fw->name = g_strdup ("auto"); /* preserved name 'auto' */
   fw->run_without_model = TRUE;
   fw->invoke_NN = test_custom_v0_invoke;
   fw->setInputDimension = test_custom_v0_setdim;
 
+  fw->name = g_strdup ("any"); /* preserved name 'any' */
   EXPECT_FALSE (nnstreamer_filter_probe (fw));
-
   g_free (fw->name);
+
+  fw->name = g_strdup ("auto"); /* preserved name 'auto' */
+  EXPECT_FALSE (nnstreamer_filter_probe (fw));
+  g_free (fw->name);
+
   g_free (fw);
 }
 
