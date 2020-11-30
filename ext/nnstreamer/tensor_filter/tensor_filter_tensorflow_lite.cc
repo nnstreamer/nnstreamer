@@ -54,6 +54,11 @@
 #include <tensorflow/lite/delegates/gpu/delegate.h>
 #endif
 
+#if !defined (TFLITE_SUBPLUGIN_NAME)
+#warning "The sub-plugin name for tensorflow-lite is not defined."
+#define TFLITE_SUBPLUGIN_NAME "tensorflow-lite"
+#endif
+
 /**
  * @brief Macro for debug mode.
  */
@@ -1192,11 +1197,7 @@ tflite_checkAvailability (accl_hw hw)
   return -ENOENT;
 }
 
-#if TFLITE_VERSION_MAJOR == 2 && !defined(__ANDROID__)
-static gchar filter_subplugin_tensorflow_lite[] = "tensorflow2-lite";
-#else
-static gchar filter_subplugin_tensorflow_lite[] = "tensorflow-lite";
-#endif
+static gchar filter_subplugin_tensorflow_lite[] = TFLITE_SUBPLUGIN_NAME;
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite
     = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
