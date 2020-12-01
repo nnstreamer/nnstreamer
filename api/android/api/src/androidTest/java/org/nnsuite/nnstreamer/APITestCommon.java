@@ -315,6 +315,23 @@ public class APITestCommon {
     }
 
     /**
+     * Get the File object of SNPE model for testing multiple output.
+     * The model is converted to dlc format with SNPE SDK and it's from
+     * https://github.com/nnsuite/testcases/tree/master/DeepLearningModels/tensorflow/ssdlite_mobilenet_v2
+     */
+    public static File getMultiOutputSNPEModel() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+        File model = new File(root + "/nnstreamer/snpe_data/ssdlite_mobilenet_v2.dlc");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        return model;
+    }
+
+    /**
      * Verifies the byte buffer is direct buffer with native order.
      *
      * @param buffer   The byte buffer

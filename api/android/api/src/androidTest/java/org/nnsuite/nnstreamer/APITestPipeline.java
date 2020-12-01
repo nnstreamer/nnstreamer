@@ -1779,6 +1779,101 @@ public class APITestPipeline {
         }
     }
 
+    private void runSNPEMultipleOutput(String desc) {
+        try (
+                Pipeline pipe = new Pipeline(desc);
+                TensorsInfo info = new TensorsInfo()
+        ) {
+            info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{3,300,300,1});
+
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 2) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    TensorsInfo info = data.getTensorsInfo();
+
+                    if (info == null || info.getTensorsCount() != 2) {
+                        mInvalidState = true;
+                    } else {
+                        ByteBuffer output = data.getTensorData(0);
+                        if (!APITestCommon.isValidBuffer(output, 1917 * 91 * 4)) {
+                            mInvalidState = true;
+                        }
+
+                        output = data.getTensorData(1);
+                        if (!APITestCommon.isValidBuffer(output, 1917 * 4 * 4)) {
+                            mInvalidState = true;
+                        }
+                    }
+
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            for (int i = 0; i < 10; i++) {
+                /* dummy input */
+                pipe.inputData("srcx", TensorsData.allocate(info));
+                Thread.sleep(100);
+            }
+
+            /* sleep 1000ms to invoke */
+            Thread.sleep(1000);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+
+    }
+
+    @Test
+    public void testSNPEMultipleOutputWithTensorInfo() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getMultiOutputSNPEModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:300:300:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snpe " + "model=" + model.getAbsolutePath() +
+                " output=91:1917:1:1,4:1:1917:1 outputtype=float32,float32 outputname=concat,concat_1 ! " +
+                "tensor_sink name=sinkx";
+
+        runSNPEMultipleOutput(desc);
+    }
+
+    @Test
+    public void testSNPEMultipleOutputWithCustomProp() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.SNPE)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getMultiOutputSNPEModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:300:300:1,type=(string)float32,framerate=(fraction)0/1 ! " +
+                "tensor_filter framework=snpe " + "model=" + model.getAbsolutePath() +
+                " custom=OutputLayer:concat;concat_1 ! " +
+                "tensor_sink name=sinkx";
+
+        runSNPEMultipleOutput(desc);
+    }
+
     /**
      * Run SNPE with inception model with given runtime.
      */
