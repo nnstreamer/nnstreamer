@@ -26,6 +26,7 @@ typedef struct {
   gchar *name;
   elementSpecialType specialType;
   GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
+  int refcount;
 } _Element;
 
 extern _Element *
@@ -93,6 +94,13 @@ extern _Element *
 nnstparser_element_from_uri (const _URIType type, const gchar *uri,
     const gchar * elementname, void **error);
 
+/** @brief gst_object_unref for psuedo element */
+extern _Element *
+nnstparser_element_unref (_Element * element);
+
+/** @brief gst_object_ref for psuedo element */
+extern void
+nnstparser_element_ref (_Element * element);
 
 typedef struct _graph_t graph_t;
 /** @brief The pipeline graph */

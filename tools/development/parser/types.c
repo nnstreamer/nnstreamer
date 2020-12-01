@@ -38,8 +38,46 @@ nnstparser_element_make (const gchar * element, const gchar * name)
   ret->specialType = eST_normal;
   ret->element = g_strdup (element);
   ret->name = g_strdup (name);
-
+  ret->refcount = 1;
   return ret;
+}
+
+/**
+ * @brief Unref an element
+ */
+_Element *
+nnstparser_element_unref (_Element * element)
+{
+  g_assert (element);
+
+  if (element->refcount <= 0) {
+    g_printerr ("ERROR! Refcounter is broken: %s.", __func__);
+  }
+  g_assert (element->refcount > 0);
+
+  element->refcount--;
+  if (element->refcount <= 0) {
+    g_free (element);
+    return NULL;
+  }
+
+  return element;
+}
+
+/**
+ * @brief Ref an element
+ */
+void
+nnstparser_element_ref (_Element * element)
+{
+  g_assert (element);
+
+  if (element->refcount <= 0) {
+    g_printerr ("ERROR! Refcounter is broken: %s.", __func__);
+  }
+  g_assert (element->refcount > 0);
+
+  element->refcount++;
 }
 
 /**
@@ -56,6 +94,6 @@ nnstparser_element_from_uri (_URIType type, const gchar * uri,
   ret->specialType = (type == GST_URI_SINK) ? eST_URI_SINK : eST_URI_SRC;
   ret->element = g_strdup (url);
   ret->name = g_strdup (elementname);
-
+  ret->refcount = 1;
   return ret;
 }
