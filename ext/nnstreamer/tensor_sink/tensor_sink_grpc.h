@@ -18,7 +18,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 
-#include <nnstreamer_protobuf_grpc.h>
+#include <nnstreamer_grpc.h>
 
 G_BEGIN_DECLS
 
@@ -55,6 +55,7 @@ struct _GstTensorSinkGRPC
   gboolean server;      /**< true to enable server mode */
   gint port;            /**< gRPC server port number */
   gchar *host;          /**< gRPC server host name */
+  grpc_idl idl;         /**< gRPC IDL for comm. */
   guint out;            /**< number of output messages */
 
   /** Working variables */

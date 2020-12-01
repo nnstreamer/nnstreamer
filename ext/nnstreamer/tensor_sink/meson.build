@@ -10,6 +10,6 @@ if grpc_support_is_available
 
   tensor_sink_grpc_dep = declare_dependency(
     sources : grpc_tensor_sink_sources,
-    dependencies : [glib_dep, gst_dep, nnstreamer_dep, grpc_support_deps, protobuf_util_dep]
+    dependencies : grpc_util_dep,
   )
 endif
