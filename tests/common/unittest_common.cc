@@ -20,6 +20,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
 #include <unistd.h>
+#include <unittest_util.h>
 
 /**
  * @brief Test for int32 type string.
@@ -1030,6 +1031,82 @@ TEST (version_control, get_ver_01)
 }
 
 /**
+ * @brief Test pad has tensor cap
+ */
+TEST (common_pad_cap, tensor_0)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *src_handle;
+  GstPad *pad;
+  gboolean is_tensor;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "fakesrc name=fsrc ! fakesink name=fsink");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  src_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "fsrc");
+  EXPECT_NE (src_handle, nullptr);
+  pad = gst_element_get_static_pad (src_handle, "src");
+  EXPECT_NE (pad, nullptr);
+
+  /* "any" cap returns tensor cap */
+  is_tensor = gst_pad_has_tensor_caps (pad);
+  EXPECT_EQ (TRUE, is_tensor);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  gst_object_unref (pad);
+  gst_object_unref (src_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test pad has tensor cap
+ */
+TEST (common_pad_cap, tensors_0)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *src_handle;
+  GstPad *pad;
+  gboolean is_tensor;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! "
+      "tensor_converter name=tsrc ! other/tensors,num_tensors=1,dimensions=(string)3:160:120:1, types=(string)uint8, framerate=(fraction)30/1 ! fakesink");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  src_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "tsrc");
+  EXPECT_NE (src_handle, nullptr);
+  pad = gst_element_get_static_pad (src_handle, "src");
+  EXPECT_NE (pad, nullptr);
+
+  is_tensor = gst_pad_has_tensor_caps (pad);
+  EXPECT_EQ (FALSE, is_tensor);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  gst_object_unref (pad);
+  gst_object_unref (src_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
@@ -1041,6 +1118,8 @@ main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
+
+  gst_init (&argc, &argv);
 
   try {
     ret = RUN_ALL_TESTS ();
