@@ -608,7 +608,7 @@ if tensorrt_support_is_available
     nnstreamer_filter_tensorrt_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tensorrt_deps = [glib_dep, gst_dep, nnstreamer_dep, tensorrt_deps]
+  nnstreamer_filter_tensorrt_deps = [glib_dep, gst_dep, nnstreamer_dep, tensorrt_support_deps]
 
   shared_library('nnstreamer_filter_tensorrt',
     nnstreamer_filter_tensorrt_sources,

@@ -97,7 +97,7 @@ library('nnscustom_framecounter',
 if tensorrt_support_is_available
   library('nnstreamer_customfilter_tensorrt_reshape',
     join_paths('custom_example_tensorrt', 'nnstreamer_customfilter_example_tensorrt_reshape.cc'),
-    dependencies: [glib_dep, gst_dep, nnstreamer_dep, tensorrt_deps],
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep, tensorrt_support_deps],
     install: get_option('install-test'),
     install_dir: customfilter_install_dir
   )
