@@ -194,6 +194,10 @@ if not get_option('snpe-support').disabled()
 endif
 
 # tensorrt
+nvinfer_dep = dependency('', required: false)
+nvparsers_dep = dependency('', required: false)
+cuda_dep = dependency('', required: false)
+cudart_dep = dependency('', required: false)
 if not get_option('tensorrt-support').disabled()
   # check available cuda versions (11.0 and 10.2 are recommended)
   cuda_vers = [
@@ -222,11 +226,12 @@ if not get_option('tensorrt-support').disabled()
 
   nvparsers_lib = cxx.find_library('nvparsers', required: false)
   nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
-
-  tensorrt_deps = [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ]
 endif
 
 # gRPC
+grpc_dep = dependency('', required: false)
+gpr_dep = dependency('', required: false)
+grpcpp_dep = dependency('', required: false)
 if not get_option('grpc-support').disabled()
   grpc_dep = dependency('grpc', required: false)
   gpr_dep = dependency('gpr', required: false)
@@ -298,7 +303,7 @@ features = {
     'extra_deps': [ pb_comp, protobuf_dep ]
   },
   'tensorrt-support': {
-    'extra_deps': tensorrt_deps
+    'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ]
   },
   'grpc-support': {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
