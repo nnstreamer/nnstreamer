@@ -75,6 +75,11 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_grpc_debug);
 #define DEFAULT_PROP_SERVER FALSE
 
 /**
+ * @brief Default IDL for RPC comm.
+ */
+#define DEFAULT_PROP_IDL "protobuf"
+
+/**
  * @brief Default host and port
  */
 #define DEFAULT_PROP_HOST  "localhost"
@@ -92,6 +97,7 @@ enum
   PROP_0,
   PROP_SILENT,
   PROP_SERVER,
+  PROP_IDL,
   PROP_HOST,
   PROP_PORT,
   PROP_OUT,
@@ -151,6 +157,11 @@ gst_tensor_sink_grpc_class_init (GstTensorSinkGRPCClass * klass)
         DEFAULT_PROP_SERVER,
         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_IDL,
+      g_param_spec_string ("idl", "IDL",
+          "Specify Interface Description Language (IDL) for communication",
+          DEFAULT_PROP_IDL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host", "The host/IP to send the packets to",
           DEFAULT_PROP_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -193,6 +204,7 @@ gst_tensor_sink_grpc_init (GstTensorSinkGRPC * self)
 {
   self->silent = DEFAULT_PROP_SILENT;
   self->server = DEFAULT_PROP_SERVER;
+  self->idl = grpc_get_idl (DEFAULT_PROP_IDL);
   self->host = g_strdup (DEFAULT_PROP_HOST);
   self->port = DEFAULT_PROP_PORT;
   self->priv = NULL;
@@ -273,6 +285,7 @@ _check_hostname (gchar * str)
 
   return FALSE;
 }
+
 /**
  * @brief set properties of tensor_sink_grpc element.
  */
@@ -294,6 +307,21 @@ gst_tensor_sink_grpc_set_property (GObject * object, guint prop_id,
       self->server = g_value_get_boolean (value);
       silent_debug ("Set server = %d", self->server);
       break;
+    case PROP_IDL:
+    {
+      const gchar * idl_str = g_value_get_string (value);
+
+      if (idl_str) {
+        grpc_idl idl = grpc_get_idl (idl_str);
+        if (idl != GRPC_IDL_NONE) {
+          self->idl = idl;
+          silent_debug ("Set idl = %s", idl_str);
+        } else {
+          ml_loge ("Invalid IDL string provided: %s", idl_str);
+        }
+      }
+      break;
+    }
     case PROP_HOST:
     {
       gchar * host;
@@ -340,6 +368,18 @@ gst_tensor_sink_grpc_get_property (GObject * object, guint prop_id,
     case PROP_SERVER:
       g_value_set_boolean (value, self->server);
       break;
+    case PROP_IDL:
+      switch (self->idl) {
+        case GRPC_IDL_PROTOBUF:
+          g_value_set_string (value, "protobuf");
+          break;
+        case GRPC_IDL_FLATBUF:
+          g_value_set_string (value, "flatbuf");
+          break;
+        default:
+          break;
+      }
+      break;
     case PROP_HOST:
       g_value_set_string (value, self->host);
       break;
@@ -374,9 +414,13 @@ gst_tensor_sink_grpc_start (GstBaseSink * sink)
   if (!self->priv)
     return FALSE;
 
-  ret = grpc_start (self, GRPC_DIRECTION_TO_PROTOBUF);
-  if (ret)
+  ret = grpc_start (self, GRPC_DIRECTION_TENSORS_TO_BUFFER);
+  if (ret) {
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SINK_GRPC_STARTED);
+
+    if (self->server)
+      g_object_set (self, "port", grpc_get_listening_port (self), NULL);
+  }
 
   return TRUE;
 }

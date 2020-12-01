@@ -1,2 +1,3 @@
 /usr/lib/*/gstreamer-1.0/libnnstreamer-grpc.so
-/usr/lib/*/libnnstreamer_protobuf_grpc.so
+/usr/lib/*/libnnstreamer_grpc_protobuf.so
+/usr/lib/*/libnnstreamer_grpc_flatbuf.so

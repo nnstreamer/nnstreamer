@@ -22,6 +22,11 @@ if grpc_support_is_available
     error('failed to resolve dependency: gRPC requires libprotobuf.')
   endif
 
+  if not flatbuf_support_is_available
+    error('failed to resolve dependency: gRPC requires libflatbuf.')
+  endif
+
+  # gRPC/Protobuf
   prog_which = find_program('which')
   grpc_cpp_plugin_path = run_command(prog_which, 'grpc_cpp_plugin').stdout().strip()
   if grpc_cpp_plugin_path == ''
@@ -38,6 +43,13 @@ if grpc_support_is_available
       ]
     )
   grpc_pb_gen_src = grpc_pb_gen.process('./include/nnstreamer.proto')
+
+  # gRPC/Flatbuf
+  grpc_fb_gen = generator(flatc,
+      output : ['@BASENAME@_generated.h', '@BASENAME@.grpc.fb.h', '@BASENAME@.grpc.fb.cc'],
+      arguments : ['--cpp', '--grpc', '-o', '@BUILD_DIR@', '@INPUT@']
+    )
+  grpc_fb_gen_src = grpc_fb_gen.process('./include/nnstreamer.fbs')
 endif
 
 subdir('extra')

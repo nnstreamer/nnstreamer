@@ -27,6 +27,6 @@ if grpc_support_is_available
 
   tensor_src_grpc_dep = declare_dependency(
     sources : grpc_tensor_src_sources,
-    dependencies : grpc_protobuf_util_dep
+    dependencies : grpc_util_dep
   )
 endif

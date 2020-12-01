@@ -73,6 +73,11 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_grpc_debug);
 #define DEFAULT_PROP_SERVER TRUE
 
 /**
+ * @brief Default IDL for RPC comm.
+ */
+#define DEFAULT_PROP_IDL "protobuf"
+
+/**
  * @brief Default host and port
  */
 #define DEFAULT_PROP_HOST  "localhost"
@@ -94,6 +99,7 @@ enum
   PROP_0,
   PROP_SILENT,
   PROP_SERVER,
+  PROP_IDL,
   PROP_HOST,
   PROP_PORT,
   PROP_OUT,
@@ -146,6 +152,11 @@ gst_tensor_src_grpc_class_init (GstTensorSrcGRPCClass * klass)
       g_param_spec_boolean ("server", "Server",
           "Specify its working mode either server or client",
           DEFAULT_PROP_SERVER, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_IDL,
+      g_param_spec_string ("idl", "IDL",
+          "Specify Interface Description Language (IDL) for communication",
+          DEFAULT_PROP_IDL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host",
@@ -215,6 +226,7 @@ gst_tensor_src_grpc_init (GstTensorSrcGRPC * self)
 {
   self->silent = DEFAULT_PROP_SILENT;
   self->server = DEFAULT_PROP_SERVER;
+  self->idl = grpc_get_idl (DEFAULT_PROP_IDL);
   self->port = DEFAULT_PROP_PORT;
   self->host = g_strdup (DEFAULT_PROP_HOST);
   self->priv = NULL;
@@ -254,57 +266,12 @@ _send_eos_event (GstTensorSrcGRPC * self)
 }
 
 /**
- * @brief free tensor memory
- */
-static void
-_free_memory (GstTensorMemory ** memory)
-{
-  guint i;
-
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (memory[i] == NULL)
-      break;
-
-    g_free (memory[i]->data);
-    g_free (memory[i]);
-  }
-
-  g_free (memory);
-}
-
-/**
- * @brief free tensor memory and set buffer
- */
-static void
-_free_memory_and_set_buffer (GstTensorMemory ** memory, GstBuffer ** buffer)
-{
-  GstBuffer *buf = gst_buffer_new ();
-  GstMemory *mem;
-  guint i;
-
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (memory[i] == NULL)
-      break;
-
-    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        memory[i]->data, memory[i]->size, 0, memory[i]->size, NULL, NULL);
-    gst_buffer_append_memory (buf, mem);
-
-    g_free (memory[i]);
-  }
-  g_free (memory);
-
-  *buffer = buf;
-}
-
-/**
  * @brief callback function for gRPC requests
  */
 static void
 _grpc_callback (void *obj, void *data)
 {
   GstTensorSrcGRPC *self;
-  GstTensorMemory **memory;
 
   GstBuffer *buffer;
   GstClockTime duration;
@@ -315,13 +282,13 @@ _grpc_callback (void *obj, void *data)
   g_return_if_fail (data != NULL);
 
   self = GST_TENSOR_SRC_GRPC_CAST (obj);
-  memory = (GstTensorMemory **) data;
+  buffer = (GstBuffer *) data;
 
   GST_OBJECT_LOCK (self);
 
   if (!GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SRC_GRPC_STARTED) ||
       !GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SRC_GRPC_CONFIGURED)) {
-    _free_memory (memory);
+    gst_buffer_unref (buffer);
 
     GST_OBJECT_UNLOCK (self);
     return;
@@ -334,8 +301,6 @@ _grpc_callback (void *obj, void *data)
     duration = 0;
     timestamp = 0;
   }
-
-  _free_memory_and_set_buffer (memory, &buffer);
 
   GST_BUFFER_DURATION (buffer) = duration;
   GST_BUFFER_PTS (buffer) = timestamp;
@@ -379,9 +344,13 @@ gst_tensor_src_grpc_start (GstBaseSrc * src)
 
   grpc_set_callback (self, _grpc_callback);
 
-  ret = grpc_start (self, GRPC_DIRECTION_FROM_PROTOBUF);
-  if (ret)
+  ret = grpc_start (self, GRPC_DIRECTION_BUFFER_TO_TENSORS);
+  if (ret) {
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_STARTED);
+
+    if (self->server)
+      g_object_set (self, "port", grpc_get_listening_port (self), NULL);
+  }
 
   return ret;
 }
@@ -508,6 +477,21 @@ gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
       self->server = g_value_get_boolean (value);
       silent_debug ("Set server = %d", self->server);
       break;
+    case PROP_IDL:
+    {
+      const gchar * idl_str = g_value_get_string (value);
+
+      if (idl_str) {
+        grpc_idl idl = grpc_get_idl (idl_str);
+        if (idl != GRPC_IDL_NONE) {
+          self->idl = idl;
+          silent_debug ("Set idl = %s", idl_str);
+        } else {
+          ml_loge ("Invalid IDL string provided: %s", idl_str);
+        }
+      }
+      break;
+    }
     case PROP_HOST:
     {
       gchar * host;
@@ -550,6 +534,18 @@ gst_tensor_src_grpc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SERVER:
       g_value_set_boolean (value, self->server);
+      break;
+    case PROP_IDL:
+      switch (self->idl) {
+        case GRPC_IDL_PROTOBUF:
+          g_value_set_string (value, "protobuf");
+          break;
+        case GRPC_IDL_FLATBUF:
+          g_value_set_string (value, "flatbuf");
+          break;
+        default:
+          break;
+      }
       break;
     case PROP_HOST:
       g_value_set_string (value, self->host);

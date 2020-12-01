@@ -9,7 +9,7 @@
 
 namespace nnstreamer.flatbuf;
 
-enum Tensor_type : int { 
+enum Tensor_type : int {
   NNS_INT32 = 0,
   NNS_UINT32,
   NNS_INT16,
@@ -33,7 +33,7 @@ table Tensor {
   name  : string;
   type : Tensor_type = NNS_END;
   dimension : [uint32]; // support up to 4th ranks.
-  data : [ubyte]; 
+  data : [ubyte];
 }
 
 table Tensors {
@@ -43,3 +43,14 @@ table Tensors {
 }
 
 root_type Tensors;
+
+table Empty {
+}
+
+// clients should initiate RPC calls first but can keep the streaming
+rpc_service TensorService {
+  // client-to-server streaming
+  SendTensors(Tensors):Empty (streaming: "client");
+  // server-to-client streaming
+  RecvTensors(Empty):Tensors (streaming: "server");
+}
