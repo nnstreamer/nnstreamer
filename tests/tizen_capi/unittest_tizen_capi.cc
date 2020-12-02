@@ -3649,7 +3649,7 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
@@ -5924,7 +5924,7 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
@@ -6005,7 +6005,7 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
@@ -6087,7 +6087,7 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
@@ -6172,7 +6172,7 @@ TEST (nnstreamer_capi_singleshot, set_input_info_success_02)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   /* custom-passthrough */
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
@@ -9511,7 +9511,7 @@ TEST (nnstreamer_capi_internal, validate_model_file_01_n)
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
-    root_path = "..";
+    root_path = ".";
 
   test_model = g_build_filename (root_path, "nnstreamer_example", cf_name, NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
