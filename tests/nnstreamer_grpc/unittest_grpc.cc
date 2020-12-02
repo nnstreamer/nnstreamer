@@ -266,7 +266,7 @@ TEST (nnstreamer_grpc, src_set_property)
 
   g_object_set (src, "port", 1000, NULL);
   g_object_get (src, "port", &port, NULL);
-  EXPECT_EQ (port, 1000);
+  EXPECT_EQ (port, 1000U);
 
   gst_object_unref (src);
   gst_object_unref (test_data.pipeline);
@@ -306,7 +306,7 @@ TEST (nnstreamer_grpc, sink_set_property)
 
   g_object_set (sink, "port", 1000, NULL);
   g_object_get (sink, "port", &port, NULL);
-  EXPECT_EQ (port, 1000);
+  EXPECT_EQ (port, 1000U);
 
   gst_object_unref (sink);
   gst_object_unref (test_data.pipeline);
