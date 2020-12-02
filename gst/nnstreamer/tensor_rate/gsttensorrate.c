@@ -386,19 +386,29 @@ gst_tensor_rate_set_property (GObject * object, guint prop_id,
     {
       const gchar *str = g_value_get_string (value);
       gchar **strv = g_strsplit (str, "/", -1);
+      gint rate_n, rate_d;
 
       if (g_strv_length (strv) != 2) {
         ml_loge ("Please specify a proper 'framerate' property");
         break;
       }
 
-      self->rate_n = (gint) g_ascii_strtoll (strv[0], NULL, 10);
-      if (errno == ERANGE || self->rate_n < 0)
+      rate_n = (gint) g_ascii_strtoll (strv[0], NULL, 10);
+      if (errno == ERANGE || rate_n < 0) {
         ml_loge ("Invalid frame rate numerator in 'framerate'");
+        g_strfreev (strv);
+        break;
+      }
 
-      self->rate_d = (gint) g_ascii_strtoll (strv[1], NULL, 10);
-      if (errno == ERANGE || self->rate_d <= 0)
+      rate_d = (gint) g_ascii_strtoll (strv[1], NULL, 10);
+      if (errno == ERANGE || rate_d <= 0) {
         ml_loge ("Invalid frame rate denominator in 'framerate'");
+        g_strfreev (strv);
+        break;
+      }
+
+      self->rate_n = rate_n;
+      self->rate_d = rate_d;
 
       g_strfreev (strv);
     }
@@ -514,6 +524,8 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
     }
   }
 
+  self->in++;
+
   /* update the last timestamp */
   self->last_ts = in_ts;
   if (GST_CLOCK_TIME_IS_VALID (in_dur))
@@ -530,13 +542,14 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
       self->sent_qos_on_passthrough = TRUE;
       gst_tensor_rate_send_qos_throttle (self, intime);
     }
+
+    self->out++;
     return GST_FLOW_OK;
   }
 
   /* we need to have two buffers to compare */
   if (self->prevbuf == NULL) {
     gst_tensor_rate_swap_prev (self, buffer, intime);
-    self->in++;
     if (!GST_CLOCK_TIME_IS_VALID (self->next_ts)) {
       self->next_ts = intime;
       self->base_ts = in_ts - self->segment.start;
@@ -553,8 +566,6 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
         GST_TIME_FORMAT " outgoing ts %" GST_TIME_FORMAT,
         GST_TIME_ARGS (prevtime), GST_TIME_ARGS (intime),
         GST_TIME_ARGS (self->next_ts));
-
-    self->in++;
 
     /* drop new buffer if it's before previous one */
     if (intime < prevtime) {
@@ -899,10 +910,6 @@ gst_tensor_rate_sink_event (GstBaseTransform * trans, GstEvent * event)
         self->dup += count - 1;
         if (!self->silent)
           gst_tensor_rate_notify_duplicate (self);
-      } else if (count == 0 && !GST_CLOCK_TIME_IS_VALID (self->segment.stop)) {
-        self->drop++;
-        if (!self->silent)
-          gst_tensor_rate_notify_drop (self);
       }
 
       break;
