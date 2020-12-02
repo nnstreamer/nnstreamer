@@ -5515,6 +5515,8 @@ main (int argc, char **argv)
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
+  gst_init (&argc, &argv);
+
   optionctx = g_option_context_new (NULL);
   g_option_context_add_main_entries (optionctx, main_entries, NULL);
 
@@ -5534,7 +5536,6 @@ main (int argc, char **argv)
     }
   }
 
-  gst_init (&argc, &argv);
 
   try {
     ret = RUN_ALL_TESTS ();
