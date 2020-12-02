@@ -93,6 +93,16 @@ if gtest_dep.found()
 
     test('unittest_if', unittest_if, env: testenv)
 
+  # Run unittest_rate
+    unittest_rate = executable('unittest_rate',
+      join_paths('nnstreamer_rate', 'unittest_rate.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_rate', unittest_rate, env: testenv)
+
   # Run unittest_join
     unittest_join = executable('unittest_join',
       join_paths('gstreamer_join', 'unittest_join.cc'),
