@@ -15,6 +15,7 @@
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <string.h>
+#include <unistd.h>
 #include <tensor_common.h>
 
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
@@ -4251,6 +4252,10 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
   GstElement *gstpipe;
+
+  /** If the user is root, skip this test */
+  if (geteuid () == 0)
+    return;
 
   GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
 

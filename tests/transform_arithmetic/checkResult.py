@@ -35,8 +35,8 @@ def testArithmetic (fna, fnb, typeasize, typebsize,typeapack, typebpack, mode, v
 
   if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
     return 10
-  num = lena / typeasize
-  if num != (lenb / typebsize):
+  num = lena // typeasize
+  if num != (lenb // typebsize):
     return 11
   value1 = getValue(value1, typeapack)
   value2 = getValue(value2, typebpack)
