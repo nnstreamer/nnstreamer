@@ -28,11 +28,36 @@ TFLITE_FLAGS := \
     -DTFLITE_VERSION_MINOR=$(TFLITE_VERSION_MINOR) \
     -DTFLITE_VERSION_MICRO=$(TFLITE_VERSION_MICRO)
 
-# define types in tensorflow-lite sub-plugin. FLOAT16/COMPLEX64 for tensorflow-lite >= 2, and INT8/INT16 for tensorflow-lite >=1.13
-ifeq ($(TFLITE_VERSION_MAJOR),2)
+# Define types and features in tensorflow-lite sub-plugin.
+# FLOAT16/COMPLEX64 for tensorflow-lite >= 2, and INT8/INT16 for tensorflow-lite >=1.13
+# GPU-delegate supported on tensorflow-lite >= 2
+# NNAPI-delegate supported on tensorflow-lite >= 1.14
+TFLITE_ENABLE_GPU_DELEGATE := false
+TFLITE_ENABLE_NNAPI_DELEGATE := false
+TFLITE_EXPORT_LDLIBS :=
+
+ifeq ($(shell test $(TFLITE_VERSION_MAJOR) -ge 2; echo $$?),0)
+TFLITE_ENABLE_GPU_DELEGATE := true
+TFLITE_ENABLE_NNAPI_DELEGATE := true
+
 TFLITE_FLAGS += -DTFLITE_INT8=1 -DTFLITE_INT16=1 -DTFLITE_FLOAT16=1 -DTFLITE_COMPLEX64=1
-else ifeq ($(shell test $(TFLITE_VERSION_MINOR) -ge 13; echo $$?),0)
+else
+ifeq ($(shell test $(TFLITE_VERSION_MINOR) -ge 14; echo $$?),0)
+TFLITE_ENABLE_NNAPI_DELEGATE := true
+endif
+
+ifeq ($(shell test $(TFLITE_VERSION_MINOR) -ge 13; echo $$?),0)
 TFLITE_FLAGS += -DTFLITE_INT8=1 -DTFLITE_INT16=1
+endif
+endif
+
+ifeq ($(TFLITE_ENABLE_NNAPI_DELEGATE),true)
+TFLITE_FLAGS += -DTFLITE_NNAPI_DELEGATE_SUPPORTED=1
+endif
+
+ifeq ($(TFLITE_ENABLE_GPU_DELEGATE),true)
+TFLITE_FLAGS += -DTFLITE_GPU_DELEGATE_SUPPORTED=1
+TFLITE_EXPORT_LDLIBS += -lEGL -lGLESv2
 endif
 
 TF_LITE_DIR := $(LOCAL_PATH)/tensorflow-lite
@@ -65,14 +90,7 @@ LOCAL_MODULE := tensorflow-lite-subplugin
 LOCAL_SRC_FILES := $(NNSTREAMER_FILTER_TFLITE_SRCS)
 LOCAL_CXXFLAGS := -std=c++11 -O3 -fPIC -frtti -fexceptions $(NNS_API_FLAGS) $(TFLITE_FLAGS)
 LOCAL_C_INCLUDES := $(TF_LITE_INCLUDES) $(NNSTREAMER_INCLUDES) $(GST_HEADERS_COMMON)
-
-# Link gles for tflite v2.3.0 or higher for gpu delegate support
-ifeq ($(TFLITE_VERSION_MAJOR),2)
-ifeq ($(shell test $(TFLITE_VERSION_MINOR) -ge 3; echo $$?),0)
-LOCAL_EXPORT_LDLIBS := -lEGL -lGLESv2
-endif
-endif
-
+LOCAL_EXPORT_LDLIBS := $(TFLITE_EXPORT_LDLIBS)
 LOCAL_STATIC_LIBRARIES := tensorflow-lite-lib cpufeatures
 
 include $(BUILD_STATIC_LIBRARY)

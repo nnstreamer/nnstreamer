@@ -38,16 +38,6 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 
-#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 1 && TFLITE_VERSION_MINOR >= 14) \
-                                || TFLITE_VERSION_MAJOR >= 2)
-#define TFLITE_NNAPI_DELEGATE_SUPPORTED
-#endif
-
-#if defined(__ANDROID__) && ((TFLITE_VERSION_MAJOR == 2 && TFLITE_VERSION_MINOR >= 3) \
-                                || TFLITE_VERSION_MAJOR > 2)
-#define TFLITE_GPU_DELEGATE_SUPPORTED
-#endif
-
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
