@@ -59,4 +59,5 @@ override_dh_auto_install:
 
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
+	dh_link usr/lib/$(DEB_HOST_MULTIARCH)/gstreamer-1.0/libnnstreamer.so  usr/lib/$(DEB_HOST_MULTIARCH)/libnnstreamer.so
 # Add --fail-missing option after adding *.install files for all subpackages.
