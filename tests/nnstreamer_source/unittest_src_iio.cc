@@ -1340,7 +1340,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   /** setup */
   samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
-  parse_launch = g_strdup_printf ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE channels=1,3,5 "
+  parse_launch = g_strdup_printf ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE channels=1,3 "
                                   "name=my-src-iio ! multifilesink location=%s",
       ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, 0, TRIGGER_NAME, dev0->log_file);
   src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
@@ -1367,7 +1367,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
   EXPECT_EQ (config.info.type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.dimension[0], 3U);
+  EXPECT_EQ (config.info.dimension[0], 2U);
   EXPECT_EQ (config.info.dimension[1], 1U);
   EXPECT_EQ (config.info.dimension[2], 1U);
   EXPECT_EQ (config.info.dimension[3], 1U);
