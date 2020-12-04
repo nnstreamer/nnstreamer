@@ -187,6 +187,7 @@ TEST (tensor_if_prop, properties_0)
   EXPECT_EQ (TRUE, bool_val);
 
   gst_object_unref (tif_handle);
+  gst_object_unref (gstpipe);
   g_free (pipeline);
 }
 
@@ -221,6 +222,7 @@ TEST (tensor_if_prop, properties_1_n)
   EXPECT_TRUE (str_val == NULL);
 
   gst_object_unref (tif_handle);
+  gst_object_unref (gstpipe);
   g_free (pipeline);
 }
 
