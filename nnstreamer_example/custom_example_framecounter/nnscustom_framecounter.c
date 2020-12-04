@@ -83,6 +83,7 @@ configure (const GstTensorFilterProperties * prop, pt_data * data)
 
       counter++;
     }
+    g_strfreev (str_ops);
   }
 }
 
