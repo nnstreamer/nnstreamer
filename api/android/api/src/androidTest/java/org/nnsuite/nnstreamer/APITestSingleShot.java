@@ -212,9 +212,9 @@ public class APITestSingleShot {
     /**
      * Run image classification and validate result.
      */
-    private void runImageClassification(NNStreamer.NNFWType fw) {
+    private void runImageClassification(NNStreamer.NNFWType fw, String custom) {
         try {
-            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel(), fw);
+            SingleShot single = new SingleShot(APITestCommon.getTFLiteImgModel(), fw, custom);
 
             /* single-shot invoke */
             TensorsData in = APITestCommon.readRawImageData();
@@ -239,7 +239,9 @@ public class APITestSingleShot {
             return;
         }
 
-        runImageClassification(NNStreamer.NNFWType.TENSORFLOW_LITE);
+        runImageClassification(NNStreamer.NNFWType.TENSORFLOW_LITE, null);
+        runImageClassification(NNStreamer.NNFWType.TENSORFLOW_LITE, "Delegate:NNAPI");
+        runImageClassification(NNStreamer.NNFWType.TENSORFLOW_LITE, "Delegate:GPU");
     }
 
     @Test
@@ -249,7 +251,7 @@ public class APITestSingleShot {
             return;
         }
 
-        runImageClassification(NNStreamer.NNFWType.NNFW);
+        runImageClassification(NNStreamer.NNFWType.NNFW, null);
     }
 
     /**
