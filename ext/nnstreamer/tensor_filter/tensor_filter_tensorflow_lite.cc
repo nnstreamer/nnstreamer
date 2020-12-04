@@ -923,6 +923,13 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
 
         if (g_ascii_strcasecmp (pair[0], "NumThreads") == 0) {
           option->num_threads = (int)g_ascii_strtoll (pair[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (pair[0], "Delegate") == 0) {
+          if (g_ascii_strcasecmp (pair[1], "NNAPI") == 0)
+            option->accelerators = "true:" ACCL_CPU_NEON_STR;
+          else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
+            option->accelerators = "true:" ACCL_GPU_STR;
+          else
+            ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else {
           g_warning ("Unknown option (%s).", strv[i]);
         }
