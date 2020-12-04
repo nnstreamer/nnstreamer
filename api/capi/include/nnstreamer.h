@@ -126,6 +126,12 @@ typedef void *ml_pipeline_element_h;
 typedef void *ml_custom_easy_filter_h;
 
 /**
+ * @brief A handle of a "if node" of an NNStreamer pipeline.
+ * @since_tizen 6.5
+ */
+typedef void *ml_pipeline_if_h;
+
+/**
  * @brief Types of NNFWs.
  * @details To check if a nnfw-type is supported in a system, an application may call the API, ml_check_nnfw_availability().
  * @since_tizen 5.5
@@ -237,6 +243,17 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
  * @param[out] user_data User application's private data.
  */
 typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data);
+
+/**
+ * @brief Callback for custom condition of tensor_if
+ * @since_tizen 6.5
+ * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
+ * @param[in] data The handle of the tensor output of the pipeline (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
+ * @param[in/out] user_data User application's private data.
+ * @param[out] result Result of the user-defined condition. 0 refers to FALSE and a non-zero value refers to TRUE.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_info_h info, const ml_tensors_data_h data, void *user_data, int *result);
 
 /**
  * @brief Callback to execute the custom-easy filter in NNStreamer pipelines.
@@ -884,6 +901,46 @@ int ml_pipeline_element_get_property_double (ml_pipeline_element_h elem_h, const
  * @retval #ML_ERROR_INVALID_PARAMETER Given property name does not exist or the third parameter is NULL.
  */
 int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const char *property_name, uint32_t *value);
+
+/****************************************************
+ ** NNStreamer Pipeline tensor_if Control          **
+ ****************************************************/
+/**
+ * @brief Registers a tensor_if custom callback.
+ * @details If the if-condition is complex and cannot be expressed with tensor_if expressions, you can define custom condition.
+ * @since_tizen 6.5
+ * @remarks If the function succeeds, @a tensor_if handle must be released using ml_pipeline_if_custom_unregister().
+ * @param[in] name The name of custom condition
+ * @param[in] cb The function to be called when the pipeline runs.
+ * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
+ * @param[out] if_custom The tensor_if handler.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid, or duplicated name exists.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom filter.
+ * @warning A custom condition of the tensor_if is registered to the process globally.
+ *          If the custom condition "X" is registered , this "X" may be referred in any pipelines of the current process.
+ *          So, Be careful not to use the same tensor_if name when using multiple pipelines.
+ *
+ * Here is an example of the usage:
+ * @code
+ * TBU
+ * @endcode
+ */
+int ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_custom_cb cb, void *user_data, ml_pipeline_if_h *if_custom);
+
+/**
+ * @brief Unregisters the tensor_if custom callback.
+ * @details Use this function to release and unregister the tensor_if custom callback.
+ * @since_tizen 6.5
+ * @param[in] if_custom The tensor_if to be unregistered.
+ * @return @c 0 on success. Otherwise a negative error value.
+ * @retval #ML_ERROR_NONE Successful.
+ * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid.
+ */
+int ml_pipeline_tensor_if_custom_unregister (ml_pipeline_if_h if_custom);
 
 /****************************************************
  ** NNStreamer Utilities                           **
