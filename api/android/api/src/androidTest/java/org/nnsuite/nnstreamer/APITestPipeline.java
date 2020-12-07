@@ -396,6 +396,9 @@ public class APITestPipeline {
                 Thread.sleep(50);
             }
 
+            /* stop pipeline */
+            pipe.stop();
+
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertEquals(10, mReceived);
@@ -445,6 +448,9 @@ public class APITestPipeline {
                 pipe.inputData("srcx", info.allocate());
                 Thread.sleep(50);
             }
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
@@ -510,6 +516,9 @@ public class APITestPipeline {
                 pipe.inputData("srcx", info.allocate());
                 Thread.sleep(50);
             }
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
@@ -647,6 +656,9 @@ public class APITestPipeline {
             /* sleep 500 to invoke */
             Thread.sleep(500);
 
+            /* stop pipeline */
+            pipe.stop();
+
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertTrue(mReceived > 0);
@@ -702,6 +714,9 @@ public class APITestPipeline {
 
             /* sleep 1000 to invoke */
             Thread.sleep(1000);
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
@@ -1007,6 +1022,9 @@ public class APITestPipeline {
             /* sleep 300 to pass all input buffers to sink */
             Thread.sleep(300);
 
+            /* stop pipeline */
+            pipe.stop();
+
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertEquals(10, mReceived);
@@ -1231,6 +1249,9 @@ public class APITestPipeline {
             /* sleep 300 to pass all input buffers to sink */
             Thread.sleep(300);
 
+            /* stop pipeline */
+            pipe.stop();
+
             /* check received data from sink */
             assertFalse(mInvalidState);
             assertEquals(10, mReceived);
@@ -1309,11 +1330,13 @@ public class APITestPipeline {
         String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.start();
+            Thread.sleep(500);
+
             /* Setting null surface will release old window */
             pipe.setSurface("vsink", null);
-            pipe.start();
 
-            Thread.sleep(1000);
+            Thread.sleep(500);
             pipe.stop();
         } catch (Exception e) {
             fail();
@@ -1330,6 +1353,9 @@ public class APITestPipeline {
         String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.start();
+            Thread.sleep(500);
+
             pipe.setSurface(null, null);
             fail();
         } catch (Exception e) {
@@ -1347,6 +1373,9 @@ public class APITestPipeline {
         String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.start();
+            Thread.sleep(500);
+
             pipe.setSurface("", null);
             fail();
         } catch (Exception e) {
@@ -1370,6 +1399,9 @@ public class APITestPipeline {
         String desc = "videotestsrc ! videoconvert ! glimagesink name=vsink";
 
         try (Pipeline pipe = new Pipeline(desc)) {
+            pipe.start();
+            Thread.sleep(500);
+
             pipe.setSurface("vsink", surfaceView.getHolder());
             fail();
         } catch (Exception e) {
@@ -1504,6 +1536,9 @@ public class APITestPipeline {
 
             /* sleep 500 to invoke */
             Thread.sleep(500);
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
@@ -1702,6 +1737,9 @@ public class APITestPipeline {
 
             /* sleep 1000 to invoke */
             Thread.sleep(1000);
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
@@ -1920,6 +1958,9 @@ public class APITestPipeline {
 
             /* sleep 1000 msec to invoke */
             Thread.sleep(1000);
+
+            /* stop pipeline */
+            pipe.stop();
 
             /* check received data from sink */
             assertFalse(mInvalidState);
