@@ -907,6 +907,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_libdir}/libnnstreamer_grpc_protobuf.so
 %{_libdir}/libnnstreamer_grpc_flatbuf.so
 %{gstlibdir}/libnnstreamer-grpc.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_query.so
 %endif  # grpc_support
 
 %if 0%{?edgetpu_support}

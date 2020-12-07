@@ -1,3 +1,4 @@
 /usr/lib/*/gstreamer-1.0/libnnstreamer-grpc.so
 /usr/lib/*/libnnstreamer_grpc_protobuf.so
 /usr/lib/*/libnnstreamer_grpc_flatbuf.so
+/usr/lib/nnstreamer/filters/libnnstreamer_filter_query.so

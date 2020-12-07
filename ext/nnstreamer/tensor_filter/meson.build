@@ -631,3 +631,28 @@ if tensorrt_support_is_available
     install_dir: nnstreamer_libdir
   )
 endif
+
+if grpc_support_is_available
+  filter_sub_query_sources = ['tensor_filter_query.cc']
+
+  nnstreamer_filter_query_sources = []
+  foreach s : filter_sub_query_sources
+    nnstreamer_filter_query_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_filter_query_deps = [glib_dep, gst_dep, nnstreamer_dep, grpc_util_dep]
+
+  shared_library('nnstreamer_filter_query',
+    nnstreamer_filter_query_sources,
+    dependencies: grpc_util_dep,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_query',
+    nnstreamer_filter_query_sources,
+    dependencies: grpc_util_dep,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
