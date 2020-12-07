@@ -304,6 +304,7 @@ nns_destroy_pipe_info (pipeline_info_s * pipe_info, JNIEnv * env)
   (*env)->DeleteGlobalRef (env, pipe_info->cls);
   (*env)->DeleteGlobalRef (env, pipe_info->instance);
 
+  pthread_key_delete (pipe_info->jni_env);
   g_free (pipe_info);
 }
 
