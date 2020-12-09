@@ -34,7 +34,7 @@ gst2pbtxt_parse_error_quark (void)
 _Element *
 nnstparser_element_make (const gchar * element, const gchar * name)
 {
-  _Element ret = g_malloc (sizeof (_Element));
+  _Element ret = g_new0 (_Element, 1);
   ret->element = g_strdup (element);
   ret->name = g_strdup (name);
 
