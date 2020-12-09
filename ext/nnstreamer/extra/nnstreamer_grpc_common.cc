@@ -40,7 +40,7 @@ NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
   }
 }
 
-/** @brief constructure of NNStreamerRPC */
+/** @brief constructor of NNStreamerRPC */
 NNStreamerRPC::NNStreamerRPC (gboolean is_server, const gchar *host, const gint port):
   is_server_ (is_server), host_ (host), port_ (port),
   cb_ (nullptr), cb_data_ (nullptr), server_worker_ (nullptr), queue_ (nullptr)
@@ -114,7 +114,7 @@ NNStreamerRPC::_start_server () {
 
   address += ":" + std::to_string (port_);
 
-  grpc::EnableDefaultHealthCheckService(true);
+  grpc::EnableDefaultHealthCheckService (true);
 
   return start_server (address);
 }
@@ -214,7 +214,7 @@ _grpc_set_config (void *priv, GstTensorsConfig *config)
 }
 
 /**
- * @brief gRPC C++ wrapper to set tensors config
+ * @brief gRPC C++ wrapper to start gRPC service
  */
 gboolean
 _grpc_start (void *priv, grpc_direction direction)
