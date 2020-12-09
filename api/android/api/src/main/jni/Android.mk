@@ -39,6 +39,9 @@ ENABLE_NNFW := false
 # SNPE (Snapdragon Neural Processing Engine)
 ENABLE_SNPE := false
 
+# Decoder sub-plugin for flatbuffers support
+ENABLE_DECODER_FLATBUF := false
+
 ifeq ($(ENABLE_SNAP),true)
   ifeq ($(ENABLE_SNPE),true)
    $(error DO NOT enable SNAP and SNPE both. The app would fail to use DSP or NPU runtime.)
@@ -87,6 +90,12 @@ NNS_API_FLAGS += -DENABLE_SNPE=1
 NNS_SUBPLUGINS += snpe-subplugin
 
 include $(LOCAL_PATH)/Android-snpe.mk
+endif
+
+ifeq ($(ENABLE_DECODER_FLATBUF),true)
+include $(LOCAL_PATH)/Android-dec-flatbuf.mk
+NNS_API_FLAGS += -DENABLE_DEC_FLATBUF=1
+NNS_SUBPLUGINS += flatbuffers-subplugin
 endif
 
 #------------------------------------------------------

@@ -114,6 +114,11 @@ NNSTREAMER_FILTER_SNPE_SRCS := \
 NNSTREAMER_FILTER_SNAP_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc
 
+# decoder flatbuffers
+NNSTREAMER_DECODER_FLATBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-flatbuf.cc \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
+
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c \
@@ -180,4 +185,4 @@ endif
 GST_BUILDING_BLOCK_LIST := $(GST_LIBS_COMMON) $(GST_LIBS_GST)
 
 # gstreamer building block for decoder and filter
-NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite
+NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite nnstreamer_decoder_flatbuf
