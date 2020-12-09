@@ -322,7 +322,7 @@ static void nnstparser_element_set (gchar *value, _Element *element, graph_t *gr
   gst_parse_unescape (pos);
 
   /* Assign a "name=value" pair to element */
-  prop = g_malloc (sizeof(_Property));
+  prop = g_new0 (_Property, 1);
   prop->name = g_strdup (value);
   prop->value = g_strdup (pos);
   element->properties = g_slist_prepend (element->properties, prop);
