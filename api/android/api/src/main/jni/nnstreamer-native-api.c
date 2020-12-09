@@ -33,6 +33,9 @@ extern void init_bb (void);
 extern void init_il (void);
 extern void init_pose (void);
 extern void init_is (void);
+#if defined (ENABLE_DEC_FLATBUF)
+extern void init_fb (void);
+#endif /* ENABLE_DEC_FLATBUF */
 #endif
 
 extern void init_filter_cpp (void);
@@ -768,6 +771,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
     init_il ();
     init_pose ();
     init_is ();
+#if defined (ENABLE_DEC_FLATBUF)
+    init_fb ();
+#endif /* ENABLE_DEC_FLATBUF */
 #endif
 
     /* tensor-filter sub-plugins */

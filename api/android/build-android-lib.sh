@@ -23,6 +23,7 @@
 # --enable_nnfw (default 'yes' to build with sub-plugin for NNFW)
 # --enable_snpe (default 'no', 'yes' to build with sub-plugin for SNPE)
 # --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
+# --enable_decoder_flatbuf (default 'yes' to build with a decoder sub-plugin for flatbuffers)
 #
 # For example, to build library with core plugins for arm64-v8a
 # ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
@@ -59,6 +60,10 @@ enable_snpe="no"
 
 # Enable tensorflow-lite
 enable_tflite="yes"
+
+# Enable the flatbuffer decoder by default
+enable_decoder_flatbuf="yes"
+decoder_flatbuf_ver="1.12.0"
 
 # Set tensorflow-lite version (available: 1.9.0 / 1.13.1 / 1.15.2 / 2.3.0)
 tf_lite_ver="1.13.1"
@@ -123,6 +128,9 @@ for arg in "$@"; do
             ;;
         --enable_tflite=*)
             enable_tflite=${arg#*=}
+            ;;
+        --enable_decoder_flatbuf=*)
+            enable_decoder_flatbuf=${arg#*=}
             ;;
     esac
 done
@@ -339,6 +347,14 @@ if [[ $enable_tflite == "yes" ]]; then
     sed -i "s|ENABLE_TF_LITE := false|ENABLE_TF_LITE := true|" api/src/main/jni/Android.mk
     sed -i "s|TFLITE_VERSION := 1.13.1|TFLITE_VERSION := $tf_lite_ver|" api/src/main/jni/Android-tensorflow-lite.mk
     tar -xJf ./external/tensorflow-lite-$tf_lite_ver.tar.xz -C ./api/src/main/jni
+fi
+
+
+if [[ $enable_decoder_flatbuf == "yes" ]]; then
+    sed -i "s|ENABLE_DECODER_FLATBUF := false|ENABLE_DECODER_FLATBUF := true|" api/src/main/jni/Android.mk
+    sed -i "s|FLATBUF_VER := @FLATBUF_VER@|FLATBUF_VER := ${decoder_flatbuf_ver}|" api/src/main/jni/Android-dec-flatbuf.mk
+    wget --directory-prefix=./external https://raw.githubusercontent.com/nnstreamer/nnstreamer-android-resource/master/external/flatbuffers-${decoder_flatbuf_ver}.tar.xz
+    tar -xJf ./external/flatbuffers-${decoder_flatbuf_ver}.tar.xz -C ./api/src/main/jni
 fi
 
 # Add dependency for release

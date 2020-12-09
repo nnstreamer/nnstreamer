@@ -30,8 +30,14 @@ namespace nnstreamer
 namespace flatbuf
 {
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void init_fb (void) __attribute__ ((constructor));
 void fini_fb (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
@@ -150,6 +156,10 @@ static GstTensorDecoderDef flatBuf = {.modename = decoder_subplugin_flatbuf,
   .getOutCaps = fb_getOutCaps,
   .decode = fb_decode };
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_fb (void)
@@ -163,6 +173,9 @@ fini_fb (void)
 {
   nnstreamer_decoder_exit (flatBuf.modename);
 }
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 }; /* Namespace flatbuf */
 }; /* Namespace nnstreamer */
