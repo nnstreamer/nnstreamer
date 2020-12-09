@@ -406,7 +406,6 @@ if python2_dep.found()
 
 else
   warning('Python2.7 either not found or disabled')
-
 endif
 
 # Check python 3.x
@@ -441,6 +440,17 @@ if python3_dep.found()
 else
   warning('python3 either not found or disabled')
 endif
+
+# Set sub-plugin priority
+tflite_subplugin_list = []
+if tflite2_support_is_available
+  tflite_subplugin_list += 'tensorflow2-lite'
+endif
+if tflite_support_is_available
+  tflite_subplugin_list += 'tensorflow1-lite'
+endif
+
+nnstreamer_conf.set('TFLITE_SUBPLUGIN_PRIORITY', ','.join(tflite_subplugin_list))
 
 # Set configuration to install .ini
 nnstreamer_install_conf = configuration_data()
