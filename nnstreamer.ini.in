@@ -22,4 +22,7 @@ converters=@SUBPLUGIN_INSTALL_PREFIX@/converters/
 [pytorch]
 enable_use_gpu=@TORCH_USE_GPU@
 
+[tensorflow-lite]
+subplugin_priority=@TFLITE_SUBPLUGIN_PRIORITY@
+
 @ELEMENT_RESTRICTION_CONFIG@

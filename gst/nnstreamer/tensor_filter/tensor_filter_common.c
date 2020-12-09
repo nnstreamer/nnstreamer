@@ -623,27 +623,36 @@ const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name)
 {
   const GstTensorFilterFramework *fw;
-  guint i;
 
   g_return_val_if_fail (name != NULL, NULL);
 
   fw = get_subplugin (NNS_SUBPLUGIN_FILTER, name);
 
   if (fw == NULL) {
-    if (g_ascii_strcasecmp (name, "tensorflow-lite") == 0) {
-      /* find sug-plugin name for tf-lite version 2.x or 1.x */
-      /** @todo consider to add subplugin priority in .ini file */
-      const char *tflite_subplugins[] = {
-        "tensorflow2-lite", "tensorflow1-lite"
-      };
+    /* get sub-plugin priority from ini file and find sub-plugin */
+    gchar *_str;
 
-      for (i = 0; i < 2; i++) {
-        fw = get_subplugin (NNS_SUBPLUGIN_FILTER, tflite_subplugins[i]);
+    _str = nnsconf_get_custom_value_string (name, "subplugin_priority");
+    if (_str) {
+      gchar **subplugins;
+      guint i, len;
+
+      subplugins = g_strsplit_set (_str, " ,;", -1);
+      len = g_strv_length (subplugins);
+
+      for (i = 0; i < len; i++) {
+        if (strlen (g_strstrip (subplugins[i])) == 0)
+          continue;
+
+        fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);
         if (fw) {
-          nns_logi ("Found %s for %s.", tflite_subplugins[i], name);
+          nns_logi ("Found %s for %s.", subplugins[i], name);
           break;
         }
       }
+
+      g_strfreev (subplugins);
+      g_free (_str);
     }
   }
 
