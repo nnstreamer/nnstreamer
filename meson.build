@@ -371,74 +371,47 @@ if not (pytorch_support_is_available and caffe2_support_is_available)
   endif
 endif
 
-# Python
-have_python2 = false
+# Python3
 have_python3 = false
-
-pg_pkgconfig = find_program('pkg-config')
-
-# Check python 2.7
-python2_dep = dependency('python-2.7', required: get_option('python2-support'))
-if python2_dep.found()
-
-  python2_inc_args = []
-  python2_inc_args += run_command(pg_pkgconfig, ['python-2.7', '--cflags']).stdout().strip().split()
-  python2_inc_args += run_command('python2.7', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-  python2_inc_args += '-I' + run_command('python2.7', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-  python2_inc_valid_args = []
-
-  foreach python2_inc_arg : python2_inc_args
-    if cxx.has_argument(python2_inc_arg) and \
-        cxx.check_header('numpy/arrayobject.h', args: python2_inc_arg, dependencies : python2_dep)
-      python2_inc_valid_args += python2_inc_arg
-      have_python2 = true
-      break
-    endif
-  endforeach
-
-  if have_python2
-    python2_deps = declare_dependency(dependencies: python2_dep,
-        compile_args : python2_inc_valid_args)
-  else
-    warning('Found python2.7, but failed to find numpy.')
-    warning('Disable nnstreamer-python2.')
-  endif
-
-else
-  warning('Python2.7 either not found or disabled')
-endif
-
-# Check python 3.x
-python3_dep = dependency('python3', required: get_option('python3-support'))
-if python3_dep.found()
-  if python3_dep.version().version_compare('>= 3.8')
+if not get_option('python3-support').disabled()
+  # Check python 3.x
+  python3_dep = dependency('python3', required: false)
+  if python3_dep.found() and python3_dep.version().version_compare('>= 3.8')
     # The name of .pc file provides C/CXX/LD_FLAGS for Python C API has been changed since v3.8
-    python3_dep = dependency('python3-embed', required: get_option('python3-support'))
+    python3_dep = dependency('python3-embed', required: false)
   endif
-  python3_inc_args = []
-  python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
-  python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-  python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
-  python3_inc_valid_args = []
 
-  foreach python3_inc_arg : python3_inc_args
-    if cxx.has_argument(python3_inc_arg) and \
-        cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
-      python3_inc_valid_args += python3_inc_arg
-      have_python3 = true
-      break
+  if python3_dep.found()
+    pg_pkgconfig = find_program('pkg-config')
+
+    python3_inc_args = []
+    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
+    python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+    python3_inc_valid_args = []
+
+    foreach python3_inc_arg : python3_inc_args
+      if cxx.has_argument(python3_inc_arg) and \
+          cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
+        python3_inc_valid_args += python3_inc_arg
+        have_python3 = true
+        break
+      endif
+    endforeach
+
+    if have_python3
+      python3_dep = declare_dependency(dependencies: python3_dep,
+          compile_args : python3_inc_valid_args)
+    else
+      warning('Found python3, but failed to find numpy.')
+      warning('Disable nnstreamer-python3.')
+      python3_dep = disabler()
     endif
-  endforeach
-
-  if have_python3
-    python3_deps = declare_dependency(dependencies: python3_dep,
-        compile_args : python3_inc_valid_args)
-  else
-    warning('Found python3, but failed to find numpy.')
-    warning('Disable nnstreamer-python3.')
   endif
-else
-  warning('python3 either not found or disabled')
+
+  if get_option('python3-support').enabled() and not have_python3
+    error('Cannot find python3 with numpy support')
+  endif
 endif
 
 # Set sub-plugin priority
