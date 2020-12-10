@@ -229,7 +229,7 @@ gst_tensors_parse_layouts_string (tensors_layout layout,
  * @return rank string of the tensors
  */
 static gchar *
-gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
+gst_tensor_filter_get_rank_string (const GstTensorFilterProperties * prop,
     gboolean isInput)
 {
   gchar *rank_str = NULL;
@@ -261,6 +261,8 @@ gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
         g_string_append_printf (rank, ",");
     }
     rank_str = g_string_free (rank, FALSE);
+  } else {
+    rank_str = g_strdup ("");
   }
 
   return rank_str;
@@ -274,17 +276,25 @@ gst_tensors_get_rank_string (const GstTensorFilterProperties * prop,
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  */
 static gchar *
-gst_tensor_filter_get_dimensions_string (GstTensorFilterProperties * prop,
+gst_tensor_filter_get_dimension_string (const GstTensorFilterProperties * prop,
     const gboolean isInput)
 {
   gchar *dim_str = NULL;
-  GstTensorsInfo *tinfo = isInput ? &prop->input_meta : &prop->output_meta;
+  const GstTensorsInfo *tinfo;
+  const unsigned int *_rank;
+
+  if (isInput) {
+    tinfo = &prop->input_meta;
+    _rank = prop->input_ranks;
+  } else {
+    tinfo = &prop->output_meta;
+    _rank = prop->output_ranks;
+  }
 
   if (tinfo->num_tensors > 0) {
     guint i;
     GString *dimensions = g_string_new (NULL);
 
-    unsigned int *_rank = (isInput) ? prop->input_ranks : prop->output_ranks;
     for (i = 0; i < tinfo->num_tensors; ++i) {
       dim_str =
           gst_tensor_get_rank_dimension_string (tinfo->info[i].dimension,
@@ -297,8 +307,57 @@ gst_tensor_filter_get_dimensions_string (GstTensorFilterProperties * prop,
       g_free (dim_str);
     }
     dim_str = g_string_free (dimensions, FALSE);
+  } else {
+    dim_str = g_strdup ("");
   }
+
   return dim_str;
+}
+
+/**
+ * @brief Get the type string of tensors.
+ * @param[in] prop GstTensorFilterProperties object
+ * @param is_input TRUE if target is input tensors
+ * @return type string of tensors
+ */
+static gchar *
+gst_tensor_filter_get_type_string (const GstTensorFilterProperties * prop,
+    const gboolean is_input)
+{
+  gchar *type_str;
+  const GstTensorsInfo *info;
+
+  info = (is_input) ? &prop->input_meta : &prop->output_meta;
+
+  if (info->num_tensors > 0)
+    type_str = gst_tensors_info_get_types_string (info);
+  else
+    type_str = g_strdup ("");
+
+  return type_str;
+}
+
+/**
+ * @brief Get the name string of tensors.
+ * @param[in] prop GstTensorFilterProperties object
+ * @param is_input TRUE if target is input tensors
+ * @return name string of tensors
+ */
+static gchar *
+gst_tensor_filter_get_name_string (const GstTensorFilterProperties * prop,
+    const gboolean is_input)
+{
+  gchar *name_str;
+  const GstTensorsInfo *info;
+
+  info = (is_input) ? &prop->input_meta : &prop->output_meta;
+
+  if (info->num_tensors > 0)
+    name_str = gst_tensors_info_get_names_string (info);
+  else
+    name_str = g_strdup ("");
+
+  return name_str;
 }
 
 /**
@@ -330,19 +389,27 @@ gst_tensor_get_layout_string (tensor_layout layout)
  * @note The returned value should be freed with g_free()
  */
 static gchar *
-gst_tensors_get_layout_string (const GstTensorsInfo * info,
-    tensors_layout layout)
+gst_tensor_filter_get_layout_string (const GstTensorFilterProperties * prop,
+    const gboolean is_input)
 {
   gchar *layout_str = NULL;
+  const GstTensorsInfo *info;
+  const tensors_layout *layout;
 
-  g_return_val_if_fail (info != NULL, NULL);
+  if (is_input) {
+    info = &prop->input_meta;
+    layout = &prop->input_layout;
+  } else {
+    info = &prop->output_meta;
+    layout = &prop->output_layout;
+  }
 
   if (info->num_tensors > 0) {
     guint i;
     GString *layouts = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      g_string_append (layouts, gst_tensor_get_layout_string (layout[i]));
+      g_string_append (layouts, gst_tensor_get_layout_string ((*layout)[i]));
 
       if (i < info->num_tensors - 1) {
         g_string_append (layouts, ",");
@@ -350,6 +417,8 @@ gst_tensors_get_layout_string (const GstTensorsInfo * info,
     }
 
     layout_str = g_string_free (layouts, FALSE);
+  } else {
+    layout_str = g_strdup ("");
   }
 
   return layout_str;
@@ -1305,12 +1374,29 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
   return 0;
 }
 
-/** @brief Handle "PROP_INPUT" for set-property */
+/** @brief Handle "PROP_INPUT" and "PROP_OUTPUT" for set-property */
 static gint
-_gtfc_setprop_INPUT (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
+_gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
+    const GValue * value, const gboolean is_input)
 {
-  if (!prop->input_configured && value) {
+  GstTensorFilterProperties *prop;
+  GstTensorsInfo *info;
+  unsigned int *rank;
+  int configured;
+
+  prop = &priv->prop;
+
+  if (is_input) {
+    info = &prop->input_meta;
+    rank = prop->input_ranks;
+    configured = prop->input_configured;
+  } else {
+    info = &prop->output_meta;
+    rank = prop->output_ranks;
+    configured = prop->output_configured;
+  }
+
+  if (!configured && value) {
     guint num_dims;
     gchar **str_dims;
     guint i;
@@ -1326,179 +1412,101 @@ _gtfc_setprop_INPUT (GstTensorFilterPrivate * priv,
     }
 
     for (i = 0; i < num_dims; ++i) {
-      prop->input_ranks[i] = gst_tensor_parse_dimension (str_dims[i],
-          prop->input_meta.info[i].dimension);
+      rank[i] = gst_tensor_parse_dimension (str_dims[i],
+          info->info[i].dimension);
     }
     g_strfreev (str_dims);
 
     if (num_dims > 0) {
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_dims) {
+      if (info->num_tensors > 0 && info->num_tensors != num_dims) {
         ml_logw
-            ("Invalid input-dim, given param does not match with old value.");
+            ("Invalid dimension, given param does not match with old value.");
       }
 
-      prop->input_meta.num_tensors = num_dims;
+      info->num_tensors = num_dims;
     }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
     ml_loge
-        ("Cannot change input-dim once the element/pipeline is configured.");
+        ("Cannot change dimension once the element/pipeline is configured.");
   }
   return 0;
 }
 
-/** @brief Handle "PROP_OUTPUT" for set-property */
+/** @brief Handle "PROP_INPUTTYPE" and "PROP_OUTPUTTYPE" for set-property */
 static gint
-_gtfc_setprop_OUTPUT (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
+_gtfc_setprop_TYPE (GstTensorFilterPrivate * priv,
+    const GValue * value, const gboolean is_input)
 {
-  if (!prop->output_configured && value) {
-    guint num_dims;
-    gchar **str_dims;
-    guint i;
+  GstTensorFilterProperties *prop;
+  GstTensorsInfo *info;
+  int configured;
 
-    str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
-    num_dims = g_strv_length (str_dims);
+  prop = &priv->prop;
 
-    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
-          num_dims, NNS_TENSOR_SIZE_LIMIT);
-
-      num_dims = NNS_TENSOR_SIZE_LIMIT;
-    }
-
-    for (i = 0; i < num_dims; ++i) {
-      prop->output_ranks[i] = gst_tensor_parse_dimension (str_dims[i],
-          prop->output_meta.info[i].dimension);
-    }
-    g_strfreev (str_dims);
-
-    if (num_dims > 0) {
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_dims) {
-        ml_logw
-            ("Invalid output-dim, given param does not match with old value.");
-      }
-
-      prop->output_meta.num_tensors = num_dims;
-    }
-  } else if (value) {
-    /** Once configured, it cannot be changed in runtime for now */
-    ml_loge
-        ("Cannot change output-dim once the element/pipeline is configured.");
+  if (is_input) {
+    info = &prop->input_meta;
+    configured = prop->input_configured;
+  } else {
+    info = &prop->output_meta;
+    configured = prop->output_configured;
   }
-  return 0;
-}
 
-/** @brief Handle "PROP_INPUTTYPE" for set-property */
-static gint
-_gtfc_setprop_INPUTTYPE (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
-{
-  if (!prop->input_configured && value) {
+  if (!configured && value) {
     guint num_types;
 
-    num_types = gst_tensors_info_parse_types_string (&prop->input_meta,
+    num_types = gst_tensors_info_parse_types_string (info,
         g_value_get_string (value));
 
     if (num_types > 0) {
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_types) {
-        ml_logw
-            ("Invalid input-type, given param does not match with old value.");
+      if (info->num_tensors > 0 && info->num_tensors != num_types) {
+        ml_logw ("Invalid type, given param does not match with old value.");
       }
 
-      prop->input_meta.num_tensors = num_types;
+      info->num_tensors = num_types;
     }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
-    ml_loge
-        ("Cannot change input-type once the element/pipeline is configured.");
+    ml_loge ("Cannot change type once the element/pipeline is configured.");
   }
   return 0;
 }
 
-/** @brief Handle "PROP_OUTPUTTYPE" for set-property */
+/** @brief Handle "PROP_INPUTNAME" and "PROP_OUTPUTNAME" for set-property */
 static gint
-_gtfc_setprop_OUTPUTTYPE (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
+_gtfc_setprop_NAME (GstTensorFilterPrivate * priv,
+    const GValue * value, const gboolean is_input)
 {
-  if (!prop->output_configured && value) {
-    guint num_types;
+  GstTensorFilterProperties *prop;
+  GstTensorsInfo *info;
+  int configured;
 
-    num_types = gst_tensors_info_parse_types_string (&prop->output_meta,
-        g_value_get_string (value));
+  prop = &priv->prop;
 
-    if (num_types > 0) {
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_types) {
-        ml_logw
-            ("Invalid output-type, given param does not match with old value.");
-      }
-
-      prop->output_meta.num_tensors = num_types;
-    }
-  } else if (value) {
-    /** Once configured, it cannot be changed in runtime for now */
-    ml_loge
-        ("Cannot change output-type once the element/pipeline is configured.");
+  if (is_input) {
+    info = &prop->input_meta;
+    configured = prop->input_configured;
+  } else {
+    info = &prop->output_meta;
+    configured = prop->output_configured;
   }
-  return 0;
-}
 
-/** @brief Handle "PROP_INPUTNAME" for set-property */
-static gint
-_gtfc_setprop_INPUTNAME (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
-{
-  if (!prop->input_configured && value) {
+  if (!configured && value) {
     guint num_names;
 
-    num_names = gst_tensors_info_parse_names_string (&prop->input_meta,
+    num_names = gst_tensors_info_parse_names_string (info,
         g_value_get_string (value));
 
     if (num_names > 0) {
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_names) {
-        ml_logw
-            ("Invalid input-name, given param does not match with old value.");
+      if (info->num_tensors > 0 && info->num_tensors != num_names) {
+        ml_logw ("Invalid name, given param does not match with old value.");
       }
 
-      prop->input_meta.num_tensors = num_names;
+      info->num_tensors = num_names;
     }
   } else if (value) {
     /** Once configured, it cannot be changed in runtime for now */
-    ml_loge
-        ("Cannot change input-name once the element/pipeline is configured.");
-  }
-  return 0;
-}
-
-/** @brief Handle "PROP_OUTPUTNAME" for set-property */
-static gint
-_gtfc_setprop_OUTPUTNAME (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
-{
-  if (!prop->output_configured && value) {
-    guint num_names;
-
-    num_names = gst_tensors_info_parse_names_string (&prop->output_meta,
-        g_value_get_string (value));
-
-    if (num_names > 0) {
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_names) {
-        ml_logw
-            ("Invalid output-name, given param does not match with old value.");
-      }
-
-      prop->output_meta.num_tensors = num_names;
-    }
-  } else if (value) {
-    /** Once configured, it cannot be changed in runtime for now */
-    ml_loge
-        ("Cannot change output-name once the element/pipeline is configured.");
+    ml_loge ("Cannot change name once the element/pipeline is configured.");
   }
   return 0;
 }
@@ -1604,82 +1612,48 @@ _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
   return 0;
 }
 
-/** @brief Handle "PROP_INPUTLAYOUT" for set-property */
+/** @brief Handle "PROP_INPUTLAYOUT" and "PROP_OUTPUTLAYOUT" for set-property */
 static gint
-_gtfc_setprop_INPUTLAYOUT (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
+_gtfc_setprop_LAYOUT (GstTensorFilterPrivate * priv,
+    const GValue * value, const gboolean is_input)
 {
+  GstTensorFilterProperties *prop;
+  GstTensorsInfo *info;
+  tensors_layout *layout;
+  int configured;
+  event_ops evt;
   guint num_layouts;
 
-  if (!prop->output_configured && value) {
-    num_layouts = gst_tensors_parse_layouts_string (prop->input_layout,
-        g_value_get_string (value));
+  prop = &priv->prop;
 
-    if (num_layouts > 0) {
-      if (prop->input_meta.num_tensors > 0 &&
-          prop->input_meta.num_tensors != num_layouts) {
-        ml_logw ("Invalid input-layout, given param does not fit.");
-      }
-
-      prop->input_meta.num_tensors = num_layouts;
-    }
-  } else if (value) {
-    /** Update the properties */
-    if (GST_TF_FW_V0 (priv->fw)) {
-      /* Once configured, it cannot be changed in runtime */
-      ml_loge
-          ("Cannot change input-layout once the element/pipeline is configured.");
-    } else if (GST_TF_FW_V1 (priv->fw)) {
-      GstTensorFilterFrameworkEventData data;
-
-      data.info = NULL;
-      num_layouts = gst_tensors_parse_layouts_string (data.layout,
-          g_value_get_string (value));
-
-      if (num_layouts > 0) {
-        if (prop->input_meta.num_tensors > 0 &&
-            prop->input_meta.num_tensors != num_layouts) {
-          ml_logw ("Invalid input-layout, given param does not fit.");
-        }
-
-        if (priv->fw->eventHandler
-            (priv->fw, prop, priv->privateData, SET_INPUT_PROP, &data) == 0) {
-          memcpy (priv->prop.input_layout, data.layout,
-              sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
-        } else {
-          ml_logw ("Unable to update input layout.");
-        }
-      }
-    }
+  if (is_input) {
+    info = &prop->input_meta;
+    layout = &prop->input_layout;
+    configured = prop->input_configured;
+    evt = SET_INPUT_PROP;
+  } else {
+    info = &prop->output_meta;
+    layout = &prop->output_layout;
+    configured = prop->output_configured;
+    evt = SET_OUTPUT_PROP;
   }
-  return 0;
-}
 
-/** @brief Handle "PROP_OUTPUTLAYOUT" for set-property */
-static gint
-_gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
-    GstTensorFilterProperties * prop, const GValue * value)
-{
-  guint num_layouts;
-
-  if (!prop->output_configured && value) {
-    num_layouts = gst_tensors_parse_layouts_string (prop->output_layout,
+  if (!configured && value) {
+    num_layouts = gst_tensors_parse_layouts_string (*layout,
         g_value_get_string (value));
 
     if (num_layouts > 0) {
-      if (prop->output_meta.num_tensors > 0 &&
-          prop->output_meta.num_tensors != num_layouts) {
-        ml_logw ("Invalid output-layout, given param does not fit.");
+      if (info->num_tensors > 0 && info->num_tensors != num_layouts) {
+        ml_logw ("Invalid layout, given param does not fit.");
       }
 
-      prop->output_meta.num_tensors = num_layouts;
+      info->num_tensors = num_layouts;
     }
   } else if (value) {
     /** Update the properties */
     if (GST_TF_FW_V0 (priv->fw)) {
       /* Once configured, it cannot be changed in runtime */
-      ml_loge
-          ("Cannot change output-layout once the element/pipeline is configured.");
+      ml_loge ("Cannot change layout once the element/pipeline is configured.");
     } else if (GST_TF_FW_V1 (priv->fw)) {
       GstTensorFilterFrameworkEventData data;
 
@@ -1688,17 +1662,16 @@ _gtfc_setprop_OUTPUTLAYOUT (GstTensorFilterPrivate * priv,
           g_value_get_string (value));
 
       if (num_layouts > 0) {
-        if (prop->output_meta.num_tensors > 0 &&
-            prop->output_meta.num_tensors != num_layouts) {
-          ml_logw ("Invalid output-layout, given param does not fit.");
+        if (info->num_tensors > 0 && info->num_tensors != num_layouts) {
+          ml_logw ("Invalid layout, given param does not fit.");
         }
 
         if (priv->fw->eventHandler
-            (priv->fw, prop, priv->privateData, SET_OUTPUT_PROP, &data) == 0) {
-          memcpy (priv->prop.output_layout, data.layout,
+            (priv->fw, prop, priv->privateData, evt, &data) == 0) {
+          memcpy (*layout, data.layout,
               sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
         } else {
-          ml_logw ("Unable to update output layout.");
+          ml_logw ("Unable to update layout.");
         }
       }
     }
@@ -1848,24 +1821,24 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       status = _gtfc_setprop_MODEL (priv, prop, value);
       break;
     case PROP_INPUT:
-      status = _gtfc_setprop_INPUT (priv, prop, value);
+      status = _gtfc_setprop_DIMENSION (priv, value, TRUE);
       break;
     case PROP_OUTPUT:
-      status = _gtfc_setprop_OUTPUT (priv, prop, value);
+      status = _gtfc_setprop_DIMENSION (priv, value, FALSE);
       break;
     case PROP_INPUTTYPE:
-      status = _gtfc_setprop_INPUTTYPE (priv, prop, value);
+      status = _gtfc_setprop_TYPE (priv, value, TRUE);
       break;
     case PROP_OUTPUTTYPE:
-      status = _gtfc_setprop_OUTPUTTYPE (priv, prop, value);
+      status = _gtfc_setprop_TYPE (priv, value, FALSE);
       break;
     case PROP_INPUTNAME:
       /* INPUTNAME is required by tensorflow to designate the order of tensors */
-      status = _gtfc_setprop_INPUTNAME (priv, prop, value);
+      status = _gtfc_setprop_NAME (priv, value, TRUE);
       break;
     case PROP_OUTPUTNAME:
       /* OUTPUTNAME is required by tensorflow to designate the order of tensors */
-      status = _gtfc_setprop_OUTPUTNAME (priv, prop, value);
+      status = _gtfc_setprop_NAME (priv, value, FALSE);
       break;
     case PROP_CUSTOM:
       status = _gtfc_setprop_CUSTOM (priv, prop, value);
@@ -1877,10 +1850,10 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       status = _gtfc_setprop_IS_UPDATABLE (priv, prop, value);
       break;
     case PROP_INPUTLAYOUT:
-      status = _gtfc_setprop_INPUTLAYOUT (priv, prop, value);
+      status = _gtfc_setprop_LAYOUT (priv, value, TRUE);
       break;
     case PROP_OUTPUTLAYOUT:
-      status = _gtfc_setprop_OUTPUTLAYOUT (priv, prop, value);
+      status = _gtfc_setprop_LAYOUT (priv, value, FALSE);
       break;
     case PROP_LATENCY:
       status = _gtfc_setprop_LATENCY (priv, prop, value);
@@ -1955,6 +1928,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     guint prop_id, GValue * value, GParamSpec * pspec)
 {
   GstTensorFilterProperties *prop;
+  gchar *strval;
 
   prop = &priv->prop;
 
@@ -1985,94 +1959,36 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     }
     case PROP_INPUT:
-      if (prop->input_meta.num_tensors > 0) {
-        gchar *dim_str;
-
-        dim_str = gst_tensor_filter_get_dimensions_string (prop, TRUE);
-
-        g_value_take_string (value, dim_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_dimension_string (prop, TRUE);
+      g_value_take_string (value, strval);
       break;
     case PROP_OUTPUT:
-      if (prop->output_meta.num_tensors > 0) {
-        gchar *dim_str;
-
-        dim_str = gst_tensor_filter_get_dimensions_string (prop, FALSE);
-
-        g_value_take_string (value, dim_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_dimension_string (prop, FALSE);
+      g_value_take_string (value, strval);
       break;
     case PROP_INPUTRANKS:
-      if (prop->input_meta.num_tensors > 0) {
-        gchar *rank_str;
-
-        rank_str = gst_tensors_get_rank_string (prop, TRUE);
-
-        g_value_set_string (value, rank_str);
-        g_free (rank_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_rank_string (prop, TRUE);
+      g_value_take_string (value, strval);
       break;
     case PROP_OUTPUTRANKS:
-      if (prop->output_meta.num_tensors > 0) {
-        gchar *rank_str;
-
-        rank_str = gst_tensors_get_rank_string (prop, FALSE);
-
-        g_value_set_string (value, rank_str);
-        g_free (rank_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_rank_string (prop, FALSE);
+      g_value_take_string (value, strval);
       break;
     case PROP_INPUTTYPE:
-      if (prop->input_meta.num_tensors > 0) {
-        gchar *type_str;
-
-        type_str = gst_tensors_info_get_types_string (&prop->input_meta);
-
-        g_value_take_string (value, type_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_type_string (prop, TRUE);
+      g_value_take_string (value, strval);
       break;
     case PROP_OUTPUTTYPE:
-      if (prop->output_meta.num_tensors > 0) {
-        gchar *type_str;
-
-        type_str = gst_tensors_info_get_types_string (&prop->output_meta);
-
-        g_value_take_string (value, type_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_type_string (prop, FALSE);
+      g_value_take_string (value, strval);
       break;
     case PROP_INPUTNAME:
-      if (prop->input_meta.num_tensors > 0) {
-        gchar *name_str;
-
-        name_str = gst_tensors_info_get_names_string (&prop->input_meta);
-
-        g_value_take_string (value, name_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_name_string (prop, TRUE);
+      g_value_take_string (value, strval);
       break;
     case PROP_OUTPUTNAME:
-      if (prop->output_meta.num_tensors > 0) {
-        gchar *name_str;
-
-        name_str = gst_tensors_info_get_names_string (&prop->output_meta);
-
-        g_value_take_string (value, name_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_name_string (prop, FALSE);
+      g_value_take_string (value, strval);
       break;
     case PROP_CUSTOM:
       g_value_set_string (value,
@@ -2129,28 +2045,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       g_value_set_boolean (value, priv->is_updatable);
       break;
     case PROP_INPUTLAYOUT:
-      if (prop->input_meta.num_tensors > 0) {
-        gchar *layout_str;
-
-        layout_str = gst_tensors_get_layout_string (&prop->input_meta,
-            prop->input_layout);
-
-        g_value_take_string (value, layout_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_layout_string (prop, TRUE);
+      g_value_take_string (value, strval);
       break;
     case PROP_OUTPUTLAYOUT:
-      if (prop->output_meta.num_tensors > 0) {
-        gchar *layout_str;
-
-        layout_str = gst_tensors_get_layout_string (&prop->output_meta,
-            prop->output_layout);
-
-        g_value_take_string (value, layout_str);
-      } else {
-        g_value_set_string (value, "");
-      }
+      strval = gst_tensor_filter_get_layout_string (prop, FALSE);
+      g_value_take_string (value, strval);
       break;
     case PROP_LATENCY:
       if (priv->latency_mode == 1) {
