@@ -185,7 +185,7 @@ unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
 
 tensor_filter_ext_enabled = tflite_support_is_available or \
     tf_support_is_available or \
-    have_python2 or have_python3 or \
+    have_python3 or \
     pytorch_support_is_available or caffe2_support_is_available or \
     nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
     mvncsdk2_support_is_available or get_option('enable-openvino')
@@ -210,8 +210,8 @@ if get_option('install-test')
   if tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_tests_install_dir)
   endif
-  if have_python2 or have_python3
-    install_subdir('nnstreamer_filter_python', install_dir: unittest_tests_install_dir)
+  if have_python3
+    install_subdir('nnstreamer_filter_python3', install_dir: unittest_tests_install_dir)
   endif
   if tf_support_is_available
     install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_tests_install_dir)

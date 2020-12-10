@@ -42,9 +42,9 @@
 
 # Enable python if it's Tizen 5.0+
 %if 0%{tizen_version_major} >= 5
-%define		python_support 1
+%define		python3_support 1
 %else
-%define		python_support 0
+%define		python3_support 0
 %endif
 
 # Enable Tizen-Sensor, OpenVINO, MVNCSDK2 if it's Tizen 6.0+
@@ -89,7 +89,7 @@
 %define		check_test 0
 %define		edgetpu_support 0
 %define		protobuf_support 0
-%define		python_support 0
+%define		python3_support 0
 %define		mvncsdk2_support 0
 %endif
 
@@ -149,12 +149,11 @@ BuildRequires:	gtest-devel
 # a few test cases uses python
 %if 0%{?check_test}
 BuildRequires:	python
-BuildRequires:	python-numpy
 %endif
-%if 0%{?python_support}
-# for python custom filters
-BuildRequires:	pkgconfig(python2)
-BuildRequires:	python-numpy-devel
+%if 0%{?python3_support}
+# for python3 custom filters
+BuildRequires:	python3-devel
+BuildRequires:	python3-numpy-devel
 %endif
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
@@ -308,13 +307,12 @@ Requires:	nnstreamer = %{version}-%{release}
 NNStreamer's tensor_fliter subplugin of TensorFlow2 Lite.
 %endif
 
-%if 0%{?python_support}
-%package python2
-Summary:  NNStreamer Python Custom Filter Support
+%if 0%{?python3_support}
+%package python3
+Summary:  NNStreamer Python3 Custom Filter Support
 Requires: nnstreamer = %{version}-%{release}
-Requires: python
-%description python2
-NNStreamer's tensor_filter subplugin of Python (2.7).
+%description python3
+NNStreamer's tensor_filter subplugin of Python3.
 %endif
 
 %if 0%{?armnn_support}
@@ -603,10 +601,10 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %endif
 
 # Support python
-%if 0%{?python_support}
-%define enable_python -Dpython2-support=enabled
+%if 0%{?python3_support}
+%define enable_python3 -Dpython3-support=enabled
 %else
-%define enable_python -Dpython2-support=disabled
+%define enable_python3 -Dpython3-support=disabled
 %endif
 
 # Support edgetpu
@@ -656,7 +654,7 @@ mkdir -p build
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstbindir} --includedir=%{_includedir} \
 	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python} \
+	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
 	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
@@ -704,10 +702,10 @@ pushd %{buildroot}%{_bindir}
 ln -sf %{nnstbindir}/nnstreamer-check nnstreamer-check
 popd
 
-%if 0%{?python_support}
-mkdir -p %{buildroot}%{python_sitelib}
-pushd %{buildroot}%{python_sitelib}
-ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so nnstreamer_python.so
+%if 0%{?python3_support}
+mkdir -p %{buildroot}%{python3_sitelib}
+pushd %{buildroot}%{python3_sitelib}
+ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python3.so nnstreamer_python.so
 popd
 %endif
 
@@ -802,13 +800,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow2-lite.so
 %endif
 
-%if 0%{?python_support}
-%files python2
+%if 0%{?python3_support}
+%files python3
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python2.so
-%{_prefix}/lib/nnstreamer/filters/nnstreamer_python2.so
-%{python_sitelib}/nnstreamer_python.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python3.so
+%{_prefix}/lib/nnstreamer/filters/nnstreamer_python3.so
+%{python3_sitelib}/nnstreamer_python.so
 %endif
 
 %if 0%{?protobuf_support}

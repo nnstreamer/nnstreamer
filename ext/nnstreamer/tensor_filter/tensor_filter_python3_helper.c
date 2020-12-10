@@ -14,28 +14,20 @@
  *
  */
 /**
- * @file	tensor_filter_python_api.c
+ * @file	tensor_filter_python_helper.c
  * @date	10 Apr 2019
  * @brief	python helper structure for nnstreamer tensor_filter
  * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Dongju Chae <dongju.chae@samsung.com>
  * @bug		No known bugs except for NYI items
- */
-
-/**
- * SECTION:element-tensor_filter_python_api
  *
  * A python module that provides a wrapper for internal structures in tensor_filter_python.
  * Users can import this module to access such a functionality
  *
- * <refsect2>
- * <title>Example python script</title>
- * |[
- * import numpy as np
- * import nnstreamer_python as nns
- * dim = nns.TensorShape([1,2,3], np.uint8)
- * ]|
- * </refsect2>
+ * -- Example python script
+ *  import numpy as np
+ *  import nnstreamer_python as nns
+ *  dim = nns.TensorShape([1,2,3], np.uint8)
  */
 
 #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
@@ -59,11 +51,7 @@ typedef struct
 } TensorShapeObject;
 
 /** @brief define a prototype for this python module */
-#if PY_VERSION_HEX >= 0x03000000
 PyMODINIT_FUNC PyInit_nnstreamer_python (void);
-#else
-PyMODINIT_FUNC initnnstreamer_python (void);
-#endif
 
 /**
  * @brief method impl. for setDims
@@ -211,7 +199,7 @@ static PyMethodDef TensorShape_methods[] = {
 /** @brief Structure for custom type object */
 static PyTypeObject TensorShapeType = {
   PyVarObject_HEAD_INIT (NULL, 0)
-      .tp_name = "nnstreamer_python.TensorShape",
+  .tp_name = "nnstreamer_python.TensorShape",
   .tp_doc = "TensorShape type",
   .tp_basicsize = sizeof (TensorShapeObject),
   .tp_itemsize = 0,
@@ -223,8 +211,6 @@ static PyTypeObject TensorShapeType = {
   .tp_methods = TensorShape_methods
 };
 
-#if PY_VERSION_HEX >= 0x03000000
-#define RETVAL(x) x
 static PyModuleDef nnstreamer_python_module = {
   PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL
 };
@@ -233,31 +219,16 @@ static PyModuleDef nnstreamer_python_module = {
 PyMODINIT_FUNC
 PyInit_nnstreamer_python (void)
 {
-#else
-#define RETVAL(x)
-static PyMethodDef nnstreamer_python_methods[] = {
-  {NULL, NULL}
-};
-
-/** @brief module initialization (python 2.x) */
-PyMODINIT_FUNC
-initnnstreamer_python (void)
-{
-#endif
   PyObject *type_object = (PyObject *) & TensorShapeType;
   PyObject *module;
 
   /** Check TensorShape type */
   if (PyType_Ready (&TensorShapeType) < 0)
-    return RETVAL (NULL);
+    return NULL;
 
-#if PY_VERSION_HEX >= 0x03000000
   module = PyModule_Create (&nnstreamer_python_module);
-#else
-  module = Py_InitModule ("nnstreamer_python", nnstreamer_python_methods);
-#endif
   if (module == NULL)
-    return RETVAL (NULL);
+    return NULL;
 
   /** For numpy array init. */
   import_array ();
@@ -265,5 +236,5 @@ initnnstreamer_python (void)
   Py_INCREF (type_object);
   PyModule_AddObject (module, "TensorShape", type_object);
 
-  return RETVAL (module);
+  return module;
 }

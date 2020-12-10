@@ -15,27 +15,27 @@
  *
  */
 /**
- * @file    tensor_filter_python.cc
+ * @file    tensor_filter_python3.cc
  * @date    10 Apr 2019
- * @brief   Python module for tensor_filter gstreamer plugin
+ * @brief   Python3 module for tensor_filter gstreamer plugin
  * @see     http://github.com/nnstreamer/nnstreamer
  * @author  Dongju Chae <dongju.chae@samsung.com>
  * @bug     No known bugs except for NYI items
  */
 
 /**
- * SECTION:element-tensor_filter_python
+ * SECTION:element-tensor_filter_python3
  *
- * A filter that loads and executes a python script implementing a custom
+ * A filter that loads and executes a python3 script implementing a custom
  * filter.
- * The python script should be provided.
+ * The python3 script should be provided.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! video/x-raw,format=RGB,width=640,height=480 !
- * tensor_converter ! tensor_filter framework="python2"
- * model="${PATH_TO_SCRIPT}" ! tensor_sink
+ *    tensor_converter ! tensor_filter framework="python3"
+ *    model="${PATH_TO_SCRIPT}" ! tensor_sink
  * ]|
  * </refsect2>
  */
@@ -44,14 +44,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
 
-/**
- * NOTE: This workaround is only for python2.7. If we are going to use external
- * open-source projects written in cpp with the 'register' keyword, we need to
- * project-widely apply this.
- */
-#if __cplusplus > 199711L
-#define register /* Deprecated in C++11 */
-#endif /* __cplusplus > 199711L */
 #include <Python.h>
 #include <exception>
 
@@ -84,7 +76,7 @@
 #else
 #define SO_EXT "so.1.0"
 #endif
-#if PY_VERSION_HEX >= 0x03080000 || PY_VERSION_HEX < 0x03000000
+#if PY_VERSION_HEX >= 0x03080000
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.%s"
 #else
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.%s"
@@ -989,11 +981,7 @@ py_checkAvailability (accl_hw hw)
   return -ENOENT;
 }
 
-#if PY_VERSION_HEX >= 0x03000000
 static gchar filter_subplugin_python[] = "python3";
-#else
-static gchar filter_subplugin_python[] = "python2";
-#endif
 
 static GstTensorFilterFramework NNS_support_python = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = py_open,
