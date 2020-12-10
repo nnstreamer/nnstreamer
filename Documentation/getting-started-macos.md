@@ -93,9 +93,10 @@ Configure using [meson](https://mesonbuild.com).
 $ PKG_CONFIG_PATH=/usr/local/opt/libffi/lib/pkgconfig \
 meson build \
 --prefix=/usr/local \
--Denable-tensorflow=false \
--Denable-tensorflow-lite=false \
--Denable-pytorch=false -Denable-caffe2=false
+-Dtf-support=disabled \
+-Dtflite-support=disabled \
+-Dtflite2-support=disabled \
+-Dpytorch-support=disabled -Dcaffe2-support=disabled
 
 The Meson build system
 Version: 0.51.1
