@@ -60,6 +60,12 @@
 %define		edgetpu_support 0
 %endif
 
+# tizen 6.0 (or less) backward-compatibility check
+%if ( 0%{?tizen_version_major} == 6 && 0%{?tizen_version_minor} < 5 ) || 0%{?tizen_version_major} < 6
+%define		grpc_support 0
+%define		tensorflow2_lite_support 0
+%endif
+
 # Disable e-TPU if it's not 64bit system
 %ifnarch aarch64 x86_64
 %define		edgetpu_support 0
