@@ -677,14 +677,21 @@ TEST (nnstreamer_nnfw_mlapi, invoke_single_02_n)
   ml_tensors_info_destroy (in_res);
 }
 
-#define wait_for_sink(expected_cnt)                 \
-  do {                                              \
-    guint waiting_time = 0;                         \
-    while (*sink_called_cnt < expected_cnt) {       \
-      g_usleep (TEST_DEFAULT_SLEEP_TIME);           \
-      waiting_time += TEST_DEFAULT_SLEEP_TIME;      \
-      ASSERT_GT (TEST_TIMEOUT_LIMIT, waiting_time); \
-    }                                               \
+static GMutex g_test_mutex;
+
+#define wait_for_sink(expected_cnt)                       \
+  do {                                                    \
+    guint waiting_time = 0;                               \
+    gboolean done = FALSE;                                \
+    while (!done && waiting_time < TEST_TIMEOUT_LIMIT) {  \
+      g_mutex_lock (&g_test_mutex);                       \
+      done = (*sink_called_cnt >= expected_cnt);          \
+      waiting_time += TEST_DEFAULT_SLEEP_TIME;            \
+      g_mutex_unlock (&g_test_mutex);                     \
+      if (!done)                                          \
+        g_usleep (TEST_DEFAULT_SLEEP_TIME);               \
+    }                                                     \
+    ASSERT_TRUE (done);                                   \
   } while (0);
 
 /**
@@ -702,7 +709,9 @@ new_data_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, void *u
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_FLOAT_EQ (*data_ptr, 12.0);
 
+  g_mutex_lock (&g_test_mutex);
   *checks = *checks + 1;
+  g_mutex_unlock (&g_test_mutex);
 }
 
 /**
@@ -1288,6 +1297,7 @@ main (int argc, char **argv)
   }
   /* ignore tizen feature status while running the testcases */
   set_feature_state (SUPPORTED);
+  g_mutex_init (&g_test_mutex);
 
   try {
     result = RUN_ALL_TESTS ();
@@ -1295,6 +1305,7 @@ main (int argc, char **argv)
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
   set_feature_state (NOT_CHECKED_YET);
+  g_mutex_clear (&g_test_mutex);
 
   return result;
 }
