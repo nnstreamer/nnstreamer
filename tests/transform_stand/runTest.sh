@@ -26,7 +26,7 @@ if [ "$SKIPGEN" == "YES" ]; then
     sopath=$2
 else
     echo "Test Case Generation Started"
-    python generateTest.py
+    python3 generateTest.py
     sopath=$1
 fi
 
@@ -35,7 +35,7 @@ gstTest "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tensor_transform mode=stand option=default ! multifilesink location=\"./result_%02d.log\" sync=true" 1 0 0 $PERFORMANCE
 
-python checkResult.py standardization test_00.dat.golden result_00.log 4 4 f f default
+python3 checkResult.py standardization test_00.dat.golden result_00.log 4 4 f f default
 
 testResult $? 1 "Golden test comparison" 0 1
 

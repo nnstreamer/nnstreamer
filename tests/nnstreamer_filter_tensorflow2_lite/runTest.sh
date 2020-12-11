@@ -71,7 +71,7 @@ PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
-python checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 1 "Golden test comparison" 0 1
 
 # Fail test for invalid input properties

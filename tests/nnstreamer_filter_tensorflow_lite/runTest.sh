@@ -71,7 +71,7 @@ PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow1-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
-python checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 1 "Golden test comparison" 0 1
 
 # Fail test for invalid input properties
@@ -92,7 +92,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoc
 # Input and output combination test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc pattern=13 num-buffers=1 ! videoconvert !  video/x-raw,width=640,height=480,framerate=30/1 ! tensor_converter ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! filesink location=combi.dummy.golden buffer-mode=unbuffered sync=false async=false filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! mux.sink_1 tensor_mux name=mux ! tensor_filter framework=tensorflow1-lite model=${PATH_TO_MODEL} inputCombination=1 outputCombination=i0,o0 ! tensor_demux name=demux demux.src_0 ! filesink location=tensorfilter.combi.in.log buffer-mode=unbuffered sync=false async=false demux.src_1 ! filesink location=tensorfilter.combi.out.log buffer-mode=unbuffered sync=false async=false" 7 0 0 $PERFORMANCE
 callCompareTest combi.dummy.golden tensorfilter.combi.in.log 7_0 "Output Combination Golden Test 7-0" 1 0
-python checkLabel.py tensorfilter.combi.out.log ${PATH_TO_LABEL} orange
+python3 checkLabel.py tensorfilter.combi.out.log ${PATH_TO_LABEL} orange
 testResult $? 1 "Golden test comparison" 0 1
 
 # Test the backend setting done with tensorflow1-lite

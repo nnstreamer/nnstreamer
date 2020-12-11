@@ -35,7 +35,7 @@ if [ -z ${SO_EXT} ]; then
 fi
 
 # Generate video_4x4xBGRx.xraw
-python generateTestCase.py
+python3 generateTestCase.py
 
 gstTest "--gst-plugin-path=../../build tensor_mux name=mux sync_mode=nosync ! tensor_filter framework=custom model=${RNN_DIR}/libdummyRNN.${SO_EXT} ! tee name=t ! queue ! tensor_reposink slot-index=0 silent=false filesrc location=\"video_4x4xBGRx.xraw\" ! application/octet-stream ! tensor_converter input-dim=4:4:4:1 input-type=uint8 ! mux.sink_0 tensor_reposrc slot-index=0 silent=false caps=\"other/tensor,dimension=(string)4:4:4:1,type=(string)uint8,framerate=(fraction)0/1\" ! mux.sink_1 t. ! queue ! multifilesink location=\"out_%1d.log\"" 1 0 0 $PERFORMANCE
 

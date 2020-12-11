@@ -99,11 +99,11 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 callCompareTest testcase05.direct.log testcase05.passthrough.log 5 "Compare 5" 0 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"320x240\" ! filesink location=\"testcase06.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase06.direct.log\" sync=true" 6 0 0 $PERFORMANCE
-python checkScaledTensor.py testcase06.direct.log 640 480 testcase06.scaled.log 320 240 3
+python3 checkScaledTensor.py testcase06.direct.log 640 480 testcase06.scaled.log 320 240 3
 testResult $? 6 "Golden test comparison" 0 1
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_S}\" custom=\"1280X960\" ! filesink location=\"testcase07.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase07.direct.log\" sync=true" 7 0 0 $PERFORMANCE
-python checkScaledTensor.py testcase07.direct.log 640 480 testcase07.scaled.log 1280 960 3
+python3 checkScaledTensor.py testcase07.direct.log 640 480 testcase07.scaled.log 1280 960 3
 testResult $? 7 "Golden test comparison" 0 1
 
 # Test average (8)
@@ -129,7 +129,7 @@ else
 fi
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL_SI}\" custom=\"320x240\" ! filesink location=\"testcase11.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase11.direct.log\" sync=true" 11 0 0 $PERFORMANCE
-python checkScaledTensor.py testcase11.direct.log 640 480 testcase11.scaled.log 320 240 3
+python3 checkScaledTensor.py testcase11.direct.log 640 480 testcase11.scaled.log 320 240 3
 testResult $? 11 "Golden test comparison" 0 1
 
 # OpenCV Test
@@ -148,11 +148,11 @@ if [ "$TEST_OPENCV" == "YES" ]; then
         callCompareTest testcase12.direct.log testcase12.passthrough.log 12 "Compare 12" 0 0
 
         gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320x240\" ! filesink location=\"testcase13.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase13.direct.log\" sync=true" 13 0 0 $PERFORMANCE
-        python checkScaledTensor.py testcase13.direct.log 640 480 testcase13.scaled.log 320 240 3
+        python3 checkScaledTensor.py testcase13.direct.log 640 480 testcase13.scaled.log 320 240 3
         testResult $? 13 "Golden test comparison" 0 1
 
         gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"1920x1080\" ! filesink location=\"testcase14.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase14.direct.log\" sync=true" 14 0 0 $PERFORMANCE
-        python checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 1920 1080 3
+        python3 checkScaledTensor.py testcase14.direct.log 640 480 testcase14.scaled.log 1920 1080 3
         testResult $? 14 "Golden test comparison" 0 1
     fi
 
@@ -190,7 +190,7 @@ if [ "$TEST_TENSORRT" == "YES" ]; then
 
   if [ -e $PATH_TO_MODEL ]; then
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=\"custom\" model=\"${PATH_TO_MODEL}\" custom=\"320:240:3\" ! tensor_transform mode=typecast option=uint8 ! tensor_transform mode=transpose option=2:0:1:3 ! filesink location=\"testcase16.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase16.direct.log\" sync=true" 16 0 0 $PERFORMANCE
-    python checkScaledTensor.py testcase16.direct.log 640 480 testcase16.scaled.log 320 240 3
+    python3 checkScaledTensor.py testcase16.direct.log 640 480 testcase16.scaled.log 320 240 3
     testResult $? 16 "Golden test comparison" 0 1
   fi
 fi

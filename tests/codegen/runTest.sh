@@ -44,7 +44,7 @@ function do_test() {
     rm -f tc${1}.c
     rm -f meson.build
 
-    cat <<EOF | python ../../tools/development/nnstreamerCodeGenCustomFilter.py
+    cat <<EOF | python3 ../../tools/development/nnstreamerCodeGenCustomFilter.py
 testcase${1}
 tc${1}
 ${2}
