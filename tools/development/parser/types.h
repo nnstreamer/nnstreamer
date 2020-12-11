@@ -20,13 +20,26 @@ typedef enum {
   eST_URI_SRC,
 } elementSpecialType;
 
+typedef enum {
+  oTI_Element = 0,
+  oTI_GstBin,
+} objectTypeId;
+
+typedef struct _chain_t chain_t;
+
 /** @brief Simplified GST-Element */
 typedef struct {
+  objectTypeId id;
+  elementSpecialType specialType;
+
   gchar *element;
   gchar *name;
-  elementSpecialType specialType;
   GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
   int refcount;
+
+  union {
+    GSList *elements; /**< _GstBin type uses this */
+  };
 } _Element;
 
 extern _Element *
@@ -54,11 +67,15 @@ typedef struct {
 } link_t;
 
 /** @brief Chain of elements */
-typedef struct {
+struct _chain_t {
   GSList *elements; /**< Originally its data is "GstElement". It's now _Element */
   reference_t first;
   reference_t last;
-} chain_t;
+};
+
+extern _Element *
+nnstparser_gstbin_make (const gchar * element, const gchar * name);
+
 
 /**
  * @brief A dummy created for gst2pbtxt
