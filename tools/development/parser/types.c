@@ -28,17 +28,39 @@ gst2pbtxt_parse_error_quark (void)
   return quark;
 }
 
+/** @brief Internal function to construct _Element */
+static void
+_nnstparser_config_element (_Element * e, const gchar * element,
+    const gchar * name)
+{
+  e->specialType = eST_normal;
+  e->element = g_strdup (element);
+  e->name = g_strdup (name);
+  e->refcount = 1;
+  e->id = oTI_Element;
+}
+
 /**
  * @brief Replacement of gst_parse_element_make
  */
 _Element *
 nnstparser_element_make (const gchar * element, const gchar * name)
 {
-  _Element ret = g_new0 (_Element, 1);
-  ret->specialType = eST_normal;
-  ret->element = g_strdup (element);
-  ret->name = g_strdup (name);
-  ret->refcount = 1;
+  _Element *ret = g_new0 (_Element, 1);
+  _nnstparser_config_element (ret, element, name);
+  return ret;
+}
+
+/**
+ * @brief Replacement of gst_parse_element_make
+ */
+_Element *
+nnstparser_gstbin_make (const gchar * element, const gchar * name)
+{
+  _Element *ret = g_new0 (_Element, 1);
+  _nnstparser_config_element (ret, element, name);
+  ret->id = oTI_GstBin;
+  ret->elements = NULL;
   return ret;
 }
 

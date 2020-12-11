@@ -941,7 +941,7 @@ binopener:	'('			      { $$ = g_strdup("bin"); }
 bin:	binopener assignments chainlist ')'   {
 						chain_t *chain = $3;
 						GSList *walk;
-						GstBin *bin = (GstBin *) gst_element_factory_make ($1, NULL);
+						_Element *bin = nnstparser_gstbin_make ($1, NULL);
 						if (!chain) {
 						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY_BIN,
 						    _("specified empty bin \"%s\", not allowed"), $1);
@@ -956,12 +956,17 @@ bin:	binopener assignments chainlist ')'   {
 						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
 						    _("no bin \"%s\", unpacking elements"), $1);
 						  /* clear property-list */
-						  g_slist_foreach ($2, (GFunc) gst_parse_strfree, NULL);
+						  g_slist_foreach ($2, (GFunc) g_free, NULL);
 						  g_slist_free ($2);
 						  $2 = NULL;
 						} else {
+						  /**
+						   * Appending multiple elements to slist is inefficient.
+						   * Prepend all elements and to reverse.
+						   */
 						  for (walk = chain->elements; walk; walk = walk->next )
-						    gst_bin_add (bin, GST_ELEMENT (walk->data));
+						    bin->elements = g_slist_prepend (bin->elements, walk->data);
+						  bin->elements = g_slist_reverse (bin->elements);
 						  g_slist_free (chain->elements);
 						  chain->elements = g_slist_prepend (NULL, bin);
 						}
@@ -970,10 +975,10 @@ bin:	binopener assignments chainlist ')'   {
 						 * HINT: property-list cleared above, if bin==NULL
 						 */
 						for (walk = $2; walk; walk = walk->next)
-						  gst_parse_element_set ((gchar *) walk->data,
-							GST_ELEMENT (bin), graph);
+						  nnstparser_element_set ((gchar *) walk->data,
+							bin, graph);
 						g_slist_free ($2);
-						gst_parse_strfree ($1);
+						g_free ($1);
 					      }
 	;
 
